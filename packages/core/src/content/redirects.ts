@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { withBase } from "../base-path.js";
 import { absoluteUrl } from "../head.js";
+import { DEFAULT_THEME_COLORS } from "../theme.js";
 import type { BuildFile } from "./calendars.js";
 import type { SiteContent } from "./load.js";
 import { isReservedPagePath } from "./paths.js";
@@ -21,7 +22,15 @@ export const redirectSchema = z.object({
 export const redirectsFileSchema = z.object({
   version: z.literal(1),
   redirects: z.array(redirectSchema).default([]),
+  /** What the page at an old address says while it sends visitors on, with `{page}` for the link. */
+  message: z.string().optional(),
 });
+
+/** What the page at an old address says while it sends visitors on, unless the site says otherwise. */
+export const REDIRECT_MESSAGE = "This page has moved to {page}.";
+
+/** The placeholder in a redirect's message that becomes the link to where visitors are going. */
+export const REDIRECT_LINK_PLACEHOLDER = "{page}";
 
 export type Redirect = z.output<typeof redirectSchema>;
 export type RedirectsFile = z.output<typeof redirectsFileSchema>;
@@ -139,27 +148,67 @@ export function redirectOutputFile(from: string): string {
   return /\.html?$/i.test(path) ? path : `${path}/index.html`;
 }
 
-function escapeAttribute(text: string): string {
+function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** A page that sends visitors on at once, and tells search engines where the page is now. */
-export function redirectPage(content: Pick<SiteContent, "settings">, to: string, base?: string): string {
+/** The title of the page a target on this site is, for the link's text. */
+function targetTitle(content: Pick<SiteContent, "pages">, to: string): string | undefined {
+  const path = targetPath(to);
+  const page = path && content.pages.find((candidate) => candidate.path === path);
+  const title = page && (page.content.data.root.props as Record<string, unknown> | undefined)?.title;
+  return typeof title === "string" && title.trim() ? title.trim() : undefined;
+}
+
+/**
+ * A page that sends visitors on at once and tells search engines where the
+ * page is now. It replaces itself in the browser's history, so Back skips it,
+ * and says where visitors are going, for the moment it shows, or for good
+ * without JavaScript, when the `<meta>` refresh sends them on instead.
+ */
+export function redirectPage(
+  content: Pick<SiteContent, "settings" | "redirectMessage"> & Partial<Pick<SiteContent, "pages">>,
+  to: string,
+  base?: string,
+): string {
   const { settings } = content;
   const href = withBase(to, base);
   const canonical = to.startsWith("/") ? settings.url && absoluteUrl(settings.url, to) : to;
-  const link = escapeAttribute(href);
+  const link = escapeHtml(href);
+  const colors = { ...DEFAULT_THEME_COLORS, ...settings.theme.colors };
+  const name = (content.pages && targetTitle({ pages: content.pages }, to)) ?? to;
+  const anchor = `<a href="${link}" style="color:${escapeHtml(colors.primary)}">${escapeHtml(name)}</a>`;
+  const message = escapeHtml(content.redirectMessage?.trim() || REDIRECT_MESSAGE);
+  const text = message.includes(REDIRECT_LINK_PLACEHOLDER)
+    ? message.split(REDIRECT_LINK_PLACEHOLDER).join(anchor)
+    : `${message} ${anchor}`;
+  // Keeps the part after # of the old address, as a server's redirect would, unless the target has its own.
+  const target = JSON.stringify(href).replace(/</g, "\\u003c");
+  const script = href.includes("#") ? `location.replace(${target});` : `location.replace(${target} + location.hash);`;
+  const style = [
+    "margin:0",
+    "font:1.125rem/1.6 system-ui,sans-serif",
+    `color:${colors.foreground}`,
+    `background:${colors.background}`,
+  ].join(";");
   return [
     "<!doctype html>",
-    `<html lang="${escapeAttribute(settings.language)}">`,
+    `<html lang="${escapeHtml(settings.language)}">`,
     "<head>",
     '<meta charset="utf-8">',
-    `<title>${escapeAttribute(settings.title)}</title>`,
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>${escapeHtml(settings.title)}</title>`,
     '<meta name="robots" content="noindex">',
-    ...(canonical ? [`<link rel="canonical" href="${escapeAttribute(canonical)}">`] : []),
+    ...(canonical ? [`<link rel="canonical" href="${escapeHtml(canonical)}">`] : []),
     `<meta http-equiv="refresh" content="0; url=${link}">`,
+    `<script>${script}</script>`,
     "</head>",
-    `<body><a href="${link}">${link}</a></body>`,
+    `<body style="${escapeHtml(style)}">`,
+    `<main style="max-width:36rem;margin:20vh auto 0;padding:0 1.5rem">`,
+    `<p style="margin:0 0 .5rem;font-weight:600">${escapeHtml(settings.title)}</p>`,
+    `<p style="margin:0">${text}</p>`,
+    "</main>",
+    "</body>",
     "</html>",
     "",
   ].join("\n");
@@ -183,7 +232,7 @@ export function findRedirect(content: Pick<SiteContent, "redirects">, path: stri
  * base path, which builds add to addresses on the site.
  */
 export function redirectFiles(
-  content: Pick<SiteContent, "settings" | "redirects">,
+  content: Pick<SiteContent, "settings" | "redirects" | "redirectMessage"> & Partial<Pick<SiteContent, "pages">>,
   options: { taken?: Iterable<string>; base?: string } = {},
 ): BuildFile[] {
   const taken = new Set(options.taken ?? []);

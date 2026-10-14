@@ -93,7 +93,7 @@ Each host's free plan has its own rules about business use. If the site is for a
 
 **Vercel** (works with GitHub and GitLab; the free plan is for non-commercial sites only)
 
-1. Import the repository in Vercel. `vercel.json` already has the right settings.
+1. Import the repository in Vercel. `vercel.ts` already has the right settings, and has Vercel send the site's redirects itself.
 2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule.
 
 Delete the setup files for the hosts you don't use.

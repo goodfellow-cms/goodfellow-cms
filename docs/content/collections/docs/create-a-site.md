@@ -75,7 +75,7 @@ my-site/
 │   └── styles/custom.css    # custom CSS from Site Settings
 ├── public/media/            # uploaded images and files
 ├── src/styles.css           # Tailwind and the site's theme
-└── .github/workflows/deploy.yml, .gitlab-ci.yml, vercel.json   # host setups
+└── .github/workflows/deploy.yml, .gitlab-ci.yml, vercel.ts   # host setups
 ```
 
 Next, [put it online](/docs/put-it-online).

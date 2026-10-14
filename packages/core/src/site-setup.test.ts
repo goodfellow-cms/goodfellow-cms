@@ -22,7 +22,7 @@ function template(): SiteFiles {
     ["_gitignore", "node_modules\n"],
     [".github/workflows/deploy.yml", "name: Deploy"],
     [".gitlab-ci.yml", "pages:"],
-    ["vercel.json", "{}"],
+    ["vercel.ts", "{}"],
     ["public/media/logo.png", new Uint8Array([137, 80, 78, 71])],
   ]);
 }
@@ -52,7 +52,7 @@ describe("planSite", () => {
 
   it("keeps every host's setup when none is chosen", async () => {
     const files = await planSite({ template: template(), name: "site", versions: { "@goodfellow-cms/core": "1.0.0" } });
-    expect(files.has(".gitlab-ci.yml") && files.has("vercel.json") && files.has(".github/workflows/deploy.yml")).toBe(
+    expect(files.has(".gitlab-ci.yml") && files.has("vercel.ts") && files.has(".github/workflows/deploy.yml")).toBe(
       true,
     );
     expect(files.get("goodfellow.config.tsx")).toBe(config);

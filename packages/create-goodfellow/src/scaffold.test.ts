@@ -63,7 +63,7 @@ describe("scaffold", () => {
     // Every host's setup is kept until one is chosen.
     expect(existsSync(join(target, ".github/workflows/deploy.yml"))).toBe(true);
     expect(existsSync(join(target, ".gitlab-ci.yml"))).toBe(true);
-    expect(existsSync(join(target, "vercel.json"))).toBe(true);
+    expect(existsSync(join(target, "vercel.ts"))).toBe(true);
     // Installed packages and build output stay behind.
     expect(existsSync(join(target, "node_modules"))).toBe(false);
     expect(existsSync(join(target, "dist"))).toBe(false);
@@ -133,7 +133,7 @@ describe("scaffold", () => {
     expect(config).toContain('  backend: gitlab({ project: "parish/site" }),');
     expect(config).toContain('// backend: github({ repo: "your-name/your-site" }),');
     expect(existsSync(join(target, ".gitlab-ci.yml"))).toBe(true);
-    expect(existsSync(join(target, "vercel.json"))).toBe(false);
+    expect(existsSync(join(target, "vercel.ts"))).toBe(false);
     expect(existsSync(join(target, ".github"))).toBe(false);
   });
 

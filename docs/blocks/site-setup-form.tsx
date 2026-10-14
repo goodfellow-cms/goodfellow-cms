@@ -659,7 +659,7 @@ function Created({ created, choices }: { created: CreatedSiteRepository; choices
             vercel.com/new
           </SiteLink>
           , connect your {github ? "GitHub" : "GitLab"} account if you haven't already, and import {created.repo}. Its
-          settings are already in the site's vercel.json.
+          settings are already in the site's vercel.ts.
         </Note>
       ) : created.siteUrl ? (
         <p>

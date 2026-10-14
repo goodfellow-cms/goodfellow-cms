@@ -30,4 +30,8 @@ order: 5
 
 **Change address** on the Pages screen adds a redirect from the page's old address, unless you untick **Keep … working**, and points redirects to the old address at the new one, so visitors never go through two.
 
-When the site is built, each old address gets a small page that sends visitors on at once and tells search engines where the page is now. Search engines treat it as a permanent redirect. Hosts such as GitHub Pages can't send redirects themselves, so this works on every host. A page always wins: if a page has a redirect's old address, visitors see the page, and the Redirects tab says so.
+On **Vercel**, Vercel sends the redirects itself, as permanent redirects, so visitors go straight to the new address: the site's `vercel.ts` gives them to Vercel, or, on a Next.js site, `withGoodfellow()` in `next.config.ts` does. (`next build` then warns that redirects don't work with a static export, which is true of other hosts, and why they get the pages below instead.)
+
+Hosts such as GitHub Pages and GitLab Pages can't send redirects themselves, so when the site is built, each old address gets a small page that sends visitors on at once and tells search engines where the page is now. Search engines treat it as a permanent redirect, and Back skips it. For the moment it shows, or for good in browsers without JavaScript, it says **This page has moved to** and links to the page. **Message while visitors are sent on** changes the wording, such as to the site's own language; `{page}` in it becomes the link.
+
+A page always wins: if a page or a collection's item has a redirect's old address, visitors see the page, and the Redirects tab says so.

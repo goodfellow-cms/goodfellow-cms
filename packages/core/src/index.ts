@@ -145,6 +145,8 @@ export {
 export {
   findRedirect,
   isReservedRedirect,
+  REDIRECT_LINK_PLACEHOLDER,
+  REDIRECT_MESSAGE,
   type Redirect,
   type RedirectProblem,
   type RedirectsFile,

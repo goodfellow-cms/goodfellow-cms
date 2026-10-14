@@ -125,10 +125,24 @@ export function menusFileChange(menus: Menus): FileChange {
   return { path: MENUS_FILE, content: serializeContent({ version: CURRENT_VERSION.menus, menus }) };
 }
 
-/** Writes the site's redirects, deleting the file once there are none. */
-export function redirectsFileChange(redirects: Redirect[]): FileChange {
-  return redirects.length > 0
-    ? { path: REDIRECTS_FILE, content: serializeContent({ version: CURRENT_VERSION.redirects, redirects }) }
+/** The site's redirects as `content/redirects.json` holds them: the list, and what the page at an old address says. */
+export interface SiteRedirects {
+  redirects: Redirect[];
+  message?: string;
+}
+
+/** Writes the site's redirects, deleting the file once there are none and no message of its own. */
+export function redirectsFileChange({ redirects, message }: SiteRedirects): FileChange {
+  const ownMessage = message?.trim();
+  return redirects.length > 0 || ownMessage
+    ? {
+        path: REDIRECTS_FILE,
+        content: serializeContent({
+          version: CURRENT_VERSION.redirects,
+          redirects,
+          ...(ownMessage && { message: ownMessage }),
+        }),
+      }
     : { path: REDIRECTS_FILE, delete: true };
 }
 
@@ -158,7 +172,7 @@ export function movePageChanges(
   to: string,
   menus: Menus,
   updateLinks: boolean,
-  redirects?: readonly Redirect[],
+  redirects?: SiteRedirects,
 ): FileChange[] {
   const changes: FileChange[] = [
     { path: page.file, delete: true },
@@ -166,7 +180,11 @@ export function movePageChanges(
   ];
   const updatedMenus = updateLinks ? updateMenuLinks(menus, page.path, to) : undefined;
   if (updatedMenus) changes.push(menusFileChange(updatedMenus));
-  if (redirects && page.path !== "/") changes.push(redirectsFileChange(movedPageRedirects(redirects, page.path, to)));
+  if (redirects && page.path !== "/") {
+    changes.push(
+      redirectsFileChange({ ...redirects, redirects: movedPageRedirects(redirects.redirects, page.path, to) }),
+    );
+  }
   return changes;
 }
 

@@ -114,7 +114,13 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
     if (check.path === page.path) return onClose();
     setBusy(true);
     const result = await publish(
-      movePageChanges(page, check.path, content.menus, updateLinks, redirect ? (content.redirects ?? []) : undefined),
+      movePageChanges(
+        page,
+        check.path,
+        content.menus,
+        updateLinks,
+        redirect ? { redirects: content.redirects ?? [], message: content.redirectMessage } : undefined,
+      ),
       t("movePage.message", { title, from: page.path, to: check.path }),
     );
     setBusy(false);

@@ -514,20 +514,26 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     settings: SiteSettings;
     menus: Menus;
     redirects: Redirect[];
+    redirectMessage: string;
     css: string;
     code: SiteCode;
   }>({
     settings: content.settings,
     menus: content.menus,
     redirects: content.redirects ?? [],
+    redirectMessage: content.redirectMessage ?? "",
     css: content.customCss,
     code: content.code ?? EMPTY_CODE,
   });
-  const { settings, menus, redirects, css, code } = history.present;
+  const { settings, menus, redirects, redirectMessage, css, code } = history.present;
   const { update } = history;
   const setSettings = useCallback((settings: SiteSettings) => update((form) => ({ ...form, settings })), [update]);
   const setMenus = useCallback((menus: Menus) => update((form) => ({ ...form, menus })), [update]);
   const setRedirects = useCallback((redirects: Redirect[]) => update((form) => ({ ...form, redirects })), [update]);
+  const setRedirectMessage = useCallback(
+    (redirectMessage: string) => update((form) => ({ ...form, redirectMessage })),
+    [update],
+  );
   const setCss = useCallback((css: string) => update((form) => ({ ...form, css })), [update]);
   const setCode = useCallback((code: SiteCode) => update((form) => ({ ...form, code })), [update]);
   const [showErrors, setShowErrors] = useState(false);
@@ -553,13 +559,16 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
       result.push(siteSettingsFileChange(validation.settings));
     }
     if (serializeContent(menus) !== serializeContent(content.menus)) result.push(menusFileChange(menus));
-    if (serializeContent(savedRedirects) !== serializeContent(content.redirects ?? [])) {
-      result.push(redirectsFileChange(savedRedirects));
+    if (
+      serializeContent(savedRedirects) !== serializeContent(content.redirects ?? []) ||
+      redirectMessage.trim() !== (content.redirectMessage ?? "").trim()
+    ) {
+      result.push(redirectsFileChange({ redirects: savedRedirects, message: redirectMessage }));
     }
     if (storedCss(css) !== storedCss(content.customCss)) result.push(customCssFileChange(css));
     result.push(...codeFileChanges(code, content.code));
     return result;
-  }, [validation, menus, savedRedirects, css, code, content]);
+  }, [validation, menus, savedRedirects, redirectMessage, css, code, content]);
 
   const dirty = changes.length > 0 || !validation.settings;
   // "Published." goes after a few seconds, or as soon as anything changes.
@@ -659,7 +668,14 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
         {tab === "theme" && <ThemeTab draft={settings} errors={errors} onChange={setSettings} />}
         {tab === "menus" && <MenusEditor menus={menus} onChange={setMenus} />}
         {tab === "redirects" && (
-          <RedirectsEditor redirects={redirects} taken={taken} showErrors={showErrors} onChange={setRedirects} />
+          <RedirectsEditor
+            redirects={redirects}
+            message={redirectMessage}
+            taken={taken}
+            showErrors={showErrors}
+            onChange={setRedirects}
+            onMessageChange={setRedirectMessage}
+          />
         )}
         {tab === "css" && <CssTab css={css} onChange={setCss} />}
         {tab === "code" && <CodeTab code={code} headError={showErrors ? headError : undefined} onChange={setCode} />}

@@ -92,7 +92,7 @@ Each host's free plan has its own rules about business use. If the site is for a
 
 **Vercel** (works with GitHub and GitLab; the free plan is for non-commercial sites only)
 
-1. Import the repository in Vercel, which recognizes it as a Next.js site.
+1. Import the repository in Vercel, which recognizes it as a Next.js site, and sends the site's redirects itself.
 2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule.
 
 Delete the setup files for the hosts you don't use.

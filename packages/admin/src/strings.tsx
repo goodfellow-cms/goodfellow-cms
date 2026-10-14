@@ -789,6 +789,9 @@ export const defaultStrings = {
   "redirects.to": "Send visitors to",
   "redirects.add": "Add redirect",
   "redirects.remove": "Remove",
+  "redirects.message": "Message while visitors are sent on",
+  "redirects.messageHint":
+    "Shown at an old address for a moment, or for good in browsers without JavaScript. {placeholder} becomes a link to where visitors are going. Leave it empty for the message shown here.",
   "redirects.unused":
     "A page has this address, so visitors see the page instead. Remove the redirect, or move the page.",
   "redirects.problem.noFrom": "Add the old address, such as /about-us.",

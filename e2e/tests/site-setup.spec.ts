@@ -52,7 +52,7 @@ test("creates a site on GitHub with GitHub Pages, as npm create goodfellow would
   expect(text(files.get("goodfellow.config.tsx"))).toContain('backend: github({ repo: "someone/parish" }),');
   expect(JSON.parse(text(files.get("package.json"))).name).toBe("parish");
   expect(files.has(".github/workflows/deploy.yml")).toBe(true);
-  expect(files.has(".gitlab-ci.yml") || files.has("vercel.json")).toBe(false);
+  expect(files.has(".gitlab-ci.yml") || files.has("vercel.ts")).toBe(false);
   expect(files.has(".gitignore")).toBe(true);
   // The parish example's own blocks, and the recommended ones.
   expect(files.has("blocks/mass-times.tsx")).toBe(true);

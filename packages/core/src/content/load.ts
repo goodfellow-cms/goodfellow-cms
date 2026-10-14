@@ -80,6 +80,8 @@ export interface SiteContent {
   code?: SiteCode;
   /** Old addresses that send visitors on (`content/redirects.json`). Missing means none. */
   redirects?: Redirect[];
+  /** What the page at an old address says while it sends visitors on, if the site set it. */
+  redirectMessage?: string;
 }
 
 export interface SiteCode {
@@ -272,6 +274,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     customCss: customCss ?? "",
     code: { head: headCode ?? "", body: bodyCode ?? "" },
     redirects: redirectsFile.redirects,
+    ...(redirectsFile.message !== undefined && { redirectMessage: redirectsFile.message }),
   };
 }
 
