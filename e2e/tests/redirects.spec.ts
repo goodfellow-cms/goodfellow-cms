@@ -19,12 +19,17 @@ test("sets up redirects in Site Settings, which send visitors on from old addres
   await page.getByRole("button", { name: "Add redirect" }).click();
   await page.getByLabel("Old address").nth(1).fill("/about");
   await page.getByLabel("Send visitors to").nth(1).fill("/");
-  await expect(page.getByText("A page has this address, so visitors see the page instead.", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("A page has this address, so visitors see the page instead.", { exact: false }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Remove" }).nth(1).click();
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
 
-  expect(readJson("content/redirects.json")).toEqual({ version: 1, redirects: [{ from: "/who-we-are", to: "/about" }] });
+  expect(readJson("content/redirects.json")).toEqual({
+    version: 1,
+    redirects: [{ from: "/who-we-are", to: "/about" }],
+  });
   expect(readSiteFile("content/site.json")).toBe(before);
 
   await page.goto("/who-we-are/");
