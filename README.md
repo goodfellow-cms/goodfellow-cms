@@ -13,12 +13,13 @@ Goodfellow gives non-technical site owners a drag-and-drop editor at `/admin` wi
 
 ## How it works
 
-```
-Editor's browser                       Git host (GitHub / GitLab)         Static host
-┌──────────────────────┐   API calls   ┌──────────────────────┐    push   ┌───────────────┐
-│ /admin               │ ────────────> │ content/*.json       │ ────────> │ build + serve │
-│ Puck editor + forms  │ <──────────── │ public/media/*       │  trigger  │ static HTML   │
-└──────────────────────┘               └──────────────────────┘           └───────────────┘
+```mermaid
+flowchart TB
+  editor["<b>Editor's browser</b><br>The admin panel at /admin:<br>the Puck editor and forms"]
+  git["<b>Git host: GitHub or GitLab</b><br>content/: pages and settings as JSON<br>public/media/: images and files"]
+  site["<b>Static host</b><br>Builds the site and serves it as static HTML"]
+  editor <-->|API calls| git
+  git -->|a push starts the build| site
 ```
 
 - **No server.** The admin panel is part of the static site and talks to the GitHub or GitLab API straight from the browser.
