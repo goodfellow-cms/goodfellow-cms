@@ -372,12 +372,14 @@ export function githubSetup(options: GitHubSetupOptions = {}): SetupHost {
       if (!trimmed) throw new SignInError("invalid", "Paste a token to sign in.");
       return setupAccount(await tokenCreator({ apiUrl, token: trimmed, fetch: fetcher }));
     },
-    async startRedirect() {
+    async startRedirect({ install } = {}) {
       if (!service || !location) throw new SignInError("unavailable", "Signing in with GitHub isn't available here.");
       await service.health();
       const { verifier, challenge } = await newVerifier();
       pending.save(verifier, false);
-      location.assign(service.startUrl({ purpose: "setup", back: location.href(), challenge, remember: false }));
+      location.assign(
+        service.startUrl({ purpose: "setup", back: location.href(), challenge, remember: false, install }),
+      );
     },
   };
 }

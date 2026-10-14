@@ -1,4 +1,4 @@
-import { type GitBackend, type GitHost, SignInError } from "@goodfellow-cms/core";
+import { type GitBackend, type GitHost, type RedirectOptions, SignInError } from "@goodfellow-cms/core";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, ErrorMessage, TextField } from "./ui.js";
@@ -23,10 +23,25 @@ const REDIRECT_PROBLEMS = new Set([
   "unavailable",
 ]);
 
-/** Explains why signing in didn't work, with a link to where it's fixed, such as installing Goodfellow. */
-export function SignInProblem({ error, host, expired }: { error: unknown; host: string; expired?: boolean }) {
+/**
+ * Explains why signing in didn't work. Where Goodfellow isn't installed yet,
+ * `onInstall` offers to install it, which signs the person in too; otherwise
+ * it links to where it's fixed.
+ */
+export function SignInProblem({
+  error,
+  host,
+  expired,
+  onInstall,
+}: {
+  error: unknown;
+  host: string;
+  expired?: boolean;
+  onInstall?: () => void;
+}) {
   const t = useStrings();
   const link = error instanceof SignInError ? error.link : undefined;
+  const installable = onInstall && error instanceof SignInError && error.problem === "not-installed";
   return (
     <>
       <ErrorMessage
@@ -37,12 +52,20 @@ export function SignInProblem({ error, host, expired }: { error: unknown; host: 
         }
         error={error}
       />
-      {link && (
-        <p>
-          <a href={link} target="_blank" rel="noreferrer">
+      {installable ? (
+        <div>
+          <Button variant="primary" onClick={onInstall}>
             {t("signIn.install", { host })}
-          </a>
-        </p>
+          </Button>
+        </div>
+      ) : (
+        link && (
+          <p>
+            <a href={link} target="_blank" rel="noreferrer">
+              {t("signIn.install", { host })}
+            </a>
+          </p>
+        )
       )}
     </>
   );
@@ -67,11 +90,11 @@ function SignInScreen({
   // When signing in by going to the host can't work, the token form is the way in, so it's shown open.
   const redirectFailed = failure instanceof SignInError && REDIRECT_PROBLEMS.has(failure.problem);
 
-  const redirect = async () => {
+  const redirect = async (options?: RedirectOptions) => {
     setBusy(true);
     setFailure(undefined);
     try {
-      await host.startRedirect(remember);
+      await host.startRedirect(remember, options);
     } catch (caught) {
       setFailure(caught);
       setBusy(false);
@@ -104,7 +127,14 @@ function SignInScreen({
     <div className="gfa-sign-in">
       <h1>{t("signIn.title")}</h1>
       <p>{t("signIn.intro", values)}</p>
-      {failure !== undefined && <SignInProblem error={failure} host={host.name} expired={error === failure} />}
+      {failure !== undefined && (
+        <SignInProblem
+          error={failure}
+          host={host.name}
+          expired={error === failure}
+          onInstall={() => void redirect({ install: true })}
+        />
+      )}
 
       {host.canRedirect && (
         <div className="gfa-form">

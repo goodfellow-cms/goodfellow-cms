@@ -356,9 +356,15 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
     }
   }
 
-  async function signInWithRedirect() {
+  async function signInWithRedirect(install = false) {
+    setError(undefined);
     sessionStorage.setItem(CHOICES_KEY, JSON.stringify(choices));
-    await host.startRedirect();
+    try {
+      await host.startRedirect({ install });
+    } catch (caught) {
+      sessionStorage.removeItem(CHOICES_KEY);
+      setError(signInMessage(caught));
+    }
   }
 
   async function create() {
@@ -607,14 +613,21 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
             />
           </div>
           {chosenOwner?.installUrl && (
-            <Note>
-              Before creating a site in {chosenOwner.path}, install Goodfellow there:{" "}
-              <SiteLink className={link} href={chosenOwner.installUrl} target="_blank" rel="noopener noreferrer">
-                install Goodfellow on GitHub
-              </SiteLink>
-              , choosing {chosenOwner.path}, then sign in again here. It lets this page create the repository and set it
-              up, and nothing else.
-            </Note>
+            <div className="grid gap-2 rounded-lg bg-muted p-3 text-sm">
+              <p>
+                Before creating a site in {chosenOwner.path}, install Goodfellow there. GitHub asks where: choose{" "}
+                {chosenOwner.path}, then come back here, signed in. It lets this page create the site's repository and
+                set it up.
+              </p>
+              <button
+                type="button"
+                className={`${button} justify-self-start`}
+                disabled={busy}
+                onClick={() => void signInWithRedirect(true)}
+              >
+                Install Goodfellow on GitHub
+              </button>
+            </div>
           )}
           <p className="text-sm text-muted-foreground" aria-live="polite">
             {!validName
@@ -664,12 +677,9 @@ function Created({ created, choices }: { created: CreatedSiteRepository; choices
         .
       </p>
       {created.signInInstallUrl && (
-        <Note tone="warning">
-          So that editors can sign in to the admin panel with GitHub,{" "}
-          <SiteLink className={link} href={created.signInInstallUrl} target="_blank" rel="noopener noreferrer">
-            install Goodfellow's sign-in on GitHub
-          </SiteLink>{" "}
-          and choose {created.repo}. Until then, they sign in with a token.
+        <Note>
+          The first time you open the site's admin panel, Sign in with GitHub offers to install Goodfellow's sign-in on
+          {` ${created.repo}`}, which signs you in too. After that, editors sign in with GitHub as well.
         </Note>
       )}
       {created.warnings.includes("pages-unavailable") && (

@@ -1,21 +1,27 @@
 /**
  * Goodfellow's sign-in worker: editors sign in with GitHub, and the admin
  * panel gets a token for one repository, with only the permissions it needs,
- * lasting an hour. The person's own GitHub token stays sealed inside the
- * session, which only this worker can open.
+ * lasting an hour. It stores nothing: the person's own GitHub token is revoked
+ * as soon as they've signed in, and the session the browser keeps says only
+ * who they are and which site it's for, sealed so it can't be changed.
  *
  * The admin panel asks:
  * 1. `GET /github/check`: can this page sign in here at all?
  * 2. `GET /github/start`: sends the person to GitHub, which comes back to
- *    `/github/callback`, which goes back to the admin panel with a grant.
+ *    `/github/callback`, which goes back to the admin panel with a grant. With
+ *    `install=1`, GitHub's page installs Goodfellow first, and signs them in too.
  * 3. `POST /github/session`: the grant and the PKCE verifier only that tab
  *    knows, for a session and the first token.
- * 4. `POST /github/token`: the session, for a new token, about once an hour.
- * 5. `POST /github/sign-out`: revokes the person's GitHub token.
+ * 4. `POST /github/token`: the session, for a new token, about once an hour,
+ *    checking the person still edits the site each time.
  *
  * The site setup page signs in the same way, with `/github/setup/*` creating
- * the repository.
+ * the repository. Creating it needs the person's own token, so the setup
+ * page's session keeps it, sealed, until the repository exists or half an hour
+ * has passed, whichever is first; then it's revoked.
  */
+
+import githubAppJwt from "universal-github-app-jwt";
 import {
   type App,
   type GitHubConfig,
@@ -29,7 +35,6 @@ import {
   type UserTokens,
   userTokens,
 } from "./github.js";
-import { appJwt } from "./jwt.js";
 import { type DurableObjectNamespaceLike, durableLimiter, type Limit, type Limiter, memoryLimiter } from "./limits.js";
 import { challengeFor, createSealer, type Sealer } from "./seal.js";
 
@@ -101,8 +106,8 @@ const STATE_LIFETIME = 10 * 60_000;
 const GRANT_LIFETIME = 5 * 60_000;
 const SESSION_LIFETIME = 12 * 3_600_000;
 const REMEMBERED_SESSION_LIFETIME = 30 * 24 * 3_600_000;
-/** User tokens are renewed when they have less than this left. */
-const REFRESH_MARGIN = 5 * 60_000;
+/** The setup page's session, which holds the person's own token, lasts only as long as creating a site takes. */
+const SETUP_SESSION_LIFETIME = 30 * 60_000;
 
 const DEFAULT_LIMITS = { editor: 300, site: 3_000, all: 40_000 };
 
@@ -122,6 +127,8 @@ interface StateData {
   return: string;
   challenge: string;
   remember: boolean;
+  /** Sent to GitHub's install page first, so the return address can only be checked once it's back. */
+  install?: boolean;
 }
 
 interface SessionData {
@@ -131,7 +138,8 @@ interface SessionData {
   origin: string;
   remember: boolean;
   user: SignedInUser;
-  tokens: UserTokens;
+  /** The person's own GitHub token: only in the setup page's session, which needs it to create the repository. */
+  tokens?: UserTokens;
 }
 
 interface GrantData extends SessionData {
@@ -184,7 +192,8 @@ function publicUser({ login, name, avatarUrl, email }: SignedInUser) {
 
 const PAGE_MESSAGES: Partial<Record<SignInProblem, string>> = {
   busy: "Signing in with GitHub has been used too much today. Go back and sign in with an access token instead.",
-  "not-installed": "Goodfellow isn't installed on the site's repository. Go back to the admin panel to install it.",
+  "not-installed":
+    "Goodfellow isn't installed on the site's repository, perhaps because another was chosen. Go back to the admin panel and install it again, choosing the site.",
   "no-address":
     "The site's settings don't have its address yet, so signing in with GitHub can't check where to come back to.",
   "wrong-address": "This isn't the address the site's settings list, so signing in with GitHub can't come back here.",
@@ -271,6 +280,11 @@ export function createWorker(options: WorkerOptions = {}) {
       return `${config.web}/apps/${encodeURIComponent(app.slug)}/installations/new`;
     }
 
+    /** A token for calling GitHub as the app itself, such as to make installation tokens. */
+    async function jwtFor(app: App): Promise<string> {
+      return (await githubAppJwt({ id: app.id, privateKey: app.privateKey, now: Math.floor(now() / 1000) })).token;
+    }
+
     function sealer(): Promise<Sealer> {
       const key = env.SESSION_KEY ?? "";
       let found = sealers.get(key);
@@ -299,7 +313,7 @@ export function createWorker(options: WorkerOptions = {}) {
       if (cached && cached.id !== undefined && now() - cached.at < 5 * 60_000) return cached.id;
       try {
         const { id } = await githubJson<{ id: number }>(config, `/repos/${repoPath(repo)}/installation`, {
-          auth: { bearer: await appJwt(app.id, app.privateKey, now()) },
+          auth: { bearer: await jwtFor(app) },
         });
         installations.set(key, { id, at: now() });
         return id;
@@ -330,7 +344,7 @@ export function createWorker(options: WorkerOptions = {}) {
       const app = appFor(purpose);
       const installation = await installationFor(app, repo);
       if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
-      const reader = await installationToken(config, await appJwt(app.id, app.privateKey, now()), installation, repo, {
+      const reader = await installationToken(config, await jwtFor(app), installation, repo, {
         contents: "read",
         metadata: "read",
       });
@@ -368,25 +382,22 @@ export function createWorker(options: WorkerOptions = {}) {
     }
 
     async function sealSession(session: SessionData): Promise<string> {
-      let lifetime = session.remember ? REMEMBERED_SESSION_LIFETIME : SESSION_LIFETIME;
-      if (session.tokens.refreshExpires) lifetime = Math.min(lifetime, session.tokens.refreshExpires - now());
+      const lifetime =
+        session.purpose === "setup"
+          ? SETUP_SESSION_LIFETIME
+          : session.remember
+            ? REMEMBERED_SESSION_LIFETIME
+            : SESSION_LIFETIME;
       return (await sealer()).seal("session", session, lifetime);
     }
 
-    /** The person's GitHub token, renewed if it's about to expire. */
-    async function freshTokens(session: SessionData): Promise<UserTokens> {
-      const { tokens } = session;
-      if (!tokens.accessExpires || tokens.accessExpires - REFRESH_MARGIN > now()) return tokens;
-      if (!tokens.refresh) throw new Problem("invalid", 401);
-      try {
-        return await userTokens(config, appFor(session.purpose), { refresh: tokens.refresh }, now());
-      } catch (error) {
-        if (error instanceof GitHubError && error.status === 401) throw new Problem("invalid", 401);
-        throw error;
-      }
+    /** What the person may do on the repository, as GitHub says. */
+    function allowed(purpose: Purpose, permissions: { push?: boolean; admin?: boolean } | undefined): void {
+      if (purpose === "edit" && !permissions?.push) throw new Problem("cant-publish", 403);
+      if (purpose === "owner" && !permissions?.admin) throw new Problem("not-owner", 403);
     }
 
-    /** Whether the person may do what the sign-in is for: publish to the site, or manage it as an owner. */
+    /** Whether the person may do what the sign-in is for, asked with their own token as they sign in. */
     async function checkAccess(purpose: Purpose, repo: string, token: string): Promise<void> {
       let found: { permissions?: { push?: boolean; admin?: boolean } };
       try {
@@ -398,35 +409,60 @@ export function createWorker(options: WorkerOptions = {}) {
         }
         throw error;
       }
-      if (purpose === "edit" && !found.permissions?.push) throw new Problem("cant-publish", 403);
-      if (purpose === "owner" && !found.permissions?.admin) throw new Problem("not-owner", 403);
+      allowed(purpose, found.permissions);
     }
 
-    /** A token for the session's repository, for the address it was issued to, and the session with its tokens renewed. */
+    /** Whether the person still may, asked with an installation token, since the worker keeps no token of theirs. */
+    async function checkStillAllowed(session: SessionData, repo: string, token: string): Promise<void> {
+      let found: { permission?: string; user?: { permissions?: { push?: boolean; admin?: boolean } } };
+      try {
+        found = await githubJson(
+          config,
+          `/repos/${repoPath(repo)}/collaborators/${encodeURIComponent(session.user.login)}/permission`,
+          { auth: { bearer: token } },
+        );
+      } catch (error) {
+        if (error instanceof GitHubError && (error.status === 403 || error.status === 404)) {
+          throw new Problem("no-access", 403);
+        }
+        throw error;
+      }
+      const permission = found.permission ?? "none";
+      allowed(session.purpose, {
+        push: found.user?.permissions?.push ?? ["admin", "maintain", "write"].includes(permission),
+        admin: found.user?.permissions?.admin ?? permission === "admin",
+      });
+    }
+
+    /**
+     * A token for the session's repository, for the address it was issued to,
+     * once GitHub says the person still edits the site (or owns it, for an
+     * owner's sign-in), and the session to use next time.
+     */
     async function issue(session: SessionData) {
       const repo = session.repo;
       if (!repo) throw new Problem("bad-request", 400);
       await take(["editor", String(session.user.id)], ["site", repo.toLowerCase()]);
-      const tokens = await freshTokens(session);
-      await checkAccess(session.purpose, repo, tokens.access);
       const app = appFor(session.purpose);
       const installation = await installationFor(app, repo);
       if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
       const issued = await installationToken(
         config,
-        await appJwt(app.id, app.privateKey, now()),
+        await jwtFor(app),
         installation,
         repo,
         PERMISSIONS[session.purpose],
       );
-      // Checked every time, since the site's address can change, and its old address shouldn't keep getting tokens.
-      if ((await siteAddress(repo, issued.token)) !== session.origin) {
+      try {
+        await checkStillAllowed(session, repo, issued.token);
+        // Checked every time, since the site's address can change, and its old address shouldn't keep getting tokens.
+        if ((await siteAddress(repo, issued.token)) !== session.origin) throw new Problem("wrong-address", 403);
+      } catch (error) {
         await revoke(issued.token);
-        throw new Problem("wrong-address", 403);
+        throw error;
       }
-      const renewed = { ...session, tokens };
       return {
-        session: await sealSession(renewed),
+        session: await sealSession(session),
         token: issued.token,
         expiresAt: issued.expiresAt,
         user: publicUser(session.user),
@@ -476,13 +512,16 @@ export function createWorker(options: WorkerOptions = {}) {
         if (!origin || !CHALLENGE.test(challenge) || (purpose !== "setup" && !REPO.test(repo ?? ""))) {
           return page("bad-request");
         }
+        const install = params.get("install") === "1";
         try {
           if (purpose === "setup") {
             checkSetupOrigin(origin);
             await take();
           } else {
             await take(["site", (repo ?? "").toLowerCase()]);
-            await checkSite(purpose, repo ?? "", origin);
+            // Until it's installed, the site's settings can't be read, so installing checks the address on the way back.
+            if (!install) await checkSite(purpose, repo ?? "", origin);
+            else if (isLocalAddress(origin)) throw new Problem("local-address", 403);
           }
         } catch (error) {
           if (error instanceof Problem) return page(error.problem, error.status);
@@ -494,26 +533,53 @@ export function createWorker(options: WorkerOptions = {}) {
           return: back,
           challenge,
           remember: params.get("remember") === "1",
+          ...(install && { install }),
         };
-        const query = new URLSearchParams({
-          client_id: appFor(purpose).clientId,
-          redirect_uri: `${url.origin}/github/callback`,
-          state: await (await sealer()).seal("state", state, STATE_LIFETIME),
-        });
-        return new Response(null, {
-          status: 302,
-          headers: { location: `${config.web}/login/oauth/authorize?${query}`, "cache-control": "no-store" },
-        });
+        const sealed = await (await sealer()).seal("state", state, STATE_LIFETIME);
+        const app = appFor(purpose);
+        // GitHub's install page signs the person in too, since the apps ask for that, and comes back to the callback.
+        const location = install
+          ? `${installUrl(app)}?${new URLSearchParams({ state: sealed })}`
+          : `${config.web}/login/oauth/authorize?${new URLSearchParams({
+              client_id: app.clientId,
+              redirect_uri: `${url.origin}/github/callback`,
+              state: sealed,
+            })}`;
+        return new Response(null, { status: 302, headers: { location, "cache-control": "no-store" } });
       }
 
       if (path === "/github/callback" && request.method === "GET") {
         const state = await (await sealer()).open<StateData>("state", url.searchParams.get("state"));
         if (!state) return page("invalid");
         const code = url.searchParams.get("code");
+        const app = appFor(state.purpose);
+        if (!code && url.searchParams.get("installation_id")) {
+          // Installed without signing in, as GitHub does when an installation was only changed: sign in now.
+          const query = new URLSearchParams({
+            client_id: app.clientId,
+            redirect_uri: `${url.origin}/github/callback`,
+            state: url.searchParams.get("state") ?? "",
+          });
+          return new Response(null, {
+            status: 302,
+            headers: { location: `${config.web}/login/oauth/authorize?${query}`, "cache-control": "no-store" },
+          });
+        }
+        const origin = new URL(state.return).origin;
+        if (state.install && state.repo) {
+          // Coming back from installing: only now can the site's settings say where it may go back to.
+          try {
+            await checkSite(state.purpose, state.repo, origin);
+          } catch (error) {
+            // The return address isn't known to be the site's, so the answer is a page here, never a redirect.
+            if (error instanceof Problem) return page(error.problem, error.status);
+            throw error;
+          }
+        }
         if (!code) return backTo(state, { goodfellow_sign_in_error: "cancelled" });
+        let tokens: UserTokens | undefined;
         try {
-          const app = appFor(state.purpose);
-          const tokens = await userTokens(config, app, { code, redirectUri: `${url.origin}/github/callback` }, now());
+          tokens = await userTokens(config, app, { code, redirectUri: `${url.origin}/github/callback` }, now());
           const found = await githubJson<{ id: number; login: string; name?: string | null; avatar_url?: string }>(
             config,
             "/user",
@@ -533,10 +599,13 @@ export function createWorker(options: WorkerOptions = {}) {
               avatarUrl: found.avatar_url,
               email: `${found.id}+${found.login}@users.noreply.github.com`,
             },
-            tokens,
+            // Only the setup page needs the person's own token after this.
+            ...(state.purpose === "setup" && { tokens }),
           };
+          if (state.purpose !== "setup") await revokeUserToken(config, app, tokens.access);
           return backTo(state, { goodfellow_sign_in: await (await sealer()).seal("grant", grant, GRANT_LIFETIME) });
         } catch (error) {
+          if (tokens && state.purpose !== "setup") await revokeUserToken(config, app, tokens.access).catch(() => {});
           if (error instanceof Problem) return backTo(state, { goodfellow_sign_in_error: error.problem });
           if (error instanceof GitHubError && error.status === 401) {
             return backTo(state, { goodfellow_sign_in_error: "invalid" });
@@ -562,120 +631,12 @@ export function createWorker(options: WorkerOptions = {}) {
 
       if (path === "/github/token") return json(await issue(await openSession(body)));
 
-      if (path === "/github/sign-out") {
-        const session = await openSession(body);
-        await revokeUserToken(config, appFor(session.purpose), session.tokens.access).catch(() => {});
-        return new Response(null, { status: 204, headers: cors });
-      }
-
       if (path.startsWith("/github/setup/")) {
-        checkSetupOrigin(requestOrigin);
-        const session = await openSession(body, "setup");
-        await take(["editor", String(session.user.id)]);
-        const tokens = await freshTokens(session);
-        const renewed = await sealSession({ ...session, tokens });
-        const auth = { bearer: tokens.access };
-        const app = appFor("setup");
-
-        if (path === "/github/setup/owners") {
-          const found = await userInstallations(tokens.access);
-          const own = found.find((item) => item.account.login.toLowerCase() === session.user.login.toLowerCase());
-          return json({
-            session: renewed,
-            user: publicUser(session.user),
-            installUrl: installUrl(app),
-            owners: [
-              {
-                path: session.user.login,
-                name: session.user.name || session.user.login,
-                kind: "personal",
-                installed: Boolean(own),
-              },
-              ...found
-                .filter((item) => item.account.type === "Organization")
-                .map((item) => ({
-                  path: item.account.login,
-                  name: item.account.login,
-                  kind: "organization",
-                  installed: true,
-                })),
-            ],
-          });
-        }
-
-        const owner = typeof body.owner === "string" ? body.owner : "";
-        const name = typeof body.name === "string" ? body.name : "";
-        if (!REPO.test(`${owner}/${name}`)) throw new Problem("name-invalid", 400);
-
-        if (path === "/github/setup/available") {
-          try {
-            await github(config, `/repos/${repoPath(`${owner}/${name}`)}`, { auth });
-            return json({ session: renewed, available: false });
-          } catch (error) {
-            if (error instanceof GitHubError && (error.status === 404 || error.status === 403)) {
-              return json({ session: renewed, available: true });
-            }
-            throw error;
-          }
-        }
-
-        if (path === "/github/setup/repository") {
-          const installation = (await userInstallations(tokens.access)).find(
-            (item) => item.account.login.toLowerCase() === owner.toLowerCase(),
-          );
-          if (!installation) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
-          let repo: { id: number; full_name: string; html_url: string; default_branch: string };
-          try {
-            repo = await githubJson(
-              config,
-              owner.toLowerCase() === session.user.login.toLowerCase()
-                ? "/user/repos"
-                : `/orgs/${encodeURIComponent(owner)}/repos`,
-              {
-                method: "POST",
-                auth,
-                body: {
-                  name,
-                  private: body.private === true,
-                  description: typeof body.description === "string" ? body.description : undefined,
-                  // GitHub's API can't write files to an empty repository, so it starts with a README.
-                  auto_init: true,
-                },
-              },
-            );
-          } catch (error) {
-            if (error instanceof GitHubError && error.status === 422) {
-              const said = JSON.stringify(error.body);
-              throw new Problem(/already exists/i.test(said) ? "name-taken" : "name-invalid", 422);
-            }
-            if (error instanceof GitHubError && (error.status === 403 || error.status === 404)) {
-              throw new Problem("not-allowed", 403);
-            }
-            throw error;
-          }
-          if (installation.repository_selection === "selected") {
-            await github(config, `/user/installations/${installation.id}/repositories/${repo.id}`, {
-              method: "PUT",
-              auth,
-            });
-          }
-          const issued = await installationToken(
-            config,
-            await appJwt(app.id, app.privateKey, now()),
-            installation.id,
-            repo.full_name,
-            PERMISSIONS.setup,
-          );
-          const editApp = apps.edit;
-          const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;
-          return json({
-            session: renewed,
-            repo: { full_name: repo.full_name, html_url: repo.html_url, default_branch: repo.default_branch },
-            token: issued.token,
-            expiresAt: issued.expiresAt,
-            ...(!editInstalled && editApp && { editInstallUrl: installUrl(editApp) }),
-          });
-        }
+        return await setupRoute(path, body).catch((error: unknown) => {
+          // The person's own token is revoked once the site is created, or GitHub may have revoked it: sign in again.
+          if (error instanceof GitHubError && error.status === 401) throw new Problem("invalid", 401);
+          throw error;
+        });
       }
 
       return json({ problem: "bad-request" }, 404);
@@ -683,6 +644,122 @@ export function createWorker(options: WorkerOptions = {}) {
       if (error instanceof Problem) return json({ problem: error.problem, ...error.extra }, error.status);
       // GitHub couldn't be reached, or answered in a way the worker doesn't expect. Nothing about tokens is said.
       return json({ problem: "unavailable" }, 502);
+    }
+
+    /** The setup page's requests, made with the person's own token, which its session keeps for half an hour. */
+    async function setupRoute(path: string, body: Record<string, unknown>): Promise<Response> {
+      checkSetupOrigin(requestOrigin);
+      const session = await openSession(body, "setup");
+      await take(["editor", String(session.user.id)]);
+      const tokens = session.tokens;
+      if (!tokens) throw new Problem("invalid", 401);
+      // The session keeps its expiry: the person's token isn't kept any longer for being used.
+      const renewed = body.session as string;
+      const auth = { bearer: tokens.access };
+      const app = appFor("setup");
+
+      if (path === "/github/setup/owners") {
+        const found = await userInstallations(tokens.access);
+        const own = found.find((item) => item.account.login.toLowerCase() === session.user.login.toLowerCase());
+        return json({
+          session: renewed,
+          user: publicUser(session.user),
+          installUrl: installUrl(app),
+          owners: [
+            {
+              path: session.user.login,
+              name: session.user.name || session.user.login,
+              kind: "personal",
+              installed: Boolean(own),
+            },
+            ...found
+              .filter((item) => item.account.type === "Organization")
+              .map((item) => ({
+                path: item.account.login,
+                name: item.account.login,
+                kind: "organization",
+                installed: true,
+              })),
+          ],
+        });
+      }
+
+      const owner = typeof body.owner === "string" ? body.owner : "";
+      const name = typeof body.name === "string" ? body.name : "";
+      if (!REPO.test(`${owner}/${name}`)) throw new Problem("name-invalid", 400);
+
+      if (path === "/github/setup/available") {
+        try {
+          await github(config, `/repos/${repoPath(`${owner}/${name}`)}`, { auth });
+          return json({ session: renewed, available: false });
+        } catch (error) {
+          if (error instanceof GitHubError && (error.status === 404 || error.status === 403)) {
+            return json({ session: renewed, available: true });
+          }
+          throw error;
+        }
+      }
+
+      if (path === "/github/setup/repository") {
+        const installation = (await userInstallations(tokens.access)).find(
+          (item) => item.account.login.toLowerCase() === owner.toLowerCase(),
+        );
+        if (!installation) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
+        let repo: { id: number; full_name: string; html_url: string; default_branch: string };
+        try {
+          repo = await githubJson(
+            config,
+            owner.toLowerCase() === session.user.login.toLowerCase()
+              ? "/user/repos"
+              : `/orgs/${encodeURIComponent(owner)}/repos`,
+            {
+              method: "POST",
+              auth,
+              body: {
+                name,
+                private: body.private === true,
+                description: typeof body.description === "string" ? body.description : undefined,
+                // GitHub's API can't write files to an empty repository, so it starts with a README.
+                auto_init: true,
+              },
+            },
+          );
+        } catch (error) {
+          if (error instanceof GitHubError && error.status === 422) {
+            const said = JSON.stringify(error.body);
+            throw new Problem(/already exists/i.test(said) ? "name-taken" : "name-invalid", 422);
+          }
+          if (error instanceof GitHubError && (error.status === 403 || error.status === 404)) {
+            throw new Problem("not-allowed", 403);
+          }
+          throw error;
+        }
+        if (installation.repository_selection === "selected") {
+          await github(config, `/user/installations/${installation.id}/repositories/${repo.id}`, {
+            method: "PUT",
+            auth,
+          });
+        }
+        const issued = await installationToken(
+          config,
+          await jwtFor(app),
+          installation.id,
+          repo.full_name,
+          PERMISSIONS.setup,
+        );
+        const editApp = apps.edit;
+        const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;
+        // The repository exists, which is all the person's own token was kept for.
+        await revokeUserToken(config, app, tokens.access).catch(() => {});
+        return json({
+          session: renewed,
+          repo: { full_name: repo.full_name, html_url: repo.html_url, default_branch: repo.default_branch },
+          token: issued.token,
+          expiresAt: issued.expiresAt,
+          ...(!editInstalled && editApp && { editInstallUrl: installUrl(editApp) }),
+        });
+      }
+      return json({ problem: "bad-request" }, 404);
     }
   }
 

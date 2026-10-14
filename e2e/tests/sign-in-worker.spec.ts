@@ -55,10 +55,24 @@ async function setup(page: Page, options: { installed?: boolean } = {}) {
     return new Response(null, { status: 302, headers: { location: back.toString() } });
   };
   const isAuthorize = (url: URL) => url.origin === "https://github.com" && url.pathname === "/login/oauth/authorize";
+  /** GitHub's install page, where the person installs the app on the site and is signed in as GitHub comes back. */
+  const installSlug = (url: URL) =>
+    url.origin === "https://github.com" ? url.pathname.match(/^\/apps\/([^/]+)\/installations\/new$/)?.[1] : undefined;
+  const install = (url: URL, slug: string) => {
+    const { code, installation } = fake.install(slug, login, ["parish/site"]);
+    const back = new URL(`${GOODFELLOW_SIGN_IN}/github/callback`);
+    back.search = new URLSearchParams({
+      code,
+      installation_id: String(installation),
+      setup_action: "install",
+      state: url.searchParams.get("state") ?? "",
+    }).toString();
+    return new Response(null, { status: 302, headers: { location: back.toString() } });
+  };
 
   // Goodfellow's sign-in worker, the same code Cloudflare runs. Browsers say which page is asking.
   await page.route(
-    (url) => url.href.startsWith(GOODFELLOW_SIGN_IN) || isAuthorize(url),
+    (url) => url.href.startsWith(GOODFELLOW_SIGN_IN) || isAuthorize(url) || installSlug(url) !== undefined,
     async (route) => {
       const request = route.request();
       const body = request.postDataBuffer();
@@ -78,6 +92,7 @@ async function setup(page: Page, options: { installed?: boolean } = {}) {
         if (!next) break;
         if (next.href.startsWith(GOODFELLOW_SIGN_IN)) response = await worker.fetch(new Request(next));
         else if (isAuthorize(next)) response = authorize(next);
+        else if (installSlug(next)) response = install(next, installSlug(next) ?? "");
         else {
           // Back to the admin panel, which the browser loads as a page of its own.
           await route.fulfill({
@@ -159,13 +174,19 @@ test("an owner signs in with the owners' app for this tab to change editors", as
   ).toBeDefined();
 });
 
-test("explains when Goodfellow isn't installed on the site, and tokens still work", async ({ page }) => {
-  await setup(page, { installed: false });
+test("an owner installs Goodfellow on the site from the sign-in screen, and is signed in too", async ({ page }) => {
+  const { fake, signInAs } = await setup(page, { installed: false });
+  signInAs("olivia");
   await signIn(page);
-  await expect(page.getByRole("alert")).toContainText("an owner of the site needs to install Goodfellow");
-  await expect(page.getByRole("link", { name: "Install Goodfellow on GitHub" })).toHaveAttribute(
-    "href",
-    "https://github.com/apps/goodfellow-cms/installations/new",
-  );
+  await expect(page.getByRole("alert")).toContainText("Goodfellow isn't installed on this site on GitHub yet");
+  // Signing in with a token still works meanwhile.
   await expect(page.getByLabel("Access token")).toBeVisible();
+
+  await page.getByRole("button", { name: "Install Goodfellow on GitHub" }).click();
+  await expect(page.locator(".gfa-account")).toContainText("Olivia");
+  expect(page.url()).toBe(`${SITE}/admin/`);
+  expect(fake.issued.find((token) => token.kind === "installation" && !token.revoked)).toMatchObject({
+    app: "goodfellow-cms",
+    repositories: ["parish/site"],
+  });
 });

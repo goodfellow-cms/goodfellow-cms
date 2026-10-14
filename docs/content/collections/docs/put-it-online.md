@@ -64,7 +64,7 @@ If the host serves the site from a subfolder, such as `/your-site/` on GitHub Pa
 
 ## 4. Set up sign-in
 
-**GitHub:** for **Sign in with GitHub**, put the site's address in **Site settings**, and install Goodfellow on the repository from [github.com/apps/goodfellow-cms](https://github.com/apps/goodfellow-cms), and its owners' app from [github.com/apps/goodfellow-cms-owner](https://github.com/apps/goodfellow-cms-owner). Until then, editors sign in at `/admin` with an access token, created from a link that chooses the right permissions; see [Editors and sign-in](/docs/sign-in).
+**GitHub:** for **Sign in with GitHub**, put the site's address in **Site settings**. The first time you sign in at `/admin`, the sign-in screen offers to install Goodfellow on the repository, which signs you in too; see [Editors and sign-in](/docs/sign-in). Editors can also sign in with an access token, created from a link that chooses the right permissions.
 
 **GitLab:** editors can sign in with an access token straight away. For one-click **Sign in with GitLab**, register the admin panel with GitLab once:
 

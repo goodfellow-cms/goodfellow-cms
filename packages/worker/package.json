@@ -30,5 +30,8 @@
   "devDependencies": {
     "@goodfellow-cms/core": "workspace:*",
     "@goodfellow-cms/github": "workspace:*"
+  },
+  "dependencies": {
+    "universal-github-app-jwt": "2.2.2"
   }
 }

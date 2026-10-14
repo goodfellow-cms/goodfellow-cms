@@ -22,12 +22,12 @@ Owners invite people by their GitHub or GitLab username, and on GitLab by email 
 
 ## GitHub
 
-Editors click **Sign in with GitHub**, approve Goodfellow on GitHub's page the first time, and come back signed in. It goes through Goodfellow's [sign-in service](/docs/sign-in-service), which needs two things, both done once:
+Editors click **Sign in with GitHub**, approve Goodfellow on GitHub's page the first time, and come back signed in. It goes through Goodfellow's [sign-in service](/docs/sign-in-service), which needs two things:
 
-- **Goodfellow is installed on the site.** An owner installs it from the link the sign-in screen shows, at [github.com/apps/goodfellow-cms](https://github.com/apps/goodfellow-cms), and chooses the site's repository. For the Editors, Domain and Updates screens, owners also install the owners' app, [github.com/apps/goodfellow-cms-owner](https://github.com/apps/goodfellow-cms-owner).
+- **Goodfellow is installed on the site.** GitHub only lets Goodfellow sign editors in to repositories it's installed on. The first time anyone signs in, the sign-in screen says it isn't installed yet and offers **Install Goodfellow on GitHub**: an owner of the site installs it there, choosing the site's repository, and comes back signed in. The Editors, Domain and Updates screens offer the same for the owners' app, which owners sign in with there.
 - **The site's address is in Site settings.** The sign-in service only signs editors in at the address Site settings give, so a copy of the admin panel anywhere else can't use it. Sites made with the setup page have it already.
 
-Each sign-in gives the admin panel a token for the site's repository only, which can change its files and see its builds but not its workflows or settings, and lasts an hour; the admin panel gets a new one while the editor is signed in. Editors' own GitHub tokens stay with the sign-in service, and what they publish still shows them as its author.
+Each sign-in gives the admin panel a token for the site's repository only, which can change its files and see its builds but not its workflows or settings, and lasts an hour; the admin panel gets a new one while the editor is signed in. The sign-in service revokes editors' own GitHub tokens as soon as they've signed in, and what they publish still shows them as its author.
 
 ### Signing in with a token
 
@@ -46,4 +46,4 @@ With the site's application registered (see [Put it online](/docs/put-it-online#
 
 Editors choose whether to stay signed in on the device (**Stay signed in on this device**; leave it off on shared computers). Otherwise the sign-in lasts until the browser tab closes. **Sign out** forgets the token, and the AI keys entered in the AI tab too.
 
-Tokens are only ever sent to GitHub or GitLab, never anywhere else. Signing in with GitHub keeps only the sign-in service's session, which the browser can't read, and signing out ends it. If a sign-in stops working, for example because it expired, the admin panel asks to sign in again.
+Tokens are only ever sent to GitHub or GitLab, never anywhere else. Signing in with GitHub keeps only the sign-in service's session, which holds no token, and signing out forgets it. If a sign-in stops working, for example because it expired, the admin panel asks to sign in again.

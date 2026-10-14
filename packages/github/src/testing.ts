@@ -245,6 +245,24 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         })),
       );
     }
+    const permission = rest.match(/^\/collaborators\/([^/]+)\/permission$/);
+    if (permission && request.method === "GET") {
+      const login = decodeURIComponent(permission[1] ?? "");
+      if (!accounts.has(login)) return json({ message: "Not Found" }, 404);
+      const role = collaborators.get(login);
+      const level = role === "admin" ? "admin" : role === "push" ? "write" : role === "read" ? "read" : "none";
+      return json({
+        permission: level,
+        user: {
+          login,
+          permissions: {
+            admin: level === "admin",
+            push: level === "admin" || level === "write",
+            pull: level !== "none",
+          },
+        },
+      });
+    }
     const collaborator = rest.match(/^\/collaborators\/([^/]+)$/);
     if (collaborator) {
       if (!canManage) return forbidden();
@@ -534,6 +552,30 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     const code = `code-${nextToken++}`;
     codes.set(code, { app, login });
     return code;
+  }
+
+  /**
+   * Simulates someone installing an app on GitHub's install page, choosing
+   * these repositories, or adding them to its installation on the account,
+   * and being signed in as they go: the code GitHub sends back to the app's callback.
+   */
+  function install(
+    slug: string,
+    login: string,
+    repositories: string[],
+    account = repositories[0]?.split("/")[0] ?? login,
+  ) {
+    const app = apps.find((candidate) => candidate.slug === slug);
+    if (!app) throw new Error(`No app ${slug}`);
+    let installation = app.installations.find((candidate) => same(candidate.account, account));
+    if (!installation) {
+      installation = { id: 1000 + nextToken++, account, repositories: [] };
+      app.installations.push(installation);
+    }
+    const chosen = installation.repositories;
+    if (chosen !== "all")
+      for (const repo of repositories) if (!chosen.some((name) => same(name, repo))) chosen.push(repo);
+    return { code: authorize(login, app.clientId), installation: installation.id };
   }
 
   function userToken(app: FakeGitHubApp, login: string) {
@@ -972,6 +1014,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     /** Who commits made through the REST API name as their author, by commit. */
     commitAuthors,
     authorize,
+    install,
     /** Repositories created through the API, by `owner/name`. */
     created,
     /** The site's GitHub Pages settings, which tests can change, such as to issue the certificate. */

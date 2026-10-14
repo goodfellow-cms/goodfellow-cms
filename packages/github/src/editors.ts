@@ -4,6 +4,7 @@ import {
   EditorsError,
   GitApiError,
   type OwnerAccess,
+  type RedirectOptions,
   SignInError,
   type SiteEditor,
   type SiteEditors,
@@ -193,7 +194,7 @@ export function githubOwnerAccess(
   base: ApiOptions,
   repo: string,
   tokenLink: TokenLink,
-  redirect?: () => Promise<void>,
+  redirect?: (options?: RedirectOptions) => Promise<void>,
 ) {
   let owner: ApiOptions | undefined;
   let endSignIn: (() => void) | undefined;
@@ -207,9 +208,9 @@ export function githubOwnerAccess(
       return problem;
     },
     ...(redirect && {
-      async startRedirect() {
+      async startRedirect(options?: RedirectOptions) {
         problem = undefined;
-        await redirect();
+        await redirect(options);
       },
     }),
     async applyToken(token) {

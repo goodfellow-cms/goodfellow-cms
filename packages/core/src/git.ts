@@ -100,7 +100,16 @@ export interface GitHost {
   /** Signs in with an access token. `remember` keeps it after the browser closes. */
   signInWithToken(token: string, remember: boolean): Promise<GitBackend>;
   /** Sends the browser to the host to sign in. Only when `canRedirect`. */
-  startRedirect(remember: boolean): Promise<void>;
+  startRedirect(remember: boolean, options?: RedirectOptions): Promise<void>;
+}
+
+/** How to sign in by going to the host and back. */
+export interface RedirectOptions {
+  /**
+   * Installs the sign-in service's app first, where its app isn't installed
+   * yet (`SignInError`'s `not-installed`): the host's install page signs the person in too.
+   */
+  install?: boolean;
 }
 
 export type SignInProblem =

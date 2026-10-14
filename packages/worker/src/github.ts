@@ -67,29 +67,25 @@ export function repoPath(repo: string): string {
   return repo.split("/").map(encodeURIComponent).join("/");
 }
 
-/** A GitHub person's own access, from signing in with an app: GitHub's user access token and its refresh token. */
+/** A GitHub person's own access, from signing in with an app: GitHub's user access token. */
 export interface UserTokens {
   access: string;
-  refresh?: string;
   /** Milliseconds since the epoch. */
   accessExpires?: number;
-  refreshExpires?: number;
 }
 
 interface TokenAnswer {
   access_token?: string;
-  refresh_token?: string;
   expires_in?: number;
-  refresh_token_expires_in?: number;
   error?: string;
   error_description?: string;
 }
 
-/** Exchanges OAuth's code, or a refresh token, for the person's tokens. GitHub answers 200 even when it refuses. */
+/** Exchanges OAuth's code for the person's own token. GitHub answers 200 even when it refuses. */
 export async function userTokens(
   config: GitHubConfig,
   app: App,
-  grant: { code: string; redirectUri: string } | { refresh: string },
+  grant: { code: string; redirectUri: string },
   now: number,
 ): Promise<UserTokens> {
   const answer = await githubJson<TokenAnswer>(config, "/login/oauth/access_token", {
@@ -98,20 +94,14 @@ export async function userTokens(
     body: {
       client_id: app.clientId,
       client_secret: app.clientSecret,
-      ...("code" in grant
-        ? { code: grant.code, redirect_uri: grant.redirectUri }
-        : { grant_type: "refresh_token", refresh_token: grant.refresh }),
+      code: grant.code,
+      redirect_uri: grant.redirectUri,
     },
   });
   if (!answer.access_token) {
     throw new GitHubError(401, `GitHub didn't accept the sign-in: ${answer.error_description ?? answer.error ?? ""}`);
   }
-  return {
-    access: answer.access_token,
-    refresh: answer.refresh_token,
-    accessExpires: answer.expires_in ? now + answer.expires_in * 1000 : undefined,
-    refreshExpires: answer.refresh_token_expires_in ? now + answer.refresh_token_expires_in * 1000 : undefined,
-  };
+  return { access: answer.access_token, accessExpires: answer.expires_in ? now + answer.expires_in * 1000 : undefined };
 }
 
 /** Revokes a person's user access token, as signing out does. */

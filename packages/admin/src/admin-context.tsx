@@ -168,7 +168,9 @@ export function AdminProvider({
         tokenLink: backendOwner.tokenLink,
         active: ownerActive,
         problem: backendOwner.problem,
-        ...(backendOwner.startRedirect && { startRedirect: () => backendOwner.startRedirect?.() ?? Promise.resolve() }),
+        ...(backendOwner.startRedirect && {
+          startRedirect: (options) => backendOwner.startRedirect?.(options) ?? Promise.resolve(),
+        }),
         async applyToken(token) {
           await backendOwner.applyToken(token);
           setOwnerActive(true);

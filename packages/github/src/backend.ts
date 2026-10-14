@@ -13,6 +13,7 @@ import {
   type HistoryOptions,
   type OwnerAccess,
   type PagesDomains,
+  type RedirectOptions,
   SignInError,
   type SiteEditors,
   type SiteUpdates,
@@ -68,7 +69,7 @@ export interface GitHubBackendOptions {
   /** Where to create the owner token, which can change editors and GitHub Pages settings. */
   ownerTokenLink: TokenLink;
   /** Signs in as an owner through the sign-in worker instead of with a token, where it's available. */
-  ownerRedirect?: () => Promise<void>;
+  ownerRedirect?: (options?: RedirectOptions) => Promise<void>;
   /**
    * Who commits name as their author. Set when the token is an app's
    * installation token from the sign-in worker, whose commits would otherwise

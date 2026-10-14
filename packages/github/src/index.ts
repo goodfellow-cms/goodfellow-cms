@@ -1,4 +1,11 @@
-import { credentialStorage, GitApiError, type GitHost, SignInError, type StorageLike } from "@goodfellow-cms/core";
+import {
+  credentialStorage,
+  GitApiError,
+  type GitHost,
+  type RedirectOptions,
+  SignInError,
+  type StorageLike,
+} from "@goodfellow-cms/core";
 import { type ApiOptions, githubJson, githubRequest, repoPath } from "./api.js";
 import { GitHubBackend } from "./backend.js";
 import {
@@ -128,13 +135,19 @@ export function github(options: GitHubOptions): GitHost {
     return { type: "token", token: value };
   }
 
-  /** Sends the browser to GitHub through the worker, which comes back to this screen. */
-  async function redirect(purpose: "edit" | "owner", remember: boolean): Promise<void> {
+  /**
+   * Sends the browser to GitHub through the worker, which comes back to this
+   * screen. With `install`, GitHub's install page installs Goodfellow first.
+   */
+  async function redirect(purpose: "edit" | "owner", remember: boolean, { install }: RedirectOptions = {}) {
     if (!service || !location) throw new SignInError("unavailable", "Signing in with GitHub isn't available here.");
-    await service.check(options.repo, purpose);
+    // Until Goodfellow is installed, there's nothing to check: the worker checks the address on the way back.
+    if (!install) await service.check(options.repo, purpose);
     const { verifier, challenge } = await newVerifier();
     pending.save(JSON.stringify({ verifier, purpose, remember } satisfies PendingRedirect), false);
-    location.assign(service.startUrl({ purpose, repo: options.repo, back: location.href(), challenge, remember }));
+    location.assign(
+      service.startUrl({ purpose, repo: options.repo, back: location.href(), challenge, remember, install }),
+    );
   }
 
   /** Connects with a session from the worker, whose tokens renew themselves. */
@@ -154,14 +167,18 @@ export function github(options: GitHubOptions): GitHost {
       user: { login: user.login, name: user.name, avatarUrl: user.avatarUrl },
       author: { name: user.name || user.login, email: user.email },
       onSignOut: () => {
+        // The worker kept nothing, so forgetting the session is signing out; the token it gave stops working too.
         storage.clear();
-        const { token, session } = source.current();
-        void worker.signOut(session);
-        void githubRequest({ ...api, token }, "/installation/token", { method: "DELETE" }).catch(() => {});
+        revokeToken(source.current().token);
       },
       ownerTokenLink: { url: links.owner, label: "owner.token.create" },
-      ownerRedirect: () => redirect("owner", false),
+      ownerRedirect: (redirectOptions) => redirect("owner", false, redirectOptions),
     });
+  }
+
+  /** Revokes a token the worker gave, as signing out does. Never fails: signing out goes ahead regardless. */
+  function revokeToken(token: string): void {
+    void githubRequest({ apiUrl, token, fetch: fetcher }, "/installation/token", { method: "DELETE" }).catch(() => {});
   }
 
   /** Gives the backend an owner's sign-in that has just come back from GitHub. It's kept in memory only. */
@@ -170,7 +187,7 @@ export function github(options: GitHubOptions): GitHost {
     try {
       const issued = await worker.session(grant, verifier);
       const source = renewingToken(worker, issued, () => {});
-      backend.useOwnerSignIn(source.token, () => void worker.signOut(source.current().session));
+      backend.useOwnerSignIn(source.token, () => revokeToken(source.current().token));
     } catch (error) {
       backend.ownerSignInFailed(error);
     }
@@ -246,7 +263,9 @@ export function github(options: GitHubOptions): GitHost {
       user: { login: user.login, name: user.name ?? undefined, avatarUrl: user.avatar_url },
       onSignOut: () => storage.clear(),
       ownerTokenLink: { url: links.owner, label: "owner.token.create" },
-      ...(service && { ownerRedirect: () => redirect("owner", false) }),
+      ...(service && {
+        ownerRedirect: (redirectOptions?: RedirectOptions) => redirect("owner", false, redirectOptions),
+      }),
     });
   }
 
@@ -269,8 +288,8 @@ export function github(options: GitHubOptions): GitHost {
       save({ type: "token", token: trimmed }, remember);
       return backend;
     },
-    startRedirect(remember) {
-      return redirect("edit", remember);
+    startRedirect(remember, redirectOptions) {
+      return redirect("edit", remember, redirectOptions);
     },
   };
 }

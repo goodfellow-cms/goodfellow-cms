@@ -165,14 +165,22 @@ export class SignInService {
     await this.answer(`/github/check?${new URLSearchParams({ repo, purpose })}`);
   }
 
-  /** Where to send the browser to sign in. */
-  startUrl(options: { purpose: SignInPurpose; repo?: string; back: string; challenge: string; remember: boolean }) {
+  /** Where to send the browser to sign in, or with `install`, to install Goodfellow and sign in. */
+  startUrl(options: {
+    purpose: SignInPurpose;
+    repo?: string;
+    back: string;
+    challenge: string;
+    remember: boolean;
+    install?: boolean;
+  }) {
     const query = new URLSearchParams({
       purpose: options.purpose,
       ...(options.repo && { repo: options.repo }),
       return: options.back,
       challenge: options.challenge,
       remember: options.remember ? "1" : "0",
+      ...(options.install && { install: "1" }),
     });
     return `${this.url}/github/start?${query}`;
   }
@@ -184,11 +192,6 @@ export class SignInService {
 
   token(session: string): Promise<IssuedToken> {
     return this.post("/github/token", { session });
-  }
-
-  /** Revokes the person's GitHub token. Never fails: signing out goes ahead regardless. */
-  async signOut(session: string): Promise<void> {
-    await this.post("/github/sign-out", { session }).catch(() => {});
   }
 }
 

@@ -48,11 +48,27 @@ function browser(site: ReturnType<typeof setup>, start = `${SITE}/admin/#/pages`
     href = back.headers.get("location") ?? "";
   }
 
+  /** Follows GitHub's install page, as `login` choosing `repositories`, back to the admin panel, signed in. */
+  async function installOnGitHub(login: string, repositories: string[]) {
+    const started = await site.worker.fetch(new Request(href), site.env);
+    const install = new URL(started.headers.get("location") ?? "");
+    const slug = install.pathname.split("/")[2] ?? "";
+    const { code, installation } = site.fake.install(slug, login, repositories);
+    const query = new URLSearchParams({
+      code,
+      installation_id: String(installation),
+      setup_action: "install",
+      state: install.searchParams.get("state") ?? "",
+    });
+    const back = await site.worker.fetch(new Request(`${WORKER}/github/callback?${query}`), site.env);
+    href = back.headers.get("location") ?? "";
+  }
+
   /** The admin panel's GitHub sign-in, as a page load makes it. */
   const host = () => github({ repo: "parish/site", signIn: WORKER, fetch, storage, location });
   /** The setup page's GitHub sign-in. */
   const setupHost = () => githubSetup({ signIn: WORKER, fetch, storage, location });
-  return { host, setupHost, storage, signInOnGitHub, href: () => href };
+  return { host, setupHost, storage, signInOnGitHub, installOnGitHub, href: () => href };
 }
 
 describe("signing in with GitHub through the worker", () => {
@@ -93,12 +109,12 @@ describe("signing in with GitHub through the worker", () => {
 
     const again = await page.host().restore();
     expect(again?.user.login).toBe("maria");
+    // The person's own GitHub token was revoked as soon as they'd signed in.
+    expect(site.fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true);
     again?.signOut();
     expect(page.storage.local.values.size).toBe(0);
-    // Signing out revokes the person's GitHub token in the background.
-    await vi.waitFor(() =>
-      expect(site.fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true),
-    );
+    // Signing out revokes the token the admin panel was using, in the background.
+    await vi.waitFor(() => expect(site.fake.issued.at(-1)).toMatchObject({ kind: "installation", revoked: true }));
   });
 
   it("is offered only on the site's own address, never on this computer", async () => {
@@ -123,6 +139,17 @@ describe("signing in with GitHub through the worker", () => {
     await page.host().startRedirect(false);
     await page.signInOnGitHub("reader");
     await expect(page.host().restore()).rejects.toMatchObject({ problem: "cant-publish" });
+  });
+
+  it("installs Goodfellow on the site and signs in, in one go", async () => {
+    const page = browser(setup({ installed: false }));
+    await expect(page.host().startRedirect(false)).rejects.toMatchObject({ problem: "not-installed" });
+    await page.host().startRedirect(false, { install: true });
+    expect(page.href()).toMatch(new RegExp(`^${WORKER}/github/start\\?.*install=1`));
+    await page.installOnGitHub("olivia", ["parish/site"]);
+    const backend = await page.host().restore();
+    expect(page.href()).toBe(`${SITE}/admin/#/pages`);
+    expect(backend?.user.login).toBe("olivia");
   });
 
   it("lets owners sign in with the owners' app for this tab only, to change editors", async () => {
@@ -193,7 +220,8 @@ describe("signing in with GitHub through the worker", () => {
     expect(repo?.repo.files("main").get(".github/workflows/deploy.yml")).toBe("on: push\n");
     expect(repo?.rulesets).toHaveLength(1);
     expect(site.fake.commitAuthors.get(repo?.repo.head("main") ?? "")).toMatchObject({ name: "Maria" });
-    expect(await account.isAvailable(mine, "new-site")).toBe(false);
+    // Nothing more can be done with the sign-in: the person's own token was kept only until the repository existed.
+    await expect(account.isAvailable(mine, "other-site")).rejects.toMatchObject({ problem: "invalid" });
 
     const other = browser(site, "https://setup.example/new-site/");
     await other.setupHost().startRedirect();

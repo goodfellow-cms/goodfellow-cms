@@ -1,4 +1,4 @@
-import { EditorsError } from "@goodfellow-cms/core";
+import { EditorsError, type RedirectOptions } from "@goodfellow-cms/core";
 import { type ReactNode, useState } from "react";
 import { useAdmin } from "./admin-context.js";
 import { SignInProblem } from "./sign-in.js";
@@ -19,11 +19,11 @@ export function OwnerTokenForm({ onReady }: { onReady: () => void }) {
   if (!ownerAccess) return null;
   if (!ownerAccess.startRedirect) return <OwnerTokenFields onReady={onReady} />;
 
-  const signIn = async () => {
+  const signIn = async (options?: RedirectOptions) => {
     setBusy(true);
     setError(undefined);
     try {
-      await ownerAccess.startRedirect?.();
+      await ownerAccess.startRedirect?.(options);
     } catch (caught) {
       setError(caught);
       setBusy(false);
@@ -34,7 +34,9 @@ export function OwnerTokenForm({ onReady }: { onReady: () => void }) {
     <section className="gfa-form gfa-owner-token">
       <h2 className="gfa-section-title">{t("owner.signIn.title")}</h2>
       <p>{t("owner.signIn.intro", { host })}</p>
-      {error !== undefined && <SignInProblem error={error} host={host} />}
+      {error !== undefined && (
+        <SignInProblem error={error} host={host} onInstall={() => void signIn({ install: true })} />
+      )}
       <div>
         <Button variant="primary" disabled={busy} onClick={() => void signIn()}>
           {t("owner.signIn.button", { host })}

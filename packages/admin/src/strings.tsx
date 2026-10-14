@@ -45,7 +45,7 @@ export const defaultStrings = {
   "signIn.error.busy":
     "Signing in with {host} has been used as much as it can be today. Sign in with an access token instead, or try again tomorrow.",
   "signIn.error.not-installed":
-    "Before editors can sign in with {host}, an owner of the site needs to install Goodfellow on it. Until then, sign in with an access token.",
+    "Goodfellow isn't installed on this site on {host} yet, so editors can't sign in with {host}. If you own the site, install it now, which signs you in too. Otherwise, ask an owner to, or sign in with an access token.",
   "signIn.error.no-address":
     "Signing in with {host} needs the site's address in Site settings. Sign in with an access token for now, and add the address there.",
   "signIn.error.wrong-address":

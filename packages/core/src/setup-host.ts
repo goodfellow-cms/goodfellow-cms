@@ -4,7 +4,7 @@
  * `GitHost` for editing an existing site.
  */
 import type { FileChange } from "./content/store.js";
-import type { GitUser, TokenLink } from "./git.js";
+import type { GitUser, RedirectOptions, TokenLink } from "./git.js";
 
 /** An account or group a new repository can be created in. */
 export interface SetupOwner {
@@ -104,5 +104,5 @@ export interface SetupHost {
   restore(): Promise<SetupAccount | null>;
   signInWithToken(token: string): Promise<SetupAccount>;
   /** Goes to the host's sign-in page, which comes back to this page. */
-  startRedirect(): Promise<void>;
+  startRedirect(options?: RedirectOptions): Promise<void>;
 }

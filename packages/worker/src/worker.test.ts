@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { appJwt, pkcs8FromPkcs1, privateKeyBytes } from "./jwt.js";
 import { challengeFor } from "./seal.js";
 import { base64, editKey, SITE, setup } from "./test-setup.js";
 import { isLocalAddress, PERMISSIONS } from "./worker.js";
@@ -31,6 +30,8 @@ describe("signing in", () => {
     expect(own).toHaveLength(2);
     expect(JSON.stringify(body)).not.toMatch(new RegExp(own.join("|")));
     expect(back.toString()).not.toMatch(new RegExp(own.join("|")));
+    // And it's revoked as soon as the person has signed in: the worker keeps nothing.
+    expect(fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true);
   });
 
   it("gives tokens only to the address in the site's settings, never to this computer", async () => {
@@ -101,34 +102,30 @@ describe("signing in", () => {
 });
 
 describe("staying signed in", () => {
-  it("renews the token from the session, and renews the person's own token when it's about to expire", async () => {
-    const { fake, signIn, post, tick } = setup();
+  it("renews the token from the session, checking each time that the person still edits the site", async () => {
+    const { fake, signIn, post } = setup();
     const { body } = await signIn();
     const renewed = (await (await post("/github/token", { session: body.session })).json()) as typeof body;
     expect(renewed.token).toMatch(/^ghs_/);
     expect(renewed.token).not.toBe(body.token);
-
-    tick(8 * 3_600_000);
-    const later = await post("/github/token", { session: renewed.session });
-    expect(later.status).toBe(200);
-    expect(fake.issued.filter((item) => item.kind === "user")).toHaveLength(2);
     expect((await post("/github/token", { session: renewed.session }, "https://evil.example")).status).toBe(403);
+
+    fake.collaborators.set("maria", "read");
+    const removed = await post("/github/token", { session: renewed.session });
+    expect(removed.status).toBe(403);
+    expect(await removed.json()).toEqual({ problem: "cant-publish" });
+    // The token made before the check was revoked straight away.
+    expect(fake.issued.at(-1)).toMatchObject({ kind: "installation", revoked: true });
   });
 
-  it("stops giving tokens once the site's address changes, and once the person signs out", async () => {
+  it("stops giving tokens once the site's address changes", async () => {
     const { fake, signIn, post } = setup();
     const { body } = await signIn();
     fake.repo.write("content/site.json", JSON.stringify({ version: 1, url: "https://new.example/" }));
     const moved = await post("/github/token", { session: body.session });
     expect(moved.status).toBe(403);
     expect(await moved.json()).toEqual({ problem: "wrong-address" });
-    // The token made before the address was checked was revoked straight away.
     expect(fake.issued.at(-1)).toMatchObject({ kind: "installation", revoked: true });
-
-    fake.repo.write("content/site.json", JSON.stringify({ version: 1, url: `${SITE}/` }));
-    expect((await post("/github/sign-out", { session: body.session })).status).toBe(204);
-    expect(fake.issued.find((item) => item.kind === "user")?.revoked).toBe(true);
-    expect(await (await post("/github/token", { session: body.session })).json()).toEqual({ problem: "invalid" });
   });
 
   it("keeps to the daily limits for each editor and site", async () => {
@@ -138,6 +135,56 @@ describe("staying signed in", () => {
     const busy = await post("/github/token", { session: body.session });
     expect(busy.status).toBe(429);
     expect(await busy.json()).toEqual({ problem: "busy" });
+  });
+});
+
+describe("installing while signing in", () => {
+  it("sends the person to GitHub's install page, and checks where to come back to once Goodfellow can read the site", async () => {
+    const { fake, call, post } = setup({ installed: false });
+    const verifier = "v".repeat(43);
+    const query = new URLSearchParams({
+      purpose: "edit",
+      repo: "parish/site",
+      return: `${SITE}/admin/`,
+      challenge: await challengeFor(verifier),
+      install: "1",
+    });
+    const start = await call(`/github/start?${query}`);
+    const install = new URL(start.headers.get("location") ?? "");
+    expect(install.origin + install.pathname).toBe("https://github.com/apps/goodfellow-cms/installations/new");
+    const state = install.searchParams.get("state") ?? "";
+
+    const { code, installation } = fake.install("goodfellow-cms", "olivia", ["parish/site"]);
+    const back = await call(
+      `/github/callback?${new URLSearchParams({ code, installation_id: String(installation), setup_action: "install", state })}`,
+    );
+    const grant = new URL(back.headers.get("location") ?? "").searchParams.get("goodfellow_sign_in");
+    const signedIn = await post("/github/session", { grant, verifier });
+    expect(signedIn.status).toBe(200);
+    expect(((await signedIn.json()) as { user: { login: string } }).user.login).toBe("olivia");
+  });
+
+  it("never goes back to an address the site's settings don't give, nor without the site chosen", async () => {
+    const { fake, call } = setup({ installed: false });
+    const callback = async (back: string, repositories: string[]) => {
+      const query = new URLSearchParams({
+        repo: "parish/site",
+        return: back,
+        challenge: await challengeFor("v".repeat(43)),
+        install: "1",
+      });
+      const state = new URL((await call(`/github/start?${query}`)).headers.get("location") ?? "").searchParams.get(
+        "state",
+      );
+      const { code } = fake.install("goodfellow-cms", "olivia", repositories);
+      return call(`/github/callback?${new URLSearchParams({ code, state: state ?? "" })}`);
+    };
+    const other = await callback(`${SITE}/admin/`, ["parish/other"]);
+    expect(other.headers.get("location")).toBeNull();
+    expect(await other.text()).toMatch(/isn't installed on the site's repository/);
+    const elsewhere = await callback("https://evil.example/admin/", ["parish/site"]);
+    expect(elsewhere.status).toBe(403);
+    expect(elsewhere.headers.get("location")).toBeNull();
   });
 });
 
@@ -186,9 +233,30 @@ describe("owners and site setup", () => {
       repositories: ["maria/new-site"],
       permissions: PERMISSIONS.setup,
     });
+    // The person's own token was kept only until the repository existed.
+    expect(fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true);
+    const again = await post(
+      "/github/setup/repository",
+      { session, owner: "maria", name: "other-site", private: false },
+      "https://setup.example",
+    );
+    expect(await again.json()).toEqual({ problem: "invalid" });
+
+    const { back: secondBack, verifier: secondVerifier } = await redirect(
+      "maria",
+      "setup",
+      "https://setup.example/new-site/",
+    );
+    const second = (await (
+      await post(
+        "/github/session",
+        { grant: secondBack.searchParams.get("goodfellow_sign_in"), verifier: secondVerifier },
+        "https://setup.example",
+      )
+    ).json()) as { session: string };
     const taken = await post(
       "/github/setup/repository",
-      { session, owner: "maria", name: "new-site", private: false },
+      { session: second.session, owner: "maria", name: "new-site", private: false },
       "https://setup.example",
     );
     expect(await taken.json()).toEqual({ problem: "name-taken" });
@@ -196,18 +264,15 @@ describe("owners and site setup", () => {
 });
 
 describe("keys", () => {
-  it("reads GitHub's PKCS #1 private keys as well as PKCS #8 ones", async () => {
+  it("signs in with GitHub's PKCS #1 private keys as well as PKCS #8 ones", async () => {
     // A PKCS #8 key is the PKCS #1 key inside an OCTET STRING, after the version and algorithm.
     const { pkcs8 } = editKey;
     const lengthBytes = (pkcs8[1] ?? 0) & 0x7f;
     let offset = 2 + lengthBytes + 3 + 15;
     expect(pkcs8[offset]).toBe(0x04);
-    const octetLengthBytes = (pkcs8[offset + 1] ?? 0) & 0x7f;
-    offset += 2 + octetLengthBytes;
-    const pkcs1 = pkcs8.subarray(offset);
-    expect(pkcs8FromPkcs1(pkcs1)).toEqual(pkcs8);
-    const pem = `-----BEGIN RSA PRIVATE KEY-----\n${base64(pkcs1)}\n-----END RSA PRIVATE KEY-----`;
-    expect(privateKeyBytes(pem)).toEqual(pkcs8);
-    expect(await appJwt("101", pem)).toMatch(/^ey[\w-]+\.ey[\w-]+\.[\w-]+$/);
+    offset += 2 + ((pkcs8[offset + 1] ?? 0) & 0x7f);
+    const pem = `-----BEGIN RSA PRIVATE KEY-----\n${base64(pkcs8.subarray(offset))}\n-----END RSA PRIVATE KEY-----`;
+    const { call } = setup({ env: { EDIT_PRIVATE_KEY: pem } });
+    expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).toEqual({ ok: true });
   });
 });

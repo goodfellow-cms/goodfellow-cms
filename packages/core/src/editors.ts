@@ -3,7 +3,7 @@
  * capability, and the owner token some hosts need to change them.
  */
 
-import type { TokenLink } from "./git.js";
+import type { RedirectOptions, TokenLink } from "./git.js";
 
 /**
  * What someone can do: `owner`s can also invite and remove editors and change
@@ -76,7 +76,7 @@ export interface OwnerAccess {
    * Signs in as an owner instead of pasting a token, where the host can: goes
    * to the host and comes back to this screen. Throws `SignInError` if it can't start.
    */
-  startRedirect?(): Promise<void>;
+  startRedirect?(options?: RedirectOptions): Promise<void>;
   /** Why the last owner sign-in didn't work, if it didn't, such as a `SignInError`. */
   readonly problem?: unknown;
 }
