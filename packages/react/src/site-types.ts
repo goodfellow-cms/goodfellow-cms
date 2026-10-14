@@ -1,4 +1,4 @@
-import type { Collection, Entry, ImageSize, Menus, PageView, SiteSettings } from "@goodfellow-cms/core";
+import type { Collection, Entry, ImageSize, Menus, PageCredit, PageView, SiteSettings } from "@goodfellow-cms/core";
 import type { Metadata } from "@puckeditor/core";
 import type { AnchorHTMLAttributes, ComponentType, ImgHTMLAttributes } from "react";
 
@@ -62,6 +62,8 @@ export interface SiteContextValue {
   components?: SiteComponents;
   /** The sizes of the site's images, by address (`/media/photo.jpg`), where they're known. */
   media?: Record<string, ImageSize>;
+  /** The credits of the photos the page shows, such as ones from Openverse, which the page lists at its end. */
+  credits?: PageCredit[];
   /** In the admin panel's editor only: links to its screens, so a block's note can say where to fix something. */
   adminLink?: (place: AdminPlace) => AdminLinkProps;
 }

@@ -82,6 +82,14 @@ export {
   sortCollectionEntries,
   sortEntries,
 } from "./content/collections.js";
+export {
+  type MediaFile,
+  mediaFileSchema,
+  type PageCredit,
+  type PhotoCredit,
+  pageCredits,
+  photoCreditSchema,
+} from "./content/credits.js";
 export { ContentError, type ContentProblem } from "./content/errors.js";
 export {
   allPages,
@@ -130,6 +138,7 @@ export {
   isReservedPagePath,
   LIB_DIR,
   MEDIA_DIR,
+  MEDIA_FILE,
   MENUS_FILE,
   normalizePagePath,
   PAGES_DIR,

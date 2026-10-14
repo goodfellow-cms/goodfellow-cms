@@ -1,6 +1,7 @@
-import { type FileChange, MEDIA_DIR } from "@goodfellow-cms/core";
+import { type FileChange, MEDIA_DIR, type PhotoCredit } from "@goodfellow-cms/core";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
+import { withoutCredits } from "./changes.js";
 import { extensionOf, fileName, mediaKind, mediaPath, mediaUrl, mediaUsage, uploadName } from "./media.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
 import { type StringKey, useStrings } from "./strings.js";
@@ -89,7 +90,7 @@ export type UploadResult = { ok: true; urls: string[] } | { ok: false; message: 
 export function useUploadMedia() {
   const t = useStrings();
   const { publish, mediaPreviews } = useAdmin();
-  const { media } = useSiteContent();
+  const { content, media } = useSiteContent();
 
   return async (files: File[], replace?: string): Promise<UploadResult> => {
     const taken = media.map(fileName);
@@ -113,8 +114,10 @@ export function useUploadMedia() {
     // Shown from memory until the live site has them; harmless if publishing fails.
     for (const upload of uploads) mediaPreviews.remember(upload.url, upload.bytes);
     const names = changes.map((change) => fileName(change.path)).join(", ");
+    // A replaced photo's credit was for the photo it replaces.
+    const credits = replace ? withoutCredits(content.credits, [mediaUrl(replace)]) : undefined;
     const result = await publish(
-      changes,
+      credits ? [...changes, credits] : changes,
       replace ? t("media.replaceMessage", { name: names }) : t("media.uploadMessage", { names }),
     );
     if (!result.ok) {
@@ -146,7 +149,11 @@ function DeleteMediaDialog({ url, onClose }: { url: string; onClose: () => void 
     const path = mediaPath(url);
     if (!path) return;
     setBusy(true);
-    const result = await publish([{ path, delete: true }], t("media.deleteMessage", { name }));
+    const credits = withoutCredits(content.credits, [url]);
+    const result = await publish(
+      [{ path, delete: true }, ...(credits ? [credits] : [])],
+      t("media.deleteMessage", { name }),
+    );
     setBusy(false);
     if (result.ok) onClose();
     else setFailure(result);
@@ -164,6 +171,23 @@ function DeleteMediaDialog({ url, onClose }: { url: string; onClose: () => void 
         </Button>
       </div>
     </Dialog>
+  );
+}
+
+/** Who made a photo and its license, which pages that use it show. */
+function MediaCredit({ credit }: { credit: PhotoCredit }) {
+  const t = useStrings();
+  const text = [credit.creator, credit.license].filter(Boolean).join(" · ");
+  return (
+    <span className="gfa-media-credit" title={[credit.title, credit.source].filter(Boolean).join(" · ")}>
+      {credit.sourceUrl ? (
+        <a href={credit.sourceUrl} target="_blank" rel="noreferrer">
+          {t("media.credit", { credit: text })}
+        </a>
+      ) : (
+        t("media.credit", { credit: text })
+      )}
+    </span>
   );
 }
 
@@ -227,7 +251,7 @@ function useUploads() {
 /** Every uploaded image and file, with buttons to upload, replace and delete them. */
 export function MediaScreen() {
   const t = useStrings();
-  const { media } = useSiteContent();
+  const { content, media } = useSiteContent();
   const { status, run } = useUploads();
   const [query, setQuery] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -296,6 +320,7 @@ export function MediaScreen() {
                 <span className="gfa-media-name" title={url}>
                   {fileName(url)}
                 </span>
+                {content.credits?.[url] && <MediaCredit credit={content.credits[url]} />}
                 <div className="gfa-media-actions">
                   <Button
                     variant="ghost"

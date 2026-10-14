@@ -10,6 +10,8 @@ interface Preferences {
   provider?: ProviderId;
   models?: Partial<Record<ProviderId, string>>;
   baseUrl?: string;
+  /** Whether the AI may find photos on Openverse; on unless turned off. */
+  stockPhotos?: boolean;
 }
 
 function localStorageOrNull(): StorageLike | null {
@@ -92,6 +94,7 @@ export function useAiSettings(providers: ProviderId[]) {
       }
 
       savePreferences({
+        ...preferences,
         provider,
         models: { ...preferences.models, [provider]: next.model },
         baseUrl: next.baseUrl,
@@ -101,4 +104,14 @@ export function useAiSettings(providers: ProviderId[]) {
   }, []);
 
   return [state, update] as const;
+}
+
+/** Whether the editor lets the AI find openly licensed photos, remembered in this browser. On at first. */
+export function useStockPhotoChoice() {
+  const [on, setOn] = useState(() => loadPreferences().stockPhotos !== false);
+  const update = useCallback((next: boolean) => {
+    setOn(next);
+    savePreferences({ ...loadPreferences(), stockPhotos: next });
+  }, []);
+  return [on, update] as const;
 }

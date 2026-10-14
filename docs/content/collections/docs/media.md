@@ -20,3 +20,7 @@ Choose files, or drop them onto the Media screen. Wherever an image goes, such a
 ## Replace and delete
 
 Replacing a file keeps its address, so everything that uses it shows the new version. Deleting a file first lists everything that uses it.
+
+## Credits
+
+Photos the [AI assistant](/docs/ai-assistant#photos) finds on Openverse show their credit under their name on the Media screen, linking to where they came from. Pages that use them list their credits at the bottom, as their licenses require. The credits are kept in `content/media.json`; replacing or deleting a photo removes its credit, since it was for that photo.

@@ -109,3 +109,70 @@ export function fakeAi(options: FakeAiOptions) {
     fetch: ((input: RequestInfo | URL, init?: RequestInit) => handle(new Request(input, init))) as typeof fetch,
   };
 }
+
+/** A photo as Openverse's search lists it, with only the fields Goodfellow reads. */
+export interface FakeOpenversePhoto {
+  id: string;
+  title?: string;
+  creator?: string;
+  creator_url?: string;
+  foreign_landing_url?: string;
+  license?: string;
+  license_version?: string;
+  license_url?: string;
+  source?: string;
+  width?: number;
+  height?: number;
+}
+
+export interface FakeOpenverseOptions {
+  /** The photos a search finds, given its words. */
+  photos: (query: string) => FakeOpenversePhoto[];
+  /** What downloading a photo gives: a 1×1 PNG unless set. */
+  image?: { bytes: Uint8Array; type: string };
+  /** Answers every request as Openverse does when asked too often. */
+  busy?: boolean;
+}
+
+/** A 1×1 PNG, the smallest image a browser reads. */
+const PIXEL = Uint8Array.from(
+  atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="),
+  (character) => character.charCodeAt(0),
+);
+
+/**
+ * A fake of Openverse's API, for tests: its image search and its downloads of
+ * photos at full size. Pass `fake.fetch`, or route browser requests to `fake.handle`.
+ */
+export function fakeOpenverse(options: FakeOpenverseOptions) {
+  const requests: string[] = [];
+
+  async function handle(request: Request): Promise<Response> {
+    requests.push(request.url);
+    const cors = { "access-control-allow-origin": "*" };
+    if (options.busy) return Response.json({ detail: "Request was throttled." }, { status: 429, headers: cors });
+    const url = new URL(request.url);
+    if (/^\/v1\/images\/[^/]+\/thumb\/?$/.test(url.pathname)) {
+      const image = options.image ?? { bytes: PIXEL, type: "image/png" };
+      return new Response(image.bytes.slice().buffer, { headers: { ...cors, "content-type": image.type } });
+    }
+    if (/^\/v1\/images\/?$/.test(url.pathname)) {
+      const results = options.photos(url.searchParams.get("q") ?? "").map((photo) => ({
+        title: "",
+        creator: "",
+        license: "by",
+        license_version: "4.0",
+        source: "flickr",
+        ...photo,
+      }));
+      return Response.json({ result_count: results.length, page_count: 1, results }, { headers: cors });
+    }
+    return Response.json({ detail: "Not found." }, { status: 404, headers: cors });
+  }
+
+  return {
+    requests,
+    handle,
+    fetch: ((input: RequestInfo | URL, init?: RequestInit) => handle(new Request(input, init))) as typeof fetch,
+  };
+}

@@ -11,17 +11,21 @@ import {
   parseAnswer,
   runRequest,
   type SiteSummary,
+  type StockPhotoError,
+  stockPhotoQueries,
   toContent,
   toValues,
+  withStockPhotos,
 } from "@goodfellow-cms/ai";
 import { allPages, type Collection, entryTitle, type SiteContent } from "@goodfellow-cms/core";
 import { type ComponentData, createUsePuck, type Fields, type Plugin, useGetPuck } from "@puckeditor/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
-import { allowedProviders, useAiSettings } from "./ai-settings.js";
-import { pageTitle } from "./changes.js";
+import { allowedProviders, useAiSettings, useStockPhotoChoice } from "./ai-settings.js";
+import { mediaFileChange, pageTitle } from "./changes.js";
 import { inSentence } from "./collection-screen.js";
-import { siteImages } from "./media.js";
+import { fileName, siteImages } from "./media.js";
+import { findStockPhotos, stockPhotoChanges } from "./stock-photos.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, ErrorMessage, Field, TextField } from "./ui.js";
 
@@ -43,7 +47,7 @@ const claudeModelLabels: Record<string, StringKey> = {
   "claude-haiku-4-5": "ai.model.claude-haiku-4-5",
 };
 
-function siteSummary(content: SiteContent, media: string[]): SiteSummary {
+function siteSummary(content: SiteContent, media: string[], stockPhotos: boolean): SiteSummary {
   return {
     title: content.settings.title,
     description: content.settings.description,
@@ -62,6 +66,7 @@ function siteSummary(content: SiteContent, media: string[]): SiteSummary {
     })),
     images: siteImages(media),
     contact: content.settings.contact,
+    ...(stockPhotos && { stockPhotos }),
   };
 }
 
@@ -69,10 +74,22 @@ function newId(type: string): string {
   return `${type}-${crypto.randomUUID()}`;
 }
 
+/** What happened to the photos the AI asked for. */
+interface PhotoReport {
+  /** The names of the photos added. */
+  added: string[];
+  missing: number;
+  /** Why Openverse couldn't be asked for them all. */
+  problem?: StockPhotoError;
+  /** Why the photos found couldn't be added to the media library. */
+  failure?: unknown;
+}
+
 type Status =
   | { type: "idle" }
   | { type: "working"; characters: number }
-  | { type: "done" }
+  | { type: "photos" }
+  | { type: "done"; photos?: PhotoReport }
   | { type: "failed"; error: unknown }
   | { type: "manual"; prompt: string; task: AiTask };
 
@@ -231,12 +248,15 @@ function serviceName(id: ProviderId, t: ReturnType<typeof useStrings>): string {
 /** The AI panel: describe what to write, and it's added to the page, replaces the selected block, or fills in the fields. */
 function AiPanel({ context }: { context: AiContext }) {
   const t = useStrings();
-  const { config } = useAdmin();
+  const { config, publish, mediaPreviews } = useAdmin();
   const { content, media } = useSiteContent();
   const getPuck = useGetPuck();
   const selected = usePuck((state) => state.selectedItem);
   const providers = useMemo(() => allowedProviders(config.ai ? config.ai.providers : undefined), [config.ai]);
   const [settings, updateSettings] = useAiSettings(providers);
+  const [photosChosen, choosePhotos] = useStockPhotoChoice();
+  const photosOffered = !(config.ai && config.ai.stockPhotos === false);
+  const photosAllowed = photosOffered && photosChosen;
   const [instruction, setInstruction] = useState("");
   const [reply, setReply] = useState("");
   const [copied, setCopied] = useState(false);
@@ -311,11 +331,46 @@ function AiPanel({ context }: { context: AiContext }) {
     dispatch({ type: "setData", data: (previous) => ({ ...previous, content: [...previous.content, ...blocks] }) });
   };
 
+  /**
+   * Finds the photos the AI asked for, adds them to the media library with
+   * their credits in one publish, and puts their addresses in the answer.
+   * Fields whose photo wasn't found are left empty.
+   */
+  const addPhotos = async (answer: unknown, signal: AbortSignal) => {
+    const queries = photosAllowed ? stockPhotoQueries(answer) : [];
+    if (queries.length === 0) return { answer: withStockPhotos(answer, new Map()) };
+    setStatus({ type: "photos" });
+    const found = await findStockPhotos(queries, { taken: media.map(fileName), signal });
+    let added = found.photos;
+    let failure: unknown;
+    if (added.length > 0 && !signal.aborted) {
+      // Shown from memory until the live site has them.
+      for (const photo of added) mediaPreviews.remember(photo.url, photo.bytes);
+      const credits = { ...content.credits, ...Object.fromEntries(added.map((photo) => [photo.url, photo.credit])) };
+      const result = await publish(
+        [...stockPhotoChanges(added), mediaFileChange(credits)],
+        t("ai.photos.message", { names: added.map((photo) => fileName(photo.url)).join(", ") }),
+      );
+      if (!result.ok) {
+        failure = result.error;
+        added = [];
+      }
+    }
+    const photos = new Map(added.map((photo) => [photo.query, photo.url]));
+    const report: PhotoReport = {
+      added: added.map((photo) => fileName(photo.url)),
+      missing: queries.length - added.length,
+      problem: found.problem,
+      failure,
+    };
+    return { answer: withStockPhotos(answer, photos), photos: report };
+  };
+
   const run = async () => {
     const text = instruction.trim();
     if (!text) return;
     const task = taskFor(text);
-    const request: AiRequest = buildRequest(task, getPuck().config, siteSummary(content, media));
+    const request: AiRequest = buildRequest(task, getPuck().config, siteSummary(content, media, photosAllowed));
     if (settings.provider === "manual") {
       setReply("");
       setCopied(false);
@@ -332,25 +387,34 @@ function AiPanel({ context }: { context: AiContext }) {
         onProgress: (characters) => setStatus({ type: "working", characters }),
       });
       if (current.signal.aborted) return;
-      apply(task, answer);
-      setStatus({ type: "done" });
+      const filled = await addPhotos(answer, current.signal);
+      if (current.signal.aborted) return;
+      apply(task, filled.answer);
+      setStatus({ type: "done", photos: filled.photos });
     } catch (error) {
       if (current.signal.aborted) setStatus({ type: "idle" });
       else setStatus({ type: "failed", error });
     }
   };
 
-  const applyReply = () => {
+  const applyReply = async () => {
     if (status.type !== "manual") return;
+    controller.current?.abort();
+    const current = new AbortController();
+    controller.current = current;
+    const { task } = status;
     try {
-      apply(status.task, parseAnswer(reply));
-      setStatus({ type: "done" });
+      const filled = await addPhotos(parseAnswer(reply), current.signal);
+      if (current.signal.aborted) return;
+      apply(task, filled.answer);
+      setStatus({ type: "done", photos: filled.photos });
     } catch (error) {
-      setStatus({ type: "failed", error });
+      if (current.signal.aborted) setStatus({ type: "idle" });
+      else setStatus({ type: "failed", error });
     }
   };
 
-  const working = status.type === "working";
+  const working = status.type === "working" || status.type === "photos";
 
   return (
     <div className="gfa-ai">
@@ -378,6 +442,16 @@ function AiPanel({ context }: { context: AiContext }) {
         )}
       </Field>
 
+      {photosOffered && (
+        <div>
+          <label className="gfa-checkbox">
+            <input type="checkbox" checked={photosChosen} onChange={(event) => choosePhotos(event.target.checked)} />
+            {t("ai.photos")}
+          </label>
+          <p className="gfa-hint">{t("ai.photosHint")}</p>
+        </div>
+      )}
+
       {!ready && <p className="gfa-hint">{t("ai.needsKey", { service })}</p>}
 
       <div className="gfa-ai-actions">
@@ -387,15 +461,24 @@ function AiPanel({ context }: { context: AiContext }) {
         {working && <Button onClick={() => controller.current?.abort()}>{t("ai.stop")}</Button>}
       </div>
 
-      {working && (
+      {status.type === "working" && (
         <p className="gfa-notice" role="status">
           {status.characters > 0 ? t("ai.progress", { count: String(status.characters) }) : t("ai.working")}
         </p>
       )}
-      {status.type === "done" && (
-        <p className="gfa-notice gfa-notice-success" role="status">
-          {t("ai.done")}
+      {status.type === "photos" && (
+        <p className="gfa-notice" role="status">
+          {t("ai.photos.finding")}
         </p>
+      )}
+      {status.type === "done" && (
+        <>
+          <p className="gfa-notice gfa-notice-success" role="status">
+            {t("ai.done")}
+            {status.photos?.added.length ? ` ${t("ai.photos.added", { names: status.photos.added.join(", ") })}` : null}
+          </p>
+          {status.photos && <PhotoProblems report={status.photos} />}
+        </>
       )}
       {status.type === "failed" && (
         <ErrorMessage message={t(problemKey(status.error), { service })} error={status.error} />
@@ -430,7 +513,7 @@ function AiPanel({ context }: { context: AiContext }) {
             )}
           </Field>
           <div>
-            <Button variant="primary" disabled={!reply.trim()} onClick={applyReply}>
+            <Button variant="primary" disabled={!reply.trim()} onClick={() => void applyReply()}>
               {t("ai.manual.use")}
             </Button>
           </div>
@@ -449,6 +532,18 @@ function AiPanel({ context }: { context: AiContext }) {
       </details>
     </div>
   );
+}
+
+/** Why some of the photos the AI asked for weren't added, if any weren't. */
+function PhotoProblems({ report }: { report: PhotoReport }) {
+  const t = useStrings();
+  if (report.failure) return <ErrorMessage message={t("ai.photos.error.publish")} error={report.failure} />;
+  if (report.problem) {
+    return <ErrorMessage message={t(`ai.photos.error.${report.problem.problem}`)} error={report.problem} />;
+  }
+  if (report.missing > 0)
+    return <p className="gfa-notice">{t("ai.photos.missing", { count: String(report.missing) })}</p>;
+  return null;
 }
 
 function SparkleIcon() {

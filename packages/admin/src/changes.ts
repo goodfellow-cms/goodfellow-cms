@@ -14,10 +14,12 @@ import {
   isAddressSegment,
   isEmptyValue,
   isReservedPagePath,
+  MEDIA_FILE,
   MENUS_FILE,
   type Menus,
   normalizePagePath,
   type Page,
+  type PhotoCredit,
   pagePathToFile,
   REDIRECTS_FILE,
   type Redirect,
@@ -144,6 +146,22 @@ export function redirectsFileChange({ redirects, message }: SiteRedirects): File
         }),
       }
     : { path: REDIRECTS_FILE, delete: true };
+}
+
+/** `content/media.json` with these credits, or its removal once no file has one. */
+export function mediaFileChange(credits: Record<string, PhotoCredit>): FileChange {
+  return Object.keys(credits).length > 0
+    ? { path: MEDIA_FILE, content: serializeContent({ version: CURRENT_VERSION.media, credits }) }
+    : { path: MEDIA_FILE, delete: true };
+}
+
+/** The change that drops the credits of files being deleted or replaced, if any of them has one. */
+export function withoutCredits(
+  credits: Record<string, PhotoCredit> | undefined,
+  urls: readonly string[],
+): FileChange | undefined {
+  if (!credits || !urls.some((url) => url in credits)) return undefined;
+  return mediaFileChange(Object.fromEntries(Object.entries(credits).filter(([url]) => !urls.includes(url))));
 }
 
 /**

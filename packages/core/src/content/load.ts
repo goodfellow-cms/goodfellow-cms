@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import { type ContentKind, migrateContent } from "../migrations/index.js";
 import { type Collection, type Entry, entryFieldProblems, sortCollectionEntries } from "./collections.js";
+import { mediaFileSchema, type PhotoCredit } from "./credits.js";
 import { ContentError, type ContentProblem } from "./errors.js";
 import { parseMarkdownEntry } from "./markdown.js";
 import {
@@ -14,6 +15,7 @@ import {
   HEADER_FILE,
   isAddressSegment,
   isReservedPagePath,
+  MEDIA_FILE,
   MENUS_FILE,
   PAGES_DIR,
   pageFileToPath,
@@ -82,6 +84,8 @@ export interface SiteContent {
   redirects?: Redirect[];
   /** What the page at an old address says while it sends visitors on, if the site set it. */
   redirectMessage?: string;
+  /** Media files' credits, by address (`content/media.json`), such as photos from Openverse. Missing means none. */
+  credits?: Record<string, PhotoCredit>;
 }
 
 export interface SiteCode {
@@ -165,6 +169,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     settings,
     menusFile,
     redirectsFile,
+    mediaFile,
     header,
     footer,
     customCss,
@@ -176,6 +181,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     loadOptional("site", siteSettingsSchema, SITE_FILE, siteSettingsSchema.parse({ version: 1 })),
     loadOptional("menus", menusFileSchema, MENUS_FILE, { version: 1, menus: {} }),
     loadOptional("redirects", redirectsFileSchema, REDIRECTS_FILE, { version: 1, redirects: [] }),
+    loadOptional("media", mediaFileSchema, MEDIA_FILE, { version: 1, credits: {} }),
     loadOptional("layout", layoutFileSchema, HEADER_FILE, EMPTY_LAYOUT),
     loadOptional("layout", layoutFileSchema, FOOTER_FILE, EMPTY_LAYOUT),
     source.read(CUSTOM_CSS_FILE),
@@ -275,6 +281,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     code: { head: headCode ?? "", body: bodyCode ?? "" },
     redirects: redirectsFile.redirects,
     ...(redirectsFile.message !== undefined && { redirectMessage: redirectsFile.message }),
+    credits: mediaFile.credits,
   };
 }
 

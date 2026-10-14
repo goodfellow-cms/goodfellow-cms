@@ -51,6 +51,20 @@
     flex: 1;
   }
 
+  /* The credits of the photos on a page, which their licenses ask for. */
+  .gf-credits {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--color-muted-foreground);
+  }
+
+  .gf-credits a {
+    text-decoration: underline;
+  }
+
   h1,
   h2,
   h3,
