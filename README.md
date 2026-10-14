@@ -87,7 +87,6 @@ Editor's browser                       Git host (GitHub / GitLab)         Static
     - **Sign-in through the app:** the admin panel signs in with the app's own authentication (such as Better Auth), and the app says who may edit, publish and change settings.
     - **Git on the server:** the app's server reads and publishes through GitHub or GitLab with a token from an environment variable, behind that sign-in, so no git credentials reach the browser. Commits still name the editor.
     - **AI keys on the server** (optional): keys in environment variables, with the AI assistant's requests sent through the app's server, so editors don't need keys of their own.
-    - **A database instead of git** (optional): content saved in a database, with pages still served as static as possible through Next.js's cache, and each publish refreshing only the pages, header and footer it affects.
 25. **Moving from and to WordPress.** Import a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected. Export a Goodfellow site as a WordPress export file, with its blocks turned into WordPress's.
 
 Planned for later: review workflows (pull/merge requests from the admin panel), per-user permissions, importing from other systems, plugins and themes, and Bitbucket support.
