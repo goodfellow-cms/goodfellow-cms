@@ -37,6 +37,7 @@ body:
         - The admin panel
         - The site's pages or blocks
         - Publishing, or signing in to GitHub or GitLab
+        - Sign in with GitHub (the sign-in service)
         - Building or putting the site online
         - Connecting a domain
         - Version history

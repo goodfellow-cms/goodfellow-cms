@@ -285,7 +285,7 @@ function ConnectedDomain({ domain, onRemoved }: { domain: string; onRemoved: () 
       <p>
         <strong>{t("domain.connected", { domain })}</strong>
       </p>
-      {account?.canRedirect && (
+      {account?.redirectAddressesListed && (
         <p className="gfa-notice">{t("domain.signIn", { host, address: `${address}/admin/` })}</p>
       )}
       {done && (

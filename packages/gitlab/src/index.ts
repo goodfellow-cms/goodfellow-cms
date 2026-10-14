@@ -167,6 +167,7 @@ export function gitlab(options: GitLabOptions): GitHost {
   return {
     name: "GitLab",
     canRedirect: Boolean(options.clientId),
+    redirectAddressesListed: Boolean(options.clientId),
     tokenLinks: [
       {
         url: `${webUrl}/-/user_settings/personal_access_tokens?${new URLSearchParams({ name: "Goodfellow admin", scopes: "api" })}`,

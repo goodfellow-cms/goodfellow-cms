@@ -72,6 +72,13 @@ export interface OwnerAccess {
   /** Checks the token and uses it for editors and Pages settings. Throws `EditorsError` if it can't manage the site. */
   applyToken(token: string): Promise<void>;
   forget(): void;
+  /**
+   * Signs in as an owner instead of pasting a token, where the host can: goes
+   * to the host and comes back to this screen. Throws `SignInError` if it can't start.
+   */
+  startRedirect?(): Promise<void>;
+  /** Why the last owner sign-in didn't work, if it didn't, such as a `SignInError`. */
+  readonly problem?: unknown;
 }
 
 /** Why a change to the site's editors didn't work, in a form the admin panel turns into plain words. */

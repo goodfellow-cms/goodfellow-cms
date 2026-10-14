@@ -9,7 +9,7 @@ import {
   type SiteEditors,
   type TokenLink,
 } from "@goodfellow-cms/core";
-import { type ApiOptions, githubJson, githubRequest } from "./api.js";
+import { type ApiOptions, githubJson, githubRequest, type TokenSource } from "./api.js";
 
 interface Permissions {
   admin?: boolean;
@@ -184,14 +184,34 @@ export function githubEditors(
   };
 }
 
-/** The owner token: GitHub's Administration and Pages permissions, for this tab only. */
-export function githubOwnerAccess(base: ApiOptions, repo: string, tokenLink: TokenLink) {
+/**
+ * The owner token: GitHub's Administration and Pages permissions, for this tab
+ * only. With the sign-in worker, owners can sign in with its owners' app
+ * instead (`redirect`), and `useSignIn()` gives the token that comes back.
+ */
+export function githubOwnerAccess(
+  base: ApiOptions,
+  repo: string,
+  tokenLink: TokenLink,
+  redirect?: () => Promise<void>,
+) {
   let owner: ApiOptions | undefined;
+  let endSignIn: (() => void) | undefined;
+  let problem: unknown;
   const access: OwnerAccess = {
     tokenLink,
     get active() {
       return owner !== undefined;
     },
+    get problem() {
+      return problem;
+    },
+    ...(redirect && {
+      async startRedirect() {
+        problem = undefined;
+        await redirect();
+      },
+    }),
     async applyToken(token) {
       const api = { ...base, token: token.trim() };
       try {
@@ -208,10 +228,26 @@ export function githubOwnerAccess(base: ApiOptions, repo: string, tokenLink: Tok
         throw error;
       }
       owner = api;
+      problem = undefined;
     },
     forget() {
       owner = undefined;
+      endSignIn?.();
+      endSignIn = undefined;
     },
   };
-  return { access, api: () => owner };
+  return {
+    access,
+    api: () => owner,
+    /** Uses an owner's sign-in through the worker. `end` runs when it's forgotten. */
+    useSignIn(token: TokenSource, end: () => void) {
+      owner = { ...base, token };
+      endSignIn = end;
+      problem = undefined;
+    },
+    /** Remembers why an owner's sign-in didn't work, for the screen that started it to show. */
+    failed(error: unknown) {
+      problem = error;
+    },
+  };
 }

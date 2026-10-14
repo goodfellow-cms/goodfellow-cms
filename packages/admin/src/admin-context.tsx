@@ -53,8 +53,8 @@ export type DeployProgress = { revision: string; previous?: string } & DeploySta
 export interface Account {
   user: GitUser;
   hostName: string;
-  /** Whether editors sign in by being sent to the host and back, which only works from addresses the host allows. */
-  canRedirect: boolean;
+  /** Whether editors sign in by being sent to the host and back to addresses listed with the host, which a new domain must be added to. */
+  redirectAddressesListed: boolean;
   signOut(): void;
 }
 
@@ -167,6 +167,8 @@ export function AdminProvider({
       backendOwner && {
         tokenLink: backendOwner.tokenLink,
         active: ownerActive,
+        problem: backendOwner.problem,
+        ...(backendOwner.startRedirect && { startRedirect: () => backendOwner.startRedirect?.() ?? Promise.resolve() }),
         async applyToken(token) {
           await backendOwner.applyToken(token);
           setOwnerActive(true);

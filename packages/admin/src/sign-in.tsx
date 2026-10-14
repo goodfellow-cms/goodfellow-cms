@@ -13,6 +13,41 @@ function errorMessage(error: unknown): StringKey {
   return "signIn.error.other";
 }
 
+/** Problems with signing in by going to the host, which signing in with a token gets around. */
+const REDIRECT_PROBLEMS = new Set([
+  "busy",
+  "not-installed",
+  "no-address",
+  "wrong-address",
+  "local-address",
+  "unavailable",
+]);
+
+/** Explains why signing in didn't work, with a link to where it's fixed, such as installing Goodfellow. */
+export function SignInProblem({ error, host, expired }: { error: unknown; host: string; expired?: boolean }) {
+  const t = useStrings();
+  const link = error instanceof SignInError ? error.link : undefined;
+  return (
+    <>
+      <ErrorMessage
+        message={
+          expired && error instanceof SignInError && error.problem === "invalid"
+            ? t("signIn.error.expired")
+            : t(errorMessage(error), { host })
+        }
+        error={error}
+      />
+      {link && (
+        <p>
+          <a href={link} target="_blank" rel="noreferrer">
+            {t("signIn.install", { host })}
+          </a>
+        </p>
+      )}
+    </>
+  );
+}
+
 function SignInScreen({
   host,
   error,
@@ -28,6 +63,20 @@ function SignInScreen({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<unknown>(error);
   const values = { host: host.name };
+
+  // When signing in by going to the host can't work, the token form is the way in, so it's shown open.
+  const redirectFailed = failure instanceof SignInError && REDIRECT_PROBLEMS.has(failure.problem);
+
+  const redirect = async () => {
+    setBusy(true);
+    setFailure(undefined);
+    try {
+      await host.startRedirect(remember);
+    } catch (caught) {
+      setFailure(caught);
+      setBusy(false);
+    }
+  };
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -55,28 +104,19 @@ function SignInScreen({
     <div className="gfa-sign-in">
       <h1>{t("signIn.title")}</h1>
       <p>{t("signIn.intro", values)}</p>
-      {failure !== undefined && (
-        <ErrorMessage
-          message={
-            failure instanceof SignInError && failure.problem === "invalid" && error === failure
-              ? t("signIn.error.expired")
-              : t(errorMessage(failure), values)
-          }
-          error={failure}
-        />
-      )}
+      {failure !== undefined && <SignInProblem error={failure} host={host.name} expired={error === failure} />}
 
       {host.canRedirect && (
         <div className="gfa-form">
           {remembered}
-          <Button variant="primary" disabled={busy} onClick={() => void host.startRedirect(remember)}>
+          <Button variant="primary" disabled={busy} onClick={() => void redirect()}>
             {t("signIn.redirect", values)}
           </Button>
         </div>
       )}
 
       {host.tokenLinks && host.tokenLinks.length > 0 && (
-        <details className="gfa-sign-in-token" open={!host.canRedirect}>
+        <details className="gfa-sign-in-token" open={!host.canRedirect || redirectFailed}>
           <summary>{t(host.canRedirect ? "signIn.orToken" : "signIn.token.title")}</summary>
           <form className="gfa-form" onSubmit={onSubmit}>
             <ol className="gfa-steps">

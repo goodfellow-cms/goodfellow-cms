@@ -1,10 +1,24 @@
 import { credentialStorage, GitApiError, type GitHost, SignInError, type StorageLike } from "@goodfellow-cms/core";
-import { type ApiOptions, githubJson, repoPath } from "./api.js";
+import { type ApiOptions, githubJson, githubRequest, repoPath } from "./api.js";
 import { GitHubBackend } from "./backend.js";
+import {
+  type BrowserLocation,
+  browserLocation,
+  ERROR_PARAM,
+  GOODFELLOW_SIGN_IN,
+  GRANT_PARAM,
+  type IssuedToken,
+  isLocalAddress,
+  newVerifier,
+  renewingToken,
+  SignInService,
+  signInProblem,
+} from "./sign-in.js";
 
 export { GitHubBackend } from "./backend.js";
 export { githubPagesRecords } from "./pages.js";
 export { type GitHubSetupOptions, githubSetup, githubSetupTokenLinks } from "./setup.js";
+export { type BrowserLocation, GOODFELLOW_SIGN_IN } from "./sign-in.js";
 
 export interface GitHubOptions {
   /** The site's repository, as `owner/name`. */
@@ -15,10 +29,33 @@ export interface GitHubOptions {
   apiUrl?: string;
   /** For GitHub Enterprise. Defaults to `https://github.com`. */
   webUrl?: string;
+  /**
+   * The sign-in worker, which lets editors sign in with GitHub instead of
+   * pasting a token. Defaults to Goodfellow's (`GOODFELLOW_SIGN_IN`); give the
+   * address of your own copy, or `false` for token sign-in only.
+   */
+  signIn?: string | false;
   /** For tests. */
   fetch?: typeof fetch;
   /** For tests. */
   storage?: { local?: StorageLike; session?: StorageLike };
+  /** For tests. */
+  location?: BrowserLocation;
+}
+
+/** What's saved for a signed-in editor: a token they pasted, or a session with the sign-in worker. */
+type Saved = { type: "token"; token: string } | { type: "worker"; session: string };
+
+/** A sign-in through the worker on its way: this tab's verifier, and what it's for. */
+interface PendingRedirect {
+  verifier: string;
+  purpose: "edit" | "owner";
+  remember: boolean;
+}
+
+/** Saved sign-ins to forget when they stop working: not when the worker is busy or can't be reached, which passes. */
+function forgets(error: unknown): boolean {
+  return error instanceof SignInError && error.problem !== "busy" && error.problem !== "unavailable";
 }
 
 /**
@@ -66,9 +103,126 @@ export function github(options: GitHubOptions): GitHost {
   const apiUrl = (options.apiUrl ?? "https://api.github.com").replace(/\/$/, "");
   const links = githubTokenLinks(options.repo, options.webUrl);
   const storage = credentialStorage(`goodfellow:github:${options.repo}`, options.storage);
+  const pending = credentialStorage(`goodfellow:github:pending:${options.repo}`, options.storage);
+  const fetcher: typeof fetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  const location = options.location ?? browserLocation();
+  const signInUrl = options.signIn === undefined ? GOODFELLOW_SIGN_IN : options.signIn;
+  // Never on this computer: the worker doesn't give tokens there, and `goodfellow dev` doesn't need one.
+  const service =
+    signInUrl && location && !isLocalAddress(location.href()) ? new SignInService(signInUrl, fetcher) : undefined;
+
+  function save(value: Saved, remember: boolean): void {
+    // Tokens are saved on their own, as they were before sessions with the worker.
+    storage.save(value.type === "token" ? value.token : JSON.stringify(value), remember);
+  }
+
+  function loadSaved(): Saved | undefined {
+    const value = storage.load();
+    if (!value) return undefined;
+    try {
+      const parsed = JSON.parse(value) as Saved;
+      if (parsed.type === "worker" || parsed.type === "token") return parsed;
+    } catch {
+      // Saved before sign-in through the worker: the token on its own.
+    }
+    return { type: "token", token: value };
+  }
+
+  /** Sends the browser to GitHub through the worker, which comes back to this screen. */
+  async function redirect(purpose: "edit" | "owner", remember: boolean): Promise<void> {
+    if (!service || !location) throw new SignInError("unavailable", "Signing in with GitHub isn't available here.");
+    await service.check(options.repo, purpose);
+    const { verifier, challenge } = await newVerifier();
+    pending.save(JSON.stringify({ verifier, purpose, remember } satisfies PendingRedirect), false);
+    location.assign(service.startUrl({ purpose, repo: options.repo, back: location.href(), challenge, remember }));
+  }
+
+  /** Connects with a session from the worker, whose tokens renew themselves. */
+  async function connectWorker(issued: IssuedToken, remember: boolean): Promise<GitHubBackend> {
+    const worker = service as SignInService;
+    const source = renewingToken(worker, issued, (renewed) =>
+      save({ type: "worker", session: renewed.session }, remember),
+    );
+    save({ type: "worker", session: issued.session }, remember);
+    const api: ApiOptions = { apiUrl, token: source.token, fetch: fetcher };
+    const repo = await githubJson<{ default_branch: string }>(api, `/repos/${repoPath(options.repo)}`);
+    const { user } = issued;
+    return new GitHubBackend({
+      api,
+      repo: options.repo,
+      branch: options.branch ?? repo.default_branch,
+      user: { login: user.login, name: user.name, avatarUrl: user.avatarUrl },
+      author: { name: user.name || user.login, email: user.email },
+      onSignOut: () => {
+        storage.clear();
+        const { token, session } = source.current();
+        void worker.signOut(session);
+        void githubRequest({ ...api, token }, "/installation/token", { method: "DELETE" }).catch(() => {});
+      },
+      ownerTokenLink: { url: links.owner, label: "owner.token.create" },
+      ownerRedirect: () => redirect("owner", false),
+    });
+  }
+
+  /** Gives the backend an owner's sign-in that has just come back from GitHub. It's kept in memory only. */
+  async function useOwner(backend: GitHubBackend, grant: string, verifier: string): Promise<void> {
+    const worker = service as SignInService;
+    try {
+      const issued = await worker.session(grant, verifier);
+      const source = renewingToken(worker, issued, () => {});
+      backend.useOwnerSignIn(source.token, () => void worker.signOut(source.current().session));
+    } catch (error) {
+      backend.ownerSignInFailed(error);
+    }
+  }
+
+  /** Finishes a sign-in through the worker if the page has just come back from it. */
+  async function completeRedirect(): Promise<GitHubBackend | null | undefined> {
+    if (!location) return undefined;
+    const url = new URL(location.href());
+    const grant = url.searchParams.get(GRANT_PARAM);
+    const failed = url.searchParams.get(ERROR_PARAM);
+    if (!grant && !failed) return undefined;
+    // Remove the sign-in's details from the address bar, staying on the screen it started from.
+    url.searchParams.delete(GRANT_PARAM);
+    url.searchParams.delete(ERROR_PARAM);
+    location.replace(url.toString());
+    const saved = pending.load();
+    pending.clear();
+    const redirect = saved ? (JSON.parse(saved) as PendingRedirect) : undefined;
+    if (!redirect || !service) {
+      throw new SignInError("redirect-failed", "Signing in with GitHub didn't finish in this tab.");
+    }
+    if (redirect.purpose === "owner") {
+      // The owner's sign-in is on top of the editor's own, which is restored as usual.
+      const backend = await restoreSaved();
+      if (!backend) throw new SignInError("redirect-failed", "Sign in again, then sign in as an owner.");
+      if (failed) backend.ownerSignInFailed(signInProblem({ problem: failed }));
+      else if (grant) await useOwner(backend, grant, redirect.verifier);
+      return backend;
+    }
+    if (failed || !grant) throw signInProblem({ problem: failed });
+    return connectWorker(await service.session(grant, redirect.verifier), redirect.remember);
+  }
+
+  async function restoreSaved(): Promise<GitHubBackend | null> {
+    const saved = loadSaved();
+    if (!saved) return null;
+    try {
+      if (saved.type === "token") return await connect(saved.token);
+      if (!service) {
+        storage.clear();
+        return null;
+      }
+      return await connectWorker(await service.token(saved.session), storage.remembered());
+    } catch (error) {
+      if (forgets(error)) storage.clear();
+      throw error;
+    }
+  }
 
   async function connect(token: string): Promise<GitHubBackend> {
-    const api: ApiOptions = { apiUrl, token, fetch: options.fetch ?? globalThis.fetch.bind(globalThis) };
+    const api: ApiOptions = { apiUrl, token, fetch: fetcher };
     const user = await githubJson<{ login: string; name?: string | null; avatar_url?: string }>(api, "/user");
     let repo: { default_branch: string; permissions?: { push?: boolean } };
     try {
@@ -92,35 +246,31 @@ export function github(options: GitHubOptions): GitHost {
       user: { login: user.login, name: user.name ?? undefined, avatarUrl: user.avatar_url },
       onSignOut: () => storage.clear(),
       ownerTokenLink: { url: links.owner, label: "owner.token.create" },
+      ...(service && { ownerRedirect: () => redirect("owner", false) }),
     });
   }
 
   return {
     name: "GitHub",
-    canRedirect: false,
+    canRedirect: service !== undefined,
     tokenLinks: [
       { url: links.fineGrained, label: "signIn.token.create" },
       { url: links.classic, label: "signIn.token.createBroad", hint: "signIn.token.createBroadHint" },
     ],
     async restore() {
-      const token = storage.load();
-      if (!token) return null;
-      try {
-        return await connect(token);
-      } catch (error) {
-        if (error instanceof SignInError) storage.clear();
-        throw error;
-      }
+      const redirected = await completeRedirect();
+      if (redirected !== undefined) return redirected;
+      return restoreSaved();
     },
     async signInWithToken(token, remember) {
       const trimmed = token.trim();
       if (!trimmed) throw new SignInError("invalid", "Paste a token to sign in.");
       const backend = await connect(trimmed);
-      storage.save(trimmed, remember);
+      save({ type: "token", token: trimmed }, remember);
       return backend;
     },
-    async startRedirect() {
-      throw new Error("Signing in by redirect needs a sign-in server, which isn't supported for GitHub yet.");
+    startRedirect(remember) {
+      return redirect("edit", remember);
     },
   };
 }
