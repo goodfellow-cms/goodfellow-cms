@@ -46,13 +46,13 @@ test("edits a Markdown item's text formatted, or as Markdown when the formatted 
 
   // Formatted: typing changes the Markdown, written the usual way.
   const formatted = sidebar(page).locator(".ProseMirror").filter({ visible: true }).first();
-  // As tall as the Markdown editor.
-  const box = await sidebar(page)
+  // As tall as the Markdown editor. Measured once it's settled, since Puck can briefly hide it while rendering.
+  const editor = sidebar(page)
     .locator('.gfa-markdown-formatted [class*="_RichTextEditor--editor_"]')
     .filter({ visible: true })
-    .first()
-    .boundingBox();
-  expect(box?.height).toBeGreaterThanOrEqual(384);
+    .first();
+  await expect(editor).toBeVisible();
+  await expect.poll(async () => (await editor.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(384);
   await formatted.click();
   await page.keyboard.press("ControlOrMeta+End");
   await page.keyboard.type(" More to come.");
