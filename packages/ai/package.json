@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/ai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Goodfellow's AI assistant: drafts and rewrites pages with Claude, OpenAI or a free AI service, straight from the browser.",
   "keywords": [
     "goodfellow",

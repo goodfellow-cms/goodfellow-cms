@@ -1,5 +1,42 @@
 # @goodfellow-cms/react
 
+## 0.2.0
+
+### Minor Changes
+
+- caa6d55: Calendars: collections get a "Date and time, for events" field (`event`), with all-day events, end times and repeats (daily, weekly on chosen days, monthly on a date or a weekday of the month, yearly, every so often, until a date, with dates to skip), in the site's new time zone setting. A collection whose settings name its event field (`calendar`) is a calendar: builds write it as `/calendars/<id>.ics` for visitors to subscribe to, and each event as its own file. The new Calendar block shows events coming up, or a month at a time with a page for each month, from a collection, another calendar's `.ics` address (read when the site is built) or both, with "Add to calendar" and "Subscribe" links; Add to calendar does the same on an event's page. Collection list and Entry field show events' next times. New collections can start as Events. `sitePages()` lists the pages builds write, month pages included, and `goodfellow-next finish` writes calendar files into Next.js exports. Repeats are expanded, and calendar files read and written, with [ical.js](https://github.com/kewisch/ical.js).
+- 4b44513: Site settings can open links to other sites in a new tab ("Open links to other sites in a new tab" under General), for menus, buttons, rich text and Markdown. Links in rich text now open in the same tab otherwise: Puck opened every one in a new tab, marked `nofollow`, including links to the site's own pages.
+- a210b23: Showing collections. Collection list gets a heading with a link beside it, filters by a choice or tags field, Z to A and any-field ordering, later pages (`/news/page/2`) and a page for each choice of a field (`/news/topics/music`). The new Collection loop block repeats blocks designed in the editor once for each item, with its values in placeholders such as `{title}`. Collections get a Tags field type (`tags`), for any number of a list's choices. Blocks can add pages to the page they're on with `withPages()` from `@goodfellow-cms/core`, which the Calendar block's month pages now use: `sitePages()` takes the site's blocks, and `Page.view` and `useSite().view` replace `Page.month` and `useSite().month`. `repeatsForEntries()` from `@goodfellow-cms/react` makes a block repeat its blocks for each item.
+- 8f9eff2: A Video block: a video from the media library (MP4 or WebM, with a picture before it plays and WebVTT captions), YouTube (from its ID or any of its addresses, in the privacy-enhanced player), Vimeo (with do not track), or another site's player (from its embed address or code, sandboxed, and only from another secure site). It needs no JavaScript on the page. `youtubeVideo()`, `vimeoVideo()`, `embedPlayerUrl()` and the player addresses' helpers are in `@goodfellow-cms/core`. Media fields can hold videos (`mediaField(label, "video")`), whose chooser offers only videos, and WebVTT files can be uploaded.
+
+### Patch Changes
+
+- c97095c: The Form and Contact details blocks' notes in the editor link to Site Settings, scrolled to Forms or Contact details (`useSite().adminLink()`, which the editor supplies). The Form block also says when Web3Forms' free plan won't send visitors to a thank-you page on another site. "Get an access key from Web3Forms" opens Web3Forms' sign-up form, and the admin panel's menu says "Header & Footer" and "Site Settings".
+- 699e0dd: Goodfellow's repository moved to the `goodfellow-cms` organization on GitHub. Package READMEs and repository links, and the admin panel's link to release notes, now point to https://github.com/goodfellow-cms/goodfellow-cms and the documentation at https://goodfellow-cms.github.io/goodfellow-cms/.
+  
+  The starters' READMEs link to the documentation instead of sections of Goodfellow's README, which is now shorter.
+- a5fe669: Next.js sites send visitors much less JavaScript: the starter's pages load 186 kB (gzipped) instead of 513 kB. `@goodfellow-cms/react` is now built one file per module, so Client Components that import `SiteLink`, `SiteImage` or `useSite` from it, such as the Search block's box and the image carousel, no longer bring Puck and the page renderer with them.
+- Updated dependencies [f776202]
+- Updated dependencies [caa6d55]
+- Updated dependencies [2c07c71]
+- Updated dependencies [c8a935e]
+- Updated dependencies [0e97dd2]
+- Updated dependencies [03dc28f]
+- Updated dependencies [4b44513]
+- Updated dependencies [b61d3f2]
+- Updated dependencies [699e0dd]
+- Updated dependencies [b55c95c]
+- Updated dependencies [ed49c5e]
+- Updated dependencies [30c5903]
+- Updated dependencies [8ea3680]
+- Updated dependencies [66d7d1c]
+- Updated dependencies [a210b23]
+- Updated dependencies [8176568]
+- Updated dependencies [d09a681]
+- Updated dependencies [7785ef5]
+- Updated dependencies [8f9eff2]
+  - @goodfellow-cms/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @goodfellow-cms/registry
 
+## 0.2.0
+
+### Patch Changes
+
+- 699e0dd: Goodfellow's repository moved to the `goodfellow-cms` organization on GitHub. Package READMEs and repository links, and the admin panel's link to release notes, now point to https://github.com/goodfellow-cms/goodfellow-cms and the documentation at https://goodfellow-cms.github.io/goodfellow-cms/.
+  
+  The starters' READMEs link to the documentation instead of sections of Goodfellow's README, which is now shorter.
+
 ## 0.1.0
 
 ### Minor Changes

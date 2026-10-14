@@ -1,5 +1,59 @@
 # @goodfellow-cms/admin
 
+## 0.2.0
+
+### Minor Changes
+
+- f776202: Plain-language explanations of failed rebuilds: the top bar's **What went wrong?** says whether the host didn't start the build, packages couldn't be installed, Pages isn't set up, a content file has a problem (linking to its version history), or the site's code couldn't be built, with the host's details behind a toggle. `goodfellow build` prints what went wrong for the admin panel, and an annotation on GitHub Actions. The GitHub backend now reads the deploy workflow's run, so a build that fails before deploying is reported as failed rather than building; the sign-in token link asks for Actions: read. The owner token now lasts a day, the shortest GitHub allows, instead of a week.
+- caa6d55: Calendars: collections get a "Date and time, for events" field (`event`), with all-day events, end times and repeats (daily, weekly on chosen days, monthly on a date or a weekday of the month, yearly, every so often, until a date, with dates to skip), in the site's new time zone setting. A collection whose settings name its event field (`calendar`) is a calendar: builds write it as `/calendars/<id>.ics` for visitors to subscribe to, and each event as its own file. The new Calendar block shows events coming up, or a month at a time with a page for each month, from a collection, another calendar's `.ics` address (read when the site is built) or both, with "Add to calendar" and "Subscribe" links; Add to calendar does the same on an event's page. Collection list and Entry field show events' next times. New collections can start as Events. `sitePages()` lists the pages builds write, month pages included, and `goodfellow-next finish` writes calendar files into Next.js exports. Repeats are expanded, and calendar files read and written, with [ical.js](https://github.com/kewisch/ical.js).
+- c8a935e: Custom domains: **Site settings → Domain** connects a domain to a site on GitHub Pages or GitLab Pages, lists the records to add at the registrar, and checks until it works (the records, the host's HTTPS certificate, and the site at its new address), then sends everyone to the secure address. Backends' new optional `pages` capability does the host's part; `checkRecords()` and `domainZone()` in core check DNS. GitHub tokens need the Pages permission to connect a domain, and the screen links to one that has it. Where editors sign in by being sent to the host and back, the screen reminds owners to allow the admin panel's new address.
+- 03dc28f: Editors: **Site settings → Editors** lists who edits the site, and lets owners invite people (by username, or on GitLab by email), make them editors or owners, and remove them. Backends gain an optional `editors` capability. On GitHub, changing editors and GitHub Pages settings needs an owner token, which the new `ownerAccess` keeps in memory for the tab only; it replaces the Pages token link (`PagesDomains.tokenLink` is removed). On GitLab, owners can let editors publish to the main branch.
+- 4b44513: Site settings can open links to other sites in a new tab ("Open links to other sites in a new tab" under General), for menus, buttons, rich text and Markdown. Links in rich text now open in the same tab otherwise: Puck opened every one in a new tab, marked `nofollow`, including links to the site's own pages.
+- b61d3f2: Forms: a Form block whose questions are set in the editor. It's a plain HTML form, with no JavaScript, that posts its answers to the form service chosen in Site settings (Web3Forms by default, Formspree, or any service that takes a plain form post), which emails them and sends visitors back to a thank-you page. Every form has a hidden honeypot field, and Web3Forms' hCaptcha can be turned on in Site settings. The block can also show a Google form from its embed code. `formTarget()`, `formRedirect()` and `googleFormUrl()` are in `@goodfellow-cms/core`, and `content/site.json` has a new optional `forms` setting.
+- 30c5903: Redirects: the page at an old address now says where it's sending visitors, with a link named after the page, in words the Redirects tab can change, and replaces itself in the browser's history, so Back no longer needs pressing twice. On Vercel, Vercel sends the redirects itself: new sites have a `vercel.ts` in place of `vercel.json` that reads them, and Next.js sites get them from `withGoodfellow()`. Redirects from addresses that pages have are left out, so pages still win.
+- 8ea3680: Redirects: Site Settings has a Redirects tab for sending visitors from old addresses to new ones, and changing a page's address adds a redirect from its old one. Builds write a page at each old address that sends visitors on at once, which works on every host, `goodfellow dev` and `next dev` follow them too, and `goodfellow-next finish` writes them into Next.js exports.
+- a210b23: Showing collections. Collection list gets a heading with a link beside it, filters by a choice or tags field, Z to A and any-field ordering, later pages (`/news/page/2`) and a page for each choice of a field (`/news/topics/music`). The new Collection loop block repeats blocks designed in the editor once for each item, with its values in placeholders such as `{title}`. Collections get a Tags field type (`tags`), for any number of a list's choices. Blocks can add pages to the page they're on with `withPages()` from `@goodfellow-cms/core`, which the Calendar block's month pages now use: `sitePages()` takes the site's blocks, and `Page.view` and `useSite().view` replace `Page.month` and `useSite().month`. `repeatsForEntries()` from `@goodfellow-cms/react` makes a block repeat its blocks for each item.
+- d09a681: Automatic updates: `goodfellow update` (and `goodfellow-next update`) updates a site to Goodfellow's newest fixes, or a release it's given, with the Puck version that release uses, and updates blocks from Goodfellow's registry, replacing only files nobody changed (`planUpdate()`). It publishes the update only once the site installs and builds with it, and otherwise puts everything back. The starters' GitHub Pages and GitLab Pages setups run it each night. **Site settings → Updates** shows the site's release, fixes and newer releases, and the last update, installs fixes now, lets owners install a newer release, and on GitLab turns on job token pushes and a nightly schedule. Owners can turn automatic fixes off and go back to the previous release, which updates then skip until it's allowed again; these settings live in a new content file, `content/updates.json`. Backends gain an optional `updates` capability; the GitHub owner token can now run workflows.
+- 7785ef5: Version history: pages, the header and footer, and collections' items have a **Version history** screen in the admin panel, listing every published version with who published it and when, a preview of each, and **Restore this version**, which publishes it again. Backends gain `history()` and `readAt()`, implemented for GitHub and GitLab and their fakes.
+- 8f9eff2: A Video block: a video from the media library (MP4 or WebM, with a picture before it plays and WebVTT captions), YouTube (from its ID or any of its addresses, in the privacy-enhanced player), Vimeo (with do not track), or another site's player (from its embed address or code, sandboxed, and only from another secure site). It needs no JavaScript on the page. `youtubeVideo()`, `vimeoVideo()`, `embedPlayerUrl()` and the player addresses' helpers are in `@goodfellow-cms/core`. Media fields can hold videos (`mediaField(label, "video")`), whose chooser offers only videos, and WebVTT files can be uploaded.
+
+### Patch Changes
+
+- 84cfc23: The admin panel's tab shows the site's icon, as its pages do, instead of the browser's default: the admin page names it before the admin panel loads, and the admin panel follows a new icon as soon as it's published, even before the live site has been rebuilt with it. Next.js sites show it in the sign-in screen too by using `site.adminMetadata()` in `app/admin/layout.tsx`, as the starter now does.
+- 2c07c71: Hardening from code scanning: trimming slashes and other characters no longer uses patterns that slow down on long runs of them (core's new `trimChars()`), and nor do reading SVG sizes, typed domains, link targets and README notes; heading anchors and rich text as plain text take tags out by scanning the text. Search results show any `<` or `>` in an excerpt as text, apart from Pagefind's highlights. Link targets decode an address's entities once, as browsers do. SVG uploads also lose `vbscript:` links and `data:` links other than images. Islands' generated module escapes `<`, `>` and line separators in names and paths.
+- 4000e48: The demo banner and the message after publishing in a demo now say that changes show only in the admin panel, and that the site itself doesn't change.
+- 0e97dd2: When the admin panel on your computer can't reach the development server's API, for example because another server answers at that address, its error says so and where it looked, instead of "Cannot read properties of undefined". The admin panel calls the development API with a trailing slash, so a Next.js site's `trailingSlash` setting has nothing to redirect. Browsers keep those permanent redirects and later apply them to whatever runs on the same port, which broke `goodfellow dev`'s admin panel after a Next.js site had run there. The API also accepts its addresses without one.
+- c97095c: The Form and Contact details blocks' notes in the editor link to Site Settings, scrolled to Forms or Contact details (`useSite().adminLink()`, which the editor supplies). The Form block also says when Web3Forms' free plan won't send visitors to a thank-you page on another site. "Get an access key from Web3Forms" opens Web3Forms' sign-up form, and the admin panel's menu says "Header & Footer" and "Site Settings".
+- 699e0dd: Goodfellow's repository moved to the `goodfellow-cms` organization on GitHub. Package READMEs and repository links, and the admin panel's link to release notes, now point to https://github.com/goodfellow-cms/goodfellow-cms and the documentation at https://goodfellow-cms.github.io/goodfellow-cms/.
+  
+  The starters' READMEs link to the documentation instead of sections of Goodfellow's README, which is now shorter.
+- b55c95c: Only the first block on a page with pages of its own links to them, calendars by the month included, and the editor and its previews now show a page as the site does, with a note on each block that would have pages but doesn't (`pageView()` in `@goodfellow-cms/core`). A calendar's month stays in the middle of its heading with or without links to the months around it. "Published." now shows just under the Publish button, and goes after a few seconds or as soon as anything changes.
+- Updated dependencies [f776202]
+- Updated dependencies [caa6d55]
+- Updated dependencies [2c07c71]
+- Updated dependencies [c8a935e]
+- Updated dependencies [0e97dd2]
+- Updated dependencies [03dc28f]
+- Updated dependencies [4b44513]
+- Updated dependencies [c97095c]
+- Updated dependencies [b61d3f2]
+- Updated dependencies [699e0dd]
+- Updated dependencies [b55c95c]
+- Updated dependencies [ed49c5e]
+- Updated dependencies [30c5903]
+- Updated dependencies [8ea3680]
+- Updated dependencies [66d7d1c]
+- Updated dependencies [a210b23]
+- Updated dependencies [8176568]
+- Updated dependencies [a5fe669]
+- Updated dependencies [d09a681]
+- Updated dependencies [7785ef5]
+- Updated dependencies [8f9eff2]
+  - @goodfellow-cms/core@0.2.0
+  - @goodfellow-cms/react@0.2.0
+  - @goodfellow-cms/ai@0.2.0
+  - @goodfellow-cms/registry@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
