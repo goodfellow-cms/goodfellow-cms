@@ -1,7 +1,6 @@
 /** A fake GitHub with Goodfellow's two apps installed on a site, and the worker in front of it, for tests. */
 import { type FakeGitHubApp, fakeGitHub } from "@goodfellow-cms/github/testing";
 import { expect } from "vitest";
-import { memoryLimiter } from "./limits.js";
 import { base64UrlEncode, challengeFor } from "./seal.js";
 import { testSignIn } from "./testing.js";
 import { createWorker, type WorkerEnv } from "./worker.js";
@@ -48,7 +47,7 @@ export function setup(options: { url?: string; installed?: boolean; env?: Partia
     apps: [editApp, ownerApp],
   });
   let clock = Date.now();
-  const worker = createWorker({ fetch: fake.fetch, limiter: memoryLimiter(() => clock), now: () => clock });
+  const worker = createWorker({ fetch: fake.fetch, now: () => clock });
   const env = { ...baseEnv, ...options.env };
   const call = (path: string, init: RequestInit & { origin?: string } = {}) =>
     worker.fetch(

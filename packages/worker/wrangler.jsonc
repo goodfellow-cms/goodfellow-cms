@@ -5,9 +5,6 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
   "observability": { "enabled": true },
-  // Counts requests for the daily limits. SQLite-backed, which Cloudflare's free plan includes.
-  "durable_objects": { "bindings": [{ "name": "LIMITS", "class_name": "Limits" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Limits"] }],
   "vars": {
     "EDIT_APP_SLUG": "goodfellow-cms",
     "OWNER_APP_SLUG": "goodfellow-cms-owner",

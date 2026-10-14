@@ -42,8 +42,6 @@ export const defaultStrings = {
   "signIn.error.cant-publish":
     "That account can see the site but isn't allowed to change it. Ask the site's owner to give it permission.",
   "signIn.error.redirect-failed": "Signing in didn't finish. Try again.",
-  "signIn.error.busy":
-    "Signing in with {host} has been used as much as it can be today. Sign in with an access token instead, or try again tomorrow.",
   "signIn.error.not-installed":
     "Goodfellow isn't installed on this site on {host} yet, so editors can't sign in with {host}. If you own the site, install it now, which signs you in too. Otherwise, ask an owner to, or sign in with an access token.",
   "signIn.error.no-address":
@@ -53,7 +51,8 @@ export const defaultStrings = {
   "signIn.error.local-address":
     "Signing in with {host} works only on the published site. Sign in with an access token here.",
   "signIn.error.not-owner": "That account isn't an owner of this site on {host}.",
-  "signIn.error.unavailable": "Signing in with {host} isn't working right now. Sign in with an access token instead.",
+  "signIn.error.unavailable":
+    "Signing in with {host} isn't available right now, perhaps because it's been used as much as it can be today. Sign in with an access token instead.",
   "signIn.install": "Install Goodfellow on {host}",
   "signIn.error.expired": "You were signed out because your sign-in expired. Sign in again to keep editing.",
   "signIn.error.other": "Couldn't reach {host}. Check your connection and try again.",

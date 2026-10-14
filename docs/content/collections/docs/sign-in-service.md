@@ -18,11 +18,9 @@ The service gives the admin panel tokens from Goodfellow's GitHub App, which Git
 
 ## What it keeps
 
-Nothing about anyone's sign-in. GitHub gives the service the editor's own token when they sign in, which it uses only to check who they are and that they can edit the site, then revokes straight away. The session the browser keeps says only who the editor is and which site it's for, sealed with a key only the service has, so it can't be changed or made up. Removing someone as an editor on GitHub stops their session working within the hour.
+Nothing. GitHub gives the service the editor's own token when they sign in, which it uses only to check who they are and that they can edit the site, then revokes straight away. The session the browser keeps says only who the editor is and which site it's for, sealed with a key only the service has, so it can't be changed or made up. Removing someone as an editor on GitHub stops their session working within the hour.
 
 The setup page is the one exception: creating a repository needs the person's own token, so the setup page's session keeps it, sealed, until the repository exists or half an hour has passed, whichever is first.
-
-The service does keep one thing: how many times it's been used each day, for its [limits](#limits).
 
 The tokens it gives are GitHub App installation tokens:
 
@@ -40,7 +38,9 @@ The service gives tokens only to the address in the site's settings, and never t
 
 ## Limits
 
-To stay within Cloudflare's free plan, the service counts requests each day, in UTC: 300 for each editor, 3,000 for each site and 40,000 overall. An editor uses about one an hour. When a limit is reached, the sign-in screen says so, and editors sign in with a token until the next day.
+The service runs on Cloudflare Workers' free plan, which allows 100,000 requests a day. An editor uses about one an hour, and a few more to sign in. When the day's requests have been used, Cloudflare stops answering until midnight UTC: the sign-in screen says signing in with GitHub isn't available, and editors sign in with a token until then.
+
+The service keeps no counts of its own, since every request it gets counts towards that limit, even one it turns away. To stop any one computer using up the day's requests, Cloudflare's own rate limiting rules block it before it reaches the service. They need the service on a domain of its own on Cloudflare, since they can't apply to `workers.dev` addresses: under the domain's **Security → WAF → Rate limiting rules**, add a rule for the service's address that blocks an IP address making more than about 50 requests in 10 seconds. Signing in takes four or five.
 
 ## Running your own
 
@@ -60,5 +60,3 @@ A site can use its own copy of the service, with its own GitHub Apps. The servic
    For each, note its **App ID**, its **Client ID** and the last part of its address (its slug), generate a client secret, and generate a private key, which downloads a `.pem` file.
 3. **Set up the service** for your apps. In `wrangler.jsonc`, put your apps' slugs, and your setup page's address if you have one. Set its secrets with `npx wrangler@4 secret put EDIT_APP_ID`, then `EDIT_CLIENT_ID`, `EDIT_CLIENT_SECRET` and `EDIT_PRIVATE_KEY` (the `.pem` file's contents), the same four for `OWNER_`, and `SESSION_KEY`, from `openssl rand -base64 32`. Then run `pnpm run deploy` again. Changing `SESSION_KEY` later signs everyone out.
 4. **Use it** in each site's config: `github({ repo: "your-name/your-site", signIn: "https://sign-in.your-name.workers.dev" })`.
-
-The daily limits can be changed with the `LIMIT_EDITOR`, `LIMIT_SITE` and `LIMIT_ALL` variables.

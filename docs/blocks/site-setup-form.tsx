@@ -160,11 +160,8 @@ function setupHost(git: GitHostName, gitlabClientId: string): SetupHost {
 function signInMessage(error: unknown): string {
   if (error instanceof SignInError) {
     if (error.problem === "redirect-failed") return "Signing in didn't finish. Try again.";
-    if (error.problem === "busy") {
-      return "Signing in with GitHub has been used as much as it can be today. Paste a token instead, or try again tomorrow.";
-    }
     if (error.problem === "unavailable" || error.problem === "wrong-address" || error.problem === "local-address") {
-      return "Signing in with GitHub isn't working here right now. Paste a token instead.";
+      return "Signing in with GitHub isn't available here right now, perhaps because it's been used as much as it can be today. Paste a token instead.";
     }
     return "That token didn't work. Check it was copied completely and hasn't expired.";
   }

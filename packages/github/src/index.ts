@@ -60,9 +60,9 @@ interface PendingRedirect {
   remember: boolean;
 }
 
-/** Saved sign-ins to forget when they stop working: not when the worker is busy or can't be reached, which passes. */
+/** Saved sign-ins to forget when they stop working: not when the worker can't be reached, which passes. */
 function forgets(error: unknown): boolean {
-  return error instanceof SignInError && error.problem !== "busy" && error.problem !== "unavailable";
+  return error instanceof SignInError && error.problem !== "unavailable";
 }
 
 /**

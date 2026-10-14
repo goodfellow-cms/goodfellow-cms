@@ -3,10 +3,8 @@
  * GitHub's requests going to a fake, and test GitHub Apps with keys made for
  * the test. Never import this from code that ships.
  */
-import { memoryLimiter } from "./limits.js";
 import { createWorker, type WorkerEnv } from "./worker.js";
 
-export { type Limiter, memoryLimiter } from "./limits.js";
 export { challengeFor } from "./seal.js";
 export {
   createWorker,
@@ -112,7 +110,7 @@ export async function testSignIn(
     env,
     /** The worker, sending GitHub's requests to `fetch`, such as a fake's. */
     worker(fetch: typeof globalThis.fetch, now?: () => number) {
-      const worker = createWorker({ fetch, limiter: memoryLimiter(now), now });
+      const worker = createWorker({ fetch, now });
       return { fetch: (request: Request) => worker.fetch(request, env) };
     },
   };

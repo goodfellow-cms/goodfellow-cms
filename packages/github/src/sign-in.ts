@@ -41,7 +41,6 @@ const PROBLEMS: Record<string, SignInProblem> = {
   "no-access": "no-access",
   "cant-publish": "cant-publish",
   cancelled: "redirect-failed",
-  busy: "busy",
   "not-installed": "not-installed",
   "no-address": "no-address",
   "wrong-address": "wrong-address",

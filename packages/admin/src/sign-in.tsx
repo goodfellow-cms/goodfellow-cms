@@ -14,14 +14,7 @@ function errorMessage(error: unknown): StringKey {
 }
 
 /** Problems with signing in by going to the host, which signing in with a token gets around. */
-const REDIRECT_PROBLEMS = new Set([
-  "busy",
-  "not-installed",
-  "no-address",
-  "wrong-address",
-  "local-address",
-  "unavailable",
-]);
+const REDIRECT_PROBLEMS = new Set(["not-installed", "no-address", "wrong-address", "local-address", "unavailable"]);
 
 /**
  * Explains why signing in didn't work. Where Goodfellow isn't installed yet,

@@ -121,8 +121,6 @@ export type SignInProblem =
   | "cant-publish"
   /** Coming back from the host failed, for example because sign-in was cancelled. */
   | "redirect-failed"
-  /** The sign-in service has been used as much as it can be today. */
-  | "busy"
   /** The sign-in service's app isn't installed on the site's repository. `link` says where to install it. */
   | "not-installed"
   /** The site's settings don't have its address, which the sign-in service only comes back to. */
@@ -133,7 +131,10 @@ export type SignInProblem =
   | "local-address"
   /** The account isn't an owner of the site, as an owner's sign-in needs. */
   | "not-owner"
-  /** The sign-in service can't be reached, or isn't working. */
+  /**
+   * The sign-in service can't be reached or isn't working, such as when it's
+   * been used as much as its host allows for the day.
+   */
   | "unavailable";
 
 /** Thrown when signing in fails, or when a saved sign-in stops working. */

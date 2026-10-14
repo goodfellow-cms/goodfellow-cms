@@ -127,15 +127,6 @@ describe("staying signed in", () => {
     expect(await moved.json()).toEqual({ problem: "wrong-address" });
     expect(fake.issued.at(-1)).toMatchObject({ kind: "installation", revoked: true });
   });
-
-  it("keeps to the daily limits for each editor and site", async () => {
-    const { signIn, post } = setup({ env: { LIMIT_EDITOR: "2" } });
-    const { body } = await signIn();
-    expect((await post("/github/token", { session: body.session })).status).toBe(200);
-    const busy = await post("/github/token", { session: body.session });
-    expect(busy.status).toBe(429);
-    expect(await busy.json()).toEqual({ problem: "busy" });
-  });
 });
 
 describe("installing while signing in", () => {

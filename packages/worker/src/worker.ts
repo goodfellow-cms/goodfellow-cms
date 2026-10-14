@@ -35,7 +35,6 @@ import {
   type UserTokens,
   userTokens,
 } from "./github.js";
-import { type DurableObjectNamespaceLike, durableLimiter, type Limit, type Limiter, memoryLimiter } from "./limits.js";
 import { challengeFor, createSealer, type Sealer } from "./seal.js";
 
 export interface WorkerEnv {
@@ -59,19 +58,11 @@ export interface WorkerEnv {
   SESSION_KEY?: string;
   /** Addresses of setup pages allowed to create sites, separated by commas, such as `https://goodfellow-cms.github.io`. */
   SETUP_ORIGINS?: string;
-  /** Daily limits: requests per editor, per site and overall. */
-  LIMIT_EDITOR?: string;
-  LIMIT_SITE?: string;
-  LIMIT_ALL?: string;
-  /** The `Limits` Durable Object, which keeps the daily counts. Without it, counts are kept per worker instance. */
-  LIMITS?: DurableObjectNamespaceLike;
 }
 
 export interface WorkerOptions {
   /** For tests: where requests to GitHub go. */
   fetch?: typeof fetch;
-  /** For tests. Defaults to the `LIMITS` Durable Object. */
-  limiter?: Limiter;
   now?: () => number;
 }
 
@@ -79,7 +70,6 @@ type Purpose = "edit" | "owner" | "setup";
 
 /** Why the worker can't help, which the admin panel turns into plain words. */
 export type SignInProblem =
-  | "busy"
   | "not-installed"
   | "no-address"
   | "wrong-address"
@@ -108,8 +98,6 @@ const SESSION_LIFETIME = 12 * 3_600_000;
 const REMEMBERED_SESSION_LIFETIME = 30 * 24 * 3_600_000;
 /** The setup page's session, which holds the person's own token, lasts only as long as creating a site takes. */
 const SETUP_SESSION_LIFETIME = 30 * 60_000;
-
-const DEFAULT_LIMITS = { editor: 300, site: 3_000, all: 40_000 };
 
 /** The person signed in, as the admin panel shows them and commits name them. */
 export interface SignedInUser {
@@ -191,7 +179,6 @@ function publicUser({ login, name, avatarUrl, email }: SignedInUser) {
 }
 
 const PAGE_MESSAGES: Partial<Record<SignInProblem, string>> = {
-  busy: "Signing in with GitHub has been used too much today. Go back and sign in with an access token instead.",
   "not-installed":
     "Goodfellow isn't installed on the site's repository, perhaps because another was chosen. Go back to the admin panel and install it again, choosing the site.",
   "no-address":
@@ -214,7 +201,6 @@ function page(problem: SignInProblem, status = 400): Response {
 
 export function createWorker(options: WorkerOptions = {}) {
   const now = options.now ?? Date.now;
-  const fallbackLimiter = memoryLimiter(now);
   const sealers = new Map<string, Promise<Sealer>>();
   const installations = new Map<string, { id: number | undefined; at: number }>();
 
@@ -238,12 +224,6 @@ export function createWorker(options: WorkerOptions = {}) {
       api: (env.GITHUB_API ?? "https://api.github.com").replace(/\/$/, ""),
       web: (env.GITHUB_WEB ?? "https://github.com").replace(/\/$/, ""),
       fetch: options.fetch ?? ((input, init) => fetch(input, init)),
-    };
-    const limiter = options.limiter ?? (env.LIMITS ? durableLimiter(env.LIMITS) : fallbackLimiter);
-    const limits = {
-      editor: Number(env.LIMIT_EDITOR) || DEFAULT_LIMITS.editor,
-      site: Number(env.LIMIT_SITE) || DEFAULT_LIMITS.site,
-      all: Number(env.LIMIT_ALL) || DEFAULT_LIMITS.all,
     };
     const setupOrigins = (env.SETUP_ORIGINS ?? "")
       .split(",")
@@ -296,14 +276,6 @@ export function createWorker(options: WorkerOptions = {}) {
       return found.catch(() => {
         throw new Problem("unavailable", 503);
       });
-    }
-
-    async function take(...keys: Array<[keyof typeof limits, string]>): Promise<void> {
-      const wanted: Limit[] = [
-        ...keys.map(([kind, key]): Limit => [`${kind}:${key}`, limits[kind]]),
-        ["all", limits.all],
-      ];
-      if (await limiter.take(wanted)) throw new Problem("busy", 429);
     }
 
     /** The app's installation on a repository, or `undefined` if it isn't installed there. Remembered for five minutes. */
@@ -442,7 +414,6 @@ export function createWorker(options: WorkerOptions = {}) {
     async function issue(session: SessionData) {
       const repo = session.repo;
       if (!repo) throw new Problem("bad-request", 400);
-      await take(["editor", String(session.user.id)], ["site", repo.toLowerCase()]);
       const app = appFor(session.purpose);
       const installation = await installationFor(app, repo);
       if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
@@ -496,7 +467,6 @@ export function createWorker(options: WorkerOptions = {}) {
         const purpose = url.searchParams.get("purpose") === "owner" ? "owner" : "edit";
         const repo = url.searchParams.get("repo") ?? "";
         if (!REPO.test(repo)) throw new Problem("bad-request", 400);
-        await take(["site", repo.toLowerCase()]);
         await checkSite(purpose, repo, requestOrigin);
         return json({ ok: true });
       }
@@ -514,11 +484,8 @@ export function createWorker(options: WorkerOptions = {}) {
         }
         const install = params.get("install") === "1";
         try {
-          if (purpose === "setup") {
-            checkSetupOrigin(origin);
-            await take();
-          } else {
-            await take(["site", (repo ?? "").toLowerCase()]);
+          if (purpose === "setup") checkSetupOrigin(origin);
+          else {
             // Until it's installed, the site's settings can't be read, so installing checks the address on the way back.
             if (!install) await checkSite(purpose, repo ?? "", origin);
             else if (isLocalAddress(origin)) throw new Problem("local-address", 403);
@@ -650,7 +617,6 @@ export function createWorker(options: WorkerOptions = {}) {
     async function setupRoute(path: string, body: Record<string, unknown>): Promise<Response> {
       checkSetupOrigin(requestOrigin);
       const session = await openSession(body, "setup");
-      await take(["editor", String(session.user.id)]);
       const tokens = session.tokens;
       if (!tokens) throw new Problem("invalid", 401);
       // The session keeps its expiry: the person's token isn't kept any longer for being used.
