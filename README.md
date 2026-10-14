@@ -48,6 +48,7 @@ Editor's browser                       Git host (GitHub / GitLab)         Static
     - Version history, with a way to restore an earlier version of a page (done).
     - Automatic updates (done): a scheduled job updates Goodfellow, and blocks added from block registries, and publishes the update only if the site still builds. Block updates replace only files nobody has changed. Fixes install on their own; newer releases when an owner chooses them. Owners can turn automatic fixes off, or go back to the previous release, which is then skipped.
     - Plain-language explanations when a rebuild fails (done).
+    - Redirects from old addresses, set up in Site Settings and added when a page moves, which work on every host (done).
 17. **Calendars** (done). An Events collection and a Calendar block, worked out when the site builds, so visitors only get HTML.
     - **Events** have a start and end date and time, an all-day option, a place, and repeats (daily, weekly, monthly or yearly, every so often, on chosen weekdays or the same weekday of the month, until a date, with dates to skip), so a weekly service is one entry. Collections get a date-and-time field for them, which any collection can be a calendar of, and Site Settings a time zone. New collections can start as Events.
     - **The Calendar block** shows upcoming events as a list or a month at a time, with a page for each month. The nightly rebuilds keep "upcoming" current.
@@ -83,8 +84,13 @@ Editor's browser                       Git host (GitHub / GitLab)         Static
     - **Rate limits** per editor, per site and overall, with a plain-language message that Claude passes on when one is reached.
     - **Screenshots** of the live site, and of unpublished changes through a preview page in each site's build, taken with Cloudflare's Browser Rendering.
 23. **Light and dark sites.** A site can have a light and a dark mode, with every theme color set for each in Site Settings. Pages follow the visitor's light or dark setting, and blocks follow the theme in both, as the admin panel's own light and dark modes do.
+24. **Full-stack Next.js sites.** For organizations with a developer: Goodfellow as the CMS of a Next.js app with a server of its own, beside the app's own pages. Sites without a server stay the default, and nothing here becomes required for them.
+    - **Sign-in through the app:** the admin panel signs in with the app's own authentication (such as Better Auth), and the app says who may edit, publish and change settings.
+    - **Git on the server:** the app's server reads and publishes through GitHub or GitLab with a token from an environment variable, behind that sign-in, so no git credentials reach the browser. Commits still name the editor.
+    - **AI keys on the server** (optional): keys in environment variables, with the AI assistant's requests sent through the app's server, so editors don't need keys of their own.
+25. **Moving from and to WordPress.** Import a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected. Export a Goodfellow site as a WordPress export file, with its blocks turned into WordPress's.
 
-Planned for later: review workflows (pull/merge requests from the admin panel), per-user permissions, import/export, plugins and themes, and Bitbucket support.
+Planned for later: review workflows (pull/merge requests from the admin panel), per-user permissions, importing from other systems, plugins and themes, and Bitbucket support.
 
 ## Contributing
 

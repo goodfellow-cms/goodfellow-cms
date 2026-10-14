@@ -1,10 +1,12 @@
-# Publishes the packages to npm once CI passes on master, if master has a version
-# npm doesn't have yet, then tags the release and updates the docs site. Versions
-# only change when the pull request from `pnpm release:version` is merged, so
-# other changes to master publish nothing. See RELEASING.md.
+# Stages the packages on npm once CI passes on master, if master has a version npm
+# doesn't have yet, waits for a maintainer to approve them (`pnpm release:approve`),
+# then tags the release and updates the docs site. Versions only change when the
+# pull request from `pnpm release:version` is merged, so other changes to master
+# publish nothing. See RELEASING.md.
 #
 # npm accepts this workflow through trusted publishing (each package's settings on
-# npmjs.com name this repository and release.yml), or an NPM_TOKEN secret.
+# npmjs.com name this repository and release.yml, for staged publishing only), or
+# an NPM_TOKEN secret.
 name: Release
 
 on:
@@ -29,17 +31,16 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     permissions:
-      contents: write # pushes the release's tags
+      contents: read
       id-token: write # trusted publishing, and provenance
     outputs:
-      published: ${{ steps.publish.outputs.published }}
       sha: ${{ steps.commit.outputs.sha }}
+      waiting: ${{ steps.publish.outputs.waiting }}
     steps:
       - uses: actions/checkout@v5
         with:
           # The commit CI passed on, even if master has moved on since.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 0
       - id: commit
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v4
@@ -47,8 +48,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      # Trusted publishing needs npm 11.5.1 or later; Node 22 comes with npm 10.
-      - run: npm install --global npm@11
+      # Staged publishing needs npm 11.15.0 or later; Node 22 comes with npm 10.
+      - run: npm install --global npm@^11.15.0
       - run: pnpm install --frozen-lockfile
       - id: publish
         env:
@@ -58,9 +59,45 @@ jobs:
           if [ -n "$NPM_TOKEN" ]; then echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > "$HOME/.npmrc"; fi
           node scripts/release.mjs publish --ci
 
-  docs:
+  # Staged versions aren't published until a maintainer approves them. This checks every minute and
+  # gives up after 5 hours; once they're approved, running the workflow again tags them and deploys the docs.
+  wait:
     needs: publish
-    if: needs.publish.outputs.published == 'true'
+    # Also after some packages failed to stage, since an earlier run may have staged them.
+    if: ${{ !cancelled() && needs.publish.outputs.waiting == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 310
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.publish.outputs.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: node scripts/release.mjs wait --minutes 300
+
+  tag:
+    needs: [publish, wait]
+    if: ${{ !cancelled() && needs.publish.result != 'skipped' && needs.wait.result != 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # pushes the release's tags
+    outputs:
+      released: ${{ steps.tag.outputs.released }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.publish.outputs.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - id: tag
+        run: node scripts/release.mjs tag
+
+  docs:
+    needs: [publish, tag]
+    if: ${{ !cancelled() && needs.tag.outputs.released == 'true' }}
     uses: ./.github/workflows/docs.yml
     with:
       ref: ${{ needs.publish.outputs.sha }}

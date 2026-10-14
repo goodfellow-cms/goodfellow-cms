@@ -40,6 +40,16 @@ test("shows the site's own page for addresses that don't exist", async ({ page }
   await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
 });
 
+test("sends visitors on from a redirect's old address", async ({ page }) => {
+  writeFileSync(
+    join(nextSite, "content/redirects.json"),
+    `${JSON.stringify({ version: 1, redirects: [{ from: "/who-we-are", to: "/about" }] }, null, 2)}\n`,
+  );
+  await page.goto(`${BASE}/who-we-are`);
+  await expect(page).toHaveURL(/\/about\/?$/);
+  await expect(page.getByRole("heading", { name: "About us", level: 1 })).toBeVisible();
+});
+
 test("publishes from the admin panel to the files on disk", async ({ page }) => {
   await page.goto(`${BASE}/admin/#/settings/general`);
   await expect(page.locator('head link[rel~="icon"]').first()).toHaveAttribute("href", /\/media\/favicon\.svg/);

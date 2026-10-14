@@ -45,6 +45,7 @@ body:
         - Calendars and events
         - Lists of collections, and their pages
         - Forms
+        - Redirects
         - Creating a site (the setup page or npm create goodfellow)
         - The AI assistant
         - Next.js sites

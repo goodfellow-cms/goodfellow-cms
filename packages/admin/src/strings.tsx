@@ -118,6 +118,9 @@ export const defaultStrings = {
   "movePage.title": "Change the address of {title}",
   "movePage.address": "New address",
   "movePage.updateLinks": "Update menu links to this page",
+  "movePage.redirect": "Keep {from} working by sending visitors on to the page",
+  "movePage.redirectHint":
+    "Links to the old address elsewhere, such as on other websites, keep working. Site Settings → Redirects lists it.",
   "movePage.warning":
     "Links to the old address elsewhere, such as in page text or on other websites, will stop working.",
   "movePage.submit": "Change address",
@@ -491,6 +494,7 @@ export const defaultStrings = {
   "settings.tab.menus": "Menus",
   "settings.tab.css": "Custom CSS",
   "settings.tab.code": "Code",
+  "settings.tab.redirects": "Redirects",
   "settings.tab.domain": "Domain",
   "settings.message": "Update site settings",
   "settings.preview": "Preview of the home page",
@@ -777,6 +781,28 @@ export const defaultStrings = {
   "menus.moveDown": "Move down",
   "menus.remove": "Remove",
   "menus.newLink": "New link",
+
+  "redirects.intro":
+    "Send visitors from an old address to a new one, such as when a page has moved or this site replaced an older one. Search engines move the old address's place in their results to the new one.",
+  "redirects.empty": "There are no redirects yet.",
+  "redirects.from": "Old address",
+  "redirects.to": "Send visitors to",
+  "redirects.add": "Add redirect",
+  "redirects.remove": "Remove",
+  "redirects.unused":
+    "A page has this address, so visitors see the page instead. Remove the redirect, or move the page.",
+  "redirects.problem.noFrom": "Add the old address, such as /about-us.",
+  "redirects.problem.badFrom":
+    "This isn't an address on this site. Start with /, such as /about-us, or paste the old page's full address.",
+  "redirects.problem.query":
+    "Addresses with a ? in them can't be redirected, since the site can't tell them apart from the address before the ?.",
+  "redirects.problem.home": "The home page can't be redirected.",
+  "redirects.problem.reserved": "This address is used by the site itself, so it can't be redirected.",
+  "redirects.problem.noTo": "Add where to send visitors, such as /about.",
+  "redirects.problem.badTo":
+    "Send visitors to a page on this site, starting with /, or to another website's address, starting with https://.",
+  "redirects.problem.loop": "This sends visitors back to the same address.",
+  "redirects.problem.duplicate": "Another redirect is from the same address. Remove one of them.",
 
   "css.intro": "CSS here applies to every page and overrides the blocks' own styles. Tailwind's @apply works too.",
   "css.label": "Custom CSS",

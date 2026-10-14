@@ -59,6 +59,12 @@ Content files are the product's data format; treat changes to them like API chan
 - **Rendered on the server only:** published pages are always rendered on the server, so a Form rendered in the browser is the admin panel's (the editor, or the Settings and Version history previews, which share its address): it has no `action` and doesn't send. Web3Forms' hCaptcha script (`WEB3FORMS_SCRIPT`, when `forms.captcha` is on) is added only where `typeof document === "undefined"`, so it never runs where it could reach the editor's sign-in.
 - **Google Forms:** `googleFormUrl()` reads a form's embed code or address into its embedded address, with the embed code's height; the block shows it in a sandboxed iframe. `forms.gle` links can't be followed from a browser, so they're refused with an explanation.
 
+## Redirects
+
+- **Files:** `content/redirects.json` (`redirectsFileSchema` in `@goodfellow-cms/core`'s `content/redirects.ts`) lists `from` and `to`. `redirectFrom()` spells old addresses one way (a path without a trailing slash, from a full address too) and refuses ones static files can't serve (`?`, the home page, `isReservedRedirect()`); `redirectTarget()` takes addresses on the site and `https://` ones only; `redirectProblems()` checks a list, which the loader and the admin panel both use.
+- **No server:** builds write a page at each old address (`redirectFiles()`: an instant `<meta http-equiv="refresh">` with `<link rel="canonical">`, which search engines treat as a permanent redirect), since static hosts can't send redirects. `goodfellow build` writes them with the base path, `goodfellow-next finish` writes them into a Next.js export (`writeRedirectFiles()`, with the export's `basePath` from `.next/routes-manifest.json`), `goodfellow dev` serves the same page, and the Next.js page route calls `redirect()` in `next dev`. Pages, and files already in the output, always win over redirects.
+- **The admin panel** edits them on Site Settings' Redirects tab (`redirects-editor.tsx`), and the move dialog adds one from a page's old address with `movedPageRedirects()`, pointing redirects to the old address at the new one.
+
 ## AI assistant
 
 - **Split:** `@goodfellow-cms/ai` builds requests, checks answers and talks to AI services, with no React. The panel itself is in the admin panel (`ai-panel.tsx`), a Puck plugin in every editor, with its text in the string table.
@@ -229,7 +235,7 @@ What a site's own files are is described in the docs' Create a site and Content 
 | Unit tests | Vitest, test files next to the code as `*.test.ts(x)` |
 | End-to-end tests | Playwright, in `e2e/` |
 | Versioning and changelogs | Changesets, every package on one version |
-| Releases | `pnpm release:version`, then the Release workflow (`scripts/release.mjs`); see RELEASING.md |
+| Releases | `pnpm release:version`, then the Release workflow and `pnpm release:approve` (`scripts/release.mjs`); see RELEASING.md |
 | Node | 22 or later |
 
 Get pnpm with `corepack enable` (or `npm install -g pnpm`). The starters and examples use the workspace's own packages (`workspace:*`), so run `pnpm install` from the repo root; `npm install` inside them fails.
@@ -267,7 +273,7 @@ pnpm test:e2e
 
 - **Exports:** use named exports. Each package exposes its public API from `src/index.ts`; anything not exported there is internal.
 - **Dependencies:** keep runtime dependencies small. Every package that ships to the browser counts against the editor's load time, and anything in `@goodfellow-cms/react` also ships to every visitor of every site.
-- **Changesets:** any change to a published package needs one (`pnpm changeset`). Every package in `packages/` is in one `fixed` group, so they're released together with the same version; a new package goes in that group. Releases are made as RELEASING.md describes: `pnpm release:version` bumps the versions in a pull request, and once it's merged and CI passes on `master`, `.github/workflows/release.yml` runs `scripts/release.mjs publish --ci`, which publishes what npm doesn't have yet (packed with `pnpm pack`, so `workspace:*` becomes the version, then published with npm), tags the release and deploys the docs.
+- **Changesets:** any change to a published package needs one (`pnpm changeset`). Every package in `packages/` is in one `fixed` group, so they're released together with the same version; a new package goes in that group. Releases are made as RELEASING.md describes: `pnpm release:version` bumps the versions in a pull request, and once it's merged and CI passes on `master`, `.github/workflows/release.yml` runs `scripts/release.mjs publish --ci`, which stages what npm doesn't have yet (packed with `pnpm pack`, so `workspace:*` becomes the version, then staged with `npm stage publish`, which its trusted publishers are limited to). A maintainer approves the staged versions with two-factor authentication (`pnpm release:staged` and `pnpm release:approve`), while the workflow waits for them (`release.mjs wait`), then tags the release (`release.mjs tag`) and deploys the docs.
 - **Issues:** `.github/ISSUE_TEMPLATE/` has forms for bug reports and feature requests, and `SECURITY.md` says how to report security problems privately. When a new part of Goodfellow arrives, add it to the bug form's "Where is the problem?" list.
 - **Docs:** when a change affects what users see or do, update the documentation site's pages in `docs/content/collections/docs/`, and the roadmap in README.md, in the same change. The README is kept short: what Goodfellow is, how it works and the roadmap, with everything else in the docs or here. They're Markdown items (see `docs/README.md`); a test checks they're in canonical form and that every link between them, heading links included, goes somewhere.
 

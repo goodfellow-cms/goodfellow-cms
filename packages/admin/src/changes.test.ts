@@ -109,6 +109,25 @@ describe("updateMenuLinks", () => {
 });
 
 describe("movePageChanges", () => {
+  it("sends visitors on from the old address, and keeps redirects to it from going through two", () => {
+    const changes = movePageChanges(page("/about", "About us"), "/who-we-are", {}, true, [
+      { from: "/about-us", to: "/about" },
+      { from: "/who-we-are", to: "/elsewhere" },
+      { from: "/about/", to: "/old" },
+    ]);
+    const redirects = changes.find((change) => change.path === "content/redirects.json");
+    expect(redirects && "content" in redirects && JSON.parse(redirects.content as string)).toEqual({
+      version: 1,
+      redirects: [
+        { from: "/about-us", to: "/who-we-are" },
+        { from: "/about", to: "/who-we-are" },
+      ],
+    });
+    expect(movePageChanges(page("/"), "/welcome", {}, true, []).map((change) => change.path)).not.toContain(
+      "content/redirects.json",
+    );
+  });
+
   it("deletes the old file, writes the new one and updates menus in one save", () => {
     const changes = movePageChanges(
       page("/about", "About us"),

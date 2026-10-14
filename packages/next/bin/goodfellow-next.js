@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // After `next build`: `goodfellow-next finish out` fixes the export's prefetch files on Windows,
-// writes the calendar files of collections of events, and the search index for sites with a search block. `index` only writes the index.
+// writes the calendar files of collections of events and the pages at redirects' old addresses, and the search index for sites with a search block. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
 import { parseArgs } from "node:util";
 import { formatUpdateResult } from "@goodfellow-cms/core";
 import { update } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
-import { fixSegmentFiles, writeCalendarFiles } from "@goodfellow-cms/next/export";
+import { fixSegmentFiles, writeCalendarFiles, writeRedirectFiles } from "@goodfellow-cms/next/export";
 
 const [command, dir = "out"] = process.argv.slice(2);
 if (command === "update") {
@@ -28,7 +28,8 @@ if (command !== "finish" && command !== "index") {
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
-      "        for collections of events, and indexes it for search.",
+      "        for collections of events and pages that send visitors on from old addresses, and",
+      "        indexes it for search.",
       "index   Only indexes the exported site for its search block.",
       "update  Updates Goodfellow, and blocks from its registry, if the site still builds.",
     ].join("\n"),
@@ -40,6 +41,8 @@ if (command === "finish") {
   if (moved > 0) console.log(`Moved ${moved} of Next.js's prefetch files to where browsers look for them`);
   const calendars = await writeCalendarFiles(dir);
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files`);
+  const redirects = await writeRedirectFiles(dir);
+  if (redirects > 0) console.log(`Wrote ${redirects} redirects`);
 }
 const indexed = await writeSearchIndex(dir);
 console.log(

@@ -1,6 +1,6 @@
-import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
-import { calendarFiles, loadSiteContent } from "@goodfellow-cms/core";
+import { allPages, calendarFiles, loadSiteContent, redirectFiles } from "@goodfellow-cms/core";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
 
 /**
@@ -16,6 +16,50 @@ export async function writeCalendarFiles(outDir: string, root = process.cwd()): 
     await writeFile(target, file.content);
   }
   return files.length;
+}
+
+/** The `basePath` the export was built with, which Next.js records in `.next/routes-manifest.json`. */
+async function exportBasePath(root: string): Promise<string> {
+  try {
+    const manifest = JSON.parse(await readFile(join(root, ".next/routes-manifest.json"), "utf8")) as {
+      basePath?: unknown;
+    };
+    return typeof manifest.basePath === "string" ? manifest.basePath : "";
+  } catch {
+    return "";
+  }
+}
+
+async function exists(path: string): Promise<boolean> {
+  return access(path).then(
+    () => true,
+    () => false,
+  );
+}
+
+/**
+ * Writes a page at each of the site's old addresses that sends visitors on, as
+ * `goodfellow build` does. Pages win: an address the export has a page at keeps
+ * it. Returns how many it wrote.
+ */
+export async function writeRedirectFiles(outDir: string, root = process.cwd()): Promise<number> {
+  const dir = resolve(root);
+  const content = await loadSiteContent(fileSystemSource(dir));
+  const files = redirectFiles(content, {
+    taken: allPages(content).map((page) => page.path),
+    base: await exportBasePath(dir),
+  });
+  let written = 0;
+  for (const file of files) {
+    const target = join(outDir, file.path.slice(1));
+    // Next.js writes pages as `about.html`, such as ones blocks add.
+    const page = join(outDir, `${file.path.replace(/\/index\.html$/, "")}.html`);
+    if ((await exists(target)) || (await exists(page))) continue;
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, file.content);
+    written++;
+  }
+  return written;
 }
 
 /**

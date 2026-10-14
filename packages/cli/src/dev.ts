@@ -5,11 +5,13 @@ import { join, resolve, sep } from "node:path";
 import {
   CONTENT_DIR,
   ContentError,
+  findRedirect,
   type GoodfellowConfig,
   loadSiteContent,
   MEDIA_DIR,
   normalizePagePath,
   type Page,
+  redirectPage,
   type SiteContent,
   sitePages,
   todayIn,
@@ -201,12 +203,24 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
           }
           // Calendar files, as builds write them, from the content as it is now.
           if (await sendCalendarFile(fileSystemSource(root), url.pathname, res).catch(() => false)) return;
-          if (/\.[a-z0-9]+$/i.test(url.pathname)) return next();
+          if (/\.[a-z0-9]+$/i.test(url.pathname)) {
+            // Old addresses such as /news.html send visitors on, as the built site's pages there do.
+            const content = await loadSiteContent(fileSystemSource(root)).catch(() => undefined);
+            const redirect = content && findRedirect(content, url.pathname);
+            if (content && redirect) return void res.end(redirectPage(content, redirect.to));
+            return next();
+          }
 
           try {
             const content = await loadSiteContent(fileSystemSource(root));
             const { config, renderPage } = await loadServerEntry(server);
             const match = findPage(content, config.blocks, url.pathname);
+            // Pages win over redirects, as in builds.
+            const redirect = (!match || match.status === 404) && findRedirect(content, url.pathname);
+            if (redirect) {
+              res.end(redirectPage(content, redirect.to));
+              return;
+            }
             if (!match) {
               res.statusCode = 404;
               res.end(errorPage("Page not found", [`No page is stored for ${url.pathname}.`]));

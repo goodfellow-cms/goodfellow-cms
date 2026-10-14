@@ -96,6 +96,9 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
   const { content } = useSiteContent();
   const [address, setAddress] = useState(page.path);
   const [updateLinks, setUpdateLinks] = useState(true);
+  // The home page has no old address to send visitors on from: another page takes it.
+  const canRedirect = page.path !== "/";
+  const [redirect, setRedirect] = useState(canRedirect);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
@@ -111,7 +114,7 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
     if (check.path === page.path) return onClose();
     setBusy(true);
     const result = await publish(
-      movePageChanges(page, check.path, content.menus, updateLinks),
+      movePageChanges(page, check.path, content.menus, updateLinks, redirect ? (content.redirects ?? []) : undefined),
       t("movePage.message", { title, from: page.path, to: check.path }),
     );
     setBusy(false);
@@ -127,7 +130,13 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
           <input type="checkbox" checked={updateLinks} onChange={(event) => setUpdateLinks(event.target.checked)} />
           {t("movePage.updateLinks")}
         </label>
-        <p className="gfa-hint">{t("movePage.warning")}</p>
+        {canRedirect && (
+          <label className="gfa-checkbox">
+            <input type="checkbox" checked={redirect} onChange={(event) => setRedirect(event.target.checked)} />
+            {t("movePage.redirect", { from: page.path })}
+          </label>
+        )}
+        <p className="gfa-hint">{t(redirect ? "movePage.redirectHint" : "movePage.warning")}</p>
         <PublishFailure failure={failure} />
         <div className="gfa-dialog-actions">
           <Button onClick={onClose}>{t("action.cancel")}</Button>

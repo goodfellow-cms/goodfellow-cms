@@ -86,6 +86,17 @@ describe("build", () => {
     expect(existsSync(join(outDir, "admin"))).toBe(false);
   });
 
+  it("writes a page at each old address that sends visitors on, where no page is", async () => {
+    const html = await read("old-news/index.html");
+    expect(html).toContain('<meta http-equiv="refresh" content="0; url=/from-config/news">');
+    expect(html).toContain('<link rel="canonical" href="https://example.org/site/news">');
+    expect(await read("2019/talk.html")).toContain('content="0; url=https://talks.example.org/hope"');
+    // The page at /news wins over the redirect from it.
+    expect(await read("news/index.html")).not.toContain("http-equiv");
+    expect(pages).not.toContain("old-news/index.html");
+    expect(await read("sitemap.xml")).not.toContain("old-news");
+  });
+
   it("copies the public folder", async () => {
     expect(await read("media/note.txt")).toBe("hello\n");
   });
