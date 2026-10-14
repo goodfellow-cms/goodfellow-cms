@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read # whether CI passed, for runs started from the Actions tab
       id-token: write # trusted publishing, and provenance
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
@@ -43,6 +44,20 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - id: commit
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # A run started from the Actions tab releases master as it is now, so it waits for CI there too,
+      # as the runs CI starts do. Re-running an earlier run releases that run's own commit.
+      - if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&status=success" --jq .total_count)
+          if [ "$passed" = "0" ]; then
+            message="CI hasn't passed on ${SHA:0:7} yet. Once it has, this workflow runs for it by itself, so there's no need to start it."
+            echo "::error::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
