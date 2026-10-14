@@ -430,6 +430,7 @@ export const defaultStrings = {
   "media.pickerTitleVideo": "Choose a video",
   "media.pickerEmpty": "Nothing has been uploaded yet. Upload a file to use it here.",
   "media.clear": "Remove",
+  "media.credit": "Credit: {credit}",
 
   "ai.label": "AI",
   "ai.title": "Write with AI",
@@ -441,6 +442,18 @@ export const defaultStrings = {
     "For example: a section about our Christmas Mass schedule, with a heading, a short welcome and a button to the contact page.",
   "ai.placeholder.edit": "For example: make it shorter and friendlier, or translate it into Spanish.",
   "ai.placeholder.fill": "For example: Fr. Smith's homily from Sunday, about hope. Paste any notes here.",
+  "ai.photos": "Find openly licensed photos where the media library has none that fit",
+  "ai.photosHint":
+    "Photos come from Openverse and are added to the media library. Pages that use them credit who made them, as their licenses require.",
+  "ai.photos.finding": "Finding photos…",
+  "ai.photos.message": "Add photos from Openverse: {names}",
+  "ai.photos.added": "Photos from Openverse added to the media library: {names}.",
+  "ai.photos.missing": "No photo was found for {count} of the images, so they're left empty.",
+  "ai.photos.error.busy":
+    "Openverse has had too many requests from this computer, so some images are left empty. Try again later, or choose them from the media library.",
+  "ai.photos.error.unreachable":
+    "Couldn't reach Openverse, so some images are left empty. Check your connection, or choose them from the media library.",
+  "ai.photos.error.publish": "The photos found couldn't be added to the media library, so their images are left empty.",
   "ai.write": "Write it",
   "ai.change": "Change it",
   "ai.fill": "Fill it in",

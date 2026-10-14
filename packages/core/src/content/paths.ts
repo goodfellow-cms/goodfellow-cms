@@ -5,6 +5,8 @@ export const SITE_FILE = "content/site.json";
 export const MENUS_FILE = "content/menus.json";
 /** Old addresses that send visitors on to new ones. */
 export const REDIRECTS_FILE = "content/redirects.json";
+/** What the site knows about its media files, such as photos' credits. */
+export const MEDIA_FILE = "content/media.json";
 export const HEADER_FILE = "content/layout/header.json";
 export const FOOTER_FILE = "content/layout/footer.json";
 export const CUSTOM_CSS_FILE = "content/styles/custom.css";

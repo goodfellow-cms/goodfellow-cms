@@ -36,3 +36,20 @@ export {
   toValues,
   valuesSchema,
 } from "./schema.js";
+export {
+  downloadStockPhoto,
+  MAX_STOCK_PHOTOS,
+  OPENVERSE_API,
+  pickStockPhoto,
+  STOCK_PHOTO_LICENSES,
+  STOCK_PHOTO_PREFIX,
+  type StockPhoto,
+  StockPhotoError,
+  type StockPhotoOptions,
+  type StockPhotoProblem,
+  searchStockPhotos,
+  stockPhotoCredit,
+  stockPhotoQueries,
+  stockPhotoQuery,
+  withStockPhotos,
+} from "./stock-photos.js";

@@ -13,6 +13,7 @@ Everything the admin panel edits is a file in `content/` or `public/media/`, in 
 | `content/site.json` | Site Settings: name, address, logo, icons, contact details, theme |
 | `content/menus.json` | Navigation menus, by name |
 | `content/redirects.json` | Redirects: old addresses, and where they send visitors |
+| `content/media.json` | Credits for media files, such as photos the AI assistant found, by address |
 | `content/layout/header.json`, `footer.json` | The header and footer, as Puck data |
 | `content/pages/about.json` | The page at `/about`, as Puck data; `index.json` is a folder's own page |
 | `content/collections/<id>/_collection.json` | A collection's settings, fields and page design |

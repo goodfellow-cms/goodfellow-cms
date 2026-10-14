@@ -106,6 +106,33 @@ describe("renderPage", () => {
     expect(html).not.toContain("<header");
   });
 
+  it("lists the credits of the photos a page shows at the end of its content", async () => {
+    const Photo: ComponentConfig<{ src: string }> = { render: ({ src }) => <img src={src} alt="" /> };
+    const render = createPageRenderer({ blocks: { ...config.blocks, Photo } });
+    const credits = {
+      "/media/choir.jpg": {
+        title: "Choir",
+        creator: "Ann Example",
+        creatorUrl: "https://www.flickr.com/people/ann",
+        source: "Flickr",
+        sourceUrl: "https://www.flickr.com/photos/ann/1",
+        license: "CC BY 2.0",
+        licenseUrl: "https://creativecommons.org/licenses/by/2.0/",
+      },
+      "/media/unused.jpg": { title: "Unused", creator: "", source: "", license: "CC0 1.0" },
+    };
+    const html = await render(
+      makeContent({ credits, settings: { ...settings, externalLinksInNewTab: true } }),
+      makePage([{ type: "Photo", props: { id: "p", src: "/media/choir.jpg" } }]),
+    );
+    expect(html).toContain(
+      '<aside class="gf-credits" data-pagefind-ignore=""><ul><li><a href="https://www.flickr.com/photos/ann/1" rel="noopener" target="_blank">Choir</a> · <a href="https://www.flickr.com/people/ann" rel="noopener" target="_blank">Ann Example</a> · Flickr · <a href="https://creativecommons.org/licenses/by/2.0/" rel="license noopener" target="_blank">CC BY 2.0</a></li></ul></aside></main>',
+    );
+    expect(html).not.toContain("Unused");
+    // A page without credited photos has no list.
+    expect(await render(makeContent({ credits }), makePage([]))).not.toContain("gf-credits");
+  });
+
   it("adds the site's own code to the head and the end of the body", async () => {
     const html = await renderPage(
       makeContent({

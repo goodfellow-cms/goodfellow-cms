@@ -50,6 +50,12 @@ export interface AiConfig {
    * Defaults to all of them. See `PROVIDER_IDS` in `@goodfellow-cms/ai`.
    */
   providers?: string[];
+  /**
+   * Whether the AI assistant can add openly licensed photos from Openverse to
+   * the media library when it has none that fit, which editors turn on or off
+   * for each request. On by default; `false` turns it off for everyone.
+   */
+  stockPhotos?: boolean;
 }
 
 /** Declares a site config with full type checking. Returns it unchanged. */

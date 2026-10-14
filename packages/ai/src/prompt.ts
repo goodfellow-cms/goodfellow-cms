@@ -1,5 +1,6 @@
 import type { ComponentData, Config, Content, Fields } from "@puckeditor/core";
 import { blocksSchema, type JsonSchema, toFlatBlocks, valuesSchema } from "./schema.js";
+import { MAX_STOCK_PHOTOS, STOCK_PHOTO_PREFIX } from "./stock-photos.js";
 
 /** What the AI is told about the site, so it can link to real pages and write in the right language. */
 export interface SiteSummary {
@@ -13,6 +14,8 @@ export interface SiteSummary {
   images?: string[];
   /** The contact details in the site's settings, which the AI may use instead of placeholders. */
   contact?: { address?: string; phone?: string; email?: string };
+  /** Whether the AI may ask for openly licensed photos where the media library has none that fit (see `stock-photos.ts`). */
+  stockPhotos?: boolean;
 }
 
 export type AiTask =
@@ -59,7 +62,7 @@ Rules:
 - Write in the language the request says the site uses, unless asked otherwise.
 - Never invent facts the request doesn't give, such as times, dates, prices, names, addresses, phone numbers or email addresses. Where one is needed, write a clear placeholder in square brackets, such as [Mass times], so the person can fill it in.
 - Link only to the site's own pages listed in the request, or to addresses the request gives. Otherwise use "#".
-- Use only image addresses the request gives, or the site's own images listed in the request where they fit. Otherwise leave image fields empty.
+- Use only image addresses the request gives, or the site's own images listed in the request where they fit. Otherwise leave image fields empty, unless the request says photos can be found for them.
 - Leave "CSS classes" fields empty unless asked for particular styling.
 - Rich text fields take simple HTML only: <p>, <h2>, <h3>, <strong>, <em>, <a href>, <ul>, <ol>, <li> and <blockquote>. Never include scripts, styles or images in it.
 - Answer with JSON only, matching the format you were given.`;
@@ -87,6 +90,11 @@ function siteContext(site: SiteSummary): string {
   }
   if (site.images?.length) {
     lines.push(`Images in its media library, which image fields can use: ${site.images.slice(0, 200).join(", ")}.`);
+  }
+  if (site.stockPhotos) {
+    lines.push(
+      `Photos can be found for image fields: where none of the site's images fits, write "${STOCK_PHOTO_PREFIX}" followed by a few English words saying what the photo should show, such as "${STOCK_PHOTO_PREFIX} church choir singing", and an openly licensed photo will be found for it. Ask for no more than ${MAX_STOCK_PHOTOS}, and only where a photo helps.`,
+    );
   }
   return lines.join("\n");
 }

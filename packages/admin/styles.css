@@ -933,6 +933,18 @@ body,
   white-space: nowrap;
 }
 
+.gfa-media-credit {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--gfa-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gfa-media-credit a {
+  color: inherit;
+}
+
 .gfa-media-actions {
   display: flex;
   flex-wrap: wrap;

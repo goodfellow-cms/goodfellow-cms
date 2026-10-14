@@ -31,7 +31,7 @@ export default defineConfig({
 | `backend` | Where the site is stored: `github({ … })` or `gitlab({ … })`. Builds include the admin panel at `/admin` only when this or `demo` is set. |
 | `base` | The address the site is served from, for hosts that use a subfolder, such as `/my-repo/`. Defaults to `/`. See [Commands](/docs/commands). |
 | `styles` | The site's stylesheet. Defaults to `src/styles.css`. |
-| `ai` | The AI assistant: `false` removes it, and `{ providers: ["anthropic", "manual"] }` limits the services offered. |
+| `ai` | The AI assistant: `false` removes it, `{ providers: ["anthropic", "manual"] }` limits the services offered, and `{ stockPhotos: false }` stops it finding photos on Openverse. |
 | `registries` | Block registries the Blocks screen offers blocks from, besides Goodfellow's: `{ "@acme": "https://acme.example/r/{name}.json" }`. List only registries you trust; see [Block registries](/docs/block-registries). |
 | `demo` | `true` makes the admin panel a [demo](/docs/demo-mode) anyone can try. |
 

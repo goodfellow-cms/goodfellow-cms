@@ -1,5 +1,8 @@
-import { fakeAi } from "@goodfellow-cms/ai/testing";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fakeAi, fakeOpenverse } from "@goodfellow-cms/ai/testing";
 import type { Page } from "@playwright/test";
+import { site } from "../scripts/site.mjs";
 import { routeToFake } from "./backends.js";
 import { canvas, expect, openPageEditor, publishInEditor, readJson, readSiteFile, test } from "./helpers.js";
 
@@ -50,6 +53,91 @@ test("adds blocks to a page with Claude, using the editor's own key", async ({ p
   await publishInEditor(page);
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   expect(readSiteFile("content/pages/about.json")).toContain("Christmas Masses");
+});
+
+test("adds openly licensed photos from Openverse, credited on the page", async ({ page }) => {
+  const claude = await fakeClaude(page, () => ({
+    blocks: [
+      { type: "Image", id: "i", parent: null, slot: null, props: { src: "stock-photo: church choir", alt: "Choir" } },
+      { type: "Image", id: "j", parent: null, slot: null, props: { src: "stock-photo: nothing at all", alt: "" } },
+    ],
+  }));
+  const openverse = fakeOpenverse({
+    photos: (query) =>
+      query === "church choir"
+        ? [
+            {
+              id: "c149cfde-08c6-4d2a-a99e-534a5ae00c23",
+              title: "Choir in song",
+              creator: "Ann Example",
+              creator_url: "https://www.flickr.com/photos/ann",
+              foreign_landing_url: "https://www.flickr.com/photos/ann/1",
+              license: "by",
+              license_version: "2.0",
+              license_url: "https://creativecommons.org/licenses/by/2.0/",
+              source: "flickr",
+              width: 1600,
+              height: 1200,
+            },
+          ]
+        : [],
+  });
+  await routeToFake(page, "https://api.openverse.org", openverse.handle);
+  await page.addInitScript((key) => localStorage.setItem("goodfellow.ai.key.anthropic", key), KEY);
+  await openPageEditor(page, "/about", "About us");
+  const panel = await openAiPanel(page);
+
+  const choice = panel.getByLabel("Find openly licensed photos where the media library has none that fit");
+  await expect(choice).toBeChecked();
+  await panel.getByLabel("What should it write?").fill("A photo of our choir");
+  await panel.getByRole("button", { name: "Write it" }).click();
+
+  await expect(panel.getByText(/Photos from Openverse added to the media library: church-choir\.png\./)).toBeVisible();
+  await expect(panel.getByText("No photo was found for 1 of the images, so they're left empty.")).toBeVisible();
+  await expect(canvas(page).getByRole("img", { name: "Choir" })).toHaveAttribute(
+    "data-gf-src",
+    "/media/church-choir.png",
+  );
+  expect(JSON.stringify(claude.requests[0]?.body)).toContain("stock-photo:");
+  expect(new URL(openverse.requests[0] ?? "").searchParams.get("q")).toBe("church choir");
+  expect(existsSync(join(site as string, "public/media/church-choir.png"))).toBe(true);
+  expect(readJson("content/media.json")).toEqual({
+    version: 1,
+    credits: {
+      "/media/church-choir.png": {
+        title: "Choir in song",
+        creator: "Ann Example",
+        creatorUrl: "https://www.flickr.com/photos/ann",
+        source: "Flickr",
+        sourceUrl: "https://www.flickr.com/photos/ann/1",
+        license: "CC BY 2.0",
+        licenseUrl: "https://creativecommons.org/licenses/by/2.0/",
+      },
+    },
+  });
+
+  await publishInEditor(page);
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  await page.goto("/about");
+  const credits = page.locator(".gf-credits");
+  await expect(credits.getByRole("link", { name: "Choir in song" })).toHaveAttribute(
+    "href",
+    "https://www.flickr.com/photos/ann/1",
+  );
+  await expect(credits.getByRole("link", { name: "CC BY 2.0" })).toBeVisible();
+
+  // Turned off, the AI isn't told it can ask for photos, and the choice is remembered.
+  await page.goto("/admin#/media");
+  await expect(page.getByText("Credit: Ann Example · CC BY 2.0")).toBeVisible();
+  await openPageEditor(page, "/about", "About us");
+  const again = await openAiPanel(page);
+  await again.getByLabel("Find openly licensed photos where the media library has none that fit").uncheck();
+  await again.getByLabel("What should it write?").fill("Another photo");
+  await again.getByRole("button", { name: "Write it" }).click();
+  await expect(again.getByText(/^Done\./)).toBeVisible();
+  expect(JSON.stringify(claude.requests[1]?.body)).not.toContain("stock-photo:");
+  expect(openverse.requests).toHaveLength(3);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("goodfellow.ai") ?? "{}").stockPhotos)).toBe(false);
 });
 
 test("changes the selected block", async ({ page }) => {

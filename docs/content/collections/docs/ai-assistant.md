@@ -14,6 +14,17 @@ The **AI** tab beside the editor writes with AI. Describe what you want:
 
 The result goes straight into the editor, so you can check it, change it or undo it before publishing. It's told never to make up facts such as times or names, and to leave `[placeholders]` instead.
 
+## Photos
+
+Where the media library has no image that fits, the assistant can find openly licensed photos on [Openverse](https://openverse.org), which gathers Creative Commons and public domain images from Wikimedia Commons, Flickr and other collections. Leave **Find openly licensed photos** ticked in the AI tab (it's remembered in your browser), and ask for what you need, such as "a section about our choir, with a photo".
+
+- Only photos whose license allows any use, including changes such as cropping, are used: CC BY, CC BY-SA, CC0 and the Public Domain Mark.
+- Each photo is added to the media library, and its credit (its title, who made it, where it came from and its license) is saved with it. Every page that shows the photo lists its credit at the bottom, as the license requires, with links to the photo and the license.
+- Openverse is asked straight from your browser, with no account or key. It allows about 20 requests a minute and 200 a day from each computer, so a request finds at most six photos; where none is found, the image is left empty for you to choose.
+- Check that a photo suits your site before publishing: the photos are other people's, and Openverse can't check every one.
+
+Deleting or replacing a photo in the media library removes its credit too. A site's developer can turn this off for everyone; see [Configuration](/docs/configuration).
+
 ## Choosing a service
 
 Each editor chooses a service in the AI tab's settings, and it's called straight from their browser, with their own account:

@@ -13,12 +13,13 @@ Goodfellow gives non-technical site owners a drag-and-drop editor at `/admin` wi
 
 ## How it works
 
-```
-Editor's browser                       Git host (GitHub / GitLab)         Static host
-┌──────────────────────┐   API calls   ┌──────────────────────┐    push   ┌───────────────┐
-│ /admin               │ ────────────> │ content/*.json       │ ────────> │ build + serve │
-│ Puck editor + forms  │ <──────────── │ public/media/*       │  trigger  │ static HTML   │
-└──────────────────────┘               └──────────────────────┘           └───────────────┘
+```mermaid
+flowchart TB
+  editor["<b>Editor's browser</b><br>The admin panel at /admin:<br>the Puck editor and forms"]
+  git["<b>Git host: GitHub or GitLab</b><br>content/: pages and settings as JSON<br>public/media/: images and files"]
+  site["<b>Static host</b><br>Builds the site and serves it as static HTML"]
+  editor <-->|API calls| git
+  git -->|a push starts the build| site
 ```
 
 - **No server.** The admin panel is part of the static site and talks to the GitHub or GitLab API straight from the browser.
@@ -65,7 +66,7 @@ Editor's browser                       Git host (GitHub / GitLab)         Static
     - **Spam:** a hidden honeypot field on every form, plus the service's own captcha: Formspree's reCAPTCHA, or Web3Forms' hCaptcha, which a Site setting turns on, since it needs Web3Forms' script on pages with a form.
     - **Longer forms**, such as surveys and sign-up sheets, can use Google Forms: the Form block shows one from its embed code.
     - **The docs** explain that answers go to the chosen service, not to the site's repository.
-20. **Stock photos from the AI assistant.** When the media library has nothing that fits, the AI assistant can add openly licensed photos from [Openverse](https://openverse.org), which gathers Creative Commons and public domain images from Wikimedia Commons, Flickr and other collections. It's searched straight from the editor's browser with no key, and only photos whose license allows commercial use and changes are offered. Each photo is saved to the media library with its credit, which the site shows as the license requires. A checkbox in the AI panel turns this on or off for each request and is remembered in the browser; a site's config can turn it off for everyone. (Not Unsplash: its API needs a key that a browser can't keep secret, and its rules require showing photos from Unsplash's own addresses rather than the site's media library.)
+20. **Stock photos from the AI assistant** (done). When the media library has nothing that fits, the AI assistant can add openly licensed photos from [Openverse](https://openverse.org), which gathers Creative Commons and public domain images from Wikimedia Commons, Flickr and other collections. It's searched straight from the editor's browser with no key, and only photos whose license allows commercial use and changes are offered. Each photo is saved to the media library with its credit, which the site shows as the license requires. A checkbox in the AI panel turns this on or off for each request and is remembered in the browser; a site's config can turn it off for everyone. (Not Unsplash: its API needs a key that a browser can't keep secret, and its rules require showing photos from Unsplash's own addresses rather than the site's media library.)
 21. **Sign in with GitHub.** A small Cloudflare Worker that Goodfellow runs for every site, so editors sign in with GitHub instead of pasting a token. GitLab sign-in already works without one.
     - **Narrow tokens:** site owners install a Goodfellow GitHub App on the repositories they choose. The worker gives the admin panel a token for one repository only, with only the permissions it needs (not workflows or repository settings), lasting an hour and renewed while the editor is signed in. The editor's own GitHub token never leaves the worker, and commits still show the editor as their author.
     - **Only to the site's own address:** the worker hands a token only to an address the repository's site settings list, never to `localhost`, since `goodfellow dev` and `next dev` don't need one.

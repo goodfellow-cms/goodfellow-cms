@@ -13,6 +13,7 @@ const registry: MigrationRegistry = {
   entry: [],
   updates: [],
   redirects: [],
+  media: [],
 };
 
 describe("migrateContent", () => {

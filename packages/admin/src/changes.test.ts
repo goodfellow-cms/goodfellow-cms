@@ -15,6 +15,7 @@ import {
   customCssFileChange,
   deleteCollectionChanges,
   entryFileChange,
+  mediaFileChange,
   moveEntryChanges,
   movePageChanges,
   newCollectionSettings,
@@ -26,6 +27,7 @@ import {
   storedData,
   uniqueName,
   updateMenuLinks,
+  withoutCredits,
 } from "./changes.js";
 
 const page = (path: string, title?: string): Page => ({
@@ -405,5 +407,29 @@ describe("collections", () => {
       { path: "content/collections/videos/easter.json", delete: true },
       { path: "content/collections/videos/advent.json", delete: true },
     ]);
+  });
+});
+
+describe("media credits", () => {
+  const credit = { title: "Choir", creator: "Ann", source: "Flickr", license: "CC BY 2.0" };
+
+  it("writes content/media.json, and removes it once no file has a credit", () => {
+    const change = mediaFileChange({ "/media/choir.jpg": credit });
+    expect(change.path).toBe("content/media.json");
+    const text = "content" in change ? String(change.content) : "";
+    expect(JSON.parse(text)).toEqual({ version: 1, credits: { "/media/choir.jpg": credit } });
+    expect(text.endsWith("}\n")).toBe(true);
+    expect(mediaFileChange({})).toEqual({ path: "content/media.json", delete: true });
+  });
+
+  it("drops the credits of files being deleted or replaced", () => {
+    const credits = { "/media/choir.jpg": credit, "/media/leaves.jpg": credit };
+    expect(withoutCredits(credits, ["/media/other.jpg"])).toBeUndefined();
+    expect(withoutCredits(undefined, ["/media/choir.jpg"])).toBeUndefined();
+    expect(JSON.stringify(withoutCredits(credits, ["/media/choir.jpg"]))).not.toContain("choir.jpg");
+    expect(withoutCredits({ "/media/choir.jpg": credit }, ["/media/choir.jpg"])).toEqual({
+      path: "content/media.json",
+      delete: true,
+    });
   });
 });

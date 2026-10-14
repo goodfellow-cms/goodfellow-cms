@@ -4,6 +4,7 @@ import {
   type GoodfellowConfig,
   normalizeBase,
   type Page,
+  pageCredits,
   type SiteContent,
   type SiteSettings,
   setLinkTargets,
@@ -180,8 +181,10 @@ export async function preparePage(
     prepareData(content.footer.data, configs.layout, site),
   ]);
   const rebase = rebaser(options, content.settings);
+  // The credits of the photos the page shows, which their licenses ask for.
+  const credits = pageCredits(content, [data, header, footer]);
   return {
-    site,
+    site: credits.length > 0 ? { ...site, credits } : site,
     page: applied,
     pageConfig,
     layoutConfig: configs.layout,

@@ -1,4 +1,4 @@
-import { isAddedPage } from "@goodfellow-cms/core";
+import { isAddedPage, type PageCredit } from "@goodfellow-cms/core";
 import type { Config, Data, Metadata } from "@puckeditor/core";
 import type { ComponentType, ReactNode } from "react";
 import { cx } from "./cx.js";
@@ -24,6 +24,63 @@ export interface PageContentProps {
   site: SiteContextValue;
   pageConfig: Config;
   page: Data;
+}
+
+/** A link out of the site, from a photo's credit, which opens in a new tab if the site's links to other sites do. */
+function CreditLink({
+  href,
+  newTab,
+  rel,
+  children,
+}: {
+  href?: string;
+  newTab: boolean;
+  rel?: string;
+  children: string;
+}) {
+  if (!href) return <>{children}</>;
+  return (
+    <a
+      href={href}
+      rel={[rel, newTab && "noopener"].filter(Boolean).join(" ") || undefined}
+      {...(newTab && { target: "_blank" })}
+    >
+      {children}
+    </a>
+  );
+}
+
+/**
+ * The credits of the photos on a page, as their licenses ask: each photo's
+ * title linking to where it came from, who made it, and its license. Search
+ * leaves them out, since they're about the photos rather than the page.
+ */
+function PhotoCredits({ credits, newTab }: { credits: PageCredit[]; newTab: boolean }) {
+  return (
+    <aside className="gf-credits" data-pagefind-ignore="">
+      <ul>
+        {credits.map((credit) => (
+          <li key={credit.url}>
+            <CreditLink href={credit.sourceUrl} newTab={newTab}>
+              {credit.title || credit.source || credit.url}
+            </CreditLink>
+            {credit.creator && (
+              <>
+                {" · "}
+                <CreditLink href={credit.creatorUrl} newTab={newTab}>
+                  {credit.creator}
+                </CreditLink>
+              </>
+            )}
+            {credit.source && credit.title ? ` · ${credit.source} · ` : " · "}
+            <CreditLink href={credit.licenseUrl} newTab={newTab} rel="license">
+              {credit.license}
+            </CreditLink>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
 }
 
 interface Renderers {
@@ -74,6 +131,9 @@ export function createPageBody({ Render, SiteProvider }: Renderers) {
           data-pagefind-body={site.path === "/404" || isAddedPage(site) ? undefined : ""}
         >
           <Render config={pageConfig} data={page} metadata={metadata} site={site} />
+          {site.credits && site.credits.length > 0 && (
+            <PhotoCredits credits={site.credits} newTab={site.settings.externalLinksInNewTab === true} />
+          )}
         </main>
       </SiteProvider>
     );
