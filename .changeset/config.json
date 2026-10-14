@@ -26,6 +26,7 @@
     "@goodfellow-cms/e2e",
     "@goodfellow-cms/example-parish",
     "@goodfellow-cms/template-next",
-    "@goodfellow-cms/template-starter"
+    "@goodfellow-cms/template-starter",
+    "@goodfellow-cms/worker"
   ]
 }

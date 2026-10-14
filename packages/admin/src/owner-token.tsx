@@ -1,14 +1,57 @@
-import { EditorsError } from "@goodfellow-cms/core";
-import { useState } from "react";
+import { EditorsError, type RedirectOptions } from "@goodfellow-cms/core";
+import { type ReactNode, useState } from "react";
 import { useAdmin } from "./admin-context.js";
+import { SignInProblem } from "./sign-in.js";
 import { useStrings } from "./strings.js";
 import { Button, ErrorMessage, TextField } from "./ui.js";
 
 /**
- * Asks for the owner token that hosts such as GitHub need for changing editors
- * and Pages settings, which signing in can't. It's used for this tab only.
+ * Asks an owner to sign in for changing editors and Pages settings, which
+ * everyday sign-in can't, where the host can, with the owner token form below.
+ * It's used for this tab only.
  */
 export function OwnerTokenForm({ onReady }: { onReady: () => void }) {
+  const t = useStrings();
+  const { ownerAccess, account } = useAdmin();
+  const host = account?.hostName ?? "";
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(ownerAccess?.problem);
+  if (!ownerAccess) return null;
+  if (!ownerAccess.startRedirect) return <OwnerTokenFields onReady={onReady} />;
+
+  const signIn = async (options?: RedirectOptions) => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await ownerAccess.startRedirect?.(options);
+    } catch (caught) {
+      setError(caught);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="gfa-form gfa-owner-token">
+      <h2 className="gfa-section-title">{t("owner.signIn.title")}</h2>
+      <p>{t("owner.signIn.intro", { host })}</p>
+      {error !== undefined && (
+        <SignInProblem error={error} host={host} onInstall={() => void signIn({ install: true })} />
+      )}
+      <div>
+        <Button variant="primary" disabled={busy} onClick={() => void signIn()}>
+          {t("owner.signIn.button", { host })}
+        </Button>
+      </div>
+      <details className="gfa-sign-in-token">
+        <summary>{t("owner.signIn.orToken")}</summary>
+        <OwnerTokenFields onReady={onReady} heading={false} />
+      </details>
+    </section>
+  );
+}
+
+/** The owner token form: where to create one, and a field to paste it into. */
+function OwnerTokenFields({ onReady, heading = true }: { onReady: () => void; heading?: boolean }): ReactNode {
   const t = useStrings();
   const { ownerAccess, account } = useAdmin();
   const host = account?.hostName ?? "";
@@ -33,8 +76,8 @@ export function OwnerTokenForm({ onReady }: { onReady: () => void }) {
 
   return (
     // Not a <form>: screens show this inside their own forms, and forms can't be nested.
-    <section className="gfa-form gfa-owner-token">
-      <h2 className="gfa-section-title">{t("owner.token.title")}</h2>
+    <section className={heading ? "gfa-form gfa-owner-token" : "gfa-form"}>
+      {heading && <h2 className="gfa-section-title">{t("owner.token.title")}</h2>}
       <p>{t("owner.token.intro", { host })}</p>
       <ol>
         <li>

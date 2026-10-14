@@ -16,6 +16,7 @@
     "@goodfellow-cms/gitlab": "workspace:*",
     "@goodfellow-cms/react": "workspace:*",
     "@goodfellow-cms/registry": "workspace:*",
+    "@goodfellow-cms/worker": "workspace:*",
     "@puckeditor/core": "0.23.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",

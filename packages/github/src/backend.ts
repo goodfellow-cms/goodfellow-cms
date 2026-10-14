@@ -13,13 +13,14 @@ import {
   type HistoryOptions,
   type OwnerAccess,
   type PagesDomains,
+  type RedirectOptions,
   SignInError,
   type SiteEditors,
   type SiteUpdates,
   type TokenLink,
   type WriteOptions,
 } from "@goodfellow-cms/core";
-import { type ApiOptions, githubJson, githubRequest, repoPath } from "./api.js";
+import { type ApiOptions, githubJson, githubRequest, repoPath, type TokenSource } from "./api.js";
 import { githubEditors, githubOwnerAccess } from "./editors.js";
 import { githubPages } from "./pages.js";
 import { githubUpdates } from "./updates.js";
@@ -67,6 +68,14 @@ export interface GitHubBackendOptions {
   onSignOut: () => void;
   /** Where to create the owner token, which can change editors and GitHub Pages settings. */
   ownerTokenLink: TokenLink;
+  /** Signs in as an owner through the sign-in worker instead of with a token, where it's available. */
+  ownerRedirect?: (options?: RedirectOptions) => Promise<void>;
+  /**
+   * Who commits name as their author. Set when the token is an app's
+   * installation token from the sign-in worker, whose commits would otherwise
+   * name the app. Commits are then made with Git's data API, which can name them.
+   */
+  author?: { name: string; email: string };
 }
 
 /**
@@ -84,6 +93,8 @@ export class GitHubBackend implements GitBackend {
   private readonly repo: string;
   private readonly branch: string;
   private readonly onSignOut: () => void;
+  private readonly author?: { name: string; email: string };
+  private readonly owner: ReturnType<typeof githubOwnerAccess>;
   private pinned?: string;
   private readonly trees = new Map<string, Promise<Map<string, string>>>();
   private readonly blobs = new Map<string, Promise<string>>();
@@ -94,7 +105,9 @@ export class GitHubBackend implements GitBackend {
     this.branch = options.branch;
     this.user = options.user;
     this.onSignOut = options.onSignOut;
-    const owner = githubOwnerAccess(this.api, this.repo, options.ownerTokenLink);
+    this.author = options.author;
+    const owner = githubOwnerAccess(this.api, this.repo, options.ownerTokenLink, options.ownerRedirect);
+    this.owner = owner;
     this.ownerAccess = owner.access;
     this.pages = githubPages(() => owner.api() ?? this.api, this.repo);
     this.editors = githubEditors(this.api, owner.api, this.repo, this.user.login);
@@ -162,7 +175,84 @@ export class GitHubBackend implements GitBackend {
     return [...(await this.currentTree()).keys()].filter((path) => path.startsWith(prefix)).sort();
   }
 
-  async write(changes: FileChange[], { message, expectedRevision }: WriteOptions): Promise<{ revision: string }> {
+  /** Uses an owner's sign-in through the worker for editors and GitHub Pages settings, until it's forgotten. */
+  useOwnerSignIn(token: TokenSource, end: () => void): void {
+    this.owner.useSignIn(token, end);
+  }
+
+  /** Remembers why an owner's sign-in through the worker didn't work, which the Editors and Domain screens show. */
+  ownerSignInFailed(error: unknown): void {
+    this.owner.failed(error);
+  }
+
+  async write(changes: FileChange[], options: WriteOptions): Promise<{ revision: string }> {
+    return this.author ? this.writeCommit(changes, options, this.author) : this.writeGraphQL(changes, options);
+  }
+
+  /**
+   * Saves with Git's data API, naming the editor as the commit's author:
+   * GitHub refuses to move the branch unless the commit follows on from it, so
+   * nothing is overwritten.
+   */
+  private async writeCommit(
+    changes: FileChange[],
+    { message, expectedRevision }: WriteOptions,
+    author: { name: string; email: string },
+  ): Promise<{ revision: string }> {
+    const existing = await this.tree(expectedRevision);
+    const base = `/repos/${this.repo}`;
+    const entries: Array<{ path: string; mode: "100644"; type: "blob"; content?: string; sha?: string | null }> = [];
+    try {
+      for (const change of changes) {
+        if ("delete" in change) {
+          // Nothing to do for files that don't exist.
+          if (existing.has(change.path)) entries.push({ path: change.path, mode: "100644", type: "blob", sha: null });
+        } else if ("bytes" in change) {
+          const blob = await githubJson<{ sha: string }>(this.api, `${base}/git/blobs`, {
+            method: "POST",
+            body: { content: encodeBase64Bytes(change.bytes), encoding: "base64" },
+          });
+          entries.push({ path: change.path, mode: "100644", type: "blob", sha: blob.sha });
+        } else {
+          entries.push({ path: change.path, mode: "100644", type: "blob", content: change.content });
+        }
+      }
+      if (entries.length === 0) return { revision: expectedRevision };
+      const parent = await githubJson<{ tree: { sha: string } }>(this.api, `${base}/git/commits/${expectedRevision}`);
+      const tree = await githubJson<{ sha: string }>(this.api, `${base}/git/trees`, {
+        method: "POST",
+        body: { base_tree: parent.tree.sha, tree: entries },
+      });
+      const commit = await githubJson<{ sha: string }>(this.api, `${base}/git/commits`, {
+        method: "POST",
+        body: {
+          message,
+          tree: tree.sha,
+          parents: [expectedRevision],
+          author: { ...author, date: new Date().toISOString() },
+        },
+      });
+      const moved = await githubRequest(this.api, `${base}/git/refs/heads/${encodeURIComponent(this.branch)}`, {
+        method: "PATCH",
+        body: { sha: commit.sha, force: false },
+        allow: [422],
+      });
+      if (moved.status === 422) {
+        // The branch has moved: someone else saved first.
+        if ((await this.revision()) !== expectedRevision) throw new ConflictError();
+        throw new GitApiError(422, "GitHub couldn't save the changes.");
+      }
+      this.pinned = commit.sha;
+      return { revision: commit.sha };
+    } catch (error) {
+      if (error instanceof GitApiError && (error.status === 403 || error.status === 404)) {
+        throw new SignInError("cant-publish", "This sign-in can't publish to the site.");
+      }
+      throw error;
+    }
+  }
+
+  private async writeGraphQL(changes: FileChange[], { message, expectedRevision }: WriteOptions) {
     const existing = await this.tree(expectedRevision);
     const additions = changes.flatMap((change) =>
       "delete" in change

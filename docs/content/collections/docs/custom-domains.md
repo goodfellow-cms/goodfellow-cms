@@ -23,7 +23,7 @@ A new site is at its host's address, such as `https://your-name.github.io/your-s
 
 A few things to know:
 
-- **Who can connect a domain:** the site's owners. On GitHub, the Domain screen asks for an owner token, which can change GitHub Pages settings (see [Editors and sign-in](/docs/sign-in#inviting-and-removing-editors)). On GitLab, owners are Maintainers in the site's project.
+- **Who can connect a domain:** the site's owners. On GitHub, the Domain screen asks owners to sign in as an owner, or for an owner token, either of which can change GitHub Pages settings (see [Editors and sign-in](/docs/sign-in#inviting-and-removing-editors)). Signing in with GitHub follows the site to its new address once Site settings have it, which connecting the domain does. On GitLab, owners are Maintainers in the site's project.
 - **www:** for a domain such as `example.org`, the screen lists a `www` record too, so `www.example.org` goes to the site as well.
 - **Add the records straight away:** as soon as a domain is connected, GitHub sends visitors from the site's old address to the new one. Connecting it before adding the records is what GitHub recommends, so nobody else can claim the domain for their own site in between.
 - **GitLab:** connecting a domain also gives the site a unique domain on gitlab.io, if it didn't have one, since the site is then served from the root of both addresses. Its GitLab records include one that proves the domain is yours: leave it in place, as GitLab checks it again now and then.

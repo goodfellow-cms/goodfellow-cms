@@ -1,0 +1,16 @@
+// Goodfellow's sign-in worker. To run your own copy, see README.md.
+{
+  "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+  "name": "sign-in",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "vars": {
+    "EDIT_APP_SLUG": "goodfellow-cms",
+    "OWNER_APP_SLUG": "goodfellow-cms-owner",
+    "SETUP_ORIGINS": "https://goodfellow-cms.github.io"
+  }
+  // `pnpm run setup` sets these and the secrets, which `npx wrangler secret put NAME` can also set: EDIT_APP_ID,
+  // EDIT_CLIENT_ID, EDIT_CLIENT_SECRET, EDIT_PRIVATE_KEY, OWNER_APP_ID, OWNER_CLIENT_ID, OWNER_CLIENT_SECRET,
+  // OWNER_PRIVATE_KEY and SESSION_KEY.
+}

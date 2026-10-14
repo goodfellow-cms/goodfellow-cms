@@ -87,6 +87,12 @@ export interface GitHost {
   /** Whether people can sign in by being sent to the host and back. */
   readonly canRedirect: boolean;
   /**
+   * Whether that sign-in comes back only to addresses listed with the host
+   * itself, such as a GitLab OAuth application's, so a new domain must be
+   * added there. GitHub's sign-in worker follows the Site address instead.
+   */
+  readonly redirectAddressesListed?: boolean;
+  /**
    * Resumes a saved sign-in, or finishes a redirect sign-in when the page has
    * just come back from the host. Returns `null` when nobody is signed in.
    */
@@ -94,7 +100,16 @@ export interface GitHost {
   /** Signs in with an access token. `remember` keeps it after the browser closes. */
   signInWithToken(token: string, remember: boolean): Promise<GitBackend>;
   /** Sends the browser to the host to sign in. Only when `canRedirect`. */
-  startRedirect(remember: boolean): Promise<void>;
+  startRedirect(remember: boolean, options?: RedirectOptions): Promise<void>;
+}
+
+/** How to sign in by going to the host and back. */
+export interface RedirectOptions {
+  /**
+   * Installs the sign-in service's app first, where its app isn't installed
+   * yet (`SignInError`'s `not-installed`): the host's install page signs the person in too.
+   */
+  install?: boolean;
 }
 
 export type SignInProblem =
@@ -105,16 +120,34 @@ export type SignInProblem =
   /** The account can see the site but can't publish to it. */
   | "cant-publish"
   /** Coming back from the host failed, for example because sign-in was cancelled. */
-  | "redirect-failed";
+  | "redirect-failed"
+  /** The sign-in service's app isn't installed on the site's repository. `link` says where to install it. */
+  | "not-installed"
+  /** The site's settings don't have its address, which the sign-in service only comes back to. */
+  | "no-address"
+  /** The admin panel isn't at the address the site's settings list. */
+  | "wrong-address"
+  /** The admin panel is on this computer, which the sign-in service never gives tokens to. */
+  | "local-address"
+  /** The account isn't an owner of the site, as an owner's sign-in needs. */
+  | "not-owner"
+  /**
+   * The sign-in service can't be reached or isn't working, such as when it's
+   * been used as much as its host allows for the day.
+   */
+  | "unavailable";
 
 /** Thrown when signing in fails, or when a saved sign-in stops working. */
 export class SignInError extends Error {
   override name = "SignInError";
   readonly problem: SignInProblem;
+  /** Where to fix it, such as the page that installs the sign-in service's app. */
+  readonly link?: string;
 
-  constructor(problem: SignInProblem, message: string) {
+  constructor(problem: SignInProblem, message: string, link?: string) {
     super(message);
     this.problem = problem;
+    if (link) this.link = link;
   }
 }
 

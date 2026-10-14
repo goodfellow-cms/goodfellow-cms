@@ -43,6 +43,7 @@ github({ repo: "owner/name", branch: "main" })
 
 - `repo`: the repository, as `owner/name`.
 - `branch`: the branch the live site is built from. Defaults to the repository's default branch.
+- `signIn`: the [sign-in service](/docs/sign-in-service) for **Sign in with GitHub**. Defaults to Goodfellow's; give your own copy's address, or `false` for signing in with tokens only.
 - `apiUrl`, `webUrl`: for GitHub Enterprise.
 
 ## GitLab

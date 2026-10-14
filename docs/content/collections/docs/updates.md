@@ -31,7 +31,7 @@ The rest of the build then puts the site online as usual, with the update if it 
 
 These settings are kept in `content/updates.json`, so changing one is published like any other change, and shows in the site's version history.
 
-On GitHub, installing an update or going back from the screen runs the site's workflow, which needs the [owner token](/docs/sign-in#inviting-and-removing-editors) the screen asks for. It can also run workflows.
+On GitHub, installing an update or going back from the screen runs the site's workflow, which needs an owner's sign-in or [owner token](/docs/sign-in#inviting-and-removing-editors), which the screen asks for. Either can run workflows.
 
 ## Turning it on
 

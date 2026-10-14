@@ -15,6 +15,8 @@ import {
 export interface FakeGitHubUser {
   login: string;
   name?: string;
+  /** GitHub's number for the account. Defaults to one worked out from the login. */
+  id?: number;
   /** Whether the user may publish. Defaults to true. */
   push?: boolean;
   /** Whether the token may write `.github/workflows/`. Defaults to true. */
@@ -89,10 +91,84 @@ export interface FakeGitHubOptions {
   takenDomains?: string[];
   /** Other GitHub accounts that exist, which can be invited. Every token's user exists too. */
   accounts?: string[];
+  /** GitHub Apps, which the sign-in worker signs people in with. */
+  apps?: FakeGitHubApp[];
+}
+
+/** A GitHub App, as the sign-in worker uses one: its JWTs, installations, OAuth sign-in and tokens. */
+export interface FakeGitHubApp {
+  id: string;
+  slug: string;
+  clientId: string;
+  clientSecret: string;
+  /** The app's public key, which its JWTs are checked against. Without it, any JWT naming the app is accepted. */
+  publicKey?: CryptoKey;
+  /** The most its tokens may be given, as GitHub names permissions. */
+  permissions: Record<string, "read" | "write">;
+  installations: FakeInstallation[];
+}
+
+/** An app installed on an account, for some or all of its repositories. */
+export interface FakeInstallation {
+  id: number;
+  /** The account it's installed on. */
+  account: string;
+  accountType?: "User" | "Organization";
+  /** The repositories it can use, as `owner/name`, or `all` of the account's. */
+  repositories: string[] | "all";
+}
+
+/** A token an app's sign-in made: a person's own, or an installation's for some repositories. */
+export interface FakeIssuedToken {
+  token: string;
+  kind: "user" | "installation";
+  app: string;
+  login?: string;
+  repositories?: string[];
+  permissions: Record<string, string>;
+  revoked?: boolean;
+}
+
+/** Who a token belongs to, and for an app's tokens, what they're limited to. */
+interface Principal extends FakeGitHubUser {
+  app?: FakeGitHubApp;
+  /** For an installation's token: the repositories it may use. */
+  repositories?: string[];
+  /** For an app's tokens: what they may do. */
+  permissions?: Record<string, string>;
+  /** An installation's token, which acts as the app rather than a person. */
+  bot?: boolean;
+}
+
+/** GitHub's number for an account, worked out from its login when a test doesn't give one. */
+function accountId(login: string): number {
+  let hash = 7;
+  for (const char of login.toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) % 9_000_000;
+  return 1_000_000 + hash;
+}
+
+function same(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+function covers(installation: FakeInstallation, fullName: string): boolean {
+  const [owner = ""] = fullName.split("/");
+  if (!same(installation.account, owner)) return false;
+  return installation.repositories === "all" || installation.repositories.some((repo) => same(repo, fullName));
+}
+
+function decodeJwtPart(part: string): Record<string, unknown> | undefined {
+  try {
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4))) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
 }
 
 /** A repository created through the fake's API, as the setup page creates them. */
 export interface FakeCreatedRepo {
+  id: number;
   fullName: string;
   private: boolean;
   description?: string;
@@ -115,6 +191,17 @@ function json(body: unknown, status = 200): Response {
 export function fakeGitHub(options: FakeGitHubOptions) {
   const repo = new FakeRepo(options.files);
   const tokens = options.tokens ?? { "test-token": { login: "editor", name: "Test Editor" } };
+  /** Every token that works: the test's own, and those apps' sign-ins make. */
+  const principals = new Map<string, Principal>(Object.entries(tokens));
+  const apps = options.apps ?? [];
+  const issued: FakeIssuedToken[] = [];
+  /** OAuth codes waiting to be exchanged, and refresh tokens, by the app and person they're for. */
+  const codes = new Map<string, { app: FakeGitHubApp; login: string }>();
+  const refreshTokens = new Map<string, { app: FakeGitHubApp; login: string }>();
+  /** Who each commit made through the REST API names as its author. */
+  const commitAuthors = new Map<string, { name?: string; email?: string }>();
+  let nextToken = 1;
+  let nextRepoId = 100;
   const deployments: Deployment[] = [];
   const runs: FakeRun[] = [];
   const requests: Request[] = [];
@@ -157,6 +244,24 @@ export function fakeGitHub(options: FakeGitHubOptions) {
           permissions: invitation.permission,
         })),
       );
+    }
+    const permission = rest.match(/^\/collaborators\/([^/]+)\/permission$/);
+    if (permission && request.method === "GET") {
+      const login = decodeURIComponent(permission[1] ?? "");
+      if (!accounts.has(login)) return json({ message: "Not Found" }, 404);
+      const role = collaborators.get(login);
+      const level = role === "admin" ? "admin" : role === "push" ? "write" : role === "read" ? "read" : "none";
+      return json({
+        permission: level,
+        user: {
+          login,
+          permissions: {
+            admin: level === "admin",
+            push: level === "admin" || level === "write",
+            pull: level !== "none",
+          },
+        },
+      });
     }
     const collaborator = rest.match(/^\/collaborators\/([^/]+)$/);
     if (collaborator) {
@@ -233,10 +338,14 @@ export function fakeGitHub(options: FakeGitHubOptions) {
   }
 
   /** Repository creation and the Git data API, for repositories created through the fake. */
-  async function handleCreated(request: Request, path: string, login: string): Promise<Response | undefined> {
+  async function handleCreated(request: Request, path: string, principal: Principal): Promise<Response | undefined> {
+    const login = principal.login;
     if (path === "/user/orgs") return json((options.orgs ?? []).map((org) => ({ login: org })));
     const create = path === "/user/repos" ? login : path.match(/^\/orgs\/([^/]+)\/repos$/)?.[1];
     if (create !== undefined && request.method === "POST") {
+      if (principal.bot || (principal.app && principal.permissions?.administration !== "write")) {
+        return json({ message: "Resource not accessible by integration" }, 403);
+      }
       if (path !== "/user/repos" && !options.orgs?.includes(create)) return json({ message: "Not Found" }, 404);
       const body = (await request.json()) as { name: string; private?: boolean; description?: string };
       if (!/^[\w.-]+$/.test(body.name)) return json({ message: "Repository creation failed." }, 422);
@@ -248,7 +357,9 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         );
       }
       const repo = new FakeRepo({ "README.md": `# ${body.name}\n` }, options.newRepoBranch ?? "main");
+      const id = nextRepoId++;
       created.set(fullName, {
+        id,
         fullName,
         private: body.private === true,
         description: body.description,
@@ -256,7 +367,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         rulesets: [],
       });
       return json(
-        { full_name: fullName, html_url: `https://github.com/${fullName}`, default_branch: repo.defaultBranch },
+        { id, full_name: fullName, html_url: `https://github.com/${fullName}`, default_branch: repo.defaultBranch },
         201,
       );
     }
@@ -264,12 +375,18 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     const match = path.match(/^\/repos\/([^/]+\/[^/]+)(\/.*)?$/);
     const site = created.get(decodeURIComponent(match?.[1] ?? ""));
     if (!match || !site) return undefined;
+    if (!canSee(principal, site.fullName)) return json({ message: "Not Found" }, 404);
     const { repo } = site;
     const rest = match[2] ?? "";
     const method = request.method;
 
     if (rest === "" && method === "GET") {
-      return json({ full_name: site.fullName, default_branch: repo.defaultBranch, permissions: { push: true } });
+      return json({
+        id: site.id,
+        full_name: site.fullName,
+        default_branch: repo.defaultBranch,
+        permissions: { push: true, admin: true },
+      });
     }
     if (rest === "" && method === "PATCH") {
       const body = (await request.json()) as { default_branch?: string };
@@ -288,56 +405,13 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       repo.branches.delete(decodeURIComponent(ref[1] ?? ""));
       return new Response(null, { status: 204 });
     }
-    if (ref && method === "PATCH") {
-      const body = (await request.json()) as { sha: string; force?: boolean };
-      const branch = decodeURIComponent(ref[1] ?? "");
-      const commit = repo.commitAt(body.sha);
-      if (!commit || !repo.branches.has(branch)) return json({ message: "Reference does not exist" }, 422);
-      if (!body.force && commit.parent !== repo.branches.get(branch)) {
-        return json({ message: "Update is not a fast forward" }, 422);
-      }
-      if (site.rulesets.length > 0 && commit.parent !== repo.branches.get(branch)) {
-        return json({ message: "Cannot force-push to this branch" }, 422);
-      }
-      repo.branches.set(branch, body.sha);
-      deploy(body.sha);
-      return json({ object: { sha: body.sha } });
-    }
     if (rest === "/git/refs" && method === "POST") {
       const body = (await request.json()) as { ref: string; sha: string };
       repo.branches.set(body.ref.replace(/^refs\/heads\//, ""), body.sha);
       return json({ ref: body.ref, object: { sha: body.sha } }, 201);
     }
-    if (rest === "/git/blobs" && method === "POST") {
-      const body = (await request.json()) as { content: string; encoding: string };
-      return json(
-        {
-          sha: repo.blobSha(body.encoding === "base64" ? fakeFileFromBytes(decodeBase64(body.content)) : body.content),
-        },
-        201,
-      );
-    }
-    if (rest === "/git/trees" && method === "POST") {
-      const body = (await request.json()) as { tree: { path: string; content?: string; sha?: string }[] };
-      const files = new Map<string, FakeFile>();
-      for (const entry of body.tree) {
-        if (entry.path.startsWith(".github/workflows/") && user(request)?.workflow === false) {
-          return json({ message: "Resource not accessible by personal access token" }, 404);
-        }
-        const content = entry.content ?? repo.blobs.get(entry.sha ?? "");
-        if (content === undefined) return json({ message: `No blob ${entry.sha}` }, 422);
-        files.set(entry.path, content);
-      }
-      const sha = repo.blobSha(`tree:${[...files.keys()].join(",")}:${trees.size}`);
-      trees.set(sha, files);
-      return json({ sha }, 201);
-    }
-    if (rest === "/git/commits" && method === "POST") {
-      const body = (await request.json()) as { message: string; tree: string; parents: string[] };
-      const files = trees.get(body.tree);
-      if (!files) return json({ message: "Tree not found" }, 422);
-      return json({ sha: repo.addCommit(body.parents[0], body.message, new Map(files)) }, 201);
-    }
+    const data = await handleGitData(request, rest, repo, principal, site.rulesets.length > 0);
+    if (data) return data;
     if (rest === "/pages" && method === "POST") {
       if (site.private && !options.paidPlan) {
         return json({ message: "Your current plan does not support GitHub Pages for this repository." }, 422);
@@ -354,8 +428,105 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     return json({ message: "Not Found" }, 404);
   }
 
-  function user(request: Request): FakeGitHubUser | undefined {
-    return tokens[request.headers.get("authorization")?.replace(/^Bearer /, "") ?? ""];
+  /** Whether a token may see a repository: an app's only where it's installed, and an installation's only its own. */
+  function canSee(principal: Principal, fullName: string): boolean {
+    if (principal.repositories) return principal.repositories.some((repo) => same(repo, fullName));
+    if (principal.app) return principal.app.installations.some((installation) => covers(installation, fullName));
+    return true;
+  }
+
+  function treeOf(target: FakeRepo, commitSha: string): string {
+    const sha = target.blobSha(`tree-of:${commitSha}`);
+    if (!trees.has(sha)) trees.set(sha, new Map(target.files(commitSha)));
+    return sha;
+  }
+
+  /** Git's data API on a repository: blobs, trees, commits and moving a branch, as REST commits need. */
+  async function handleGitData(
+    request: Request,
+    rest: string,
+    target: FakeRepo,
+    principal: Principal,
+    protectedHistory: boolean,
+  ): Promise<Response | undefined> {
+    const method = request.method;
+    const commitSha = rest.match(/^\/git\/commits\/([0-9a-f]{40})$/);
+    if (commitSha && method === "GET") {
+      const found = target.commitAt(commitSha[1] ?? "");
+      if (!found) return json({ message: "Not Found" }, 404);
+      return json({
+        sha: found.sha,
+        tree: { sha: treeOf(target, found.sha) },
+        parents: found.parent ? [{ sha: found.parent }] : [],
+      });
+    }
+    if (rest === "/git/blobs" && method === "POST") {
+      if (principal.push === false) return json({ message: "Resource not accessible by integration" }, 403);
+      const body = (await request.json()) as { content: string; encoding: string };
+      return json(
+        {
+          sha: target.blobSha(
+            body.encoding === "base64" ? fakeFileFromBytes(decodeBase64(body.content)) : body.content,
+          ),
+        },
+        201,
+      );
+    }
+    if (rest === "/git/trees" && method === "POST") {
+      const body = (await request.json()) as {
+        base_tree?: string;
+        tree: { path: string; content?: string; sha?: string | null }[];
+      };
+      if (body.base_tree && !trees.has(body.base_tree)) return json({ message: "Tree not found" }, 422);
+      const files = new Map<string, FakeFile>(body.base_tree ? trees.get(body.base_tree) : undefined);
+      for (const entry of body.tree) {
+        if (entry.path.startsWith(".github/workflows/") && principal.workflow === false) {
+          return json({ message: "Resource not accessible by personal access token" }, 404);
+        }
+        if (entry.sha === null) {
+          files.delete(entry.path);
+          continue;
+        }
+        const content = entry.content ?? target.blobs.get(entry.sha ?? "");
+        if (content === undefined) return json({ message: `No blob ${entry.sha}` }, 422);
+        files.set(entry.path, content);
+      }
+      const sha = target.blobSha(`tree:${[...files.keys()].join(",")}:${trees.size}`);
+      trees.set(sha, files);
+      return json({ sha }, 201);
+    }
+    if (rest === "/git/commits" && method === "POST") {
+      const body = (await request.json()) as {
+        message: string;
+        tree: string;
+        parents: string[];
+        author?: { name?: string; email?: string };
+      };
+      const files = trees.get(body.tree);
+      if (!files) return json({ message: "Tree not found" }, 422);
+      const author = body.author?.name ?? (principal.bot ? principal.login : (principal.name ?? principal.login));
+      const sha = target.addCommit(body.parents[0], body.message, new Map(files), author);
+      commitAuthors.set(sha, body.author ?? { name: author });
+      return json({ sha }, 201);
+    }
+    const ref = rest.match(/^\/git\/refs?\/heads\/(.+)$/);
+    if (ref && method === "PATCH") {
+      if (principal.push === false) return json({ message: "Resource not accessible by integration" }, 403);
+      const body = (await request.json()) as { sha: string; force?: boolean };
+      const branch = decodeURIComponent(ref[1] ?? "");
+      const found = target.commitAt(body.sha);
+      if (!found || !target.branches.has(branch)) return json({ message: "Reference does not exist" }, 422);
+      if (!body.force && found.parent !== target.branches.get(branch)) {
+        return json({ message: "Update is not a fast forward" }, 422);
+      }
+      if (protectedHistory && found.parent !== target.branches.get(branch)) {
+        return json({ message: "Cannot force-push to this branch" }, 422);
+      }
+      target.branches.set(branch, body.sha);
+      deploy(body.sha);
+      return json({ object: { sha: body.sha } });
+    }
+    return undefined;
   }
 
   function deploy(sha: string): void {
@@ -369,17 +540,228 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     return sha;
   }
 
+  /** The person a login belongs to, as the test's tokens describe them. */
+  function person(login: string): FakeGitHubUser {
+    return Object.values(tokens).find((candidate) => same(candidate.login, login)) ?? { login };
+  }
+
+  /** Simulates someone signing in to an app on GitHub's page: the code GitHub sends back to the app's callback. */
+  function authorize(login: string, clientId: string): string {
+    const app = apps.find((candidate) => candidate.clientId === clientId);
+    if (!app) throw new Error(`No app with client ID ${clientId}`);
+    const code = `code-${nextToken++}`;
+    codes.set(code, { app, login });
+    return code;
+  }
+
+  /**
+   * Simulates someone installing an app on GitHub's install page, choosing
+   * these repositories, or adding them to its installation on the account,
+   * and being signed in as they go: the code GitHub sends back to the app's callback.
+   */
+  function install(
+    slug: string,
+    login: string,
+    repositories: string[],
+    account = repositories[0]?.split("/")[0] ?? login,
+  ) {
+    const app = apps.find((candidate) => candidate.slug === slug);
+    if (!app) throw new Error(`No app ${slug}`);
+    let installation = app.installations.find((candidate) => same(candidate.account, account));
+    if (!installation) {
+      installation = { id: 1000 + nextToken++, account, repositories: [] };
+      app.installations.push(installation);
+    }
+    const chosen = installation.repositories;
+    if (chosen !== "all")
+      for (const repo of repositories) if (!chosen.some((name) => same(name, repo))) chosen.push(repo);
+    return { code: authorize(login, app.clientId), installation: installation.id };
+  }
+
+  function userToken(app: FakeGitHubApp, login: string) {
+    const access = `ghu_fake${nextToken++}`;
+    const refresh = `ghr_fake${nextToken++}`;
+    const base = person(login);
+    principals.set(access, {
+      ...base,
+      app,
+      permissions: app.permissions,
+      administration: app.permissions.administration === "write",
+      pages: app.permissions.pages === "write",
+      workflow: app.permissions.workflows === "write",
+      actions: app.permissions.actions !== undefined,
+      actionsWrite: app.permissions.actions === "write",
+    });
+    refreshTokens.set(refresh, { app, login });
+    issued.push({ token: access, kind: "user", app: app.slug, login, permissions: app.permissions });
+    return json({
+      access_token: access,
+      token_type: "bearer",
+      scope: "",
+      expires_in: 28_800,
+      refresh_token: refresh,
+      refresh_token_expires_in: 15_897_600,
+    });
+  }
+
+  async function appFromJwt(jwt: string): Promise<FakeGitHubApp | undefined> {
+    const [header, payload, signature] = jwt.split(".");
+    const claims = decodeJwtPart(payload ?? "");
+    if (!header || !claims || !signature || decodeJwtPart(header)?.alg !== "RS256") return undefined;
+    const app = apps.find((candidate) => String(candidate.id) === String(claims.iss));
+    if (!app || typeof claims.exp !== "number" || claims.exp * 1000 < Date.now()) return undefined;
+    if (app.publicKey) {
+      const base64 = signature.replace(/-/g, "+").replace(/_/g, "/");
+      const bytes = Uint8Array.from(atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4)), (char) =>
+        char.charCodeAt(0),
+      );
+      const valid = await crypto.subtle.verify(
+        "RSASSA-PKCS1-v1_5",
+        app.publicKey,
+        bytes,
+        new TextEncoder().encode(`${header}.${payload}`),
+      );
+      if (!valid) return undefined;
+    }
+    return app;
+  }
+
+  /** What GitHub Apps call: OAuth's token exchange, revoking, and the app's own endpoints, which take its JWT. */
+  async function handleApps(request: Request, path: string): Promise<Response | undefined> {
+    const authorization = request.headers.get("authorization") ?? "";
+    if (path === "/login/oauth/access_token" && request.method === "POST") {
+      const body = (await request.json()) as Record<string, string>;
+      const app = apps.find((candidate) => candidate.clientId === body.client_id);
+      if (!app || app.clientSecret !== body.client_secret) return json({ error: "incorrect_client_credentials" });
+      if (body.grant_type === "refresh_token") {
+        const found = refreshTokens.get(body.refresh_token ?? "");
+        if (!found || found.app !== app) return json({ error: "bad_refresh_token" });
+        refreshTokens.delete(body.refresh_token ?? "");
+        return userToken(app, found.login);
+      }
+      const found = codes.get(body.code ?? "");
+      if (!found || found.app !== app) return json({ error: "bad_verification_code" });
+      codes.delete(body.code ?? "");
+      return userToken(app, found.login);
+    }
+
+    const revoke = path.match(/^\/applications\/([^/]+)\/token$/);
+    if (revoke && request.method === "DELETE") {
+      const [id, secret] = atob(authorization.replace(/^Basic /, "")).split(":");
+      const app = apps.find((candidate) => candidate.clientId === decodeURIComponent(revoke[1] ?? ""));
+      if (!app || app.clientId !== id || app.clientSecret !== secret) return json({ message: "Not Found" }, 404);
+      const { access_token: token } = (await request.json()) as { access_token: string };
+      principals.delete(token);
+      for (const item of issued) if (item.token === token) item.revoked = true;
+      return new Response(null, { status: 204 });
+    }
+
+    if (path === "/installation/token" && request.method === "DELETE") {
+      const token = authorization.replace(/^Bearer /, "");
+      if (!principals.get(token)?.bot) return json({ message: "Bad credentials" }, 401);
+      principals.delete(token);
+      for (const item of issued) if (item.token === token) item.revoked = true;
+      return new Response(null, { status: 204 });
+    }
+
+    if (!/^Bearer ey/.test(authorization)) return undefined;
+    const app = await appFromJwt(authorization.slice("Bearer ".length));
+    if (!app) return json({ message: "A JSON web token could not be decoded" }, 401);
+
+    const installed = path.match(/^\/repos\/([^/]+\/[^/]+)\/installation$/);
+    if (installed) {
+      const fullName = decodeURIComponent(installed[1] ?? "");
+      const installation = app.installations.find((candidate) => covers(candidate, fullName));
+      return installation
+        ? json({ id: installation.id, account: { login: installation.account }, app_slug: app.slug })
+        : json({ message: "Not Found" }, 404);
+    }
+
+    const mint = path.match(/^\/app\/installations\/(\d+)\/access_tokens$/);
+    if (mint && request.method === "POST") {
+      const installation = app.installations.find((candidate) => candidate.id === Number(mint[1]));
+      if (!installation) return json({ message: "Not Found" }, 404);
+      const body = (await request.json()) as {
+        repositories?: string[];
+        permissions?: Record<string, "read" | "write">;
+      };
+      const repositories = (body.repositories ?? []).map((name) => `${installation.account}/${name}`);
+      if (repositories.some((repo) => !covers(installation, repo))) {
+        return json({ message: "There is at least one repository that does not exist or is not accessible" }, 422);
+      }
+      const permissions = body.permissions ?? app.permissions;
+      for (const [name, level] of Object.entries(permissions)) {
+        const allowed = app.permissions[name];
+        if (!allowed || (level === "write" && allowed !== "write")) {
+          return json({ message: `The permissions requested are not granted to this installation.` }, 422);
+        }
+      }
+      const token = `ghs_fake${nextToken++}`;
+      principals.set(token, {
+        login: `${app.slug}[bot]`,
+        bot: true,
+        app,
+        repositories,
+        permissions,
+        push: permissions.contents === "write",
+        workflow: permissions.workflows === "write",
+        pages: permissions.pages === "write",
+        administration: permissions.administration === "write",
+        admin: permissions.administration === "write",
+        actions: permissions.actions !== undefined,
+        actionsWrite: permissions.actions === "write",
+      });
+      issued.push({ token, kind: "installation", app: app.slug, repositories, permissions });
+      return json({ token, expires_at: new Date(Date.now() + 3_600_000).toISOString(), permissions }, 201);
+    }
+    return json({ message: "Not Found" }, 404);
+  }
+
   async function handle(request: Request): Promise<Response> {
     requests.push(request.clone());
     const url = new URL(request.url);
     const path = url.pathname;
-    const user = tokens[request.headers.get("authorization")?.replace(/^Bearer /, "") ?? ""];
+    const fromApp = await handleApps(request, path);
+    if (fromApp) return fromApp;
+    const user = principals.get(request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "");
     if (!user) return json({ message: "Bad credentials" }, 401);
 
-    if (path === "/user")
-      return json({ login: user.login, name: user.name ?? null, avatar_url: `https://avatars.example/${user.login}` });
+    if (path === "/user") {
+      if (user.bot) return json({ message: "Resource not accessible by integration" }, 403);
+      return json({
+        id: user.id ?? accountId(user.login),
+        login: user.login,
+        name: user.name ?? null,
+        avatar_url: `https://avatars.example/${user.login}`,
+      });
+    }
 
-    const setup = await handleCreated(request, path, user.login);
+    if (path === "/user/installations" && user.app && !user.bot) {
+      const mine = user.app.installations.filter(
+        (installation) =>
+          same(installation.account, user.login) || (options.orgs ?? []).some((org) => same(org, installation.account)),
+      );
+      return json({
+        total_count: mine.length,
+        installations: mine.map((installation) => ({
+          id: installation.id,
+          account: { login: installation.account, type: installation.accountType ?? "User" },
+          repository_selection: installation.repositories === "all" ? "all" : "selected",
+        })),
+      });
+    }
+    const addRepo = path.match(/^\/user\/installations\/(\d+)\/repositories\/(\d+)$/);
+    if (addRepo && request.method === "PUT" && user.app && !user.bot) {
+      const installation = user.app.installations.find((candidate) => candidate.id === Number(addRepo[1]));
+      const target = [...created.values()].find((candidate) => candidate.id === Number(addRepo[2]));
+      if (!installation || !target) return json({ message: "Not Found" }, 404);
+      if (installation.repositories !== "all" && !installation.repositories.includes(target.fullName)) {
+        installation.repositories.push(target.fullName);
+      }
+      return new Response(null, { status: 204 });
+    }
+
+    const setup = await handleCreated(request, path, user);
     if (setup) return setup;
 
     const account = path.match(/^\/users\/([^/]+)$/);
@@ -435,7 +817,25 @@ export function fakeGitHub(options: FakeGitHubOptions) {
 
     const match = path.match(/^\/repos\/([^/]+\/[^/]+)(\/.*)?$/);
     if (!match || decodeURIComponent(match[1] ?? "") !== options.repo) return json({ message: "Not Found" }, 404);
+    if (!canSee(user, options.repo)) return json({ message: "Not Found" }, 404);
     const rest = match[2] ?? "";
+
+    const contents = rest.match(/^\/contents\/(.+)$/);
+    if (contents && request.method === "GET") {
+      if (user.bot && !user.permissions?.contents) {
+        return json({ message: "Resource not accessible by integration" }, 403);
+      }
+      const file = repo
+        .files(url.searchParams.get("ref") ?? repo.defaultBranch)
+        .get(decodeURIComponent(contents[1] ?? ""));
+      if (file === undefined) return json({ message: "Not Found" }, 404);
+      return request.headers.get("accept")?.includes("raw")
+        ? new Response(fakeFileBytes(file))
+        : json({ content: encodeBase64Bytes(fakeFileBytes(file)), encoding: "base64" });
+    }
+
+    const data = await handleGitData(request, rest, repo, user, false);
+    if (data) return data;
 
     if (rest === "/pages" && request.method === "GET") {
       const site = pages.current;
@@ -469,6 +869,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
 
     if (rest === "") {
       return json({
+        id: 1,
         full_name: options.repo,
         default_branch: repo.defaultBranch,
         permissions: { push: user.push !== false, admin: user.admin === true },
@@ -608,6 +1009,12 @@ export function fakeGitHub(options: FakeGitHubOptions) {
 
   return {
     repo,
+    /** Tokens apps' sign-ins made, in order. */
+    issued,
+    /** Who commits made through the REST API name as their author, by commit. */
+    commitAuthors,
+    authorize,
+    install,
     /** Repositories created through the API, by `owner/name`. */
     created,
     /** The site's GitHub Pages settings, which tests can change, such as to issue the certificate. */

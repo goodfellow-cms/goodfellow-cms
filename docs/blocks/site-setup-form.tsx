@@ -159,9 +159,11 @@ function setupHost(git: GitHostName, gitlabClientId: string): SetupHost {
 
 function signInMessage(error: unknown): string {
   if (error instanceof SignInError) {
-    return error.problem === "redirect-failed"
-      ? "Signing in didn't finish. Try again."
-      : "That token didn't work. Check it was copied completely and hasn't expired.";
+    if (error.problem === "redirect-failed") return "Signing in didn't finish. Try again.";
+    if (error.problem === "unavailable" || error.problem === "wrong-address" || error.problem === "local-address") {
+      return "Signing in with GitHub isn't available here right now, perhaps because it's been used as much as it can be today. Paste a token instead.";
+    }
+    return "That token didn't work. Check it was copied completely and hasn't expired.";
   }
   return `Couldn't sign in: ${error instanceof Error ? error.message : String(error)}`;
 }
@@ -171,6 +173,9 @@ function createMessage(error: unknown): string {
     if (error.problem === "name-taken") return "There's already a repository with that name. Choose another name.";
     if (error.problem === "name-invalid") {
       return "That name can't be used. Use letters, numbers, dashes, dots and underscores only.";
+    }
+    if (error.problem === "not-installed") {
+      return "Goodfellow isn't installed on that account yet. Install it there, then create the site.";
     }
     return "This sign-in isn't allowed to do that. Check the token's permissions (on GitHub, including Workflows and Administration), or choose your own account.";
   }
@@ -348,9 +353,15 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
     }
   }
 
-  async function signInWithRedirect() {
+  async function signInWithRedirect(install = false) {
+    setError(undefined);
     sessionStorage.setItem(CHOICES_KEY, JSON.stringify(choices));
-    await host.startRedirect();
+    try {
+      await host.startRedirect({ install });
+    } catch (caught) {
+      sessionStorage.removeItem(CHOICES_KEY);
+      setError(signInMessage(caught));
+    }
   }
 
   async function create() {
@@ -598,6 +609,23 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
               onChange={(event) => setName(event.target.value.trim())}
             />
           </div>
+          {chosenOwner?.installUrl && (
+            <div className="grid gap-2 rounded-lg bg-muted p-3 text-sm">
+              <p>
+                Before creating a site in {chosenOwner.path}, install Goodfellow there. GitHub asks where: choose{" "}
+                {chosenOwner.path}, then come back here, signed in. It lets this page create the site's repository and
+                set it up.
+              </p>
+              <button
+                type="button"
+                className={`${button} justify-self-start`}
+                disabled={busy}
+                onClick={() => void signInWithRedirect(true)}
+              >
+                Install Goodfellow on GitHub
+              </button>
+            </div>
+          )}
           <p className="text-sm text-muted-foreground" aria-live="polite">
             {!validName
               ? "Use letters, numbers, dashes, dots and underscores only."
@@ -617,7 +645,7 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
           <button
             type="button"
             className={`${button} justify-self-start`}
-            disabled={busy || !chosenOwner || !validName || available === false}
+            disabled={busy || !chosenOwner || Boolean(chosenOwner.installUrl) || !validName || available === false}
             onClick={() => void create()}
           >
             Create the site
@@ -645,6 +673,12 @@ function Created({ created, choices }: { created: CreatedSiteRepository; choices
         </SiteLink>
         .
       </p>
+      {created.signInInstallUrl && (
+        <Note>
+          The first time you open the site's admin panel, Sign in with GitHub offers to install Goodfellow's sign-in on
+          {` ${created.repo}`}, which signs you in too. After that, editors sign in with GitHub as well.
+        </Note>
+      )}
       {created.warnings.includes("pages-unavailable") && (
         <Note tone="warning">
           GitHub Pages couldn't be turned on, most likely because the repository is private and the account is on

@@ -24,6 +24,8 @@ test("signs in with a GitHub token created from a prefilled link", async ({ page
   await setup(page);
   await page.goto(`${GITHUB_SITE}/admin/`);
   await expect(page.getByRole("heading", { name: "Sign in to edit this site" })).toBeVisible();
+  // Signing in with GitHub through the worker works only at the site's own address, not on this computer.
+  await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toHaveCount(0);
   // The site's icon is in the tab before anyone signs in.
   await expect(page.locator('head link[rel~="icon"]')).toHaveAttribute("href", /\/media\/favicon\.svg$/);
 

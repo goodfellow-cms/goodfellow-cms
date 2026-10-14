@@ -4,7 +4,7 @@
  * `GitHost` for editing an existing site.
  */
 import type { FileChange } from "./content/store.js";
-import type { GitUser, TokenLink } from "./git.js";
+import type { GitUser, RedirectOptions, TokenLink } from "./git.js";
 
 /** An account or group a new repository can be created in. */
 export interface SetupOwner {
@@ -15,6 +15,8 @@ export interface SetupOwner {
   kind: "personal" | "organization";
   /** The host's own id for it, where creating a repository needs one (GitLab's namespace id). */
   id?: number;
+  /** Where to install the sign-in service's app, when creating sites here needs it first. */
+  installUrl?: string;
 }
 
 export interface NewSiteRepository {
@@ -38,7 +40,9 @@ export type SetupWarning =
   /** Pages couldn't be turned on, such as for a private repository on GitHub's free plan. */
   | "pages-unavailable"
   /** The main branch's history couldn't be protected, such as on a plan without rules for private repositories. */
-  | "protection-unavailable";
+  | "protection-unavailable"
+  /** Editors can't sign in with the sign-in service until its app is installed on the repository (`signInInstallUrl`). */
+  | "sign-in-not-installed";
 
 export interface CreatedSiteRepository {
   /** `owner/name`, or the GitLab project's full path. */
@@ -51,6 +55,8 @@ export interface CreatedSiteRepository {
   buildsUrl: string;
   /** The host's Pages settings, where the site's address is shown once it's built. */
   pagesUrl?: string;
+  /** Where to install the sign-in service's app on the repository, so editors can sign in with it. */
+  signInInstallUrl?: string;
   warnings: SetupWarning[];
 }
 
@@ -61,13 +67,16 @@ export type SetupProblem =
   /** The name can't be used for a repository. */
   | "name-invalid"
   /** The sign-in can't create repositories there, or can't write the site's build setup. */
-  | "not-allowed";
+  | "not-allowed"
+  /** The sign-in service's app isn't installed where the repository would go. `link` says where to install it. */
+  | "not-installed";
 
 export class SetupError extends Error {
   override name = "SetupError";
   constructor(
     readonly problem: SetupProblem,
     message: string,
+    readonly link?: string,
   ) {
     super(message);
   }
@@ -95,5 +104,5 @@ export interface SetupHost {
   restore(): Promise<SetupAccount | null>;
   signInWithToken(token: string): Promise<SetupAccount>;
   /** Goes to the host's sign-in page, which comes back to this page. */
-  startRedirect(): Promise<void>;
+  startRedirect(options?: RedirectOptions): Promise<void>;
 }

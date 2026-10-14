@@ -285,6 +285,7 @@ export {
   type GitHost,
   type GitUser,
   type HistoryOptions,
+  type RedirectOptions,
   SignInError,
   type SignInProblem,
   type StorageLike,
