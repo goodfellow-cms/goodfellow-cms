@@ -171,6 +171,30 @@ function setOutput(name, value) {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
 }
 
+/** Says what happened, on the page of the workflow run, as well as in its log. */
+function report(message) {
+  console.log(`\n${message}`);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${message}\n\n`);
+}
+
+/** The commit being released, as its short id and subject: `a5230f3 ("Release 0.2.0")`. */
+function thisCommit() {
+  return read("git", ["log", "-1", '--format=%h ("%s")']);
+}
+
+/**
+ * The short id of GitHub's master, if it has moved on from the commit being
+ * released, as it has when an earlier run is run again after a later merge.
+ */
+function newerMaster() {
+  try {
+    const sha = read("git", ["ls-remote", "origin", "refs/heads/master"]).split(/\s/)[0];
+    return sha && sha !== read("git", ["rev-parse", "HEAD"]) ? sha.slice(0, 7) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Publishes the versions npm doesn't have yet. Run on your computer, it checks
  * you're on GitHub's master and runs the checks first, then publishes and tags
@@ -201,14 +225,19 @@ async function publish({ ci, dryRun, yes }) {
     console.log("\nThe packages haven't been given a version yet. Run `pnpm release:version` first.");
     return;
   }
+  // A workflow run releases the commit it was started for, which may not be master's latest.
+  const commit = ci ? `Commit ${thisCommit()}` : "This commit";
   const toPublish = list.filter((pkg) => !isPublished(pkg.name, pkg.version));
   if (toPublish.length === 0) {
     const waiting = pendingChangesets().length;
-    console.log(
-      `\nEvery package is already on npm at ${next}, so there's nothing to publish.${
-        waiting > 0
-          ? ` To release the ${waiting} waiting changesets, run \`pnpm release:version\` and merge its pull request.`
-          : ""
+    const newer = ci ? newerMaster() : undefined;
+    report(
+      `${commit} is version ${next}, and every package is already on npm at ${next}, so there's nothing to publish.${
+        newer
+          ? ` master has moved on to ${newer} since: its own Release run starts once CI passes on it, and publishes its version if npm doesn't have it.`
+          : waiting > 0
+            ? ` To release the ${waiting} waiting changesets, run \`pnpm release:version\` and merge its pull request.`
+            : ""
       }`,
     );
     return;
@@ -270,8 +299,8 @@ async function publish({ ci, dryRun, yes }) {
       );
     }
     if (!dryRun) {
-      console.log(
-        `\nStaged ${next}. Approve it with \`pnpm release:approve\`; the workflow then tags it and deploys the docs.`,
+      report(
+        `Staged ${next}, from ${commit.toLowerCase()}. Approve it with \`pnpm release:approve\` on your computer; this workflow waits for the approval, then tags the release and deploys the docs.`,
       );
     }
     return;
