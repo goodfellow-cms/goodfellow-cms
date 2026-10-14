@@ -1,6 +1,7 @@
 import {
   absoluteUrl,
   demoContent,
+  findRedirect,
   type GoodfellowConfig,
   getPageHead,
   googleFontsUrl,
@@ -28,7 +29,7 @@ import {
   type SiteComponents,
 } from "@goodfellow-cms/react";
 import type { Metadata, MetadataRoute } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { CurrentMenuLinks, NextImage, NextLink } from "./components.js";
 
@@ -195,8 +196,14 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
     /** The page at the route's address, inside `Layout`'s header and footer. */
     async Page({ params }: PageProps) {
       const content = await site();
-      const page = findPage(content, config.blocks, pathOf((await params).path));
-      if (!page || page.path === "/404") notFound();
+      const segments = (await params).path;
+      const page = findPage(content, config.blocks, pathOf(segments));
+      if (!page || page.path === "/404") {
+        // In `next dev`. Exports have a page at each old address instead, which `goodfellow-next finish` writes.
+        const moved = findRedirect(content, `/${(segments ?? []).join("/")}`);
+        if (moved) redirect(moved.to);
+        notFound();
+      }
       const prepared = await preparePage(configs, content, page, await renderOptions());
       return <PageContent site={prepared.site} pageConfig={prepared.pageConfig} page={prepared.data} />;
     },

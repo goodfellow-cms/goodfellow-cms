@@ -8,10 +8,14 @@ import {
   menusFileSchema,
   pageView,
   parseHeadCode,
+  type Redirect,
+  redirectProblems,
   type SiteCode,
   type SiteSettings,
   serializeContent,
+  sitePages,
   siteSettingsSchema,
+  storedRedirects,
   THEME_COLORS,
   type ThemeColor,
   todayIn,
@@ -20,25 +24,34 @@ import { PageBody, type SiteContextValue } from "@goodfellow-cms/react";
 import type { Data } from "@puckeditor/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
-import { codeFileChanges, customCssFileChange, menusFileChange, siteSettingsFileChange, storedCss } from "./changes.js";
+import {
+  codeFileChanges,
+  customCssFileChange,
+  menusFileChange,
+  redirectsFileChange,
+  siteSettingsFileChange,
+  storedCss,
+} from "./changes.js";
 import { CodeEditor } from "./code-editor.js";
 import { FontPicker } from "./font-picker.js";
 import { useHistory } from "./history.js";
 import { MediaField } from "./media-library.js";
 import { MenusEditor } from "./menus-editor.js";
 import { PreviewFrame } from "./preview.js";
+import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
 import { type SettingsSection, useUnsavedChanges } from "./router.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, ErrorMessage, Field, PublishedNotice, TextField } from "./ui.js";
 import { AppLink } from "./use-link.js";
 
-export type SettingsTab = "general" | "theme" | "menus" | "css" | "code";
-export const SETTINGS_TABS: SettingsTab[] = ["general", "theme", "menus", "css", "code"];
+export type SettingsTab = "general" | "theme" | "menus" | "redirects" | "css" | "code";
+export const SETTINGS_TABS: SettingsTab[] = ["general", "theme", "menus", "redirects", "css", "code"];
 
 const tabLabels: Record<SettingsTab, StringKey> = {
   general: "settings.tab.general",
   theme: "settings.tab.theme",
   menus: "settings.tab.menus",
+  redirects: "settings.tab.redirects",
   css: "settings.tab.css",
   code: "settings.tab.code",
 };
@@ -497,16 +510,24 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
   const { config, pageConfig, layoutConfig, publish, reload } = useAdmin();
   const { content } = useSiteContent();
   // One history for every tab, so undo takes back the last change wherever it was made.
-  const history = useHistory<{ settings: SiteSettings; menus: Menus; css: string; code: SiteCode }>({
+  const history = useHistory<{
+    settings: SiteSettings;
+    menus: Menus;
+    redirects: Redirect[];
+    css: string;
+    code: SiteCode;
+  }>({
     settings: content.settings,
     menus: content.menus,
+    redirects: content.redirects ?? [],
     css: content.customCss,
     code: content.code ?? EMPTY_CODE,
   });
-  const { settings, menus, css, code } = history.present;
+  const { settings, menus, redirects, css, code } = history.present;
   const { update } = history;
   const setSettings = useCallback((settings: SiteSettings) => update((form) => ({ ...form, settings })), [update]);
   const setMenus = useCallback((menus: Menus) => update((form) => ({ ...form, menus })), [update]);
+  const setRedirects = useCallback((redirects: Redirect[]) => update((form) => ({ ...form, redirects })), [update]);
   const setCss = useCallback((css: string) => update((form) => ({ ...form, css })), [update]);
   const setCode = useCallback((code: SiteCode) => update((form) => ({ ...form, code })), [update]);
   const [showErrors, setShowErrors] = useState(false);
@@ -518,16 +539,27 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
   const validation = useMemo(() => validate(settings), [settings]);
   const headError = useMemo(() => headCodeProblem(t, code.head), [t, code.head]);
   const formsError = useMemo(() => formsProblem(t, settings.forms), [t, settings.forms]);
+  // Rows left empty aren't saved.
+  const savedRedirects = useMemo(() => storedRedirects(filledRedirects(redirects)), [redirects]);
+  const redirectsInvalid = useMemo(() => redirectProblems(savedRedirects).some(Boolean), [savedRedirects]);
+  // Addresses with pages, as builds have them, which win over redirects.
+  const taken = useMemo(
+    () => sitePages(content, todayIn(content.settings.timeZone), config.blocks).map((page) => page.path),
+    [content, config.blocks],
+  );
   const changes = useMemo(() => {
     const result: FileChange[] = [];
     if (validation.settings && serializeContent(validation.settings) !== serializeContent(content.settings)) {
       result.push(siteSettingsFileChange(validation.settings));
     }
     if (serializeContent(menus) !== serializeContent(content.menus)) result.push(menusFileChange(menus));
+    if (serializeContent(savedRedirects) !== serializeContent(content.redirects ?? [])) {
+      result.push(redirectsFileChange(savedRedirects));
+    }
     if (storedCss(css) !== storedCss(content.customCss)) result.push(customCssFileChange(css));
     result.push(...codeFileChanges(code, content.code));
     return result;
-  }, [validation, menus, css, code, content]);
+  }, [validation, menus, savedRedirects, css, code, content]);
 
   const dirty = changes.length > 0 || !validation.settings;
   // "Published." goes after a few seconds, or as soon as anything changes.
@@ -542,7 +574,13 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
 
   const onPublish = async () => {
     setShowErrors(true);
-    if (!validation.settings || !menusFileSchema.safeParse({ version: 1, menus }).success || headError || formsError) {
+    if (
+      !validation.settings ||
+      !menusFileSchema.safeParse({ version: 1, menus }).success ||
+      headError ||
+      formsError ||
+      redirectsInvalid
+    ) {
       setStatus({ type: "invalid" });
       return;
     }
@@ -620,6 +658,9 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
         )}
         {tab === "theme" && <ThemeTab draft={settings} errors={errors} onChange={setSettings} />}
         {tab === "menus" && <MenusEditor menus={menus} onChange={setMenus} />}
+        {tab === "redirects" && (
+          <RedirectsEditor redirects={redirects} taken={taken} showErrors={showErrors} onChange={setRedirects} />
+        )}
         {tab === "css" && <CssTab css={css} onChange={setCss} />}
         {tab === "code" && <CodeTab code={code} headError={showErrors ? headError : undefined} onChange={setCode} />}
       </div>

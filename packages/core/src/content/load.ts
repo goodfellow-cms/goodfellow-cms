@@ -17,8 +17,10 @@ import {
   MENUS_FILE,
   PAGES_DIR,
   pageFileToPath,
+  REDIRECTS_FILE,
   SITE_FILE,
 } from "./paths.js";
+import { type Redirect, redirectProblems, redirectsFileSchema } from "./redirects.js";
 import {
   collectionFileSchema,
   type EntryFile,
@@ -76,6 +78,8 @@ export interface SiteContent {
   customCss: string;
   /** Admin-written code for every page, such as analytics: `head` for the `<head>`, `body` for the end of the `<body>`. Missing means none. */
   code?: SiteCode;
+  /** Old addresses that send visitors on (`content/redirects.json`). Missing means none. */
+  redirects?: Redirect[];
 }
 
 export interface SiteCode {
@@ -155,18 +159,29 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     return fallback;
   }
 
-  const [settings, menusFile, header, footer, customCss, headCode, bodyCode, pageFiles, collectionFiles] =
-    await Promise.all([
-      loadOptional("site", siteSettingsSchema, SITE_FILE, siteSettingsSchema.parse({ version: 1 })),
-      loadOptional("menus", menusFileSchema, MENUS_FILE, { version: 1, menus: {} }),
-      loadOptional("layout", layoutFileSchema, HEADER_FILE, EMPTY_LAYOUT),
-      loadOptional("layout", layoutFileSchema, FOOTER_FILE, EMPTY_LAYOUT),
-      source.read(CUSTOM_CSS_FILE),
-      source.read(HEAD_CODE_FILE),
-      source.read(BODY_CODE_FILE),
-      source.list(PAGES_DIR),
-      source.list(COLLECTIONS_DIR),
-    ]);
+  const [
+    settings,
+    menusFile,
+    redirectsFile,
+    header,
+    footer,
+    customCss,
+    headCode,
+    bodyCode,
+    pageFiles,
+    collectionFiles,
+  ] = await Promise.all([
+    loadOptional("site", siteSettingsSchema, SITE_FILE, siteSettingsSchema.parse({ version: 1 })),
+    loadOptional("menus", menusFileSchema, MENUS_FILE, { version: 1, menus: {} }),
+    loadOptional("redirects", redirectsFileSchema, REDIRECTS_FILE, { version: 1, redirects: [] }),
+    loadOptional("layout", layoutFileSchema, HEADER_FILE, EMPTY_LAYOUT),
+    loadOptional("layout", layoutFileSchema, FOOTER_FILE, EMPTY_LAYOUT),
+    source.read(CUSTOM_CSS_FILE),
+    source.read(HEAD_CODE_FILE),
+    source.read(BODY_CODE_FILE),
+    source.list(PAGES_DIR),
+    source.list(COLLECTIONS_DIR),
+  ]);
 
   const pages: Page[] = [];
   const filesByPath = new Map<string, string>();
@@ -232,6 +247,15 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     }
   }
 
+  redirectProblems(redirectsFile.redirects).forEach((problem, index) => {
+    if (!problem) return;
+    const { from, to } = redirectsFile.redirects[index] ?? { from: "", to: "" };
+    problems.push({
+      file: REDIRECTS_FILE,
+      message: `has a redirect from "${from}" to "${to}" that ${REDIRECT_PROBLEMS[problem]}`,
+    });
+  });
+
   if (problems.length > 0) {
     problems.sort((a, b) => a.file.localeCompare(b.file));
     throw new ContentError(problems);
@@ -247,8 +271,22 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     collections,
     customCss: customCss ?? "",
     code: { head: headCode ?? "", body: bodyCode ?? "" },
+    redirects: redirectsFile.redirects,
   };
 }
+
+/** What's wrong with a redirect, for build errors. The admin panel has its own words for these. */
+const REDIRECT_PROBLEMS: Record<NonNullable<ReturnType<typeof redirectProblems>[number]>, string> = {
+  "no-from": "has no old address.",
+  "bad-from": 'has an old address that isn\'t one: it should start with "/", such as /about-us.',
+  query: "has an old address with a ?, which a static site can't tell apart from the address without it.",
+  home: "is from the home page, which can't be redirected.",
+  reserved: "is from an address Goodfellow uses itself.",
+  "no-to": "doesn't say where to send visitors.",
+  "bad-to": 'sends visitors somewhere that isn\'t an address: it should start with "/" or "https://".',
+  loop: "sends visitors back to the same address.",
+  duplicate: "is from the same address as an earlier redirect. Remove one of them.",
+};
 
 /** Reads a Markdown entry like a JSON one: migrated to the current version, then checked. */
 function parseMarkdownContent(

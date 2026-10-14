@@ -59,6 +59,12 @@ Content files are the product's data format; treat changes to them like API chan
 - **Rendered on the server only:** published pages are always rendered on the server, so a Form rendered in the browser is the admin panel's (the editor, or the Settings and Version history previews, which share its address): it has no `action` and doesn't send. Web3Forms' hCaptcha script (`WEB3FORMS_SCRIPT`, when `forms.captcha` is on) is added only where `typeof document === "undefined"`, so it never runs where it could reach the editor's sign-in.
 - **Google Forms:** `googleFormUrl()` reads a form's embed code or address into its embedded address, with the embed code's height; the block shows it in a sandboxed iframe. `forms.gle` links can't be followed from a browser, so they're refused with an explanation.
 
+## Redirects
+
+- **Files:** `content/redirects.json` (`redirectsFileSchema` in `@goodfellow-cms/core`'s `content/redirects.ts`) lists `from` and `to`. `redirectFrom()` spells old addresses one way (a path without a trailing slash, from a full address too) and refuses ones static files can't serve (`?`, the home page, `isReservedRedirect()`); `redirectTarget()` takes addresses on the site and `https://` ones only; `redirectProblems()` checks a list, which the loader and the admin panel both use.
+- **No server:** builds write a page at each old address (`redirectFiles()`: an instant `<meta http-equiv="refresh">` with `<link rel="canonical">`, which search engines treat as a permanent redirect), since static hosts can't send redirects. `goodfellow build` writes them with the base path, `goodfellow-next finish` writes them into a Next.js export (`writeRedirectFiles()`, with the export's `basePath` from `.next/routes-manifest.json`), `goodfellow dev` serves the same page, and the Next.js page route calls `redirect()` in `next dev`. Pages, and files already in the output, always win over redirects.
+- **The admin panel** edits them on Site Settings' Redirects tab (`redirects-editor.tsx`), and the move dialog adds one from a page's old address with `movedPageRedirects()`, pointing redirects to the old address at the new one.
+
 ## AI assistant
 
 - **Split:** `@goodfellow-cms/ai` builds requests, checks answers and talks to AI services, with no React. The panel itself is in the admin panel (`ai-panel.tsx`), a Puck plugin in every editor, with its text in the string table.

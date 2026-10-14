@@ -12,6 +12,7 @@ const registry: MigrationRegistry = {
   collection: [],
   entry: [],
   updates: [],
+  redirects: [],
 };
 
 describe("migrateContent", () => {

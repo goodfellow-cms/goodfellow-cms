@@ -19,6 +19,9 @@ import {
   normalizePagePath,
   type Page,
   pagePathToFile,
+  REDIRECTS_FILE,
+  type Redirect,
+  redirectFrom,
   SITE_FILE,
   type SiteCode,
   type SiteSettings,
@@ -122,14 +125,48 @@ export function menusFileChange(menus: Menus): FileChange {
   return { path: MENUS_FILE, content: serializeContent({ version: CURRENT_VERSION.menus, menus }) };
 }
 
-/** Moves a page to a new address in one save, optionally updating menu links to it. */
-export function movePageChanges(page: Page, to: string, menus: Menus, updateLinks: boolean): FileChange[] {
+/** Writes the site's redirects, deleting the file once there are none. */
+export function redirectsFileChange(redirects: Redirect[]): FileChange {
+  return redirects.length > 0
+    ? { path: REDIRECTS_FILE, content: serializeContent({ version: CURRENT_VERSION.redirects, redirects }) }
+    : { path: REDIRECTS_FILE, delete: true };
+}
+
+/**
+ * The redirects once a page moves from `from` to `to`, with one from its old
+ * address: redirects to the old address go to the new one, so visitors don't
+ * go through two, and one from the new address goes, since the page has it now.
+ */
+export function movedPageRedirects(redirects: readonly Redirect[], from: string, to: string): Redirect[] {
+  const at = (redirect: Redirect, path: string) => {
+    const own = redirectFrom(redirect.from);
+    return own.ok && own.path === path;
+  };
+  const kept = redirects
+    .filter((redirect) => !at(redirect, to) && !at(redirect, from))
+    .map((redirect) => (redirect.to === from ? { ...redirect, to } : redirect));
+  return [...kept, { from, to }];
+}
+
+/**
+ * Moves a page to a new address in one save, optionally updating menu links to
+ * it, and sending visitors on from its old address (`redirects`, the site's
+ * redirects as they are) unless it's the home page.
+ */
+export function movePageChanges(
+  page: Page,
+  to: string,
+  menus: Menus,
+  updateLinks: boolean,
+  redirects?: readonly Redirect[],
+): FileChange[] {
   const changes: FileChange[] = [
     { path: page.file, delete: true },
     { path: pagePathToFile(to), content: serializeContent({ ...page.content, version: CURRENT_VERSION.page }) },
   ];
   const updatedMenus = updateLinks ? updateMenuLinks(menus, page.path, to) : undefined;
   if (updatedMenus) changes.push(menusFileChange(updatedMenus));
+  if (redirects && page.path !== "/") changes.push(redirectsFileChange(movedPageRedirects(redirects, page.path, to)));
   return changes;
 }
 

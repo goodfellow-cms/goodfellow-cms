@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import {
   absoluteUrl,
@@ -9,6 +9,7 @@ import {
   loadSiteContent,
   normalizeBase,
   pageOutputFile,
+  redirectFiles,
   sitePages,
   todayIn,
   withBase,
@@ -35,6 +36,13 @@ export interface BuildResult {
   pages: string[];
   /** How many pages the search index has, if the site has a search block. */
   searchIndexed?: number;
+}
+
+async function exists(path: string): Promise<boolean> {
+  return access(path).then(
+    () => true,
+    () => false,
+  );
 }
 
 interface ManifestChunk {
@@ -185,6 +193,14 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     // Calendar files of collections of events, for subscribing and for adding events to calendars.
     for (const file of calendarFiles(content)) {
       const target = join(outDir, file.path.slice(1));
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, file.content);
+    }
+
+    // A page at each old address that sends visitors on. Pages, and files in public/, win over redirects.
+    for (const file of redirectFiles(content, { taken: pages.map((page) => page.path), base })) {
+      const target = join(outDir, file.path.slice(1));
+      if (await exists(target)) continue;
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, file.content);
     }

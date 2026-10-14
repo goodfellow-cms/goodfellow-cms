@@ -136,11 +136,28 @@ export {
   pageFileToPath,
   pageOutputFile,
   pagePathToFile,
+  REDIRECTS_FILE,
   RESERVED_PAGE_PATHS,
   SITE_FILE,
   SLUG_PLACEHOLDER,
   UPDATES_FILE,
 } from "./content/paths.js";
+export {
+  findRedirect,
+  isReservedRedirect,
+  type Redirect,
+  type RedirectProblem,
+  type RedirectsFile,
+  redirectFiles,
+  redirectFrom,
+  redirectOutputFile,
+  redirectPage,
+  redirectProblems,
+  redirectSchema,
+  redirectsFileSchema,
+  redirectTarget,
+  storedRedirects,
+} from "./content/redirects.js";
 export { sanitizeHtml } from "./content/sanitize.js";
 export {
   type CollectionField,

@@ -20,6 +20,7 @@ declare class URL {
   readonly protocol: string;
   readonly pathname: string;
   readonly hash: string;
+  readonly search: string;
   readonly searchParams: URLSearchParams;
 }
 
