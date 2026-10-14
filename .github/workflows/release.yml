@@ -71,9 +71,11 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ needs.publish.outputs.sha }}
+      # Only Node: setup-node would look for pnpm, which this job doesn't install, to cache its packages.
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
       - run: node scripts/release.mjs wait --minutes 300
 
   tag:
@@ -92,6 +94,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
       - id: tag
         run: node scripts/release.mjs tag
 
