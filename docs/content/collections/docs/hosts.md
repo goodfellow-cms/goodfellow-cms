@@ -13,7 +13,7 @@ Goodfellow sites run on free plans, which have limits worth knowing about. These
 | Free static hosting | GitHub Pages, public repositories only | GitLab Pages, public or private |
 | Editors | Unlimited collaborators | Up to 5 users in a private group or account; unlimited if public |
 | Build minutes | Unlimited for public repositories, 2,000 a month for private | 400 a month (or build on Vercel instead) |
-| Sign-in | Personal access token (fine-grained, or classic for collaborators) | One-click sign-in (OAuth) or personal access token |
+| Sign-in | Sign in with GitHub, or a personal access token (fine-grained, or classic for collaborators) | One-click sign-in (OAuth) or personal access token |
 
 ## Business and commercial sites
 
@@ -23,4 +23,4 @@ Goodfellow sites run on free plans, which have limits worth knowing about. These
 
 ## GitHub sign-in for several editors
 
-GitHub doesn't let collaborators on someone else's personal repository use fine-grained tokens. For sites with several editors, put the repository in a free GitHub organization and add editors as members; otherwise collaborators need a classic token. See [Editors and sign-in](/docs/sign-in).
+Sign in with GitHub works for every editor. Tokens are harder: GitHub doesn't let collaborators on someone else's personal repository use fine-grained tokens, so for sites whose editors sign in with tokens, put the repository in a free GitHub organization and add editors as members; otherwise collaborators need a classic token. See [Editors and sign-in](/docs/sign-in).
