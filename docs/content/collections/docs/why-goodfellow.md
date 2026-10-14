@@ -49,7 +49,7 @@ The other differences are about who it's for. Tina's content model, its collecti
 
 ## What Goodfellow can't do (yet)
 
-- **It's early.** Some features on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap), such as inviting editors and version history in the admin panel, aren't built yet.
+- **It's early.** Some features on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap), such as signing in with GitHub without a token and the Claude connector, aren't built yet.
 - **Sites are static.** Shops, logins and comments need a service of their own. Contact forms will work through a form service.
 - **Publishing takes a minute or two**, while the host rebuilds the site. The editor shows changes at once, but visitors see them after the rebuild.
 - **Editors need a GitHub or GitLab account** with permission to change the site's repository.

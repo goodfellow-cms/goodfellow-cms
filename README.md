@@ -83,8 +83,14 @@ Editor's browser                       Git host (GitHub / GitLab)         Static
     - **Rate limits** per editor, per site and overall, with a plain-language message that Claude passes on when one is reached.
     - **Screenshots** of the live site, and of unpublished changes through a preview page in each site's build, taken with Cloudflare's Browser Rendering.
 23. **Light and dark sites.** A site can have a light and a dark mode, with every theme color set for each in Site Settings. Pages follow the visitor's light or dark setting, and blocks follow the theme in both, as the admin panel's own light and dark modes do.
+24. **Full-stack Next.js sites.** For organizations with a developer: Goodfellow as the CMS of a Next.js app with a server of its own, beside the app's own pages. Sites without a server stay the default, and nothing here becomes required for them.
+    - **Sign-in through the app:** the admin panel signs in with the app's own authentication (such as Better Auth), and the app says who may edit, publish and change settings.
+    - **Git on the server:** the app's server reads and publishes through GitHub or GitLab with a token from an environment variable, behind that sign-in, so no git credentials reach the browser. Commits still name the editor.
+    - **AI keys on the server** (optional): keys in environment variables, with the AI assistant's requests sent through the app's server, so editors don't need keys of their own.
+    - **A database instead of git** (optional): content saved in a database, with pages still served as static as possible through Next.js's cache, and each publish refreshing only the pages, header and footer it affects.
+25. **Moving from and to WordPress.** Import a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected. Export a Goodfellow site as a WordPress export file, with its blocks turned into WordPress's.
 
-Planned for later: review workflows (pull/merge requests from the admin panel), per-user permissions, import/export, plugins and themes, and Bitbucket support.
+Planned for later: review workflows (pull/merge requests from the admin panel), per-user permissions, importing from other systems, plugins and themes, and Bitbucket support.
 
 ## Contributing
 

@@ -15,7 +15,9 @@
     "changeset": "changeset",
     "test:e2e": "turbo run test:e2e",
     "release:version": "node scripts/release.mjs version",
-    "release:publish": "node scripts/release.mjs publish"
+    "release:publish": "node scripts/release.mjs publish",
+    "release:staged": "node scripts/release.mjs staged",
+    "release:approve": "node scripts/release.mjs approve"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

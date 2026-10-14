@@ -4,12 +4,20 @@
 //   node scripts/release.mjs version            Turns the changesets into changelogs and new versions.
 //   node scripts/release.mjs publish [--dry-run] [--yes] [--ci]
 //                                               Publishes the versions npm doesn't have yet, then tags them.
-//                                               The release workflow runs it with --ci once CI passes on master.
+//                                               The release workflow runs it with --ci once CI passes on master,
+//                                               which stages them on npm instead, for a maintainer to approve.
+//   node scripts/release.mjs wait [--minutes <n>]
+//                                               Waits until every package is on npm, as the workflow does.
+//   node scripts/release.mjs tag [--dry-run]    Tags the release once every package is on npm.
+//   node scripts/release.mjs staged             Lists the versions waiting for approval on npm.
+//   node scripts/release.mjs approve [--version <v>] [--otp <code>] [--yes]
+//                                               Approves them, which publishes them.
 import { spawnSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -122,6 +130,25 @@ async function confirm(question) {
   }
 }
 
+/** Staged publishing needs npm 11.15.0 or later. */
+function requireStaging() {
+  const current = read("npm", ["--version"]);
+  const [major, minor] = current.split(".").map(Number);
+  if (major < 11 || (major === 11 && minor < 15)) {
+    throw new ReleaseError(
+      `Staged publishing needs npm 11.15 or later, and this is npm ${current}. Update it with \`npm install --global npm@11\`.`,
+    );
+  }
+}
+
+function requireNpmSignIn({ dryRun = false } = {}) {
+  const whoami = spawn("npm", ["whoami"], { encoding: "utf8" });
+  if (whoami.error) throw new ReleaseError(`Couldn't run npm: ${whoami.error.message}`);
+  if (whoami.status === 0) console.log(`\nSigned in to npm as ${whoami.stdout.trim()}.`);
+  else if (dryRun) console.log("\nNot signed in to npm; a dry run doesn't need it.");
+  else throw new ReleaseError("You aren't signed in to npm. Run `npm login`, then try again.");
+}
+
 function version() {
   requireCleanTree();
   if (pendingChangesets().length === 0) {
@@ -146,8 +173,11 @@ function setOutput(name, value) {
 
 /**
  * Publishes the versions npm doesn't have yet. Run on your computer, it checks
- * you're on GitHub's master and runs the checks first; with `--ci`, the release
- * workflow runs it after CI has passed on the commit, so it only builds.
+ * you're on GitHub's master and runs the checks first, then publishes and tags
+ * them. With `--ci`, the release workflow runs it after CI has passed on the
+ * commit, so it only builds, and it stages the versions on npm, where a
+ * maintainer approves them with two-factor authentication (`approve`); the
+ * workflow then waits for them (`wait`) and tags them (`tag`).
  */
 async function publish({ ci, dryRun, yes }) {
   requireCleanTree();
@@ -165,7 +195,7 @@ async function publish({ ci, dryRun, yes }) {
   const list = inDependencyOrder(packages());
   const next = sharedVersion(list);
   setOutput("version", next);
-  setOutput("published", "false");
+  setOutput("waiting", "false");
   // 0.0.0 is the version before the first release, never one to publish.
   if (next === "0.0.0") {
     console.log("\nThe packages haven't been given a version yet. Run `pnpm release:version` first.");
@@ -184,17 +214,13 @@ async function publish({ ci, dryRun, yes }) {
     return;
   }
 
-  if (!ci) {
-    const whoami = spawn("npm", ["whoami"], { encoding: "utf8" });
-    if (whoami.error) throw new ReleaseError(`Couldn't run npm: ${whoami.error.message}`);
-    if (whoami.status === 0) console.log(`\nSigned in to npm as ${whoami.stdout.trim()}.`);
-    else if (dryRun) console.log("\nNot signed in to npm; a dry run doesn't need it.");
-    else throw new ReleaseError("You aren't signed in to npm. Run `npm login`, then try again.");
-  }
+  if (ci) requireStaging();
+  else requireNpmSignIn({ dryRun });
   // CI has passed on the commit the workflow publishes, end-to-end tests included.
   for (const step of ci ? ["build"] : ["lint", "typecheck", "test", "build"]) run("pnpm", [step]);
 
   const out = mkdtempSync(join(tmpdir(), "goodfellow-release-"));
+  const failed = [];
   try {
     // pnpm writes the package's dependencies on other packages here (workspace:*) as their versions.
     const tarballs = toPublish.map((pkg) => {
@@ -202,7 +228,8 @@ async function publish({ ci, dryRun, yes }) {
       return { ...pkg, tarball: packed.filename };
     });
 
-    console.log(`\n${dryRun ? "Would publish" : "Publishing"} ${next}:`);
+    const verb = ci ? (dryRun ? "Would stage" : "Staging") : dryRun ? "Would publish" : "Publishing";
+    console.log(`\n${verb} ${next}:`);
     for (const pkg of tarballs) console.log(`  ${pkg.name}`);
     const skipped = list.filter((pkg) => !toPublish.includes(pkg));
     if (skipped.length > 0) console.log(`Already on npm: ${skipped.map((pkg) => pkg.name).join(", ")}`);
@@ -211,31 +238,189 @@ async function publish({ ci, dryRun, yes }) {
       throw new ReleaseError("Nothing was published.");
     }
     // In GitHub Actions, npm records where each package was built (provenance).
-    const flags = ["--access", "public", ...(process.env.GITHUB_ACTIONS ? ["--provenance"] : [])];
-    for (const pkg of tarballs) {
-      // On your computer, npm asks for a one-time code or a browser sign-in itself if the account needs one.
-      run("npm", ["publish", pkg.tarball, ...flags, ...(dryRun ? ["--dry-run"] : [])]);
+    const flags = [
+      "--access",
+      "public",
+      ...(process.env.GITHUB_ACTIONS ? ["--provenance"] : []),
+      ...(dryRun ? ["--dry-run"] : []),
+    ];
+    if (ci) {
+      // Staging needs no two-factor code, and doesn't publish anything until a maintainer approves it.
+      // One that fails doesn't stop the others: it may only have been staged by an earlier run.
+      for (const pkg of tarballs) {
+        console.log(`\n$ npm stage publish ${pkg.tarball} ${flags.join(" ")}`);
+        const result = spawn("npm", ["stage", "publish", pkg.tarball, ...flags], { stdio: "inherit" });
+        if (result.error || result.status !== 0) failed.push(pkg.name);
+      }
+    } else {
+      for (const pkg of tarballs) {
+        // On your computer, npm asks for a one-time code or a browser sign-in itself if the account needs one.
+        run("npm", ["publish", pkg.tarball, ...flags]);
+      }
     }
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
 
-  // A tag for each package, as Changesets makes them, and one for the release.
+  if (ci) {
+    if (!dryRun) setOutput("waiting", "true");
+    if (failed.length > 0) {
+      throw new ReleaseError(
+        `Couldn't stage ${failed.join(", ")}. If an earlier run staged them, approve them with \`pnpm release:approve\` and the release carries on. Otherwise, fix the problem and run the workflow again.`,
+      );
+    }
+    if (!dryRun) {
+      console.log(
+        `\nStaged ${next}. Approve it with \`pnpm release:approve\`; the workflow then tags it and deploys the docs.`,
+      );
+    }
+    return;
+  }
+  tagRelease(list, next, { dryRun });
+  if (!dryRun) {
+    console.log(
+      `\nReleased ${next}. To update the docs site, run the "Deploy docs" workflow in the repository's Actions tab.`,
+    );
+  }
+}
+
+/** Tags the release, as Changesets would: one tag for each package, and one for the release. Returns whether the release's tag is new. */
+function tagRelease(list, next, { dryRun }) {
   const tags = [...list.map((pkg) => `${pkg.name}@${pkg.version}`), `v${next}`];
   const existing = new Set(read("git", ["tag", "--list"]).split("\n"));
   const missing = tags.filter((tag) => !existing.has(tag));
   if (dryRun) {
     console.log(`\nWould tag ${missing.length > 0 ? missing.join(", ") : "nothing (all tagged)"} and push the tags.`);
-    return;
+    return false;
   }
-  setOutput("published", "true");
   for (const tag of missing) run("git", ["tag", tag]);
   if (missing.length > 0) run("git", ["push", "origin", ...missing.map((tag) => `refs/tags/${tag}`)]);
+  return missing.includes(`v${next}`);
+}
+
+/** Tags the release once every package is on npm, for the release workflow after the versions are approved. */
+function tag({ dryRun }) {
+  const list = packages();
+  const next = sharedVersion(list);
+  setOutput("released", "false");
+  if (next === "0.0.0") return;
+  const missing = list.filter((pkg) => !isPublished(pkg.name, pkg.version));
+  if (missing.length > 0) {
+    console.log(`\nNot tagging ${next}: npm doesn't have ${missing.map((pkg) => pkg.name).join(", ")} at it yet.`);
+    return;
+  }
+  const released = tagRelease(list, next, { dryRun });
+  if (dryRun) return;
+  setOutput("released", String(released));
+  console.log(released ? `\nReleased ${next}.` : `\n${next} was already tagged.`);
+}
+
+/**
+ * Waits until every package is on npm at its version, checking every minute,
+ * for the release workflow while a maintainer approves the staged versions.
+ */
+async function wait({ minutes }) {
+  const list = packages();
+  const next = sharedVersion(list);
+  const deadline = Date.now() + minutes * 60_000;
+  let shown = "";
+  for (;;) {
+    let missing;
+    try {
+      missing = list.filter((pkg) => !isPublished(pkg.name, pkg.version)).map((pkg) => pkg.name);
+    } catch (error) {
+      // npm not answering once doesn't end the wait.
+      if (!(error instanceof ReleaseError)) throw error;
+      console.log(error.message);
+    }
+    if (missing?.length === 0) {
+      console.log(`\nEvery package is on npm at ${next}.`);
+      return;
+    }
+    if (missing && missing.join() !== shown) {
+      shown = missing.join();
+      console.log(`${new Date().toISOString()} Waiting for ${next} to be approved: ${missing.join(", ")}`);
+    }
+    if (Date.now() >= deadline) {
+      throw new ReleaseError(
+        `After ${minutes} minutes, npm still doesn't have ${shown.split(",").join(", ")} at ${next}. Approve them with \`pnpm release:approve\`, then run the Release workflow again: it tags the release and deploys the docs.`,
+      );
+    }
+    await sleep(60_000);
+  }
+}
+
+/** The versions of these packages waiting for approval on npm. */
+function stagedVersions(list) {
+  return list.flatMap((pkg) => {
+    const items = JSON.parse(read("npm", ["stage", "list", pkg.name, "--json"]) || "[]");
+    return items.map((item) => ({ ...item, pkg }));
+  });
+}
+
+function showStaged(items) {
+  for (const item of items) {
+    const by = item.actorType ? `${item.actor} (${item.actorType})` : (item.actor ?? "?");
+    console.log(`  ${item.packageName}@${item.version}, staged ${item.createdAt ?? "?"} by ${by} (${item.id})`);
+  }
+}
+
+/** Lists the versions waiting for approval on npm. */
+function staged() {
+  requireStaging();
+  requireNpmSignIn();
+  const list = inDependencyOrder(packages());
+  const items = stagedVersions(list);
+  if (items.length === 0) {
+    console.log("\nNothing is waiting for approval on npm.");
+    return;
+  }
+  console.log("\nWaiting for approval on npm:");
+  showStaged(items);
+  console.log("\nApprove them with `pnpm release:approve`.");
+}
+
+/**
+ * Approves the staged versions, which publishes them. npm asks for a
+ * one-time code or a browser sign-in itself, unless `--otp` gives the code.
+ */
+async function approve({ version: chosen, otp, yes }) {
+  requireStaging();
+  requireNpmSignIn();
+  const list = inDependencyOrder(packages());
+  const items = stagedVersions(list);
+  const versions = [...new Set(items.map((item) => item.version))];
+  if (items.length === 0) {
+    console.log("\nNothing is waiting for approval on npm.");
+    return;
+  }
+  const next = chosen ?? (versions.length === 1 ? versions[0] : undefined);
+  if (!next) {
+    throw new ReleaseError(
+      `Several versions are waiting for approval (${versions.join(", ")}). Choose one, such as \`pnpm release:approve --version ${versions.at(-1)}\`.`,
+    );
+  }
+  // Each package after the ones it depends on, so every version is installable once it's published.
+  const chosenItems = list.flatMap((pkg) => items.filter((item) => item.pkg === pkg && item.version === next));
+  if (chosenItems.length === 0) throw new ReleaseError(`Nothing is waiting for approval at ${next}.`);
+  console.log(`\nApproving ${next}:`);
+  showStaged(chosenItems);
+  if (!yes && !(await confirm(`\nPublish these ${chosenItems.length} packages to npm?`))) {
+    throw new ReleaseError("Nothing was approved.");
+  }
+  for (const item of chosenItems) run("npm", ["stage", "approve", item.id, ...(otp ? ["--otp", otp] : [])]);
   console.log(
-    ci
-      ? `\nReleased ${next}.`
-      : `\nReleased ${next}. To update the docs site, run the "Deploy docs" workflow in the repository's Actions tab.`,
+    `\nPublished ${next}. If the Release workflow is waiting, it tags the release and deploys the docs within a few minutes; if it gave up, run it again from the Actions tab.`,
   );
+}
+
+/** The value after an option, such as `--otp 123456`. */
+function option(name) {
+  const index = flags.indexOf(name);
+  if (index === -1) return undefined;
+  const value = flags[index + 1];
+  if (!value || value.startsWith("--")) throw new ReleaseError(`${name} needs a value.`);
+  return value;
 }
 
 const [command, ...flags] = process.argv.slice(2);
@@ -243,7 +428,16 @@ try {
   if (command === "version") version();
   else if (command === "publish") {
     await publish({ ci: flags.includes("--ci"), dryRun: flags.includes("--dry-run"), yes: flags.includes("--yes") });
-  } else throw new ReleaseError("Run `node scripts/release.mjs version` or `node scripts/release.mjs publish`.");
+  } else if (command === "wait") await wait({ minutes: Number(option("--minutes") ?? 300) });
+  else if (command === "tag") tag({ dryRun: flags.includes("--dry-run") });
+  else if (command === "staged") staged();
+  else if (command === "approve") {
+    await approve({ version: option("--version"), otp: option("--otp"), yes: flags.includes("--yes") });
+  } else {
+    throw new ReleaseError(
+      "Run `node scripts/release.mjs` with version, publish, wait, tag, staged or approve. See the top of the script.",
+    );
+  }
 } catch (error) {
   if (!(error instanceof ReleaseError)) throw error;
   console.error(`\n${error.message}`);
