@@ -1,8 +1,11 @@
 import {
   type BuildProblem,
+  branchDrafts,
   buildStepFor,
   ConflictError,
   type DeployStatus,
+  DraftError,
+  type DraftHost,
   EDITABLE_FOLDERS,
   encodeBase64Bytes,
   type FileChange,
@@ -14,6 +17,7 @@ import {
   type HistoryOptions,
   type PagesDomains,
   SignInError,
+  type SiteDrafts,
   type SiteEditors,
   type SiteUpdates,
   type WriteOptions,
@@ -24,6 +28,9 @@ import { gitlabPages } from "./pages.js";
 import { gitlabUpdates } from "./updates.js";
 
 const PAGE_SIZE = 100;
+
+/** How many files one GraphQL request reads. */
+const GRAPHQL_BATCH = 50;
 
 /** The color and section codes in GitLab's job logs. */
 const ANSI_CODES = new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*[A-Za-z]`, "g");
@@ -46,6 +53,8 @@ export class GitLabBackend implements GitBackend {
   readonly pages: PagesDomains;
   readonly editors: SiteEditors;
   readonly updates: SiteUpdates;
+  readonly drafts: SiteDrafts;
+  private readonly options: GitLabBackendOptions;
   private readonly api: ApiOptions;
   private readonly project: string;
   private readonly branch: string;
@@ -55,6 +64,7 @@ export class GitLabBackend implements GitBackend {
   private readonly blobs = new Map<string, Promise<string>>();
 
   constructor(options: GitLabBackendOptions) {
+    this.options = options;
     this.api = options.api;
     this.project = encodeURIComponent(options.project);
     this.branch = options.branch;
@@ -66,6 +76,54 @@ export class GitLabBackend implements GitBackend {
     this.updates = gitlabUpdates(this.api, options.project, this.branch, async (path) =>
       this.readAt(path, this.pinned ?? (await this.revision())),
     );
+    this.drafts = branchDrafts(this, this.draftHost());
+  }
+
+  /** Drafts on branches of the project, with merge requests for review. */
+  private draftHost(): DraftHost {
+    const project = `/projects/${this.project}`;
+    return {
+      liveBranch: this.branch,
+      branchStore: (branch) => new GitLabBackend({ ...this.options, branch }),
+      createBranch: async (branch, revision) => {
+        const response = await gitlabRequest(
+          this.api,
+          this.repo(`/branches?${new URLSearchParams({ branch, ref: revision })}`),
+          { method: "POST", allow: [400] },
+        );
+        if (response.status === 400) throw new DraftError("exists", `There's already a draft called ${branch}.`);
+      },
+      deleteBranch: async (branch) => {
+        await gitlabRequest(this.api, this.repo(`/branches/${encodeURIComponent(branch)}`), {
+          method: "DELETE",
+          allow: [404],
+        });
+      },
+      mergeBase: async (branch) => {
+        const query = new URLSearchParams();
+        query.append("refs[]", this.branch);
+        query.append("refs[]", branch);
+        const response = await gitlabRequest(this.api, this.repo(`/merge_base?${query}`), { allow: [400, 404] });
+        if (!response.ok) throw new DraftError("not-found", `There's no draft ${branch}.`);
+        return ((await response.json()) as { id: string }).id;
+      },
+      openReview: async ({ branch, title, description }) => {
+        const response = await gitlabRequest(this.api, `${project}/merge_requests`, {
+          method: "POST",
+          body: { source_branch: branch, target_branch: this.branch, title, description, remove_source_branch: true },
+          allow: [403, 404, 409],
+        });
+        if (response.ok) return { url: ((await response.json()) as { web_url: string }).web_url };
+        if (response.status !== 409) {
+          throw new DraftError("no-reviews", "This sign-in can't open merge requests on the site's project.");
+        }
+        // One is open already: give its address.
+        const query = new URLSearchParams({ source_branch: branch, state: "opened" });
+        const [open] = await gitlabJson<Array<{ web_url: string }>>(this.api, `${project}/merge_requests?${query}`);
+        if (!open) throw new GitApiError(409, "GitLab couldn't open the merge request.");
+        return { url: open.web_url };
+      },
+    };
   }
 
   private repo(path: string): string {
@@ -127,6 +185,42 @@ export class GitLabBackend implements GitBackend {
       this.blobs.set(sha, blob);
     }
     return blob;
+  }
+
+  /** Reads many text files in a few GraphQL requests rather than one request each. */
+  async readFiles(paths: string[]): Promise<Map<string, string>> {
+    const tree = await this.currentTree();
+    const wanted = paths.filter((path) => tree.has(path));
+    const fetch = wanted.filter((path) => !this.blobs.has(tree.get(path) ?? ""));
+    const ref = this.pinned ?? (await this.revision());
+    for (let start = 0; start < fetch.length; start += GRAPHQL_BATCH) {
+      const batch = fetch.slice(start, start + GRAPHQL_BATCH);
+      // GitLab's GraphQL API is beside its REST API, at /api/graphql.
+      const response = await gitlabJson<{
+        data?: {
+          project?: { repository?: { blobs?: { nodes?: Array<{ path: string; rawTextBlob: string | null }> } } };
+        };
+      }>(this.api, "/../graphql", {
+        method: "POST",
+        body: {
+          query: `query ($project: ID!, $ref: String!, $paths: [String!]!) {
+  project(fullPath: $project) { repository { blobs(ref: $ref, paths: $paths) { nodes { path rawTextBlob } } } }
+}`,
+          variables: { project: decodeURIComponent(this.project), ref, paths: batch },
+        },
+      });
+      for (const node of response.data?.project?.repository?.blobs?.nodes ?? []) {
+        const sha = tree.get(node.path);
+        // GitLab leaves out the text of large files; those are read one by one below.
+        if (sha && typeof node.rawTextBlob === "string") this.blobs.set(sha, Promise.resolve(node.rawTextBlob));
+      }
+    }
+    const result = new Map<string, string>();
+    for (const path of wanted) {
+      const text = await this.read(path);
+      if (text !== undefined) result.set(path, text);
+    }
+    return result;
   }
 
   async readBytes(path: string): Promise<Uint8Array | undefined> {

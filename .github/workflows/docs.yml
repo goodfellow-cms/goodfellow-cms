@@ -66,6 +66,12 @@ jobs:
         env:
           GOODFELLOW_STARTER_LOCKFILES: "1"
       - run: pnpm --filter @goodfellow-cms/docs exec goodfellow build --base "${{ steps.pages.outputs.base_path }}/"
+      # The Claude Desktop extension, which the Work with Claude page links to. Releases from before it don't have it.
+      - if: hashFiles('packages/mcp/scripts/pack-extension.mjs') != ''
+        run: |
+          pnpm turbo run build --filter='@goodfellow-cms/mcp^...'
+          pnpm --filter @goodfellow-cms/mcp pack-extension
+          cp packages/mcp/goodfellow.mcpb docs/dist/goodfellow.mcpb
       - uses: actions/upload-pages-artifact@v4
         with:
           path: docs/dist

@@ -24,6 +24,7 @@ import {
 } from "./paths.js";
 import { type Redirect, redirectProblems, redirectsFileSchema } from "./redirects.js";
 import {
+  type CollectionFile,
   collectionFileSchema,
   type EntryFile,
   entryFileSchema,
@@ -47,6 +48,18 @@ export interface ContentSource {
   read(path: string): Promise<string | undefined>;
   /** Lists every file under a directory, recursively, as repo-relative paths. Returns `[]` if the directory doesn't exist. */
   list(dir: string): Promise<string[]>;
+  /**
+   * Reads several text files at once, where the source can do that in fewer
+   * requests than reading them one by one. Files that don't exist are left out.
+   */
+  readFiles?(paths: string[]): Promise<Map<string, string>>;
+}
+
+/** Reads several text files, all at once where the source can. Files that don't exist are left out. */
+export async function readTextFiles(source: ContentSource, paths: string[]): Promise<Map<string, string>> {
+  if (source.readFiles) return source.readFiles(paths);
+  const texts = await Promise.all(paths.map(async (path) => [path, await source.read(path)] as const));
+  return new Map(texts.filter((entry): entry is readonly [string, string] => entry[1] !== undefined));
 }
 
 export interface Page {
@@ -313,6 +326,26 @@ function parseMarkdownContent(
   return checkContentFile("entry", entryFileSchema, file, raw);
 }
 
+/**
+ * Reads one entry's file as loading the site does: Markdown or JSON as its
+ * collection stores them, migrated, then checked against the collection's fields.
+ */
+export function parseEntryFile(
+  settings: CollectionFile,
+  file: string,
+  text: string,
+): { ok: true; value: EntryFile } | { ok: false; problem: ContentProblem } {
+  const entry = settings.markdown
+    ? parseMarkdownContent(file, text, settings.markdown.body)
+    : parseContentFile("entry", entryFileSchema, file, text);
+  if (!entry.ok) return entry;
+  const fieldProblems = entryFieldProblems(settings.fields, entry.value.fields);
+  if (fieldProblems.length > 0) {
+    return { ok: false, problem: { file, message: fieldProblems.map((problem) => `fields.${problem}`).join("; ") } };
+  }
+  return entry;
+}
+
 /** Loads every collection's settings and entries, adding any problems found to `problems`. */
 async function loadCollections(
   source: ContentSource,
@@ -386,16 +419,9 @@ async function loadCollections(
           }
           const entryText = await source.read(file);
           if (entryText === undefined) return undefined;
-          const entry = settings.markdown
-            ? parseMarkdownContent(file, entryText, settings.markdown.body)
-            : parseContentFile("entry", entryFileSchema, file, entryText);
+          const entry = parseEntryFile(settings, file, entryText);
           if (!entry.ok) {
             problems.push(entry.problem);
-            return undefined;
-          }
-          const fieldProblems = entryFieldProblems(settings.fields, entry.value.fields);
-          if (fieldProblems.length > 0) {
-            problems.push({ file, message: fieldProblems.map((problem) => `fields.${problem}`).join("; ") });
             return undefined;
           }
           return {

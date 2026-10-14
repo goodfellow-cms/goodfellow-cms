@@ -11,6 +11,7 @@ declare class TextDecoder {
 }
 declare const crypto: {
   subtle: { digest(algorithm: "SHA-256", data: Uint8Array): Promise<ArrayBuffer> };
+  getRandomValues<T extends Uint8Array>(array: T): T;
 };
 declare class URL {
   constructor(url: string, base?: string);

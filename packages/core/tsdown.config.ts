@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "tsdown";
+
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
 
 export default defineConfig([
   {
@@ -8,6 +11,7 @@ export default defineConfig([
     platform: "neutral",
     // One file per module, so bundles for the browser only include what they use, such as `withBase()` without the content schemas.
     unbundle: true,
+    define: { __GOODFELLOW_VERSION__: JSON.stringify(version) },
   },
   {
     // Node only: reads and writes the site's files on disk, and (on its own, since it runs Pagefind) indexes built sites.

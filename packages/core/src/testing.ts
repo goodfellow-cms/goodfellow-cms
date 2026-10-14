@@ -60,10 +60,22 @@ function fakeHash(text: string, seed: number): string {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
+/** A pull or merge request opened in the fake host. */
+export interface FakeReview {
+  number: number;
+  branch: string;
+  target: string;
+  title: string;
+  description: string;
+  state: "open" | "merged" | "closed";
+}
+
 export class FakeRepo {
   readonly commits = new Map<string, FakeCommit>();
   readonly branches = new Map<string, string>();
   readonly blobs = new Map<string, FakeFile>();
+  /** Pull or merge requests, in the order they were opened. */
+  readonly reviews: FakeReview[] = [];
   private count = 0;
 
   constructor(
@@ -140,6 +152,29 @@ export class FakeRepo {
     return [...new Set([...a.keys(), ...b.keys()])]
       .filter((path) => fileKey(a.get(path)) !== fileKey(b.get(path)))
       .sort();
+  }
+
+  /** The newest commit that both refs (branches or commits) have, as `git merge-base` finds it. */
+  mergeBase(a: string, b: string): string | undefined {
+    const ancestors = new Set<string>();
+    for (let commit = this.commits.get(this.branches.get(a) ?? a); commit; ) {
+      ancestors.add(commit.sha);
+      commit = commit.parent ? this.commits.get(commit.parent) : undefined;
+    }
+    for (let commit = this.commits.get(this.branches.get(b) ?? b); commit; ) {
+      if (ancestors.has(commit.sha)) return commit.sha;
+      commit = commit.parent ? this.commits.get(commit.parent) : undefined;
+    }
+    return undefined;
+  }
+
+  /** Opens a pull or merge request, or gives the open one from the same branch. */
+  openReview(branch: string, title: string, description: string, target = this.defaultBranch): FakeReview {
+    const open = this.reviews.find((review) => review.branch === branch && review.state === "open");
+    if (open) return open;
+    const review: FakeReview = { number: this.reviews.length + 1, branch, target, title, description, state: "open" };
+    this.reviews.push(review);
+    return review;
   }
 
   /** The most recent commit at or before `ref` that changed `path`. */

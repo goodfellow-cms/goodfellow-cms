@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { CUSTOM_CSS_FILE, type GoodfellowConfig } from "@goodfellow-cms/core";
+import { CUSTOM_CSS_FILE, type GoodfellowConfig, type SiteDescription } from "@goodfellow-cms/core";
 import type { PageRenderer } from "@goodfellow-cms/react/server";
 import tailwindcss from "@tailwindcss/vite";
 import type { InlineConfig, Plugin, ViteDevServer } from "vite";
@@ -33,8 +33,10 @@ function serverEntryPlugin(configFile: string): Plugin {
         ? [
             `import config from ${JSON.stringify(configFile)};`,
             `import { createPageRenderer } from "@goodfellow-cms/react/server";`,
+            `import { describeSite } from "@goodfellow-cms/react";`,
             "export { config };",
             "export const renderPage = createPageRenderer(config);",
+            "export const describe = () => describeSite(config);",
           ].join("\n")
         : undefined,
   };
@@ -43,6 +45,8 @@ function serverEntryPlugin(configFile: string): Plugin {
 export interface ServerEntry {
   config: GoodfellowConfig;
   renderPage: PageRenderer;
+  /** What the site says about its blocks, for tools such as the Claude connector (`SITE_DESCRIPTION_PATH`). */
+  describe: () => SiteDescription;
 }
 
 export function loadServerEntry(server: ViteDevServer): Promise<ServerEntry> {

@@ -342,3 +342,88 @@ describe("updates", () => {
     });
   });
 });
+
+describe("drafts", () => {
+  const about = (title: string) => `{"version":1,"data":{"root":{"props":{"title":"${title}"}},"content":[]}}`;
+  const photo = new Uint8Array([0xff, 0xd8, 0xff, 0x00, 0x9f]);
+
+  async function withDraft() {
+    const context = setup();
+    const backend = await context.host.signInWithToken("test-token", false);
+    const drafts = backend.drafts;
+    if (!drafts) throw new Error("No drafts");
+    const draft = await drafts.create("20261014-abc123");
+    await draft.store.write(
+      [
+        { path: "content/pages/about.json", content: about("About us") },
+        { path: "public/media/photo.jpg", bytes: photo },
+        { path: "content/pages/index.json", delete: true },
+      ],
+      { message: "Draft changes", expectedRevision: await draft.store.revision() },
+    );
+    return { ...context, drafts, draft };
+  }
+
+  it("keeps changes on a branch of their own, uploads included", async () => {
+    const { fake, draft } = await withDraft();
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(FILES["content/pages/about.json"]);
+    expect(await draft.changes()).toEqual([
+      { path: "content/pages/about.json", content: about("About us") },
+      { path: "content/pages/index.json", delete: true },
+      { path: "public/media/photo.jpg", bytes: photo },
+    ]);
+  });
+
+  it("publishes a draft in one commit, on top of other people's changes to other files, then removes it", async () => {
+    const { fake, draft, drafts } = await withDraft();
+    fake.repo.write("src/styles.css", "@import 'tailwindcss'; /* changed */");
+    const { revision } = await draft.publish("Update About");
+    expect(fake.repo.head()).toBe(revision);
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(about("About us"));
+    expect(fake.repo.files().get("public/media/photo.jpg")).toEqual(photo);
+    expect(fake.repo.files().has("content/pages/index.json")).toBe(false);
+    await expect(drafts.open("20261014-abc123")).rejects.toMatchObject({ problem: "not-found" });
+  });
+
+  it("refuses to publish over someone else's change to the same page, and keeps the draft", async () => {
+    const { fake, draft, drafts } = await withDraft();
+    fake.repo.write("content/pages/about.json", about("About the parish"));
+    await expect(draft.publish("Update About")).rejects.toBeInstanceOf(ConflictError);
+    expect((await drafts.open("20261014-abc123")).name).toBe("20261014-abc123");
+  });
+
+  it("submits a draft for review as a merge request, once", async () => {
+    const { fake, draft } = await withDraft();
+    const first = await draft.submitForReview({ title: "New About page" });
+    expect(first.url).toBe("https://gitlab.com/parish/web/site/-/merge_requests/1");
+    expect(await draft.submitForReview({ title: "Again" })).toEqual(first);
+    expect(fake.repo.reviews).toEqual([
+      expect.objectContaining({ branch: "goodfellow-draft-20261014-abc123", target: "main", title: "New About page" }),
+    ]);
+  });
+
+  it("discards a draft, and refuses names it doesn't have", async () => {
+    const { fake, draft, drafts } = await withDraft();
+    await expect(drafts.create("20261014-abc123")).rejects.toMatchObject({ problem: "exists" });
+    await draft.discard();
+    expect(fake.repo.branches.has("goodfellow-draft-20261014-abc123")).toBe(false);
+    await expect(drafts.open("20261014-abc123")).rejects.toMatchObject({ problem: "not-found" });
+  });
+});
+
+describe("reading many files", () => {
+  it("reads them in one request rather than one each", async () => {
+    const { host, fake } = setup();
+    const backend = await host.signInWithToken("test-token", false);
+    const files = await backend.readFiles?.(["content/site.json", "content/pages/about.json", "content/missing.json"]);
+    expect(files).toEqual(
+      new Map([
+        ["content/site.json", FILES["content/site.json"]],
+        ["content/pages/about.json", FILES["content/pages/about.json"]],
+      ]),
+    );
+    expect(fake.graphqlReads).toBe(1);
+    await backend.readFiles?.(["content/site.json"]);
+    expect(fake.graphqlReads).toBe(1);
+  });
+});

@@ -16,8 +16,12 @@ export function base64UrlDecode(text: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4)), (char) => char.charCodeAt(0));
 }
 
-/** What sealed values are for: OAuth's `state`, a sign-in on its way back to the admin panel, and a signed-in session. */
-export type SealKind = "state" | "grant" | "session";
+/**
+ * What a sealed value is for, such as the sign-in worker's OAuth `state`, a
+ * sign-in on its way back to the admin panel, and a signed-in session. The
+ * Claude connector seals values of its own kinds.
+ */
+export type SealKind = string;
 
 export interface Sealer {
   seal(kind: SealKind, value: unknown, lifetimeMs: number): Promise<string>;

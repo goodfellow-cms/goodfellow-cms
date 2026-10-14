@@ -1,0 +1,33 @@
+{
+  "name": "@goodfellow-cms/connector",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Goodfellow's Claude connector: an MCP server on Cloudflare Workers that lets editors work on their sites from Claude.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "dev": "npx wrangler@4 dev",
+    "deploy": "npx wrangler@4 d1 migrations apply DB --remote && npx wrangler@4 deploy",
+    "setup": "turbo run build --filter=@goodfellow-cms/connector... && node scripts/setup.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@cloudflare/puppeteer": "1.4.0",
+    "@goodfellow-cms/core": "workspace:*",
+    "@goodfellow-cms/github": "workspace:*",
+    "@goodfellow-cms/gitlab": "workspace:*",
+    "@goodfellow-cms/mcp": "workspace:*",
+    "@goodfellow-cms/worker": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "universal-github-app-jwt": "2.2.2"
+  },
+  "devDependencies": {
+    "@goodfellow-cms/blocks": "workspace:*",
+    "@goodfellow-cms/react": "workspace:*"
+  }
+}

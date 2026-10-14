@@ -1,0 +1,27 @@
+// Goodfellow's Claude connector. To run your own copy, see README.md.
+{
+  "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+  "name": "claude",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  // Cloudflare's browser library needs Node's APIs.
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": {
+    "GITHUB_APP_SLUG": "goodfellow-for-claude"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "goodfellow-connector",
+      // `pnpm run setup` sets this to the database it creates.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Browser Rendering, for screenshots. Its free plan gives a few minutes of browser time a day.
+  "browser": { "binding": "BROWSER" }
+  // `pnpm run setup` sets the secrets, which `npx wrangler secret put NAME` can also set: GITHUB_APP_ID,
+  // GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_PRIVATE_KEY, SESSION_KEY, and for GitLab sites,
+  // GITLAB_CLIENT_ID and GITLAB_CLIENT_SECRET (and GITLAB_URL in vars for self-managed GitLab).
+}

@@ -26,6 +26,7 @@ import { PagesScreen } from "./pages-screen.js";
 import { SETTINGS_SECTIONS, useRoute } from "./router.js";
 import { SETTINGS_TABS, SettingsScreen, type SettingsTab } from "./settings-screen.js";
 import { SignInGate } from "./sign-in.js";
+import { isPreviewAddress, SitePreview } from "./site-preview.js";
 import { defaultStrings, type Strings, StringsProvider, useStrings } from "./strings.js";
 import { setThemeChoice, type ThemeChoice, useApplyThemeChoice, useThemeChoice } from "./theme.js";
 import { Button, Dialog, ErrorMessage } from "./ui.js";
@@ -286,6 +287,10 @@ export function Admin({ config, store, host = config.backend, preview, siteUrl =
       demo ? { ...strings, "publish.done": strings?.["demo.published"] ?? defaultStrings["demo.published"] } : strings,
     [demo, strings],
   );
+  // The page tools such as the Claude connector take screenshots of drafts with; it signs nobody in.
+  if (typeof location !== "undefined" && isPreviewAddress(location.hash)) {
+    return <SitePreview config={config} preview={preview} />;
+  }
   const body = demo ? (
     <AdminProvider config={config} store={demo} preview={preview} siteUrl={siteUrl} registry={registry}>
       <Shell />

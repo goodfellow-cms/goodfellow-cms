@@ -361,3 +361,105 @@ describe("updates", () => {
     expect(await updates.lastRun()).toMatchObject({ state: "failed" });
   });
 });
+
+describe("drafts", () => {
+  const about = (title: string) => `{"version":1,"data":{"root":{"props":{"title":"${title}"}},"content":[]}}`;
+
+  async function withDraft() {
+    const context = await signedIn();
+    const drafts = context.backend.drafts;
+    if (!drafts) throw new Error("No drafts");
+    const draft = await drafts.create("20261014-abc123");
+    const revision = await draft.store.revision();
+    await draft.store.write(
+      [
+        { path: "content/pages/about.json", content: about("About us") },
+        { path: "content/pages/new.json", content: about("New") },
+        { path: "content/pages/index.json", delete: true },
+      ],
+      { message: "Draft changes", expectedRevision: revision },
+    );
+    return { ...context, drafts, draft };
+  }
+
+  it("keeps changes on a branch of their own, away from the live site", async () => {
+    const { fake, draft } = await withDraft();
+    expect(fake.repo.files("goodfellow-draft-20261014-abc123").get("content/pages/about.json")).toBe(about("About us"));
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(FILES["content/pages/about.json"]);
+    expect(await draft.changes()).toEqual([
+      { path: "content/pages/about.json", content: about("About us") },
+      { path: "content/pages/index.json", delete: true },
+      { path: "content/pages/new.json", content: about("New") },
+    ]);
+  });
+
+  it("opens a draft again by name, and refuses names it doesn't have", async () => {
+    const { drafts } = await withDraft();
+    const again = await drafts.open("20261014-abc123");
+    expect(await again.store.read("content/pages/about.json")).toBe(about("About us"));
+    await expect(drafts.open("20261014-zzz999")).rejects.toMatchObject({ problem: "not-found" });
+    await expect(drafts.open("../main")).rejects.toMatchObject({ problem: "not-found" });
+    await expect(drafts.create("20261014-abc123")).rejects.toMatchObject({ problem: "exists" });
+  });
+
+  it("publishes a draft in one commit, on top of other people's changes to other files, then removes it", async () => {
+    const { fake, draft } = await withDraft();
+    fake.repo.write("src/styles.css", "@import 'tailwindcss'; /* changed */");
+    const { revision } = await draft.publish("Update About");
+    expect(fake.repo.head()).toBe(revision);
+    expect(fake.repo.commitAt(revision)?.message).toBe("Update About");
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(about("About us"));
+    expect(fake.repo.files().has("content/pages/index.json")).toBe(false);
+    expect(fake.repo.files().get("src/styles.css")).toContain("changed");
+    expect(fake.repo.branches.has("goodfellow-draft-20261014-abc123")).toBe(false);
+  });
+
+  it("refuses to publish over someone else's change to the same page, and keeps the draft", async () => {
+    const { fake, draft } = await withDraft();
+    fake.repo.write("content/pages/about.json", about("About the parish"));
+    await expect(draft.publish("Update About")).rejects.toBeInstanceOf(ConflictError);
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(about("About the parish"));
+    expect(fake.repo.branches.has("goodfellow-draft-20261014-abc123")).toBe(true);
+  });
+
+  it("submits a draft for review as a pull request, once", async () => {
+    const { fake, draft } = await withDraft();
+    const first = await draft.submitForReview({ title: "New About page", description: "Written with Claude." });
+    expect(first.url).toBe("https://github.com/parish/site/pull/1");
+    expect(fake.repo.reviews).toEqual([
+      expect.objectContaining({
+        branch: "goodfellow-draft-20261014-abc123",
+        target: "main",
+        title: "New About page",
+        description: "Written with Claude.",
+      }),
+    ]);
+    expect(await draft.submitForReview({ title: "Again" })).toEqual(first);
+    expect(fake.repo.reviews).toHaveLength(1);
+  });
+
+  it("discards a draft", async () => {
+    const { fake, draft, drafts } = await withDraft();
+    await draft.discard();
+    expect(fake.repo.branches.has("goodfellow-draft-20261014-abc123")).toBe(false);
+    await expect(drafts.open("20261014-abc123")).rejects.toMatchObject({ problem: "not-found" });
+  });
+});
+
+describe("reading many files", () => {
+  it("reads them in one request rather than one each", async () => {
+    const { backend, fake } = await signedIn();
+    const files = await backend.readFiles?.(["content/site.json", "content/pages/about.json", "content/missing.json"]);
+    expect(files).toEqual(
+      new Map([
+        ["content/site.json", FILES["content/site.json"]],
+        ["content/pages/about.json", FILES["content/pages/about.json"]],
+      ]),
+    );
+    expect(fake.graphqlReads).toBe(1);
+    // Read once: they're cached by their content, which never changes.
+    expect(await backend.read("content/site.json")).toBe(FILES["content/site.json"]);
+    await backend.readFiles?.(["content/site.json"]);
+    expect(fake.graphqlReads).toBe(1);
+  });
+});

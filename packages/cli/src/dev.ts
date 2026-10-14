@@ -6,14 +6,11 @@ import {
   CONTENT_DIR,
   ContentError,
   findRedirect,
-  type GoodfellowConfig,
+  findSitePage,
   loadSiteContent,
   MEDIA_DIR,
-  normalizePagePath,
-  type Page,
   redirectPage,
-  type SiteContent,
-  sitePages,
+  SITE_DESCRIPTION_PATH,
   todayIn,
 } from "@goodfellow-cms/core";
 import {
@@ -52,24 +49,6 @@ function errorPage(title: string, lines: string[]): string {
 <body style="font-family:system-ui,sans-serif;max-width:48rem;margin:3rem auto;padding:0 1rem;line-height:1.5">
 <h1 style="color:#b91c1c">${escapeHtml(title)}</h1><ul>${lines.map((line) => `<li><code>${escapeHtml(line)}</code></li>`).join("")}</ul>
 </body></html>`;
-}
-
-function findPage(
-  content: SiteContent,
-  blocks: GoodfellowConfig["blocks"],
-  pathname: string,
-): { page: Page; status: number } | undefined {
-  let path: string;
-  try {
-    path = normalizePagePath(decodeURIComponent(pathname));
-  } catch {
-    path = "";
-  }
-  const pages = sitePages(content, todayIn(content.settings.timeZone), blocks);
-  const page = pages.find((candidate) => candidate.path === path);
-  if (page) return { page, status: 200 };
-  const notFound = pages.find((candidate) => candidate.path === "/404");
-  return notFound && { page: notFound, status: 404 };
 }
 
 /** Reloads site pages when content changes on disk. The admin panel doesn't listen, so saving never reloads the editor. */
@@ -201,6 +180,13 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
             res.end(await server.transformIndexHtml("/admin", html));
             return;
           }
+          if (url.pathname === `/${SITE_DESCRIPTION_PATH}`) {
+            const { describe } = await loadServerEntry(server);
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-cache");
+            res.end(JSON.stringify(describe(), null, 2));
+            return;
+          }
           // Calendar files, as builds write them, from the content as it is now.
           if (await sendCalendarFile(fileSystemSource(root), url.pathname, res).catch(() => false)) return;
           if (/\.[a-z0-9]+$/i.test(url.pathname)) {
@@ -214,7 +200,7 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
           try {
             const content = await loadSiteContent(fileSystemSource(root));
             const { config, renderPage } = await loadServerEntry(server);
-            const match = findPage(content, config.blocks, url.pathname);
+            const match = findSitePage(content, todayIn(content.settings.timeZone), config.blocks, url.pathname);
             // Pages win over redirects, as in builds.
             const redirect = (!match || match.status === 404) && findRedirect(content, url.pathname);
             if (redirect) {
