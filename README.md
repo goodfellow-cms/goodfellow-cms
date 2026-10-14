@@ -90,6 +90,10 @@ flowchart TB
     - **Git on the server:** the app's server reads and publishes through GitHub or GitLab with a token from an environment variable, behind that sign-in, so no git credentials reach the browser. Commits still name the editor.
     - **AI keys on the server** (optional): keys in environment variables, with the AI assistant's requests sent through the app's server, so editors don't need keys of their own.
 25. **Moving from and to WordPress.** Import a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected. Export a Goodfellow site as a WordPress export file, with its blocks turned into WordPress's.
+26. **Cloudflare Pages.** Put sites online with [Cloudflare Pages](https://pages.cloudflare.com), whose free plan builds from private repositories on GitHub and GitLab and has no rule we've found against business sites. That makes it the free choice for a business site whose repository is private on GitHub, where GitHub Pages doesn't work.
+    - **Setup:** `create-goodfellow` and the setup page set it up, the admin panel shows when the new version is live, and the Domain screen explains connecting a domain in Cloudflare, as it does for Vercel.
+    - **Pages or Workers:** Cloudflare's newer features go to Workers, which can also serve a site's files and build it from GitHub or GitLab, and it has a guide for moving Pages projects there. This step starts by choosing between them.
+    - **Videos:** Cloudflare's terms ask sites on free plans not to serve video, or mostly large files, through its network without a paid service. The admin panel says so where uploaded videos would break that rule, and suggests YouTube or Vimeo.
 
 Planned for later: review workflows (pull/merge requests from the admin panel), per-user permissions, importing from other systems, plugins and themes, and Bitbucket support.
 
