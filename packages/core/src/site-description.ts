@@ -36,6 +36,8 @@ export interface SiteDescription {
   root: { fields: Record<string, unknown> };
   /** The site's blocks, by the name content refers to them by. */
   blocks: Record<string, BlockDescription>;
+  /** What the site's config lets Claude do (`GoodfellowConfig.claude`), when it's less than everything. */
+  claude?: { publish?: boolean };
 }
 
 const record = z.record(z.string(), z.unknown());
@@ -54,6 +56,7 @@ const descriptionSchema = z.object({
       templateOnly: z.boolean().optional(),
     }),
   ),
+  claude: z.object({ publish: z.boolean().optional() }).optional(),
 });
 
 /** Reads a description, or says why it isn't one. */

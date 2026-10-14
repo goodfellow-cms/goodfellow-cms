@@ -42,6 +42,19 @@ export interface GoodfellowConfig {
    * you trust: installed blocks' code runs in the admin panel.
    */
   registries?: Record<string, string>;
+  /**
+   * What Claude may do through Goodfellow's Claude connector. By default it
+   * publishes its drafts when the editor says to; `{ publish: false }` leaves
+   * it only submitting them for review, for someone to publish on GitHub or
+   * GitLab. Builds put this in the site's description, so it takes effect
+   * once the site has been rebuilt.
+   */
+  claude?: ClaudeConfig;
+}
+
+export interface ClaudeConfig {
+  /** Whether Claude can publish its drafts. On by default. */
+  publish?: boolean;
 }
 
 export interface AiConfig {

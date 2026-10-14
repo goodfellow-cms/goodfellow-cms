@@ -39,6 +39,16 @@ Claude never changes the live site straight away. The first change it makes star
 
 If someone publishes changes to the same pages in the admin panel while Claude's draft is open, publishing the draft stops rather than overwriting them, and Claude says so. It can make its changes again on top of theirs in a new draft.
 
+### Turning off publishing
+
+A site's owner can stop Claude publishing, so that every change it makes is checked by someone first. In the site's `goodfellow.config.tsx`, add:
+
+```tsx
+claude: { publish: false },
+```
+
+Once the site has been rebuilt with it, which publishing anything does, Claude can only submit its drafts for review. Claude can't change `goodfellow.config.tsx` itself: it only changes the site's content.
+
 ## Screenshots
 
 Claude can look at a page as visitors see it, at a phone's or a computer's width, live or with its draft's changes. Screenshots of drafts use a preview page in the site's admin panel, which shows the draft's files without publishing them.

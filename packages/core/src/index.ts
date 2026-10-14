@@ -42,7 +42,7 @@ export {
   zonedInstant,
   zonedTime,
 } from "./calendar.js";
-export { type AiConfig, defineConfig, type GoodfellowConfig } from "./config.js";
+export { type AiConfig, type ClaudeConfig, defineConfig, type GoodfellowConfig } from "./config.js";
 export {
   type BuildFile,
   CALENDARS_DIR,

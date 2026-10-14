@@ -145,5 +145,6 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
         ];
       }),
     ),
+    ...(config.claude?.publish === false && { claude: { publish: false } }),
   };
 }

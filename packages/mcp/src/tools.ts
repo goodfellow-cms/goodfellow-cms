@@ -64,6 +64,10 @@ export const INSTRUCTIONS = `These tools edit websites built with Goodfellow, fo
 - Only publish when the editor says to. If they'd like someone to check it first, use submit_for_review instead.
 - Use the site's own words for things: say "publish", not "commit" or "merge".`;
 
+/** Why `publish` refuses, on sites whose config says `claude: { publish: false }`. */
+const NO_PUBLISHING =
+  "The site's owner has turned off publishing from Claude. Submit the draft for review instead (submit_for_review), and someone who looks after the site publishes it.";
+
 const siteArg = z.string().optional().describe("Which site, from list_sites. Leave it out when there's only one.");
 const draftArg = z
   .string()
@@ -227,6 +231,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         name: site.settings.title,
         address: site.url,
         ...(site.versionProblem && { cantChange: site.versionProblem }),
+        ...(site.description.claude?.publish === false && { cantPublish: NO_PUBLISHING }),
         pages: pages.map((page) => page.address),
         collections: collections.map((collection) => ({ id: collection.id, entries: collection.entries.length })),
         menus: Object.keys(menus),
@@ -614,7 +619,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
 
   tool(
     "publish",
-    "Publishes a draft: its changes go live, in one go, and the draft is removed. Only when the editor has said to.",
+    "Publishes a draft: its changes go live, in one go, and the draft is removed. Only when the editor has said to, and not on sites whose owner has turned it off (get_site says so); submit_for_review instead.",
     {
       site: siteArg,
       draft: z.string(),
@@ -623,6 +628,8 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     async ({ site: given, draft: name, message }) => {
       const site = await open(given);
       if (site.versionProblem) throw new ToolError(site.versionProblem);
+      // Read from what the site's own build published, which only its code can change.
+      if (site.description.claude?.publish === false) throw new ToolError(NO_PUBLISHING);
       const draft = await draftOf(site, name);
       try {
         await draft.publish(message);

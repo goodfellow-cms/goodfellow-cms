@@ -90,5 +90,11 @@ describe("describeSite", () => {
         templateOnly: true,
       },
     });
+    expect(description.claude).toBeUndefined();
+  });
+
+  it("says when the site's config doesn't let Claude publish", () => {
+    expect(describeSite({ blocks: {}, claude: { publish: false } }).claude).toEqual({ publish: false });
+    expect(describeSite({ blocks: {}, claude: { publish: true } }).claude).toBeUndefined();
   });
 });

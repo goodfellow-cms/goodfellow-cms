@@ -266,6 +266,17 @@ describe("changing a site", () => {
     expect(result.text).toContain("would undo theirs");
   });
 
+  it("only submits for review on sites whose config turns publishing off", async () => {
+    const { call } = await connect({ description: describeSite({ blocks, claude: { publish: false } }) });
+    expect((await call("get_site")).json().cantPublish).toContain("turned off publishing");
+    const { draft } = (await call("save_page", { address: "/about", blocks: [heading("Mine")] })).json();
+    const result = await call("publish", { draft, message: "Mine" });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("submit_for_review");
+    expect((await call("get_page", { address: "/about" })).text).toContain("About us");
+    expect((await call("submit_for_review", { draft, title: "Mine" })).json()).toMatchObject({ submitted: true });
+  });
+
   it("doesn't change sites built with a release it can't write for, but still reads them", async () => {
     const { call } = await connect({ description: { ...describeSite({ blocks }), goodfellow: "0.0.1" } });
     expect((await call("get_site")).json().cantChange).toContain("too old");

@@ -17,6 +17,8 @@ describe("parseSiteDescription", () => {
   it("reads what builds write", () => {
     const result = parseSiteDescription(JSON.stringify(description));
     expect(result).toEqual({ ok: true, description });
+    const noPublishing = { ...description, claude: { publish: false } };
+    expect(parseSiteDescription(JSON.stringify(noPublishing))).toEqual({ ok: true, description: noPublishing });
   });
 
   it("refuses anything else", () => {
