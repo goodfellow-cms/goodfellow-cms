@@ -1,5 +1,39 @@
 # create-goodfellow
 
+## 0.2.0
+
+### Minor Changes
+
+- ed49c5e: Creating a site from a template is worked out by `planSite()` in `@goodfellow-cms/core`, which needs no disk, so the documentation site's setup page and `create-goodfellow` make the same sites. The templates, hosts and block choices, and the helpers `create-goodfellow` exported, are in `@goodfellow-cms/core` too; `create-goodfellow` still exports them, and its `installRecommendedBlocks()` is replaced by core's, which works on a site's files rather than a folder.
+- 30c5903: Redirects: the page at an old address now says where it's sending visitors, with a link named after the page, in words the Redirects tab can change, and replaces itself in the browser's history, so Back no longer needs pressing twice. On Vercel, Vercel sends the redirects itself: new sites have a `vercel.ts` in place of `vercel.json` that reads them, and Next.js sites get them from `withGoodfellow()`. Redirects from addresses that pages have are left out, so pages still win.
+
+### Patch Changes
+
+- bfecb3a: `create-goodfellow` runs `npm install`, then makes the new site a git repository on the branch `main`, which the deploy setups build from, with everything, `package-lock.json` included, in its first commit, and `origin` set when it's given the site's GitHub repository or GitLab project. If git doesn't know your name and email yet, it says how to tell it and commit. `--no-install` and `--no-git` leave these out, and no repository is made inside another git repository or without git installed.
+- 699e0dd: Goodfellow's repository moved to the `goodfellow-cms` organization on GitHub. Package READMEs and repository links, and the admin panel's link to release notes, now point to https://github.com/goodfellow-cms/goodfellow-cms and the documentation at https://goodfellow-cms.github.io/goodfellow-cms/.
+  
+  The starters' READMEs link to the documentation instead of sections of Goodfellow's README, which is now shorter.
+- Updated dependencies [f776202]
+- Updated dependencies [caa6d55]
+- Updated dependencies [2c07c71]
+- Updated dependencies [c8a935e]
+- Updated dependencies [0e97dd2]
+- Updated dependencies [03dc28f]
+- Updated dependencies [4b44513]
+- Updated dependencies [b61d3f2]
+- Updated dependencies [699e0dd]
+- Updated dependencies [b55c95c]
+- Updated dependencies [ed49c5e]
+- Updated dependencies [30c5903]
+- Updated dependencies [8ea3680]
+- Updated dependencies [66d7d1c]
+- Updated dependencies [a210b23]
+- Updated dependencies [8176568]
+- Updated dependencies [d09a681]
+- Updated dependencies [7785ef5]
+- Updated dependencies [8f9eff2]
+  - @goodfellow-cms/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

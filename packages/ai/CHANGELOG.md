@@ -1,5 +1,39 @@
 # @goodfellow-cms/ai
 
+## 0.2.0
+
+### Minor Changes
+
+- a210b23: Showing collections. Collection list gets a heading with a link beside it, filters by a choice or tags field, Z to A and any-field ordering, later pages (`/news/page/2`) and a page for each choice of a field (`/news/topics/music`). The new Collection loop block repeats blocks designed in the editor once for each item, with its values in placeholders such as `{title}`. Collections get a Tags field type (`tags`), for any number of a list's choices. Blocks can add pages to the page they're on with `withPages()` from `@goodfellow-cms/core`, which the Calendar block's month pages now use: `sitePages()` takes the site's blocks, and `Page.view` and `useSite().view` replace `Page.month` and `useSite().month`. `repeatsForEntries()` from `@goodfellow-cms/react` makes a block repeat its blocks for each item.
+- 8f9eff2: A Video block: a video from the media library (MP4 or WebM, with a picture before it plays and WebVTT captions), YouTube (from its ID or any of its addresses, in the privacy-enhanced player), Vimeo (with do not track), or another site's player (from its embed address or code, sandboxed, and only from another secure site). It needs no JavaScript on the page. `youtubeVideo()`, `vimeoVideo()`, `embedPlayerUrl()` and the player addresses' helpers are in `@goodfellow-cms/core`. Media fields can hold videos (`mediaField(label, "video")`), whose chooser offers only videos, and WebVTT files can be uploaded.
+
+### Patch Changes
+
+- 2c07c71: Hardening from code scanning: trimming slashes and other characters no longer uses patterns that slow down on long runs of them (core's new `trimChars()`), and nor do reading SVG sizes, typed domains, link targets and README notes; heading anchors and rich text as plain text take tags out by scanning the text. Search results show any `<` or `>` in an excerpt as text, apart from Pagefind's highlights. Link targets decode an address's entities once, as browsers do. SVG uploads also lose `vbscript:` links and `data:` links other than images. Islands' generated module escapes `<`, `>` and line separators in names and paths.
+- 699e0dd: Goodfellow's repository moved to the `goodfellow-cms` organization on GitHub. Package READMEs and repository links, and the admin panel's link to release notes, now point to https://github.com/goodfellow-cms/goodfellow-cms and the documentation at https://goodfellow-cms.github.io/goodfellow-cms/.
+  
+  The starters' READMEs link to the documentation instead of sections of Goodfellow's README, which is now shorter.
+- Updated dependencies [f776202]
+- Updated dependencies [caa6d55]
+- Updated dependencies [2c07c71]
+- Updated dependencies [c8a935e]
+- Updated dependencies [0e97dd2]
+- Updated dependencies [03dc28f]
+- Updated dependencies [4b44513]
+- Updated dependencies [b61d3f2]
+- Updated dependencies [699e0dd]
+- Updated dependencies [b55c95c]
+- Updated dependencies [ed49c5e]
+- Updated dependencies [30c5903]
+- Updated dependencies [8ea3680]
+- Updated dependencies [66d7d1c]
+- Updated dependencies [a210b23]
+- Updated dependencies [8176568]
+- Updated dependencies [d09a681]
+- Updated dependencies [7785ef5]
+- Updated dependencies [8f9eff2]
+  - @goodfellow-cms/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

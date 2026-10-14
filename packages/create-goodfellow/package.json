@@ -1,6 +1,6 @@
 {
   "name": "create-goodfellow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Creates a new Goodfellow site: npm create goodfellow@latest my-site",
   "keywords": [
     "goodfellow",
