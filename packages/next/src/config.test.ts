@@ -23,10 +23,55 @@ describe("withGoodfellow", () => {
       reactStrictMode: true,
       images: { unoptimized: true },
       env: { GOODFELLOW_BASE_PATH: "" },
+      redirects: expect.any(Function),
     });
     expect(await withGoodfellow({ trailingSlash: false }, { root })("phase-production-build")).toMatchObject({
       trailingSlash: false,
     });
+  });
+
+  it("adds the site's redirects ahead of its own for hosts that send them, leaving out pages' addresses", async () => {
+    const site = await mkdtemp(join(tmpdir(), "goodfellow-next-"));
+    const write = async (path: string, text: string) => {
+      await mkdir(join(site, path, ".."), { recursive: true });
+      await writeFile(join(site, path), text);
+    };
+    try {
+      await write("content/site.json", '{"version":1}\n');
+      await write("content/pages/about.json", '{"version":1,"data":{"root":{},"content":[]}}\n');
+      await write(
+        "content/collections/talks/_collection.json",
+        JSON.stringify({
+          version: 1,
+          name: "Talks",
+          entryName: "Talk",
+          path: "/talks/{slug}",
+          fields: [{ name: "title", label: "Title", type: "text" }],
+        }),
+      );
+      await write("content/collections/talks/hope.json", '{"version":1,"fields":{"title":"On hope"}}\n');
+      await write(
+        "content/redirects.json",
+        JSON.stringify({
+          version: 1,
+          redirects: [
+            { from: "/who-we-are/", to: "/about" },
+            { from: "/about", to: "/elsewhere" },
+            { from: "/talks/hope", to: "/" },
+            { from: "/news(old).html", to: "https://news.example.org/" },
+          ],
+        }),
+      );
+      const own = { source: "/old-blog", destination: "/news", permanent: false };
+      const config = await withGoodfellow({ redirects: async () => [own] }, { root: site })("phase-production-build");
+      expect(await config.redirects?.()).toEqual([
+        { source: "/who-we-are", destination: "/about", permanent: true },
+        { source: "/news\\(old\\).html", destination: "https://news.example.org/", permanent: true },
+        own,
+      ]);
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
   });
 
   it("runs the local backend in development, behind the site's address", async () => {

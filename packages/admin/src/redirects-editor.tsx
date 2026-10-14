@@ -1,4 +1,11 @@
-import { type Redirect, type RedirectProblem, redirectFrom, redirectProblems } from "@goodfellow-cms/core";
+import {
+  REDIRECT_LINK_PLACEHOLDER,
+  REDIRECT_MESSAGE,
+  type Redirect,
+  type RedirectProblem,
+  redirectFrom,
+  redirectProblems,
+} from "@goodfellow-cms/core";
 import { useId } from "react";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, TextField } from "./ui.js";
@@ -31,14 +38,19 @@ export function filledRedirects(redirects: readonly Redirect[]): Redirect[] {
  */
 export function RedirectsEditor({
   redirects,
+  message,
   taken,
   showErrors,
   onChange,
+  onMessageChange,
 }: {
   redirects: Redirect[];
+  /** What the page at an old address says, or `""` for the default. */
+  message: string;
   taken: readonly string[];
   showErrors: boolean;
   onChange: (redirects: Redirect[]) => void;
+  onMessageChange: (message: string) => void;
 }) {
   const t = useStrings();
   const pagesList = useId();
@@ -97,6 +109,13 @@ export function RedirectsEditor({
       <div className="gfa-menu-actions">
         <Button onClick={() => onChange([...redirects, { from: "", to: "" }])}>{t("redirects.add")}</Button>
       </div>
+      <TextField
+        label={t("redirects.message")}
+        hint={t("redirects.messageHint", { placeholder: REDIRECT_LINK_PLACEHOLDER })}
+        placeholder={REDIRECT_MESSAGE}
+        value={message}
+        onChange={onMessageChange}
+      />
     </div>
   );
 }

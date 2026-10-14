@@ -49,7 +49,7 @@ export const HOSTS = {
   },
   vercel: {
     label: "Vercel",
-    files: ["vercel.json"],
+    files: ["vercel.ts"],
     note: "Works with GitHub and GitLab. The free plan is for non-commercial sites only.",
   },
 } as const;

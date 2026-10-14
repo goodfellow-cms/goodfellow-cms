@@ -1,5 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { copyFile, cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -200,6 +201,61 @@ describe.each([
   });
 });
 
+describe("the starter's vercel.ts", () => {
+  it("has Vercel send the site's redirects, leaving out addresses pages and collections' items have", async () => {
+    const site = await mkdtemp(join(tmpdir(), "goodfellow-vercel-"));
+    try {
+      await cp(join(fixture, "content"), join(site, "content"), { recursive: true });
+      await copyFile(join(starter, "vercel.ts"), join(site, "vercel.ts"));
+      await writeFile(
+        join(site, "content/redirects.json"),
+        JSON.stringify({
+          version: 1,
+          redirects: [
+            { from: "/old-news", to: "/news" },
+            { from: "/news", to: "/elsewhere" },
+            { from: "/talks/hope", to: "/" },
+            { from: "/2019/talk(1).html", to: "https://talks.example.org/hope" },
+          ],
+        }),
+      );
+      // As Vercel runs it: from the site's folder, with Node's own modules only.
+      const script = 'const { config } = await import("./vercel.ts"); console.log(JSON.stringify(config));';
+      const config = JSON.parse(
+        execFileSync(
+          process.execPath,
+          ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
+          {
+            cwd: site,
+            encoding: "utf8",
+          },
+        ),
+      );
+      expect(config).toMatchObject({ buildCommand: "npx goodfellow build", outputDirectory: "dist" });
+      expect(config.redirects).toEqual([
+        { source: "/old-news", destination: "/news", permanent: true },
+        { source: "/old-news/", destination: "/news", permanent: true },
+        { source: "/2019/talk\\(1\\).html", destination: "https://talks.example.org/hope", permanent: true },
+        { source: "/2019/talk\\(1\\).html/", destination: "https://talks.example.org/hope", permanent: true },
+      ]);
+
+      // A site without redirects has none.
+      await rm(join(site, "content/redirects.json"));
+      const empty = execFileSync(
+        process.execPath,
+        ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
+        {
+          cwd: site,
+          encoding: "utf8",
+        },
+      );
+      expect(JSON.parse(empty).redirects).toEqual([]);
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("documentation site", () => {
   it("builds, with a search index, and every link and heading link between its pages goes somewhere", async () => {
     const out = await mkdtemp(join(tmpdir(), "goodfellow-docs-"));
@@ -253,7 +309,7 @@ describe("parish example", () => {
     for (const file of [
       ".github/workflows/deploy.yml",
       ".gitlab-ci.yml",
-      "vercel.json",
+      "vercel.ts",
       ".gitignore",
       "src/styles.css",
       "components.json",

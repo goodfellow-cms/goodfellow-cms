@@ -1,9 +1,17 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { resolve } from "node:path";
-import { CALENDARS_DIR, normalizeBase } from "@goodfellow-cms/core";
+import {
+  allPages,
+  CALENDARS_DIR,
+  loadSiteContent,
+  normalizeBase,
+  redirectFrom,
+  redirectProblems,
+} from "@goodfellow-cms/core";
 import {
   DEV_API_PREFIX,
+  fileSystemSource,
   handleDevApi,
   isLocalOrigin,
   localFileStore,
@@ -17,6 +25,7 @@ export interface GoodfellowNextOptions {
 }
 
 type Rewrites = Awaited<ReturnType<NonNullable<NextConfig["rewrites"]>>>;
+type Redirects = Awaited<ReturnType<NonNullable<NextConfig["redirects"]>>>;
 type Rewrite = Extract<Rewrites, unknown[]>[number];
 
 /** `PHASE_DEVELOPMENT_SERVER` from `next/constants`, which Node can't import by that name. */
@@ -70,6 +79,30 @@ function imageSettings(images: NextConfig["images"]): NextConfig["images"] {
   return { unoptimized: true, ...images };
 }
 
+/** An address as Next.js matches a redirect's source, with the characters its patterns use escaped. */
+function redirectSource(path: string): string {
+  return encodeURI(path).replace(/[()[\]{}+*?:!]/g, "\\$&");
+}
+
+/**
+ * The site's redirects (`content/redirects.json`) for hosts that send them
+ * themselves, such as Vercel, which reads them from the build. Redirects from
+ * an address a page or a collection's item has are left out, since pages win,
+ * as they do over the pages `goodfellow-next finish` writes at old addresses.
+ * Content with a problem gives none, and the build reports the problem.
+ */
+async function siteRedirects(root: string): Promise<Redirects> {
+  const content = await loadSiteContent(fileSystemSource(root)).catch(() => undefined);
+  if (!content?.redirects) return [];
+  const taken = new Set(allPages(content).map((page) => page.path));
+  const problems = redirectProblems(content.redirects);
+  return content.redirects.flatMap((redirect, index) => {
+    const from = redirectFrom(redirect.from);
+    if (problems[index] || !from.ok || taken.has(from.path)) return [];
+    return [{ source: redirectSource(from.path), destination: redirect.to.trim(), permanent: true }];
+  });
+}
+
 /**
  * Sets up Next.js for a Goodfellow site, in `next.config.ts`:
  * `export default withGoodfellow({ ... })`.
@@ -80,6 +113,8 @@ function imageSettings(images: NextConfig["images"]): NextConfig["images"] {
  * - Serves the site from `basePath`, or else the `GOODFELLOW_BASE` environment
  *   variable, as `goodfellow build` does (GitHub Pages serves most sites from `/repository-name/`).
  * - Serves images as they are unless the site sets an image loader, since static files can't be optimized on request.
+ * - Adds the site's redirects (Site Settings → Redirects) ahead of the site's own, for hosts that
+ *   send them, such as Vercel. Others get the pages `goodfellow-next finish` writes at old addresses.
  * - In `next dev`, runs the admin panel's local backend, so publishing saves to
  *   the files on disk. It's never part of a build.
  * - In `next dev`, turns off React's debug channel (`experimental.reactDebugChannel`)
@@ -100,7 +135,13 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       env: { ...nextConfig.env, GOODFELLOW_BASE_PATH: basePath },
     };
     // In development, Next.js treats an unknown address in an exported site as an error rather than "not found".
-    if (phase !== PHASE_DEVELOPMENT_SERVER) return { output: "export", ...config };
+    if (phase !== PHASE_DEVELOPMENT_SERVER) {
+      return {
+        output: "export",
+        ...config,
+        redirects: async () => [...(await siteRedirects(root)), ...((await nextConfig.redirects?.()) ?? [])],
+      };
+    }
 
     const port = await startDevApi(root);
     const rewrite = {

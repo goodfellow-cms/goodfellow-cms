@@ -97,8 +97,28 @@ describe("redirectFiles", () => {
     expect(page).toContain('<link rel="canonical" href="https://parish.example.org/about">');
     expect(page).toContain('<meta name="robots" content="noindex">');
     expect(page).toContain('<html lang="en">');
-    expect(page).toContain('<a href="/about">/about</a>');
+    // Replaces itself in the browser's history, so Back skips it, keeping what's after # of the old address.
+    expect(page).toContain('<script>location.replace("/about" + location.hash);</script>');
+    expect(page).toContain('This page has moved to <a href="/about" style="color:#171717">/about</a>.');
     expect(external).toContain('<link rel="canonical" href="https://news.example.org/">');
+  });
+
+  it("names the page it goes to, in the site's own words and colors", () => {
+    const [file] = redirectFiles({
+      ...content,
+      settings: { ...settings, theme: { ...settings.theme, colors: { primary: "#153823", background: "#f5ece2" } } },
+      redirectMessage: "Diese Seite ist umgezogen: {page}",
+      pages: [
+        {
+          path: "/about",
+          file: "content/pages/about.json",
+          content: { version: 1, data: { root: { props: { title: "Über uns" } }, content: [] } },
+        },
+      ],
+    });
+    expect(file?.content).toContain('Diese Seite ist umgezogen: <a href="/about" style="color:#153823">Über uns</a>');
+    expect(file?.content).toContain("background:#f5ece2");
+    expect(file?.content).toContain('<p style="margin:0 0 .5rem;font-weight:600">St. Joseph</p>');
   });
 
   it("adds the base path to addresses on the site", () => {
@@ -108,9 +128,15 @@ describe("redirectFiles", () => {
   });
 
   it("escapes what it writes into the page", () => {
-    const [file] = redirectFiles({ settings, redirects: [{ from: "/a", to: '/b"><script>' }] });
-    expect(file?.content).not.toContain("<script>");
-    expect(file?.content).toContain("/b&quot;&gt;&lt;script&gt;");
+    const [file] = redirectFiles({
+      settings,
+      redirects: [{ from: "/a", to: '/b"></script><script>alert(1)' }],
+      redirectMessage: "<b>{page}</b>",
+    });
+    expect(file?.content).toContain("/b&quot;&gt;&lt;/script&gt;&lt;script&gt;alert(1)");
+    expect(file?.content).toContain('location.replace("/b\\">\\u003c/script>\\u003cscript>alert(1)"');
+    expect(file?.content).toContain("&lt;b&gt;<a ");
+    expect(file?.content?.match(/<script>/g)).toHaveLength(1);
   });
 
   it("finds the redirect for an address", () => {

@@ -32,9 +32,18 @@ test("sets up redirects in Site Settings, which send visitors on from old addres
   });
   expect(readSiteFile("content/site.json")).toBe(before);
 
+  // While it sends visitors on, the old address says where they're going.
+  const html = await (await page.request.get("/who-we-are")).text();
+  expect(html).toContain('This page has moved to <a href="/about"');
+  expect(html).toContain(">About us</a>.");
+
+  await page.goto("/");
   await page.goto("/who-we-are/");
   await expect(page).toHaveURL(/\/about$/);
   await expect(page.getByRole("heading", { name: "About us" })).toBeVisible();
+  // The old address isn't left in the browser's history, so one Back goes back.
+  await page.goBack();
+  await expect(page).toHaveURL(/:\d+\/$/);
 
   // Taking every redirect out removes the file.
   await page.goto("/admin#/settings/redirects");

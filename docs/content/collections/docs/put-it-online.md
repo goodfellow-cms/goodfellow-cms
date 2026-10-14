@@ -55,7 +55,7 @@ Each host's free plan has its own rules about business use; read [Hosts and busi
 
 **Vercel**, which works with GitHub and GitLab:
 
-1. Import the repository in Vercel. `vercel.json` already has the right settings.
+1. Import the repository in Vercel. `vercel.ts` already has the right settings, and has Vercel send the site's redirects itself.
 2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule.
 
 Delete the setup files of the hosts you don't use. Nightly rebuilds keep pages that depend on the date, such as a list of upcoming events, current.
