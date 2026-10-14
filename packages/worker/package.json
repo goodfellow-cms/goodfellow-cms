@@ -22,7 +22,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "dev": "npx wrangler@4 dev",
-    "deploy": "npx wrangler@4 deploy"
+    "deploy": "npx wrangler@4 deploy",
+    "setup": "tsdown && node scripts/setup.mjs"
   },
   "engines": {
     "node": ">=22"

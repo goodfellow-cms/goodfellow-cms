@@ -44,12 +44,29 @@ The service keeps no counts of its own, since every request it gets counts towar
 
 ## Running your own
 
-A site can use its own copy of the service, with its own GitHub Apps. The service is `packages/worker` in Goodfellow's repository, and runs on Cloudflare's free plan.
+A site can use its own copy of the service, with its own GitHub Apps. The service is `packages/worker` in Goodfellow's repository, and runs on Cloudflare's free plan. You need a Cloudflare account, a GitHub account and Node 22 or later.
 
-1. **Deploy the service** with a Cloudflare account, to learn its address. In a copy of Goodfellow's repository, run `pnpm install`, then in `packages/worker`, run `pnpm run deploy`. Wrangler prints the address, such as `https://sign-in.your-name.workers.dev`. Until step 3, it answers but signs nobody in.
+1. In a copy of Goodfellow's repository, run `pnpm install`.
+2. In `packages/worker`, run `pnpm run setup`. It:
+   - deploys the service to Cloudflare, to learn its address. Wrangler, Cloudflare's tool, asks you to sign in to Cloudflare, and the first time, to choose your `workers.dev` address;
+   - asks whether an organization should own the GitHub Apps, and whether anyone's sites can use them;
+   - opens a page in your browser that creates the two apps on GitHub with their settings filled in. For each, check its name, which editors see when they sign in, and choose **Create GitHub App**;
+   - asks for your setup page's address, if you run one;
+   - gives the service the apps' keys and a key for sealing sessions, deploys it again and checks it answers.
+
+   Keep the changes it makes to `wrangler.jsonc`, so later deploys keep them.
+3. **Use it** in each site's config: `github({ repo: "your-name/your-site", signIn: "https://sign-in.your-name.workers.dev" })`.
+
+Run `pnpm run setup` again to change the setup page's address, or to replace the apps. It keeps the service's key for sealing sessions, since a new one would sign everyone out.
+
+### Setting it up by hand
+
+If the script can't run, the same steps by hand are:
+
+1. **Deploy the service:** in `packages/worker`, run `pnpm run deploy`. Wrangler prints the address, such as `https://sign-in.your-name.workers.dev`. Until step 3, it answers but signs nobody in.
 2. **Create two GitHub Apps** in your GitHub settings (**Developer settings → GitHub Apps → New GitHub App**), or your organization's. For both:
    - set the **Callback URL** to the service's address followed by `/github/callback`, such as `https://sign-in.your-name.workers.dev/github/callback`;
-   - leave **Expire user authorization tokens** on, and turn on **Request user authorization (OAuth) during installation**, so installing signs people in too;
+   - turn on **Request user authorization (OAuth) during installation**, so installing signs people in too;
    - turn off **Webhook**;
    - under **Where can this GitHub App be installed?**, choose **Any account**, unless only your own sites will use it.
 
@@ -59,4 +76,3 @@ A site can use its own copy of the service, with its own GitHub Apps. The servic
 
    For each, note its **App ID**, its **Client ID** and the last part of its address (its slug), generate a client secret, and generate a private key, which downloads a `.pem` file.
 3. **Set up the service** for your apps. In `wrangler.jsonc`, put your apps' slugs, and your setup page's address if you have one. Set its secrets with `npx wrangler@4 secret put EDIT_APP_ID`, then `EDIT_CLIENT_ID`, `EDIT_CLIENT_SECRET` and `EDIT_PRIVATE_KEY` (the `.pem` file's contents), the same four for `OWNER_`, and `SESSION_KEY`, from `openssl rand -base64 32`. Then run `pnpm run deploy` again. Changing `SESSION_KEY` later signs everyone out.
-4. **Use it** in each site's config: `github({ repo: "your-name/your-site", signIn: "https://sign-in.your-name.workers.dev" })`.
