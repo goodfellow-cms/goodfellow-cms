@@ -39,9 +39,11 @@ import type { Config, Content, Data, Fields } from "@puckeditor/core";
 import { z } from "zod";
 import {
   contentFiles,
+  isMediaAddress,
   listCollections,
   listMedia,
   listPages,
+  mediaImage,
   pageAddress,
   readCollection,
   readEntry,
@@ -85,6 +87,12 @@ const flatBlock = z.object({
 
 function text(value: unknown): CallToolResult {
   return { content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }] };
+}
+
+function base64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
 }
 
 function failure(message: string): CallToolResult {
@@ -556,7 +564,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
 
   tool(
     "list_media",
-    "The site's uploaded images and files, by the address blocks use for them, such as /media/photo.jpg. New files are uploaded in the admin panel.",
+    "The site's uploaded images and files: the address blocks use for each, such as /media/photo.jpg, its size in bytes, and its credit if it has one. Pages that use a credited file show its credit by themselves, as its license requires, so use it as it is. To see an image, take a screenshot of its address. New files are uploaded in the admin panel.",
     { site: siteArg },
     async ({ site: given }) => {
       const site = await open(given);
@@ -589,10 +597,10 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     const screenshots = context.screenshots;
     tool(
       "screenshot",
-      "A picture of a page: as it is on the live site, or with a draft's changes. Show it to the editor before publishing.",
+      "A picture of a page, as it is on the live site or with a draft's changes, or of an image in the media library (its address from list_media), to see what it shows. Show pages to the editor before publishing.",
       {
         site: siteArg,
-        address: z.string(),
+        address: z.string().describe("A page's address, such as /about, or an image's, such as /media/photo.jpg."),
         draft: draftArg,
         width: z
           .union([z.literal(390), z.literal(768), z.literal(1280)])
@@ -601,6 +609,12 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       },
       async ({ site: given, address, draft: name, width = 1280 }) => {
         const site = await open(given);
+        if (isMediaAddress(address)) {
+          // Media isn't in drafts: uploads go straight to the live site, so this is always the live file.
+          const image = await mediaImage(site.backend, address);
+          const png = await screenshots.take({ url: `${site.url}${image}`, width, image: true });
+          return { content: [{ type: "image", data: base64(png), mimeType: "image/png" }] };
+        }
         const path = pageAddress(address);
         const png = name
           ? await screenshots.take({
@@ -609,9 +623,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
               preview: { files: await contentFiles((await draftOf(site, name)).store), path },
             })
           : await screenshots.take({ url: `${site.url}${path === "/" ? "/" : path}`, width });
-        let binary = "";
-        for (const byte of png) binary += String.fromCharCode(byte);
-        return { content: [{ type: "image", data: btoa(binary), mimeType: "image/png" }] };
+        return { content: [{ type: "image", data: base64(png), mimeType: "image/png" }] };
       },
       true,
     );

@@ -53,6 +53,8 @@ export interface ContentSource {
    * requests than reading them one by one. Files that don't exist are left out.
    */
   readFiles?(paths: string[]): Promise<Map<string, string>>;
+  /** The size in bytes of every file under a directory, recursively, where the source can say without reading them. */
+  fileSizes?(dir: string): Promise<Map<string, number>>;
 }
 
 /** Reads several text files, all at once where the source can. Files that don't exist are left out. */

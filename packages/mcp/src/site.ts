@@ -39,6 +39,8 @@ export interface Screenshotter {
     url: string;
     width: number;
     preview?: { files: Record<string, string>; path: string };
+    /** `url` is an image's, shown on a page of its own (`imagePage()`), no wider than `width`. */
+    image?: boolean;
   }): Promise<Uint8Array>;
 }
 

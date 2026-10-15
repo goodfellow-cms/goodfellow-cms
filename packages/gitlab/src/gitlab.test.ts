@@ -426,4 +426,12 @@ describe("reading many files", () => {
     await backend.readFiles?.(["content/site.json"]);
     expect(fake.graphqlReads).toBe(1);
   });
+
+  it("says how large files are without reading them", async () => {
+    const { host } = setup();
+    const backend = await host.signInWithToken("test-token", false);
+    const sizes = await backend.fileSizes?.("content");
+    expect(sizes?.get("content/site.json")).toBe(new TextEncoder().encode(FILES["content/site.json"]).length);
+    expect([...(sizes?.keys() ?? [])].every((path) => path.startsWith("content/"))).toBe(true);
+  });
 });

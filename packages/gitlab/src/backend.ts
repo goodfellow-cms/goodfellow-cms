@@ -235,6 +235,35 @@ export class GitLabBackend implements GitBackend {
     return [...(await this.currentTree()).keys()].filter((path) => path.startsWith(prefix)).sort();
   }
 
+  /** GitLab's tree doesn't say how large files are, so they're asked for with GraphQL, in batches. */
+  async fileSizes(dir: string): Promise<Map<string, number>> {
+    const paths = await this.list(dir);
+    const ref = this.pinned ?? (await this.revision());
+    const sizes = new Map<string, number>();
+    for (let start = 0; start < paths.length; start += GRAPHQL_BATCH) {
+      const response = await gitlabJson<{
+        data?: { project?: { repository?: { blobs?: { nodes?: Array<{ path: string; size: string | number }> } } } };
+      }>(this.api, "/../graphql", {
+        method: "POST",
+        body: {
+          query: `query ($project: ID!, $ref: String!, $paths: [String!]!) {
+  project(fullPath: $project) { repository { blobs(ref: $ref, paths: $paths) { nodes { path size } } } }
+}`,
+          variables: {
+            project: decodeURIComponent(this.project),
+            ref,
+            paths: paths.slice(start, start + GRAPHQL_BATCH),
+          },
+        },
+      });
+      for (const node of response.data?.project?.repository?.blobs?.nodes ?? []) {
+        const size = Number(node.size);
+        if (Number.isFinite(size)) sizes.set(node.path, size);
+      }
+    }
+    return sizes;
+  }
+
   private async lastCommitFor(path: string, ref: string): Promise<string> {
     const file = await gitlabJson<{ last_commit_id: string }>(
       this.api,

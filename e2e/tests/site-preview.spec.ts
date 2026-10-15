@@ -81,3 +81,12 @@ test("takes screenshots of a draft with the computer's own browser, as the conne
   expect(view.getUint32(16)).toBe(390);
   expect(view.getUint32(20)).toBeGreaterThan(600);
 });
+
+test("takes screenshots of images in the media library, shrunk to the width asked for", async () => {
+  const screenshots = localScreenshots({
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ?? chromium.executablePath(),
+  });
+  const png = await screenshots.take({ url: `${built}/media/placeholder.svg`, width: 390, image: true });
+  expect([...png.slice(1, 4)]).toEqual([0x50, 0x4e, 0x47]);
+  expect(new DataView(png.buffer, png.byteOffset).getUint32(16)).toBe(390);
+});

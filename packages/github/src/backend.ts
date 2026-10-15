@@ -30,7 +30,7 @@ import { githubPages } from "./pages.js";
 import { githubUpdates } from "./updates.js";
 
 interface TreeResponse {
-  tree: Array<{ path: string; type: string; sha: string }>;
+  tree: Array<{ path: string; type: string; sha: string; size?: number }>;
   truncated: boolean;
 }
 
@@ -106,6 +106,8 @@ export class GitHubBackend implements GitBackend {
   private readonly owner: ReturnType<typeof githubOwnerAccess>;
   private pinned?: string;
   private readonly trees = new Map<string, Promise<Map<string, string>>>();
+  /** Each file's size in bytes at a commit, which GitHub lists with its tree. */
+  private readonly treeSizes = new Map<string, Map<string, number>>();
   private readonly blobs = new Map<string, Promise<string>>();
 
   constructor(options: GitHubBackendOptions) {
@@ -190,7 +192,12 @@ export class GitHubBackend implements GitBackend {
         if (response.truncated) {
           throw new GitApiError(413, "The repository has too many files for GitHub to list at once.");
         }
-        return new Map(response.tree.filter((entry) => entry.type === "blob").map((entry) => [entry.path, entry.sha]));
+        const blobs = response.tree.filter((entry) => entry.type === "blob");
+        this.treeSizes.set(
+          sha,
+          new Map(blobs.flatMap((entry) => (entry.size === undefined ? [] : [[entry.path, entry.size] as const]))),
+        );
+        return new Map(blobs.map((entry) => [entry.path, entry.sha]));
       });
       tree.catch(() => this.trees.delete(sha));
       this.trees.set(sha, tree);
@@ -267,6 +274,13 @@ export class GitHubBackend implements GitBackend {
   async list(dir: string): Promise<string[]> {
     const prefix = `${dir}/`;
     return [...(await this.currentTree()).keys()].filter((path) => path.startsWith(prefix)).sort();
+  }
+
+  async fileSizes(dir: string): Promise<Map<string, number>> {
+    const prefix = `${dir}/`;
+    await this.currentTree();
+    const sizes = this.treeSizes.get(this.pinned ?? "") ?? new Map<string, number>();
+    return new Map([...sizes].filter(([path]) => path.startsWith(prefix)));
   }
 
   /** Uses an owner's sign-in through the worker for editors and GitHub Pages settings, until it's forgotten. */

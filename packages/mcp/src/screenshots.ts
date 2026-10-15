@@ -4,6 +4,7 @@
  * browser, the screenshot tool says so.
  */
 import { ToolError } from "./content.js";
+import { imagePage } from "./image-page.js";
 import type { Screenshotter } from "./site.js";
 
 interface PreviewWindow {
@@ -15,7 +16,7 @@ const TIMEOUT = 30_000;
 
 export function localScreenshots(options: { executablePath?: string } = {}): Screenshotter {
   return {
-    async take({ url, width, preview }) {
+    async take({ url, width, preview, image }) {
       let chromium: typeof import("playwright-core").chromium;
       try {
         ({ chromium } = await import("playwright-core"));
@@ -37,7 +38,8 @@ export function localScreenshots(options: { executablePath?: string } = {}): Scr
       }
       try {
         const page = await browser.newPage({ viewport: { width, height: 900 } });
-        await page.goto(url, { waitUntil: "networkidle", timeout: TIMEOUT });
+        if (image) await page.setContent(imagePage(url), { waitUntil: "networkidle", timeout: TIMEOUT });
+        else await page.goto(url, { waitUntil: "networkidle", timeout: TIMEOUT });
         if (preview) {
           await page.waitForFunction(() => typeof (window as PreviewWindow).goodfellowPreview === "function", null, {
             timeout: TIMEOUT,

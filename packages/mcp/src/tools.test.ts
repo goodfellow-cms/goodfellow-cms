@@ -136,7 +136,25 @@ describe("reading a site", () => {
     expect(news.items).toEqual(expect.arrayContaining([{ slug: "welcome", address: "/news/welcome" }]));
     const item = (await call("get_item", { collection: "news", slug: "welcome" })).json();
     expect(item.values.title).toBe("Welcome to our new website");
-    expect((await call("list_media")).json()).toContain("/media/photo.jpg");
+    expect((await call("list_media")).json()).toContainEqual({ address: "/media/photo.jpg", bytes: 18 });
+  });
+
+  it("lists media with the credits pages show for them", async () => {
+    const files = starterFiles();
+    files["public/media/choir.jpg"] = "a photo of a choir";
+    files["content/media.json"] = `${JSON.stringify({
+      version: 1,
+      credits: { "/media/choir.jpg": { title: "Choir", creator: "A. Singer", license: "CC BY 2.0" } },
+    })}\n`;
+    const { call } = await connect({ files });
+    expect((await call("list_media")).json()).toEqual([
+      {
+        address: "/media/choir.jpg",
+        bytes: 18,
+        credit: { title: "Choir", creator: "A. Singer", source: "", license: "CC BY 2.0" },
+      },
+      { address: "/media/photo.jpg", bytes: 18 },
+    ]);
   });
 
   it("explains when the site's description can't be read", async () => {
@@ -305,5 +323,24 @@ describe("screenshots", () => {
     expect(taken[1]?.preview?.path).toBe("/about");
     expect(taken[1]?.preview?.files["content/pages/about.json"]).toContain("Draft heading");
     expect(Object.keys(taken[1]?.preview?.files ?? {})).toContain("content/site.json");
+  });
+
+  it("takes images in the media library, and nothing else that isn't a page", async () => {
+    const taken: Array<Parameters<Screenshotter["take"]>[0]> = [];
+    const screenshots: Screenshotter = {
+      take: async (options) => {
+        taken.push(options);
+        return new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+      },
+    };
+    const { call } = await connect({ screenshots });
+    expect((await call("screenshot", { address: "/media/photo.jpg" })).isError).toBe(false);
+    expect(taken).toEqual([{ url: "https://parish.example/media/photo.jpg", width: 1280, image: true }]);
+    expect((await call("screenshot", { address: "/media/missing.jpg" })).text).toContain(
+      "no file at /media/missing.jpg",
+    );
+    expect((await call("screenshot", { address: "/media/../admin/x.png" })).text).toContain("isn't an image");
+    expect((await call("screenshot", { address: "/media/notes.pdf" })).text).toContain("isn't an image");
+    expect(taken).toHaveLength(1);
   });
 });

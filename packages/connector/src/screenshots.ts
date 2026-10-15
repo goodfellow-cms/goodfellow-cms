@@ -4,7 +4,7 @@
  * offers no screenshot tool.
  */
 import puppeteer, { type BrowserWorker } from "@cloudflare/puppeteer";
-import { type Screenshotter, ToolError } from "@goodfellow-cms/mcp";
+import { imagePage, type Screenshotter, ToolError } from "@goodfellow-cms/mcp";
 
 interface PreviewWindow {
   goodfellowPreview?: (request: unknown) => Promise<{ ok: boolean; problem?: string }>;
@@ -14,7 +14,7 @@ const TIMEOUT = 30_000;
 
 export function browserScreenshots(binding: BrowserWorker): Screenshotter {
   return {
-    async take({ url, width, preview }) {
+    async take({ url, width, preview, image }) {
       let browser: Awaited<ReturnType<typeof puppeteer.launch>>;
       try {
         browser = await puppeteer.launch(binding);
@@ -26,7 +26,8 @@ export function browserScreenshots(binding: BrowserWorker): Screenshotter {
       try {
         const page = await browser.newPage();
         await page.setViewport({ width, height: 900 });
-        await page.goto(url, { waitUntil: "networkidle0", timeout: TIMEOUT });
+        if (image) await page.setContent(imagePage(url), { waitUntil: "networkidle0", timeout: TIMEOUT });
+        else await page.goto(url, { waitUntil: "networkidle0", timeout: TIMEOUT });
         if (preview) {
           await page.waitForFunction(() => typeof (window as PreviewWindow).goodfellowPreview === "function", {
             timeout: TIMEOUT,

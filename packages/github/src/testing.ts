@@ -981,6 +981,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         path: file,
         type: "blob",
         sha: repo.blobSha(content),
+        size: fakeFileBytes(content).length,
       }));
       return json({ sha: commitSha, tree: entries, truncated: false });
     }

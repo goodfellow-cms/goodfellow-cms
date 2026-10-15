@@ -487,7 +487,14 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       const nodes = variables.paths.flatMap((path) => {
         const content = files.get(path);
         if (content === undefined) return [];
-        return [{ path, rawTextBlob: typeof content === "string" ? content : null }];
+        // GitLab gives sizes as BigInt, which arrive as strings.
+        return [
+          {
+            path,
+            rawTextBlob: typeof content === "string" ? content : null,
+            size: String(fakeFileBytes(content).length),
+          },
+        ];
       });
       return json({ data: { project: { repository: { blobs: { nodes } } } } });
     }

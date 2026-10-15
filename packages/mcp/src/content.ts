@@ -18,12 +18,15 @@ import {
   type LayoutFile,
   layoutFileSchema,
   MEDIA_DIR,
+  MEDIA_FILE,
   MENUS_FILE,
   type Menus,
+  mediaFileSchema,
   menusFileSchema,
   normalizePagePath,
   PAGES_DIR,
   type PageFile,
+  type PhotoCredit,
   pageFileSchema,
   pageFileToPath,
   pagePathToFile,
@@ -172,8 +175,54 @@ export async function takenAddresses(source: ContentSource): Promise<Set<string>
 }
 
 /** The site's media files, by the address content uses for them, such as `/media/photo.jpg`. */
-export async function listMedia(source: ContentSource): Promise<string[]> {
-  return (await source.list(MEDIA_DIR)).map((file) => `/${file.slice("public/".length)}`).sort();
+/** One media file, as `list_media` describes it. */
+export interface MediaListing {
+  address: string;
+  /** Its size in bytes, where the source can say without reading it. */
+  bytes?: number;
+  /** Its credit, which pages using it show, as its license requires. */
+  credit?: PhotoCredit;
+}
+
+/** The site's media files, with their sizes and credits. */
+export async function listMedia(source: ContentSource): Promise<MediaListing[]> {
+  const [files, sizes, creditsText] = await Promise.all([
+    source.list(MEDIA_DIR),
+    source.fileSizes?.(MEDIA_DIR),
+    source.read(MEDIA_FILE),
+  ]);
+  const credits =
+    creditsText === undefined
+      ? {}
+      : parsed(parseContentFile("media", mediaFileSchema, MEDIA_FILE, creditsText)).credits;
+  return files.sort().map((file) => {
+    const address = `/${file.slice("public/".length)}`;
+    const bytes = sizes?.get(file);
+    const credit = credits[address];
+    return { address, ...(bytes !== undefined && { bytes }), ...(credit && { credit }) };
+  });
+}
+
+/** Image types a browser shows on their own, which `screenshot` can take a picture of. */
+const IMAGE_ADDRESS = /^\/media\/[^?#]+\.(?:jpe?g|png|gif|webp|avif|svg|ico)$/i;
+
+/** Whether an address is a media file's, rather than a page's. */
+export function isMediaAddress(address: string): boolean {
+  return address.trim().startsWith("/media/");
+}
+
+/** An image's address in the media library, or a `ToolError` saying why it can't be shown. */
+export async function mediaImage(source: ContentSource, input: string): Promise<string> {
+  const address = input.trim();
+  if (!IMAGE_ADDRESS.test(address) || address.split("/").some((part) => part === ".." || part === ".")) {
+    throw new ToolError(
+      `${address} isn't an image Claude can look at. Screenshots show pages, and images in the media library such as /media/photo.jpg; other files, such as PDFs and videos, are opened in the admin panel.`,
+    );
+  }
+  if (!(await source.list(MEDIA_DIR)).includes(`public${address}`)) {
+    throw new ToolError(`There's no file at ${address}. list_media lists the media library.`);
+  }
+  return address;
 }
 
 /** Every content file, as text: what the preview page needs to show a draft as the site would. */

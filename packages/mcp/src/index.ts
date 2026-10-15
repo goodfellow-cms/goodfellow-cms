@@ -8,6 +8,7 @@ import type { ConnectorContext } from "./site.js";
 import { INSTRUCTIONS, registerTools } from "./tools.js";
 
 export { contentFiles, ToolError } from "./content.js";
+export { imagePage } from "./image-page.js";
 export type { ConnectorContext, Screenshotter } from "./site.js";
 export { INSTRUCTIONS } from "./tools.js";
 

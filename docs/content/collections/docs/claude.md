@@ -51,15 +51,15 @@ Once the site has been rebuilt with it, which publishing anything does, Claude c
 
 ## Screenshots
 
-Claude can look at a page as visitors see it, at a phone's or a computer's width, live or with its draft's changes. Screenshots of drafts use a preview page in the site's admin panel, which shows the draft's files without publishing them.
+Claude can look at a page as visitors see it, at a phone's or a computer's width, live or with its draft's changes. Screenshots of drafts use a preview page in the site's admin panel, which shows the draft's files without publishing them. Claude can look at the photos and pictures in the media library the same way, to choose ones that fit.
 
 Screenshots use Cloudflare's browsers, which Goodfellow's connector can use for a few minutes a day for everyone. When they're used up, Claude says screenshots aren't available until later; everything else keeps working.
 
 ## What Claude can do
 
-- Read pages, the header and footer, collections and their items, menus, the media library and the site's settings.
+- Read pages, the header and footer, collections and their items, menus and the site's settings, and list the media library with each file's size and credit. Photos with a credit, such as those the AI assistant adds from Openverse, show it on every page that uses them, so Claude can use them as they are.
 - Create, change and delete pages and items, and change the header and footer, menus and settings, in a draft.
-- Show you a screenshot of any page, live or with its draft.
+- Show you a screenshot of any page, live or with its draft, or look at an image in the media library.
 - Publish a draft, submit it for review, or throw it away.
 
 Claude can't upload new photos, add or remove blocks from block registries, change who edits the site, or change the site's address; do those in the admin panel.
