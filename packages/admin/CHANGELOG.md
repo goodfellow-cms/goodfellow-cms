@@ -1,5 +1,37 @@
 # @goodfellow-cms/admin
 
+## 0.3.0
+
+### Minor Changes
+
+- 6532990: Work on your site from Claude. Add Goodfellow's connector to Claude, sign in with GitHub or GitLab and choose your sites; Claude can then read and change pages, items, the header and footer, menus and settings in a draft, show you screenshots of them, and publish the draft or submit it for review, as a pull request or merge request. The new `@goodfellow-cms/mcp` package runs the same tools on your own computer, for Claude Code (`npx @goodfellow-cms/mcp`) and as a Claude Desktop extension, signed in with a token. A site's config can stop Claude publishing with `claude: { publish: false }`, so it only submits its changes for review. Claude sees the media library's sizes and credits, and can look at its images in screenshots. The GitHub and GitLab backends say how large files are without reading them (`fileSizes()`).
+  
+  For this, every build publishes `goodfellow-site.json`, describing the site's blocks and the content formats it reads, and the admin panel has a preview page (`#/preview`) that shows unpublished content for screenshots. The GitHub and GitLab backends can keep changes in drafts (`drafts`) and read many files at once (`readFiles()`), and the admin panel's change helpers are in `@goodfellow-cms/core`.
+- ace4b9c: A Dark mode switch block lets visitors choose light or dark colors on sites with dark mode, as a switch (with or without the words Light and Dark) or a menu that can also follow their computer. Their choice is kept in their browser and put back before each page shows. Sites choose their code colors in Site Settings → Colors & fonts → Code colors, from Shiki's color schemes for light and for dark, and can show code on the site's subtle background color. Code on light-only sites now carries only its light colors.
+  
+  The Dark mode switch shows the page's colors from the start, rather than the sun until its script runs. Pages preload their text and heading fonts' files, read from Google Fonts when the site is built (`fontPreloads()`), so the browser fetches them alongside Google's stylesheet rather than after it, and the stand-in font rarely shows. A build that can't reach Google goes on without preloading. While a font loads, pages show stand-ins made with [Fontaine](https://github.com/unjs/fontaine): the computer's own fonts of the same kind, resized to take the same space, so text barely moves when the font arrives.
+  
+  Next.js sites made from the starter before this need `suppressHydrationWarning` on `<html>` in `app/layout.tsx` to use the Dark mode switch without a warning in `next dev`.
+  
+  Sites' fonts fall back to the computer's own fonts of the same kind, such as a serif for Fraunces, rather than always to a sans serif. Site Settings saves each font's kind (`theme.fonts.headingCategory` and `bodyCategory`) when it's chosen; fonts chosen before keep falling back to a sans serif until they're chosen again.
+- 7e618c6: Dark mode for sites, which their owners turn on in Site Settings → Colors & fonts: sites stay light only until then. Every theme color has a dark one, pages follow each visitor's light or dark setting, and a site can have a second logo for dark backgrounds. The admin panel's previews show the site light or dark, like the admin panel or as chosen on the Theme tab, and Claude's screenshots can show it dark. Code blocks can be colored like the page, which new ones are, and code in Markdown is too. Blocks' `dark:` classes now apply only on sites with dark mode, so a light-only site never turns partly dark on a computer set to dark.
+  
+  The Claude Desktop extension is now packed without Anthropic's `mcpb` tool, and the connector no longer installs Puppeteer's browser downloader, leaving out packages with security advisories.
+- 2264969: Sign in with GitHub, through Goodfellow's sign-in service. Editors get a token for the site's repository only, lasting an hour and renewed while they're signed in, and what they publish names them as its author. The service stores nothing about anyone's sign-in: editors' own GitHub tokens are revoked as soon as they've signed in. The first time someone signs in, the sign-in screen offers to install Goodfellow on the site, and GitHub's install page signs them in too. It works at the address in the site's settings, never on this computer; elsewhere, and when the service's daily limit is reached, editors sign in with a token as before. Owners sign in with a second app, for one tab, on the Editors, Domain and Updates screens, and the setup page signs in, and installs Goodfellow where it creates sites, through the service too. `github({ signIn })` names your own copy of the service, or `false` turns it off.
+- 4d70cd8: The AI assistant can add openly licensed photos from Openverse where the media library has none that fit. Photos are saved to the media library with their credits in `content/media.json`, and pages list the credits of the photos they use. A checkbox in the AI panel turns it on or off, and `ai: { stockPhotos: false }` in the config turns it off for everyone.
+
+### Patch Changes
+
+- Updated dependencies [6532990]
+- Updated dependencies [ace4b9c]
+- Updated dependencies [7e618c6]
+- Updated dependencies [2264969]
+- Updated dependencies [4d70cd8]
+  - @goodfellow-cms/core@0.3.0
+  - @goodfellow-cms/react@0.3.0
+  - @goodfellow-cms/ai@0.3.0
+  - @goodfellow-cms/registry@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

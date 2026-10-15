@@ -1,5 +1,16 @@
 # create-goodfellow
 
+## 0.3.0
+
+### Patch Changes
+
+- Updated dependencies [6532990]
+- Updated dependencies [ace4b9c]
+- Updated dependencies [7e618c6]
+- Updated dependencies [2264969]
+- Updated dependencies [4d70cd8]
+  - @goodfellow-cms/core@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
