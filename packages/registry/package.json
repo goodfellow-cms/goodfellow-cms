@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/registry",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Goodfellow's block registry: blocks built with shadcn/ui, which sites install from the admin panel.",
   "keywords": [
     "goodfellow",

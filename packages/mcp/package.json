@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Work on a Goodfellow site from Claude: read and change its pages, entries and settings, see them in screenshots, and publish them or submit them for review.",
   "keywords": [
     "goodfellow",
