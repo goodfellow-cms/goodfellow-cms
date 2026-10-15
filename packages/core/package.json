@@ -46,6 +46,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "fontaine": "1.0.0",
     "ical.js": "2.2.1",
     "marked": "18.1.0",
     "pagefind": "1.5.2",

@@ -17,7 +17,7 @@ import {
   todayIn,
   withBase,
 } from "@goodfellow-cms/core";
-import { fileSystemSource, readMediaSizes, readStylesheet } from "@goodfellow-cms/core/node";
+import { fileSystemSource, fontStandIns, readMediaSizes, readStylesheet } from "@goodfellow-cms/core/node";
 import {
   applyPageEntry,
   BodyCode,
@@ -134,7 +134,11 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   async function Theme({ content }: { content: SiteContent }) {
     const fontsUrl = googleFontsUrl(content.settings.theme);
     // React adds these to the head once each, where a <link> would also be kept as it is.
-    for (const href of await fontPreloads(content.settings.theme, readStylesheet)) {
+    const [fontFiles, standIns] = await Promise.all([
+      fontPreloads(content.settings.theme, readStylesheet),
+      fontStandIns(content.settings.theme),
+    ]);
+    for (const href of fontFiles) {
       preload(href, { as: "font", type: "font/woff2", crossOrigin: "" });
     }
     const colorScheme = colorSchemeMeta(content.settings.theme);
@@ -146,7 +150,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own script, which puts back the visitor's light or dark choice */}
         {schemeScript && <script dangerouslySetInnerHTML={{ __html: schemeScript }} />}
         <style href="goodfellow-theme" precedence="default">
-          {themeToCss(content.settings.theme)}
+          {themeToCss(content.settings.theme, standIns)}
         </style>
         {fontsUrl && (
           <>

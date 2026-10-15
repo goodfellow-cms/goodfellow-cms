@@ -121,9 +121,24 @@ const FALLBACK_FONTS: Record<FontCategory, string> = {
   handwriting: SANS_SERIF,
 };
 
-/** A font and the computer's fonts of the same kind after it. */
-function fontStack(family: string, category: FontCategory | undefined): string {
-  return `"${family}", ${FALLBACK_FONTS[category ?? "sans-serif"]}`;
+/**
+ * Stand-ins for a theme's fonts: the computer's own fonts, resized to take the
+ * same space as each, so text doesn't move when the font arrives. Builds make
+ * them with `fontStandIns()` from `@goodfellow-cms/core/node`.
+ */
+export interface FontStandIns {
+  /** The stand-ins' `@font-face` rules. */
+  css: string;
+  /** The heading font's stand-ins' names, the first the computer has used. */
+  heading?: string[];
+  /** The text font's stand-ins' names. */
+  body?: string[];
+}
+
+/** A font, its stand-ins, and the computer's fonts of the same kind after it. */
+function fontStack(family: string, category: FontCategory | undefined, standIns: string[] = []): string {
+  const names = [family, ...standIns].map((name) => `"${name}"`).join(", ");
+  return `${names}, ${FALLBACK_FONTS[category ?? "sans-serif"]}`;
 }
 
 function kebab(name: string): string {
@@ -141,18 +156,21 @@ export function escapeStyleText(css: string): string {
 /**
  * The CSS custom properties for a theme, as a `:root` rule. Colors use
  * shadcn's variable names (`--primary`, `--primary-foreground`, …); fonts use
- * `--gf-font-heading` and `--gf-font-body`.
+ * `--gf-font-heading` and `--gf-font-body`, with `standIns` after each font
+ * where a build gives them.
  */
-export function themeToCss(theme: Theme): string {
+export function themeToCss(theme: Theme, standIns?: FontStandIns): string {
   const declarations = THEME_COLORS.map(
     (name) => `--${kebab(name)}:${theme.colors[name] ?? DEFAULT_THEME_COLORS[name]}`,
   );
   const darkRules = theme.darkMode ? darkModeCss(theme) : "";
   declarations.push(`--radius:${theme.radius ?? DEFAULT_RADIUS}`);
   const { heading, body, headingCategory, bodyCategory } = theme.fonts;
-  declarations.push(`--gf-font-body:${body ? fontStack(body, bodyCategory) : SANS_SERIF}`);
-  declarations.push(`--gf-font-heading:${heading ? fontStack(heading, headingCategory) : "var(--gf-font-body)"}`);
-  return escapeStyleText(`:root{${declarations.join(";")}}${darkRules}`);
+  declarations.push(`--gf-font-body:${body ? fontStack(body, bodyCategory, standIns?.body) : SANS_SERIF}`);
+  declarations.push(
+    `--gf-font-heading:${heading ? fontStack(heading, headingCategory, standIns?.heading) : "var(--gf-font-body)"}`,
+  );
+  return escapeStyleText(`${standIns?.css ?? ""}:root{${declarations.join(";")}}${darkRules}`);
 }
 
 /** A color in dark mode: the site's own, or the default. */

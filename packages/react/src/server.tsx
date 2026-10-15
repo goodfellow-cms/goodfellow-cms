@@ -10,7 +10,7 @@ import {
   type SiteContent,
   themeToCss,
 } from "@goodfellow-cms/core";
-import { readStylesheet } from "@goodfellow-cms/core/node";
+import { fontStandIns, readStylesheet } from "@goodfellow-cms/core/node";
 import { prerender } from "react-dom/static";
 import { BodyCode, HeadCode } from "./custom-code.js";
 import { fillSlots } from "./island.js";
@@ -72,7 +72,10 @@ export function createPageRenderer(config: GoodfellowConfig) {
 
     const head = getPageHead(settings, page);
     const fontsUrl = googleFontsUrl(settings.theme);
-    const fontFiles = await fontPreloads(settings.theme, readStylesheet);
+    const [fontFiles, standIns] = await Promise.all([
+      fontPreloads(settings.theme, readStylesheet),
+      fontStandIns(settings.theme),
+    ]);
     const colorScheme = colorSchemeMeta(settings.theme);
     const schemeScript = colorSchemeScript(settings.theme);
     const socialImage = toAbsolute(settings.url, head.socialImage);
@@ -109,7 +112,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
             <link key={href} rel="stylesheet" href={href} />
           ))}
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: themeToCss escapes its output */}
-          <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme) }} />
+          <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme, standIns) }} />
           <HeadCode code={content.code?.head} />
         </head>
         <body>

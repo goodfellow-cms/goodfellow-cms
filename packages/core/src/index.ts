@@ -454,6 +454,7 @@ export {
   DEFAULT_THEME_COLORS,
   darkThemeColor,
   escapeStyleText,
+  type FontStandIns,
   googleFontsUrl,
   type LightCodeTheme,
   themeToCss,

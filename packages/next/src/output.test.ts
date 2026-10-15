@@ -78,7 +78,10 @@ describe("the Next.js template's static export", () => {
   it("fills in entries' titles and the site's theme", async () => {
     const html = await read("news/welcome/index.html");
     expect(html).toContain("<title>Welcome to our new website | My site</title>");
-    expect(html).toMatch(/<style data-precedence="default" data-href="goodfellow-theme">:root\{--background:/);
+    // The fonts' stand-ins come first, where the build could make them.
+    expect(html).toMatch(
+      /<style data-precedence="default" data-href="goodfellow-theme">(@font-face \{[^}]*\})*:root\{--background:/,
+    );
     expect(await read("404.html")).toContain("<title>Page not found | My site</title>");
   });
 
