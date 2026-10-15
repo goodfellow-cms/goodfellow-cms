@@ -25,7 +25,7 @@ You need [Node.js](https://nodejs.org) 22 or later.
 npm create goodfellow@latest my-site
 ```
 
-It asks:
+It asks these questions, with menus you move through with the arrow keys and choose from with Enter:
 
 - **Which site to start from:** the **Starter** (a home page, an about page and a news section), the **Parish example** (a complete made-up parish site, with collections and blocks of its own) or the **Starter for Next.js** (see [Next.js](/docs/nextjs)).
 - **Where the site will be stored:** GitHub or GitLab, and the repository's name.

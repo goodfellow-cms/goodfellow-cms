@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
-import { createInterface, type Interface } from "node:readline/promises";
+import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
@@ -22,6 +22,7 @@ import {
   TEMPLATES,
   type TemplateName,
 } from "./scaffold.js";
+import { type Choice, select } from "./select.js";
 
 const HELP = `Creates a new Goodfellow site.
 
@@ -44,28 +45,35 @@ const templatesDir = fileURLToPath(new URL("../templates/", import.meta.url));
 
 const HOST_NAMES = { github: "GitHub", gitlab: "GitLab" } as const;
 
-interface Choice<T> {
-  value: T;
-  label: string;
-  note?: string;
+/** Asks one question. Each has its own interface, since menus read the terminal themselves in between. */
+async function ask(question: string): Promise<string> {
+  const rl = createInterface({ input: stdin, output: stdout });
+  try {
+    return await rl.question(question);
+  } finally {
+    rl.close();
+  }
 }
 
-async function choose<T>(rl: Interface, question: string, choices: Choice<T>[]): Promise<T> {
-  stdout.write(`\n${question}\n`);
+/** A menu the arrow keys move through, or numbered choices where the output isn't a terminal. */
+async function choose<T>(question: string, choices: Choice<T>[]): Promise<T> {
+  stdout.write("\n");
+  if (stdout.isTTY) return select(question, choices);
+  stdout.write(`${question}\n`);
   choices.forEach((choice, index) => {
     stdout.write(`  ${index + 1}. ${choice.label}${choice.note ? `\n     ${choice.note}` : ""}\n`);
   });
   for (;;) {
-    const answer = (await rl.question(`Choose 1-${choices.length} (1): `)).trim();
+    const answer = (await ask(`Choose 1-${choices.length} (1): `)).trim();
     const choice = choices[answer === "" ? 0 : Number(answer) - 1];
     if (choice) return choice.value;
   }
 }
 
-async function askRepo(rl: Interface, host: Backend["host"]): Promise<string | undefined> {
+async function askRepo(host: Backend["host"]): Promise<string | undefined> {
   const example = host === "github" ? "your-name/your-site" : "your-group/your-site";
   for (;;) {
-    const answer = await rl.question(
+    const answer = await ask(
       `\nThe ${HOST_NAMES[host]} ${host === "github" ? "repository" : "project"}, such as ${example} (leave empty if it doesn't exist yet): `,
     );
     if (answer.trim() === "") return undefined;
@@ -136,45 +144,37 @@ async function main(): Promise<void> {
   }
 
   if (stdin.isTTY && !values.yes) {
-    const rl = createInterface({ input: stdin, output: stdout });
-    try {
-      if (!folder) folder = (await rl.question("Folder for the new site (my-site): ")).trim() || "my-site";
-      template ??= await choose(
-        rl,
-        "Start from:",
-        Object.entries(TEMPLATES).map(([value, { label, description }]) => ({
-          value: value as TemplateName,
-          label,
-          note: description,
-        })),
+    if (!folder) folder = (await ask("Folder for the new site (my-site): ")).trim() || "my-site";
+    template ??= await choose(
+      "Start from:",
+      Object.entries(TEMPLATES).map(([value, { label, description }]) => ({
+        value: value as TemplateName,
+        label,
+        note: description,
+      })),
+    );
+    let storage = backend?.host;
+    if (!backend) {
+      storage = await choose<Backend["host"] | undefined>(
+        "Where will the site be stored? Editors sign in there, and publishing saves to it.",
+        [
+          { value: "github", label: "GitHub" },
+          { value: "gitlab", label: "GitLab" },
+          { value: undefined, label: "Not decided yet" },
+        ],
       );
-      let storage = backend?.host;
-      if (!backend) {
-        storage = await choose<Backend["host"] | undefined>(
-          rl,
-          "Where will the site be stored? Editors sign in there, and publishing saves to it.",
-          [
-            { value: "github", label: "GitHub" },
-            { value: "gitlab", label: "GitLab" },
-            { value: undefined, label: "Not decided yet" },
-          ],
-        );
-        const repo = storage && (await askRepo(rl, storage));
-        if (storage && repo) backend = { host: storage, repo };
-      }
-      host ??= await chooseHost(rl, storage);
-      blocks ??= await choose(
-        rl,
-        "Which blocks should the editor offer to start with?",
-        Object.entries(BLOCK_CHOICES).map(([value, { label, description }]) => ({
-          value: value as BlockChoice,
-          label,
-          note: description,
-        })),
-      );
-    } finally {
-      rl.close();
+      const repo = storage && (await askRepo(storage));
+      if (storage && repo) backend = { host: storage, repo };
     }
+    host ??= await chooseHost(storage);
+    blocks ??= await choose(
+      "Which blocks should the editor offer to start with?",
+      Object.entries(BLOCK_CHOICES).map(([value, { label, description }]) => ({
+        value: value as BlockChoice,
+        label,
+        note: description,
+      })),
+    );
   }
 
   if (!folder) {
@@ -258,12 +258,12 @@ function gitLines(git: GitResult, commit: CommitResult | undefined, installed: b
   return [`${repository}. Nothing is committed yet: commit everything once npm install has run.`, ...origin];
 }
 
-async function chooseHost(rl: Interface, storage: Backend["host"] | undefined): Promise<Host | undefined> {
+async function chooseHost(storage: Backend["host"] | undefined): Promise<Host | undefined> {
   stdout.write(
     "\nEach host's free plan has its own rules about business use. Check them if the site is for a business,",
   );
   stdout.write("\nsells anything, shows ads, or anyone is paid to build or look after it.\n");
-  return choose<Host | undefined>(rl, "Where will the site be hosted?", [
+  return choose<Host | undefined>("Where will the site be hosted?", [
     ...hostsFor(storage).map((value) => ({ value, label: HOSTS[value].label, note: HOSTS[value].note })),
     { value: undefined, label: "Not decided yet", note: "Keeps the setup files for every host." },
   ]);
