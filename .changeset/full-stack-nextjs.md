@@ -13,3 +13,4 @@ Full-stack Next.js sites (roadmap step 24): a Next.js app with a server of its o
 - `<GoodfellowAdmin server="/api/goodfellow" />` signs in through the app, and `withGoodfellow(config, { server: true })` builds for a server instead of static files. `goodfellowCalendars()` serves calendar files.
 - `ai: { anthropic: process.env.ANTHROPIC_API_KEY }` sends the AI assistant's requests through the server with the site's key (`aiServer()` in `@goodfellow-cms/ai`), so editors don't need keys of their own.
 - `github()` and `gitlab()` have `server({ token })`, and core's `appApi()` (in `@goodfellow-cms/core/node`) is the API for other frameworks.
+- Search works on full-stack sites: `goodfellow-next finish --server`, after `next build`, indexes the pages Next.js rendered into `public/pagefind/`.

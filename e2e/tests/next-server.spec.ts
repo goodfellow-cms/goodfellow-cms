@@ -139,3 +139,14 @@ test("writes with the site's AI service and key, which the browser never has", a
     NEXT_SERVER.aiKey,
   );
 });
+
+test("searches the pages its build rendered, from the index it made after", async ({ page }) => {
+  await page.goto(`${SITE}/search/`);
+  // The search box starts working once the page's scripts have loaded.
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("searchbox", { name: "Search the site" }).fill("about");
+  const result = page.getByRole("search").getByRole("link", { name: /^About us/ });
+  await expect(result).toHaveAttribute("href", "/about/");
+  await result.click();
+  await expect(page).toHaveURL(`${SITE}/about/`);
+});

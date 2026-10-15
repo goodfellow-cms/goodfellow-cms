@@ -273,4 +273,26 @@ export function createNextServerSite() {
     }),
   );
   cpSync(testBlocks, join(nextServerSite, "blocks"), { recursive: true });
+  writeFileSync(join(nextServerSite, "content/pages/search.json"), `${JSON.stringify(searchPage, null, 2)}\n`);
 }
+
+/** A page with a Search block, so the full-stack test site's build has an index to search. */
+const searchPage = {
+  version: 1,
+  data: {
+    content: [
+      {
+        type: "Search",
+        props: {
+          id: "Search-1",
+          className: "",
+          label: "Search the site",
+          noResults: "Nothing matches \u201c{query}\u201d.",
+          placeholder: "Search",
+          unavailable: "Search works on the published site.",
+        },
+      },
+    ],
+    root: { props: { className: "", description: "", image: "", title: "Search" } },
+  },
+};

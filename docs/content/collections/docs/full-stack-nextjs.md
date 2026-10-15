@@ -24,7 +24,7 @@ The content still lives in the site's repository, so the site is still rebuilt w
    export default withGoodfellow({ agentRules: false }, { server: true });
    ```
 
-   The build script is then `next build` on its own: `goodfellow-next finish` is for static exports.
+   The build script is then `next build && goodfellow-next finish --server`, which writes the [search](/docs/search) index into `public/pagefind/` (leave that folder out of the repository). Calendar files and redirects come from the server, so there's nothing else to finish.
 
 3. Add the admin panel's API, at `app/api/goodfellow/[...path]/route.ts`:
 
@@ -100,6 +100,6 @@ The server sends on only the requests the assistant makes, and only for people `
 
 ## What's different
 
-- **Search:** the [Search block's](/docs/search) index is written by `goodfellow-next finish` into a static export, so full-stack sites don't have one yet.
+- **Search** finds the pages Next.js renders while building, which is all of the site's pages. A page made later is found once the site is rebuilt, which publishing does anyway.
 - **Uploads** go through the server. Some hosts limit what a request can send, such as Vercel's functions, at 4.5 MB, so larger uploads fail there.
 - **Screens for the git host:** the Editors, Domain and Updates screens aren't shown, since the app manages its own people and its host its own domain. `goodfellow-next update` still updates the site from a computer.

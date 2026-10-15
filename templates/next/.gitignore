@@ -3,3 +3,5 @@ node_modules/
 out/
 next-env.d.ts
 *.tsbuildinfo
+# The search index of a full-stack site, written after each build.
+public/pagefind/

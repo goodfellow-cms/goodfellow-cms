@@ -3,7 +3,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fakeAi } from "@goodfellow-cms/ai/testing";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { createNextServerSite, NEXT_SERVER, nextServerSite, starterFiles } from "./site.mjs";
@@ -64,6 +64,17 @@ const env = {
 };
 const built = spawnSync(process.execPath, [next, "build"], { cwd: nextServerSite, stdio: "inherit", env });
 if (built.status !== 0) process.exit(built.status ?? 1);
+// The search index, as a full-stack site's build script makes it.
+const goodfellowNext = join(
+  dirname(createRequire(join(nextServerSite, "package.json")).resolve("@goodfellow-cms/next/package.json")),
+  "bin/goodfellow-next.js",
+);
+const indexed = spawnSync(process.execPath, [goodfellowNext, "finish", "--server"], {
+  cwd: nextServerSite,
+  stdio: "inherit",
+  env,
+});
+if (indexed.status !== 0) process.exit(indexed.status ?? 1);
 const server = spawn(process.execPath, [next, "start", "--port", String(process.argv[2] ?? NEXT_SERVER.port)], {
   cwd: nextServerSite,
   stdio: "inherit",
