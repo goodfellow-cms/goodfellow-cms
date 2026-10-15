@@ -38,7 +38,7 @@ The trade-off is that WordPress is a program that has to run on a server, with P
 
 The biggest difference is the editor. In Tina, the page is shown beside a sidebar of forms, and blocks are added, reordered and changed as items in those forms. Goodfellow uses [Puck](https://puckeditor.com), where editors drag blocks onto the page itself, move them around there and edit them where they are, which is much quicker to learn. Goodfellow also has an AI assistant built in, at no cost.
 
-The other differences are about who it's for. Tina's content model, its collections and fields, is defined in code in `tina/config`, so adding a new kind of content or a field takes a developer, while Goodfellow's admins do it in the admin panel. Tina also needs a backend: either Tina Cloud, whose [free plan](https://tina.io/pricing) covers two users and whose paid plans start at $24 a month per project, or a backend you host yourself, which needs serverless functions, a database and an authentication provider. Goodfellow has no backend at all; editors use their own GitHub or GitLab accounts, and there's no limit on how many.
+The other differences are about who it's for. Tina's content model, its collections and fields, is defined in code in `tina/config`, so adding a new kind of content or a field takes a developer, while Goodfellow's admins do it in the admin panel. Tina also needs a backend: either Tina Cloud, whose [free plan](https://tina.io/pricing) covers two users and whose paid plans start at $24 a month per project, or a backend you host yourself, which needs serverless functions, a database and an authentication provider. Goodfellow needs no backend of your own: editors use their own GitHub or GitLab accounts, signing in to GitHub through a small service Goodfellow runs for free, and there's no limit on how many.
 
 **Choose TinaCMS** if a developer builds and looks after the site, and wants rich Markdown and MDX editing in the framework of their choice. **Choose Goodfellow** if the people running the site should be able to build pages and change how content is organized themselves.
 
@@ -49,8 +49,8 @@ The other differences are about who it's for. Tina's content model, its collecti
 
 ## What Goodfellow can't do (yet)
 
-- **It's early.** Some features on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap), such as signing in with GitHub without a token and the Claude connector, aren't built yet.
-- **Sites are static.** Shops, logins and comments need a service of their own. Contact forms will work through a form service.
+- **It's early.** Goodfellow is new, and some features, such as moving a site from WordPress, are still on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap).
+- **Sites are static.** Shops, member logins and comments need a service of their own, or a developer who makes the site part of a [Next.js app with a server](/docs/full-stack-nextjs). Contact forms work through a form service; see [Forms](/docs/forms).
 - **Publishing takes a minute or two**, while the host rebuilds the site. The editor shows changes at once, but visitors see them after the rebuild.
-- **Editors need a GitHub or GitLab account** with permission to change the site's repository.
+- **Editors need a GitHub or GitLab account** with permission to change the site's repository, except on [full-stack Next.js sites](/docs/full-stack-nextjs), where they sign in with the app's own accounts.
 - **Free hosts have rules.** Some free plans don't allow business sites; see [Hosts and business sites](/docs/hosts).
