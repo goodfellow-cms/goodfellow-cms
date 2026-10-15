@@ -89,6 +89,19 @@ describe("redirectFiles", () => {
     ],
   };
 
+  it("shows the site's dark colors on a computer set to dark, only where the site has dark mode", () => {
+    const [light] = redirectFiles(content, { taken: [] }).map((file) => file.content);
+    expect(light).not.toContain("color-scheme");
+    const dark = redirectFiles(
+      { ...content, settings: { ...settings, theme: { ...settings.theme, darkMode: true } } },
+      { taken: [] },
+    )[0]?.content;
+    expect(dark).toContain('<meta name="color-scheme" content="light dark">');
+    expect(dark).toContain(
+      "@media (prefers-color-scheme: dark){body{color:#fafafa!important;background:#0a0a0a!important}",
+    );
+  });
+
   it("writes a page at each old address that sends visitors on, leaving out ones a page has", () => {
     const files = redirectFiles(content, { taken: ["/", "/about"] });
     expect(files.map((file) => file.path)).toEqual(["/about-us/index.html", "/news.html"]);
