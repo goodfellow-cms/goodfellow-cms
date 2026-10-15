@@ -93,7 +93,13 @@ export function ColorSchemeControl({
         aria-label={label}
         // Until the page's script has started, choosing would do nothing.
         disabled={!ready}
-        className={cx("rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground", className)}
+        className={cx(
+          "rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground",
+          // A menu can't be set by CSS, so where the visitor has chosen light or dark it's hidden until its
+          // script shows their choice, rather than showing "Follow my computer" first.
+          !ready && "[[data-gf-color-scheme]_&]:invisible",
+          className,
+        )}
         value={choice}
         onChange={(event) => choose(event.target.value as Choice)}
       >
@@ -105,6 +111,8 @@ export function ColorSchemeControl({
   }
 
   const dark = choice === "dark" || (choice === "system" && computerDark);
+  // What the switch shows comes from CSS (`dark:`), which knows the page's colors before it's
+  // shown, rather than from this component's state, which it only knows once its script has run.
   return (
     <button
       type="button"
@@ -116,16 +124,11 @@ export function ColorSchemeControl({
       className={cx("inline-flex items-center gap-2 rounded-full text-sm text-foreground", className)}
       onClick={() => choose(dark ? "light" : "dark")}
     >
-      {showLabels && <span className={dark ? "text-muted-foreground" : undefined}>{lightLabel}</span>}
+      {showLabels && <span className="dark:text-muted-foreground">{lightLabel}</span>}
       <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-border bg-muted">
-        <span
-          className={cx(
-            "inline-flex h-5 w-5 items-center justify-center rounded-full bg-background text-foreground shadow-sm",
-            dark ? "translate-x-5" : "translate-x-0.5",
-            ready && "transition-transform",
-          )}
-        >
+        <span className="inline-flex h-5 w-5 translate-x-0.5 items-center justify-center rounded-full bg-background text-foreground shadow-sm transition-transform dark:translate-x-5">
           <svg
+            className="dark:hidden"
             viewBox="0 0 24 24"
             width="12"
             height="12"
@@ -135,18 +138,25 @@ export function ColorSchemeControl({
             strokeLinecap="round"
             aria-hidden="true"
           >
-            {dark ? (
-              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-            ) : (
-              <>
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-              </>
-            )}
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          </svg>
+          <svg
+            className="hidden dark:block"
+            viewBox="0 0 24 24"
+            width="12"
+            height="12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
           </svg>
         </span>
       </span>
-      {showLabels && <span className={dark ? undefined : "text-muted-foreground"}>{darkLabel}</span>}
+      {showLabels && <span className="text-muted-foreground dark:text-foreground">{darkLabel}</span>}
     </button>
   );
 }

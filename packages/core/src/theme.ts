@@ -169,10 +169,16 @@ export function colorSchemeMeta(theme: Theme): string | undefined {
   return theme.darkMode ? "light dark" : undefined;
 }
 
-/** The Google Fonts stylesheet for a theme's fonts, or `undefined` if it uses none. */
+/**
+ * The Google Fonts stylesheet for a theme's fonts, or `undefined` if it uses none.
+ * `display=fallback` waits up to 100 ms for a font before showing a stand-in, so
+ * fonts the browser already has, such as on the site's next page, show at once
+ * instead of the stand-in first. (`swap` shows the stand-in even then.) A font that
+ * takes longer replaces the stand-in if it arrives within 3 seconds.
+ */
 export function googleFontsUrl(theme: Theme): string | undefined {
   const families = [...new Set([theme.fonts.heading, theme.fonts.body].filter(Boolean))] as string[];
   if (families.length === 0) return undefined;
   const params = families.map((family) => `family=${family.trim().replace(/ +/g, "+")}:wght@400;500;600;700`).join("&");
-  return `https://fonts.googleapis.com/css2?${params}&display=swap`;
+  return `https://fonts.googleapis.com/css2?${params}&display=fallback`;
 }

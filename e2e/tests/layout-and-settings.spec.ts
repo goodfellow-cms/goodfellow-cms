@@ -387,3 +387,16 @@ test("chooses the colors code is shown in", async ({ page }) => {
     theme: { code: { light: "everforest-light", dark: "everforest-dark", background: "site" } },
   });
 });
+
+test.describe("before any script runs", () => {
+  test.use({ javaScriptEnabled: false, colorScheme: "dark" });
+
+  test("the Dark mode switch already shows the colors the page has", async ({ page }) => {
+    withDarkModeSwitch("switch");
+    await page.goto("/");
+    const toggle = page.getByRole("switch", { name: "Dark mode" });
+    await expect(toggle.locator("svg").first()).toBeHidden();
+    await expect(toggle.locator("svg").last()).toBeVisible();
+    await expect(toggle.getByText("Dark")).toHaveCSS("color", "rgb(250, 250, 250)");
+  });
+});

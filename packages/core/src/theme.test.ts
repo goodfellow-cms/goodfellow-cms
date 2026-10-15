@@ -111,7 +111,7 @@ describe("codeStyle", () => {
 describe("googleFontsUrl", () => {
   it("requests each font once", () => {
     expect(googleFontsUrl(theme({ fonts: { heading: "Cinzel Decorative", body: "Cinzel Decorative" } }))).toBe(
-      "https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;500;600;700&display=swap",
+      "https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;500;600;700&display=fallback",
     );
   });
 
