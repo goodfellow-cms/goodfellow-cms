@@ -42,6 +42,7 @@ export {
   zonedInstant,
   zonedTime,
 } from "./calendar.js";
+export { COLOR_SCHEME_ATTRIBUTE, COLOR_SCHEME_STORAGE_KEY, colorSchemeScript } from "./color-scheme.js";
 export { type AiConfig, type ClaudeConfig, defineConfig, type GoodfellowConfig } from "./config.js";
 export {
   type BuildFile,
@@ -439,14 +440,19 @@ export {
   withoutRepositoryNotes,
 } from "./site-setup.js";
 export {
-  COLOR_SCHEME_ATTRIBUTE,
+  CODE_THEMES,
+  type CodeStyle,
+  codeStyle,
   colorSchemeMeta,
+  type DarkCodeTheme,
+  DEFAULT_CODE_THEMES,
   DEFAULT_DARK_THEME_COLORS,
   DEFAULT_RADIUS,
   DEFAULT_THEME_COLORS,
   darkThemeColor,
   escapeStyleText,
   googleFontsUrl,
+  type LightCodeTheme,
   themeToCss,
 } from "./theme.js";
 export { trimChars } from "./trim.js";

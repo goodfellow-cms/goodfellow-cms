@@ -1,3 +1,4 @@
+import { codeStyle, type SiteSettings } from "@goodfellow-cms/core";
 import { classNameField, cx } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import { CopyButton } from "./copy-button.js";
@@ -72,9 +73,10 @@ export const Code: ComponentConfig<CodeProps> = {
     copyLabel: "Copy code",
     className: "",
   },
-  resolveData: async ({ props }) => {
-    const shiki = await loadHighlighter();
-    return { props: { ...props, html: highlightCode(shiki, props.code, props.language, props.colors) } };
+  resolveData: async ({ props }, { metadata }) => {
+    const style = codeStyle((metadata.site as SiteSettings | undefined)?.theme);
+    const shiki = await loadHighlighter(style);
+    return { props: { ...props, html: highlightCode(shiki, props.code, props.language, props.colors, style) } };
   },
   render: ({ code, html, title, copyLabel, className }) => (
     <CodeView

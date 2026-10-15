@@ -25,6 +25,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Menu | One of the site's menus, with dropdowns for submenus |
 | Site name and logo | The site's logo and name, linking home |
 | Search | A search box for the whole site, with results as you type |
+| Dark mode switch | Lets visitors choose light or dark colors, on sites with dark mode |
 | Collection navigation | Links to every item in a collection, grouped by one of its choice fields |
 | Collection list | A collection's items as a list or cards, with a heading, on pages of their own and a page for each choice (see [Showing collections](/docs/showing-collections)) |
 | Collection loop | Blocks you design, shown once for each of a collection's items |
@@ -49,7 +50,16 @@ Give every video a description for screen readers. It can also have a caption be
 
 ## Code
 
-The Code block highlights code when the site is built, so visitors' browsers don't have to. It knows Bash, CSS, diffs, HTML, JavaScript, JSON, JSX, Markdown, Python, TSX, TypeScript and YAML, in colors like the page's (light, or dark when the site's [dark mode](/docs/layout-and-settings#dark-mode) shows it dark), or always light or dark. The copy button's label is the block's to set, so sites in other languages can translate it; leave it empty for no button.
+The Code block highlights code when the site is built, so visitors' browsers don't have to. It knows Bash, CSS, diffs, HTML, JavaScript, JSON, JSX, Markdown, Python, TSX, TypeScript and YAML, in colors like the page's (light, or dark when the site's [dark mode](/docs/layout-and-settings#dark-mode) shows it dark), or always light or dark. Which colors those are is a site setting, [Code colors](/docs/layout-and-settings#code-colors). The copy button's label is the block's to set, so sites in other languages can translate it; leave it empty for no button.
+
+## Dark mode switch
+
+On a site with [dark mode](/docs/layout-and-settings#dark-mode), the Dark mode switch lets visitors choose light or dark colors instead of following their computer's setting. **Show as** chooses:
+
+- **A switch between light and dark**, with a sun or a moon on it, and the words **Light** and **Dark** beside it if **Words beside the switch** is **Show**.
+- **A menu**, like the admin panel's: **Light**, **Dark** or **Follow my computer**, which goes back to following the computer's setting.
+
+The visitor's choice is kept in their browser and put back at the start of every page, before it shows, so pages never flash the other colors first. Every word is the block's to set, so sites in other languages can translate them. On a site without dark mode, the switch isn't shown, and the editor says where to turn dark mode on.
 
 ## Search
 

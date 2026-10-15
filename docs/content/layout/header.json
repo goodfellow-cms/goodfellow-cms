@@ -55,6 +55,19 @@
                             "placeholder": "Search the docs",
                             "unavailable": "Search works on the published site."
                           }
+                        },
+                        {
+                          "type": "DarkModeSwitch",
+                          "props": {
+                            "id": "DarkModeSwitch-7",
+                            "className": "",
+                            "darkLabel": "Dark",
+                            "display": "switch",
+                            "label": "Dark mode",
+                            "labels": "hide",
+                            "lightLabel": "Light",
+                            "systemLabel": "Follow my computer"
+                          }
                         }
                       ],
                       "justify": "start",

@@ -28,9 +28,20 @@ A site is light only until you turn on dark mode, under **Colors & fonts → Dar
 - **Colors in dark mode:** each of the site's colors has a dark one. Colors you leave empty use the defaults shown, neutral grays with white text. Choose dark colors that suit your main color: a dark blue that works as the main color on white is hard to see on a dark background, so a lighter blue usually works better.
 - **Preview:** choose **Light** or **Dark** to see the preview either way. Until you choose, the preview is light or dark like the admin panel.
 - **Logo in dark mode:** on the **General** tab, a version of the logo for dark backgrounds, such as a white one. Without one, the same logo is shown in both.
-- **Code** in Code blocks set to **Like the page**, and code in Markdown items, changes to dark colors too.
+- **Code** in Code blocks set to **Like the page**, and code in Markdown items, changes to its dark colors too (see [Code colors](#code-colors)).
+- **Choosing:** the [Dark mode switch](/docs/built-in-blocks#dark-mode-switch) block lets visitors choose light or dark for themselves, such as in the header. Without one, the site follows each visitor's setting.
 
 Turning dark mode off keeps the dark colors, so turning it back on finds them again.
+
+## Code colors
+
+**Colors & fonts → Code colors** chooses how code in Code blocks and Markdown items is colored, from color schemes made for code, such as GitHub's, Everforest or Rosé Pine:
+
+- **Light colors** are for code that looks like the page, and for Code blocks set to **Light**.
+- **Dark colors** are for code that looks like the page in [dark mode](#dark-mode), and for Code blocks set to **Dark**.
+- **Show code on the subtle background color** gives code that looks like the page the site's **Subtle background** color, instead of the background its colors were made for, so it matches the rest of the site. Some colors are harder to read on another background, so check how the code looks.
+
+GitHub Light and GitHub Dark are the defaults.
 
 ## Redirects
 

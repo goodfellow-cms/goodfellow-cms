@@ -807,6 +807,14 @@ export const defaultStrings = {
   "theme.previewLight": "Light",
   "theme.previewDark": "Dark",
   "theme.pickColor": "Choose a color for {name}",
+  "theme.code": "Code colors",
+  "theme.codeHint":
+    "The colors of code in Code blocks and Markdown. Code that looks like the page uses the light colors, and the dark colors in dark mode.",
+  "theme.codeLight": "Light colors",
+  "theme.codeDark": "Dark colors",
+  "theme.codeBackground": "Show code on the subtle background color",
+  "theme.codeBackgroundHint":
+    "Code that looks like the page sits on the site's Subtle background color instead of its colors' own background, so it matches the rest of the site. Check that it's still easy to read.",
 
   "menus.intro": "Menus are lists of links. Show one anywhere with the Menu block, using its name.",
   "menus.empty": "There are no menus yet.",

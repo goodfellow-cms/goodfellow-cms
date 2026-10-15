@@ -4,6 +4,7 @@ import { Code } from "./code.js";
 import { CollectionList, EntryField } from "./collections.js";
 import { ContactDetails } from "./contact.js";
 import { Button, Heading, Image, Text } from "./content.js";
+import { DarkModeSwitch } from "./dark-mode-switch.js";
 import { CollectionNav, EntryPager, OnThisPage } from "./docs.js";
 import { Form } from "./form.js";
 import { Flex, Grid, Section, Space } from "./layout.js";
@@ -43,6 +44,7 @@ export {
   Text,
   type TextProps,
 } from "./content.js";
+export { DarkModeSwitch, type DarkModeSwitchProps } from "./dark-mode-switch.js";
 export {
   CollectionNav,
   type CollectionNavProps,
@@ -101,6 +103,7 @@ export const blocks = {
   Menu,
   SiteBrand,
   Search,
+  DarkModeSwitch,
   CollectionNav,
   CollectionList,
   CollectionLoop,
@@ -118,7 +121,7 @@ export const categories = {
     title: "Content",
     components: ["Heading", "Text", "Button", "Image", "Video", "Form", "Code", "ContactDetails"],
   },
-  navigation: { title: "Navigation", components: ["Menu", "SiteBrand", "Search", "CollectionNav"] },
+  navigation: { title: "Navigation", components: ["Menu", "SiteBrand", "Search", "DarkModeSwitch", "CollectionNav"] },
   collections: {
     title: "Collections",
     components: [

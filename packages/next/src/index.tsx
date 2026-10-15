@@ -1,6 +1,7 @@
 import {
   absoluteUrl,
   colorSchemeMeta,
+  colorSchemeScript,
   demoContent,
   findRedirect,
   type GoodfellowConfig,
@@ -131,9 +132,13 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   function Theme({ content }: { content: SiteContent }) {
     const fontsUrl = googleFontsUrl(content.settings.theme);
     const colorScheme = colorSchemeMeta(content.settings.theme);
+    const schemeScript = colorSchemeScript(content.settings.theme);
     return (
       <>
         {colorScheme && <meta name="color-scheme" content={colorScheme} />}
+        {/* Before the header, so the visitor's light or dark choice is back before anything shows. */}
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own script, which puts back the visitor's light or dark choice */}
+        {schemeScript && <script dangerouslySetInnerHTML={{ __html: schemeScript }} />}
         <style href="goodfellow-theme" precedence="default">
           {themeToCss(content.settings.theme)}
         </style>

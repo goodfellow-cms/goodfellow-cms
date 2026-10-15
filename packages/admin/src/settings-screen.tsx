@@ -1,4 +1,6 @@
 import {
+  CODE_THEMES,
+  DEFAULT_CODE_THEMES,
   DEFAULT_DARK_THEME_COLORS,
   DEFAULT_THEME_COLORS,
   type FileChange,
@@ -21,8 +23,8 @@ import {
   type ThemeColor,
   todayIn,
 } from "@goodfellow-cms/core";
-import { PageBody, type SiteContextValue } from "@goodfellow-cms/react";
-import type { Data } from "@puckeditor/core";
+import { PageBody, type SiteContextValue, siteMetadata } from "@goodfellow-cms/react";
+import { type Data, resolveAllData } from "@puckeditor/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import {
@@ -101,8 +103,18 @@ function cleanSettings(draft: SiteSettings): unknown {
       // Dark colors are kept while dark mode is off, so turning it back on finds them again.
       darkMode: draft.theme.darkMode || undefined,
       darkColors: Object.keys(darkColors).length > 0 ? darkColors : undefined,
+      code: cleanCode(draft.theme.code),
     },
   };
+}
+
+function cleanCode(code: SiteSettings["theme"]["code"]): SiteSettings["theme"]["code"] {
+  const cleaned = {
+    ...(code?.light && { light: code.light }),
+    ...(code?.dark && { dark: code.dark }),
+    ...(code?.background === "site" && { background: "site" as const }),
+  };
+  return Object.keys(cleaned).length > 0 ? cleaned : undefined;
 }
 
 function cleanContact(contact: SiteSettings["contact"]): SiteSettings["contact"] {
@@ -467,6 +479,43 @@ function ThemeTab({
         </>
       )}
 
+      <h2 className="gfa-section-title">{t("theme.code")}</h2>
+      <p className="gfa-hint">{t("theme.codeHint")}</p>
+      {(["light", "dark"] as const).map((side) => (
+        <Field key={side} label={t(side === "light" ? "theme.codeLight" : "theme.codeDark")}>
+          {(props) => (
+            <select
+              {...props}
+              className="gfa-input"
+              value={theme.code?.[side] ?? DEFAULT_CODE_THEMES[side]}
+              onChange={(event) =>
+                onChange({ ...draft, theme: { ...theme, code: { ...theme.code, [side]: event.target.value } } })
+              }
+            >
+              {Object.entries(CODE_THEMES[side]).map(([name, label]) => (
+                <option key={name} value={name}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+      ))}
+      <label className="gfa-checkbox">
+        <input
+          type="checkbox"
+          checked={theme.code?.background === "site"}
+          onChange={(event) =>
+            onChange({
+              ...draft,
+              theme: { ...theme, code: { ...theme.code, background: event.target.checked ? "site" : undefined } },
+            })
+          }
+        />
+        {t("theme.codeBackground")}
+      </label>
+      <p className="gfa-hint">{t("theme.codeBackgroundHint")}</p>
+
       <h2 className="gfa-section-title">{t("theme.fonts")}</h2>
       <p className="gfa-hint">{t("theme.fontsHint")}</p>
       <FontPicker
@@ -709,6 +758,22 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     }),
     [previewSettings, menus, content.collections, homeView],
   );
+  // Blocks whose look depends on the settings, such as code's colors, are prepared again as they change.
+  const [resolvedHome, setResolvedHome] = useState<Data>();
+  useEffect(() => {
+    if (!home) return;
+    let current = true;
+    const timer = setTimeout(() => {
+      resolveAllData(home.content.data as Data, pageConfig, siteMetadata(previewSite)).then(
+        (data) => current && setResolvedHome(data),
+        () => {},
+      );
+    }, 300);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [home, pageConfig, previewSite]);
   // Light or dark, as chosen on the Theme tab, or like the admin panel until then.
   const adminDark = useDarkMode();
   const [chosenScheme, setChosenScheme] = useState<PreviewScheme>();
@@ -796,7 +861,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
               site={previewSite}
               pageConfig={pageConfig}
               layoutConfig={layoutConfig}
-              page={home.content.data as Data}
+              page={resolvedHome ?? (home.content.data as Data)}
               header={content.header.data as Data}
               footer={content.footer.data as Data}
             />

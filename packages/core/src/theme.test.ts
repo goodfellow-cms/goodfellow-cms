@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { colorSchemeScript } from "./color-scheme.js";
 import { siteSettingsSchema } from "./content/schemas.js";
-import { colorSchemeMeta, escapeStyleText, googleFontsUrl, themeToCss } from "./theme.js";
+import {
+  codeStyle,
+  colorSchemeMeta,
+  DEFAULT_CODE_THEMES,
+  escapeStyleText,
+  googleFontsUrl,
+  themeToCss,
+} from "./theme.js";
 
 const theme = (input: object) => siteSettingsSchema.parse({ version: 1, theme: input }).theme;
 
@@ -42,6 +50,61 @@ describe("dark mode", () => {
     expect(css).toMatch(/:root\[data-gf-color-scheme="dark"\]\{[^}]*--primary:#93c5fd;[^}]*color-scheme:dark\}/);
     expect(css).toContain(':root[data-gf-color-scheme="light"]{color-scheme:light}');
     expect(colorSchemeMeta(theme({ darkMode: true }))).toBe("light dark");
+  });
+});
+
+describe("the visitor's choice from the Dark mode switch", () => {
+  it("is put back before the page shows, on sites with dark mode only", () => {
+    expect(colorSchemeScript(theme({}))).toBeUndefined();
+    const script = colorSchemeScript(theme({ darkMode: true })) ?? "";
+    const root = {
+      attributes: {} as Record<string, string>,
+      setAttribute(name: string, value: string) {
+        this.attributes[name] = value;
+      },
+    };
+    const run = (stored: string | null) => {
+      root.attributes = {};
+      new Function("localStorage", "document", script)({ getItem: () => stored }, { documentElement: root });
+      return root.attributes;
+    };
+    expect(run("dark")).toEqual({ "data-gf-color-scheme": "dark" });
+    expect(run("light")).toEqual({ "data-gf-color-scheme": "light" });
+    expect(run(null)).toEqual({});
+    expect(run("purple")).toEqual({});
+    // Storage that can't be read, as in some private windows, leaves the page following the computer.
+    expect(() =>
+      new Function("localStorage", "document", script)(
+        {
+          getItem: () => {
+            throw new Error("blocked");
+          },
+        },
+        { documentElement: root },
+      ),
+    ).not.toThrow();
+  });
+});
+
+describe("codeStyle", () => {
+  it("uses GitHub's themes and their backgrounds unless the site chooses others", () => {
+    expect(codeStyle(theme({}))).toEqual({ ...DEFAULT_CODE_THEMES, siteBackground: false, darkMode: false });
+    expect(codeStyle(undefined)).toEqual({ ...DEFAULT_CODE_THEMES, siteBackground: false, darkMode: false });
+    expect(
+      codeStyle(
+        theme({ darkMode: true, code: { light: "everforest-light", dark: "everforest-dark", background: "site" } }),
+      ),
+    ).toEqual({ light: "everforest-light", dark: "everforest-dark", siteBackground: true, darkMode: true });
+  });
+
+  it("falls back to the defaults for themes Goodfellow doesn't offer, or on the wrong side", () => {
+    expect(codeStyle(theme({ code: { light: "github-dark", dark: "no-such-theme" } }))).toMatchObject(
+      DEFAULT_CODE_THEMES,
+    );
+  });
+
+  it("refuses names that aren't theme names", () => {
+    expect(() => theme({ code: { light: "../themes/x" } })).toThrow();
   });
 });
 

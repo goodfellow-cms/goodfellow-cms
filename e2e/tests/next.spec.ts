@@ -47,6 +47,41 @@ test("follows the visitor's light or dark setting once the site has dark mode", 
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
 });
 
+test("keeps a visitor's choice from the Dark mode switch between pages", async ({ page }) => {
+  const settingsFile = join(nextSite, "content/site.json");
+  const settings = JSON.parse(readFileSync(settingsFile, "utf8"));
+  settings.theme = { ...settings.theme, darkMode: true, darkColors: { background: "#1e1b4b" } };
+  writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`);
+  const headerFile = join(nextSite, "content/layout/header.json");
+  const header = JSON.parse(readFileSync(headerFile, "utf8"));
+  header.data.content.push({
+    type: "DarkModeSwitch",
+    props: {
+      id: "DarkModeSwitch-test",
+      display: "switch",
+      labels: "hide",
+      label: "Dark mode",
+      lightLabel: "Light",
+      darkLabel: "Dark",
+      systemLabel: "Follow my computer",
+      className: "",
+    },
+  });
+  writeFileSync(headerFile, `${JSON.stringify(header, null, 2)}\n`);
+  const problems: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && /hydrat/i.test(message.text())) problems.push(message.text());
+  });
+
+  await page.goto(`${BASE}/about/`);
+  await page.getByRole("switch", { name: "Dark mode" }).click();
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+  await page.goto(`${BASE}/news/`);
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+  await expect(page.getByRole("switch", { name: "Dark mode" })).toHaveAttribute("aria-checked", "true");
+  expect(problems).toEqual([]);
+});
+
 test("shows the site's own page for addresses that don't exist", async ({ page }) => {
   const response = await page.goto(`${BASE}/no-such-page/`);
   expect(response?.status()).toBe(404);

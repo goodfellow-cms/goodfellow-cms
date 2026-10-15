@@ -1,3 +1,4 @@
+import { COLOR_SCHEME_ATTRIBUTE } from "./color-scheme.js";
 import { THEME_COLORS, type Theme, type ThemeColor } from "./content/schemas.js";
 
 /** The theme used for anything a site doesn't set. Neutral grays, so any brand color works on top. */
@@ -31,11 +32,80 @@ export const DEFAULT_DARK_THEME_COLORS: Record<ThemeColor, string> = {
 };
 
 /**
- * The attribute the admin panel's previews set on `<html>` to show a site
- * light (`light`) or dark (`dark`) whatever the computer's setting. Live
- * pages don't have it, so they follow the visitor's setting.
+ * The code themes Site Settings offers, by Shiki's name, with what the admin
+ * panel calls them. `@goodfellow-cms/blocks` loads each one when a site uses it.
  */
-export const COLOR_SCHEME_ATTRIBUTE = "data-gf-color-scheme";
+export const CODE_THEMES = {
+  light: {
+    "github-light": "GitHub Light",
+    "everforest-light": "Everforest Light",
+    "vitesse-light": "Vitesse Light",
+    "rose-pine-dawn": "Rosé Pine Dawn",
+    "catppuccin-latte": "Catppuccin Latte",
+    "solarized-light": "Solarized Light",
+    "one-light": "One Light",
+    "min-light": "Min Light",
+    "gruvbox-light-soft": "Gruvbox Light",
+    "kanagawa-lotus": "Kanagawa Lotus",
+    "ayu-light": "Ayu Light",
+    "material-theme-lighter": "Material Lighter",
+    "night-owl-light": "Night Owl Light",
+    "light-plus": "Visual Studio Code Light",
+  },
+  dark: {
+    "github-dark": "GitHub Dark",
+    "github-dark-dimmed": "GitHub Dark Dimmed",
+    "everforest-dark": "Everforest Dark",
+    "vitesse-dark": "Vitesse Dark",
+    "kanagawa-dragon": "Kanagawa Dragon",
+    "kanagawa-wave": "Kanagawa Wave",
+    "rose-pine": "Rosé Pine",
+    "rose-pine-moon": "Rosé Pine Moon",
+    "catppuccin-mocha": "Catppuccin Mocha",
+    "catppuccin-macchiato": "Catppuccin Macchiato",
+    nord: "Nord",
+    "one-dark-pro": "One Dark Pro",
+    "tokyo-night": "Tokyo Night",
+    "gruvbox-dark-medium": "Gruvbox Dark",
+    "solarized-dark": "Solarized Dark",
+    "night-owl": "Night Owl",
+    "min-dark": "Min Dark",
+    dracula: "Dracula",
+    "material-theme-darker": "Material Darker",
+    poimandres: "Poimandres",
+    "ayu-dark": "Ayu Dark",
+    vesper: "Vesper",
+    "dark-plus": "Visual Studio Code Dark",
+    monokai: "Monokai",
+  },
+} as const;
+
+export type LightCodeTheme = keyof (typeof CODE_THEMES)["light"];
+export type DarkCodeTheme = keyof (typeof CODE_THEMES)["dark"];
+
+export const DEFAULT_CODE_THEMES = { light: "github-light", dark: "github-dark" } as const;
+
+/** How a site's code is colored, from its theme, with defaults for anything it doesn't set or Goodfellow doesn't offer. */
+export interface CodeStyle {
+  light: LightCodeTheme;
+  dark: DarkCodeTheme;
+  /** Code colored like the page takes the site's panel color (`--muted`) rather than its theme's background. */
+  siteBackground: boolean;
+  /** Whether the site has dark mode, so code colored like the page needs its dark colors too. */
+  darkMode: boolean;
+}
+
+export function codeStyle(theme: Partial<Theme> | undefined): CodeStyle {
+  const code = theme?.code;
+  const light = code?.light && code.light in CODE_THEMES.light ? (code.light as LightCodeTheme) : undefined;
+  const dark = code?.dark && code.dark in CODE_THEMES.dark ? (code.dark as DarkCodeTheme) : undefined;
+  return {
+    light: light ?? DEFAULT_CODE_THEMES.light,
+    dark: dark ?? DEFAULT_CODE_THEMES.dark,
+    siteBackground: code?.background === "site",
+    darkMode: theme?.darkMode === true,
+  };
+}
 
 export const DEFAULT_RADIUS = "0.5rem";
 

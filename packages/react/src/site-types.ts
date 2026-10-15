@@ -24,7 +24,7 @@ export interface SiteComponents {
 
 /** What every block can know about the site and the page being rendered. */
 /** A place in the admin panel that blocks' notes in the editor can link to: Site Settings, or a section of it. */
-export type AdminPlace = "settings" | "contact-settings" | "forms-settings";
+export type AdminPlace = "settings" | "contact-settings" | "forms-settings" | "theme-settings";
 
 /** A link into the admin panel, for a block's note in the editor: spread it onto an `<a>`. */
 export interface AdminLinkProps {
