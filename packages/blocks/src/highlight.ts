@@ -38,9 +38,10 @@ const ALIASES: Record<string, CodeLanguage> = {
   txt: "text",
 };
 
-export type CodeColors = "light" | "dark";
+/** Code's colors: like the page (light, or dark in the site's dark mode), or always light or dark. */
+export type CodeColors = "page" | "light" | "dark";
 
-const THEMES: Record<CodeColors, string> = { light: "github-light", dark: "github-dark" };
+const THEMES = { light: "github-light", dark: "github-dark" } as const;
 
 /** The language a name means, such as `ts` → `typescript`, or `undefined` if it isn't one Goodfellow highlights. */
 export function codeLanguage(name: string): CodeLanguage | undefined {
@@ -94,8 +95,10 @@ export function highlightCode(
   shiki: HighlighterCore,
   code: string,
   language: string,
-  colors: CodeColors = "light",
+  colors: CodeColors = "page",
 ): string {
   const lang = codeLanguage(language) ?? "text";
+  // Both themes' colors, as CSS variables for the dark one, which styles.css uses in dark mode.
+  if (colors === "page") return shiki.codeToHtml(code, { lang, themes: THEMES, defaultColor: "light" });
   return shiki.codeToHtml(code, { lang, theme: THEMES[colors] });
 }

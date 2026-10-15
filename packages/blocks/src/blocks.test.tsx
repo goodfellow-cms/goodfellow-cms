@@ -157,6 +157,34 @@ describe("built-in blocks", () => {
     expect(html).toContain('<img src="/media/logo.svg" alt="" class="h-10 w-auto"/><span>St. Joseph</span>');
   });
 
+  it("shows the dark logo in dark mode, only where the site has dark mode", async () => {
+    const saved = content.settings;
+    const logo = { src: "/media/logo.svg", alt: "Logo", darkSrc: "/media/logo-light.svg" };
+    content.settings = { ...saved, logo };
+    try {
+      const brand = [{ type: "SiteBrand", props: { id: "b", show: "logo", className: "" } }];
+      // Without dark mode, the dark logo is kept but not shown.
+      expect(await render(brand)).not.toContain("logo-light.svg");
+      content.settings = { ...saved, logo, theme: { ...saved.theme, darkMode: true } };
+      const html = await render(brand);
+      expect(html).toContain('<img src="/media/logo.svg" alt="Logo" class="h-10 w-auto dark:hidden"/>');
+      expect(html).toContain('<img src="/media/logo-light.svg" alt="Logo" class="hidden h-10 w-auto dark:block"/>');
+    } finally {
+      content.settings = saved;
+    }
+  });
+
+  it("colors code like the page by default, with Shiki's dark colors for dark mode", async () => {
+    const code = { id: "c", code: "let a = 1;", language: "javascript", title: "", copyLabel: "", className: "" };
+    const page = await render([{ type: "Code", props: { ...code, colors: "page" } }]);
+    expect(page).toContain('class="shiki shiki-themes github-light github-dark"');
+    expect(page).toContain("--shiki-dark:");
+    const dark = await render([{ type: "Code", props: { ...code, colors: "dark" } }]);
+    expect(dark).toContain('class="shiki github-dark"');
+    expect(dark).not.toContain("--shiki-dark:");
+    expect(blocks.Code.defaultProps?.colors).toBe("page");
+  });
+
   it("shows the site's contact details, linking the phone number and email address", async () => {
     const saved = content.settings;
     content.settings = {
@@ -358,7 +386,7 @@ describe("built-in blocks", () => {
     const main = html.slice(html.indexOf("<main"), html.indexOf("</main>"));
     expect(main).toContain('<h2 id="install-it">Install it</h2>');
     expect(main).toContain("<td>GitLab</td>");
-    expect(main).toContain('<pre class="shiki github-light"');
+    expect(main).toContain('<pre class="shiki shiki-themes github-light github-dark"');
     expect(main).toContain('aria-label="Copy"');
     expect(main).not.toMatch(/<script|href="javascript/);
   });

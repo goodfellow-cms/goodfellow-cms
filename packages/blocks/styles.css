@@ -107,3 +107,20 @@
     margin-right: 0.5em;
   }
 }
+
+/* Code whose colors are like the page's (Code's "Like the page", and code in Markdown) changes to Shiki's dark colors in dark mode. */
+.shiki-themes {
+  @variant dark {
+    /* biome-ignore lint/complexity/noImportantStyles: Shiki writes the light colors inline. */
+    background-color: var(--shiki-dark-bg) !important;
+    /* biome-ignore lint/complexity/noImportantStyles: Shiki writes the light colors inline. */
+    color: var(--shiki-dark) !important;
+  }
+}
+
+.shiki-themes span {
+  @variant dark {
+    /* biome-ignore lint/complexity/noImportantStyles: Shiki writes the light colors inline. */
+    color: var(--shiki-dark) !important;
+  }
+}

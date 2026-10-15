@@ -4,3 +4,9 @@ packages:
   - "examples/*"
   - "docs"
   - "e2e"
+
+overrides:
+  # Cloudflare's browser library depends on Puppeteer's browser downloader, which
+  # the connector never runs (Workers use Browser Rendering's browsers) and
+  # which brings in extract-zip and basic-ftp, both with security advisories.
+  "@cloudflare/puppeteer>@puppeteer/browsers": "-"

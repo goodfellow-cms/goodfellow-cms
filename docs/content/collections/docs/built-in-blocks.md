@@ -49,7 +49,7 @@ Give every video a description for screen readers. It can also have a caption be
 
 ## Code
 
-The Code block highlights code when the site is built, so visitors' browsers don't have to. It knows Bash, CSS, diffs, HTML, JavaScript, JSON, JSX, Markdown, Python, TSX, TypeScript and YAML, in light or dark colors. The copy button's label is the block's to set, so sites in other languages can translate it; leave it empty for no button.
+The Code block highlights code when the site is built, so visitors' browsers don't have to. It knows Bash, CSS, diffs, HTML, JavaScript, JSON, JSX, Markdown, Python, TSX, TypeScript and YAML, in colors like the page's (light, or dark when the site's [dark mode](/docs/layout-and-settings#dark-mode) shows it dark), or always light or dark. The copy button's label is the block's to set, so sites in other languages can translate it; leave it empty for no button.
 
 ## Search
 

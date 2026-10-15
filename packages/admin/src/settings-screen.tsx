@@ -1,4 +1,5 @@
 import {
+  DEFAULT_DARK_THEME_COLORS,
   DEFAULT_THEME_COLORS,
   type FileChange,
   type FormSettings,
@@ -37,10 +38,11 @@ import { FontPicker } from "./font-picker.js";
 import { useHistory } from "./history.js";
 import { MediaField } from "./media-library.js";
 import { MenusEditor } from "./menus-editor.js";
-import { PreviewFrame } from "./preview.js";
+import { PreviewFrame, type PreviewScheme } from "./preview.js";
 import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
 import { type SettingsSection, useUnsavedChanges } from "./router.js";
 import { type StringKey, useStrings } from "./strings.js";
+import { useDarkMode } from "./theme.js";
 import { Button, ErrorMessage, Field, PublishedNotice, TextField } from "./ui.js";
 import { AppLink } from "./use-link.js";
 
@@ -75,7 +77,11 @@ function headCodeProblem(t: ReturnType<typeof useStrings>, head: string): string
 /** Turns the form's values into settings: empty optional fields are left out rather than saved as "". */
 function cleanSettings(draft: SiteSettings): unknown {
   const optional = (value: string | undefined) => (value?.trim() ? value.trim() : undefined);
-  const colors = Object.fromEntries(Object.entries(draft.theme.colors).filter(([, value]) => value?.trim()));
+  const filled = (colors: Partial<Record<ThemeColor, string>> | undefined) =>
+    Object.fromEntries(Object.entries(colors ?? {}).filter(([, value]) => value?.trim()));
+  const colors = filled(draft.theme.colors);
+  const darkColors = filled(draft.theme.darkColors);
+  const darkLogo = optional(draft.logo?.darkSrc);
   return {
     ...draft,
     url: optional(draft.url),
@@ -83,13 +89,18 @@ function cleanSettings(draft: SiteSettings): unknown {
     timeZone: optional(draft.timeZone),
     favicon: optional(draft.favicon),
     socialImage: optional(draft.socialImage),
-    logo: draft.logo?.src.trim() ? { src: draft.logo.src.trim(), alt: draft.logo.alt } : undefined,
+    logo: draft.logo?.src.trim()
+      ? { src: draft.logo.src.trim(), alt: draft.logo.alt, ...(darkLogo && { darkSrc: darkLogo }) }
+      : undefined,
     contact: cleanContact(draft.contact),
     forms: cleanForms(draft.forms),
     theme: {
       colors,
       fonts: { heading: optional(draft.theme.fonts.heading), body: optional(draft.theme.fonts.body) },
       radius: optional(draft.theme.radius),
+      // Dark colors are kept while dark mode is off, so turning it back on finds them again.
+      darkMode: draft.theme.darkMode || undefined,
+      darkColors: Object.keys(darkColors).length > 0 ? darkColors : undefined,
     },
   };
 }
@@ -285,13 +296,23 @@ function GeneralTab({
         label={t("general.logo")}
         value={draft.logo?.src ?? ""}
         error={errors["logo.src"]}
-        onChange={(src) => onChange({ ...draft, logo: { alt: draft.logo?.alt ?? "", src } })}
+        onChange={(src) => onChange({ ...draft, logo: { ...draft.logo, alt: draft.logo?.alt ?? "", src } })}
       />
       <TextField
         label={t("general.logoAlt")}
         value={draft.logo?.alt ?? ""}
-        onChange={(alt) => onChange({ ...draft, logo: { src: draft.logo?.src ?? "", alt } })}
+        onChange={(alt) => onChange({ ...draft, logo: { ...draft.logo, src: draft.logo?.src ?? "", alt } })}
       />
+      {draft.theme.darkMode && (
+        <MediaField
+          label={t("general.logoDark")}
+          hint={t("general.logoDarkHint")}
+          value={draft.logo?.darkSrc ?? ""}
+          onChange={(darkSrc) =>
+            onChange({ ...draft, logo: { src: draft.logo?.src ?? "", alt: draft.logo?.alt ?? "", darkSrc } })
+          }
+        />
+      )}
       <MediaField label={t("general.favicon")} {...text("favicon")} />
       <MediaField label={t("general.socialImage")} {...text("socialImage")} />
 
@@ -330,50 +351,121 @@ function GeneralTab({
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
+/** One set of the theme's colors: the light ones, or dark mode's. */
+function ColorGrid({
+  colors,
+  defaults,
+  errors,
+  errorPrefix,
+  onChange,
+}: {
+  colors: Partial<Record<ThemeColor, string>>;
+  defaults: Record<ThemeColor, string>;
+  errors: Record<string, string>;
+  errorPrefix: string;
+  onChange: (name: ThemeColor, value: string) => void;
+}) {
+  const t = useStrings();
+  return (
+    <div className="gfa-color-grid">
+      {THEME_COLORS.map((name) => {
+        const value = colors[name] ?? "";
+        const shown = value || defaults[name];
+        return (
+          <Field key={name} label={t(`theme.color.${name}` as StringKey)} error={errors[`${errorPrefix}.${name}`]}>
+            {(props) => (
+              <div className="gfa-color-input">
+                <input
+                  type="color"
+                  aria-label={t("theme.pickColor", { name: t(`theme.color.${name}` as StringKey) })}
+                  value={HEX.test(shown) ? shown : "#000000"}
+                  onChange={(event) => onChange(name, event.target.value)}
+                />
+                <input
+                  {...props}
+                  className="gfa-input"
+                  value={value}
+                  placeholder={`${t("theme.default")}: ${defaults[name]}`}
+                  onChange={(event) => onChange(name, event.target.value)}
+                />
+              </div>
+            )}
+          </Field>
+        );
+      })}
+    </div>
+  );
+}
+
 function ThemeTab({
   draft,
   errors,
+  previewScheme,
   onChange,
+  onPreviewScheme,
 }: {
   draft: SiteSettings;
   errors: Record<string, string>;
+  previewScheme: PreviewScheme;
   onChange: (draft: SiteSettings) => void;
+  onPreviewScheme: (scheme: PreviewScheme) => void;
 }) {
   const t = useStrings();
   const { theme } = draft;
   const setColor = (name: ThemeColor, value: string) =>
     onChange({ ...draft, theme: { ...theme, colors: { ...theme.colors, [name]: value } } });
+  const setDarkColor = (name: ThemeColor, value: string) =>
+    onChange({ ...draft, theme: { ...theme, darkColors: { ...theme.darkColors, [name]: value } } });
 
   return (
     <div className="gfa-form">
       <h2 className="gfa-section-title">{t("theme.colors")}</h2>
-      <div className="gfa-color-grid">
-        {THEME_COLORS.map((name) => {
-          const value = theme.colors[name] ?? "";
-          const shown = value || DEFAULT_THEME_COLORS[name];
-          return (
-            <Field key={name} label={t(`theme.color.${name}` as StringKey)} error={errors[`theme.colors.${name}`]}>
-              {(props) => (
-                <div className="gfa-color-input">
-                  <input
-                    type="color"
-                    aria-label={t("theme.pickColor", { name: t(`theme.color.${name}` as StringKey) })}
-                    value={HEX.test(shown) ? shown : "#000000"}
-                    onChange={(event) => setColor(name, event.target.value)}
-                  />
-                  <input
-                    {...props}
-                    className="gfa-input"
-                    value={value}
-                    placeholder={`${t("theme.default")}: ${DEFAULT_THEME_COLORS[name]}`}
-                    onChange={(event) => setColor(name, event.target.value)}
-                  />
-                </div>
-              )}
-            </Field>
-          );
-        })}
-      </div>
+      <ColorGrid
+        colors={theme.colors}
+        defaults={DEFAULT_THEME_COLORS}
+        errors={errors}
+        errorPrefix="theme.colors"
+        onChange={setColor}
+      />
+
+      <h2 className="gfa-section-title">{t("theme.darkMode")}</h2>
+      <label className="gfa-checkbox">
+        <input
+          type="checkbox"
+          checked={theme.darkMode === true}
+          onChange={(event) => onChange({ ...draft, theme: { ...theme, darkMode: event.target.checked } })}
+        />
+        {t("theme.darkModeOn")}
+      </label>
+      <p className="gfa-hint">{t("theme.darkModeHint")}</p>
+      {theme.darkMode && (
+        <>
+          <fieldset className="gfa-choice-group">
+            <legend className="gfa-label">{t("theme.preview")}</legend>
+            {(["light", "dark"] as const).map((scheme) => (
+              <label key={scheme} className="gfa-checkbox">
+                <input
+                  type="radio"
+                  name="preview-scheme"
+                  checked={previewScheme === scheme}
+                  onChange={() => onPreviewScheme(scheme)}
+                />
+                {t(scheme === "light" ? "theme.previewLight" : "theme.previewDark")}
+              </label>
+            ))}
+          </fieldset>
+          <fieldset className="gfa-choice-group">
+            <legend className="gfa-label">{t("theme.darkColors")}</legend>
+            <ColorGrid
+              colors={theme.darkColors ?? {}}
+              defaults={DEFAULT_DARK_THEME_COLORS}
+              errors={errors}
+              errorPrefix="theme.darkColors"
+              onChange={setDarkColor}
+            />
+          </fieldset>
+        </>
+      )}
 
       <h2 className="gfa-section-title">{t("theme.fonts")}</h2>
       <p className="gfa-hint">{t("theme.fontsHint")}</p>
@@ -617,7 +709,14 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     }),
     [previewSettings, menus, content.collections, homeView],
   );
-  const previewStyles = useMemo(() => ({ theme: previewSettings.theme, customCss: css }), [previewSettings, css]);
+  // Light or dark, as chosen on the Theme tab, or like the admin panel until then.
+  const adminDark = useDarkMode();
+  const [chosenScheme, setChosenScheme] = useState<PreviewScheme>();
+  const previewScheme: PreviewScheme = chosenScheme ?? (adminDark ? "dark" : "light");
+  const previewStyles = useMemo(
+    () => ({ theme: previewSettings.theme, customCss: css, scheme: previewScheme }),
+    [previewSettings, css, previewScheme],
+  );
   const errors = showErrors ? validation.errors : {};
 
   return (
@@ -665,7 +764,15 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
             onChange={setSettings}
           />
         )}
-        {tab === "theme" && <ThemeTab draft={settings} errors={errors} onChange={setSettings} />}
+        {tab === "theme" && (
+          <ThemeTab
+            draft={settings}
+            errors={errors}
+            previewScheme={previewScheme}
+            onChange={setSettings}
+            onPreviewScheme={setChosenScheme}
+          />
+        )}
         {tab === "menus" && <MenusEditor menus={menus} onChange={setMenus} />}
         {tab === "redirects" && (
           <RedirectsEditor

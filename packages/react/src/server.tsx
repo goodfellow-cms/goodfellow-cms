@@ -1,5 +1,6 @@
 import {
   absoluteUrl,
+  colorSchemeMeta,
   type GoodfellowConfig,
   getPageHead,
   googleFontsUrl,
@@ -68,6 +69,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
 
     const head = getPageHead(settings, page);
     const fontsUrl = googleFontsUrl(settings.theme);
+    const colorScheme = colorSchemeMeta(settings.theme);
     const socialImage = toAbsolute(settings.url, head.socialImage);
 
     const document = (
@@ -75,6 +77,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
         <head>
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
+          {colorScheme && <meta name="color-scheme" content={colorScheme} />}
           <title>{head.title}</title>
           {head.description && <meta name="description" content={head.description} />}
           {head.noIndex && <meta name="robots" content="noindex" />}

@@ -278,3 +278,41 @@ test("says Published under the Publish button, until something changes or a few 
   await expect(published).toBeVisible();
   await expect(published).toBeHidden({ timeout: 8_000 });
 });
+
+test("gives the site a dark mode only once it's turned on, with its own colors and logo", async ({ page }) => {
+  // Light only by default, even on a computer set to dark.
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(page.locator('meta[name="color-scheme"]')).toHaveCount(0);
+
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/admin#/settings/theme");
+  const preview = page.frameLocator(".gfa-preview iframe");
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.getByRole("checkbox", { name: "Follow each visitor's light or dark setting" }).check();
+  // The preview is like the admin panel, light here, until Dark is chosen.
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.getByRole("radio", { name: "Dark" }).check();
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(10, 10, 10)");
+  const dark = page.getByRole("group", { name: "Colors in dark mode" });
+  await dark.getByRole("textbox", { name: "Background", exact: true }).fill("#1e1b4b");
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+  await page.getByRole("radio", { name: "Light" }).check();
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+
+  await page.getByRole("link", { name: "General" }).click();
+  await expect(page.getByText("Logo in dark mode")).toBeVisible();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readJson("content/site.json")).toMatchObject({
+    theme: { darkMode: true, darkColors: { background: "#1e1b4b" } },
+  });
+
+  // Pages follow the visitor's setting.
+  await page.goto("/");
+  await expect(page.locator('meta[name="color-scheme"]')).toHaveAttribute("content", "light dark");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+});

@@ -47,7 +47,7 @@ export const MassTimes: ComponentConfig<MassTimesProps> = {
 - **Never rename** a block's key in `blocks`, or any of its props. Content files refer to blocks and props by name.
 - **CSS classes:** give every block `className: classNameField` and apply it to the outermost element. Combine classes with `cx()`, with `className` last, so an editor's classes override the block's own.
 - **Complete class names:** write Tailwind classes as whole strings, using lookup tables for options (`{ sm: "gap-3", md: "gap-6" }`), or Tailwind won't find them.
-- **Theme classes:** style with the theme's classes, such as `bg-primary`, `text-muted-foreground`, `font-heading` and `rounded-lg`, rather than fixed colors, so blocks follow the site's settings.
+- **Theme classes:** style with the theme's classes, such as `bg-primary`, `text-muted-foreground`, `font-heading` and `rounded-lg`, rather than fixed colors, so blocks follow the site's settings, in dark mode too. Tailwind's `dark:` classes apply only on sites with [dark mode](/docs/layout-and-settings#dark-mode) turned on, when they're shown dark, so a light-only site never uses them, even on a computer set to dark.
 - **Site data:** read menus, settings and collections with `useSite()`, never by copying them into props.
 - **Links and images:** render them with `SiteLink` and `SiteImage` from `@goodfellow-cms/react`, not `<a>` and `<img>`, so they follow the site's base path and use `next/link` and `next/image` in Next.js. Other root-relative addresses, such as a CSS background, go through `withBase(url, useSite().base)`.
 - **Media fields:** a prop holding an uploaded file's address uses `mediaField()`, which adds the media library's chooser.

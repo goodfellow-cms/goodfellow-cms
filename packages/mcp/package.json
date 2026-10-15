@@ -54,11 +54,11 @@
     "playwright-core": "1.63.0"
   },
   "devDependencies": {
-    "@anthropic-ai/mcpb": "2.1.2",
     "@goodfellow-cms/blocks": "workspace:*",
     "@goodfellow-cms/react": "workspace:*",
     "@puckeditor/core": "0.23.0",
-    "@types/node": "^22.19.0"
+    "@types/node": "^22.19.0",
+    "fflate": "0.8.3"
   },
   "engines": {
     "node": ">=22"

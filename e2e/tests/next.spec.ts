@@ -34,6 +34,19 @@ test("serves the site's pages, header and footer with Next.js", async ({ page })
   await expect(page).toHaveTitle("Welcome to our new website | My site");
 });
 
+test("follows the visitor's light or dark setting once the site has dark mode", async ({ page }) => {
+  const settingsFile = join(nextSite, "content/site.json");
+  const settings = JSON.parse(readFileSync(settingsFile, "utf8"));
+  settings.theme = { ...settings.theme, darkMode: true, darkColors: { background: "#1e1b4b" } };
+  writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto(`${BASE}/about/`);
+  await expect(page.locator('head meta[name="color-scheme"]')).toHaveAttribute("content", "light dark");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+});
+
 test("shows the site's own page for addresses that don't exist", async ({ page }) => {
   const response = await page.goto(`${BASE}/no-such-page/`);
   expect(response?.status()).toBe(404);

@@ -38,9 +38,11 @@ export interface Screenshotter {
   take(options: {
     url: string;
     width: number;
-    preview?: { files: Record<string, string>; path: string };
+    preview?: { files: Record<string, string>; path: string; dark?: boolean };
     /** `url` is an image's, shown on a page of its own (`imagePage()`), no wider than `width`. */
     image?: boolean;
+    /** Shows the page as a computer set to dark sees it, for sites with dark mode. */
+    dark?: boolean;
   }): Promise<Uint8Array>;
 }
 

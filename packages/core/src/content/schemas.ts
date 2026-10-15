@@ -35,6 +35,13 @@ const cssLength = z.string().regex(/^\d*\.?\d+(px|rem|em)?$/, "must be a size, s
 
 const themeSchema = z.object({
   colors: z.partialRecord(z.enum(THEME_COLORS), cssColor).default({}),
+  /**
+   * Whether pages follow the visitor's light or dark setting. Off by default:
+   * a site is light only until its owner turns this on in Site Settings.
+   */
+  darkMode: z.boolean().optional(),
+  /** The theme's colors in dark mode. Colors left out are `DEFAULT_DARK_THEME_COLORS`'. Kept while dark mode is off. */
+  darkColors: z.partialRecord(z.enum(THEME_COLORS), cssColor).optional(),
   fonts: z
     .object({
       heading: fontFamily.optional(),
@@ -56,6 +63,8 @@ export const siteSettingsSchema = z.object({
     .object({
       src: z.string(),
       alt: z.string().default(""),
+      /** The logo shown in dark mode, such as a light version, where the site has dark mode. */
+      darkSrc: z.string().optional(),
     })
     .optional(),
   /** How page titles appear in browser tabs. `%s` is replaced by the page title. */

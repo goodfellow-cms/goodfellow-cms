@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { siteSettingsSchema } from "./content/schemas.js";
-import { escapeStyleText, googleFontsUrl, themeToCss } from "./theme.js";
+import { colorSchemeMeta, escapeStyleText, googleFontsUrl, themeToCss } from "./theme.js";
 
 const theme = (input: object) => siteSettingsSchema.parse({ version: 1, theme: input }).theme;
 
@@ -19,6 +19,29 @@ describe("themeToCss", () => {
     const css = themeToCss(theme({ fonts: { heading: "Cinzel", body: "Lato" } }));
     expect(css).toContain('--gf-font-heading:"Cinzel", ui-sans-serif');
     expect(css).toContain('--gf-font-body:"Lato", ui-sans-serif');
+  });
+});
+
+describe("dark mode", () => {
+  it("is off unless the site turns it on, keeping its dark colors meanwhile", () => {
+    const light = theme({ darkColors: { background: "#000000" } });
+    expect(themeToCss(light)).not.toContain("prefers-color-scheme");
+    expect(themeToCss(light)).not.toContain("color-scheme");
+    expect(colorSchemeMeta(light)).toBeUndefined();
+    expect(light.darkColors).toEqual({ background: "#000000" });
+  });
+
+  it("follows the visitor's setting, and previews can show either", () => {
+    const css = themeToCss(theme({ darkMode: true, darkColors: { primary: "#93c5fd" } }));
+    expect(css).toContain(":root{color-scheme:light dark}");
+    expect(css).toMatch(
+      /@media \(prefers-color-scheme: dark\)\{:root:not\(\[data-gf-color-scheme="light"\]\)\{[^}]*--primary:#93c5fd;/,
+    );
+    // Colors the site doesn't set come from the default dark theme.
+    expect(css).toContain("--background:#0a0a0a");
+    expect(css).toMatch(/:root\[data-gf-color-scheme="dark"\]\{[^}]*--primary:#93c5fd;[^}]*color-scheme:dark\}/);
+    expect(css).toContain(':root[data-gf-color-scheme="light"]{color-scheme:light}');
+    expect(colorSchemeMeta(theme({ darkMode: true }))).toBe("light dark");
   });
 });
 

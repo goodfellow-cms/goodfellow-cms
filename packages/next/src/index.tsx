@@ -1,5 +1,6 @@
 import {
   absoluteUrl,
+  colorSchemeMeta,
   demoContent,
   findRedirect,
   type GoodfellowConfig,
@@ -129,8 +130,10 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   /** The site's theme and fonts, which React moves into the document's head. themeToCss escapes its output. */
   function Theme({ content }: { content: SiteContent }) {
     const fontsUrl = googleFontsUrl(content.settings.theme);
+    const colorScheme = colorSchemeMeta(content.settings.theme);
     return (
       <>
+        {colorScheme && <meta name="color-scheme" content={colorScheme} />}
         <style href="goodfellow-theme" precedence="default">
           {themeToCss(content.settings.theme)}
         </style>

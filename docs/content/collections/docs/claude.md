@@ -51,7 +51,7 @@ Once the site has been rebuilt with it, which publishing anything does, Claude c
 
 ## Screenshots
 
-Claude can look at a page as visitors see it, at a phone's or a computer's width, live or with its draft's changes. Screenshots of drafts use a preview page in the site's admin panel, which shows the draft's files without publishing them. Claude can look at the photos and pictures in the media library the same way, to choose ones that fit.
+Claude can look at a page as visitors see it, at a phone's or a computer's width, light or, on sites with dark mode, dark, live or with its draft's changes. Screenshots of drafts use a preview page in the site's admin panel, which shows the draft's files without publishing them. Claude can look at the photos and pictures in the media library the same way, to choose ones that fit.
 
 Screenshots use Cloudflare's browsers, which Goodfellow's connector can use for a few minutes a day for everyone. When they're used up, Claude says screenshots aren't available until later; everything else keeps working.
 

@@ -734,6 +734,9 @@ export const defaultStrings = {
   "general.favicon": "Browser tab icon",
   "general.logo": "Logo",
   "general.logoAlt": "Logo description",
+  "general.logoDark": "Logo in dark mode",
+  "general.logoDarkHint":
+    "A version of the logo that shows up on dark backgrounds, such as a white one. Leave it empty to use the same logo.",
   "general.socialImage": "Image when shared on social media",
   "general.contact": "Contact details",
   "general.contactHint": "Shown wherever a Contact details block is placed, such as the footer.",
@@ -795,6 +798,14 @@ export const defaultStrings = {
   "theme.color.accentForeground": "Text on highlight",
   "theme.color.border": "Borders",
   "theme.default": "Default",
+  "theme.darkMode": "Dark mode",
+  "theme.darkModeOn": "Follow each visitor's light or dark setting",
+  "theme.darkModeHint":
+    "Off by default, so the site is always light. When it's on, visitors whose computer or phone is set to dark see the site in the colors below.",
+  "theme.darkColors": "Colors in dark mode",
+  "theme.preview": "Preview",
+  "theme.previewLight": "Light",
+  "theme.previewDark": "Dark",
   "theme.pickColor": "Choose a color for {name}",
 
   "menus.intro": "Menus are lists of links. Show one anywhere with the Menu block, using its name.",
