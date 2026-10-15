@@ -12,6 +12,13 @@ export interface GoodfellowAdminProps {
   siteUrl?: string;
   /** Replaces any of the admin panel's text, for rewording or translation. */
   strings?: Partial<Strings>;
+  /**
+   * On a full-stack site, the address of its `goodfellowApi()` route, such as
+   * `/api/goodfellow`, without the base path. Editors then sign in with the
+   * site's own sign-in, and its server publishes for them. `next dev` still
+   * saves to the files on disk.
+   */
+  server?: string;
 }
 
 interface Setup {
@@ -59,9 +66,9 @@ async function setUp(siteUrl: string): Promise<Setup> {
  * The admin panel, for a Next.js site's `app/admin/page.tsx`, which must be a
  * Client Component (`"use client"`) that imports the site's config.
  * In `next dev` it saves to the files on disk; on the live site, editors sign
- * in to the config's git backend.
+ * in to the config's git backend, or on a full-stack site (`server`), with the site's own sign-in.
  */
-export function GoodfellowAdmin({ config, siteUrl = `${BASE_PATH}/`, strings }: GoodfellowAdminProps) {
+export function GoodfellowAdmin({ config, siteUrl = `${BASE_PATH}/`, strings, server }: GoodfellowAdminProps) {
   const [setup, setSetup] = useState<Setup | null>(null);
 
   useEffect(() => {
@@ -83,6 +90,7 @@ export function GoodfellowAdmin({ config, siteUrl = `${BASE_PATH}/`, strings }: 
     <Admin
       config={config}
       {...(setup.store && { store: setup.store, registry: `${BASE_PATH}/__goodfellow/api/registry/{name}.json` })}
+      {...(server && { server: `${BASE_PATH}${server}` })}
       preview={{ stylesheets: setup.stylesheets, themeCss, tailwindBrowserUrl: setup.tailwindBrowserUrl }}
       siteUrl={siteUrl}
       {...(strings && { strings })}

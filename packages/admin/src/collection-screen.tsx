@@ -1,7 +1,7 @@
 import { allPages, type Collection, type Entry, entryAddress, entryTitle } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, type ReactNode, useState } from "react";
-import { useAdmin, useSiteContent } from "./admin-context.js";
+import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import {
   checkEntrySlug,
   collectionFileChange,
@@ -40,10 +40,13 @@ export function CollectionLayout({
   children: ReactNode;
 }) {
   const t = useStrings();
+  const owner = useCanChangeSettings();
   const tabs: Array<[CollectionTab, StringKey]> = [
     ["entries", "collection.tab.entries"],
-    ...(collection.settings.path ? [["template", "collection.tab.template"] as [CollectionTab, StringKey]] : []),
-    ["settings", "collection.tab.settings"],
+    ...(owner && collection.settings.path
+      ? [["template", "collection.tab.template"] as [CollectionTab, StringKey]]
+      : []),
+    ...(owner ? [["settings", "collection.tab.settings"] as [CollectionTab, StringKey]] : []),
   ];
   return (
     <div className="gfa-layout-screen">

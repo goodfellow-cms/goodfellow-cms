@@ -470,3 +470,53 @@ describe("reading many files", () => {
     expect([...(sizes?.keys() ?? [])].every((path) => path.startsWith("content/"))).toBe(true);
   });
 });
+
+describe("on a full-stack site's server", () => {
+  const ALICE = { name: "Alice Editor", email: "alice@example.org" };
+
+  function server() {
+    const fake = fakeGitHub({ repo: "parish/site", files: FILES });
+    const host = github({ repo: "parish/site", fetch: fake.fetch });
+    const git = host.server?.({ token: "test-token" });
+    if (!git) throw new Error("github() has no server access");
+    return { fake, git };
+  }
+
+  it("reads the revision a browser loaded, even after someone publishes", async () => {
+    const { fake, git } = server();
+    const revision = await git.revision();
+    fake.commit([{ path: "content/site.json", content: '{"version":1,"title":"Changed"}' }], "Theirs");
+    expect(await (await git.at(revision)).read("content/site.json")).toBe(FILES["content/site.json"]);
+    expect(await git.revision()).not.toBe(revision);
+  });
+
+  it("publishes in the editor's name, and refuses to save over a newer commit", async () => {
+    const { fake, git } = server();
+    const revision = await git.revision();
+    const backend = await git.at(revision, ALICE);
+    const saved = await backend.write([{ path: "content/pages/about.json", content: "{}" }], {
+      message: "Update About",
+      expectedRevision: revision,
+    });
+    expect(fake.commitAuthors.get(saved.revision)).toMatchObject(ALICE);
+    expect(fake.repo.files().get("content/pages/about.json")).toBe("{}");
+
+    const stale = await git.at(revision, ALICE);
+    await expect(
+      stale.write([{ path: "content/site.json", content: "{}" }], { message: "Late", expectedRevision: revision }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("asks a token function for the token on each request", async () => {
+    const fake = fakeGitHub({ repo: "parish/site", files: FILES });
+    let asked = 0;
+    const git = github({ repo: "parish/site", fetch: fake.fetch }).server?.({
+      token: async () => {
+        asked++;
+        return "test-token";
+      },
+    });
+    await git?.revision();
+    expect(asked).toBeGreaterThan(0);
+  });
+});

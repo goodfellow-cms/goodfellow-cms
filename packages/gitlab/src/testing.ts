@@ -82,6 +82,8 @@ async function sha256Base64Url(text: string): Promise<string> {
 export function fakeGitLab(options: FakeGitLabOptions) {
   const webUrl = options.url ?? "https://gitlab.com";
   const repo = new FakeRepo(options.files);
+  /** Who each commit that named its author did name, by commit. */
+  const commitAuthors = new Map<string, { name: string; email: string }>();
   const tokens = new Map<string, FakeGitLabUser>(
     Object.entries(options.tokens ?? { "test-token": { username: "editor", name: "Test Editor" } }),
   );
@@ -660,6 +662,8 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       const body = (await request.json()) as {
         branch: string;
         commit_message: string;
+        author_name?: string;
+        author_email?: string;
         actions: Array<{
           action: string;
           file_path: string;
@@ -692,9 +696,13 @@ export function fakeGitLab(options: FakeGitLabOptions) {
               : { path: action.file_path, content: action.content ?? "" },
         ),
         body.commit_message,
-        user.name ?? user.username,
+        // A commit can name another author, as a full-stack site's server names its editors.
+        body.author_name ?? user.name ?? user.username,
         body.branch,
       );
+      if (body.author_name && body.author_email) {
+        commitAuthors.set(sha, { name: body.author_name, email: body.author_email });
+      }
       return json({ id: sha, message: body.commit_message }, 201);
     }
 
@@ -840,6 +848,8 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     created,
     /** The site's GitLab Pages, if it has them, which tests can change. */
     pages,
+    /** Who commits that named their author did name, by commit. */
+    commitAuthors,
     requests,
     commit,
     authorize,

@@ -22,7 +22,7 @@ flowchart TB
   git -->|a push starts the build| site
 ```
 
-- **No server.** The admin panel is part of the static site and talks to the GitHub or GitLab API straight from the browser.
+- **No server.** The admin panel is part of the static site and talks to the GitHub or GitLab API straight from the browser. Next.js apps with a server of their own can have it [publish for editors](https://goodfellow-cms.github.io/goodfellow-cms/docs/full-stack-nextjs) instead.
 - **Instant preview.** The editor renders pages in the browser, so editors see changes before anything is published.
 - **Publishing is a commit.** A commit to the main branch triggers the host's normal build. The admin panel shows when the new version is live.
 - **Content is plain files.** One JSON file per page, readable in any diff and portable to other tools.
@@ -83,8 +83,8 @@ flowchart TB
     - **Within Cloudflare's free plan:** the tools read only the files they need, in batches, to fit the free plan's limits on each request, and Cloudflare's own limits and rate limiting rules apply, as for the sign-in service.
     - **Screenshots** of the live site, and of drafts through a preview page in each site's admin panel, taken with Cloudflare's Browser Rendering, or with the editor's own Chrome or Edge on their computer.
 23. **Light and dark sites** (done). A site can have a dark mode, which its owner turns on in Site Settings: sites are light only until then. Every theme color has a dark one, and pages follow the visitor's light or dark setting. Blocks follow the theme in both, a site can have a second logo for dark backgrounds, code changes to dark colors with the page, in code colors the site chooses, visitors can choose light or dark with the Dark mode switch block, and the admin panel's previews show either.
-24. **Full-stack Next.js sites.** For organizations with a developer: Goodfellow as the CMS of a Next.js app with a server of its own, beside the app's own pages. Sites without a server stay the default, and nothing here becomes required for them.
-    - **Sign-in through the app:** the admin panel signs in with the app's own authentication (such as Better Auth), and the app says who may edit, publish and change settings.
+24. **Full-stack Next.js sites** (done). For organizations with a developer: Goodfellow as the CMS of a Next.js app with a server of its own, beside the app's own pages. Sites without a server stay the default, and nothing here becomes required for them.
+    - **Sign-in through the app:** the admin panel signs in with the app's own authentication (such as Better Auth), and the app says who may edit and publish, and who may also change settings.
     - **Git on the server:** the app's server reads and publishes through GitHub or GitLab with a token from an environment variable, behind that sign-in, so no git credentials reach the browser. Commits still name the editor.
     - **AI keys on the server** (optional): keys in environment variables, with the AI assistant's requests sent through the app's server, so editors don't need keys of their own.
 25. **Moving from and to WordPress.** Import a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected. Export a Goodfellow site as a WordPress export file, with its blocks turned into WordPress's.

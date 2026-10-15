@@ -1,6 +1,6 @@
 import { allPages, type Page } from "@goodfellow-cms/core";
 import { type FormEvent, useState } from "react";
-import { useAdmin, useSiteContent } from "./admin-context.js";
+import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import {
   type AddressProblem,
   checkPageAddress,
@@ -94,10 +94,12 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
   const t = useStrings();
   const { publish } = useAdmin();
   const { content } = useSiteContent();
+  const owner = useCanChangeSettings();
   const [address, setAddress] = useState(page.path);
   const [updateLinks, setUpdateLinks] = useState(true);
   // The home page has no old address to send visitors on from: another page takes it.
-  const canRedirect = page.path !== "/";
+  // Redirects are in Site Settings, which only owners change on sites with their own sign-in.
+  const canRedirect = page.path !== "/" && owner;
   const [redirect, setRedirect] = useState(canRedirect);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);

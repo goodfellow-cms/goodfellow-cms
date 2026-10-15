@@ -104,6 +104,37 @@ export interface GitHost {
   signInWithToken(token: string, remember: boolean): Promise<GitBackend>;
   /** Sends the browser to the host to sign in. Only when `canRedirect`. */
   startRedirect(remember: boolean, options?: RedirectOptions): Promise<void>;
+  /**
+   * Reaches the site's repository from a full-stack site's own server, with a
+   * token of the site's rather than an editor's, which never reaches a browser.
+   */
+  server?(options: ServerGitOptions): ServerGit;
+}
+
+/** Who a commit names as its author. */
+export interface CommitAuthor {
+  name: string;
+  email: string;
+}
+
+export interface ServerGitOptions {
+  /**
+   * A token that can read and publish to the site's repository, such as a
+   * fine-grained GitHub token or a GitLab project access token, from an
+   * environment variable. A function is asked for it on each request, for tokens that renew.
+   */
+  token: string | (() => Promise<string>);
+}
+
+/** The site's repository as a full-stack site's server reaches it: one token, for every editor. */
+export interface ServerGit {
+  /** The newest revision of the live branch. */
+  revision(): Promise<string>;
+  /**
+   * A backend whose reads see `revision`, as an editor's browser loaded it, and
+   * whose commits name `author`, the editor the site's own sign-in says it is.
+   */
+  at(revision: string, author?: CommitAuthor): Promise<GitBackend>;
 }
 
 /** How to sign in by going to the host and back. */

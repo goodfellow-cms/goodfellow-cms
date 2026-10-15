@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { builtSites } from "./scripts/site.mjs";
+import { builtSites, NEXT_SERVER } from "./scripts/site.mjs";
 
 const PORT = 4400;
 
@@ -38,6 +38,13 @@ export default defineConfig({
     {
       command: "node scripts/start-next-built-site.mjs 4404",
       url: "http://localhost:4404/site/",
+      reuseExistingServer: false,
+      timeout: 240_000,
+    },
+    // The Next.js template as a full-stack site, with a server and a sign-in of its own, on a fake GitHub.
+    {
+      command: `node scripts/start-next-server-site.mjs ${NEXT_SERVER.port}`,
+      url: `http://localhost:${NEXT_SERVER.port}/sign-in/`,
       reuseExistingServer: false,
       timeout: 240_000,
     },

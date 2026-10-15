@@ -3,7 +3,7 @@ version: 1
 title: Claude connector service
 description: How the Claude connector works, what it keeps, its limits, and running your own copy.
 section: developers
-order: 10
+order: 11
 ---
 
 The Claude connector is an [MCP](https://modelcontextprotocol.io) server that Goodfellow runs on Cloudflare Workers, which editors add to Claude as a custom connector (see [Work with Claude](/docs/claude)). Like the [sign-in service](/docs/sign-in-service), it's the only server code Goodfellow has, and sites don't need it: Claude can run the same tools on an editor's computer with a token.

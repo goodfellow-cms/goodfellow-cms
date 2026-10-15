@@ -39,4 +39,4 @@ Each editor chooses a service in the AI tab's settings, and it's called straight
 
 Keys stay in the editor's browser, for the session or on the device if they choose, and they're forgotten on sign-out. They're only ever sent to the service they belong to. Free models write less reliably, so answers are always checked against the site's blocks before they're used.
 
-A site's developer can limit the services offered, or turn the assistant off; see [Configuration](/docs/configuration).
+A site's developer can limit the services offered, or turn the assistant off; see [Configuration](/docs/configuration). On a [full-stack site](/docs/full-stack-nextjs#ai-keys-on-the-server), the site's server can ask services with keys of its own, which editors then use without one.

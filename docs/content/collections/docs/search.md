@@ -3,7 +3,7 @@ version: 1
 title: Search
 description: How the Search block works, how sites are indexed, and how other blocks can use the same index.
 section: developers
-order: 8
+order: 9
 ---
 
 The **Search** block searches the whole site in the visitor's browser with [Pagefind](https://pagefind.app). The index is made when the site is built, so no search service, server or account is needed, and the index only loads when someone searches.

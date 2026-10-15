@@ -22,6 +22,13 @@ import type { NextConfig } from "next";
 export interface GoodfellowNextOptions {
   /** The site's folder, holding `content/` and `public/media/`. Defaults to the folder Next.js runs in. */
   root?: string;
+  /**
+   * For a full-stack site, with a server of its own: builds it for `next start`
+   * or a host that runs Next.js, rather than as static files, and includes
+   * `content/` and `public/media/` with its server, which reads them for pages
+   * built on request and calendar files.
+   */
+  server?: boolean;
 }
 
 type Rewrites = Awaited<ReturnType<NonNullable<NextConfig["rewrites"]>>>;
@@ -115,6 +122,8 @@ async function siteRedirects(root: string): Promise<Redirects> {
  * - Serves images as they are unless the site sets an image loader, since static files can't be optimized on request.
  * - Adds the site's redirects (Site Settings → Redirects) ahead of the site's own, for hosts that
  *   send them, such as Vercel. Others get the pages `goodfellow-next finish` writes at old addresses.
+ * - With `{ server: true }`, builds a full-stack site for a server instead of as static
+ *   files: see `goodfellowApi()` in `@goodfellow-cms/next/server`.
  * - In `next dev`, runs the admin panel's local backend, so publishing saves to
  *   the files on disk. It's never part of a build.
  * - In `next dev`, turns off React's debug channel (`experimental.reactDebugChannel`)
@@ -134,6 +143,18 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       // Tells the site's pages and the admin panel where the site is served from.
       env: { ...nextConfig.env, GOODFELLOW_BASE_PATH: basePath },
     };
+    // A server of its own: Next.js serves the redirects itself, and can optimize images.
+    if (phase !== PHASE_DEVELOPMENT_SERVER && options.server) {
+      return {
+        ...config,
+        images: nextConfig.images,
+        outputFileTracingIncludes: {
+          ...nextConfig.outputFileTracingIncludes,
+          "/**": [...(nextConfig.outputFileTracingIncludes?.["/**"] ?? []), "./content/**/*", "./public/media/**/*"],
+        },
+        redirects: async () => [...(await siteRedirects(root)), ...((await nextConfig.redirects?.()) ?? [])],
+      };
+    }
     // In development, Next.js treats an unknown address in an exported site as an error rather than "not found".
     if (phase !== PHASE_DEVELOPMENT_SERVER) {
       return {

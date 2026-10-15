@@ -1,8 +1,11 @@
 import {
+  type CommitAuthor,
   credentialStorage,
   GitApiError,
   type GitHost,
   type RedirectOptions,
+  type ServerGit,
+  type ServerGitOptions,
   SignInError,
   type StorageLike,
 } from "@goodfellow-cms/core";
@@ -269,6 +272,41 @@ export function github(options: GitHubOptions): GitHost {
     });
   }
 
+  /** The repository through a token of the site's own, on a full-stack site's server. */
+  function server({ token }: ServerGitOptions): ServerGit {
+    const api: ApiOptions = { apiUrl, token: typeof token === "string" ? token : () => token(), fetch: fetcher };
+    let branch: Promise<string> | undefined;
+    const liveBranch = () => {
+      branch ??= options.branch
+        ? Promise.resolve(options.branch)
+        : githubJson<{ default_branch: string }>(api, `/repos/${repoPath(options.repo)}`).then(
+            (repo) => repo.default_branch,
+          );
+      // Asked again next time if GitHub couldn't be reached.
+      branch.catch(() => {
+        branch = undefined;
+      });
+      return branch;
+    };
+    const backend = async (revision?: string, author?: CommitAuthor) =>
+      new GitHubBackend({
+        api,
+        repo: options.repo,
+        branch: await liveBranch(),
+        user: { login: author?.name ?? options.repo, ...(author && { name: author.name }) },
+        onSignOut: () => {},
+        ownerTokenLink: { url: links.owner, label: "owner.token.create" },
+        ...(revision && { revision }),
+        ...(author && { author }),
+      });
+    return {
+      async revision() {
+        return (await backend()).revision();
+      },
+      at: backend,
+    };
+  }
+
   return {
     name: "GitHub",
     canRedirect: service !== undefined,
@@ -291,5 +329,6 @@ export function github(options: GitHubOptions): GitHost {
     startRedirect(remember, redirectOptions) {
       return redirect("edit", remember, redirectOptions);
     },
+    server,
   };
 }

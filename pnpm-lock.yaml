@@ -526,6 +526,9 @@ importers:
 
   packages/next:
     dependencies:
+      '@goodfellow-cms/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@goodfellow-cms/core':
         specifier: workspace:*
         version: link:../core
@@ -536,6 +539,12 @@ importers:
       '@goodfellow-cms/admin':
         specifier: workspace:*
         version: link:../admin
+      '@goodfellow-cms/github':
+        specifier: workspace:*
+        version: link:../github
+      '@goodfellow-cms/gitlab':
+        specifier: workspace:*
+        version: link:../gitlab
       '@puckeditor/core':
         specifier: 0.23.0
         version: 0.23.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(use-sync-external-store@1.7.0(react@19.3.0))

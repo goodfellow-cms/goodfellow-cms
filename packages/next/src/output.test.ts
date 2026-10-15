@@ -104,7 +104,8 @@ describe("the Next.js template's static export", () => {
     expect(existsSync(join(next, "out/admin/index.html"))).toBe(true);
     for (const file of await files(join(next, "out"))) {
       if (!/\.(html|js|txt)$/.test(file)) continue;
-      expect(await read(file), file).not.toContain("x-goodfellow-request");
+      // The local backend's own words: the admin panel also sends its header to full-stack sites' servers.
+      expect(await read(file), file).not.toContain("The development server's API isn't at");
     }
   });
 });

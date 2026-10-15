@@ -9,8 +9,9 @@ import {
 } from "@goodfellow-cms/core";
 import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AdminProvider, type PreviewOptions, useAdmin, useSiteContent } from "./admin-context.js";
+import { AdminProvider, type PreviewOptions, useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import { forgetAiKeys } from "./ai-settings.js";
+import { AppSignInGate } from "./app-sign-in.js";
 import { BlocksScreen } from "./blocks-screen.js";
 import { BuildProblemButton } from "./build-problem.js";
 import { EntriesScreen, TemplateScreen } from "./collection-screen.js";
@@ -45,6 +46,12 @@ export interface AdminProps {
   store?: ContentStore;
   /** The git host the site is stored on. Defaults to the config's `backend`. */
   host?: GitHost;
+  /**
+   * The address of a full-stack site's API for the admin panel, such as
+   * `/api/goodfellow`. Editors then sign in with the site's own sign-in, and its
+   * server reads and publishes for them, so they never sign in to the git host.
+   */
+  server?: string;
   preview: PreviewOptions;
   /** The live site's address, for "View" links. Defaults to `/`. */
   siteUrl?: string;
@@ -74,9 +81,21 @@ function LoadError({ error }: { error: unknown }) {
   );
 }
 
+/** Shown in place of screens only owners use, where the site's own sign-in says someone is an editor. */
+function OwnersOnly() {
+  const t = useStrings();
+  return (
+    <div className="gfa-screen">
+      <h1>{t("owners.only")}</h1>
+      <p className="gfa-hint">{t("owners.onlyHint")}</p>
+    </div>
+  );
+}
+
 function CollectionRoute({ id, sub, slug }: { id: string; sub?: string; slug: string }) {
   const t = useStrings();
   const { content } = useSiteContent();
+  const owner = useCanChangeSettings();
   if (sub === "edit") return <EntryEditorScreen collectionId={id} slug={slug} />;
   const collection = content.collections.find((candidate) => candidate.id === id);
   if (!collection) {
@@ -87,6 +106,7 @@ function CollectionRoute({ id, sub, slug }: { id: string; sub?: string; slug: st
       </div>
     );
   }
+  if ((sub === "template" || sub === "settings") && !owner) return <OwnersOnly />;
   if (sub === "template") return <TemplateScreen collection={collection} />;
   if (sub === "settings") return <CollectionSettingsScreen key={collection.id} collection={collection} />;
   return <EntriesScreen collection={collection} />;
@@ -95,7 +115,9 @@ function CollectionRoute({ id, sub, slug }: { id: string; sub?: string; slug: st
 function Screen() {
   const { segments, params } = useRoute();
   const [section, sub, tab] = segments;
+  const owner = useCanChangeSettings();
 
+  if ((section === "blocks" || section === "settings") && !owner) return <OwnersOnly />;
   if (section === "media") return <MediaScreen />;
   if (section === "blocks") return <BlocksScreen />;
   if (section === "collections") {
@@ -176,9 +198,11 @@ function AccountMenu() {
     <div className="gfa-account">
       {user.avatarUrl && <img src={user.avatarUrl} alt="" width={24} height={24} />}
       <span title={t("account.signedInAs", { name: user.login })}>{user.name || user.login}</span>
-      <Button variant="ghost" onClick={account.signOut}>
-        {t("account.signOut")}
-      </Button>
+      {account.signOut && (
+        <Button variant="ghost" onClick={account.signOut}>
+          {t("account.signOut")}
+        </Button>
+      )}
     </div>
   );
 }
@@ -210,6 +234,7 @@ function versionsSection(file: string): "pages" | "collections" | "layout" {
 function Shell() {
   const t = useStrings();
   const { state, siteUrl } = useAdmin();
+  const owner = useCanChangeSettings();
   const { segments, params } = useRoute();
   const [section] = segments;
   const current =
@@ -240,12 +265,16 @@ function Shell() {
           <AppLink href="#/layout/header" aria-current={current === "layout" ? "page" : undefined}>
             {t("nav.layout")}
           </AppLink>
-          <AppLink href="#/blocks" aria-current={current === "blocks" ? "page" : undefined}>
-            {t("nav.blocks")}
-          </AppLink>
-          <AppLink href="#/settings/general" aria-current={current === "settings" ? "page" : undefined}>
-            {t("nav.settings")}
-          </AppLink>
+          {owner && (
+            <AppLink href="#/blocks" aria-current={current === "blocks" ? "page" : undefined}>
+              {t("nav.blocks")}
+            </AppLink>
+          )}
+          {owner && (
+            <AppLink href="#/settings/general" aria-current={current === "settings" ? "page" : undefined}>
+              {t("nav.settings")}
+            </AppLink>
+          )}
         </nav>
         <DeployIndicator />
         <a className="gfa-topbar-link" href={siteUrl} target="_blank" rel="noreferrer">
@@ -274,7 +303,16 @@ function MissingBackend() {
 }
 
 /** The admin panel. Render it on its own page, such as `/admin`. */
-export function Admin({ config, store, host = config.backend, preview, siteUrl = "/", strings, registry }: AdminProps) {
+export function Admin({
+  config,
+  store,
+  host = config.backend,
+  server,
+  preview,
+  siteUrl = "/",
+  strings,
+  registry,
+}: AdminProps) {
   // Light or dark everywhere, signing in included.
   useApplyThemeChoice();
   const demo = useMemo(
@@ -299,6 +337,36 @@ export function Admin({ config, store, host = config.backend, preview, siteUrl =
     <AdminProvider config={config} store={store} preview={preview} siteUrl={siteUrl} registry={registry}>
       <Shell />
     </AdminProvider>
+  ) : server ? (
+    <AppSignInGate api={server}>
+      {(backend, session, signOut) => (
+        <AdminProvider
+          config={config}
+          store={backend}
+          account={{
+            user: backend.user,
+            hostName: host?.name ?? "",
+            redirectAddressesListed: false,
+            role: session.role,
+            ...(session.ai.length > 0 && {
+              ai: { server: new URL(`${server.replace(/\/+$/, "")}/ai`, location.href).href, services: session.ai },
+            }),
+            ...(session.signOut && {
+              signOut: () => {
+                forgetAiKeys();
+                signOut();
+              },
+            }),
+          }}
+          preview={preview}
+          siteUrl={siteUrl}
+          registry={registry}
+          onSignInError={(error) => signOut(error)}
+        >
+          <Shell />
+        </AdminProvider>
+      )}
+    </AppSignInGate>
   ) : host ? (
     <SignInGate host={host}>
       {(backend, signOut) => (

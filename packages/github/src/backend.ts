@@ -83,6 +83,8 @@ export interface GitHubBackendOptions {
    * name the app. Commits are then made with Git's data API, which can name them.
    */
   author?: { name: string; email: string };
+  /** The commit reads see until `revision()` is next called, as a full-stack site's server reads what a browser loaded. */
+  revision?: string;
 }
 
 /**
@@ -118,6 +120,7 @@ export class GitHubBackend implements GitBackend {
     this.user = options.user;
     this.onSignOut = options.onSignOut;
     this.author = options.author;
+    this.pinned = options.revision;
     const owner = githubOwnerAccess(this.api, this.repo, options.ownerTokenLink, options.ownerRedirect);
     this.owner = owner;
     this.ownerAccess = owner.access;
