@@ -121,6 +121,16 @@ function isPublished(name, version) {
   throw new ReleaseError(`Couldn't ask npm about ${name}@${version}:\n${output.trim()}`);
 }
 
+/** Whether npm has any version of a package: trusted publishing only works for packages that exist. */
+function isOnNpm(name) {
+  const result = spawn("npm", ["view", name, "name", "--json"], { encoding: "utf8" });
+  if (result.error) throw new ReleaseError(`Couldn't run npm: ${result.error.message}`);
+  if (result.status === 0) return result.stdout.trim() !== "";
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  if (/E404|404 Not Found/.test(output)) return false;
+  throw new ReleaseError(`Couldn't ask npm about ${name}:\n${output.trim()}`);
+}
+
 async function confirm(question) {
   const prompt = createInterface({ input: process.stdin, output: process.stdout });
   try {
@@ -243,8 +253,16 @@ async function publish({ ci, dryRun, yes }) {
     return;
   }
 
-  if (ci) requireStaging();
-  else requireNpmSignIn({ dryRun });
+  if (ci) {
+    // npm sets up trusted publishing in a package's settings, so the workflow can't stage a package's first version.
+    const unknown = toPublish.filter((pkg) => !isOnNpm(pkg.name)).map((pkg) => pkg.name);
+    if (unknown.length > 0) {
+      throw new ReleaseError(
+        `${unknown.join(", ")} ${unknown.length === 1 ? "isn't" : "aren't"} on npm yet, and the workflow can only stage packages npm already has. Publish ${unknown.length === 1 ? "its" : "their"} first version from your computer with \`pnpm release:publish\`, which publishes only what npm doesn't have, then give ${unknown.length === 1 ? "it a trusted publisher" : "each a trusted publisher"} as RELEASING.md's "Adding a package" says, and run this workflow again to tag the release and deploy the docs.`,
+      );
+    }
+    requireStaging();
+  } else requireNpmSignIn({ dryRun });
   // CI has passed on the commit the workflow publishes, end-to-end tests included.
   for (const step of ci ? ["build"] : ["lint", "typecheck", "test", "build"]) run("pnpm", [step]);
 

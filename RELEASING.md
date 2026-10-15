@@ -41,6 +41,16 @@ If you approve after the workflow has stopped waiting, run the Release workflow 
 
 Afterwards, run **Deploy docs** in the Actions tab to update the docs site.
 
+## Adding a package
+
+A new published package goes in `.changeset/config.json`'s `fixed` group, so it shares every other package's version. Its first release can't come from the workflow: npm sets up trusted publishing in a package's settings, so the package has to exist on npm first, and the workflow stops with a message saying so. When it does:
+
+1. On your computer, on GitHub's latest `master`, run `pnpm release:publish`. It publishes only the packages npm doesn't have at this version, which is just the new one.
+2. Give the new package a trusted publisher as in [Setting up](#setting-up-once), with `npm trust github <package> --file release.yml --repo goodfellow-cms/goodfellow-cms --allow-stage-publish --yes`, and add it to the list there.
+3. Run the **Release** workflow again from the Actions tab. npm now has every package, so it tags the release and deploys the docs.
+
+`@goodfellow-cms/mcp` was added this way in 0.2.0.
+
 ## The docs between releases
 
 The docs site changes only with a release. To publish a fix to the docs sooner, run **Deploy docs** in the Actions tab with `master` as the version; leave the version empty to rebuild the latest release.
@@ -50,12 +60,12 @@ The docs site changes only with a release. To publish a fix to the docs sooner, 
 1. **npm:** create the free organization `goodfellow-cms` at <https://www.npmjs.com/org/create>, so the `@goodfellow-cms` packages can be published. `goodfellow` and `create-goodfellow` aren't in the organization, but whoever publishes them first owns them.
 2. **How the Release workflow signs in to npm.** Either:
    - **A token:** on npmjs.com, create a granular access token with read and write access to all packages and to the `goodfellow-cms` organization, allowed to publish without two-factor codes. Add it to the repository as the secret `NPM_TOKEN` (Settings → Secrets and variables → Actions). It works from the first release, but it's a long-lived secret that has to be renewed when it expires.
-   - **Trusted publishing**, with no secret: npm sets it up in each package's settings, so each package has to exist first. Make the first release from your computer (merge the version pull request as usual: the workflow will fail at publishing, then run `pnpm release:publish`). Then, shortly before the next release, give each of the 11 packages a trusted publisher that may only stage versions, with npm 11.15 or later:
+   - **Trusted publishing**, with no secret: npm sets it up in each package's settings, so each package has to exist first. Make the first release from your computer (merge the version pull request as usual: the workflow will fail at publishing, then run `pnpm release:publish`). Then, shortly before the next release, give each of the 12 packages a trusted publisher that may only stage versions, with npm 11.15 or later:
 
      ```sh
      for pkg in @goodfellow-cms/admin @goodfellow-cms/ai @goodfellow-cms/blocks @goodfellow-cms/core \
-       @goodfellow-cms/github @goodfellow-cms/gitlab @goodfellow-cms/next @goodfellow-cms/react \
-       @goodfellow-cms/registry goodfellow create-goodfellow; do
+       @goodfellow-cms/github @goodfellow-cms/gitlab @goodfellow-cms/mcp @goodfellow-cms/next \
+       @goodfellow-cms/react @goodfellow-cms/registry goodfellow create-goodfellow; do
        npm trust github "$pkg" --file release.yml --repo goodfellow-cms/goodfellow-cms --allow-stage-publish --yes
      done
      ```
