@@ -98,7 +98,7 @@ test("chooses fonts from a searchable list of Google Fonts", async ({ page }) =>
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   expect(readJson("content/site.json")).toMatchObject({
-    theme: { fonts: { heading: "Playfair Display", body: "Lora" } },
+    theme: { fonts: { heading: "Playfair Display", headingCategory: "serif", body: "Lora", bodyCategory: "serif" } },
   });
 
   // "Site default" takes a font back out.

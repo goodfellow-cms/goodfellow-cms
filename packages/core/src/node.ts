@@ -6,6 +6,7 @@ export {
   isLocalOrigin,
   sendCalendarFile,
 } from "./node-dev-api.js";
+export { readStylesheet } from "./node-fonts.js";
 export { fileSystemSource } from "./node-fs-source.js";
 export { InvalidPathError, localFileStore } from "./node-local-files.js";
 export { readMediaSizes } from "./node-media.js";

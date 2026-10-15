@@ -40,7 +40,9 @@
     "darkMode": true,
     "fonts": {
       "body": "Inter",
-      "heading": "Fraunces"
+      "bodyCategory": "sans-serif",
+      "heading": "Fraunces",
+      "headingCategory": "serif"
     }
   },
   "title": "Goodfellow",

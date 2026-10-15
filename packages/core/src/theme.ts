@@ -1,5 +1,5 @@
 import { COLOR_SCHEME_ATTRIBUTE } from "./color-scheme.js";
-import { THEME_COLORS, type Theme, type ThemeColor } from "./content/schemas.js";
+import { type FontCategory, THEME_COLORS, type Theme, type ThemeColor } from "./content/schemas.js";
 
 /** The theme used for anything a site doesn't set. Neutral grays, so any brand color works on top. */
 export const DEFAULT_THEME_COLORS: Record<ThemeColor, string> = {
@@ -109,7 +109,22 @@ export function codeStyle(theme: Partial<Theme> | undefined): CodeStyle {
 
 export const DEFAULT_RADIUS = "0.5rem";
 
-const FALLBACK_FONTS = "ui-sans-serif, system-ui, sans-serif";
+const SANS_SERIF = "ui-sans-serif, system-ui, sans-serif";
+
+/** The fonts shown while a site's font loads, or if it can't: the computer's own of the same kind. */
+const FALLBACK_FONTS: Record<FontCategory, string> = {
+  "sans-serif": SANS_SERIF,
+  serif: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
+  monospace: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+  // Computers' own display and handwriting fonts are too unlike each other to stand in.
+  display: SANS_SERIF,
+  handwriting: SANS_SERIF,
+};
+
+/** A font and the computer's fonts of the same kind after it. */
+function fontStack(family: string, category: FontCategory | undefined): string {
+  return `"${family}", ${FALLBACK_FONTS[category ?? "sans-serif"]}`;
+}
 
 function kebab(name: string): string {
   return name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
@@ -134,9 +149,9 @@ export function themeToCss(theme: Theme): string {
   );
   const darkRules = theme.darkMode ? darkModeCss(theme) : "";
   declarations.push(`--radius:${theme.radius ?? DEFAULT_RADIUS}`);
-  const { heading, body } = theme.fonts;
-  declarations.push(`--gf-font-body:${body ? `"${body}", ${FALLBACK_FONTS}` : FALLBACK_FONTS}`);
-  declarations.push(`--gf-font-heading:${heading ? `"${heading}", ${FALLBACK_FONTS}` : "var(--gf-font-body)"}`);
+  const { heading, body, headingCategory, bodyCategory } = theme.fonts;
+  declarations.push(`--gf-font-body:${body ? fontStack(body, bodyCategory) : SANS_SERIF}`);
+  declarations.push(`--gf-font-heading:${heading ? fontStack(heading, headingCategory) : "var(--gf-font-body)"}`);
   return escapeStyleText(`:root{${declarations.join(";")}}${darkRules}`);
 }
 
@@ -171,14 +186,12 @@ export function colorSchemeMeta(theme: Theme): string | undefined {
 
 /**
  * The Google Fonts stylesheet for a theme's fonts, or `undefined` if it uses none.
- * `display=fallback` waits up to 100 ms for a font before showing a stand-in, so
- * fonts the browser already has, such as on the site's next page, show at once
- * instead of the stand-in first. (`swap` shows the stand-in even then.) A font that
- * takes longer replaces the stand-in if it arrives within 3 seconds.
+ * `display=swap` shows a stand-in font until each font arrives, so text is never
+ * hidden; `fontPreloads()` has pages fetch the fonts early, so it rarely shows.
  */
 export function googleFontsUrl(theme: Theme): string | undefined {
   const families = [...new Set([theme.fonts.heading, theme.fonts.body].filter(Boolean))] as string[];
   if (families.length === 0) return undefined;
   const params = families.map((family) => `family=${family.trim().replace(/ +/g, "+")}:wght@400;500;600;700`).join("&");
-  return `https://fonts.googleapis.com/css2?${params}&display=fallback`;
+  return `https://fonts.googleapis.com/css2?${params}&display=swap`;
 }

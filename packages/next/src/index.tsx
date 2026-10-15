@@ -4,6 +4,7 @@ import {
   colorSchemeScript,
   demoContent,
   findRedirect,
+  fontPreloads,
   type GoodfellowConfig,
   getPageHead,
   googleFontsUrl,
@@ -16,7 +17,7 @@ import {
   todayIn,
   withBase,
 } from "@goodfellow-cms/core";
-import { fileSystemSource, readMediaSizes } from "@goodfellow-cms/core/node";
+import { fileSystemSource, readMediaSizes, readStylesheet } from "@goodfellow-cms/core/node";
 import {
   applyPageEntry,
   BodyCode,
@@ -34,6 +35,7 @@ import {
 import type { Metadata, MetadataRoute } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
+import { preload } from "react-dom";
 import { CurrentMenuLinks, NextImage, NextLink } from "./components.js";
 
 export interface GoodfellowPagesOptions {
@@ -129,8 +131,12 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   const renderOptions = async () => ({ base: basePath(), components, media: await readMediaSizes(root) });
 
   /** The site's theme and fonts, which React moves into the document's head. themeToCss escapes its output. */
-  function Theme({ content }: { content: SiteContent }) {
+  async function Theme({ content }: { content: SiteContent }) {
     const fontsUrl = googleFontsUrl(content.settings.theme);
+    // React adds these to the head once each, where a <link> would also be kept as it is.
+    for (const href of await fontPreloads(content.settings.theme, readStylesheet)) {
+      preload(href, { as: "font", type: "font/woff2", crossOrigin: "" });
+    }
     const colorScheme = colorSchemeMeta(content.settings.theme);
     const schemeScript = colorSchemeScript(content.settings.theme);
     return (

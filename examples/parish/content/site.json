@@ -26,7 +26,9 @@
     },
     "fonts": {
       "body": "Source Sans 3",
-      "heading": "Cormorant Garamond"
+      "bodyCategory": "sans-serif",
+      "heading": "Cormorant Garamond",
+      "headingCategory": "serif"
     },
     "radius": "0.5rem"
   },

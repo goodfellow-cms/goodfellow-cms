@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": ["NODE_EXTRA_CA_CERTS"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

@@ -215,6 +215,8 @@ export {
   FIELD_TYPES,
   type FieldOption,
   type FieldType,
+  FONT_CATEGORIES,
+  type FontCategory,
   type LayoutFile,
   layoutFileSchema,
   type MenuItem,
@@ -306,6 +308,7 @@ export {
   type SiteEditors,
 } from "./editors.js";
 export { isExternalLink, type LinkTargetOptions, NEW_TAB, setLinkTargets } from "./external-links.js";
+export { fontFilesFor, fontPreloads, type ReadStylesheet } from "./fonts.js";
 export {
   type FormDetails,
   type FormProblem,

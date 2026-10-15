@@ -1,7 +1,8 @@
+import type { FontCategory } from "@goodfellow-cms/core";
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { type StringKey, useStrings } from "./strings.js";
 
-export type FontCategory = "sans-serif" | "serif" | "display" | "handwriting" | "monospace";
+export type { FontCategory };
 export type Font = readonly [family: string, category: FontCategory];
 
 /** How many fonts the list shows at once. Searching finds the rest. */
@@ -120,7 +121,8 @@ export function FontPicker({
   label: string;
   value: string;
   error?: string;
-  onChange: (value: string) => void;
+  /** The family, empty for the site's default, and its kind, which pages fall back to while it loads. */
+  onChange: (value: string, category: FontCategory | undefined) => void;
 }) {
   const t = useStrings();
   const id = useId();
@@ -149,7 +151,7 @@ export function FontPicker({
     setQuery("");
   };
   const pick = (option: Font | null) => {
-    onChange(option ? option[0] : "");
+    onChange(option ? option[0] : "", option?.[1]);
     close();
   };
   const openList = () => {

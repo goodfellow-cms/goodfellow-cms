@@ -28,6 +28,17 @@ describe("themeToCss", () => {
     expect(css).toContain('--gf-font-heading:"Cinzel", ui-sans-serif');
     expect(css).toContain('--gf-font-body:"Lato", ui-sans-serif');
   });
+
+  it("falls back to the computer's fonts of the same kind", () => {
+    const css = themeToCss(
+      theme({ fonts: { heading: "Fraunces", headingCategory: "serif", body: "Fira Code", bodyCategory: "monospace" } }),
+    );
+    expect(css).toContain('--gf-font-heading:"Fraunces", ui-serif, Georgia,');
+    expect(css).toContain('--gf-font-body:"Fira Code", ui-monospace,');
+    expect(themeToCss(theme({ fonts: { heading: "Bangers", headingCategory: "display" } }))).toContain(
+      '--gf-font-heading:"Bangers", ui-sans-serif',
+    );
+  });
 });
 
 describe("dark mode", () => {
@@ -111,7 +122,7 @@ describe("codeStyle", () => {
 describe("googleFontsUrl", () => {
   it("requests each font once", () => {
     expect(googleFontsUrl(theme({ fonts: { heading: "Cinzel Decorative", body: "Cinzel Decorative" } }))).toBe(
-      "https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;500;600;700&display=fallback",
+      "https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;500;600;700&display=swap",
     );
   });
 

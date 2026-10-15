@@ -33,6 +33,10 @@ const fontFamily = z.string().regex(/^[a-zA-Z0-9 ]{1,60}$/, "must be a font name
 /** A Shiki theme's name, such as `github-light`; `CODE_THEMES` lists the ones Goodfellow offers. */
 const codeThemeName = z.string().regex(/^[a-z0-9-]{1,60}$/, "must be a code theme's name, such as github-light");
 
+/** Google Fonts' kinds of font, which say what a font falls back to while it loads. */
+export const FONT_CATEGORIES = ["sans-serif", "serif", "display", "handwriting", "monospace"] as const;
+export type FontCategory = (typeof FONT_CATEGORIES)[number];
+
 /** A CSS length, such as `0.5rem` or `0`. */
 const cssLength = z.string().regex(/^\d*\.?\d+(px|rem|em)?$/, "must be a size, such as 0.5rem or 8px");
 
@@ -49,6 +53,9 @@ const themeSchema = z.object({
     .object({
       heading: fontFamily.optional(),
       body: fontFamily.optional(),
+      /** What kind of font each is, from Google Fonts' list, so pages fall back to a similar one. Sans serif if left out. */
+      headingCategory: z.enum(FONT_CATEGORIES).optional(),
+      bodyCategory: z.enum(FONT_CATEGORIES).optional(),
     })
     .default({}),
   radius: cssLength.optional(),

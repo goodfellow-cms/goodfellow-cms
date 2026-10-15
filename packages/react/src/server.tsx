@@ -2,6 +2,7 @@ import {
   absoluteUrl,
   colorSchemeMeta,
   colorSchemeScript,
+  fontPreloads,
   type GoodfellowConfig,
   getPageHead,
   googleFontsUrl,
@@ -9,6 +10,7 @@ import {
   type SiteContent,
   themeToCss,
 } from "@goodfellow-cms/core";
+import { readStylesheet } from "@goodfellow-cms/core/node";
 import { prerender } from "react-dom/static";
 import { BodyCode, HeadCode } from "./custom-code.js";
 import { fillSlots } from "./island.js";
@@ -70,6 +72,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
 
     const head = getPageHead(settings, page);
     const fontsUrl = googleFontsUrl(settings.theme);
+    const fontFiles = await fontPreloads(settings.theme, readStylesheet);
     const colorScheme = colorSchemeMeta(settings.theme);
     const schemeScript = colorSchemeScript(settings.theme);
     const socialImage = toAbsolute(settings.url, head.socialImage);
@@ -96,6 +99,9 @@ export function createPageRenderer(config: GoodfellowConfig) {
             <>
               <link rel="preconnect" href="https://fonts.googleapis.com" />
               <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+              {fontFiles.map((href) => (
+                <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="" />
+              ))}
               <link rel="stylesheet" href={fontsUrl} />
             </>
           )}

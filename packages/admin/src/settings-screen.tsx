@@ -98,13 +98,25 @@ function cleanSettings(draft: SiteSettings): unknown {
     forms: cleanForms(draft.forms),
     theme: {
       colors,
-      fonts: { heading: optional(draft.theme.fonts.heading), body: optional(draft.theme.fonts.body) },
+      fonts: cleanFonts(draft.theme.fonts),
       radius: optional(draft.theme.radius),
       // Dark colors are kept while dark mode is off, so turning it back on finds them again.
       darkMode: draft.theme.darkMode || undefined,
       darkColors: Object.keys(darkColors).length > 0 ? darkColors : undefined,
       code: cleanCode(draft.theme.code),
     },
+  };
+}
+
+/** A font's kind is kept only with the font, which is all it's about. */
+function cleanFonts(fonts: SiteSettings["theme"]["fonts"]): SiteSettings["theme"]["fonts"] {
+  const heading = fonts.heading?.trim() || undefined;
+  const body = fonts.body?.trim() || undefined;
+  return {
+    heading,
+    ...(heading && fonts.headingCategory && { headingCategory: fonts.headingCategory }),
+    body,
+    ...(body && fonts.bodyCategory && { bodyCategory: fonts.bodyCategory }),
   };
 }
 
@@ -522,13 +534,17 @@ function ThemeTab({
         label={t("theme.headingFont")}
         value={theme.fonts.heading ?? ""}
         error={errors["theme.fonts.heading"]}
-        onChange={(heading) => onChange({ ...draft, theme: { ...theme, fonts: { ...theme.fonts, heading } } })}
+        onChange={(heading, headingCategory) =>
+          onChange({ ...draft, theme: { ...theme, fonts: { ...theme.fonts, heading, headingCategory } } })
+        }
       />
       <FontPicker
         label={t("theme.bodyFont")}
         value={theme.fonts.body ?? ""}
         error={errors["theme.fonts.body"]}
-        onChange={(body) => onChange({ ...draft, theme: { ...theme, fonts: { ...theme.fonts, body } } })}
+        onChange={(body, bodyCategory) =>
+          onChange({ ...draft, theme: { ...theme, fonts: { ...theme.fonts, body, bodyCategory } } })
+        }
       />
       <TextField
         label={t("theme.radius")}
