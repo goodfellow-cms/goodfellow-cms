@@ -42,6 +42,7 @@ export {
   zonedInstant,
   zonedTime,
 } from "./calendar.js";
+export { COLOR_SCHEME_ATTRIBUTE, COLOR_SCHEME_STORAGE_KEY, colorSchemeScript } from "./color-scheme.js";
 export { type AiConfig, type ClaudeConfig, defineConfig, type GoodfellowConfig } from "./config.js";
 export {
   type BuildFile,
@@ -214,6 +215,8 @@ export {
   FIELD_TYPES,
   type FieldOption,
   type FieldType,
+  FONT_CATEGORIES,
+  type FontCategory,
   type LayoutFile,
   layoutFileSchema,
   type MenuItem,
@@ -305,6 +308,7 @@ export {
   type SiteEditors,
 } from "./editors.js";
 export { isExternalLink, type LinkTargetOptions, NEW_TAB, setLinkTargets } from "./external-links.js";
+export { fontFilesFor, fontPreloads, type ReadStylesheet } from "./fonts.js";
 export {
   type FormDetails,
   type FormProblem,
@@ -438,7 +442,23 @@ export {
   type TemplateName,
   withoutRepositoryNotes,
 } from "./site-setup.js";
-export { DEFAULT_RADIUS, DEFAULT_THEME_COLORS, escapeStyleText, googleFontsUrl, themeToCss } from "./theme.js";
+export {
+  CODE_THEMES,
+  type CodeStyle,
+  codeStyle,
+  colorSchemeMeta,
+  type DarkCodeTheme,
+  DEFAULT_CODE_THEMES,
+  DEFAULT_DARK_THEME_COLORS,
+  DEFAULT_RADIUS,
+  DEFAULT_THEME_COLORS,
+  darkThemeColor,
+  escapeStyleText,
+  type FontStandIns,
+  googleFontsUrl,
+  type LightCodeTheme,
+  themeToCss,
+} from "./theme.js";
 export { trimChars } from "./trim.js";
 export {
   type AvailableUpdates,

@@ -3,6 +3,27 @@
  * Tailwind, so classes like bg-primary, text-muted-foreground, font-heading and
  * rounded-lg follow the theme. Import after "tailwindcss".
  */
+/*
+ * Blocks' dark: classes apply only where the site has dark mode
+ * (Site Settings), which gives its pages <meta name="color-scheme"
+ * content="light dark">: when the visitor's computer is set to dark, or when
+ * the admin panel's preview shows the site dark. Light-only sites never
+ * use them, even on a computer set to dark.
+ */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(
+        :root:has(meta[name="color-scheme"][content~="dark"]):not([data-gf-color-scheme="light"]),
+        :root:has(meta[name="color-scheme"][content~="dark"]):not([data-gf-color-scheme="light"]) *
+      ) {
+      @slot;
+    }
+  }
+  &:where([data-gf-color-scheme="dark"], [data-gf-color-scheme="dark"] *) {
+    @slot;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

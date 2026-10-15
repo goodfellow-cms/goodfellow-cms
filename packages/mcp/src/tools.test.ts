@@ -314,7 +314,7 @@ describe("screenshots", () => {
     const { call } = await connect({ screenshots });
     const live = await call("screenshot", { address: "/about", width: 390 });
     expect(live.content[0]).toEqual({ type: "image", data: btoa("\x89PNG"), mimeType: "image/png" });
-    expect(taken[0]).toEqual({ url: "https://parish.example/about", width: 390 });
+    expect(taken[0]).toEqual({ url: "https://parish.example/about", width: 390, dark: false });
 
     const { draft } = (await call("save_page", { address: "/about", blocks: [heading("Draft heading")] })).json();
     await call("screenshot", { address: "/about", draft });
@@ -323,6 +323,12 @@ describe("screenshots", () => {
     expect(taken[1]?.preview?.path).toBe("/about");
     expect(taken[1]?.preview?.files["content/pages/about.json"]).toContain("Draft heading");
     expect(Object.keys(taken[1]?.preview?.files ?? {})).toContain("content/site.json");
+
+    // Dark, as visitors whose computer is set to dark see it, live and in a draft.
+    await call("screenshot", { address: "/about", dark: true });
+    expect(taken[2]).toEqual({ url: "https://parish.example/about", width: 1280, dark: true });
+    await call("screenshot", { address: "/about", draft, dark: true });
+    expect(taken[3]).toMatchObject({ dark: true, preview: { path: "/about", dark: true } });
   });
 
   it("takes images in the media library, and nothing else that isn't a page", async () => {
@@ -335,7 +341,7 @@ describe("screenshots", () => {
     };
     const { call } = await connect({ screenshots });
     expect((await call("screenshot", { address: "/media/photo.jpg" })).isError).toBe(false);
-    expect(taken).toEqual([{ url: "https://parish.example/media/photo.jpg", width: 1280, image: true }]);
+    expect(taken).toEqual([{ url: "https://parish.example/media/photo.jpg", width: 1280, image: true, dark: false }]);
     expect((await call("screenshot", { address: "/media/missing.jpg" })).text).toContain(
       "no file at /media/missing.jpg",
     );

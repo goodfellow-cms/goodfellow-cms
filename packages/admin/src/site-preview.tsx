@@ -28,6 +28,8 @@ export interface PreviewRequest {
   files: Record<string, string>;
   /** The page's address on the site, such as `/about`. */
   path: string;
+  /** Shows a site with dark mode dark. Light otherwise. */
+  dark?: boolean;
 }
 
 export type PreviewResult = { ok: true; status: number } | { ok: false; problem: string };
@@ -59,6 +61,7 @@ const EMPTY_DOCUMENT =
 interface Shown {
   content: SiteContent;
   prepared: PreparedPage;
+  dark: boolean;
 }
 
 /**
@@ -74,7 +77,7 @@ export function SitePreview({ config, preview }: { config: GoodfellowConfig; pre
   const rendered = useRef<() => void>(undefined);
 
   useEffect(() => {
-    window.goodfellowPreview = async ({ files, path }) => {
+    window.goodfellowPreview = async ({ files, path, dark }) => {
       let content: SiteContent;
       try {
         content = await loadSiteContent(filesSource(files));
@@ -86,7 +89,7 @@ export function SitePreview({ config, preview }: { config: GoodfellowConfig; pre
       const prepared = await preparePage(configs, content, match.page);
       await new Promise<void>((done) => {
         rendered.current = done;
-        setShown({ content, prepared });
+        setShown({ content, prepared, dark: dark === true });
       });
       return { ok: true, status: match.status };
     };
@@ -100,6 +103,7 @@ export function SitePreview({ config, preview }: { config: GoodfellowConfig; pre
     installPreviewStyles(doc, preview, {
       theme: shown.content.settings.theme,
       customCss: shown.content.customCss,
+      scheme: shown.dark ? "dark" : "light",
     });
     // Once React has put the page in, two frames later so it's been laid out too.
     requestAnimationFrame(() =>

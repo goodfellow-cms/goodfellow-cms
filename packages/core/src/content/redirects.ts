@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { withBase } from "../base-path.js";
 import { absoluteUrl } from "../head.js";
-import { DEFAULT_THEME_COLORS } from "../theme.js";
+import { DEFAULT_THEME_COLORS, darkThemeColor, escapeStyleText } from "../theme.js";
 import type { BuildFile } from "./calendars.js";
 import type { SiteContent } from "./load.js";
 import { isReservedPagePath } from "./paths.js";
@@ -201,6 +201,14 @@ export function redirectPage(
     '<meta name="robots" content="noindex">',
     ...(canonical ? [`<link rel="canonical" href="${escapeHtml(canonical)}">`] : []),
     `<meta http-equiv="refresh" content="0; url=${link}">`,
+    ...(settings.theme.darkMode
+      ? [
+          '<meta name="color-scheme" content="light dark">',
+          `<style>${escapeStyleText(
+            `@media (prefers-color-scheme: dark){body{color:${darkThemeColor(settings.theme, "foreground")}!important;background:${darkThemeColor(settings.theme, "background")}!important}a{color:${darkThemeColor(settings.theme, "primary")}!important}}`,
+          )}</style>`,
+        ]
+      : []),
     `<script>${script}</script>`,
     "</head>",
     `<body style="${escapeHtml(style)}">`,

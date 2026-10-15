@@ -1,3 +1,4 @@
+import { codeStyle, type SiteSettings } from "@goodfellow-cms/core";
 import { classNameField, cx } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import { CopyButton } from "./copy-button.js";
@@ -56,7 +57,11 @@ export const Code: ComponentConfig<CodeProps> = {
     code: { type: "textarea", label: "Code" },
     language: { type: "select", label: "Language", options: options(CODE_LANGUAGES) },
     title: { type: "text", label: "Title, such as a file name" },
-    colors: { type: "radio", label: "Colors", options: options({ light: "Light", dark: "Dark" }) },
+    colors: {
+      type: "radio",
+      label: "Colors",
+      options: options({ page: "Like the page", light: "Light", dark: "Dark" }),
+    },
     copyLabel: { type: "text", label: "Copy button's label (leave empty for no button)" },
     className: classNameField,
   },
@@ -64,13 +69,14 @@ export const Code: ComponentConfig<CodeProps> = {
     code: 'console.log("Hello!");',
     language: "javascript",
     title: "",
-    colors: "light",
+    colors: "page",
     copyLabel: "Copy code",
     className: "",
   },
-  resolveData: async ({ props }) => {
-    const shiki = await loadHighlighter();
-    return { props: { ...props, html: highlightCode(shiki, props.code, props.language, props.colors) } };
+  resolveData: async ({ props }, { metadata }) => {
+    const style = codeStyle((metadata.site as SiteSettings | undefined)?.theme);
+    const shiki = await loadHighlighter(style);
+    return { props: { ...props, html: highlightCode(shiki, props.code, props.language, props.colors, style) } };
   },
   render: ({ code, html, title, copyLabel, className }) => (
     <CodeView

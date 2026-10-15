@@ -240,6 +240,8 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         address: site.url,
         ...(site.versionProblem && { cantChange: site.versionProblem }),
         ...(site.description.claude?.publish === false && { cantPublish: NO_PUBLISHING }),
+        // Screenshots can show it both ways.
+        ...(site.settings.theme.darkMode && { darkMode: true }),
         pages: pages.map((page) => page.address),
         collections: collections.map((collection) => ({ id: collection.id, entries: collection.entries.length })),
         menus: Object.keys(menus),
@@ -606,13 +608,17 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
           .union([z.literal(390), z.literal(768), z.literal(1280)])
           .optional()
           .describe("390 for a phone, 768 for a tablet, 1280 (the default) for a computer."),
+        dark: z
+          .boolean()
+          .optional()
+          .describe("Shows the page as visitors whose computer is set to dark see it, on sites with dark mode."),
       },
-      async ({ site: given, address, draft: name, width = 1280 }) => {
+      async ({ site: given, address, draft: name, width = 1280, dark = false }) => {
         const site = await open(given);
         if (isMediaAddress(address)) {
           // Media isn't in drafts: uploads go straight to the live site, so this is always the live file.
           const image = await mediaImage(site.backend, address);
-          const png = await screenshots.take({ url: `${site.url}${image}`, width, image: true });
+          const png = await screenshots.take({ url: `${site.url}${image}`, width, image: true, dark });
           return { content: [{ type: "image", data: base64(png), mimeType: "image/png" }] };
         }
         const path = pageAddress(address);
@@ -620,9 +626,10 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
           ? await screenshots.take({
               url: `${site.url}/admin/#/preview`,
               width,
-              preview: { files: await contentFiles((await draftOf(site, name)).store), path },
+              dark,
+              preview: { files: await contentFiles((await draftOf(site, name)).store), path, dark },
             })
-          : await screenshots.take({ url: `${site.url}${path === "/" ? "/" : path}`, width });
+          : await screenshots.take({ url: `${site.url}${path === "/" ? "/" : path}`, width, dark });
         return { content: [{ type: "image", data: base64(png), mimeType: "image/png" }] };
       },
       true,

@@ -1,12 +1,18 @@
-import { escapeStyleText, googleFontsUrl, type Theme, themeToCss } from "@goodfellow-cms/core";
+import { COLOR_SCHEME_ATTRIBUTE, escapeStyleText, googleFontsUrl, type Theme, themeToCss } from "@goodfellow-cms/core";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type PreviewOptions, useAdmin } from "./admin-context.js";
 import { showMediaInPreview } from "./media-previews.js";
+import { useDarkMode } from "./theme.js";
+
+/** Whether a preview shows the site light or dark. */
+export type PreviewScheme = "light" | "dark";
 
 export interface PreviewStyles {
   theme: Theme;
   customCss: string;
+  /** Light or dark, for sites with dark mode. Without it, previews are like the admin panel. */
+  scheme?: PreviewScheme;
 }
 
 function upsert<K extends keyof HTMLElementTagNameMap>(
@@ -30,7 +36,13 @@ function upsert<K extends keyof HTMLElementTagNameMap>(
  * theme being edited, and the custom CSS being edited. Tailwind runs in the
  * browser too, so classes typed in the editor take effect before the site is rebuilt.
  */
-export function installPreviewStyles(doc: Document, options: PreviewOptions, styles: PreviewStyles): void {
+export function installPreviewStyles(
+  doc: Document,
+  options: PreviewOptions,
+  styles: PreviewStyles & { scheme: PreviewScheme },
+): void {
+  // Light-only sites' previews are always light, as their pages are.
+  doc.documentElement.setAttribute(COLOR_SCHEME_ATTRIBUTE, styles.theme.darkMode ? styles.scheme : "light");
   options.stylesheets.forEach((href, index) => {
     upsert(doc, `stylesheet-${index}`, "link", (link) => {
       link.rel = "stylesheet";
@@ -82,11 +94,13 @@ function preventNavigation(doc: Document): void {
 /** Applies preview styles to a document whenever the theme or custom CSS change, and keeps its media showing. */
 export function usePreviewStyles(doc: Document | null | undefined, styles: PreviewStyles): void {
   const { preview, mediaPreviews } = useAdmin();
+  const dark = useDarkMode();
+  const scheme = styles.scheme ?? (dark ? "dark" : "light");
   useEffect(() => {
     if (!doc) return;
     preventNavigation(doc);
-    installPreviewStyles(doc, preview, styles);
-  }, [doc, preview, styles]);
+    installPreviewStyles(doc, preview, { ...styles, scheme });
+  }, [doc, preview, styles, scheme]);
   useEffect(() => (doc ? showMediaInPreview(doc, mediaPreviews) : undefined), [doc, mediaPreviews]);
 }
 

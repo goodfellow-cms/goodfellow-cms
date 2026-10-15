@@ -1,4 +1,5 @@
 import {
+  CODE_THEMES,
   type Collection,
   collectionFileSchema,
   type Entry,
@@ -9,6 +10,7 @@ import {
 import { createPuckConfig } from "@goodfellow-cms/react";
 import { createPageRenderer } from "@goodfellow-cms/react/server";
 import { describe, expect, it } from "vitest";
+import { CODE_THEME_LOADERS } from "./highlight.js";
 import { blocks, categories, listedEntries } from "./index.js";
 
 const renderPage = createPageRenderer({ blocks, categories });
@@ -155,6 +157,66 @@ describe("built-in blocks", () => {
   it("shows the site logo and name", async () => {
     const html = await render([{ type: "SiteBrand", props: { id: "b", show: "both", className: "" } }]);
     expect(html).toContain('<img src="/media/logo.svg" alt="" class="h-10 w-auto"/><span>St. Joseph</span>');
+  });
+
+  it("shows the dark logo in dark mode, only where the site has dark mode", async () => {
+    const saved = content.settings;
+    const logo = { src: "/media/logo.svg", alt: "Logo", darkSrc: "/media/logo-light.svg" };
+    content.settings = { ...saved, logo };
+    try {
+      const brand = [{ type: "SiteBrand", props: { id: "b", show: "logo", className: "" } }];
+      // Without dark mode, the dark logo is kept but not shown.
+      expect(await render(brand)).not.toContain("logo-light.svg");
+      content.settings = { ...saved, logo, theme: { ...saved.theme, darkMode: true } };
+      const html = await render(brand);
+      expect(html).toContain('<img src="/media/logo.svg" alt="Logo" class="h-10 w-auto dark:hidden"/>');
+      expect(html).toContain('<img src="/media/logo-light.svg" alt="Logo" class="hidden h-10 w-auto dark:block"/>');
+    } finally {
+      content.settings = saved;
+    }
+  });
+
+  it("colors code like the page by default, with Shiki's dark colors on sites with dark mode", async () => {
+    const code = { id: "c", code: "let a = 1;", language: "javascript", title: "", copyLabel: "", className: "" };
+    const light = await render([{ type: "Code", props: { ...code, colors: "page" } }]);
+    expect(light).toContain('class="shiki github-light"');
+    expect(light).not.toContain("--shiki-dark:");
+    const saved = content.settings;
+    content.settings = { ...saved, theme: { ...saved.theme, darkMode: true } };
+    try {
+      const page = await render([{ type: "Code", props: { ...code, colors: "page" } }]);
+      expect(page).toContain('class="shiki shiki-themes github-light github-dark"');
+      expect(page).toContain("--shiki-dark:");
+    } finally {
+      content.settings = saved;
+    }
+    const dark = await render([{ type: "Code", props: { ...code, colors: "dark" } }]);
+    expect(dark).toContain('class="shiki github-dark"');
+    expect(dark).not.toContain("--shiki-dark:");
+    expect(blocks.Code.defaultProps?.colors).toBe("page");
+  });
+
+  it("shows the Dark mode switch only on sites with dark mode, as a switch or a menu", async () => {
+    const props = { ...blocks.DarkModeSwitch.defaultProps, id: "s" };
+    expect(await render([{ type: "DarkModeSwitch", props }])).not.toContain('role="switch"');
+    const saved = content.settings;
+    content.settings = { ...saved, theme: { ...saved.theme, darkMode: true } };
+    try {
+      const toggle = await render([{ type: "DarkModeSwitch", props }]);
+      expect(toggle).toMatch(/<button type="button" role="switch" aria-checked="false" aria-label="Dark mode"/);
+      expect(toggle).not.toContain(">Light</span>");
+      const labelled = await render([{ type: "DarkModeSwitch", props: { ...props, labels: "show" } }]);
+      expect(labelled).toContain(">Light</span>");
+      expect(labelled).toContain(">Dark</span>");
+      const menu = await render([
+        { type: "DarkModeSwitch", props: { ...props, display: "menu", systemLabel: "Like my phone" } },
+      ]);
+      expect(menu).toMatch(/<select aria-label="Dark mode"[^>]*>/);
+      expect(menu).toContain('<option value="light">Light</option>');
+      expect(menu).toContain('<option value="system" selected="">Like my phone</option>');
+    } finally {
+      content.settings = saved;
+    }
   });
 
   it("shows the site's contact details, linking the phone number and email address", async () => {
@@ -309,6 +371,46 @@ describe("built-in blocks", () => {
     expect(html).toContain('aria-label="Copy code"');
   });
 
+  it("colors code with the site's code themes, and its panel color when chosen", async () => {
+    const code = { id: "c", code: "const a = 1;", language: "javascript", title: "", copyLabel: "", className: "" };
+    const withTheme = (theme: object) =>
+      renderPage({ ...content, settings: { ...content.settings, theme: { ...content.settings.theme, ...theme } } }, {
+        path: "/",
+        file: "",
+        content: {
+          version: 1,
+          data: {
+            root: { props: {} },
+            content: [
+              { type: "Code", props: { ...code, colors: "page" } },
+              { type: "Code", props: { ...code, id: "d", colors: "dark" } },
+            ],
+          },
+        },
+      } as Page);
+    const html = await withTheme({
+      darkMode: true,
+      code: { light: "everforest-light", dark: "everforest-dark", background: "site" },
+    });
+    expect(html).toMatch(
+      /<pre class="shiki shiki-themes everforest-light everforest-dark" style="[^"]*background-color:var\(--muted\);--shiki-dark-bg:var\(--muted\)"/,
+    );
+    // Code that's always dark keeps its theme's background, which its colors are made for.
+    expect(html).toMatch(/<pre class="shiki everforest-dark" style="background-color:#2d353b/);
+    const plain = await withTheme({ code: { light: "vitesse-light" } });
+    expect(plain).toMatch(/<pre class="shiki vitesse-light" style="background-color:#ffffff/);
+  });
+
+  it("can load every code theme Site Settings offers", async () => {
+    const names = [...Object.keys(CODE_THEMES.light), ...Object.keys(CODE_THEMES.dark)];
+    expect(Object.keys(CODE_THEME_LOADERS).sort()).toEqual([...names].sort());
+    for (const name of names) {
+      const theme = (await CODE_THEME_LOADERS[name as keyof typeof CODE_THEME_LOADERS]()).default;
+      expect(theme.name).toBe(name);
+      expect(theme.type).toBe(name in CODE_THEMES.light ? "light" : "dark");
+    }
+  });
+
   it("renders a Markdown file's body: tables, heading ids and highlighted code, with HTML shown as text", async () => {
     const docs: Collection = {
       id: "docs",
@@ -358,6 +460,7 @@ describe("built-in blocks", () => {
     const main = html.slice(html.indexOf("<main"), html.indexOf("</main>"));
     expect(main).toContain('<h2 id="install-it">Install it</h2>');
     expect(main).toContain("<td>GitLab</td>");
+    // Light-only sites' code needs only the light colors.
     expect(main).toContain('<pre class="shiki github-light"');
     expect(main).toContain('aria-label="Copy"');
     expect(main).not.toMatch(/<script|href="javascript/);

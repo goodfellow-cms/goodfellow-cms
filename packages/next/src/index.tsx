@@ -1,7 +1,10 @@
 import {
   absoluteUrl,
+  colorSchemeMeta,
+  colorSchemeScript,
   demoContent,
   findRedirect,
+  fontPreloads,
   type GoodfellowConfig,
   getPageHead,
   googleFontsUrl,
@@ -14,7 +17,7 @@ import {
   todayIn,
   withBase,
 } from "@goodfellow-cms/core";
-import { fileSystemSource, readMediaSizes } from "@goodfellow-cms/core/node";
+import { fileSystemSource, fontStandIns, readMediaSizes, readStylesheet } from "@goodfellow-cms/core/node";
 import {
   applyPageEntry,
   BodyCode,
@@ -32,6 +35,7 @@ import {
 import type { Metadata, MetadataRoute } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
+import { preload } from "react-dom";
 import { CurrentMenuLinks, NextImage, NextLink } from "./components.js";
 
 export interface GoodfellowPagesOptions {
@@ -127,12 +131,26 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   const renderOptions = async () => ({ base: basePath(), components, media: await readMediaSizes(root) });
 
   /** The site's theme and fonts, which React moves into the document's head. themeToCss escapes its output. */
-  function Theme({ content }: { content: SiteContent }) {
+  async function Theme({ content }: { content: SiteContent }) {
     const fontsUrl = googleFontsUrl(content.settings.theme);
+    // React adds these to the head once each, where a <link> would also be kept as it is.
+    const [fontFiles, standIns] = await Promise.all([
+      fontPreloads(content.settings.theme, readStylesheet),
+      fontStandIns(content.settings.theme),
+    ]);
+    for (const href of fontFiles) {
+      preload(href, { as: "font", type: "font/woff2", crossOrigin: "" });
+    }
+    const colorScheme = colorSchemeMeta(content.settings.theme);
+    const schemeScript = colorSchemeScript(content.settings.theme);
     return (
       <>
+        {colorScheme && <meta name="color-scheme" content={colorScheme} />}
+        {/* Before the header, so the visitor's light or dark choice is back before anything shows. */}
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own script, which puts back the visitor's light or dark choice */}
+        {schemeScript && <script dangerouslySetInnerHTML={{ __html: schemeScript }} />}
         <style href="goodfellow-theme" precedence="default">
-          {themeToCss(content.settings.theme)}
+          {themeToCss(content.settings.theme, standIns)}
         </style>
         {fontsUrl && (
           <>

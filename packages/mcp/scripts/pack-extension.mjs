@@ -3,11 +3,11 @@
 // core for screenshots with the computer's own Chrome or Edge, and the
 // manifest, whose settings Claude Desktop asks for when it's installed.
 // The docs workflow publishes it on the documentation site.
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { packExtension } from "@anthropic-ai/mcpb";
+import { zipSync } from "fflate";
 import { build } from "tsdown";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -96,6 +96,33 @@ const manifest = {
 };
 writeFileSync(join(out, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
-const ok = await packExtension({ extensionPath: out, outputPath: join(root, "goodfellow.mcpb"), silent: true });
-if (!ok) throw new Error("Couldn't pack the extension: its manifest doesn't fit the .mcpb format.");
+// A .mcpb file is a zip with manifest.json at its top, so it's zipped here
+// rather than with Anthropic's mcpb tool, whose signing brings in packages
+// with security advisories. The fields Claude Desktop needs are checked first.
+const missing = [
+  ["manifest_version", manifest.manifest_version],
+  ["name", manifest.name],
+  ["version", manifest.version],
+  ["description", manifest.description],
+  ["author.name", manifest.author?.name],
+  ["server.type", manifest.server?.type],
+  ["server.entry_point", manifest.server?.entry_point],
+  ["server.mcp_config.command", manifest.server?.mcp_config?.command],
+].filter(([, value]) => !value);
+if (missing.length) throw new Error(`The extension's manifest needs ${missing.map(([name]) => name).join(", ")}.`);
+if (!existsSync(join(out, manifest.server.entry_point)))
+  throw new Error(`${manifest.server.entry_point} wasn't built.`);
+
+const files = {};
+for (const entry of readdirSync(out, { recursive: true, withFileTypes: true })) {
+  if (!entry.isFile()) continue;
+  const path = join(entry.parentPath, entry.name);
+  files[
+    path
+      .slice(out.length + 1)
+      .split("\\")
+      .join("/")
+  ] = readFileSync(path);
+}
+writeFileSync(join(root, "goodfellow.mcpb"), zipSync(files, { level: 9 }));
 console.log("Packed goodfellow.mcpb.");

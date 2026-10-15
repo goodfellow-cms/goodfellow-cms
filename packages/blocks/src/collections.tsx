@@ -1,6 +1,7 @@
 import {
   type Collection,
   type CollectionField,
+  codeStyle,
   type Entry,
   entryTitle,
   type FieldType,
@@ -178,12 +179,13 @@ const entryField: ComponentConfig<EntryFieldProps> = {
     const raw = entry?.content.fields[props.field];
     // A Markdown file's body isn't HTML, so it's rendered here, with its code highlighted, rather than by Puck.
     if (collection?.settings.markdown?.body === props.field && typeof raw === "string") {
-      const shiki = /^ {0,3}(```|~~~)/m.test(raw) ? await loadHighlighter() : undefined;
       const settings = metadata.site as SiteSettings | undefined;
+      const style = codeStyle(settings?.theme);
+      const shiki = /^ {0,3}(```|~~~)/m.test(raw) ? await loadHighlighter(style) : undefined;
       const markdownOptions: MarkdownOptions = {
         externalLinks: { newTab: settings?.externalLinksInNewTab === true, siteUrl: settings?.url },
       };
-      if (shiki) markdownOptions.highlight = (code, language) => highlightCode(shiki, code, language);
+      if (shiki) markdownOptions.highlight = (code, language) => highlightCode(shiki, code, language, "page", style);
       const markdown = markdownParts(raw, markdownOptions);
       return { props: { ...props, value: undefined, markdown } };
     }

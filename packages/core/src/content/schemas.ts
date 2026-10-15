@@ -30,18 +30,48 @@ const cssColor = z
 /** A Google Fonts family name, such as `Inter` or `Cinzel Decorative`. */
 const fontFamily = z.string().regex(/^[a-zA-Z0-9 ]{1,60}$/, "must be a font name, such as Inter or Cinzel Decorative");
 
+/** A Shiki theme's name, such as `github-light`; `CODE_THEMES` lists the ones Goodfellow offers. */
+const codeThemeName = z.string().regex(/^[a-z0-9-]{1,60}$/, "must be a code theme's name, such as github-light");
+
+/** Google Fonts' kinds of font, which say what a font falls back to while it loads. */
+export const FONT_CATEGORIES = ["sans-serif", "serif", "display", "handwriting", "monospace"] as const;
+export type FontCategory = (typeof FONT_CATEGORIES)[number];
+
 /** A CSS length, such as `0.5rem` or `0`. */
 const cssLength = z.string().regex(/^\d*\.?\d+(px|rem|em)?$/, "must be a size, such as 0.5rem or 8px");
 
 const themeSchema = z.object({
   colors: z.partialRecord(z.enum(THEME_COLORS), cssColor).default({}),
+  /**
+   * Whether pages follow the visitor's light or dark setting. Off by default:
+   * a site is light only until its owner turns this on in Site Settings.
+   */
+  darkMode: z.boolean().optional(),
+  /** The theme's colors in dark mode. Colors left out are `DEFAULT_DARK_THEME_COLORS`'. Kept while dark mode is off. */
+  darkColors: z.partialRecord(z.enum(THEME_COLORS), cssColor).optional(),
   fonts: z
     .object({
       heading: fontFamily.optional(),
       body: fontFamily.optional(),
+      /** What kind of font each is, from Google Fonts' list, so pages fall back to a similar one. Sans serif if left out. */
+      headingCategory: z.enum(FONT_CATEGORIES).optional(),
+      bodyCategory: z.enum(FONT_CATEGORIES).optional(),
     })
     .default({}),
   radius: cssLength.optional(),
+  /**
+   * How code is colored: the themes for code in light colors and in dark
+   * colors (`CODE_THEMES`; others fall back to `DEFAULT_CODE_THEMES`), and
+   * whether code that's colored like the page keeps its theme's background
+   * (`theme`, the default) or takes the site's panel color (`site`, `--muted`).
+   */
+  code: z
+    .object({
+      light: codeThemeName.optional(),
+      dark: codeThemeName.optional(),
+      background: z.enum(["theme", "site"]).optional(),
+    })
+    .optional(),
 });
 
 export const siteSettingsSchema = z.object({
@@ -56,6 +86,8 @@ export const siteSettingsSchema = z.object({
     .object({
       src: z.string(),
       alt: z.string().default(""),
+      /** The logo shown in dark mode, such as a light version, where the site has dark mode. */
+      darkSrc: z.string().optional(),
     })
     .optional(),
   /** How page titles appear in browser tabs. `%s` is replaced by the page title. */

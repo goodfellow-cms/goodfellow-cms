@@ -6,9 +6,15 @@
   "language": "en",
   "logo": {
     "alt": "Goodfellow",
+    "darkSrc": "/media/logo-dark.svg",
     "src": "/media/logo.svg"
   },
   "theme": {
+    "code": {
+      "background": "site",
+      "dark": "everforest-dark",
+      "light": "everforest-light"
+    },
     "colors": {
       "accent": "#f5ece2",
       "border": "#e7e5e4",
@@ -18,9 +24,25 @@
       "primaryForeground": "#ffffff",
       "secondary": "#f5ece2"
     },
+    "darkColors": {
+      "accent": "#18241d",
+      "accentForeground": "#f5ece2",
+      "background": "#0f1813",
+      "border": "#2a3a31",
+      "foreground": "#f5ece2",
+      "muted": "#18241d",
+      "mutedForeground": "#a0ada4",
+      "primary": "#9cc9a7",
+      "primaryForeground": "#0f1813",
+      "secondary": "#18241d",
+      "secondaryForeground": "#f5ece2"
+    },
+    "darkMode": true,
     "fonts": {
       "body": "Inter",
-      "heading": "Fraunces"
+      "bodyCategory": "sans-serif",
+      "heading": "Fraunces",
+      "headingCategory": "serif"
     }
   },
   "title": "Goodfellow",

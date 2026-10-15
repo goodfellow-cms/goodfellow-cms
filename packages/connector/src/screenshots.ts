@@ -14,7 +14,7 @@ const TIMEOUT = 30_000;
 
 export function browserScreenshots(binding: BrowserWorker): Screenshotter {
   return {
-    async take({ url, width, preview, image }) {
+    async take({ url, width, preview, image, dark }) {
       let browser: Awaited<ReturnType<typeof puppeteer.launch>>;
       try {
         browser = await puppeteer.launch(binding);
@@ -26,6 +26,7 @@ export function browserScreenshots(binding: BrowserWorker): Screenshotter {
       try {
         const page = await browser.newPage();
         await page.setViewport({ width, height: 900 });
+        await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: dark ? "dark" : "light" }]);
         if (image) await page.setContent(imagePage(url), { waitUntil: "networkidle0", timeout: TIMEOUT });
         else await page.goto(url, { waitUntil: "networkidle0", timeout: TIMEOUT });
         if (preview) {

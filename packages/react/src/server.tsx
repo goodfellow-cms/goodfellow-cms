@@ -1,5 +1,8 @@
 import {
   absoluteUrl,
+  colorSchemeMeta,
+  colorSchemeScript,
+  fontPreloads,
   type GoodfellowConfig,
   getPageHead,
   googleFontsUrl,
@@ -7,6 +10,7 @@ import {
   type SiteContent,
   themeToCss,
 } from "@goodfellow-cms/core";
+import { fontStandIns, readStylesheet } from "@goodfellow-cms/core/node";
 import { prerender } from "react-dom/static";
 import { BodyCode, HeadCode } from "./custom-code.js";
 import { fillSlots } from "./island.js";
@@ -68,6 +72,12 @@ export function createPageRenderer(config: GoodfellowConfig) {
 
     const head = getPageHead(settings, page);
     const fontsUrl = googleFontsUrl(settings.theme);
+    const [fontFiles, standIns] = await Promise.all([
+      fontPreloads(settings.theme, readStylesheet),
+      fontStandIns(settings.theme),
+    ]);
+    const colorScheme = colorSchemeMeta(settings.theme);
+    const schemeScript = colorSchemeScript(settings.theme);
     const socialImage = toAbsolute(settings.url, head.socialImage);
 
     const document = (
@@ -75,6 +85,9 @@ export function createPageRenderer(config: GoodfellowConfig) {
         <head>
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
+          {colorScheme && <meta name="color-scheme" content={colorScheme} />}
+          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own script, which puts back the visitor's light or dark choice */}
+          {schemeScript && <script dangerouslySetInnerHTML={{ __html: schemeScript }} />}
           <title>{head.title}</title>
           {head.description && <meta name="description" content={head.description} />}
           {head.noIndex && <meta name="robots" content="noindex" />}
@@ -89,6 +102,9 @@ export function createPageRenderer(config: GoodfellowConfig) {
             <>
               <link rel="preconnect" href="https://fonts.googleapis.com" />
               <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+              {fontFiles.map((href) => (
+                <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="" />
+              ))}
               <link rel="stylesheet" href={fontsUrl} />
             </>
           )}
@@ -96,7 +112,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
             <link key={href} rel="stylesheet" href={href} />
           ))}
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: themeToCss escapes its output */}
-          <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme) }} />
+          <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme, standIns) }} />
           <HeadCode code={content.code?.head} />
         </head>
         <body>

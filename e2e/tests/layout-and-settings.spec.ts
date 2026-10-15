@@ -98,7 +98,7 @@ test("chooses fonts from a searchable list of Google Fonts", async ({ page }) =>
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   expect(readJson("content/site.json")).toMatchObject({
-    theme: { fonts: { heading: "Playfair Display", body: "Lora" } },
+    theme: { fonts: { heading: "Playfair Display", headingCategory: "serif", body: "Lora", bodyCategory: "serif" } },
   });
 
   // "Site default" takes a font back out.
@@ -277,4 +277,126 @@ test("says Published under the Publish button, until something changes or a few 
   await publishButton.click();
   await expect(published).toBeVisible();
   await expect(published).toBeHidden({ timeout: 8_000 });
+});
+
+test("gives the site a dark mode only once it's turned on, with its own colors and logo", async ({ page }) => {
+  // Light only by default, even on a computer set to dark.
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(page.locator('meta[name="color-scheme"]')).toHaveCount(0);
+
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/admin#/settings/theme");
+  const preview = page.frameLocator(".gfa-preview iframe");
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.getByRole("checkbox", { name: "Follow each visitor's light or dark setting" }).check();
+  // The preview is like the admin panel, light here, until Dark is chosen.
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.getByRole("radio", { name: "Dark" }).check();
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(10, 10, 10)");
+  const dark = page.getByRole("group", { name: "Colors in dark mode" });
+  await dark.getByRole("textbox", { name: "Background", exact: true }).fill("#1e1b4b");
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+  await page.getByRole("radio", { name: "Light" }).check();
+  await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+
+  await page.getByRole("link", { name: "General" }).click();
+  await expect(page.getByText("Logo in dark mode")).toBeVisible();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readJson("content/site.json")).toMatchObject({
+    theme: { darkMode: true, darkColors: { background: "#1e1b4b" } },
+  });
+
+  // Pages follow the visitor's setting.
+  await page.goto("/");
+  await expect(page.locator('meta[name="color-scheme"]')).toHaveAttribute("content", "light dark");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+});
+
+const darkModeSwitch = (display: "switch" | "menu") => ({
+  type: "DarkModeSwitch",
+  props: {
+    id: "DarkModeSwitch-test",
+    display,
+    labels: "show",
+    label: "Dark mode",
+    lightLabel: "Light",
+    darkLabel: "Dark",
+    systemLabel: "Follow my computer",
+    className: "",
+  },
+});
+
+function withDarkModeSwitch(display: "switch" | "menu") {
+  const settings = readJson("content/site.json") as { theme: Record<string, unknown> };
+  settings.theme = { ...settings.theme, darkMode: true, darkColors: { background: "#1e1b4b" } };
+  writeSiteFile("content/site.json", `${JSON.stringify(settings, null, 2)}\n`);
+  const header = readJson("content/layout/header.json") as { data: { content: unknown[] } };
+  header.data.content.push(darkModeSwitch(display));
+  writeSiteFile("content/layout/header.json", `${JSON.stringify(header, null, 2)}\n`);
+}
+
+test("keeps a visitor's choice from the Dark mode switch on every page, before they show", async ({ page }) => {
+  withDarkModeSwitch("switch");
+  await page.goto("/");
+  const toggle = page.getByRole("switch", { name: "Dark mode" });
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+
+  // The next page is dark from the start, whatever the computer's setting.
+  await page.goto("/about");
+  expect(await page.evaluate(() => document.documentElement.getAttribute("data-gf-color-scheme"))).toBe("dark");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+  await expect(page.getByRole("switch", { name: "Dark mode" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("switch", { name: "Dark mode" }).click();
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+});
+
+test("lets visitors go back to following their computer with the Dark mode menu", async ({ page }) => {
+  withDarkModeSwitch("menu");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  const menu = page.getByRole("combobox", { name: "Dark mode" });
+  await expect(menu).toHaveValue("system");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+  await menu.selectOption("light");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Dark mode" })).toHaveValue("light");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.getByRole("combobox", { name: "Dark mode" }).selectOption("system");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(30, 27, 75)");
+  expect(await page.evaluate(() => localStorage.getItem("goodfellow.colorScheme"))).toBeNull();
+});
+
+test("chooses the colors code is shown in", async ({ page }) => {
+  await page.goto("/admin#/settings/theme");
+  await page.getByRole("combobox", { name: "Light colors" }).selectOption("everforest-light");
+  await page.getByRole("combobox", { name: "Dark colors" }).selectOption("everforest-dark");
+  await page.getByRole("checkbox", { name: "Show code on the subtle background color" }).check();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readJson("content/site.json")).toMatchObject({
+    theme: { code: { light: "everforest-light", dark: "everforest-dark", background: "site" } },
+  });
+});
+
+test.describe("before any script runs", () => {
+  test.use({ javaScriptEnabled: false, colorScheme: "dark" });
+
+  test("the Dark mode switch already shows the colors the page has", async ({ page }) => {
+    withDarkModeSwitch("switch");
+    await page.goto("/");
+    const toggle = page.getByRole("switch", { name: "Dark mode" });
+    await expect(toggle.locator("svg").first()).toBeHidden();
+    await expect(toggle.locator("svg").last()).toBeVisible();
+    await expect(toggle.getByText("Dark")).toHaveCSS("color", "rgb(250, 250, 250)");
+  });
 });

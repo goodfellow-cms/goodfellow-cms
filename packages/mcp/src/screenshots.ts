@@ -16,7 +16,7 @@ const TIMEOUT = 30_000;
 
 export function localScreenshots(options: { executablePath?: string } = {}): Screenshotter {
   return {
-    async take({ url, width, preview, image }) {
+    async take({ url, width, preview, image, dark }) {
       let chromium: typeof import("playwright-core").chromium;
       try {
         ({ chromium } = await import("playwright-core"));
@@ -37,7 +37,7 @@ export function localScreenshots(options: { executablePath?: string } = {}): Scr
         );
       }
       try {
-        const page = await browser.newPage({ viewport: { width, height: 900 } });
+        const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme: dark ? "dark" : "light" });
         if (image) await page.setContent(imagePage(url), { waitUntil: "networkidle", timeout: TIMEOUT });
         else await page.goto(url, { waitUntil: "networkidle", timeout: TIMEOUT });
         if (preview) {
