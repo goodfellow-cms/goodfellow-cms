@@ -1,8 +1,11 @@
 import {
   type BuildProblem,
+  branchDrafts,
   buildStepFor,
   ConflictError,
   type DeployStatus,
+  DraftError,
+  type DraftHost,
   encodeBase64,
   encodeBase64Bytes,
   type FileChange,
@@ -15,6 +18,7 @@ import {
   type PagesDomains,
   type RedirectOptions,
   SignInError,
+  type SiteDrafts,
   type SiteEditors,
   type SiteUpdates,
   type TokenLink,
@@ -26,7 +30,7 @@ import { githubPages } from "./pages.js";
 import { githubUpdates } from "./updates.js";
 
 interface TreeResponse {
-  tree: Array<{ path: string; type: string; sha: string }>;
+  tree: Array<{ path: string; type: string; sha: string; size?: number }>;
   truncated: boolean;
 }
 
@@ -55,6 +59,9 @@ interface GraphQLResponse {
   data?: { createCommitOnBranch?: { commit?: { oid: string } } };
   errors?: Array<{ type?: string; message: string }>;
 }
+
+/** How many files one GraphQL request reads. */
+const GRAPHQL_BATCH = 100;
 
 const COMMIT_MUTATION = `mutation ($input: CreateCommitOnBranchInput!) {
   createCommitOnBranch(input: $input) { commit { oid } }
@@ -89,6 +96,8 @@ export class GitHubBackend implements GitBackend {
   readonly editors: SiteEditors;
   readonly ownerAccess: OwnerAccess;
   readonly updates: SiteUpdates;
+  readonly drafts: SiteDrafts;
+  private readonly options: GitHubBackendOptions;
   private readonly api: ApiOptions;
   private readonly repo: string;
   private readonly branch: string;
@@ -97,9 +106,12 @@ export class GitHubBackend implements GitBackend {
   private readonly owner: ReturnType<typeof githubOwnerAccess>;
   private pinned?: string;
   private readonly trees = new Map<string, Promise<Map<string, string>>>();
+  /** Each file's size in bytes at a commit, which GitHub lists with its tree. */
+  private readonly treeSizes = new Map<string, Map<string, number>>();
   private readonly blobs = new Map<string, Promise<string>>();
 
   constructor(options: GitHubBackendOptions) {
+    this.options = options;
     this.api = options.api;
     this.repo = repoPath(options.repo);
     this.branch = options.branch;
@@ -112,6 +124,55 @@ export class GitHubBackend implements GitBackend {
     this.pages = githubPages(() => owner.api() ?? this.api, this.repo);
     this.editors = githubEditors(this.api, owner.api, this.repo, this.user.login);
     this.updates = githubUpdates(this.api, owner.api, this.repo, this.branch, this);
+    this.drafts = branchDrafts(this, this.draftHost());
+  }
+
+  /** Drafts on branches of the repository, with pull requests for review. */
+  private draftHost(): DraftHost {
+    const base = `/repos/${this.repo}`;
+    const ref = (branch: string) => `${base}/git/refs/heads/${encodeURIComponent(branch)}`;
+    return {
+      liveBranch: this.branch,
+      branchStore: (branch) => new GitHubBackend({ ...this.options, branch }),
+      createBranch: async (branch, revision) => {
+        const response = await githubRequest(this.api, `${base}/git/refs`, {
+          method: "POST",
+          body: { ref: `refs/heads/${branch}`, sha: revision },
+          allow: [422],
+        });
+        if (response.status === 422) throw new DraftError("exists", `There's already a draft called ${branch}.`);
+      },
+      deleteBranch: async (branch) => {
+        await githubRequest(this.api, ref(branch), { method: "DELETE", allow: [404, 422] });
+      },
+      mergeBase: async (branch) => {
+        const response = await githubRequest(
+          this.api,
+          `${base}/compare/${encodeURIComponent(this.branch)}...${encodeURIComponent(branch)}`,
+          { allow: [404] },
+        );
+        if (response.status === 404) throw new DraftError("not-found", `There's no draft ${branch}.`);
+        const comparison = (await response.json()) as { merge_base_commit: { sha: string } };
+        return comparison.merge_base_commit.sha;
+      },
+      openReview: async ({ branch, title, description }) => {
+        const response = await githubRequest(this.api, `${base}/pulls`, {
+          method: "POST",
+          body: { title, head: branch, base: this.branch, body: description },
+          allow: [403, 404, 422],
+        });
+        if (response.ok) return { url: ((await response.json()) as { html_url: string }).html_url };
+        if (response.status !== 422) {
+          throw new DraftError("no-reviews", "This sign-in can't open pull requests on the site's repository.");
+        }
+        // One is open already: give its address.
+        const owner = decodeURIComponent(this.repo).split("/")[0];
+        const query = new URLSearchParams({ head: `${owner}:${branch}`, state: "open" });
+        const [open] = await githubJson<Array<{ html_url: string }>>(this.api, `${base}/pulls?${query}`);
+        if (!open) throw new GitApiError(422, "GitHub couldn't open the pull request.");
+        return { url: open.html_url };
+      },
+    };
   }
 
   async revision(): Promise<string> {
@@ -131,7 +192,12 @@ export class GitHubBackend implements GitBackend {
         if (response.truncated) {
           throw new GitApiError(413, "The repository has too many files for GitHub to list at once.");
         }
-        return new Map(response.tree.filter((entry) => entry.type === "blob").map((entry) => [entry.path, entry.sha]));
+        const blobs = response.tree.filter((entry) => entry.type === "blob");
+        this.treeSizes.set(
+          sha,
+          new Map(blobs.flatMap((entry) => (entry.size === undefined ? [] : [[entry.path, entry.size] as const]))),
+        );
+        return new Map(blobs.map((entry) => [entry.path, entry.sha]));
       });
       tree.catch(() => this.trees.delete(sha));
       this.trees.set(sha, tree);
@@ -161,6 +227,41 @@ export class GitHubBackend implements GitBackend {
     return blob;
   }
 
+  /** Reads many text files in a few GraphQL requests rather than one request each. */
+  async readFiles(paths: string[]): Promise<Map<string, string>> {
+    const tree = await this.currentTree();
+    const wanted = paths.flatMap((path) => {
+      const sha = tree.get(path);
+      return sha ? [[path, sha] as const] : [];
+    });
+    const fetch = [...new Set(wanted.map(([, sha]) => sha).filter((sha) => !this.blobs.has(sha)))];
+    const [owner, name] = decodeURIComponent(this.repo).split("/");
+    for (let start = 0; start < fetch.length; start += GRAPHQL_BATCH) {
+      const batch = fetch.slice(start, start + GRAPHQL_BATCH);
+      const fields = batch.map((sha, index) => `f${index}: object(oid: "${sha}") { ... on Blob { text isBinary } }`);
+      const response = await githubJson<{
+        data?: { repository?: Record<string, { text: string | null; isBinary: boolean } | null> };
+      }>(this.api, "/graphql", {
+        method: "POST",
+        body: {
+          query: `query ($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields.join(" ")} } }`,
+          variables: { owner, name },
+        },
+      });
+      batch.forEach((sha, index) => {
+        const blob = response.data?.repository?.[`f${index}`];
+        // GitHub leaves out the text of large files; those are read one by one below.
+        if (blob && !blob.isBinary && typeof blob.text === "string") this.blobs.set(sha, Promise.resolve(blob.text));
+      });
+    }
+    const result = new Map<string, string>();
+    for (const [path] of wanted) {
+      const text = await this.readFrom(tree, path);
+      if (text !== undefined) result.set(path, text);
+    }
+    return result;
+  }
+
   async readBytes(path: string): Promise<Uint8Array | undefined> {
     const sha = (await this.currentTree()).get(path);
     if (!sha) return undefined;
@@ -173,6 +274,13 @@ export class GitHubBackend implements GitBackend {
   async list(dir: string): Promise<string[]> {
     const prefix = `${dir}/`;
     return [...(await this.currentTree()).keys()].filter((path) => path.startsWith(prefix)).sort();
+  }
+
+  async fileSizes(dir: string): Promise<Map<string, number>> {
+    const prefix = `${dir}/`;
+    await this.currentTree();
+    const sizes = this.treeSizes.get(this.pinned ?? "") ?? new Map<string, number>();
+    return new Map([...sizes].filter(([path]) => path.startsWith(prefix)));
   }
 
   /** Uses an owner's sign-in through the worker for editors and GitHub Pages settings, until it's forgotten. */

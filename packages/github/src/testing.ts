@@ -206,6 +206,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
   const runs: FakeRun[] = [];
   const requests: Request[] = [];
   let nextDeployment = 1;
+  let graphqlReads = 0;
   const created = new Map<string, FakeCreatedRepo>();
   const [owner = "", name = ""] = options.repo.split("/");
   const pages: { current?: FakePages } = {
@@ -523,7 +524,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         return json({ message: "Cannot force-push to this branch" }, 422);
       }
       target.branches.set(branch, body.sha);
-      deploy(body.sha);
+      if (branch === target.defaultBranch) deploy(body.sha);
       return json({ object: { sha: body.sha } });
     }
     return undefined;
@@ -534,9 +535,16 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     deployments.unshift({ id: nextDeployment++, sha, statuses: [{ state: "in_progress" }], checks: 0 });
   }
 
-  function commit(changes: FileChange[], message: string, expectedHead?: string, author?: string): string {
-    const sha = repo.commit(changes, message, { expectedHead, author });
-    deploy(sha);
+  function commit(
+    changes: FileChange[],
+    message: string,
+    expectedHead?: string,
+    author?: string,
+    branch = repo.defaultBranch,
+  ): string {
+    const sha = repo.commit(changes, message, { expectedHead, author, branch });
+    // Only the live branch is built, as the starters' deploy workflow does.
+    if (branch === repo.defaultBranch) deploy(sha);
     return sha;
   }
 
@@ -750,6 +758,23 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         })),
       });
     }
+    const listRepos = path.match(/^\/user\/installations\/(\d+)\/repositories$/);
+    if (listRepos && request.method === "GET" && user.app && !user.bot) {
+      const installation = user.app.installations.find((candidate) => candidate.id === Number(listRepos[1]));
+      if (!installation) return json({ message: "Not Found" }, 404);
+      const names =
+        installation.repositories === "all"
+          ? [options.repo, ...created.keys()].filter((name) => same(name.split("/")[0] ?? "", installation.account))
+          : installation.repositories;
+      const repositories = names.map((name) => ({
+        full_name: name,
+        default_branch: same(name, options.repo)
+          ? repo.defaultBranch
+          : (created.get(name)?.repo.defaultBranch ?? "main"),
+        permissions: { admin: user.admin === true, push: user.push !== false, pull: true },
+      }));
+      return json({ total_count: repositories.length, repositories });
+    }
     const addRepo = path.match(/^\/user\/installations\/(\d+)\/repositories\/(\d+)$/);
     if (addRepo && request.method === "PUT" && user.app && !user.bot) {
       const installation = user.app.installations.find((candidate) => candidate.id === Number(addRepo[1]));
@@ -771,6 +796,25 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     }
 
     if (path === "/graphql" && request.method === "POST") {
+      const body = (await request.clone().json()) as { query: string; variables?: { owner?: string; name?: string } };
+      if (body.query.trimStart().startsWith("query")) {
+        // Reading blobs by id, as `readFiles()` does.
+        if (`${body.variables?.owner}/${body.variables?.name}` !== options.repo) {
+          return json({ data: { repository: null }, errors: [{ type: "NOT_FOUND", message: "Could not resolve" }] });
+        }
+        const repository: Record<string, { text: string | null; isBinary: boolean } | null> = {};
+        for (const [, alias, oid] of body.query.matchAll(/(\w+): object\(oid: "([0-9a-f]{40})"\)/g)) {
+          const content = repo.blobs.get(oid ?? "");
+          repository[alias ?? ""] =
+            content === undefined
+              ? null
+              : typeof content === "string"
+                ? { text: content, isBinary: false }
+                : { text: null, isBinary: true };
+        }
+        graphqlReads += 1;
+        return json({ data: { repository } });
+      }
       const { variables } = (await request.json()) as {
         variables: {
           input: {
@@ -802,6 +846,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
           input.message.headline,
           input.expectedHeadOid,
           user.name ?? user.login,
+          input.branch.branchName,
         );
         return json({ data: { createCommitOnBranch: { commit: { oid } } } });
       } catch (error) {
@@ -836,6 +881,49 @@ export function fakeGitHub(options: FakeGitHubOptions) {
 
     const data = await handleGitData(request, rest, repo, user, false);
     if (data) return data;
+
+    if (rest === "/git/refs" && request.method === "POST") {
+      if (user.push === false) return json({ message: "Resource not accessible by integration" }, 403);
+      const body = (await request.json()) as { ref: string; sha: string };
+      const branch = body.ref.replace(/^refs\/heads\//, "");
+      if (repo.branches.has(branch)) return json({ message: "Reference already exists" }, 422);
+      if (!repo.commitAt(body.sha)) return json({ message: "Object does not exist" }, 422);
+      repo.branches.set(branch, body.sha);
+      return json({ ref: body.ref, object: { sha: body.sha } }, 201);
+    }
+    const branchRef = rest.match(/^\/git\/refs\/heads\/(.+)$/);
+    if (branchRef && request.method === "DELETE") {
+      if (user.push === false) return json({ message: "Resource not accessible by integration" }, 403);
+      const branch = decodeURIComponent(branchRef[1] ?? "");
+      if (!repo.branches.has(branch)) return json({ message: "Reference does not exist" }, 422);
+      repo.branches.delete(branch);
+      return new Response(null, { status: 204 });
+    }
+
+    if (rest === "/pulls" && request.method === "POST") {
+      if (user.bot && user.permissions?.pull_requests !== "write") {
+        return json({ message: "Resource not accessible by integration" }, 403);
+      }
+      const body = (await request.json()) as { title: string; head: string; base: string; body?: string };
+      if (!repo.branches.has(body.head) || !repo.branches.has(body.base)) {
+        return json({ message: "Validation Failed" }, 422);
+      }
+      if (repo.reviews.some((review) => review.branch === body.head && review.state === "open")) {
+        return json({ message: "A pull request already exists" }, 422);
+      }
+      const review = repo.openReview(body.head, body.title, body.body ?? "", body.base);
+      return json({ number: review.number, html_url: `https://github.com/${options.repo}/pull/${review.number}` }, 201);
+    }
+    if (rest === "/pulls" && request.method === "GET") {
+      const head = url.searchParams.get("head")?.split(":")[1];
+      const found = repo.reviews.filter((review) => review.state === "open" && (!head || review.branch === head));
+      return json(
+        found.map((review) => ({
+          number: review.number,
+          html_url: `https://github.com/${options.repo}/pull/${review.number}`,
+        })),
+      );
+    }
 
     if (rest === "/pages" && request.method === "GET") {
       const site = pages.current;
@@ -893,6 +981,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         path: file,
         type: "blob",
         sha: repo.blobSha(content),
+        size: fakeFileBytes(content).length,
       }));
       return json({ sha: commitSha, tree: entries, truncated: false });
     }
@@ -979,9 +1068,18 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       return run ? json({ total_count: run.jobs.length, jobs: run.jobs }) : json({ message: "Not Found" }, 404);
     }
 
-    const compare = rest.match(/^\/compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})$/);
+    const compare = rest.match(/^\/compare\/(.+)\.\.\.(.+)$/);
     if (compare) {
-      return json({ files: repo.changedPaths(compare[1] ?? "", compare[2] ?? "").map((filename) => ({ filename })) });
+      const [from, to] = [compare[1], compare[2]].map((ref) => decodeURIComponent(ref ?? ""));
+      const resolve = (ref: string) => repo.branches.get(ref) ?? (repo.commitAt(ref) ? ref : undefined);
+      const [a, b] = [resolve(from ?? ""), resolve(to ?? "")];
+      if (!a || !b) return json({ message: "Not Found" }, 404);
+      // Three dots: the changes on `to` since it and `from` last shared a commit.
+      const base = repo.mergeBase(a, b) ?? a;
+      return json({
+        merge_base_commit: { sha: base },
+        files: repo.changedPaths(base, b).map((filename) => ({ filename })),
+      });
     }
 
     if (rest === "/deployments") {
@@ -1009,6 +1107,10 @@ export function fakeGitHub(options: FakeGitHubOptions) {
 
   return {
     repo,
+    /** How many GraphQL requests read files, as `readFiles()` makes. */
+    get graphqlReads() {
+      return graphqlReads;
+    },
     /** Tokens apps' sign-ins made, in order. */
     issued,
     /** Who commits made through the REST API name as their author, by commit. */

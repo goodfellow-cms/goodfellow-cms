@@ -1,4 +1,4 @@
-import type { GoodfellowConfig } from "@goodfellow-cms/core";
+import { CURRENT_VERSION, GOODFELLOW_VERSION, type GoodfellowConfig, type SiteDescription } from "@goodfellow-cms/core";
 import type { ComponentConfig, Config, Fields, TextField } from "@puckeditor/core";
 import type { ReactNode } from "react";
 
@@ -112,4 +112,39 @@ export function createPuckConfig(config: GoodfellowConfig, kind: PuckConfigKind)
       render: ({ children }: { children?: ReactNode }) => <>{children}</>,
     },
   } as Config;
+}
+
+/** A copy of Puck's field definitions as JSON: what they say, without the code in them. */
+function asJson(value: unknown): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(value ?? {})) as Record<string, unknown>;
+}
+
+/**
+ * What the site's build says about its blocks, for tools that edit its
+ * content without its code, such as the Claude connector. Builds write it to
+ * `SITE_DESCRIPTION_PATH`.
+ */
+export function describeSite(config: GoodfellowConfig): SiteDescription {
+  const puck = createPuckConfig(config, "template");
+  return {
+    version: 1,
+    goodfellow: GOODFELLOW_VERSION,
+    content: { ...CURRENT_VERSION },
+    root: { fields: asJson(puck.root?.fields) },
+    blocks: Object.fromEntries(
+      Object.entries(puck.components).map(([name, component]) => {
+        const block = config.blocks[name];
+        return [
+          name,
+          {
+            ...(component.label && { label: component.label }),
+            fields: asJson(component.fields),
+            ...(component.defaultProps && { defaultProps: asJson(component.defaultProps) }),
+            ...(block && isTemplateOnly(block) && { templateOnly: true }),
+          },
+        ];
+      }),
+    ),
+    ...(config.claude?.publish === false && { claude: { publish: false } }),
+  };
 }

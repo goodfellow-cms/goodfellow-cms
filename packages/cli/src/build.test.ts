@@ -31,6 +31,15 @@ describe("build", () => {
     expect(existsSync(join(outDir, "404.html"))).toBe(true);
   });
 
+  it("describes the site's blocks for tools that edit its content, such as the Claude connector", async () => {
+    const description = JSON.parse(await read("goodfellow-site.json"));
+    expect(description).toMatchObject({ version: 1, content: { page: 1 } });
+    expect(Object.keys(description.blocks).length).toBeGreaterThan(0);
+    for (const block of Object.values(description.blocks) as Array<{ fields: object }>) {
+      expect(block.fields).toHaveProperty("className");
+    }
+  });
+
   it("renders blocks defined in the site's TSX config", async () => {
     const html = await read("index.html");
     expect(html).toContain('<p class="greeting text-teal-600">Hello, <!-- -->world<!-- -->!</p>');

@@ -1,6 +1,7 @@
 import type { BuildProblem } from "./build-problems.js";
 import type { ContentStore } from "./content/store.js";
 import type { PagesDomains } from "./domains.js";
+import type { SiteDrafts } from "./drafts.js";
 import type { OwnerAccess, SiteEditors } from "./editors.js";
 import type { SiteUpdates } from "./updates.js";
 
@@ -64,6 +65,8 @@ export interface GitBackend extends ContentStore {
   readonly ownerAccess?: OwnerAccess;
   /** The site's nightly update job: its last run, and running it now. Absent where the backend can't. */
   readonly updates?: SiteUpdates;
+  /** Changes kept on a branch of their own until they're published or submitted for review. Absent where the backend can't. */
+  readonly drafts?: SiteDrafts;
   /** Forgets the saved sign-in. */
   signOut(): void;
 }

@@ -6,3 +6,4 @@ dist/
 packages/create-goodfellow/templates/
 packages/next/src/generated/
 packages/registry/r/
+.wrangler/

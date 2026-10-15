@@ -42,7 +42,7 @@ export {
   zonedInstant,
   zonedTime,
 } from "./calendar.js";
-export { type AiConfig, defineConfig, type GoodfellowConfig } from "./config.js";
+export { type AiConfig, type ClaudeConfig, defineConfig, type GoodfellowConfig } from "./config.js";
 export {
   type BuildFile,
   CALENDARS_DIR,
@@ -56,6 +56,39 @@ export {
   eventFilePath,
   MAX_CALENDAR_MONTHS,
 } from "./content/calendars.js";
+export {
+  type AddressProblem,
+  addressPatternFor,
+  checkEntrySlug,
+  checkPageAddress,
+  codeFileChanges,
+  collectionFileChange,
+  customCssFileChange,
+  deleteCollectionChanges,
+  type EntryNameProblem,
+  entryFileChange,
+  layoutFileChange,
+  mediaFileChange,
+  menusFileChange,
+  movedPageRedirects,
+  moveEntryChanges,
+  movePageChanges,
+  newCollectionSettings,
+  newPageData,
+  pageFileChange,
+  pageTitle,
+  redirectsFileChange,
+  type SiteRedirects,
+  siteSettingsFileChange,
+  slugify,
+  storedCss,
+  storedData,
+  storedEntryFields,
+  uniqueName,
+  updateMenuLinks,
+  updateSettingsFileChange,
+  withoutCredits,
+} from "./content/changes.js";
 export {
   HEAD_TAGS,
   HeadCodeError,
@@ -98,6 +131,8 @@ export {
   loadSiteContent,
   type Page,
   parseContentFile,
+  parseEntryFile,
+  readTextFiles,
   type SiteCode,
   type SiteContent,
 } from "./content/load.js";
@@ -201,6 +236,7 @@ export {
   type BlockPages,
   type BlockPagesContext,
   blockPages,
+  findSitePage,
   isAddedPage,
   MAX_BLOCK_PAGES,
   type PageVariant,
@@ -248,6 +284,17 @@ export {
   recordsInPlace,
   registrarName,
 } from "./domains.js";
+export {
+  branchDrafts,
+  DRAFT_BRANCH_PREFIX,
+  type Draft,
+  DraftError,
+  type DraftHost,
+  type DraftProblem,
+  isDraftName,
+  newDraftName,
+  type SiteDrafts,
+} from "./drafts.js";
 export {
   type EditorList,
   type EditorRole,
@@ -359,6 +406,15 @@ export {
   type SetupStep,
   type SetupWarning,
 } from "./setup-host.js";
+export {
+  type BlockDescription,
+  GOODFELLOW_VERSION,
+  parseSiteDescription,
+  SITE_DESCRIPTION_PATH,
+  type SiteDescription,
+  type SiteVersionProblem,
+  siteVersionProblem,
+} from "./site-description.js";
 export {
   type Backend,
   BLOCK_CHOICES,

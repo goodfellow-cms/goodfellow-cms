@@ -1,6 +1,6 @@
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
-import { classNameField, createPuckConfig, templateOnly, withClassName } from "./puck-config.js";
+import { classNameField, createPuckConfig, describeSite, templateOnly, withClassName } from "./puck-config.js";
 
 const plain: ComponentConfig<{ text: string }> = {
   fields: { text: { type: "text" } },
@@ -51,5 +51,50 @@ describe("createPuckConfig", () => {
     expect(page.categories?.all?.components).toEqual(["Plain"]);
     expect(Object.keys(template.components)).toEqual(["Plain", "Field"]);
     expect(Object.keys(template.root?.fields ?? {})).toContain("title");
+  });
+});
+
+describe("describeSite", () => {
+  it("describes each block's fields as JSON, without their code", () => {
+    const description = describeSite({
+      blocks: {
+        Heading: {
+          label: "Heading",
+          fields: {
+            text: { type: "text", label: "Text" },
+            size: { type: "select", label: "Size", options: [{ label: "Large", value: "lg" }] },
+            when: { type: "custom", label: "Date", render: () => <span />, metadata: { ai: { type: "date" } } },
+          },
+          defaultProps: { text: "Heading", size: "lg" },
+          render: () => <span />,
+        },
+        Field: templateOnly({ fields: { field: { type: "text" } }, render: () => <span /> }),
+      },
+    });
+    expect(description).toMatchObject({ version: 1, content: { page: 1, entry: 1 } });
+    expect(description.goodfellow).toMatch(/^\d+\.\d+\.\d+/);
+    expect(description.root.fields).toMatchObject({ title: { type: "text", label: "Page title" } });
+    expect(description.blocks).toEqual({
+      Heading: {
+        label: "Heading",
+        fields: {
+          text: { type: "text", label: "Text" },
+          size: { type: "select", label: "Size", options: [{ label: "Large", value: "lg" }] },
+          when: { type: "custom", label: "Date", metadata: { ai: { type: "date" } } },
+          className: { type: "text", label: "CSS classes" },
+        },
+        defaultProps: { text: "Heading", size: "lg" },
+      },
+      Field: {
+        fields: { field: { type: "text" }, className: { type: "text", label: "CSS classes" } },
+        templateOnly: true,
+      },
+    });
+    expect(description.claude).toBeUndefined();
+  });
+
+  it("says when the site's config doesn't let Claude publish", () => {
+    expect(describeSite({ blocks: {}, claude: { publish: false } }).claude).toEqual({ publish: false });
+    expect(describeSite({ blocks: {}, claude: { publish: true } }).claude).toBeUndefined();
   });
 });

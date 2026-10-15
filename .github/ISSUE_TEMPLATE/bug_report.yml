@@ -49,6 +49,7 @@ body:
         - Redirects
         - Creating a site (the setup page or npm create goodfellow)
         - The AI assistant
+        - Claude (the Claude connector or extension)
         - Next.js sites
         - The documentation
         - Something else

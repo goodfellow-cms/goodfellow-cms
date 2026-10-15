@@ -1,0 +1,69 @@
+{
+  "name": "@goodfellow-cms/mcp",
+  "version": "0.2.0",
+  "description": "Work on a Goodfellow site from Claude: read and change its pages, entries and settings, see them in screenshots, and publish them or submit them for review.",
+  "keywords": [
+    "goodfellow",
+    "cms",
+    "mcp",
+    "claude",
+    "model-context-protocol"
+  ],
+  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/claude",
+  "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goodfellow-cms/goodfellow-cms.git",
+    "directory": "packages/mcp"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "goodfellow-mcp": "./dist/stdio.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./screenshots": {
+      "types": "./dist/screenshots.d.ts",
+      "import": "./dist/screenshots.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "pack-extension": "node scripts/pack-extension.mjs"
+  },
+  "dependencies": {
+    "@goodfellow-cms/ai": "workspace:*",
+    "@goodfellow-cms/core": "workspace:*",
+    "@goodfellow-cms/github": "workspace:*",
+    "@goodfellow-cms/gitlab": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "4.6.5"
+  },
+  "optionalDependencies": {
+    "playwright-core": "1.63.0"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "2.1.2",
+    "@goodfellow-cms/blocks": "workspace:*",
+    "@goodfellow-cms/react": "workspace:*",
+    "@puckeditor/core": "0.23.0",
+    "@types/node": "^22.19.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

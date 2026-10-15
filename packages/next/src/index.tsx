@@ -19,6 +19,7 @@ import {
   applyPageEntry,
   BodyCode,
   createPuckConfigs,
+  describeSite,
   HeadCode,
   PageBody,
   PageContent,
@@ -256,6 +257,14 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       return new Response(await demoContent(fileSystemSource(root)), {
         headers: { "content-type": "application/json" },
       });
+    },
+
+    /**
+     * For `app/goodfellow-site.json/route.ts`: what the site says about its blocks, for tools that
+     * edit its content without its code, such as the Claude connector.
+     */
+    siteDescription(): Response {
+      return Response.json(describeSite(config));
     },
 
     /** For `app/robots.ts`: lets search engines in, and points them at the sitemap once the site's address is set. */

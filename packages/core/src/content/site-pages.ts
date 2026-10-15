@@ -6,6 +6,7 @@
  */
 
 import { allPages, type Page, type SiteContent } from "./load.js";
+import { normalizePagePath } from "./paths.js";
 
 /** What a page shows of the block that added pages to it. */
 export interface PageView {
@@ -165,4 +166,27 @@ export function sitePages(content: SiteContent, today: string, blocks: Record<st
 /** Whether a page is one a block added, rather than the page it's on. */
 export function isAddedPage(page: Pick<Page, "path" | "view">): boolean {
   return page.view !== undefined && page.view.path !== page.path;
+}
+
+/**
+ * The page a build writes at an address, as `sitePages()` gives it, or its
+ * "Page not found" page with status 404, or `undefined` if it has neither.
+ */
+export function findSitePage(
+  content: SiteContent,
+  today: string,
+  blocks: Record<string, unknown>,
+  pathname: string,
+): { page: Page; status: number } | undefined {
+  let path: string;
+  try {
+    path = normalizePagePath(decodeURIComponent(pathname));
+  } catch {
+    path = "";
+  }
+  const pages = sitePages(content, today, blocks);
+  const page = pages.find((candidate) => candidate.path === path);
+  if (page) return { page, status: 200 };
+  const notFound = pages.find((candidate) => candidate.path === "/404");
+  return notFound && { page: notFound, status: 404 };
 }

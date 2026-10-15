@@ -10,6 +10,7 @@ import {
   normalizeBase,
   pageOutputFile,
   redirectFiles,
+  SITE_DESCRIPTION_PATH,
   sitePages,
   todayIn,
   withBase,
@@ -120,7 +121,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
   });
 
   try {
-    const { config, renderPage } = await loadServerEntry(server);
+    const { config, renderPage, describe } = await loadServerEntry(server);
     const base = normalizeBase(options.base ?? config.base);
     const content = await loadSiteContent(fileSystemSource(root));
     const styles = await writeStylesEntries(root, config);
@@ -179,6 +180,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       // A demo's admin panel starts from a copy of the site's content, since visitors don't sign in.
       if (config.demo) await writeFile(join(outDir, DEMO_CONTENT_PATH), await demoContent(fileSystemSource(root)));
     }
+
+    // What tools that edit the site without its code, such as the Claude connector, need to know about its blocks.
+    await writeFile(join(outDir, SITE_DESCRIPTION_PATH), `${JSON.stringify(describe(), null, 2)}\n`);
 
     const pages = sitePages(content, todayIn(content.settings.timeZone), config.blocks);
     const written: string[] = [];

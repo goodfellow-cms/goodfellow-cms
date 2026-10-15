@@ -69,6 +69,12 @@ describe("the Next.js template's static export", () => {
     }
   });
 
+  it("describes the site's blocks as goodfellow build does, for tools such as the Claude connector", async () => {
+    const exported = JSON.parse(await read("goodfellow-site.json"));
+    const built = JSON.parse(await readFile(join(starter, "dist", "goodfellow-site.json"), "utf8"));
+    expect(exported).toEqual(built);
+  });
+
   it("fills in entries' titles and the site's theme", async () => {
     const html = await read("news/welcome/index.html");
     expect(html).toContain("<title>Welcome to our new website | My site</title>");

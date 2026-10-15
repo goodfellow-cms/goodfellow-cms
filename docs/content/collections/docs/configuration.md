@@ -33,6 +33,7 @@ export default defineConfig({
 | `styles` | The site's stylesheet. Defaults to `src/styles.css`. |
 | `ai` | The AI assistant: `false` removes it, `{ providers: ["anthropic", "manual"] }` limits the services offered, and `{ stockPhotos: false }` stops it finding photos on Openverse. |
 | `registries` | Block registries the Blocks screen offers blocks from, besides Goodfellow's: `{ "@acme": "https://acme.example/r/{name}.json" }`. List only registries you trust; see [Block registries](/docs/block-registries). |
+| `claude` | What Claude can do through the Claude connector: `{ publish: false }` stops it publishing, so it can only submit its changes for review. It takes effect once the site has been rebuilt. See [Work with Claude](/docs/claude#turning-off-publishing). |
 | `demo` | `true` makes the admin panel a [demo](/docs/demo-mode) anyone can try. |
 
 ## GitHub

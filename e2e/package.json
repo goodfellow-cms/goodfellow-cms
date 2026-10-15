@@ -14,6 +14,7 @@
     "@goodfellow-cms/core": "workspace:*",
     "@goodfellow-cms/github": "workspace:*",
     "@goodfellow-cms/gitlab": "workspace:*",
+    "@goodfellow-cms/mcp": "workspace:*",
     "@goodfellow-cms/react": "workspace:*",
     "@goodfellow-cms/registry": "workspace:*",
     "@goodfellow-cms/worker": "workspace:*",

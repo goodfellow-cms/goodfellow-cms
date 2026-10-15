@@ -259,6 +259,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
   const pipelineId = (sha: string) => [...pipelines.keys()].indexOf(sha) + 1;
   const requests: Request[] = [];
   let counter = 0;
+  let graphqlReads = 0;
   const created = new Map<string, FakeCreatedProject>();
   const pages: FakeGitLabPages | undefined = options.pages
     ? {
@@ -409,9 +410,10 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     return json({ message: "404 Not Found" }, 404);
   }
 
-  function commit(changes: FileChange[], message: string, author?: string): string {
-    const sha = repo.commit(changes, message, { author });
-    if (options.deployAfterChecks !== undefined) pipelines.set(sha, { checks: 0 });
+  function commit(changes: FileChange[], message: string, author?: string, branch = repo.defaultBranch): string {
+    const sha = repo.commit(changes, message, { author, branch });
+    // Only the default branch runs the pages job, as the starters' pipeline does.
+    if (options.deployAfterChecks !== undefined && branch === repo.defaultBranch) pipelines.set(sha, { checks: 0 });
     return sha;
   }
 
@@ -472,6 +474,30 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       return json({ error: "unsupported_grant_type" }, 400);
     }
 
+    if (url.pathname === "/api/graphql" && request.method === "POST") {
+      if (!tokens.has(request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "")) {
+        return json({ message: "401 Unauthorized" }, 401);
+      }
+      const { variables } = (await request.json()) as {
+        variables: { project: string; ref: string; paths: string[] };
+      };
+      if (variables.project !== options.project) return json({ data: { project: null } });
+      graphqlReads += 1;
+      const files = repo.files(variables.ref);
+      const nodes = variables.paths.flatMap((path) => {
+        const content = files.get(path);
+        if (content === undefined) return [];
+        // GitLab gives sizes as BigInt, which arrive as strings.
+        return [
+          {
+            path,
+            rawTextBlob: typeof content === "string" ? content : null,
+            size: String(fakeFileBytes(content).length),
+          },
+        ];
+      });
+      return json({ data: { project: { repository: { blobs: { nodes } } } } });
+    }
     if (!url.pathname.startsWith("/api/v4/")) return json({ message: "404 Not Found" }, 404);
     const user = tokens.get(request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "");
     if (!user) return json({ message: "401 Unauthorized" }, 401);
@@ -483,6 +509,15 @@ export function fakeGitLab(options: FakeGitLabOptions) {
 
     const setup = await handleCreated(request, path, user);
     if (setup) return setup;
+
+    // The projects the user is a member of, as the Claude connector lists them.
+    if (path === "/projects" && request.method === "GET") {
+      const level = members.get(accounts.get(user.username) ?? 0)?.accessLevel ?? 0;
+      const min = Number(url.searchParams.get("min_access_level") ?? "0");
+      return json(
+        level > 0 && level >= min ? [{ path_with_namespace: options.project, default_branch: repo.defaultBranch }] : [],
+      );
+    }
 
     if (path === "/users") {
       const name = url.searchParams.get("username") ?? "";
@@ -508,10 +543,67 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       });
     }
 
+    if (rest === "/repository/branches" && request.method === "POST") {
+      if (accessLevel < 30) return json({ message: "403 Forbidden" }, 403);
+      const name = url.searchParams.get("branch") ?? "";
+      const ref = url.searchParams.get("ref") ?? "";
+      if (repo.branches.has(name)) return json({ message: "Branch already exists" }, 400);
+      const sha = repo.branches.get(ref) ?? (repo.commitAt(ref) ? ref : undefined);
+      if (!sha) return json({ message: "Invalid reference name" }, 400);
+      repo.branches.set(name, sha);
+      return json({ name, commit: { id: sha } }, 201);
+    }
     const branch = rest.match(/^\/repository\/branches\/(.+)$/);
+    if (branch && request.method === "DELETE") {
+      if (accessLevel < 30) return json({ message: "403 Forbidden" }, 403);
+      const name = decodeURIComponent(branch[1] ?? "");
+      if (!repo.branches.has(name)) return json({ message: "404 Branch Not Found" }, 404);
+      repo.branches.delete(name);
+      return new Response(null, { status: 204 });
+    }
     if (branch) {
       const sha = repo.branches.get(decodeURIComponent(branch[1] ?? ""));
       return sha ? json({ commit: { id: sha } }) : json({ message: "404 Branch Not Found" }, 404);
+    }
+
+    if (rest === "/repository/merge_base") {
+      const refs = url.searchParams.getAll("refs[]").map((ref) => repo.branches.get(ref) ?? ref);
+      if (refs.length !== 2 || refs.some((ref) => !repo.commitAt(ref))) {
+        return json({ message: "Could not find ref" }, 400);
+      }
+      const base = repo.mergeBase(refs[0] ?? "", refs[1] ?? "");
+      return base ? json({ id: base }) : json({ message: "404 Not Found" }, 404);
+    }
+
+    if (rest === "/merge_requests" && request.method === "POST") {
+      if (accessLevel < 30) return json({ message: "403 Forbidden" }, 403);
+      const body = (await request.json()) as {
+        source_branch: string;
+        target_branch: string;
+        title: string;
+        description?: string;
+      };
+      if (!repo.branches.has(body.source_branch) || !repo.branches.has(body.target_branch)) {
+        return json({ message: ["Source branch does not exist"] }, 422);
+      }
+      if (repo.reviews.some((review) => review.branch === body.source_branch && review.state === "open")) {
+        return json({ message: ["Another open merge request already exists for this source branch"] }, 409);
+      }
+      const review = repo.openReview(body.source_branch, body.title, body.description ?? "", body.target_branch);
+      return json(
+        { iid: review.number, web_url: `${webUrl}/${options.project}/-/merge_requests/${review.number}` },
+        201,
+      );
+    }
+    if (rest === "/merge_requests" && request.method === "GET") {
+      const source = url.searchParams.get("source_branch");
+      const found = repo.reviews.filter((review) => review.state === "open" && (!source || review.branch === source));
+      return json(
+        found.map((review) => ({
+          iid: review.number,
+          web_url: `${webUrl}/${options.project}/-/merge_requests/${review.number}`,
+        })),
+      );
     }
 
     if (rest === "/repository/tree") {
@@ -601,6 +693,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         ),
         body.commit_message,
         user.name ?? user.username,
+        body.branch,
       );
       return json({ id: sha, message: body.commit_message }, 201);
     }
@@ -729,6 +822,10 @@ export function fakeGitLab(options: FakeGitLabOptions) {
   }
 
   return {
+    /** How many GraphQL requests read files, as `readFiles()` makes. */
+    get graphqlReads() {
+      return graphqlReads;
+    },
     /** The project's members by user id, invitations by email, and protected branches, which tests can change. */
     members,
     invitations,

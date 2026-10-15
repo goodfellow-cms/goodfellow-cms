@@ -29,7 +29,7 @@ describe("isEditablePath", () => {
 function historyStore(initial: Record<string, string>) {
   const revisions: Array<Record<string, string>> = [initial];
   const head = () => String(revisions.length - 1);
-  const store: Required<ContentStore> = {
+  const store: Required<Omit<ContentStore, "readFiles" | "fileSizes">> = {
     read: async (path) => revisions.at(-1)?.[path],
     list: async (dir) => Object.keys(revisions.at(-1) ?? {}).filter((path) => path.startsWith(`${dir}/`)),
     revision: async () => head(),
