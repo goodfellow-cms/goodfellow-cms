@@ -24,7 +24,14 @@ The content still lives in the site's repository, so the site is still rebuilt w
    export default withGoodfellow({ agentRules: false }, { server: true });
    ```
 
-   The build script is then `next build && goodfellow-next finish --server`, which writes the [calendar files](/docs/calendars#adding-to-calendars-and-subscribing) of collections of events into `public/calendars/` and the [search](/docs/search) index into `public/pagefind/`, so they're served as static files, as the pages are (leave both folders out of the repository). Next.js sends redirects itself.
+   The build script is then `next build && goodfellow-next finish --server`, which writes the [calendar files](/docs/calendars#adding-to-calendars-and-subscribing) of collections of events into `public/calendars/` and the [search](/docs/search) index into `public/pagefind/`, so they're served as static files, as the pages are. Next.js sends redirects itself.
+
+   Both folders are written again by every build, so keep them out of the repository with these lines in `.gitignore`, which the Next.js starter's already has:
+
+   ```text
+   public/calendars/
+   public/pagefind/
+   ```
 
 3. Add the admin panel's API, at `app/api/goodfellow/[...path]/route.ts`:
 
