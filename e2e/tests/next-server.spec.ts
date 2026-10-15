@@ -150,3 +150,11 @@ test("searches the pages its build rendered, from the index it made after", asyn
   await result.click();
   await expect(page).toHaveURL(`${SITE}/about/`);
 });
+
+test("serves calendar files written after its build, as static files", async ({ request }) => {
+  const calendar = await request.get(`${SITE}/calendars/events.ics`);
+  expect(calendar.status()).toBe(200);
+  expect(calendar.headers()["content-type"]).toContain("text/calendar");
+  expect(await calendar.text()).toContain("SUMMARY:Open house");
+  expect((await request.get(`${SITE}/calendars/events/open-house.ics`)).status()).toBe(200);
+});

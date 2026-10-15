@@ -24,7 +24,7 @@ The content still lives in the site's repository, so the site is still rebuilt w
    export default withGoodfellow({ agentRules: false }, { server: true });
    ```
 
-   The build script is then `next build && goodfellow-next finish --server`, which writes the [search](/docs/search) index into `public/pagefind/` (leave that folder out of the repository). Calendar files and redirects come from the server, so there's nothing else to finish.
+   The build script is then `next build && goodfellow-next finish --server`, which writes the [calendar files](/docs/calendars#adding-to-calendars-and-subscribing) of collections of events into `public/calendars/` and the [search](/docs/search) index into `public/pagefind/`, so they're served as static files, as the pages are (leave both folders out of the repository). Next.js sends redirects itself.
 
 3. Add the admin panel's API, at `app/api/goodfellow/[...path]/route.ts`:
 
@@ -60,15 +60,7 @@ The content still lives in the site's repository, so the site is still rebuilt w
    <GoodfellowAdmin config={config} server="/api/goodfellow" />
    ```
 
-5. If the site has [collections of events](/docs/calendars), serve their calendar files at `app/calendars/[...path]/route.ts`:
-
-   ```ts
-   import { goodfellowCalendars } from "@goodfellow-cms/next/server";
-
-   export const GET = goodfellowCalendars();
-   ```
-
-6. Give the server its token as `GOODFELLOW_GIT_TOKEN` in the host's environment variables:
+5. Give the server its token as `GOODFELLOW_GIT_TOKEN` in the host's environment variables:
 
    - **GitHub:** a fine-grained token for the site's repository only, with Contents read and write, and Deployments and Actions read, which the admin panel uses to say when a change is live and why a rebuild failed. Make it from an account kept for the site, such as a machine user, rather than a person's own.
    - **GitLab:** a project access token with the Developer role (Maintainer if the main branch only lets Maintainers push) and the `api` scope.

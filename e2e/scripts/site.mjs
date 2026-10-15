@@ -218,10 +218,6 @@ export const { GET, POST } = goodfellowApi({
   ai: { openai: { key: process.env.TEST_AI_KEY, baseUrl: \`\${process.env.TEST_AI_URL}/v1\` } },
 });
 `,
-  "app/calendars/[...path]/route.ts": `import { goodfellowCalendars } from "@goodfellow-cms/next/server";
-
-export const GET = goodfellowCalendars();
-`,
   "app/sign-in/route.ts": `import { PEOPLE } from "@/lib/session";
 
 export function GET(request: Request) {
@@ -274,7 +270,28 @@ export function createNextServerSite() {
   );
   cpSync(testBlocks, join(nextServerSite, "blocks"), { recursive: true });
   writeFileSync(join(nextServerSite, "content/pages/search.json"), `${JSON.stringify(searchPage, null, 2)}\n`);
+  // A collection of events, so the build has calendar files to write.
+  const events = join(nextServerSite, "content/collections/events");
+  mkdirSync(events, { recursive: true });
+  writeFileSync(join(events, "_collection.json"), `${JSON.stringify(eventsCollection, null, 2)}\n`);
+  writeFileSync(join(events, "open-house.json"), `${JSON.stringify(openHouse, null, 2)}\n`);
 }
+
+const eventsCollection = {
+  version: 1,
+  calendar: { when: "when" },
+  entryName: "Event",
+  fields: [
+    { type: "text", label: "Title", name: "title", required: true },
+    { type: "event", label: "Date and time", name: "when", required: true },
+  ],
+  name: "Events",
+};
+
+const openHouse = {
+  version: 1,
+  fields: { title: "Open house", when: { end: "2026-11-07T12:00", start: "2026-11-07T10:00" } },
+};
 
 /** A page with a Search block, so the full-stack test site's build has an index to search. */
 const searchPage = {

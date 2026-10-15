@@ -1,6 +1,6 @@
 import { aiServer, type ServerKeys } from "@goodfellow-cms/ai";
-import { calendarFiles, type GoodfellowConfig, loadSiteContent } from "@goodfellow-cms/core";
-import { type AppApiOptions, appApi, fileSystemSource } from "@goodfellow-cms/core/node";
+import type { GoodfellowConfig } from "@goodfellow-cms/core";
+import { type AppApiOptions, appApi } from "@goodfellow-cms/core/node";
 
 /** The environment variable the server's token is read from, unless `goodfellowApi({ token })` gives one. */
 export const GIT_TOKEN_VARIABLE = "GOODFELLOW_GIT_TOKEN";
@@ -82,19 +82,4 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
   const route = async (request: Request, context: RouteContext): Promise<Response> =>
     handler()(request, ((await context.params).path ?? []).join("/"));
   return { GET: route, POST: route };
-}
-
-/**
- * The site's calendar files, for `app/calendars/[...path]/route.ts` on a
- * full-stack site, where `goodfellow-next finish` doesn't write them:
- * `export const GET = goodfellowCalendars();`.
- */
-export function goodfellowCalendars({ root }: { root?: string } = {}) {
-  return async (_request: Request, context: RouteContext): Promise<Response> => {
-    const path = `/calendars/${((await context.params).path ?? []).join("/")}`;
-    const content = await loadSiteContent(fileSystemSource(root ?? process.cwd()));
-    const file = calendarFiles(content).find((candidate) => candidate.path === path);
-    if (!file) return new Response("Not found", { status: 404 });
-    return new Response(file.content, { headers: { "content-type": "text/calendar; charset=utf-8" } });
-  };
 }
