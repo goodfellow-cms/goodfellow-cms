@@ -3,7 +3,7 @@ version: 1
 title: Sign-in service
 description: How Sign in with GitHub works, what it keeps, its limits, and running your own copy.
 section: developers
-order: 9
+order: 10
 ---
 
 **Sign in with GitHub** goes through a small service Goodfellow runs on Cloudflare Workers, since GitHub doesn't let a page sign people in by itself. Sites keep working without it: editors can always sign in with a token instead. GitLab needs no service, since GitLab lets pages sign people in themselves.

@@ -1,0 +1,254 @@
+import {
+  APP_API_HEADER,
+  type AppEditor,
+  type AppSession,
+  ConflictError,
+  decodeBase64,
+  encodeBase64Bytes,
+  type FileChange,
+  GitApiError,
+  type GitBackend,
+  isEditablePath,
+  isSettingsPath,
+  type ServerGit,
+  SignInError,
+} from "./index.js";
+
+export interface AppApiOptions {
+  /** The site's repository, through a token of the site's own: `config.backend.server({ token })`. */
+  git: ServerGit;
+  /**
+   * Who's signed in, from the site's own sign-in, such as its session cookie,
+   * or `null` for nobody. `false` means signed in but not allowed to edit.
+   * Asked on every request, so taking someone's role away takes effect at once.
+   */
+  authorize(request: Request): Promise<AppEditor | null | false> | AppEditor | null | false;
+  /** Where the admin panel sends people to sign in, such as `/sign-in?next=/admin/`. */
+  signIn: string;
+  /** Where the admin panel's Sign out button goes, such as `/sign-out`. */
+  signOut?: string;
+  /** AI services whose requests go through the server, with its keys. */
+  ai?: {
+    services: string[];
+    /** Sends an editor's request on to `service`, at `path` of its API. */
+    forward(request: Request, service: string, path: string): Promise<Response>;
+  };
+  /** Told about failures the admin panel only hears about as "something went wrong". Defaults to `console.error`. */
+  onError?: (error: unknown) => void;
+}
+
+/** Room for a save with uploads, which are sent as base64 (a third larger than the files). */
+const MAX_BODY_BYTES = 80 * 1024 * 1024;
+
+/** How many revisions' backends are kept for reads, each with what it has read. */
+const KEPT_REVISIONS = 8;
+
+class BadRequest extends Error {}
+
+function json(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+    },
+  });
+}
+
+/** Whether a request can only have come from a page of the site itself. */
+function isTrusted(request: Request): boolean {
+  if (request.headers.get(APP_API_HEADER) !== "1") return false;
+  const site = request.headers.get("sec-fetch-site");
+  if (site) return site === "same-origin";
+  const origin = request.headers.get("origin");
+  return origin === null || origin === new URL(request.url).origin;
+}
+
+function editablePath(value: unknown): string {
+  if (typeof value !== "string" || !isEditablePath(value)) throw new BadRequest("That file can't be read here.");
+  return value;
+}
+
+/** A folder the admin panel may list: one of the editable folders, or a folder inside one. */
+function editableDir(value: unknown): string {
+  if (typeof value !== "string" || !isEditablePath(`${value.replace(/\/+$/, "")}/x`)) {
+    throw new BadRequest("That folder can't be listed here.");
+  }
+  return value.replace(/\/+$/, "");
+}
+
+function revisionParam(value: unknown): string {
+  if (typeof value !== "string" || !/^[0-9a-f]{7,64}$/i.test(value)) throw new BadRequest("That isn't a revision.");
+  return value;
+}
+
+/** A change as sent over JSON, where an upload's bytes are base64. */
+function toFileChange(value: unknown): FileChange {
+  if (typeof value !== "object" || value === null) throw new BadRequest("That isn't a change.");
+  const change = value as Record<string, unknown>;
+  const path = editablePath(change.path);
+  if (change.delete === true) return { path, delete: true };
+  if (typeof change.content === "string") return { path, content: change.content };
+  if (typeof change.base64 === "string") return { path, bytes: decodeBase64(change.base64) };
+  throw new BadRequest("That isn't a change.");
+}
+
+async function readBody(request: Request): Promise<Record<string, unknown>> {
+  if (!request.headers.get("content-type")?.startsWith("application/json")) throw new BadRequest("Send JSON.");
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw new BadRequest("That's too large.");
+  const text = await request.text();
+  if (text.length > MAX_BODY_BYTES) throw new BadRequest("That's too large.");
+  try {
+    const body = JSON.parse(text) as unknown;
+    if (typeof body !== "object" || body === null) throw new BadRequest("Send an object.");
+    return body as Record<string, unknown>;
+  } catch {
+    throw new BadRequest("That isn't JSON.");
+  }
+}
+
+/**
+ * The admin panel's API on a full-stack site's server: the browser reads and
+ * publishes through it, the server reaches the repository with a token of the
+ * site's own, and the site's own sign-in says who may do what. Mount it at an
+ * address such as `/api/goodfellow/`, passing the part after that as `endpoint`.
+ */
+export function appApi(options: AppApiOptions): (request: Request, endpoint: string) => Promise<Response> {
+  const kept = new Map<string, Promise<GitBackend>>();
+  const onError = options.onError ?? ((error: unknown) => console.error(error));
+
+  /** A backend reading `revision`, kept for the next request, since a browser loading the site asks for many files. */
+  function reader(revision: string): Promise<GitBackend> {
+    let backend = kept.get(revision);
+    if (backend) {
+      // Most recently used last.
+      kept.delete(revision);
+    } else {
+      backend = options.git.at(revision);
+      backend.catch(() => kept.delete(revision));
+    }
+    kept.set(revision, backend);
+    while (kept.size > KEPT_REVISIONS) kept.delete(kept.keys().next().value as string);
+    return backend;
+  }
+
+  function session(editor: AppEditor | null | false): Response {
+    const signOut = options.signOut && { signOut: options.signOut };
+    if (!editor) {
+      return json(200, {
+        signedIn: false,
+        signIn: options.signIn,
+        ...(editor === false && { notAllowed: true }),
+        ...signOut,
+      } satisfies AppSession);
+    }
+    return json(200, {
+      signedIn: true,
+      user: { login: editor.login, name: editor.name, ...(editor.avatarUrl && { avatarUrl: editor.avatarUrl }) },
+      role: editor.role,
+      ai: options.ai?.services ?? [],
+      ...signOut,
+    } satisfies AppSession);
+  }
+
+  async function answer(request: Request, endpoint: string, editor: AppEditor): Promise<Response> {
+    const url = new URL(request.url);
+    const query = (name: string) => url.searchParams.get(name) ?? undefined;
+    const get = request.method === "GET";
+    const post = request.method === "POST";
+
+    if (endpoint.startsWith("ai/") && options.ai) {
+      const [, service = "", ...rest] = endpoint.split("/");
+      if (!options.ai.services.includes(service)) return json(404, { error: "not-found" });
+      return options.ai.forward(request, service, rest.join("/"));
+    }
+    if (get && endpoint === "revision") return json(200, { revision: await options.git.revision() });
+    if (get && endpoint === "file") {
+      const backend = await reader(revisionParam(query("revision")));
+      const path = editablePath(query("path"));
+      if (query("as") === "bytes") {
+        const bytes = await backend.readBytes(path);
+        return bytes === undefined
+          ? json(404, { error: "not-found" })
+          : json(200, { base64: encodeBase64Bytes(bytes) });
+      }
+      const content = await backend.read(path);
+      return content === undefined ? json(404, { error: "not-found" }) : json(200, { content });
+    }
+    if (get && endpoint === "files") {
+      const backend = await reader(revisionParam(query("revision")));
+      return json(200, { files: await backend.list(editableDir(query("dir"))) });
+    }
+    if (post && endpoint === "files") {
+      const body = await readBody(request);
+      if (!Array.isArray(body.paths)) throw new BadRequest("Say which files.");
+      const paths = body.paths.map(editablePath);
+      const backend = await reader(revisionParam(body.revision));
+      const files = backend.readFiles
+        ? await backend.readFiles(paths)
+        : new Map(
+            (await Promise.all(paths.map(async (path) => [path, await backend.read(path)] as const))).filter(
+              (entry): entry is readonly [string, string] => entry[1] !== undefined,
+            ),
+          );
+      return json(200, { files: Object.fromEntries(files) });
+    }
+    if (post && endpoint === "write") {
+      const body = await readBody(request);
+      const { message } = body;
+      const expectedRevision = revisionParam(body.expectedRevision);
+      if (!Array.isArray(body.changes) || typeof message !== "string") throw new BadRequest("That isn't a save.");
+      const changes = body.changes.map(toFileChange);
+      // Checked here, whatever the admin panel shows: the browser can't be trusted to leave settings alone.
+      if (editor.role !== "owner" && changes.some((change) => isSettingsPath(change.path))) {
+        return json(403, { error: "owners-only" });
+      }
+      const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
+      return json(200, await backend.write(changes, { message, expectedRevision }));
+    }
+    if (get && endpoint === "changed") {
+      const backend = await reader(revisionParam(query("to")));
+      return json(200, { paths: await backend.changedPaths(revisionParam(query("from")), revisionParam(query("to"))) });
+    }
+    if (get && endpoint === "deploy") {
+      const revision = revisionParam(query("revision"));
+      return json(200, await (await reader(revision)).deployStatus(revision));
+    }
+    if (get && endpoint === "history") {
+      const backend = await reader(revisionParam(query("revision")));
+      const page = Number(query("page") ?? 1);
+      const perPage = Number(query("perPage") ?? 20);
+      if (!Number.isInteger(page) || page < 1 || !Number.isInteger(perPage) || perPage < 1 || perPage > 100) {
+        throw new BadRequest("That isn't a page of versions.");
+      }
+      return json(200, { versions: await backend.history(editablePath(query("path")), { page, perPage }) });
+    }
+    if (get && endpoint === "version") {
+      const revision = revisionParam(query("revision"));
+      const content = await (await reader(revision)).readAt(editablePath(query("path")), revision);
+      return content === undefined ? json(404, { error: "not-found" }) : json(200, { content });
+    }
+    return json(404, { error: "not-found" });
+  }
+
+  return async (request, endpoint) => {
+    // Without a trailing slash: Next.js sites with `trailingSlash` call `revision/`.
+    const name = endpoint.replace(/^\/+|\/+$/g, "");
+    if (!isTrusted(request)) return json(403, { error: "forbidden" });
+    try {
+      const editor = await options.authorize(request);
+      if (name === "session" && request.method === "GET") return session(editor);
+      if (!editor) return json(401, { error: editor === false ? "not-allowed" : "signed-out" });
+      return await answer(request, name, editor);
+    } catch (error) {
+      if (error instanceof BadRequest) return json(400, { error: "bad-request", message: error.message });
+      if (error instanceof ConflictError) return json(409, { error: "conflict" });
+      onError(error);
+      // The repository's answers stay on the server: they're about its token, not the editor's sign-in.
+      if (error instanceof SignInError) return json(502, { error: "git-sign-in", problem: error.problem });
+      if (error instanceof GitApiError) return json(502, { error: "git", status: error.status });
+      return json(500, { error: "server-error" });
+    }
+  };
+}

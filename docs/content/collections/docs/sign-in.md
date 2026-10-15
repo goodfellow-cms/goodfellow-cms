@@ -6,7 +6,7 @@ section: owners
 order: 2
 ---
 
-Editors sign in at `/admin` on the live site with their own GitHub or GitLab account. There's no separate list of users: anyone who can change the site's repository can edit the site, and the site's owners invite and remove them under **Site Settings → Editors**.
+Editors sign in at `/admin` on the live site with their own GitHub or GitLab account. There's no separate list of users: anyone who can change the site's repository can edit the site, and the site's owners invite and remove them under **Site Settings → Editors**. [Full-stack sites](/docs/full-stack-nextjs) are different: editors sign in with the site's own sign-in.
 
 ## Inviting and removing editors
 

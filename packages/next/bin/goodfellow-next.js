@@ -2,13 +2,29 @@
 // After `next build`: `goodfellow-next finish out` fixes the export's prefetch files on Windows,
 // writes the calendar files of collections of events and the pages at redirects' old addresses, and the search index for sites with a search block. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
+import { rm } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { formatUpdateResult } from "@goodfellow-cms/core";
 import { update } from "@goodfellow-cms/core/node";
-import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
-import { fixSegmentFiles, writeCalendarFiles, writeRedirectFiles } from "@goodfellow-cms/next/export";
+import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
+import { builtPages, fixSegmentFiles, writeCalendarFiles, writeRedirectFiles } from "@goodfellow-cms/next/export";
 
 const [command, dir = "out"] = process.argv.slice(2);
+// A full-stack site (withGoodfellow(config, { server: true })): Next.js serves its pages and sends redirects
+// itself, so the calendar files and the search index are written into public/, which `next start` and hosts
+// serve as static files, as they are for an export.
+if (command === "finish" && dir === "--server") {
+  await rm("public/calendars", { recursive: true, force: true });
+  const calendars = await writeCalendarFiles("public");
+  if (calendars > 0) console.log(`Wrote ${calendars} calendar files, in public/calendars`);
+  const indexed = await writePagesSearchIndex(await builtPages(), "public/pagefind");
+  console.log(
+    indexed === undefined
+      ? "No page has a search block, so there's nothing to index"
+      : `Indexed ${indexed} pages for search, in public/pagefind`,
+  );
+  process.exit(0);
+}
 if (command === "update") {
   const { values } = parseArgs({
     args: process.argv.slice(3),
@@ -23,13 +39,16 @@ if (command !== "finish" && command !== "index") {
   console.error(
     [
       "Usage: goodfellow-next finish [folder]",
+      "       goodfellow-next finish --server",
       "       goodfellow-next index [folder]",
       "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish]",
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
       "        for collections of events and pages that send visitors on from old addresses, and",
-      "        indexes it for search.",
+      "        indexes it for search. With --server, for a full-stack site, writes the calendar",
+      "        files into public/calendars and indexes the pages next build rendered into",
+      "        public/pagefind instead.",
       "index   Only indexes the exported site for its search block.",
       "update  Updates Goodfellow, and blocks from its registry, if the site still builds.",
     ].join("\n"),

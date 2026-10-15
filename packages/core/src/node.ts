@@ -1,3 +1,4 @@
+export { type AppApiOptions, appApi } from "./node-app-api.js";
 export {
   DEV_API_HEADER,
   DEV_API_PREFIX,

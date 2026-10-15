@@ -30,6 +30,18 @@ describe("withGoodfellow", () => {
     });
   });
 
+  it("builds a full-stack site for its server, with the content its pages read", async () => {
+    const config = await withGoodfellow({}, { root, server: true })("phase-production-build");
+    expect(config).toEqual({
+      trailingSlash: true,
+      images: undefined,
+      env: { GOODFELLOW_BASE_PATH: "" },
+      outputFileTracingIncludes: { "/**": ["./content/**/*", "./public/media/**/*"] },
+      redirects: expect.any(Function),
+    });
+    expect(config).not.toHaveProperty("output");
+  });
+
   it("adds the site's redirects ahead of its own for hosts that send them, leaving out pages' addresses", async () => {
     const site = await mkdtemp(join(tmpdir(), "goodfellow-next-"));
     const write = async (path: string, text: string) => {

@@ -1,4 +1,4 @@
-import { trimChars } from "@goodfellow-cms/core";
+import { APP_API_HEADER, trimChars } from "@goodfellow-cms/core";
 import { type AiRequest, parseAnswer } from "./prompt.js";
 
 /** The AI services the assistant can use. Every one is called straight from the editor's browser. */
@@ -93,6 +93,12 @@ export interface ProviderSettings {
   apiKey?: string;
   /** For `custom`: the API's address, such as `https://example.org/v1`. */
   baseUrl?: string;
+  /**
+   * The full address of a full-stack site's AI requests, such as
+   * `https://example.org/api/goodfellow/ai`, where its server has a key for the
+   * service. Requests go there instead, with no key, and the server adds its own.
+   */
+  server?: string;
 }
 
 export type AiProblem =
@@ -149,10 +155,15 @@ async function runClaude(settings: ProviderSettings, request: AiRequest, options
   // Loaded only when Claude is used, so the SDK doesn't add to the editor's load time.
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic({
-    apiKey: settings.apiKey,
-    // The key is the editor's own, typed into their own browser: there's no server to keep it on.
+    // The site's server replaces this with its own key.
+    apiKey: settings.server ? "server" : settings.apiKey,
+    // The key is the editor's own, typed into their own browser, or the site's server's, which never reaches it.
     dangerouslyAllowBrowser: true,
     maxRetries: 1,
+    ...(settings.server && {
+      baseURL: `${trimChars(settings.server, "/", { start: false })}/anthropic`,
+      defaultHeaders: { [APP_API_HEADER]: "1" },
+    }),
     ...(options.fetch && { fetch: options.fetch }),
   });
   const current = settings.model === "claude-opus-5-5" || settings.model === "claude-sonnet-5-5";
@@ -198,6 +209,7 @@ async function runClaude(settings: ProviderSettings, request: AiRequest, options
 }
 
 function baseUrlOf(settings: ProviderSettings): string {
+  if (settings.server) return `${trimChars(settings.server, "/", { start: false })}/${settings.provider}`;
   const base = settings.provider === "custom" ? settings.baseUrl : PROVIDERS[settings.provider].baseUrl;
   if (!base) throw new AiError("service", "No address is set for this AI service.");
   return trimChars(base, "/", { start: false });
@@ -206,7 +218,9 @@ function baseUrlOf(settings: ProviderSettings): string {
 function headersFor(settings: ProviderSettings): Record<string, string> {
   return {
     "Content-Type": "application/json",
-    ...(settings.apiKey && { Authorization: `Bearer ${settings.apiKey}` }),
+    ...(settings.server
+      ? { [APP_API_HEADER]: "1" }
+      : settings.apiKey && { Authorization: `Bearer ${settings.apiKey}` }),
   };
 }
 
@@ -285,7 +299,9 @@ export async function runRequest(
   if (settings.provider === "manual") {
     throw new AiError("service", "Chat apps are used by copying the request with manualPrompt().");
   }
-  if (PROVIDERS[settings.provider].needsKey && !settings.apiKey) throw new AiError("key", "No API key is set.");
+  if (PROVIDERS[settings.provider].needsKey && !settings.apiKey && !settings.server) {
+    throw new AiError("key", "No API key is set.");
+  }
   if (!settings.model) throw new AiError("service", "No model is chosen.");
   return settings.provider === "anthropic"
     ? runClaude(settings, request, options)
@@ -297,7 +313,7 @@ export async function listModels(settings: ProviderSettings, options: RunOptions
   const info = PROVIDERS[settings.provider];
   if (settings.provider === "anthropic") return CLAUDE_MODELS;
   if (settings.provider === "manual") return [];
-  if (info.needsKey && !settings.apiKey) return info.models ?? [];
+  if (info.needsKey && !settings.apiKey && !settings.server) return info.models ?? [];
   const response = await send(`${baseUrlOf(settings)}/models`, { headers: headersFor(settings) }, options);
   if (!response.ok) throw await failure(response, settings);
   const data = (await response.json()) as { data?: Array<{ id?: unknown }> };

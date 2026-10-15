@@ -1,4 +1,5 @@
 import {
+  type AppRole,
   ConflictError,
   type ContentStore,
   type DemoStore,
@@ -55,7 +56,15 @@ export interface Account {
   hostName: string;
   /** Whether editors sign in by being sent to the host and back to addresses listed with the host, which a new domain must be added to. */
   redirectAddressesListed: boolean;
-  signOut(): void;
+  /** Absent where the site's own sign-in has no address for signing out. */
+  signOut?(): void;
+  /**
+   * On a full-stack site, what its own sign-in lets them do: `editor`s don't
+   * change Site Settings, blocks, or collections' settings and templates.
+   */
+  role?: AppRole;
+  /** On a full-stack site, the AI services its server asks with keys of its own, at `server`. */
+  ai?: { server: string; services: string[] };
 }
 
 interface AdminContextValue {
@@ -301,6 +310,11 @@ export function AdminProvider({
   );
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;
+}
+
+/** Whether the signed-in person may change Site Settings, blocks, and collections' settings and templates. */
+export function useCanChangeSettings(): boolean {
+  return useAdmin().account?.role !== "editor";
 }
 
 export function useAdmin(): AdminContextValue {

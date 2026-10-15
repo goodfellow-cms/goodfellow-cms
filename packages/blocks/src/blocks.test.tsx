@@ -542,3 +542,24 @@ describe("built-in blocks", () => {
     expect(Object.keys(createPuckConfig({ blocks, categories }, "page").components)).not.toContain("EntryField");
   });
 });
+
+describe("Search", () => {
+  it("gives its box only its text, never Puck's functions, which Next.js can't send to the browser", () => {
+    const element = blocks.Search.render({
+      id: "Search-1",
+      className: "",
+      label: "Search the site",
+      placeholder: "Search",
+      noResults: "Nothing matches “{query}”.",
+      unavailable: "Search works on the published site.",
+      puck: { isEditing: false, renderDropZone: () => null, dragRef: null, metadata: {} },
+      editMode: false,
+    } as never) as { props: { children: { props: Record<string, unknown> } } };
+    expect(element.props.children.props).toEqual({
+      label: "Search the site",
+      placeholder: "Search",
+      noResults: "Nothing matches “{query}”.",
+      unavailable: "Search works on the published site.",
+    });
+  });
+});

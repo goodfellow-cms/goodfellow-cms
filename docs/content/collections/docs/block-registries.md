@@ -3,7 +3,7 @@ version: 1
 title: Block registries
 description: Publish blocks that sites add from the admin panel, built with shadcn/ui or any other component library.
 section: developers
-order: 7
+order: 8
 ---
 
 Goodfellow's blocks built with component libraries come from block registries: [shadcn registries](https://ui.shadcn.com/docs/registry) whose items are Goodfellow blocks. Goodfellow publishes one for shadcn/ui, `@goodfellow-cms/registry`. Anyone can publish one for another library in the same format: build it with `npx shadcn build` and host the files anywhere that allows requests from browsers (CORS), such as GitHub Pages or npm through jsDelivr.

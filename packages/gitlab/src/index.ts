@@ -1,4 +1,13 @@
-import { credentialStorage, GitApiError, type GitHost, SignInError, type StorageLike } from "@goodfellow-cms/core";
+import {
+  type CommitAuthor,
+  credentialStorage,
+  GitApiError,
+  type GitHost,
+  type ServerGit,
+  type ServerGitOptions,
+  SignInError,
+  type StorageLike,
+} from "@goodfellow-cms/core";
 import { type ApiOptions, gitlabJson } from "./api.js";
 import { GitLabBackend } from "./backend.js";
 import { codeChallenge, type OAuthTokens, randomString, redirectUri, type TokenResponse, toTokens } from "./oauth.js";
@@ -164,6 +173,45 @@ export function gitlab(options: GitLabOptions): GitHost {
     return connect(toTokens(tokens, redirect.verifier), redirect.remember);
   }
 
+  /** The project through a token of the site's own, such as a project access token, on a full-stack site's server. */
+  function server({ token }: ServerGitOptions): ServerGit {
+    const api: ApiOptions = {
+      apiUrl,
+      token: async () => (typeof token === "string" ? token : token()),
+      canRefresh: false,
+      fetch: fetcher,
+    };
+    let branch: Promise<string> | undefined;
+    const liveBranch = () => {
+      branch ??= options.branch
+        ? Promise.resolve(options.branch)
+        : gitlabJson<{ default_branch: string }>(api, `/projects/${encodeURIComponent(options.project)}`).then(
+            (project) => project.default_branch,
+          );
+      // Asked again next time if GitLab couldn't be reached.
+      branch.catch(() => {
+        branch = undefined;
+      });
+      return branch;
+    };
+    const backend = async (revision?: string, author?: CommitAuthor) =>
+      new GitLabBackend({
+        api,
+        project: options.project,
+        branch: await liveBranch(),
+        user: { login: author?.name ?? options.project, ...(author && { name: author.name }) },
+        onSignOut: () => {},
+        ...(revision && { revision }),
+        ...(author && { author }),
+      });
+    return {
+      async revision() {
+        return (await backend()).revision();
+      },
+      at: backend,
+    };
+  }
+
   return {
     name: "GitLab",
     canRedirect: Boolean(options.clientId),
@@ -209,5 +257,6 @@ export function gitlab(options: GitLabOptions): GitHost {
       });
       location().assign(`${webUrl}/oauth/authorize?${query}`);
     },
+    server,
   };
 }

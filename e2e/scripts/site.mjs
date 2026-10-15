@@ -174,3 +174,142 @@ export const NEXT_BASE = "/site/";
 export function createNextBuiltSite() {
   copyNextTemplate(nextBuiltSite);
 }
+
+/** A copy of the Next.js template as a full-stack site, with a server of its own and a sign-in of its own. */
+export const nextServerSite = join(here, "../.site-next-server");
+
+/** The full-stack test site's address, its fake GitHub's, its fake AI service's, and the token its server uses. */
+export const NEXT_SERVER = { port: 4407, github: 4408, ai: 4409, token: "site-token", aiKey: "sk-site-key" };
+
+/** People the test site's own sign-in knows, by the name its sign-in page signs them in as. */
+export const NEXT_SERVER_PEOPLE = {
+  alice: { login: "alice", name: "Alice Editor", email: "alice@example.org", role: "editor" },
+  owen: { login: "owen", name: "Owen Owner", email: "owen@example.org", role: "owner" },
+  // Signed in to the site, but not allowed to edit it.
+  nora: false,
+};
+
+/** Files a full-stack Next.js site adds to the template: the admin panel's API, and a sign-in of its own. */
+const SERVER_FILES = {
+  "next.config.ts": `import { withGoodfellow } from "@goodfellow-cms/next/config";
+
+export default withGoodfellow({ agentRules: false }, { server: true });
+`,
+  "lib/session.ts": `import type { AppEditor } from "@goodfellow-cms/core";
+
+// A made-up sign-in for tests: a cookie naming who's signed in. A real site checks its own sessions here.
+export const PEOPLE: Record<string, AppEditor | false> = ${JSON.stringify(NEXT_SERVER_PEOPLE, null, 2)};
+
+export function signedIn(request: Request): AppEditor | false | null {
+  const match = /(?:^|; )test-session=([a-z]+)/.exec(request.headers.get("cookie") ?? "");
+  return match?.[1] && match[1] in PEOPLE ? (PEOPLE[match[1]] ?? null) : null;
+}
+`,
+  "app/api/goodfellow/[...path]/route.ts": `import { goodfellowApi } from "@goodfellow-cms/next/server";
+import config from "@/goodfellow.config";
+import { signedIn } from "@/lib/session";
+
+export const { GET, POST } = goodfellowApi({
+  config,
+  authorize: signedIn,
+  signIn: "/sign-in/",
+  signOut: "/sign-out/",
+  // OpenAI's API, at a fake's address.
+  ai: { openai: { key: process.env.TEST_AI_KEY, baseUrl: \`\${process.env.TEST_AI_URL}/v1\` } },
+});
+`,
+  "app/sign-in/route.ts": `import { PEOPLE } from "@/lib/session";
+
+export function GET(request: Request) {
+  const as = new URL(request.url).searchParams.get("as");
+  if (as && as in PEOPLE) {
+    return new Response(null, {
+      status: 303,
+      headers: { location: "/admin/", "set-cookie": \`test-session=\${as}; Path=/; HttpOnly; SameSite=Lax\` },
+    });
+  }
+  const links = Object.keys(PEOPLE).map((name) => \`<li><a href="/sign-in/?as=\${name}">Sign in as \${name}</a></li>\`);
+  return new Response(\`<!doctype html><title>Sign in</title><h1>Sign in</h1><ul>\${links.join("")}</ul>\`, {
+    headers: { "content-type": "text/html" },
+  });
+}
+`,
+  "app/sign-out/route.ts": `export function GET() {
+  return new Response(null, {
+    status: 303,
+    headers: { location: "/sign-in/", "set-cookie": "test-session=; Path=/; Max-Age=0" },
+  });
+}
+`,
+  "app/admin/page.tsx": `"use client";
+
+import { GoodfellowAdmin } from "@goodfellow-cms/next/admin";
+import config from "@/goodfellow.config";
+
+export default function AdminPage() {
+  return <GoodfellowAdmin config={config} server="/api/goodfellow" />;
+}
+`,
+};
+
+/** Creates the full-stack test site, stored on a fake GitHub that only its server reaches. */
+export function createNextServerSite() {
+  copyNextTemplate(nextServerSite);
+  for (const [path, text] of Object.entries(SERVER_FILES)) {
+    mkdirSync(dirname(join(nextServerSite, path)), { recursive: true });
+    writeFileSync(join(nextServerSite, path), text);
+  }
+  writeFileSync(
+    join(nextServerSite, "goodfellow.config.tsx"),
+    testConfig({
+      from: "@/blocks",
+      importLine: 'import { github } from "@goodfellow-cms/github";',
+      // The server's GitHub is a fake on this computer; the browser never calls it.
+      backend: 'github({ repo: "parish/site", apiUrl: process.env.TEST_GITHUB_API })',
+    }),
+  );
+  cpSync(testBlocks, join(nextServerSite, "blocks"), { recursive: true });
+  writeFileSync(join(nextServerSite, "content/pages/search.json"), `${JSON.stringify(searchPage, null, 2)}\n`);
+  // A collection of events, so the build has calendar files to write.
+  const events = join(nextServerSite, "content/collections/events");
+  mkdirSync(events, { recursive: true });
+  writeFileSync(join(events, "_collection.json"), `${JSON.stringify(eventsCollection, null, 2)}\n`);
+  writeFileSync(join(events, "open-house.json"), `${JSON.stringify(openHouse, null, 2)}\n`);
+}
+
+const eventsCollection = {
+  version: 1,
+  calendar: { when: "when" },
+  entryName: "Event",
+  fields: [
+    { type: "text", label: "Title", name: "title", required: true },
+    { type: "event", label: "Date and time", name: "when", required: true },
+  ],
+  name: "Events",
+};
+
+const openHouse = {
+  version: 1,
+  fields: { title: "Open house", when: { end: "2026-11-07T12:00", start: "2026-11-07T10:00" } },
+};
+
+/** A page with a Search block, so the full-stack test site's build has an index to search. */
+const searchPage = {
+  version: 1,
+  data: {
+    content: [
+      {
+        type: "Search",
+        props: {
+          id: "Search-1",
+          className: "",
+          label: "Search the site",
+          noResults: "Nothing matches \u201c{query}\u201d.",
+          placeholder: "Search",
+          unavailable: "Search works on the published site.",
+        },
+      },
+    ],
+    root: { props: { className: "", description: "", image: "", title: "Search" } },
+  },
+};

@@ -41,6 +41,10 @@ export interface GitLabBackendOptions {
   branch: string;
   user: GitUser;
   onSignOut: () => void;
+  /** Who commits name as their author, where that isn't the token's owner, as on a full-stack site's server. */
+  author?: { name: string; email: string };
+  /** The commit reads see until `revision()` is next called, as a full-stack site's server reads what a browser loaded. */
+  revision?: string;
 }
 
 /**
@@ -70,6 +74,7 @@ export class GitLabBackend implements GitBackend {
     this.branch = options.branch;
     this.user = options.user;
     this.onSignOut = options.onSignOut;
+    this.pinned = options.revision;
     this.pages = gitlabPages(this.api, options.project);
     this.editors = gitlabEditors(this.api, options.project, this.branch, this.user.login);
     // Its setup files are outside the folders the backend lists, so they're read directly.
@@ -311,7 +316,15 @@ export class GitLabBackend implements GitBackend {
     try {
       const commit = await gitlabJson<{ id: string }>(this.api, this.repo("/commits"), {
         method: "POST",
-        body: { branch: this.branch, commit_message: message, actions: toApply },
+        body: {
+          branch: this.branch,
+          commit_message: message,
+          actions: toApply,
+          ...(this.options.author && {
+            author_name: this.options.author.name,
+            author_email: this.options.author.email,
+          }),
+        },
       });
       this.pinned = commit.id;
       return { revision: commit.id };

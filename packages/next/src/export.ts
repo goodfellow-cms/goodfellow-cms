@@ -92,3 +92,36 @@ export async function fixSegmentFiles(outDir: string): Promise<number> {
   await visit(outDir);
   return moved;
 }
+
+/** A page `next build` rendered ahead: its address on the site, and its HTML. */
+export interface BuiltPage {
+  url: string;
+  html: string;
+}
+
+/**
+ * The pages `next build` rendered ahead for a full-stack site (`withGoodfellow(config,
+ * { server: true })`), at their addresses on the site, without its base path, as the
+ * Search block looks them up. Next.js lists them in `.next/prerender-manifest.json`
+ * and keeps their HTML in `.next/server/app/`. The admin panel and Next.js's own pages are left out.
+ */
+export async function builtPages(root = process.cwd()): Promise<BuiltPage[]> {
+  const next = join(resolve(root), ".next");
+  const manifest = JSON.parse(await readFile(join(next, "prerender-manifest.json"), "utf8")) as {
+    routes?: Record<string, unknown>;
+  };
+  const settings = JSON.parse(await readFile(join(next, "required-server-files.json"), "utf8")) as {
+    config?: { trailingSlash?: boolean };
+  };
+  const trailingSlash = settings.config?.trailingSlash === true;
+  const pages: BuiltPage[] = [];
+  for (const route of Object.keys(manifest.routes ?? {})) {
+    if (route.startsWith("/_") || route === "/admin" || route.startsWith("/admin/")) continue;
+    const file = join(next, "server/app", `${route === "/" ? "/index" : route}.html`);
+    // Routes that aren't pages, such as robots.txt, have no HTML.
+    if (!(await exists(file))) continue;
+    const url = route === "/" ? "/" : trailingSlash ? `${route}/` : route;
+    pages.push({ url, html: await readFile(file, "utf8") });
+  }
+  return pages;
+}

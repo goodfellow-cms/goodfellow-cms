@@ -1,6 +1,6 @@
 import { addressPatternProblem, isAddressSegment } from "@goodfellow-cms/core";
 import { type FormEvent, useState } from "react";
-import { useAdmin, useSiteContent } from "./admin-context.js";
+import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import {
   addressPatternFor,
   collectionFileChange,
@@ -146,15 +146,18 @@ function NewCollectionDialog({ onClose }: { onClose: () => void }) {
 export function CollectionsScreen() {
   const t = useStrings();
   const { content } = useSiteContent();
+  const owner = useCanChangeSettings();
   const [creating, setCreating] = useState(false);
 
   return (
     <div className="gfa-screen">
       <div className="gfa-screen-header">
         <h1>{t("collections.title")}</h1>
-        <Button variant="primary" onClick={() => setCreating(true)}>
-          {t("collections.new")}
-        </Button>
+        {owner && (
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            {t("collections.new")}
+          </Button>
+        )}
       </div>
       <p className="gfa-hint">{t("collections.intro")}</p>
 

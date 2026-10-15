@@ -103,25 +103,31 @@ function ServiceSettings({
   providers,
   settings,
   onChange,
+  siteAi,
 }: {
   providers: ProviderId[];
   settings: ReturnType<typeof useAiSettings>[0];
   onChange: ReturnType<typeof useAiSettings>[1];
+  /** The services a full-stack site's server asks with keys of its own. */
+  siteAi?: { server: string; services: string[] };
 }) {
   const t = useStrings();
   const info = PROVIDERS[settings.provider];
+  const sitePays = siteAi?.services.includes(settings.provider) ?? false;
   const service = serviceName(settings.provider, t);
   const [models, setModels] = useState<string[]>(info.models ?? []);
   const listId = useRef(`gfa-ai-models-${Math.random().toString(36).slice(2)}`).current;
 
   // Ask the service which models it has, once it can be asked.
   const { provider, apiKey, baseUrl } = settings;
+  const server = sitePays ? siteAi?.server : undefined;
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
     setModels(PROVIDERS[provider].models ?? []);
     const timer = setTimeout(() => {
-      listModels({ provider, apiKey, baseUrl, model: "" }, { signal: controller.signal })
+      const asked = server ? { provider, server, model: "" } : { provider, apiKey, baseUrl, model: "" };
+      listModels(asked, { signal: controller.signal })
         .then((found) => {
           if (!cancelled && found.length > 0) setModels(found);
         })
@@ -132,7 +138,7 @@ function ServiceSettings({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [provider, apiKey, baseUrl]);
+  }, [provider, apiKey, baseUrl, server]);
 
   return (
     <div className="gfa-form gfa-ai-settings">
@@ -147,14 +153,20 @@ function ServiceSettings({
             {providers.map((id) => (
               <option key={id} value={id}>
                 {serviceName(id, t)}
-                {!PROVIDERS[id].needsKey && id !== "manual" && id !== "custom" ? ` ${t("ai.noKey")}` : ""}
+                {siteAi?.services.includes(id)
+                  ? ` ${t("ai.siteKey")}`
+                  : !PROVIDERS[id].needsKey && id !== "manual" && id !== "custom"
+                    ? ` ${t("ai.noKey")}`
+                    : ""}
               </option>
             ))}
           </select>
         )}
       </Field>
 
-      {settings.provider === "custom" && (
+      {sitePays && <p className="gfa-hint">{t("ai.siteKeyHint", { service })}</p>}
+
+      {settings.provider === "custom" && !sitePays && (
         <TextField
           label={t("ai.baseUrl")}
           hint={t("ai.baseUrlHint")}
@@ -164,7 +176,7 @@ function ServiceSettings({
         />
       )}
 
-      {settings.provider !== "manual" && (info.needsKey || settings.provider === "custom") && (
+      {settings.provider !== "manual" && !sitePays && (info.needsKey || settings.provider === "custom") && (
         <>
           <TextField
             label={t("ai.key")}
@@ -248,12 +260,26 @@ function serviceName(id: ProviderId, t: ReturnType<typeof useStrings>): string {
 /** The AI panel: describe what to write, and it's added to the page, replaces the selected block, or fills in the fields. */
 function AiPanel({ context }: { context: AiContext }) {
   const t = useStrings();
-  const { config, publish, mediaPreviews } = useAdmin();
+  const { config, publish, mediaPreviews, account } = useAdmin();
   const { content, media } = useSiteContent();
   const getPuck = useGetPuck();
   const selected = usePuck((state) => state.selectedItem);
-  const providers = useMemo(() => allowedProviders(config.ai ? config.ai.providers : undefined), [config.ai]);
-  const [settings, updateSettings] = useAiSettings(providers);
+  const siteAi = account?.ai;
+  const providers = useMemo(() => {
+    const allowed = allowedProviders(config.ai ? config.ai.providers : undefined);
+    // The services the site pays for come first, so editors start with one that needs no key.
+    const paid = allowed.filter((id) => siteAi?.services.includes(id));
+    return [...paid, ...allowed.filter((id) => !paid.includes(id))];
+  }, [config.ai, siteAi]);
+  const [chosen, updateSettings] = useAiSettings(providers);
+  // Asked through the site's server, with its key, where it has one; otherwise with the editor's own.
+  const settings = useMemo(
+    () =>
+      siteAi?.services.includes(chosen.provider)
+        ? { ...chosen, apiKey: undefined, baseUrl: undefined, server: siteAi.server }
+        : chosen,
+    [chosen, siteAi],
+  );
   const [photosChosen, choosePhotos] = useStockPhotoChoice();
   const photosOffered = !(config.ai && config.ai.stockPhotos === false);
   const photosAllowed = photosOffered && photosChosen;
@@ -270,7 +296,8 @@ function AiPanel({ context }: { context: AiContext }) {
   const itemName = inSentence(context.collection?.settings.entryName ?? "");
   const ready =
     settings.provider === "manual" ||
-    (Boolean(settings.model) && (!PROVIDERS[settings.provider].needsKey || Boolean(settings.apiKey)));
+    (Boolean(settings.model) &&
+      (!PROVIDERS[settings.provider].needsKey || Boolean(settings.apiKey) || Boolean(settings.server)));
 
   // Open at first if the service isn't set up yet, and then wherever the editor leaves it.
   const [settingsOpen, setSettingsOpen] = useState(!ready);
@@ -528,7 +555,12 @@ function AiPanel({ context }: { context: AiContext }) {
         onToggle={(event) => setSettingsOpen(event.currentTarget.open)}
       >
         <summary>{t("ai.settings", { service })}</summary>
-        <ServiceSettings providers={providers} settings={settings} onChange={updateSettings} />
+        <ServiceSettings
+          providers={providers}
+          settings={chosen}
+          onChange={updateSettings}
+          {...(siteAi && { siteAi })}
+        />
       </details>
     </div>
   );

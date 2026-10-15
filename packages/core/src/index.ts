@@ -1,3 +1,10 @@
+export {
+  APP_API_HEADER,
+  type AppEditor,
+  type AppRole,
+  type AppSession,
+  isSettingsPath,
+} from "./app-api.js";
 export { applyBasePath, normalizeBase, withBase } from "./base-path.js";
 export {
   BUILD_CAUSE_MARKER,
@@ -324,6 +331,7 @@ export {
   WEB3FORMS_SCRIPT,
 } from "./forms.js";
 export {
+  type CommitAuthor,
   credentialStorage,
   type DeployState,
   type DeployStatus,
@@ -337,6 +345,8 @@ export {
   type GitUser,
   type HistoryOptions,
   type RedirectOptions,
+  type ServerGit,
+  type ServerGitOptions,
   SignInError,
   type SignInProblem,
   type StorageLike,

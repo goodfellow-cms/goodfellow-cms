@@ -36,6 +36,7 @@ export {
   toValues,
   valuesSchema,
 } from "./schema.js";
+export { aiServer, type ServerKey, type ServerKeys } from "./server.js";
 export {
   downloadStockPhoto,
   MAX_STOCK_PHOTOS,
