@@ -4,8 +4,8 @@ import { ContentError, formatUpdateResult } from "@goodfellow-cms/core";
 import {
   ContentRepositoryError,
   contentRepositoryProblem,
+  setUpContentRepository,
   update,
-  useContentRepository,
 } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { build } from "./build.js";
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (command === "dev" || command === "build" || command === "preview") checkContent(values.root ?? ".");
+  if (command === "dev" || command === "build") checkContent(values.root ?? ".");
 
   switch (command) {
     case "dev":
@@ -115,7 +115,7 @@ async function main(): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      const folder = await useContentRepository(values.root ?? ".", { from, copy: action === "copy" });
+      const folder = await setUpContentRepository(values.root ?? ".", { from, copy: action === "copy" });
       const shown = relative(process.cwd(), folder) || ".";
       console.log(
         action === "copy"

@@ -13,6 +13,10 @@ order: 5
 | `goodfellow preview` | Serves `dist/` the way a host would, including the "Page not found" page |
 | `goodfellow index` | Writes the search index for a site built another way |
 | `goodfellow update` | Updates Goodfellow, and blocks from its registry, if the site still builds with the update (see [Keeping a site up to date](/docs/updates)) |
+| `goodfellow content link [folder]` | For a site whose [content is in a repository of its own](/docs/content-repository): links `content/` and `public/media/` to it, in `folder` (default: `content-repository`), so `goodfellow dev` reads and saves its files |
+| `goodfellow content copy [folder]` | Copies them from it instead, as builds do |
+
+Next.js sites have the same `update` and `content` commands as `goodfellow-next update` and `goodfellow-next content`.
 
 Options: `--root <dir>`, `--out <dir>`, `--port <port>`, and `--base <path>`.
 

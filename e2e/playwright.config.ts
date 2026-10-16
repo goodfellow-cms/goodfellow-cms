@@ -55,8 +55,9 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
     },
-    // Production builds of the starter with each git backend, and as a demo, served like a static host.
-    ...(["github", "gitlab", "demo"] as const).map((name) => ({
+    // Production builds of the starter with each git backend, as a demo, and with its content in a repository
+    // of its own, served like a static host.
+    ...(["github", "gitlab", "demo", "content"] as const).map((name) => ({
       command: `node scripts/start-built-site.mjs ${name}`,
       url: `http://localhost:${builtSites[name].port}/admin/`,
       reuseExistingServer: false,

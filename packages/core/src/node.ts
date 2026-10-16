@@ -3,7 +3,7 @@ export {
   ContentRepositoryError,
   type ContentRepositoryOptions,
   contentRepositoryProblem,
-  useContentRepository,
+  setUpContentRepository,
 } from "./node-content-repository.js";
 export {
   DEV_API_HEADER,

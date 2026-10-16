@@ -8,7 +8,7 @@ import { rm } from "node:fs/promises";
 import { relative } from "node:path";
 import { parseArgs } from "node:util";
 import { formatUpdateResult } from "@goodfellow-cms/core";
-import { ContentRepositoryError, update, useContentRepository } from "@goodfellow-cms/core/node";
+import { ContentRepositoryError, setUpContentRepository, update } from "@goodfellow-cms/core/node";
 import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { builtPages, fixSegmentFiles, writeCalendarFiles, writeRedirectFiles } from "@goodfellow-cms/next/export";
 
@@ -42,7 +42,8 @@ if (command === "content") {
   const [action, from] = process.argv.slice(3);
   if (action === "link" || action === "copy") {
     try {
-      const folder = relative(process.cwd(), await useContentRepository(".", { from, copy: action === "copy" })) || ".";
+      const folder =
+        relative(process.cwd(), await setUpContentRepository(".", { from, copy: action === "copy" })) || ".";
       console.log(
         action === "copy"
           ? `Copied content/ and public/media/ from ${folder}`

@@ -44,7 +44,7 @@ async function clear(target: string, name: string): Promise<void> {
  * content repository's own files, or as copies in builds. Returns the content
  * repository's folder.
  */
-export async function useContentRepository(root: string, options: ContentRepositoryOptions = {}): Promise<string> {
+export async function setUpContentRepository(root: string, options: ContentRepositoryOptions = {}): Promise<string> {
   const site = resolve(root);
   const from = resolve(site, options.from ?? CONTENT_REPOSITORY_DIR);
   const shown = relative(process.cwd(), from) || ".";

@@ -30,6 +30,7 @@ It asks these questions, with menus you move through with the arrow keys and cho
 - **Which site to start from:** the **Starter** (a home page, an about page and a news section), the **Parish example** (a complete made-up parish site, with collections and blocks of its own) or the **Starter for Next.js** (see [Next.js](/docs/nextjs)).
 - **Where the site will be stored:** GitHub or GitLab, and the repository's name.
 - **Where it will be hosted:** GitHub Pages, GitLab Pages or Vercel, with each host's rules for business sites. Only that host's setup file is kept.
+- **Where the content will be kept:** with the code, or, for organizations with a developer, in a [repository of its own](/docs/content-repository), so editors can change the content but never the code.
 - **Which blocks to start with:** the recommended blocks from Goodfellow's [block registry](/docs/add-blocks), such as an FAQ and tabs, or the built-in blocks only. Either way, blocks can be added and removed later in the admin panel.
 
 It then runs `npm install`, and makes the new folder a git repository on the branch `main`, with everything, `package-lock.json` included, in its first commit and `origin` set when you gave it the repository. `--no-install` and `--no-git` leave those out; it also doesn't make a repository inside another git repository.
@@ -40,7 +41,7 @@ To skip the questions, give the answers as options:
 npm create goodfellow@latest my-site -- --template parish --github your-name/your-site --host github-pages --blocks built-in
 ```
 
-Run it with `--help` for every option.
+`--content your-name/your-site-content` keeps the content in a repository of its own. Run it with `--help` for every option.
 
 > To try changes that haven't been released yet, use the sites in [the repository](https://github.com/goodfellow-cms/goodfellow-cms) instead: install [pnpm](https://pnpm.io), run `pnpm install` and `pnpm build` at the root, then `pnpm dev` in `templates/starter`.
 
