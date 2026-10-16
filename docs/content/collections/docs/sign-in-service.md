@@ -20,7 +20,7 @@ The service gives the admin panel tokens from Goodfellow's GitHub App, which Git
 
 Nothing. GitHub gives the service the editor's own token when they sign in, which it uses only to check who they are and that they can edit the site, then revokes straight away. The session the browser keeps says only who the editor is and which site it's for, sealed with a key only the service has, so it can't be changed or made up. Removing someone as an editor on GitHub stops their session working within the hour.
 
-The setup page is the one exception: creating a repository needs the person's own token, so the setup page's session keeps it, sealed, until the repository exists or half an hour has passed, whichever is first.
+The setup page is the one exception: creating a repository needs the person's own token, so the setup page's session keeps it, sealed, until the repository exists (both of them, for a site whose content has a repository of its own) or half an hour has passed, whichever is first.
 
 The tokens it gives are GitHub App installation tokens:
 
