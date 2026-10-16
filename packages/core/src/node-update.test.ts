@@ -191,6 +191,25 @@ describe("goodfellow update", () => {
     expect(parseUpdateSettings(await read("content/updates.json")).skip).toEqual(["0.4.3"]);
   });
 
+  it("leaves content kept in a repository of its own to that repository when going back", async () => {
+    await site();
+    await mkdir(join(root, "content-repository/content"), { recursive: true });
+    await writeFile(join(root, "content-repository/content/site.json"), "{}\n");
+    const { ran, run } = commands();
+    const lines: string[] = [];
+    const options = { root, fetchJson, run, registry: REGISTRY, log: (line: string) => lines.push(line), env: {} };
+    await update({ ...options, to: "0.4.2" });
+    ran.length = 0;
+
+    expect(await update({ ...options, to: "0.4.1", publish: true })).toMatchObject({
+      state: "updated",
+      rollback: true,
+    });
+    expect(await readFile(join(root, "content/updates.json"), "utf8").catch(() => undefined)).toBeUndefined();
+    expect(ran.find((line) => line.startsWith("git add"))).not.toContain("content/updates.json");
+    expect(lines.join("\n")).toContain('add 0.4.2 to "skip"');
+  });
+
   it("goes back as it was if someone published meanwhile", async () => {
     await site();
     const { ran, run } = commands({ "git push": { code: 1 } });

@@ -92,3 +92,29 @@ export async function writeChanges(
     }
   }
 }
+
+/** The folders a repository that holds only the site's content has: everything editors change. */
+export const CONTENT_FOLDERS = [CONTENT_DIR, MEDIA_DIR];
+
+/** Whether a path is the site's content or media, rather than its code, such as installed blocks. */
+export function isContentPath(path: string): boolean {
+  return isEditablePath(path) && CONTENT_FOLDERS.some((root) => path.startsWith(`${root}/`));
+}
+
+/**
+ * Thrown when a save would change the site's code in a repository that holds
+ * only its content (`GitBackend.contentOnly`), such as adding a block.
+ */
+export class CodeChangeError extends Error {
+  override name = "CodeChangeError";
+
+  constructor(path: string) {
+    super(`${path} is part of the site's code, which is kept in a repository of its own, not the content repository.`);
+  }
+}
+
+/** Throws `CodeChangeError` for the first change outside `content/` and `public/media/`. */
+export function assertContentChanges(changes: FileChange[]): void {
+  const code = changes.find((change) => !isContentPath(change.path));
+  if (code) throw new CodeChangeError(code.path);
+}

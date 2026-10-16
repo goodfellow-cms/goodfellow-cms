@@ -1,4 +1,4 @@
-import { ConflictError, loadSiteContent, type StorageLike, writeChanges } from "@goodfellow-cms/core";
+import { CodeChangeError, ConflictError, loadSiteContent, type StorageLike, writeChanges } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
 import { type BrowserLocation, gitlab, redirectUri } from "./index.js";
 import { fakeGitLab } from "./testing.js";
@@ -433,6 +433,40 @@ describe("reading many files", () => {
     const sizes = await backend.fileSizes?.("content");
     expect(sizes?.get("content/site.json")).toBe(new TextEncoder().encode(FILES["content/site.json"]).length);
     expect([...(sizes?.keys() ?? [])].every((path) => path.startsWith("content/"))).toBe(true);
+  });
+});
+
+describe("a project of content only", () => {
+  it("publishes content, and never the site's code, which is kept in a project of its own", async () => {
+    const fake = fakeGitLab({ project: "parish/web/site-content", files: FILES });
+    const host = gitlab({
+      project: "parish/web/site-content",
+      contentOnly: true,
+      fetch: fake.fetch,
+      storage: {},
+      location: fakeLocation("https://parish.example/admin/"),
+    });
+    const backend = await host.signInWithToken("test-token", false);
+    expect(backend.contentOnly).toBe(true);
+    // Goodfellow's updates run where the code is.
+    expect(backend.updates).toBeUndefined();
+
+    const revision = await backend.revision();
+    await expect(
+      backend.write([{ path: "lib/utils.ts", content: "export {};" }], {
+        message: "Add a helper",
+        expectedRevision: revision,
+      }),
+    ).rejects.toBeInstanceOf(CodeChangeError);
+    await backend.write([{ path: "content/pages/about.json", content: "{}" }], {
+      message: "Update About",
+      expectedRevision: revision,
+    });
+    expect(await (await host.signInWithToken("test-token", false)).read("content/pages/about.json")).toBe("{}");
+
+    const git = host.server?.({ token: "test-token" });
+    expect(git?.contentOnly).toBe(true);
+    expect((await git?.at(await backend.revision()))?.contentOnly).toBe(true);
   });
 });
 

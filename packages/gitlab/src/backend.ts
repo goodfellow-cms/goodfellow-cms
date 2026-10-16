@@ -1,4 +1,5 @@
 import {
+  assertContentChanges,
   type BuildProblem,
   branchDrafts,
   buildStepFor,
@@ -45,6 +46,8 @@ export interface GitLabBackendOptions {
   author?: { name: string; email: string };
   /** The commit reads see until `revision()` is next called, as a full-stack site's server reads what a browser loaded. */
   revision?: string;
+  /** The project holds only the site's content, with its code in a project of its own (`GitBackend.contentOnly`). */
+  contentOnly?: boolean;
 }
 
 /**
@@ -56,8 +59,10 @@ export class GitLabBackend implements GitBackend {
   readonly user: GitUser;
   readonly pages: PagesDomains;
   readonly editors: SiteEditors;
-  readonly updates: SiteUpdates;
+  /** Absent where the project holds only content: the update job runs where the code is. */
+  readonly updates?: SiteUpdates;
   readonly drafts: SiteDrafts;
+  readonly contentOnly: boolean;
   private readonly options: GitLabBackendOptions;
   private readonly api: ApiOptions;
   private readonly project: string;
@@ -77,10 +82,13 @@ export class GitLabBackend implements GitBackend {
     this.pinned = options.revision;
     this.pages = gitlabPages(this.api, options.project);
     this.editors = gitlabEditors(this.api, options.project, this.branch, this.user.login);
+    this.contentOnly = options.contentOnly === true;
     // Its setup files are outside the folders the backend lists, so they're read directly.
-    this.updates = gitlabUpdates(this.api, options.project, this.branch, async (path) =>
-      this.readAt(path, this.pinned ?? (await this.revision())),
-    );
+    if (!this.contentOnly) {
+      this.updates = gitlabUpdates(this.api, options.project, this.branch, async (path) =>
+        this.readAt(path, this.pinned ?? (await this.revision())),
+      );
+    }
     this.drafts = branchDrafts(this, this.draftHost());
   }
 
@@ -278,6 +286,7 @@ export class GitLabBackend implements GitBackend {
   }
 
   async write(changes: FileChange[], { message, expectedRevision }: WriteOptions): Promise<{ revision: string }> {
+    if (this.contentOnly) assertContentChanges(changes);
     // GitLab has no "only if the branch hasn't moved" option, so check first. The
     // per-file last_commit_id below still protects the files being saved from races.
     if ((await this.revision()) !== expectedRevision) throw new ConflictError();

@@ -1,7 +1,12 @@
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { ContentError, formatUpdateResult } from "@goodfellow-cms/core";
-import { update } from "@goodfellow-cms/core/node";
+import {
+  ContentRepositoryError,
+  contentRepositoryProblem,
+  update,
+  useContentRepository,
+} from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { build } from "./build.js";
 import { dev } from "./dev.js";
@@ -17,6 +22,10 @@ Commands:
   preview   Serve the built site the way a static host would
   index     Index a built site's pages for its search block (build does this itself)
   update    Update Goodfellow, and blocks from its registry, if the site still builds
+  content   For a site whose content is kept in a repository of its own:
+            content link [folder]  links content/ and public/media/ to the content
+                                   repository in folder (default: content-repository)
+            content copy [folder]  copies them from it instead, as builds do
 
 Options:
   --root <dir>    The site's folder (default: current folder)
@@ -29,6 +38,12 @@ Options:
   --publish       For update: publish the update to the site's main branch once it builds
   -h, --help      Show this help
 `;
+
+/** A site whose content is kept in a repository of its own needs it put in place first. */
+function checkContent(root: string): void {
+  const problem = contentRepositoryProblem(root);
+  if (problem) throw new SiteSetupError(problem);
+}
 
 async function main(): Promise<void> {
   const { positionals, values } = parseArgs({
@@ -52,6 +67,8 @@ async function main(): Promise<void> {
     console.log(HELP);
     return;
   }
+
+  if (command === "dev" || command === "build" || command === "preview") checkContent(values.root ?? ".");
 
   switch (command) {
     case "dev":
@@ -91,6 +108,22 @@ async function main(): Promise<void> {
       if (result.state === "failed") process.exitCode = 1;
       return;
     }
+    case "content": {
+      const [, action, from] = positionals;
+      if (action !== "link" && action !== "copy") {
+        console.error(`Say "content link" or "content copy".\n\n${HELP}`);
+        process.exitCode = 1;
+        return;
+      }
+      const folder = await useContentRepository(values.root ?? ".", { from, copy: action === "copy" });
+      const shown = relative(process.cwd(), folder) || ".";
+      console.log(
+        action === "copy"
+          ? `Copied content/ and public/media/ from ${shown}`
+          : `Linked content/ and public/media/ to ${shown}, so the site's content is the content repository's`,
+      );
+      return;
+    }
     case "preview":
       await preview({ root: values.root, outDir: values.out, base, port });
       return;
@@ -105,7 +138,7 @@ main().catch((error: unknown) => {
     console.error(
       `\nSome content files have problems:\n${error.problems.map((p) => `  ${p.file}: ${p.message}`).join("\n")}\n`,
     );
-  } else if (error instanceof SiteSetupError) {
+  } else if (error instanceof SiteSetupError || error instanceof ContentRepositoryError) {
     console.error(`\n${error.message}\n`);
   } else {
     console.error(error);

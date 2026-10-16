@@ -1,4 +1,4 @@
-import { type FSWatcher, watch } from "node:fs";
+import { type FSWatcher, realpathSync, watch } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve, sep } from "node:path";
@@ -104,6 +104,18 @@ function watchContent(server: ViteDevServer, root: string, styles: () => StylesE
     clearTimeout(timer);
     watcher?.close();
   });
+}
+
+/** Globs for a folder and, if it's a link, the folder it links to. */
+function watchedPaths(dir: string): string[] {
+  const real = (() => {
+    try {
+      return realpathSync(dir);
+    } catch {
+      return dir;
+    }
+  })();
+  return [...new Set([dir, real])].map((path) => `${path}/**`);
 }
 
 const MEDIA_TYPES: Record<string, string> = {
@@ -266,7 +278,9 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
       // content/ is watched separately by watchContent(), and media is served by serveMedia(). Vite
       // mustn't watch either: Tailwind's plugin reloads every open page when a file it scans changes,
       // which would reload the admin panel in the middle of publishing.
-      watch: { ignored: [`${join(root, CONTENT_DIR)}/**`, `${join(root, MEDIA_DIR)}/**`] },
+      // Where content kept in a repository of its own is linked in (`goodfellow content link`), Vite sees the
+      // repository's own folders too.
+      watch: { ignored: [CONTENT_DIR, MEDIA_DIR].flatMap((dir) => watchedPaths(join(root, dir))) },
     },
     // Finds the packages the site's blocks use in the browser when the server starts, rather than when a page with
     // Client Components first loads them, which reloads the page.

@@ -10,6 +10,7 @@ import {
   redirectProblems,
 } from "@goodfellow-cms/core";
 import {
+  contentRepositoryProblem,
   DEV_API_PREFIX,
   fileSystemSource,
   handleDevApi,
@@ -134,6 +135,9 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
   const root = resolve(options.root ?? process.cwd());
   const basePath = nextBasePath(nextConfig.basePath ?? process.env.GOODFELLOW_BASE);
   return async (phase: string): Promise<NextConfig> => {
+    // Content kept in a repository of its own has to be put in place before anything reads it.
+    const problem = contentRepositoryProblem(root);
+    if (problem) throw new Error(problem);
     const config: NextConfig = {
       // Pages are folders (about/index.html), as `goodfellow build` writes them, so /admin/ works for GitLab sign-in.
       trailingSlash: true,

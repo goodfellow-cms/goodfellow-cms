@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { findBuildCause } from "./build-problems.js";
-import { INSTALLED_RECORD_FILE, UPDATES_FILE } from "./content/paths.js";
+import { CONTENT_REPOSITORY_DIR, INSTALLED_RECORD_FILE, SITE_FILE, UPDATES_FILE } from "./content/paths.js";
 import type { FileChange } from "./content/store.js";
 import {
   type FetchJson,
@@ -177,7 +178,16 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   const exact = releaseVersion(target) === to;
   const skip = [...settings.skip.filter((version) => !(exact && version === to)), ...(rollback ? [from] : [])];
   const settingsFile = updateSettingsFile({ ...settings, skip });
-  if (settingsFile !== updateSettingsFile(settings)) await apply({ path: UPDATES_FILE, content: settingsFile });
+  if (settingsFile !== updateSettingsFile(settings)) {
+    // Content kept in a repository of its own is only a copy here, and isn't the code's to publish.
+    if (existsSync(join(root, CONTENT_REPOSITORY_DIR, SITE_FILE))) {
+      if (rollback) {
+        log(
+          `This site's content is kept in a repository of its own: add ${from} to "skip" in its ${UPDATES_FILE} there, or turn automatic updates off, so the nightly update doesn't install it again.`,
+        );
+      }
+    } else await apply({ path: UPDATES_FILE, content: settingsFile });
+  }
 
   // Blocks from Goodfellow's registry, from the release being installed.
   const kept: string[] = [];

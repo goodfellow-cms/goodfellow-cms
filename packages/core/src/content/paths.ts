@@ -25,6 +25,12 @@ export const INSTALLED_INDEX_FILE = "blocks/installed/index.ts";
 export const COMPONENTS_DIR = "components";
 export const LIB_DIR = "lib";
 export const HOOKS_DIR = "hooks";
+/**
+ * Where a site whose content is kept in a repository of its own has that
+ * repository, inside the site's folder: `content/` and `public/media/` are
+ * links into it on a developer's computer, and copies of it in builds.
+ */
+export const CONTENT_REPOSITORY_DIR = "content-repository";
 /** The file in each collection's folder that holds its fields, address pattern and template. */
 export const COLLECTION_SETTINGS_FILE = "_collection.json";
 

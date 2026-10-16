@@ -81,6 +81,17 @@ function LoadError({ error }: { error: unknown }) {
   );
 }
 
+/** Shown in place of the Blocks screen where the site's code is kept in a repository of its own. */
+function BlocksInCode() {
+  const t = useStrings();
+  return (
+    <div className="gfa-screen">
+      <h1>{t("blocks.contentOnly")}</h1>
+      <p className="gfa-hint">{t("blocks.contentOnlyHint")}</p>
+    </div>
+  );
+}
+
 /** Shown in place of screens only owners use, where the site's own sign-in says someone is an editor. */
 function OwnersOnly() {
   const t = useStrings();
@@ -116,10 +127,11 @@ function Screen() {
   const { segments, params } = useRoute();
   const [section, sub, tab] = segments;
   const owner = useCanChangeSettings();
+  const { contentOnly } = useAdmin();
 
   if ((section === "blocks" || section === "settings") && !owner) return <OwnersOnly />;
   if (section === "media") return <MediaScreen />;
-  if (section === "blocks") return <BlocksScreen />;
+  if (section === "blocks") return contentOnly ? <BlocksInCode /> : <BlocksScreen />;
   if (section === "collections") {
     return sub ? <CollectionRoute id={sub} sub={tab} slug={params.get("slug") ?? ""} /> : <CollectionsScreen />;
   }
@@ -233,7 +245,7 @@ function versionsSection(file: string): "pages" | "collections" | "layout" {
 
 function Shell() {
   const t = useStrings();
-  const { state, siteUrl } = useAdmin();
+  const { state, siteUrl, contentOnly } = useAdmin();
   const owner = useCanChangeSettings();
   const { segments, params } = useRoute();
   const [section] = segments;
@@ -265,7 +277,7 @@ function Shell() {
           <AppLink href="#/layout/header" aria-current={current === "layout" ? "page" : undefined}>
             {t("nav.layout")}
           </AppLink>
-          {owner && (
+          {owner && !contentOnly && (
             <AppLink href="#/blocks" aria-current={current === "blocks" ? "page" : undefined}>
               {t("nav.blocks")}
             </AppLink>

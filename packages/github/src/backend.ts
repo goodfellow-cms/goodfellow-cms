@@ -1,4 +1,5 @@
 import {
+  assertContentChanges,
   type BuildProblem,
   branchDrafts,
   buildStepFor,
@@ -85,6 +86,8 @@ export interface GitHubBackendOptions {
   author?: { name: string; email: string };
   /** The commit reads see until `revision()` is next called, as a full-stack site's server reads what a browser loaded. */
   revision?: string;
+  /** The repository holds only the site's content, with its code in a repository of its own (`GitBackend.contentOnly`). */
+  contentOnly?: boolean;
 }
 
 /**
@@ -97,8 +100,10 @@ export class GitHubBackend implements GitBackend {
   readonly pages: PagesDomains;
   readonly editors: SiteEditors;
   readonly ownerAccess: OwnerAccess;
-  readonly updates: SiteUpdates;
+  /** Absent where the repository holds only content: the update job runs where the code is. */
+  readonly updates?: SiteUpdates;
   readonly drafts: SiteDrafts;
+  readonly contentOnly: boolean;
   private readonly options: GitHubBackendOptions;
   private readonly api: ApiOptions;
   private readonly repo: string;
@@ -126,7 +131,8 @@ export class GitHubBackend implements GitBackend {
     this.ownerAccess = owner.access;
     this.pages = githubPages(() => owner.api() ?? this.api, this.repo);
     this.editors = githubEditors(this.api, owner.api, this.repo, this.user.login);
-    this.updates = githubUpdates(this.api, owner.api, this.repo, this.branch, this);
+    this.contentOnly = options.contentOnly === true;
+    if (!this.contentOnly) this.updates = githubUpdates(this.api, owner.api, this.repo, this.branch, this);
     this.drafts = branchDrafts(this, this.draftHost());
   }
 
@@ -297,6 +303,7 @@ export class GitHubBackend implements GitBackend {
   }
 
   async write(changes: FileChange[], options: WriteOptions): Promise<{ revision: string }> {
+    if (this.contentOnly) assertContentChanges(changes);
     return this.author ? this.writeCommit(changes, options, this.author) : this.writeGraphQL(changes, options);
   }
 

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { ConflictError, type ContentStore, type FileChange, isEditablePath, writeChanges } from "./store.js";
+import {
+  assertContentChanges,
+  CodeChangeError,
+  ConflictError,
+  type ContentStore,
+  type FileChange,
+  isContentPath,
+  isEditablePath,
+  writeChanges,
+} from "./store.js";
 
 describe("isEditablePath", () => {
   it.each(["content/site.json", "content/pages/about/team.json", "content/styles/custom.css", "public/media/logo.png"])(
@@ -22,6 +31,28 @@ describe("isEditablePath", () => {
     "contents/site.json",
   ])("refuses %s", (path) => {
     expect(isEditablePath(path)).toBe(false);
+  });
+});
+
+describe("isContentPath", () => {
+  it("is content and media, never code or anything outside them", () => {
+    for (const path of ["content/site.json", "content/pages/about.json", "public/media/logo.png"]) {
+      expect(isContentPath(path)).toBe(true);
+    }
+    for (const path of ["blocks/installed/faq/faq.tsx", "components/ui/button.tsx", "lib/utils.ts", "package.json"]) {
+      expect(isContentPath(path)).toBe(false);
+    }
+    expect(isContentPath("content/../package.json")).toBe(false);
+  });
+
+  it("refuses saves that change code", () => {
+    expect(() => assertContentChanges([{ path: "content/site.json", content: "{}" }])).not.toThrow();
+    expect(() =>
+      assertContentChanges([
+        { path: "content/site.json", content: "{}" },
+        { path: "blocks/installed/index.ts", delete: true },
+      ]),
+    ).toThrow(CodeChangeError);
   });
 });
 

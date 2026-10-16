@@ -1,5 +1,11 @@
 export { type AppApiOptions, appApi } from "./node-app-api.js";
 export {
+  ContentRepositoryError,
+  type ContentRepositoryOptions,
+  contentRepositoryProblem,
+  useContentRepository,
+} from "./node-content-repository.js";
+export {
   DEV_API_HEADER,
   DEV_API_PREFIX,
   type DevApiOptions,
