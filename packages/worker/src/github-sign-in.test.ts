@@ -1,4 +1,4 @@
-import { ConflictError, SignInError, type StorageLike } from "@goodfellow-cms/core";
+import { ConflictError, SignInError, type StorageLike, separateSetupLinks } from "@goodfellow-cms/core";
 import { github, githubSetup } from "@goodfellow-cms/github";
 import { describe, expect, it, vi } from "vitest";
 import { SITE, setup, WORKER } from "./test-setup.js";
@@ -65,7 +65,15 @@ function browser(site: ReturnType<typeof setup>, start = `${SITE}/admin/#/pages`
   }
 
   /** The admin panel's GitHub sign-in, as a page load makes it. */
-  const host = () => github({ repo: "parish/site", signIn: WORKER, fetch, storage, location });
+  const host = (code?: string) =>
+    github({
+      repo: "parish/site",
+      signIn: WORKER,
+      fetch,
+      storage,
+      location,
+      ...(code && { contentOnly: true, code }),
+    });
   /** The setup page's GitHub sign-in. */
   const setupHost = () => githubSetup({ signIn: WORKER, fetch, storage, location });
   return { host, setupHost, storage, signInOnGitHub, installOnGitHub, href: () => href };
@@ -232,5 +240,65 @@ describe("signing in with GitHub through the worker", () => {
     await expect(
       olivia?.createSite({ owner: own as never, name: "x", private: false, pages: false, files: [], message: "x" }),
     ).rejects.toMatchObject({ problem: "not-installed" });
+  });
+
+  it("follows the updates of a site's code repository, where its content is in a repository of its own", async () => {
+    const site = setup({ repositories: ["parish/site-code"] });
+    const code = site.fake.addRepo("parish/site-code", {
+      files: {
+        "goodfellow.config.tsx":
+          'backend: github({ repo: "parish/site", contentOnly: true, code: "parish/site-code" }),\n',
+        "package.json": '{"dependencies":{"goodfellow":"0.4.1"}}\n',
+        ".github/workflows/update.yml": "run: npx goodfellow update --publish\n",
+      },
+      collaborators: { maria: "read" },
+      private: true,
+    });
+    const page = browser(site);
+    await page.host("parish/site-code").startRedirect(false);
+    await page.signInOnGitHub("maria");
+    const backend = await page.host("parish/site-code").restore();
+    const updates = backend?.updates;
+    expect(updates?.code?.repo).toBe("parish/site-code");
+    expect(await updates?.code?.read("package.json")).toContain("0.4.1");
+    expect(await updates?.setup()).toBe("ready");
+    // The code repository's token can't change it.
+    const codeToken = site.fake.issued.find((item) => item.repositories?.includes("parish/site-code"));
+    expect(codeToken?.permissions).toEqual({ actions: "read", contents: "read", metadata: "read" });
+
+    // Once the code no longer names the site, its token stops, and the screen says the sign-in can't see it.
+    code.repo.write("goodfellow.config.tsx", 'backend: github({ repo: "parish/elsewhere" }),\n');
+    const again = await page.host("parish/site-code").restore();
+    expect(await again?.updates?.setup()).toBe("no-access");
+    again?.signOut();
+  });
+
+  it("creates and connects a site's private code and content repositories for the setup page", async () => {
+    const site = setup();
+    const page = browser(site, "https://setup.example/new-site/");
+    await page.setupHost().startRedirect();
+    await page.signInOnGitHub("maria");
+    const account = await page.setupHost().restore();
+    const [mine] = (await account?.owners()) ?? [];
+    if (!mine || !account) throw new Error("Not signed in");
+    const base = { owner: mine, private: true, files: [{ path: "README.md", content: "Hi\n" }], message: "Create" };
+    await account.createSite({ ...base, name: "site", pages: false, more: true });
+    const content = await account.createSite({
+      ...base,
+      name: "site-content",
+      pages: true,
+      link: {
+        code: "maria/site",
+        content: "maria/site-content",
+        private: true,
+        links: separateSetupLinks({ git: "github", host: "github-pages", build: "content" }),
+      },
+    });
+    expect(content.warnings).not.toContain("connect-unavailable");
+    expect(site.fake.created.get("maria/site")?.deployKeys).toHaveLength(1);
+    expect(site.fake.created.get("maria/site-content")?.secrets.get("GOODFELLOW_CODE_KEY")).toMatch(/OPENSSH/);
+    expect(site.fake.created.get("maria/site")?.secrets.get("GOODFELLOW_CONTENT_KEY")).toMatch(/OPENSSH/);
+    // The person's own token was kept until the last repository existed.
+    expect(site.fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true);
   });
 });

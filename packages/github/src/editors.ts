@@ -197,6 +197,8 @@ export function githubOwnerAccess(
   redirect?: (options?: RedirectOptions) => Promise<void>,
 ) {
   let owner: ApiOptions | undefined;
+  /** The owner's access to the site's code repository, where its content is kept in a repository of its own. */
+  let ownerCode: ApiOptions | undefined;
   let endSignIn: (() => void) | undefined;
   let problem: unknown;
   const access: OwnerAccess = {
@@ -229,10 +231,12 @@ export function githubOwnerAccess(
         throw error;
       }
       owner = api;
+      ownerCode = api;
       problem = undefined;
     },
     forget() {
       owner = undefined;
+      ownerCode = undefined;
       endSignIn?.();
       endSignIn = undefined;
     },
@@ -240,9 +244,11 @@ export function githubOwnerAccess(
   return {
     access,
     api: () => owner,
-    /** Uses an owner's sign-in through the worker. `end` runs when it's forgotten. */
-    useSignIn(token: TokenSource, end: () => void) {
+    codeApi: () => ownerCode,
+    /** Uses an owner's sign-in through the worker, with its token for the code repository if it gave one. `end` runs when it's forgotten. */
+    useSignIn(token: TokenSource, end: () => void, codeToken?: TokenSource) {
       owner = { ...base, token };
+      ownerCode = codeToken ? { ...base, token: codeToken } : undefined;
       endSignIn = end;
       problem = undefined;
     },

@@ -29,7 +29,7 @@ import {
 import { type ApiOptions, githubJson, githubRequest, repoPath, type TokenSource } from "./api.js";
 import { githubEditors, githubOwnerAccess } from "./editors.js";
 import { githubPages } from "./pages.js";
-import { githubUpdates } from "./updates.js";
+import { githubCodeUpdates, githubUpdates } from "./updates.js";
 
 interface TreeResponse {
   tree: Array<{ path: string; type: string; sha: string; size?: number }>;
@@ -89,6 +89,11 @@ export interface GitHubBackendOptions {
   revision?: string;
   /** The repository holds only the site's content, with its code in a repository of its own (`GitBackend.contentOnly`). */
   contentOnly?: boolean;
+  /**
+   * The code repository, for a repository that holds only content, where the
+   * site's updates run: `api` reads it, absent where the sign-in can't.
+   */
+  code?: { repo: string; webUrl: string; api?: ApiOptions };
 }
 
 /**
@@ -134,6 +139,23 @@ export class GitHubBackend implements GitBackend {
     this.editors = githubEditors(this.api, owner.api, this.repo, this.user.login);
     this.contentOnly = options.contentOnly === true;
     if (!this.contentOnly) this.updates = githubUpdates(this.api, owner.api, this.repo, this.branch, this);
+    else if (options.code) {
+      this.updates = githubCodeUpdates({
+        repo: options.code.repo,
+        webUrl: options.code.webUrl,
+        read: options.code.api,
+        manage: owner.codeApi,
+        open: (api, branch) =>
+          new GitHubBackend({
+            api,
+            repo: options.code?.repo ?? "",
+            branch,
+            user: this.user,
+            onSignOut: () => {},
+            ownerTokenLink: options.ownerTokenLink,
+          }),
+      });
+    }
     this.drafts = branchDrafts(this, this.draftHost());
   }
 
@@ -294,8 +316,8 @@ export class GitHubBackend implements GitBackend {
   }
 
   /** Uses an owner's sign-in through the worker for editors and GitHub Pages settings, until it's forgotten. */
-  useOwnerSignIn(token: TokenSource, end: () => void): void {
-    this.owner.useSignIn(token, end);
+  useOwnerSignIn(token: TokenSource, end: () => void, codeToken?: TokenSource): void {
+    this.owner.useSignIn(token, end, codeToken);
   }
 
   /** Remembers why an owner's sign-in through the worker didn't work, which the Editors and Domain screens show. */

@@ -10,6 +10,7 @@ import { parseContentFile } from "./content/load.js";
 import { UPDATES_FILE } from "./content/paths.js";
 import { type UpdateSettings, updateSettingsSchema } from "./content/schemas.js";
 import { serializeContent } from "./content/serialize.js";
+import type { FileVersion, HistoryOptions } from "./git.js";
 import { CURRENT_VERSION } from "./migrations/index.js";
 
 /** npm's registry, which answers browsers too. */
@@ -191,12 +192,32 @@ export interface UpdateRun {
 /**
  * Whether the site's update job can run: `ready`; `needs-setup` when the host
  * still needs something turned on, which `enable()` does; `missing` when the
- * site's build setup has no update job, such as older sites or sites on Vercel.
+ * site's build setup has no update job, such as older sites or sites on Vercel;
+ * `no-access` when the job is in the site's code repository (`SiteUpdates.code`)
+ * and the sign-in can't see it.
  */
-export type UpdatesSetup = "ready" | "needs-setup" | "missing";
+export type UpdatesSetup = "ready" | "needs-setup" | "missing" | "no-access";
+
+/**
+ * The repository a site's code is kept in, where its content is in a
+ * repository of its own: its update job runs there, and its `package.json`
+ * says which release the site uses.
+ */
+export interface CodeRepository {
+  /** `owner/name`, or the GitLab project's full path. */
+  repo: string;
+  /** Where to see it on the host. */
+  webUrl: string;
+  /** A file as it is now. */
+  read(path: string): Promise<string | undefined>;
+  history(path: string, options?: HistoryOptions): Promise<FileVersion[]>;
+  readAt(path: string, revision: string): Promise<string | undefined>;
+}
 
 /** A git host's runs of the site's nightly update job. */
 export interface SiteUpdates {
+  /** Where the job runs in the site's code repository, not the repository the admin panel edits. */
+  code?: CodeRepository;
   setup(): Promise<UpdatesSetup>;
   /** Turns on what the host needs, such as letting the job publish and running it each night. */
   enable?(): Promise<void>;

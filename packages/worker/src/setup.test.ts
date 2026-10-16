@@ -41,6 +41,7 @@ describe("appPermissions", () => {
       actions: "write",
       contents: "write",
       workflows: "write",
+      secrets: "write",
       metadata: "read",
     });
   });

@@ -135,15 +135,20 @@ export function sitePackageJson(source: string, name: string, versions: Record<s
 
 /**
  * Turns on one of the commented-out `backend` lines in a template's
- * `goodfellow.config.tsx`, for a repository that holds only the site's content where `contentOnly`.
+ * `goodfellow.config.tsx`, for a repository that holds only the site's content
+ * where `contentOnly`, with its code in `code`.
  */
-export function configureBackend(config: string, backend: Backend, { contentOnly = false } = {}): string {
+export function configureBackend(
+  config: string,
+  backend: Backend,
+  { contentOnly = false, code }: { contentOnly?: boolean; code?: string } = {},
+): string {
   const importLine = `// import { ${backend.host} } from "@goodfellow-cms/${backend.host}";`;
   const backendLine = new RegExp(`^([ \\t]*)// backend: ${backend.host}\\(.*$`, "m");
   if (!config.includes(importLine) || !backendLine.test(config)) {
     throw new Error(`The template's goodfellow.config.tsx has no ${backend.host} line to turn on.`);
   }
-  const only = contentOnly ? ", contentOnly: true" : "";
+  const only = `${contentOnly ? ", contentOnly: true" : ""}${code ? `, code: ${JSON.stringify(code)}` : ""}`;
   const call =
     backend.host === "github"
       ? `github({ repo: ${JSON.stringify(backend.repo)}${only} })`
@@ -269,7 +274,11 @@ export async function planSite({
     const config = files.get("goodfellow.config.tsx");
     if (config === undefined) throw new Error("The template has no goodfellow.config.tsx.");
     const edited = content
-      ? configureBackend(siteFileText(config), { host: backend.host, repo: content.repo }, { contentOnly: true })
+      ? configureBackend(
+          siteFileText(config),
+          { host: backend.host, repo: content.repo },
+          { contentOnly: true, code: backend.repo },
+        )
       : configureBackend(siteFileText(config), backend);
     files.set("goodfellow.config.tsx", edited);
   }

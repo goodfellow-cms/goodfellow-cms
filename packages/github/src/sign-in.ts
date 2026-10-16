@@ -27,6 +27,13 @@ export interface IssuedToken {
   /** The renewed session, which replaces the one sent. */
   session: string;
   user: SignInUser;
+  /**
+   * A token for the site's code repository, where its content is kept in a
+   * repository of its own and the request named it: for reading its updates,
+   * or for an owner's sign-in, running them. Absent where the worker can't
+   * give one, such as where Goodfellow isn't installed on it.
+   */
+  code?: { token: string; expiresAt: string };
 }
 
 /** What the worker says when it can't help. */
@@ -184,13 +191,17 @@ export class SignInService {
     return `${this.url}/github/start?${query}`;
   }
 
-  /** Exchanges the grant the worker came back with, and this tab's verifier, for a session (and for a site, its first token). */
-  session<T = IssuedToken>(grant: string, verifier: string): Promise<T> {
-    return this.post<T>("/github/session", { grant, verifier });
+  /**
+   * Exchanges the grant the worker came back with, and this tab's verifier,
+   * for a session (and for a site, its first token, and with `code`, one for
+   * its code repository).
+   */
+  session<T = IssuedToken>(grant: string, verifier: string, code?: string): Promise<T> {
+    return this.post<T>("/github/session", { grant, verifier, ...(code && { code }) });
   }
 
-  token(session: string): Promise<IssuedToken> {
-    return this.post("/github/token", { session });
+  token(session: string, code?: string): Promise<IssuedToken> {
+    return this.post("/github/token", { session, ...(code && { code }) });
   }
 }
 
@@ -199,20 +210,33 @@ export function renewingToken(
   service: SignInService,
   first: IssuedToken,
   onRenew: (issued: IssuedToken) => void,
-): { token: (options?: { refresh?: boolean }) => Promise<string>; current: () => IssuedToken } {
+  code?: string,
+): {
+  token: (options?: { refresh?: boolean }) => Promise<string>;
+  /** The code repository's token, renewed with the site's. Throws `no-access` while the worker gives none. */
+  codeToken: (options?: { refresh?: boolean }) => Promise<string>;
+  current: () => IssuedToken;
+} {
   let current = first;
   let renewing: Promise<IssuedToken> | undefined;
+  async function token({ refresh = false } = {}) {
+    if (refresh || Date.parse(current.expiresAt) - 5 * 60_000 < Date.now()) {
+      renewing ??= service.token(current.session, code).finally(() => {
+        renewing = undefined;
+      });
+      current = await renewing;
+      onRenew(current);
+    }
+    return current.token;
+  }
   return {
     current: () => current,
-    async token({ refresh = false } = {}) {
-      if (refresh || Date.parse(current.expiresAt) - 5 * 60_000 < Date.now()) {
-        renewing ??= service.token(current.session).finally(() => {
-          renewing = undefined;
-        });
-        current = await renewing;
-        onRenew(current);
-      }
-      return current.token;
+    token,
+    async codeToken(options) {
+      await token(options);
+      if (!current.code)
+        throw new SignInError("no-access", "The sign-in service gave no token for the code repository.");
+      return current.code.token;
     },
   };
 }

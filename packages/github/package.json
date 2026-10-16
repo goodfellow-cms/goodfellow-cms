@@ -40,7 +40,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@goodfellow-cms/core": "workspace:*"
+    "@goodfellow-cms/core": "workspace:*",
+    "@noble/ciphers": "2.4.0",
+    "@noble/hashes": "2.4.0"
   },
   "devDependencies": {
     "@puckeditor/core": "0.23.0"

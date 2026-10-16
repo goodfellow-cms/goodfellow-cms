@@ -20,13 +20,15 @@ It's for organizations with a developer, who looks after the code repository. It
 npm create goodfellow@latest my-site -- --github your-name/my-site --content your-name/my-site-content --host github-pages
 ```
 
-`--github` or `--gitlab` is the code's repository, and `--content` the content's, on the same host. On Vercel, `--build content` or `--build code` says which repository Vercel builds the site from (see below). The [setup page](/new-site) doesn't offer this yet.
+`--github` or `--gitlab` is the code's repository, and `--content` the content's, on the same host. On Vercel, `--build content` or `--build code` says which repository Vercel builds the site from (see below).
+
+The [setup page](/new-site) offers it too, under **Where to keep the content**: it creates both repositories, the content's named after the code's with `-content` after it, and connects them, as the steps below describe. On GitHub, for private repositories, it makes the deploy keys and adds their private halves as secrets; on GitLab, it adds each project to the other's job token allowlist, lets the code project's job token publish updates, and adds its nightly pipeline schedule. What only you can add is left: a `GOODFELLOW_BUILD_TOKEN` on GitHub, and on Vercel, its deploy hook and any tokens.
 
 The new site's folder is the code's repository, with the content's inside it, which the code ignores:
 
 ```text
 my-site/                  the code's repository
-  goodfellow.config.tsx   backend: github({ repo: "your-name/my-site-content", contentOnly: true })
+  goodfellow.config.tsx   backend: github({ repo: "your-name/my-site-content", contentOnly: true, code: "your-name/my-site" })
   blocks/ src/ package.json
   content-repository/     the content's repository
     content/
@@ -57,7 +59,7 @@ Whoever can push to the repository a host builds from controls the build: its se
 
 - **The content project's** `.gitlab-ci.yml` clones the code, copies the content into it, builds the site and publishes it with GitLab Pages, whenever the content changes and when the code project's pipeline starts it.
 - **The code project's** `.gitlab-ci.yml` installs Goodfellow's fixes on scheduled pipelines and then starts the content project's pipeline, as it does after every change to the code. Set up a pipeline schedule to run each night under Build → Pipeline schedules, and turn on "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, which lets it publish updates.
-- **Private projects:** each pipeline reads the other project with its job token, which that project has to allow: add each project to the other's job token allowlist, under Settings → CI/CD → Job token permissions.
+- **Job tokens:** each pipeline reads the other project with its job token, which that project has to allow, even where it's public: add each project to the other's job token allowlist, under Settings → CI/CD → Job token permissions.
 
 ### Vercel
 
@@ -87,7 +89,7 @@ Adding and removing blocks from [block registries](/docs/add-blocks) changes cod
 
 - **Signing in** reaches the content repository only: on GitHub, [Goodfellow's sign-in](/docs/sign-in) needs to be installed on the content repository, and the Editors screen lists the content repository's people.
 - **Blocks** are added by the site's developer, as above.
-- **Updates** are installed in the code repository, by its setup or by its developer with `goodfellow update`, so the Updates screen only says so. Going back to an older release doesn't skip the release it left, since that's set in the content: add it to `skip` in the content repository's `content/updates.json`, or turn automatic updates off there.
+- **Updates** are installed in the code repository, by its setup or by its developer with `goodfellow update`. The Updates screen follows them there when the config's backend names the code repository as `code`, as new sites' do: it shows the site's release from the code's `package.json`, runs the update there, and shows how the last one went, for people who can see the code repository. On GitHub, [Goodfellow's sign-in](/docs/sign-in) needs to be installed on the code repository too, and gives only a token that can read it and its workflow runs, or for owners who can publish to it, run them, once the code's `goodfellow.config.tsx` names the content repository. A token someone pasted needs to reach the code repository too, with Contents and Actions read. Going back to an older release from the Updates screen also skips the release it left, in the content's `content/updates.json`; going back with `goodfellow update` in the code repository doesn't, since the content isn't there: add it to `skip` yourself. Without `code`, the Updates screen only says that updates are installed where the code is.
 - **"Live"** shows where the content repository builds the site. Where Vercel builds from the code repository, the admin panel can't tell when changes are live.
 
 ## Full-stack Next.js sites
@@ -105,6 +107,6 @@ Point `goodfellow.config.tsx`'s `backend` at the content repository, with `conte
    /public/media
    ```
 
-3. Change the config's `backend` to the content repository, with `contentOnly: true`, such as `github({ repo: "your-name/my-site-content", contentOnly: true })`.
+3. Change the config's `backend` to the content repository, with `contentOnly: true` and the code repository as `code`, such as `github({ repo: "your-name/my-site-content", contentOnly: true, code: "your-name/my-site" })`.
 4. Replace the deploy setup with the one `create-goodfellow --content` makes for the same host, from a new site made with the same choices.
-5. On GitHub, install [Goodfellow's sign-in](/docs/sign-in) on the content repository, and give editors access to it.
+5. On GitHub, install [Goodfellow's sign-in](/docs/sign-in) on the content repository, and on the code repository for the Updates screen, and give editors access to the content repository.

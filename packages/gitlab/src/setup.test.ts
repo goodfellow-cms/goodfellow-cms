@@ -1,4 +1,4 @@
-import type { StorageLike } from "@goodfellow-cms/core";
+import { type StorageLike, separateSetupLinks } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
 import { gitlabSetup } from "./setup.js";
 import { fakeGitLab } from "./testing.js";
@@ -55,6 +55,46 @@ describe("gitlabSetup", () => {
     await expect(
       account.createSite({ owner: group, name: "parish", private: true, pages: true, files, message: "Again" }),
     ).rejects.toMatchObject({ problem: "name-taken" });
+  });
+
+  it("connects a site's code and content projects: job token allowlists, pushes and a nightly schedule", async () => {
+    const fake = fakeGitLab({
+      project: "someone/existing",
+      groups: ["st-joseph"],
+      tokens: { t: { username: "someone" } },
+    });
+    const account = await gitlabSetup({ fetch: fake.fetch }).signInWithToken("t");
+    const group = (await account.owners())[1];
+    if (!group) throw new Error("no group");
+    const base = { owner: group, private: false, files, message: "Create" };
+    await account.createSite({ ...base, name: "site", pages: false, more: true });
+    const steps: string[] = [];
+    const result = await account.createSite(
+      {
+        ...base,
+        name: "site-content",
+        pages: true,
+        link: {
+          code: "st-joseph/site",
+          content: "st-joseph/site-content",
+          private: false,
+          links: separateSetupLinks({ git: "gitlab", host: "gitlab-pages", build: "content" }),
+        },
+      },
+      (step) => steps.push(step),
+    );
+    expect(steps).toEqual(["repository", "connect", "files"]);
+    expect(result.warnings).toEqual([]);
+    const code = fake.created.get("st-joseph/site");
+    const content = fake.created.get("st-joseph/site-content");
+    if (!code || !content) throw new Error("not created");
+    // Each pipeline clones the other project with its job token, even where the projects are public.
+    expect(code.jobTokenAllowlist).toEqual([content.id]);
+    expect(content.jobTokenAllowlist).toEqual([code.id]);
+    expect(code.jobTokenPush).toBe(true);
+    expect(content.jobTokenPush).toBe(false);
+    expect(code.schedules).toEqual([expect.objectContaining({ ref: "main", cron: "17 4 * * *", active: true })]);
+    expect(content.schedules).toEqual([]);
   });
 
   it("signs in by redirect with PKCE, keeping nothing but the pending sign-in", async () => {

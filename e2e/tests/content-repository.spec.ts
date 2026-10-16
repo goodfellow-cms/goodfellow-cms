@@ -17,6 +17,13 @@ test("publishes to the content repository, and leaves blocks and updates to the 
     files: files(),
     tokens: { "good-token": { login: "maria", name: "Maria" } },
   });
+  // The code repository, where the site's updates run.
+  fake.addRepo("parish/site", {
+    files: {
+      "package.json": JSON.stringify({ dependencies: { "@goodfellow-cms/react": "0.3.0" } }),
+      ".github/workflows/update.yml": "run: npx goodfellow update --publish\n",
+    },
+  });
   await routeToFake(page, "https://api.github.com", fake.handle);
   await page.goto(`${SITE}/admin/`);
   await page.getByLabel("Access token").fill("good-token");
@@ -29,7 +36,14 @@ test("publishes to the content repository, and leaves blocks and updates to the 
   await page.goto(`${SITE}/admin/#/blocks`);
   await expect(page.getByRole("heading", { name: "This site's blocks are added by its developer." })).toBeVisible();
   await page.goto(`${SITE}/admin/#/settings/updates`);
-  await expect(page.getByText("This site's code is kept apart from its content")).toBeVisible();
+  // The Updates screen follows the code repository's updates.
+  await expect(page.getByText("This site's code is kept apart from its content, at parish/site")).toBeVisible();
+  await expect(page.getByRole("link", { name: "See it on GitHub" })).toHaveAttribute(
+    "href",
+    "https://github.com/parish/site",
+  );
+  await expect(page.getByText("This site uses Goodfellow 0.3.0.")).toBeVisible();
+  await expect(page.getByText("No update has run yet.")).toBeVisible();
 
   await page.goto(`${SITE}/admin/#/settings/general`);
   await page.getByLabel("Site name").fill("St. Joseph's");

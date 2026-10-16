@@ -79,7 +79,7 @@ export function UpdatesScreen() {
         <p>{t("updates.intro")}</p>
         {demo ? (
           <p>{t("updates.demo")}</p>
-        ) : contentOnly ? (
+        ) : contentOnly && !updates ? (
           <p>{t("updates.contentOnly")}</p>
         ) : updates ? (
           <UpdatesPanel />
@@ -116,8 +116,10 @@ function UpdatesPanel() {
   const load = useCallback(async () => {
     if (!updates) return;
     try {
+      // Where the code is kept apart from the content, its package.json says which release the site uses.
+      const code = updates.code;
       const [packageJson, settingsText, metadata, setup, last, people] = await Promise.all([
-        versions?.readAt("package.json", revision),
+        code ? code.read("package.json").catch(() => undefined) : versions?.readAt("package.json", revision),
         readFile(UPDATES_FILE),
         window
           .fetch(`${NPM_REGISTRY}/${VERSION_PACKAGE}`, { headers: { accept: "application/vnd.npm.install-v1+json" } })
@@ -129,8 +131,8 @@ function UpdatesPanel() {
       ]);
       const current = packageJson ? siteVersion(packageJson) : undefined;
       const settings = parseUpdateSettings(settingsText);
-      const previous =
-        current && versions ? await previousRelease(versions, current).catch(() => undefined) : undefined;
+      const history = code ?? versions;
+      const previous = current && history ? await previousRelease(history, current).catch(() => undefined) : undefined;
       setLoaded({
         current,
         previous,
@@ -179,6 +181,24 @@ function UpdatesPanel() {
       () => updates?.start(target) ?? Promise.resolve(),
       () => setStarted(true),
     );
+  /**
+   * Goes back to an older release. Where the code is kept apart from the
+   * content, the update can't change the content's settings, so the release
+   * the site leaves is skipped here, as the update does elsewhere.
+   */
+  const goBack = (target: string, settings: UpdateSettings, current: string) =>
+    act(
+      async () => {
+        await updates?.start(target);
+        if (!updates?.code || settings.skip.includes(current)) return;
+        const result = await publish(
+          [updateSettingsFileChange({ ...settings, skip: [...settings.skip, current] })],
+          t("updates.back.skip", { version: current }),
+        );
+        if (!result.ok) throw new SaveError(result.error);
+      },
+      () => setStarted(true),
+    );
   // The settings are content, published like any other change; publishing reloads the site, and so this screen.
   const saveSettings = (settings: Pick<UpdateSettings, "automatic" | "skip">, message: string) =>
     act(async () => {
@@ -194,7 +214,19 @@ function UpdatesPanel() {
 
   return (
     <>
-      <p>{current ? t("updates.current", { version: current }) : t("updates.unknownVersion")}</p>
+      {updates.code && (
+        <p>
+          {t("updates.code", { place: updates.code.repo })}{" "}
+          <a href={updates.code.webUrl} target="_blank" rel="noreferrer">
+            {t("updates.code.link", { host })}
+          </a>
+        </p>
+      )}
+      {setup === "no-access" ? (
+        <p className="gfa-notice">{t("updates.noAccess", { place: updates.code?.repo ?? "" })}</p>
+      ) : (
+        <p>{current ? t("updates.current", { version: current }) : t("updates.unknownVersion")}</p>
+      )}
       <OwnerTokenActive onForget={() => void load()} />
 
       {setup === "missing" && <p className="gfa-notice">{t("updates.missing")}</p>}
@@ -209,7 +241,7 @@ function UpdatesPanel() {
         </div>
       )}
 
-      {current && setup !== "missing" && (
+      {current && setup !== "missing" && setup !== "no-access" && (
         <>
           <h2 className="gfa-section-title">{t("updates.fixes.title")}</h2>
           <label className="gfa-checkbox">
@@ -273,7 +305,9 @@ function UpdatesPanel() {
                 <Button
                   disabled={busy || running}
                   onClick={() => {
-                    if (window.confirm(t("updates.back.confirm", { version: previous }))) void start(previous);
+                    if (window.confirm(t("updates.back.confirm", { version: previous }))) {
+                      void goBack(previous, settings, current ?? "");
+                    }
                   }}
                 >
                   {t("updates.back.button", { version: previous })}

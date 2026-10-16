@@ -627,6 +627,12 @@ export const defaultStrings = {
     "Goodfellow, the software the site runs on, gets fixes and new releases. Fixes install on their own each night, and only once the site has been checked to still build with them.",
   "updates.contentOnly":
     "This site's code is kept apart from its content, so Goodfellow's updates are installed where the code is, by the site's own setup or its developer.",
+  "updates.code":
+    "This site's code is kept apart from its content, at {place}, where Goodfellow's updates are installed.",
+  "updates.code.link": "See it on {host}",
+  "updates.noAccess":
+    "Your sign-in can't see the site's code, at {place}, where its updates are installed. Ask the site's developer to give you access to it. On GitHub, Goodfellow's sign-in needs to be installed there too.",
+  "updates.back.skip": "Don't install Goodfellow {version} again",
   "updates.local": "Updates are shown in the published site's admin panel, where you sign in with GitHub or GitLab.",
   "updates.demo": "Updates aren't installed in a demo.",
   "updates.loading": "Checking for updates…",

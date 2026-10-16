@@ -11,6 +11,7 @@ import {
   fakeFileBytes,
   fakeFileFromBytes,
 } from "@goodfellow-cms/core/testing";
+import { openSealedSecret } from "./deploy-keys.js";
 
 export interface FakeGitHubUser {
   login: string;
@@ -31,6 +32,8 @@ export interface FakeGitHubUser {
   actions?: boolean;
   /** Whether the token may run workflows, as owner tokens can. Defaults to the `administration` setting. */
   actionsWrite?: boolean;
+  /** Whether the token may set Actions secrets and add deploy keys. Defaults to true. */
+  secrets?: boolean;
 }
 
 /** A GitHub Actions workflow run, with its jobs and their steps. */
@@ -177,6 +180,14 @@ export interface FakeCreatedRepo {
   repo: FakeRepo;
   pages?: { build_type: string };
   rulesets: unknown[];
+  /** Deploy keys added to it, by their public key. */
+  deployKeys: Array<{ title: string; key: string; read_only: boolean }>;
+  /** Its Actions secrets, opened. */
+  secrets: Map<string, string>;
+  /** The key pair GitHub seals secrets with. */
+  secretKey?: CryptoKeyPair;
+  /** People's permission on it, by login, as `collaborators/{login}/permission` says; others have none. */
+  collaborators?: Map<string, "admin" | "write" | "read">;
 }
 
 interface Deployment {
@@ -340,6 +351,29 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     if (invitation) collaborators.set(login, invitation.permission === "admin" ? "admin" : "push");
   }
 
+  /** Adds another repository, as if someone had made it, such as a site's code repository beside its content's. */
+  function addRepo(
+    fullName: string,
+    repoOptions: {
+      files?: Record<string, string>;
+      private?: boolean;
+      collaborators?: Record<string, "admin" | "write" | "read">;
+    } = {},
+  ): FakeCreatedRepo {
+    const added: FakeCreatedRepo = {
+      id: nextRepoId++,
+      fullName,
+      private: repoOptions.private === true,
+      repo: new FakeRepo(repoOptions.files ?? {}, "main"),
+      rulesets: [],
+      deployKeys: [],
+      secrets: new Map(),
+      collaborators: new Map(Object.entries(repoOptions.collaborators ?? {})),
+    };
+    created.set(fullName, added);
+    return added;
+  }
+
   /** Repository creation and the Git data API, for repositories created through the fake. */
   async function handleCreated(request: Request, path: string, principal: Principal): Promise<Response | undefined> {
     const login = principal.login;
@@ -368,6 +402,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         description: body.description,
         repo,
         rulesets: [],
+        deployKeys: [],
+        secrets: new Map(),
       });
       return json(
         { id, full_name: fullName, html_url: `https://github.com/${fullName}`, default_branch: repo.defaultBranch },
@@ -387,9 +423,39 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       return json({
         id: site.id,
         full_name: site.fullName,
+        private: site.private,
         default_branch: repo.defaultBranch,
         permissions: { push: true, admin: true },
       });
+    }
+    // Reading files as backends do, for repositories tests add, such as a site's code repository.
+    const tree = rest.match(/^\/git\/trees\/([0-9a-f]{40})$/);
+    if (tree && method === "GET" && repo.commitAt(tree[1] ?? "")) {
+      const entries = [...repo.files(tree[1] ?? "")].map(([file, content]) => ({
+        path: file,
+        type: "blob",
+        sha: repo.blobSha(content),
+        size: fakeFileBytes(content).length,
+      }));
+      return json({ sha: tree[1], tree: entries, truncated: false });
+    }
+    const blob = rest.match(/^\/git\/blobs\/([0-9a-f]{40})$/);
+    if (blob && method === "GET") {
+      const content = repo.blobs.get(blob[1] ?? "");
+      if (content === undefined) return json({ message: "Not Found" }, 404);
+      return new Response(fakeFileBytes(content));
+    }
+    const contents = rest.match(/^\/contents\/(.+)$/);
+    if (contents && method === "GET") {
+      if (principal.app && !principal.permissions?.contents) return json({ message: "Resource not accessible" }, 403);
+      const file = repo.files().get(decodeURIComponent(contents[1] ?? ""));
+      if (file === undefined) return json({ message: "Not Found" }, 404);
+      return new Response(typeof file === "string" ? file : fakeFileBytes(file));
+    }
+    const permission = rest.match(/^\/collaborators\/([^/]+)\/permission$/);
+    if (permission && method === "GET") {
+      const login = decodeURIComponent(permission[1] ?? "");
+      return json({ permission: site.collaborators?.get(login) ?? "none", user: { login } });
     }
     if (rest === "" && method === "PATCH") {
       const body = (await request.json()) as { default_branch?: string };
@@ -422,6 +488,33 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       site.pages = (await request.json()) as { build_type: string };
       const [owner, name] = site.fullName.split("/");
       return json({ html_url: `https://${owner}.github.io/${name}/`, build_type: site.pages.build_type }, 201);
+    }
+    const notAllowed = (permission: string) =>
+      principal.app ? principal.permissions?.[permission] !== "write" : principal.secrets === false;
+    if (rest === "/keys" && method === "POST") {
+      if (notAllowed("administration")) return json({ message: "Resource not accessible by integration" }, 403);
+      const body = (await request.json()) as { title: string; key: string; read_only?: boolean };
+      if (!/^ssh-ed25519 [A-Za-z0-9+/=]+( |$)/.test(body.key)) return json({ message: "key is invalid" }, 422);
+      site.deployKeys.push({ title: body.title, key: body.key, read_only: body.read_only === true });
+      return json({ id: site.deployKeys.length, ...body }, 201);
+    }
+    if (rest === "/actions/secrets/public-key" && method === "GET") {
+      if (notAllowed("secrets")) return json({ message: "Resource not accessible by integration" }, 403);
+      site.secretKey ??= (await crypto.subtle.generateKey({ name: "X25519" }, true, ["deriveBits"])) as CryptoKeyPair;
+      const raw = new Uint8Array(await crypto.subtle.exportKey("raw", site.secretKey.publicKey));
+      return json({ key_id: `key-${site.id}`, key: encodeBase64Bytes(raw) });
+    }
+    const secret = rest.match(/^\/actions\/secrets\/([A-Z0-9_]+)$/);
+    if (secret && method === "PUT") {
+      if (notAllowed("secrets")) return json({ message: "Resource not accessible by integration" }, 403);
+      const body = (await request.json()) as { encrypted_value: string; key_id: string };
+      if (!site.secretKey || body.key_id !== `key-${site.id}`) return json({ message: "Bad key id" }, 422);
+      try {
+        site.secrets.set(secret[1] ?? "", await openSealedSecret(decodeBase64(body.encrypted_value), site.secretKey));
+      } catch {
+        return json({ message: "Bad encrypted value" }, 422);
+      }
+      return new Response(null, { status: 201 });
     }
     if (rest === "/rulesets" && method === "POST") {
       if (site.private && !options.paidPlan) return json({ message: "Upgrade to GitHub Pro" }, 403);
@@ -1013,7 +1106,10 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       );
     }
 
-    if (rest === "/actions/workflows/deploy.yml/dispatches" && request.method === "POST") {
+    const workflowFile = rest.match(/^\/actions\/workflows\/([\w.-]+)\/(?:dispatches|runs)$/)?.[1];
+    const workflowPath = `.github/workflows/${workflowFile}`;
+    const ofWorkflow = (run: FakeRun) => (run.path ?? ".github/workflows/deploy.yml") === workflowPath;
+    if (workflowFile && rest.endsWith("/dispatches") && request.method === "POST") {
       if (!(user.actionsWrite ?? user.administration)) {
         return json({ message: "Resource not accessible by personal access token" }, 403);
       }
@@ -1025,16 +1121,18 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         inputs: body.inputs,
         status: "queued",
         conclusion: null,
+        path: workflowPath,
         jobs: [],
       });
       return new Response(null, { status: 204 });
     }
 
-    if (rest === "/actions/workflows/deploy.yml/runs") {
+    if (workflowFile && rest.endsWith("/runs")) {
       if (user.actions === false) return json({ message: "Resource not accessible by personal access token" }, 403);
+      const found = runs.filter(ofWorkflow);
       return json({
-        total_count: runs.length,
-        workflow_runs: [...runs].reverse().map((run) => ({
+        total_count: found.length,
+        workflow_runs: [...found].reverse().map((run) => ({
           id: run.id,
           event: run.event ?? "push",
           head_sha: run.sha,
@@ -1119,8 +1217,9 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     commitAuthors,
     authorize,
     install,
-    /** Repositories created through the API, by `owner/name`. */
+    /** Repositories created through the API, or added with `addRepo()`, by `owner/name`. */
     created,
+    addRepo,
     /** The site's GitHub Pages settings, which tests can change, such as to issue the certificate. */
     pages,
     /** The repository's collaborators, by login, and invitations waiting to be accepted. */

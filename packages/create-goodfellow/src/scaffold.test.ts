@@ -148,7 +148,7 @@ describe("scaffold", () => {
       content: { repo: "parish/site-content", build: "content" },
     });
     expect(await readFile(join(target, "goodfellow.config.tsx"), "utf8")).toContain(
-      '  backend: github({ repo: "parish/site-content", contentOnly: true }),',
+      '  backend: github({ repo: "parish/site-content", contentOnly: true, code: "parish/site" }),',
     );
     // The content is the content repository's, through links, as `npm run dev` reads it.
     expect((await lstat(join(target, "content"))).isSymbolicLink()).toBe(true);

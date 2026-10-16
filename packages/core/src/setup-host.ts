@@ -4,6 +4,7 @@
  * `GitHost` for editing an existing site.
  */
 import type { FileChange } from "./content/store.js";
+import type { SeparateSetupLinks } from "./content-repository-setup.js";
 import type { GitUser, RedirectOptions, TokenLink } from "./git.js";
 
 /** An account or group a new repository can be created in. */
@@ -30,10 +31,32 @@ export interface NewSiteRepository {
   /** The site's files, all in the repository's first commit. */
   files: FileChange[];
   message: string;
+  /**
+   * Another repository is created with the same sign-in after this one, such
+   * as the content's for a site that keeps it in a repository of its own, so
+   * the sign-in isn't ended yet.
+   */
+  more?: boolean;
+  /**
+   * For the second of a site's code and content repositories, the other one
+   * having been created already: they're connected before this one's files are
+   * written, so that its first build can read the other.
+   */
+  link?: RepositoryLink;
+}
+
+/** A site's code repository and content repository, which `NewSiteRepository.link` connects. */
+export interface RepositoryLink {
+  /** The code repository: `owner/name`, or the GitLab project's full path. */
+  code: string;
+  content: string;
+  /** Whether they're private, so reading one from the other needs it to let the reader in. */
+  private: boolean;
+  links: SeparateSetupLinks;
 }
 
 /** What creating a site is doing, for showing progress. */
-export type SetupStep = "repository" | "pages" | "files" | "protection";
+export type SetupStep = "repository" | "pages" | "files" | "protection" | "connect";
 
 /** Something that didn't stop the site being created, but needs the person's attention. */
 export type SetupWarning =
@@ -42,7 +65,12 @@ export type SetupWarning =
   /** The main branch's history couldn't be protected, such as on a plan without rules for private repositories. */
   | "protection-unavailable"
   /** Editors can't sign in with the sign-in service until its app is installed on the repository (`signInInstallUrl`). */
-  | "sign-in-not-installed";
+  | "sign-in-not-installed"
+  /**
+   * The code and content repositories couldn't be connected, such as where the
+   * sign-in can't add deploy keys or secrets: their setup files say what to add.
+   */
+  | "connect-unavailable";
 
 export interface CreatedSiteRepository {
   /** `owner/name`, or the GitLab project's full path. */

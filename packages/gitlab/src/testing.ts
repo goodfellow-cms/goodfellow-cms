@@ -24,6 +24,8 @@ export interface FakeGitLabOptions {
   deployAfterChecks?: number;
   /** The job each published commit's pipeline runs: `pages` by default. */
   deployJob?: string;
+  /** The job the update runs in, which `addUpdateRun()` logs: `pages` by default, as in the starters, or a code project's `update`. */
+  updateJob?: string;
   /** Groups the users belong to, which new projects can be created in. */
   groups?: string[];
   /** Publishes the site with GitLab Pages. Off by default. */
@@ -68,6 +70,11 @@ export interface FakeCreatedProject {
   description?: string;
   pagesAccessLevel?: string;
   repo: FakeRepo;
+  /** The projects whose job tokens may reach this one (its job token allowlist), by id. */
+  jobTokenAllowlist: number[];
+  /** Whether its pipelines' job tokens may push to it. */
+  jobTokenPush: boolean;
+  schedules: Array<{ description: string; ref: string; cron: string; active: boolean }>;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -384,6 +391,9 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         description: body.description,
         pagesAccessLevel: body.pages_access_level,
         repo: new FakeRepo({}),
+        jobTokenAllowlist: [],
+        jobTokenPush: false,
+        schedules: [],
       };
       created.set(fullPath, project);
       return json({ id: project.id, path_with_namespace: fullPath, web_url: `${webUrl}/${fullPath}` }, 201);
@@ -393,7 +403,36 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     const project = created.get(key) ?? [...created.values()].find((candidate) => String(candidate.id) === key);
     if (!match || !project) return undefined;
     const rest = match[2] ?? "";
-    if (rest === "") return json({ id: project.id, path_with_namespace: project.path, default_branch: "main" });
+    if (rest === "" && request.method === "GET") {
+      return json({
+        id: project.id,
+        path_with_namespace: project.path,
+        default_branch: "main",
+        ci_push_repository_for_job_token_allowed: project.jobTokenPush,
+      });
+    }
+    if (rest === "" && request.method === "PUT") {
+      const body = (await request.json()) as { ci_push_repository_for_job_token_allowed?: boolean };
+      if (body.ci_push_repository_for_job_token_allowed !== undefined) {
+        project.jobTokenPush = body.ci_push_repository_for_job_token_allowed;
+      }
+      return json({ id: project.id, ci_push_repository_for_job_token_allowed: project.jobTokenPush });
+    }
+    if (rest === "/job_token_scope/allowlist" && request.method === "POST") {
+      const body = (await request.json()) as { target_project_id: number };
+      if (![...created.values()].some((candidate) => candidate.id === body.target_project_id)) {
+        return json({ message: "404 Project Not Found" }, 404);
+      }
+      if (!project.jobTokenAllowlist.includes(body.target_project_id)) {
+        project.jobTokenAllowlist.push(body.target_project_id);
+      }
+      return json({ source_project_id: project.id, target_project_id: body.target_project_id }, 201);
+    }
+    if (rest === "/pipeline_schedules" && request.method === "POST") {
+      const body = (await request.json()) as { description: string; ref: string; cron: string; active?: boolean };
+      project.schedules.push({ ...body, active: body.active !== false });
+      return json({ id: project.schedules.length, ...body }, 201);
+    }
     if (rest === "/repository/commits" && request.method === "POST") {
       const body = (await request.json()) as {
         branch: string;
@@ -795,7 +834,9 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     const updateJobs = rest.match(/^\/pipelines\/(\d{4,})\/jobs$/);
     if (updateJobs) {
       const run = updateRuns.find((candidate) => candidate.id === Number(updateJobs[1]));
-      return run ? json([{ id: run.id, name: "pages", status: run.status }]) : json({ message: "404 Not Found" }, 404);
+      return run
+        ? json([{ id: run.id, name: options.updateJob ?? "pages", status: run.status }])
+        : json({ message: "404 Not Found" }, 404);
     }
     const updateTrace = rest.match(/^\/jobs\/(\d{4,})\/trace$/);
     if (updateTrace) {

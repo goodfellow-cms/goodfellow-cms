@@ -45,6 +45,11 @@ export interface GitLabOptions {
    * panel then leaves adding blocks, which changes code, to a developer.
    */
   contentOnly?: boolean;
+  /**
+   * With `contentOnly`, the project the site's code is kept in, where its
+   * updates run: the Updates screen follows them, for people who can see it.
+   */
+  code?: string;
   /** For tests. */
   fetch?: typeof fetch;
   /** For tests. */
@@ -144,6 +149,7 @@ export function gitlab(options: GitLabOptions): GitHost {
       project: options.project,
       branch: options.branch ?? project.default_branch,
       ...(options.contentOnly && { contentOnly: true }),
+      ...(options.contentOnly && options.code && { code: { project: options.code, webUrl } }),
       user: { login: user.username, name: user.name, avatarUrl: user.avatar_url },
       onSignOut: () => storage.clear(),
     });

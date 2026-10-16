@@ -122,3 +122,82 @@ test("creates a private project on GitLab with public GitLab Pages", async ({ pa
   expect(files.has(".github/workflows/deploy.yml")).toBe(false);
   expect(files.has("blocks/installed/installed.json")).toBe(false);
 });
+
+test("creates a site on GitHub with its content in a repository of its own", async ({ page }) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  await page.goto(SETUP, { waitUntil: "networkidle" });
+  await page.getByRole("radio", { name: "In a repository of its own" }).check();
+  await signIn(page, "gh-token");
+  await page.getByLabel("Name", { exact: true }).fill("parish");
+  await expect(
+    page.getByText("The code goes in someone/parish, and the content in someone/parish-content"),
+  ).toBeVisible();
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  await page.getByRole("button", { name: "Create the site" }).click();
+
+  await expect(page.getByRole("heading", { name: "Your site has been created" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "someone/parish", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "someone/parish-content", exact: true })).toBeVisible();
+  // GitHub Pages publishes the content repository, which builds the site.
+  await expect(
+    page.getByRole("link", { name: "https://someone.github.io/parish-content/", exact: true }),
+  ).toBeVisible();
+
+  const code = github.created.get("someone/parish");
+  const content = github.created.get("someone/parish-content");
+  expect(code?.pages).toBeUndefined();
+  expect(content?.pages).toEqual({ build_type: "workflow" });
+  const codeFiles = code?.repo.files() ?? new Map();
+  const contentFiles = content?.repo.files() ?? new Map();
+  expect(text(codeFiles.get("goodfellow.config.tsx"))).toContain(
+    'backend: github({ repo: "someone/parish-content", contentOnly: true, code: "someone/parish" }),',
+  );
+  expect(codeFiles.has(".github/workflows/update.yml")).toBe(true);
+  expect([...codeFiles.keys()].some((path) => path.startsWith("content"))).toBe(false);
+  expect(text(codeFiles.get(".gitignore"))).toContain("/content-repository/");
+  expect(contentFiles.has("content/site.json")).toBe(true);
+  expect(text(contentFiles.get(".github/workflows/deploy.yml"))).toContain("repository: someone/parish");
+  // Public repositories read each other without keys.
+  expect(code?.deployKeys).toEqual([]);
+});
+
+test("creates a site's code and content projects on GitLab, letting each pipeline read the other", async ({ page }) => {
+  const gitlab = fakeGitLab({
+    project: "someone/existing",
+    groups: ["st-joseph"],
+    tokens: { "gl-token": { username: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://gitlab.com", gitlab.handle);
+  await page.goto(SETUP, { waitUntil: "networkidle" });
+  await page.getByRole("radio", { name: "GitLab", exact: true }).check();
+  await page.getByRole("radio", { name: "Private", exact: true }).check();
+  await page.getByRole("radio", { name: "Built-in blocks only" }).check();
+  await page.getByRole("radio", { name: "In a repository of its own" }).check();
+  await signIn(page, "gl-token");
+  await page.getByLabel("Account or group").selectOption("st-joseph");
+  await page.getByLabel("Name", { exact: true }).fill("website");
+  await page.getByRole("button", { name: "Create the site" }).click();
+
+  await expect(page.getByRole("heading", { name: "Your site has been created" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Deploy → Pages" })).toHaveAttribute(
+    "href",
+    "https://gitlab.com/st-joseph/website-content/pages",
+  );
+  const code = gitlab.created.get("st-joseph/website");
+  const content = gitlab.created.get("st-joseph/website-content");
+  if (!code || !content) throw new Error("Not created");
+  expect(code.pagesAccessLevel).toBeUndefined();
+  expect(content.pagesAccessLevel).toBe("public");
+  expect(code.jobTokenAllowlist).toEqual([content.id]);
+  expect(content.jobTokenAllowlist).toEqual([code.id]);
+  expect(code.jobTokenPush).toBe(true);
+  expect(code.schedules).toHaveLength(1);
+  expect(text(code.repo.files().get("goodfellow.config.tsx"))).toContain(
+    'backend: gitlab({ project: "st-joseph/website-content", contentOnly: true, code: "st-joseph/website" }),',
+  );
+  expect(text(content.repo.files().get(".gitlab-ci.yml"))).toContain("/st-joseph/website.git");
+});

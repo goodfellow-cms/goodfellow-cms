@@ -440,6 +440,48 @@ export function separateSetupFiles(setup: SeparateSetup, vercelTemplate?: string
   return { code, content };
 }
 
+/** One of a separate site's two repositories. */
+export type SiteRepository = "code" | "content";
+
+/** A repository whose builds or updates read the other one, which has to let it in where it isn't public. */
+export interface RepositoryRead {
+  reader: SiteRepository;
+  read: SiteRepository;
+  /** On GitHub, the secret in `reader` that holds the private half of `read`'s deploy key. */
+  secret?: string;
+}
+
+/** What connects a separate site's repositories, besides their setup files, for the setup page to set up. */
+export interface SeparateSetupLinks {
+  /** Which repository reads which: with a deploy key on GitHub, where it's private, or the job token on GitLab. */
+  reads: RepositoryRead[];
+  /** Repositories whose pipelines need a schedule to run each night (GitLab: GitHub's workflows have their own). */
+  nightly: SiteRepository[];
+  /** The repository whose job token publishes Goodfellow's updates (GitLab). */
+  updates?: SiteRepository;
+}
+
+/**
+ * What connects the repositories that `separateSetupFiles()` sets up, as each
+ * setup file's comments describe it. Vercel reads the other repository with
+ * a token in its own settings, which only the person can add there.
+ */
+export function separateSetupLinks(setup: Pick<SeparateSetup, "git" | "host" | "build">): SeparateSetupLinks {
+  if (setup.host === "vercel") {
+    // The repository Vercel doesn't build from asks it to rebuild each night.
+    return { reads: [], nightly: setup.git === "gitlab" ? [setup.build === "code" ? "content" : "code"] : [] };
+  }
+  const gitlab = setup.git === "gitlab";
+  return {
+    reads: [
+      { reader: "content", read: "code", ...(!gitlab && { secret: "GOODFELLOW_CODE_KEY" }) },
+      { reader: "code", read: "content", ...(!gitlab && { secret: "GOODFELLOW_CONTENT_KEY" }) },
+    ],
+    nightly: gitlab ? ["code"] : [],
+    updates: "code",
+  };
+}
+
 function repoUrl(setup: SeparateSetup, repo: string): string {
   return `https://${setup.git === "github" ? "github.com" : "gitlab.com"}/${repo}`;
 }

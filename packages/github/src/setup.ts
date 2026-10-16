@@ -1,10 +1,12 @@
 import {
   type CreatedSiteRepository,
   credentialStorage,
+  decodeBase64,
   encodeBase64Bytes,
   GitApiError,
   type GitUser,
   type NewSiteRepository,
+  type RepositoryLink,
   type SetupAccount,
   SetupError,
   type SetupHost,
@@ -49,8 +51,9 @@ const MAIN = "main";
 
 /**
  * Links to GitHub's token pages with what creating a site needs: creating the
- * repository (administration), writing its files and its build setup
- * (contents and workflows), and turning on GitHub Pages (pages).
+ * repository and adding deploy keys (administration), writing its files and
+ * its build setup (contents and workflows), turning on GitHub Pages (pages),
+ * and giving a workflow the key to another of the site's repositories (secrets).
  */
 export function githubSetupTokenLinks(webUrl = "https://github.com") {
   const fineGrained = new URLSearchParams({
@@ -61,6 +64,7 @@ export function githubSetupTokenLinks(webUrl = "https://github.com") {
     contents: "write",
     workflows: "write",
     pages: "write",
+    secrets: "write",
   });
   const classic = new URLSearchParams({ scopes: "repo,workflow", description: "Goodfellow site setup" });
   return {
@@ -94,6 +98,8 @@ interface Creator {
 
 /** The steps after the repository exists, which are the same however it was created. */
 function setupAccount(creator: Creator): SetupAccount {
+  /** Each repository created, and the token for setting it up, for connecting it to another one later. */
+  const createdApis = new Map<string, ApiOptions>();
   /** Makes `main` the default branch, which the deploy setups build from. */
   async function useMainBranch(api: ApiOptions, repo: GitHubRepo): Promise<void> {
     if (repo.default_branch === MAIN) return;
@@ -179,6 +185,43 @@ function setupAccount(creator: Creator): SetupAccount {
     return response.ok;
   }
 
+  /**
+   * Lets each private repository's workflows read the other, as their setup
+   * files say: a read-only deploy key on the one read, with its private half
+   * a secret of the one reading. Public repositories need nothing. Returns
+   * whether it worked: an older sign-in may not be allowed to set secrets.
+   */
+  async function connectRepositories(link: RepositoryLink): Promise<boolean> {
+    if (!link.private) return true;
+    const { newDeployKey, sealSecret } = await import("./deploy-keys.js");
+    try {
+      for (const { reader, read, secret } of link.links.reads) {
+        if (!secret) continue;
+        const readerRepo = link[reader];
+        const readRepo = link[read];
+        const readerApi = createdApis.get(readerRepo.toLowerCase());
+        const readApi = createdApis.get(readRepo.toLowerCase());
+        if (!readerApi || !readApi) throw new Error(`${readerRepo} and ${readRepo} have to be created first.`);
+        const key = await newDeployKey(`goodfellow-${secret.toLowerCase()}`);
+        await githubRequest(readApi, `/repos/${repoPath(readRepo)}/keys`, {
+          method: "POST",
+          body: { title: `${readerRepo}'s builds`, key: key.publicKey, read_only: true },
+        });
+        const base = `/repos/${repoPath(readerRepo)}/actions/secrets`;
+        const publicKey = await githubJson<{ key_id: string; key: string }>(readerApi, `${base}/public-key`);
+        const sealed = await sealSecret(key.privateKey, decodeBase64(publicKey.key));
+        await githubRequest(readerApi, `${base}/${secret}`, {
+          method: "PUT",
+          body: { encrypted_value: encodeBase64Bytes(sealed), key_id: publicKey.key_id },
+        });
+      }
+      return true;
+    } catch (error) {
+      if (error instanceof GitApiError && [403, 404, 422].includes(error.status)) return false;
+      throw error;
+    }
+  }
+
   return {
     user: creator.user,
     owners: () => creator.owners(),
@@ -187,6 +230,10 @@ function setupAccount(creator: Creator): SetupAccount {
       const warnings: SetupWarning[] = [];
       onStep?.("repository");
       const { repo, api, signInInstallUrl } = await creator.create(site);
+      const connect = async (link: RepositoryLink) => {
+        onStep?.("connect");
+        return connectRepositories(link);
+      };
       await useMainBranch(api, repo);
       let siteUrl: string | undefined;
       if (site.pages) {
@@ -195,6 +242,8 @@ function setupAccount(creator: Creator): SetupAccount {
         siteUrl = await turnOnPages(api, repo);
         if (!siteUrl) warnings.push("pages-unavailable");
       }
+      createdApis.set(repo.full_name.toLowerCase(), api);
+      if (site.link && !(await connect(site.link))) warnings.push("connect-unavailable");
       onStep?.("files");
       await writeFiles(api, repo, site);
       onStep?.("protection");
@@ -300,7 +349,13 @@ function workerCreator(service: SignInService, apiUrl: string, fetcher: typeof f
       }
       const created = await call<{ repo: GitHubRepo; token: string; editInstallUrl?: string }>(
         "/github/setup/repository",
-        { owner: site.owner.path, name: site.name, private: site.private, description: site.description },
+        {
+          owner: site.owner.path,
+          name: site.name,
+          private: site.private,
+          description: site.description,
+          ...(site.more && { more: true }),
+        },
       );
       if (!created.repo || !created.token) throw new SignInError("unavailable", "The sign-in service didn't answer.");
       return {

@@ -72,7 +72,7 @@ If the script can't run, the same steps by hand are:
 
    Give them these repository permissions:
    - the everyday app: **Contents** read and write; **Actions**, **Deployments**, **Metadata** and **Pages** read-only;
-   - the owners' app: **Administration**, **Actions**, **Contents**, **Pages** and **Workflows** read and write; **Metadata** read-only.
+   - the owners' app: **Administration**, **Actions**, **Contents**, **Pages**, **Secrets** and **Workflows** read and write; **Metadata** read-only. The setup page uses **Secrets** to connect a site's code and content repositories, where its [content is kept in a repository of its own](/docs/content-repository); an app made before it asked for Secrets still creates sites, and the setup page explains what to add instead. Adding it to an existing app asks every installation to accept it.
 
    For each, note its **App ID**, its **Client ID** and the last part of its address (its slug), generate a client secret, and generate a private key, which downloads a `.pem` file.
 3. **Set up the service** for your apps. In `wrangler.jsonc`, put your apps' slugs, and your setup page's address if you have one. Set its secrets with `npx wrangler@4 secret put EDIT_APP_ID`, then `EDIT_CLIENT_ID`, `EDIT_CLIENT_SECRET` and `EDIT_PRIVATE_KEY` (the `.pem` file's contents), the same four for `OWNER_`, and `SESSION_KEY`, from `openssl rand -base64 32`. Then run `pnpm run deploy` again. Changing `SESSION_KEY` later signs everyone out.
