@@ -17,6 +17,7 @@ import {
   type HistoryOptions,
   type OwnerAccess,
   type PagesDomains,
+  REBUILD_JOB,
   type RedirectOptions,
   SignInError,
   type SiteDrafts,
@@ -502,8 +503,10 @@ export class GitHubBackend implements GitBackend {
     );
     if (!response.ok) return undefined;
     const { workflow_runs: runs = [] } = (await response.json()) as { workflow_runs?: WorkflowRun[] };
-    // The workflow that deploys the site, rather than other checks the repository runs.
-    return runs.find((run) => /deploy|pages/i.test(`${run.path ?? ""} ${run.name ?? ""}`)) ?? runs[0];
+    // The workflow that deploys the site, rather than other checks the repository runs. One that only asks
+    // another host to rebuild the site, where the content is kept apart from the code, says nothing about it.
+    const builds = runs.filter((run) => !run.path?.endsWith(`/${REBUILD_JOB}.yml`));
+    return builds.find((run) => /deploy|pages/i.test(`${run.path ?? ""} ${run.name ?? ""}`)) ?? builds[0];
   }
 
   /** Which step of a failed run failed. */

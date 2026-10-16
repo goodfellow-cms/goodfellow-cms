@@ -44,6 +44,8 @@ export interface FakeRun {
   createdAt?: string;
   status: "queued" | "in_progress" | "completed";
   conclusion: "success" | "failure" | "startup_failure" | "cancelled" | null;
+  /** The workflow's file, `.github/workflows/deploy.yml` by default. */
+  path?: string;
   jobs: Array<{ name: string; conclusion: string | null; steps: Array<{ name: string; conclusion: string | null }> }>;
 }
 
@@ -1057,8 +1059,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
             head_sha: run.sha,
             status: run.status,
             conclusion: run.conclusion,
-            name: "Deploy to GitHub Pages",
-            path: ".github/workflows/deploy.yml",
+            name: run.path ? "Rebuild on Vercel" : "Deploy to GitHub Pages",
+            path: run.path ?? ".github/workflows/deploy.yml",
             html_url: htmlUrl(run),
           })),
         });

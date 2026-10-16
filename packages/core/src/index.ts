@@ -271,6 +271,16 @@ export {
   writeChanges,
 } from "./content/store.js";
 export {
+  CONTENT_BUILDS,
+  type ContentBuild,
+  contentBuildsFor,
+  REBUILD_JOB,
+  type SeparateContent,
+  type SeparateSetup,
+  type SeparateSetupFiles,
+  separateSetupFiles,
+} from "./content-repository-setup.js";
+export {
   DEMO_CONTENT_PATH,
   type DemoChanges,
   type DemoContent,

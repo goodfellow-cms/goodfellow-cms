@@ -470,6 +470,18 @@ describe("a project of content only", () => {
   });
 });
 
+describe("deploy status of a project that only asks Vercel to rebuild the site", () => {
+  it("says nothing of it", async () => {
+    const { host } = setup({ deployAfterChecks: 0, deployJob: "rebuild" });
+    const backend = await host.signInWithToken("test-token", false);
+    const { revision } = await backend.write([{ path: "content/pages/about.json", content: "{}" }], {
+      message: "Update About",
+      expectedRevision: await backend.revision(),
+    });
+    expect(await backend.deployStatus(revision)).toEqual({ state: "unknown" });
+  });
+});
+
 describe("on a full-stack site's server", () => {
   const ALICE = { name: "Alice Editor", email: "alice@example.org" };
 

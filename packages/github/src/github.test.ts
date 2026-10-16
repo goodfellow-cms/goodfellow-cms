@@ -499,6 +499,20 @@ describe("a repository of content only", () => {
     expect((await git?.at(await backend.revision()))?.contentOnly).toBe(true);
   });
 
+  it("says nothing of a workflow that only asks Vercel to rebuild the site", async () => {
+    const { fake, backend } = await signedIn();
+    const revision = await backend.revision();
+    fake.runs.push({
+      id: 1,
+      sha: revision,
+      status: "completed",
+      conclusion: "success",
+      jobs: [],
+      path: ".github/workflows/rebuild.yml",
+    });
+    expect(await backend.deployStatus(revision)).toEqual({ state: "unknown" });
+  });
+
   it("is a repository of the whole site otherwise", async () => {
     const { backend } = await signedIn();
     expect(backend.contentOnly).toBe(false);

@@ -21,7 +21,7 @@ pages:
       fi
     # Pages may serve the site from a subfolder, such as https://group.gitlab.io/site/.
     - export GOODFELLOW_BASE="$(node -e 'console.log(new URL(process.env.CI_PAGES_URL).pathname)')"
-    - npx next build
+    - npm run build
   pages:
     publish: out
   rules:

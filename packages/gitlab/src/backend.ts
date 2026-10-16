@@ -17,6 +17,7 @@ import {
   type GitUser,
   type HistoryOptions,
   type PagesDomains,
+  REBUILD_JOB,
   SignInError,
   type SiteDrafts,
   type SiteEditors,
@@ -388,10 +389,14 @@ export class GitLabBackend implements GitBackend {
    */
   async deployStatus(revision: string): Promise<DeployStatus> {
     try {
-      const statuses = await gitlabJson<Array<{ status: string; target_url?: string | null }>>(
+      const all = await gitlabJson<Array<{ name?: string; status: string; target_url?: string | null }>>(
         this.api,
         this.repo(`/commits/${revision}/statuses`),
       );
+      // A job that only asks another host to rebuild the site, where the content is kept apart from the code,
+      // says nothing about when it's live.
+      const statuses = all.filter((status) => status.name !== REBUILD_JOB);
+      if (all.length > 0 && statuses.length === 0) return { state: "unknown" };
       if (statuses.length === 0) {
         const pipelines = await gitlabJson<unknown[]>(this.api, `/projects/${this.project}/pipelines?per_page=1`);
         return { state: pipelines.length > 0 ? "building" : "unknown" };
