@@ -275,10 +275,14 @@ export {
   type ContentBuild,
   contentBuildsFor,
   REBUILD_JOB,
+  type RepositoryRead,
   type SeparateContent,
   type SeparateSetup,
   type SeparateSetupFiles,
+  type SeparateSetupLinks,
+  type SiteRepository,
   separateSetupFiles,
+  separateSetupLinks,
 } from "./content-repository-setup.js";
 export {
   DEMO_CONTENT_PATH,
@@ -427,6 +431,7 @@ export { SEARCH_ATTRIBUTE, SEARCH_INDEX_DIR } from "./search.js";
 export {
   type CreatedSiteRepository,
   type NewSiteRepository,
+  type RepositoryLink,
   type SetupAccount,
   SetupError,
   type SetupHost,
@@ -488,6 +493,7 @@ export { trimChars } from "./trim.js";
 export {
   type AvailableUpdates,
   availableUpdates,
+  type CodeRepository,
   chooseUpdate,
   compareReleases,
   DEFAULT_UPDATE_SETTINGS,

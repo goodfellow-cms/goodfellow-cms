@@ -4,16 +4,19 @@ import {
   encodeBase64Bytes,
   GitApiError,
   type NewSiteRepository,
+  type RepositoryLink,
   type SetupAccount,
   SetupError,
   type SetupHost,
   type SetupOwner,
+  type SetupWarning,
   SignInError,
   type StorageLike,
 } from "@goodfellow-cms/core";
 import { type ApiOptions, gitlabJson, gitlabRequest } from "./api.js";
 import type { BrowserLocation } from "./index.js";
 import { codeChallenge, type OAuthTokens, randomString, redirectUri, type TokenResponse, toTokens } from "./oauth.js";
+import { NIGHTLY } from "./updates.js";
 
 export interface GitLabSetupOptions {
   /** For self-managed GitLab. Defaults to `https://gitlab.com`. */
@@ -94,6 +97,54 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
       return response.status === 404;
     }
 
+    /**
+     * Lets each project's pipelines reach the other, as their setup files say:
+     * a job token is refused by a project whose job token allowlist doesn't
+     * name its project, even a public one. Also lets the code project's job
+     * token publish updates, and runs pipelines each night where they need it.
+     * Returns whether it worked.
+     */
+    async function connectProjects(link: RepositoryLink): Promise<boolean> {
+      const project = (path: string) => `/projects/${encodeURIComponent(path)}`;
+      try {
+        const ids = new Map<string, number>();
+        for (const which of ["code", "content"] as const) {
+          ids.set(which, (await gitlabJson<{ id: number }>(api, project(link[which]))).id);
+        }
+        for (const { reader, read } of link.links.reads) {
+          await gitlabRequest(api, `${project(link[read])}/job_token_scope/allowlist`, {
+            method: "POST",
+            body: { target_project_id: ids.get(reader) },
+          });
+        }
+        if (link.links.updates) {
+          await gitlabRequest(api, project(link[link.links.updates]), {
+            method: "PUT",
+            body: { ci_push_repository_for_job_token_allowed: true },
+          });
+        }
+        for (const which of link.links.nightly) {
+          await gitlabRequest(api, `${project(link[which])}/pipeline_schedules`, {
+            method: "POST",
+            body: {
+              description:
+                which === link.links.updates
+                  ? "Rebuild the site and install Goodfellow's fixes each night"
+                  : "Rebuild the site each night",
+              ref: MAIN,
+              cron: NIGHTLY,
+              cron_timezone: "UTC",
+              active: true,
+            },
+          });
+        }
+        return true;
+      } catch (error) {
+        if (error instanceof GitApiError && [400, 403, 404].includes(error.status)) return false;
+        throw error;
+      }
+    }
+
     return {
       user: { login: user.username, name: user.name, avatarUrl: user.avatar_url },
       async owners() {
@@ -140,6 +191,11 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
           }
           throw error;
         }
+        const warnings: SetupWarning[] = [];
+        if (site.link) {
+          onStep?.("connect");
+          if (!(await connectProjects(site.link))) warnings.push("connect-unavailable");
+        }
         // GitLab Pages needs no setting of its own: the site's .gitlab-ci.yml publishes it on every change.
         onStep?.("files");
         await gitlabRequest(api, `/projects/${project.id}/repository/commits`, {
@@ -169,7 +225,7 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
           webUrl: project.web_url,
           buildsUrl: `${project.web_url}/-/pipelines`,
           pagesUrl: site.pages ? `${project.web_url}/pages` : undefined,
-          warnings: [],
+          warnings,
         };
       },
     };

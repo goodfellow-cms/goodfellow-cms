@@ -15,10 +15,17 @@
  * 4. `POST /github/token`: the session, for a new token, about once an hour,
  *    checking the person still edits the site each time.
  *
+ * Where a site keeps its content in a repository of its own, both ask with
+ * `code`, its code repository, and get a second token for it too, which can
+ * only read it and its workflow runs, or for an owner, run them: once the
+ * code's `goodfellow.config.tsx` names the site's repository, and GitHub says
+ * the person can see the code repository (or for an owner, publish to it).
+ *
  * The site setup page signs in the same way, with `/github/setup/*` creating
  * the repository. Creating it needs the person's own token, so the setup
- * page's session keeps it, sealed, until the repository exists or half an hour
- * has passed, whichever is first; then it's revoked.
+ * page's session keeps it, sealed, until the repository exists (both, for a
+ * site whose content has a repository of its own) or half an hour has passed,
+ * whichever is first; then it's revoked.
  */
 
 import githubAppJwt from "universal-github-app-jwt";
@@ -48,7 +55,7 @@ export interface WorkerEnv {
   EDIT_CLIENT_ID?: string;
   EDIT_CLIENT_SECRET?: string;
   EDIT_PRIVATE_KEY?: string;
-  /** The owners' app: Administration, Pages, Actions, Contents and Workflows, for the Editors and Domain screens and creating sites. */
+  /** The owners' app: Administration, Pages, Actions, Contents, Workflows and Secrets, for the Editors and Domain screens and creating sites. */
   OWNER_APP_ID?: string;
   OWNER_APP_SLUG?: string;
   OWNER_CLIENT_ID?: string;
@@ -89,8 +96,28 @@ export type SignInProblem =
 export const PERMISSIONS: Record<Purpose, Permissions> = {
   edit: { contents: "write", metadata: "read", deployments: "read", actions: "read", pages: "read" },
   owner: { administration: "write", pages: "write", actions: "write", contents: "read", metadata: "read" },
-  setup: { administration: "write", contents: "write", workflows: "write", pages: "write", metadata: "read" },
+  setup: {
+    administration: "write",
+    contents: "write",
+    workflows: "write",
+    pages: "write",
+    secrets: "write",
+    metadata: "read",
+  },
 };
+
+/**
+ * What tokens for a site's code repository may do, where its content is kept
+ * in a repository of its own: read its updates' runs and its files, and for
+ * owners, run its update workflow. Never change its code.
+ */
+export const CODE_PERMISSIONS: Record<"edit" | "owner", Permissions> = {
+  edit: { actions: "read", contents: "read", metadata: "read" },
+  owner: { actions: "write", contents: "read", metadata: "read" },
+};
+
+/** The file a site's code repository names its content repository in. */
+const CONFIG_FILE = "goodfellow.config.tsx";
 
 const STATE_LIFETIME = 10 * 60_000;
 const GRANT_LIFETIME = 5 * 60_000;
@@ -411,7 +438,7 @@ export function createWorker(options: WorkerOptions = {}) {
      * once GitHub says the person still edits the site (or owns it, for an
      * owner's sign-in), and the session to use next time.
      */
-    async function issue(session: SessionData) {
+    async function issue(session: SessionData, code?: unknown) {
       const repo = session.repo;
       if (!repo) throw new Problem("bad-request", 400);
       const app = appFor(session.purpose);
@@ -432,12 +459,71 @@ export function createWorker(options: WorkerOptions = {}) {
         await revoke(issued.token);
         throw error;
       }
+      const codeToken = await issueCode(session, code);
       return {
         session: await sealSession(session),
         token: issued.token,
         expiresAt: issued.expiresAt,
         user: publicUser(session.user),
+        ...(codeToken && { code: codeToken }),
       };
+    }
+
+    /** Whether the person may use the code repository as the token would, asked with that token. */
+    async function mayUseCode(session: SessionData, code: string, token: string): Promise<boolean> {
+      const auth = { bearer: token };
+      const found = await githubJson<{ permission?: string }>(
+        config,
+        `/repos/${repoPath(code)}/collaborators/${encodeURIComponent(session.user.login)}/permission`,
+        { auth },
+      );
+      const permission = found.permission ?? "none";
+      if (session.purpose === "owner") return ["admin", "maintain", "write"].includes(permission);
+      if (permission !== "none") return true;
+      // Anyone can see a public repository's updates.
+      const repository = await githubJson<{ private?: boolean }>(config, `/repos/${repoPath(code)}`, { auth });
+      return repository.private === false;
+    }
+
+    /** Whether the code repository is the site's: its config names the site's repository, as its backend. */
+    async function namesSite(code: string, site: string, token: string): Promise<boolean> {
+      const response = await github(config, `/repos/${repoPath(code)}/contents/${CONFIG_FILE}`, {
+        auth: { bearer: token },
+        accept: "application/vnd.github.raw+json",
+      });
+      return (await response.text()).toLowerCase().includes(JSON.stringify(site.toLowerCase()));
+    }
+
+    /**
+     * A token for the site's code repository, or `undefined` where the worker
+     * can't give one: Goodfellow isn't installed there, it isn't this site's
+     * code, or the person can't see it. Signing in works either way.
+     */
+    async function issueCode(session: SessionData, code: unknown) {
+      const repo = session.repo;
+      if (typeof code !== "string" || !REPO.test(code) || !repo || code.toLowerCase() === repo.toLowerCase()) {
+        return undefined;
+      }
+      if (session.purpose === "setup") return undefined;
+      const app = appFor(session.purpose);
+      const installation = await installationFor(app, code);
+      if (installation === undefined) return undefined;
+      let issued: { token: string; expiresAt: string } | undefined;
+      try {
+        issued = await installationToken(
+          config,
+          await jwtFor(app),
+          installation,
+          code,
+          CODE_PERMISSIONS[session.purpose],
+        );
+        if ((await namesSite(code, repo, issued.token)) && (await mayUseCode(session, code, issued.token)))
+          return issued;
+      } catch (error) {
+        if (!(error instanceof GitHubError)) throw error;
+      }
+      if (issued) await revoke(issued.token);
+      return undefined;
     }
 
     function backTo(state: StateData, params: Record<string, string>): Response {
@@ -593,10 +679,10 @@ export function createWorker(options: WorkerOptions = {}) {
         if (session.purpose === "setup") {
           return json({ session: await sealSession(session), user: publicUser(session.user) });
         }
-        return json(await issue(session));
+        return json(await issue(session, body.code));
       }
 
-      if (path === "/github/token") return json(await issue(await openSession(body)));
+      if (path === "/github/token") return json(await issue(await openSession(body), body.code));
 
       if (path.startsWith("/github/setup/")) {
         return await setupRoute(path, body).catch((error: unknown) => {
@@ -706,17 +792,20 @@ export function createWorker(options: WorkerOptions = {}) {
             auth,
           });
         }
-        const issued = await installationToken(
-          config,
-          await jwtFor(app),
-          installation.id,
-          repo.full_name,
-          PERMISSIONS.setup,
-        );
+        const jwt = await jwtFor(app);
+        let issued: { token: string; expiresAt: string };
+        try {
+          issued = await installationToken(config, jwt, installation.id, repo.full_name, PERMISSIONS.setup);
+        } catch (error) {
+          // An installation that hasn't accepted the Secrets permission yet: the setup page explains what to add.
+          if (!(error instanceof GitHubError && error.status === 422)) throw error;
+          const { secrets: _, ...withoutSecrets } = PERMISSIONS.setup;
+          issued = await installationToken(config, jwt, installation.id, repo.full_name, withoutSecrets);
+        }
         const editApp = apps.edit;
         const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;
-        // The repository exists, which is all the person's own token was kept for.
-        await revokeUserToken(config, app, tokens.access).catch(() => {});
+        // The repository exists, which is all the person's own token was kept for, unless another one follows.
+        if (body.more !== true) await revokeUserToken(config, app, tokens.access).catch(() => {});
         return json({
           session: renewed,
           repo: { full_name: repo.full_name, html_url: repo.html_url, default_branch: repo.default_branch },

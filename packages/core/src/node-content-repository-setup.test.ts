@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { contentBuildsFor, type SeparateSetup, separateSetupFiles } from "./content-repository-setup.js";
+import {
+  contentBuildsFor,
+  type SeparateSetup,
+  separateSetupFiles,
+  separateSetupLinks,
+} from "./content-repository-setup.js";
 import { planSite, type SiteFiles, siteFileText } from "./site-setup.js";
 
 const STARTER_VERCEL = readFileSync(new URL("../../../templates/starter/vercel.ts", import.meta.url), "utf8");
@@ -78,7 +83,7 @@ describe("planSite with the content in a repository of its own", () => {
     );
     // The admin panel edits the content repository.
     expect(text(files, "goodfellow.config.tsx")).toContain(
-      'backend: github({ repo: "parish/site-content", contentOnly: true }),',
+      'backend: github({ repo: "parish/site-content", contentOnly: true, code: "parish/site" }),',
     );
     expect(text(files, "README.md")).toMatch(/^# Site\n\nHello\n\n## Content in a repository of its own\n/);
     expect(text(files, "README.md")).toContain(
@@ -118,7 +123,7 @@ describe("planSite with the content in a repository of its own", () => {
   it("builds GitLab Pages from the content project, which the code project's pipeline starts", async () => {
     const files = await plan("gitlab-pages");
     expect(text(files, "goodfellow.config.tsx")).toContain(
-      'backend: gitlab({ project: "parish/site-content", contentOnly: true }),',
+      'backend: gitlab({ project: "parish/site-content", contentOnly: true, code: "parish/site" }),',
     );
     const pages = parse(text(files, "content-repository/.gitlab-ci.yml")).pages;
     expect(pages.script).toContain("npx goodfellow content copy ..");
@@ -202,5 +207,35 @@ describe("separateSetupFiles", () => {
     expect(contentBuildsFor("github-pages")).toEqual(["content"]);
     expect(contentBuildsFor("vercel")).toEqual(["code", "content"]);
     expect(() => separateSetupFiles({ ...next, build: "code" })).toThrow("only build the site from the content");
+  });
+
+  it("says what connects the repositories, as their setup files describe it", () => {
+    const github = separateSetupLinks({ git: "github", host: "github-pages", build: "content" });
+    expect(github).toEqual({
+      reads: [
+        { reader: "content", read: "code", secret: "GOODFELLOW_CODE_KEY" },
+        { reader: "code", read: "content", secret: "GOODFELLOW_CONTENT_KEY" },
+      ],
+      nightly: [],
+      updates: "code",
+    });
+    // Each secret is one the setup files use.
+    const files = separateSetupFiles({ ...next, git: "github", host: "github-pages" });
+    expect(files.content.get(".github/workflows/deploy.yml")).toContain("secrets.GOODFELLOW_CODE_KEY");
+    expect(files.code.get(".github/workflows/update.yml")).toContain("secrets.GOODFELLOW_CONTENT_KEY");
+
+    expect(separateSetupLinks({ git: "gitlab", host: "gitlab-pages", build: "content" })).toEqual({
+      reads: [
+        { reader: "content", read: "code" },
+        { reader: "code", read: "content" },
+      ],
+      nightly: ["code"],
+      updates: "code",
+    });
+    expect(separateSetupLinks({ git: "gitlab", host: "vercel", build: "code" })).toEqual({
+      reads: [],
+      nightly: ["content"],
+    });
+    expect(separateSetupLinks({ git: "github", host: "vercel", build: "content" })).toEqual({ reads: [], nightly: [] });
   });
 });

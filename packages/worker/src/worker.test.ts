@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { challengeFor } from "./seal.js";
 import { base64, editKey, SITE, setup } from "./test-setup.js";
-import { isLocalAddress, PERMISSIONS } from "./worker.js";
+import { CODE_PERMISSIONS, isLocalAddress, PERMISSIONS } from "./worker.js";
 
 describe("signing in", () => {
   it("gives the admin panel a token for the site's repository only, with only what editors need", async () => {
@@ -179,6 +179,77 @@ describe("installing while signing in", () => {
   });
 });
 
+describe("a site whose code is in a repository of its own", () => {
+  const CONFIG = 'export default defineConfig({ backend: github({ repo: "parish/site", contentOnly: true }) });\n';
+
+  function withCode(
+    code: { config?: string; private?: boolean; collaborators?: Record<string, "admin" | "write" | "read"> } = {},
+  ) {
+    const context = setup({ repositories: ["parish/site-code"] });
+    context.fake.addRepo("parish/site-code", {
+      files: { "goodfellow.config.tsx": code.config ?? CONFIG },
+      private: code.private ?? true,
+      collaborators: code.collaborators ?? { maria: "read", olivia: "write" },
+    });
+    return context;
+  }
+
+  it("gives a token that can only read the code repository's updates, and renews it with the site's", async () => {
+    const { fake, signIn, post } = withCode();
+    const { body } = await signIn("maria", "edit", { code: "parish/site-code" });
+    const code = body.code as { token: string; expiresAt: string };
+    expect(fake.issued.find((item) => item.token === code.token)).toMatchObject({
+      app: "goodfellow-cms",
+      repositories: ["parish/site-code"],
+      permissions: CODE_PERMISSIONS.edit,
+    });
+    expect(fake.issued.find((item) => item.token === body.token)?.repositories).toEqual(["parish/site"]);
+
+    const renewed = (await (
+      await post("/github/token", { session: body.session, code: "parish/site-code" })
+    ).json()) as {
+      code?: { token: string };
+    };
+    expect(renewed.code?.token).toMatch(/^ghs_/);
+    expect(renewed.code?.token).not.toBe(code.token);
+    // Without asking, there's none.
+    expect(await (await post("/github/token", { session: body.session })).json()).not.toHaveProperty("code");
+  });
+
+  it("gives owners one that can run its workflows, once they can publish to it", async () => {
+    const { fake, signIn } = withCode();
+    const { body } = await signIn("olivia", "owner", { code: "parish/site-code" });
+    const code = body.code as { token: string };
+    expect(fake.issued.find((item) => item.token === code.token)).toMatchObject({
+      app: "goodfellow-cms-owner",
+      permissions: CODE_PERMISSIONS.owner,
+    });
+    const reader = withCode({ collaborators: { olivia: "read" } });
+    expect((await reader.signIn("olivia", "owner", { code: "parish/site-code" })).body).not.toHaveProperty("code");
+  });
+
+  it("gives none for a repository that isn't the site's code, or that the person can't see", async () => {
+    const elsewhere = withCode({ config: 'backend: github({ repo: "parish/other" })' });
+    const { body } = await elsewhere.signIn("maria", "edit", { code: "parish/site-code" });
+    expect(body.token).toMatch(/^ghs_/);
+    expect(body).not.toHaveProperty("code");
+    // The token made to look was revoked straight away.
+    expect(elsewhere.fake.issued.filter((item) => item.repositories?.includes("parish/site-code"))).toEqual([
+      expect.objectContaining({ revoked: true }),
+    ]);
+
+    const hidden = withCode({ collaborators: {} });
+    expect((await hidden.signIn("maria", "edit", { code: "parish/site-code" })).body).not.toHaveProperty("code");
+    // Anyone may follow a public repository's updates.
+    const open = withCode({ collaborators: {}, private: false });
+    expect((await open.signIn("maria", "edit", { code: "parish/site-code" })).body).toHaveProperty("code");
+    // Nor for repositories Goodfellow isn't installed on, or the site's own.
+    const { signIn } = setup();
+    expect((await signIn("maria", "edit", { code: "parish/site-code" })).body).not.toHaveProperty("code");
+    expect((await signIn("maria", "edit", { code: "parish/site" })).body).not.toHaveProperty("code");
+  });
+});
+
 describe("owners and site setup", () => {
   it("gives owners a token from the owners' app, for the Editors and Domain screens", async () => {
     const { fake, signIn } = setup();
@@ -251,6 +322,51 @@ describe("owners and site setup", () => {
       "https://setup.example",
     );
     expect(await taken.json()).toEqual({ problem: "name-taken" });
+  });
+});
+
+describe("setting up a site in two repositories", () => {
+  async function setupSession(context: ReturnType<typeof setup>) {
+    const { back, verifier } = await context.redirect("maria", "setup", "https://setup.example/new-site/");
+    const signedIn = await context.post(
+      "/github/session",
+      { grant: back.searchParams.get("goodfellow_sign_in"), verifier },
+      "https://setup.example",
+    );
+    return ((await signedIn.json()) as { session: string }).session;
+  }
+
+  it("keeps the person's token until the last repository is created", async () => {
+    const context = setup();
+    const session = await setupSession(context);
+    const create = async (name: string, more?: boolean) =>
+      (await (
+        await context.post(
+          "/github/setup/repository",
+          { session, owner: "maria", name, private: true, ...(more && { more }) },
+          "https://setup.example",
+        )
+      ).json()) as { token?: string };
+    const userTokens = () => context.fake.issued.filter((item) => item.kind === "user");
+    expect((await create("site", true)).token).toMatch(/^ghs_/);
+    expect(userTokens().some((item) => !item.revoked)).toBe(true);
+    const content = await create("site-content");
+    expect(context.fake.issued.find((item) => item.token === content.token)?.permissions).toEqual(PERMISSIONS.setup);
+    expect(userTokens().every((item) => item.revoked)).toBe(true);
+  });
+
+  it("still creates the repository where the owners' app hasn't been given the Secrets permission", async () => {
+    const context = setup({ withoutSecrets: true });
+    const session = await setupSession(context);
+    const created = (await (
+      await context.post(
+        "/github/setup/repository",
+        { session, owner: "maria", name: "site", private: true },
+        "https://setup.example",
+      )
+    ).json()) as { token: string };
+    const { secrets: _, ...withoutSecrets } = PERMISSIONS.setup;
+    expect(context.fake.issued.find((item) => item.token === created.token)?.permissions).toEqual(withoutSecrets);
   });
 });
 

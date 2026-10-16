@@ -3,7 +3,12 @@
 import {
   BLOCK_CHOICES,
   type BlockChoice,
+  CONTENT_BUILDS,
+  CONTENT_REPOSITORY_DIR,
+  type ContentBuild,
   type CreatedSiteRepository,
+  contentBuildsFor,
+  type FileChange,
   GOODFELLOW_REGISTRY,
   HOSTS,
   type Host,
@@ -16,6 +21,7 @@ import {
   type SetupStep,
   SignInError,
   type SiteFiles,
+  separateSetupLinks,
   sitePackageName,
   TEMPLATES,
   type TemplateName,
@@ -28,6 +34,7 @@ import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 
 type Purpose = "personal" | "group" | "business";
 type GitHostName = "github" | "gitlab";
+type ContentPlace = "together" | "separate";
 
 interface Choices {
   purpose: Purpose;
@@ -36,6 +43,10 @@ interface Choices {
   git: GitHostName;
   host: Host;
   private: boolean;
+  /** Whether the content is kept in a repository of its own, beside the code's. */
+  content: ContentPlace;
+  /** With the content kept apart, which repository the host builds the site from. */
+  build: ContentBuild;
 }
 
 const DEFAULT_CHOICES: Choices = {
@@ -45,7 +56,24 @@ const DEFAULT_CHOICES: Choices = {
   git: "github",
   host: "github-pages",
   private: false,
+  content: "together",
+  build: "content",
 };
+
+const CONTENT_PLACES: Record<ContentPlace, { label: string; description: string }> = {
+  together: {
+    label: "With the code",
+    description: "One repository holds the whole site. It's the simplest, and editors' sign-in can change all of it.",
+  },
+  separate: {
+    label: "In a repository of its own",
+    description:
+      "Two repositories: editors' sign-in reaches only the content's, so editors can change the site's content but never its code. For organizations with a developer to look after the code.",
+  },
+};
+
+/** The content repository's name, beside the code's. */
+const contentName = (name: string) => `${name}-content`;
 
 const PURPOSES: Record<Purpose, { label: string; description: string }> = {
   personal: { label: "Personal, or a hobby", description: "A site of your own, with nobody paid to make it." },
@@ -69,6 +97,7 @@ const STEP_LABELS: Record<SetupStep, string> = {
   pages: "Turning on GitHub Pages",
   files: "Adding the site's files",
   protection: "Protecting the site's history",
+  connect: "Letting each repository's builds read the other",
 };
 
 /** Kept in the browser tab while someone signs in with GitLab and comes back. */
@@ -123,7 +152,13 @@ async function fetchJson(url: string): Promise<unknown> {
 }
 
 /** The new site's files, worked out as `npm create goodfellow` would. */
-async function siteFiles(base: string | undefined, choices: Choices, repo: string, name: string): Promise<SiteFiles> {
+async function siteFiles(
+  base: string | undefined,
+  choices: Choices,
+  repo: string,
+  name: string,
+  content?: string,
+): Promise<SiteFiles> {
   const starter = (await fetchJson(withBase(`/starters/${choices.template}.json`, base))) as Starter;
   const template: SiteFiles = new Map(
     Object.entries(starter.files).map(([path, file]) => [
@@ -138,6 +173,7 @@ async function siteFiles(base: string | undefined, choices: Choices, repo: strin
     versions: starter.versions,
     backend: { host: choices.git, repo },
     host: choices.host,
+    ...(content && { content: { repo: content, build: choices.build } }),
     registry:
       choices.blocks === "recommended"
         ? { registries: { [GOODFELLOW_REGISTRY]: registryUrl.replace("%7Bname%7D", "{name}") }, fetchJson }
@@ -151,6 +187,16 @@ async function siteFiles(base: string | undefined, choices: Choices, repo: strin
     files.set("package-lock.json", `${JSON.stringify(lockfile, null, 2)}\n`);
   }
   return files;
+}
+
+/** One repository's files as the changes that write them: the content's are in its folder in the code's, `content-repository/`. */
+function fileChanges(files: SiteFiles, which: "code" | "content"): FileChange[] {
+  const prefix = `${CONTENT_REPOSITORY_DIR}/`;
+  return [...files].flatMap(([path, file]): FileChange[] => {
+    if (path.startsWith(prefix) !== (which === "content")) return [];
+    const at = which === "content" ? path.slice(prefix.length) : path;
+    return [typeof file === "string" ? { path: at, content: file } : { path: at, bytes: file }];
+  });
 }
 
 function setupHost(git: GitHostName, gitlabClientId: string): SetupHost {
@@ -273,6 +319,10 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
   const [owner, setOwner] = useState("");
   const [name, setName] = useState("my-site");
   const [available, setAvailable] = useState<boolean>();
+  const [contentAvailable, setContentAvailable] = useState<boolean>();
+  /** Which of the two repositories is being created, while both are. */
+  const [creating, setCreating] = useState<"code" | "content">();
+  const [createdCode, setCreatedCode] = useState<CreatedSiteRepository>();
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -287,6 +337,7 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
       // A new purpose or git host suggests its own host, which must be one that git host can use.
       const suggested = recommendedHost(next) ?? hostsFor(next.git)[0] ?? "github-pages";
       if (change.purpose || change.git || !hostsFor(next.git).includes(next.host)) next.host = suggested;
+      if (!contentBuildsFor(next.host).includes(next.build)) next.build = "content";
       return next;
     });
     if (change.git) setAccount(undefined);
@@ -330,15 +381,24 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
   }, [account]);
 
   const chosenOwner = owners.find((candidate) => candidate.path === owner);
+  // The code's repository, where creating the content's failed after it: trying again carries on from it.
+  const codeCreated = createdCode !== undefined && createdCode.repo === `${chosenOwner?.path}/${name}`;
   const validName = /^[A-Za-z0-9._-]+$/.test(name) && !/^[.-]/.test(name);
+  const separate = choices.content === "separate";
   useEffect(() => {
     setAvailable(undefined);
+    setContentAvailable(undefined);
     if (!account || !chosenOwner || !validName) return;
     const timer = setTimeout(() => {
       account.isAvailable(chosenOwner, name).then(setAvailable, () => setAvailable(undefined));
+      if (separate) {
+        account
+          .isAvailable(chosenOwner, contentName(name))
+          .then(setContentAvailable, () => setContentAvailable(undefined));
+      }
     }, 400);
     return () => clearTimeout(timer);
-  }, [account, chosenOwner, name, validName]);
+  }, [account, chosenOwner, name, validName, separate]);
 
   async function signIn() {
     setBusy(true);
@@ -370,18 +430,44 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
     setError(undefined);
     try {
       const repo = `${chosenOwner.path}/${name}`;
-      const files = await siteFiles(base, choices, repo, name);
+      const content = separate ? `${chosenOwner.path}/${contentName(name)}` : undefined;
+      const files = await siteFiles(base, choices, repo, name, content);
+      const site = {
+        owner: chosenOwner,
+        private: choices.private,
+        description: "A website made with Goodfellow",
+        message: "Create the site",
+      };
+      // GitHub Pages and GitLab Pages publish the repository that builds the site: the content's, where it has one.
+      const pages = choices.host !== "vercel";
+      if (!content) {
+        setCreated(await account.createSite({ ...site, name, pages, files: fileChanges(files, "code") }, setStep));
+        return;
+      }
+      setCreating("code");
+      // A site that failed halfway, with its code created, carries on with the content.
+      const code =
+        createdCode?.repo === repo
+          ? createdCode
+          : await account.createSite(
+              { ...site, name, pages: false, files: fileChanges(files, "code"), more: true },
+              setStep,
+            );
+      setCreatedCode(code);
+      setCreating("content");
       const result = await account.createSite(
         {
-          owner: chosenOwner,
-          name,
-          private: choices.private,
-          description: "A website made with Goodfellow",
-          pages: choices.host !== "vercel",
-          files: [...files].map(([path, file]) =>
-            typeof file === "string" ? { path, content: file } : { path, bytes: file },
-          ),
-          message: "Create the site",
+          ...site,
+          name: contentName(name),
+          description: "The content of a website made with Goodfellow",
+          pages,
+          files: fileChanges(files, "content"),
+          link: {
+            code: code.repo,
+            content,
+            private: choices.private,
+            links: separateSetupLinks({ git: choices.git, host: choices.host, build: choices.build }),
+          },
         },
         setStep,
       );
@@ -391,10 +477,11 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
     } finally {
       setBusy(false);
       setStep(undefined);
+      setCreating(undefined);
     }
   }
 
-  if (created) return <Created created={created} choices={choices} />;
+  if (created) return <Created created={created} code={createdCode} choices={choices} />;
 
   const problem = hostProblem(choices.purpose, choices);
   const privatePages = choices.private && choices.host === "github-pages";
@@ -519,6 +606,43 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
         )}
       </Question>
 
+      <Question title="Where to keep the content">
+        {(Object.keys(CONTENT_PLACES) as ContentPlace[]).map((value) => (
+          <Choice
+            key={value}
+            name={`${id}-content`}
+            value={value}
+            current={choices.content}
+            {...CONTENT_PLACES[value]}
+            onChange={(content) => update({ content })}
+          />
+        ))}
+        {separate && contentBuildsFor(choices.host).length > 1 && (
+          <fieldset className="grid gap-2 pl-6">
+            <legend className="mb-1 font-medium">Which one {HOSTS[choices.host].label} builds the site from</legend>
+            {contentBuildsFor(choices.host).map((value) => (
+              <Choice
+                key={value}
+                name={`${id}-build`}
+                value={value}
+                current={choices.build}
+                {...CONTENT_BUILDS[value]}
+                onChange={(build) => update({ build })}
+              />
+            ))}
+          </fieldset>
+        )}
+        {separate && (
+          <Note>
+            Read{" "}
+            <SiteLink className={link} href="/docs/content-repository">
+              Content in a repository of its own
+            </SiteLink>{" "}
+            first: the code's repository is then a developer's, who adds blocks and looks after updates there.
+          </Note>
+        )}
+      </Question>
+
       <Question title={`Sign in to ${gitName}`}>
         {account ? (
           <p>
@@ -629,12 +753,21 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
           <p className="text-sm text-muted-foreground" aria-live="polite">
             {!validName
               ? "Use letters, numbers, dashes, dots and underscores only."
-              : available === false
-                ? "There's already one with that name."
-                : available
+              : (available === false && !codeCreated) || (separate && contentAvailable === false)
+                ? separate
+                  ? `There's already one called ${available === false && !codeCreated ? name : contentName(name)}.`
+                  : "There's already one with that name."
+                : (available || codeCreated) && (!separate || contentAvailable)
                   ? "That name is free."
                   : "It becomes part of the site's address."}
           </p>
+          {separate && validName && (
+            <p className="text-sm">
+              The code goes in {chosenOwner?.path ?? ""}/{name}, and the content in {chosenOwner?.path ?? ""}/
+              {contentName(name)}
+              {choices.host === "vercel" ? "." : ", which publishes the site, so its address follows that name."}
+            </p>
+          )}
         </Question>
       )}
 
@@ -645,13 +778,25 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
           <button
             type="button"
             className={`${button} justify-self-start`}
-            disabled={busy || !chosenOwner || Boolean(chosenOwner.installUrl) || !validName || available === false}
+            disabled={
+              busy ||
+              !chosenOwner ||
+              Boolean(chosenOwner.installUrl) ||
+              !validName ||
+              (available === false && !codeCreated) ||
+              (separate && contentAvailable === false)
+            }
             onClick={() => void create()}
           >
             Create the site
           </button>
           {step && (
             <p aria-live="polite" className="text-sm">
+              {creating === "code"
+                ? "The code's repository: "
+                : creating === "content"
+                  ? "The content's repository: "
+                  : ""}
               {STEP_LABELS[step]}…
             </p>
           )}
@@ -661,18 +806,55 @@ export function SiteSetupForm({ gitlabClientId }: SiteSetupFormProps) {
   );
 }
 
-function Created({ created, choices }: { created: CreatedSiteRepository; choices: Choices }) {
+function RepoLink({ repo }: { repo: CreatedSiteRepository }) {
+  return (
+    <SiteLink className={link} href={repo.webUrl} target="_blank" rel="noopener noreferrer">
+      {repo.repo}
+    </SiteLink>
+  );
+}
+
+/**
+ * The site that was created. For a site whose content has a repository of its
+ * own, `created` is the content's, which editors sign in to and Pages
+ * publishes, and `code` the code's.
+ */
+function Created({
+  created,
+  code,
+  choices,
+}: {
+  created: CreatedSiteRepository;
+  code?: CreatedSiteRepository;
+  choices: Choices;
+}) {
   const github = choices.git === "github";
+  const separate = code !== undefined;
+  // The repository Vercel is connected to.
+  const vercelRepo = separate && choices.build === "code" ? code : created;
   return (
     <div className="grid gap-4" aria-live="polite">
       <h2 className="font-heading text-2xl font-semibold">Your site has been created</h2>
-      <p>
-        Its files are in{" "}
-        <SiteLink className={link} href={created.webUrl} target="_blank" rel="noopener noreferrer">
-          {created.repo}
-        </SiteLink>
-        .
-      </p>
+      {code ? (
+        <p>
+          Its code is in <RepoLink repo={code} />, and its content in <RepoLink repo={created} />, which editors sign in
+          to.
+        </p>
+      ) : (
+        <p>
+          Its files are in <RepoLink repo={created} />.
+        </p>
+      )}
+      {created.warnings.includes("connect-unavailable") && (
+        <Note tone="warning">
+          The two repositories couldn't be set up to read each other, perhaps because this sign-in can't add deploy keys
+          or secrets. Follow the steps for private repositories in{" "}
+          <SiteLink className={link} href="/docs/content-repository">
+            Content in a repository of its own
+          </SiteLink>
+          , and each setup file's notes.
+        </Note>
+      )}
       {created.signInInstallUrl && (
         <Note>
           The first time you open the site's admin panel, Sign in with GitHub offers to install Goodfellow's sign-in on
@@ -692,8 +874,10 @@ function Created({ created, choices }: { created: CreatedSiteRepository; choices
           <SiteLink className={link} href="https://vercel.com/new" target="_blank" rel="noopener noreferrer">
             vercel.com/new
           </SiteLink>
-          , connect your {github ? "GitHub" : "GitLab"} account if you haven't already, and import {created.repo}. Its
-          settings are already in the site's vercel.ts.
+          , connect your {github ? "GitHub" : "GitLab"} account if you haven't already, and import {vercelRepo.repo}.
+          Its settings are already in its vercel.ts.
+          {separate &&
+            " Then add the Vercel project's deploy hook to the other repository, and a token if they're private, as Content in a repository of its own explains."}
         </Note>
       ) : created.siteUrl ? (
         <p>
@@ -741,6 +925,24 @@ function Created({ created, choices }: { created: CreatedSiteRepository; choices
       )}
       <h3 className="font-heading text-lg font-semibold">Next</h3>
       <ul className="grid list-disc gap-1 pl-5">
+        {code && github && choices.host === "github-pages" && (
+          <li>
+            Changes to the code go live with the content repository's nightly build. To have them go live straight away,
+            add a GOODFELLOW_BUILD_TOKEN secret to {code.repo}, as its update workflow explains.
+          </li>
+        )}
+        {code && github && (
+          <li>
+            Install Goodfellow's sign-in on {code.repo} too, so the admin panel's Updates screen can follow the updates
+            that run there.
+          </li>
+        )}
+        {code && (
+          <li>
+            Developers work on the site as its code's README explains, with the content cloned into its{" "}
+            {CONTENT_REPOSITORY_DIR}/ folder.
+          </li>
+        )}
         {github && (
           <li>
             Delete the token you made for this page, on GitHub's{" "}

@@ -27,7 +27,7 @@ import {
 import { type ApiOptions, gitlabJson, gitlabRequest } from "./api.js";
 import { gitlabEditors } from "./editors.js";
 import { gitlabPages } from "./pages.js";
-import { gitlabUpdates } from "./updates.js";
+import { gitlabCodeUpdates, gitlabUpdates } from "./updates.js";
 
 const PAGE_SIZE = 100;
 
@@ -49,6 +49,8 @@ export interface GitLabBackendOptions {
   revision?: string;
   /** The project holds only the site's content, with its code in a project of its own (`GitBackend.contentOnly`). */
   contentOnly?: boolean;
+  /** The code project, for a project that holds only content, where the site's updates run. */
+  code?: { project: string; webUrl: string };
 }
 
 /**
@@ -89,6 +91,15 @@ export class GitLabBackend implements GitBackend {
       this.updates = gitlabUpdates(this.api, options.project, this.branch, async (path) =>
         this.readAt(path, this.pinned ?? (await this.revision())),
       );
+    } else if (options.code) {
+      const code = options.code;
+      this.updates = gitlabCodeUpdates({
+        api: this.api,
+        project: code.project,
+        webUrl: code.webUrl,
+        open: (branch) =>
+          new GitLabBackend({ api: this.api, project: code.project, branch, user: this.user, onSignOut: () => {} }),
+      });
     }
     this.drafts = branchDrafts(this, this.draftHost());
   }

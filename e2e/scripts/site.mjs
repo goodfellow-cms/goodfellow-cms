@@ -113,7 +113,7 @@ export const builtSites = {
   content: {
     port: 4410,
     importLine: 'import { github } from "@goodfellow-cms/github";',
-    backend: 'github({ repo: "parish/site-content", contentOnly: true })',
+    backend: 'github({ repo: "parish/site-content", contentOnly: true, code: "parish/site" })',
     separate: true,
   },
 };

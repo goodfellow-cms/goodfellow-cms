@@ -1,4 +1,4 @@
-import { SetupError } from "@goodfellow-cms/core";
+import { decodeBase64, SetupError, separateSetupLinks } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
 import { githubSetup } from "./setup.js";
 import { fakeGitHub } from "./testing.js";
@@ -99,5 +99,83 @@ describe("githubSetup", () => {
     const narrow = await host.signInWithToken("narrow");
     await expect(narrow.createSite({ ...site, name: "new-site" })).rejects.toBeInstanceOf(SetupError);
     await expect(narrow.createSite({ ...site, name: "another" })).rejects.toMatchObject({ problem: "not-allowed" });
+  });
+
+  it("connects a site's private code and content repositories with deploy keys and secrets", async () => {
+    const { fake, host } = setup({ repo: "someone/existing", paidPlan: true, tokens: { t: { login: "someone" } } });
+    const account = await host.signInWithToken("t");
+    const owner = (await account.owners())[0];
+    if (!owner) throw new Error("no owner");
+    const base = { owner, private: true, files, message: "Create" };
+    await account.createSite({ ...base, name: "site", pages: false, more: true });
+    const steps: string[] = [];
+    const result = await account.createSite(
+      {
+        ...base,
+        name: "site-content",
+        pages: true,
+        link: {
+          code: "someone/site",
+          content: "someone/site-content",
+          private: true,
+          links: separateSetupLinks({ git: "github", host: "github-pages", build: "content" }),
+        },
+      },
+      (step) => steps.push(step),
+    );
+    // Connected before the files, whose first build reads the code.
+    expect(steps).toEqual(["repository", "pages", "connect", "files", "protection"]);
+    expect(result.warnings).toEqual([]);
+
+    const code = fake.created.get("someone/site");
+    const content = fake.created.get("someone/site-content");
+    if (!code || !content) throw new Error("not created");
+    const keyFor = (privateKey: string | undefined) => {
+      const body = decodeBase64((privateKey ?? "").replace(/-----[^-]+-----|\n/g, ""));
+      return new TextDecoder("latin1").decode(body);
+    };
+    for (const [reader, read, secret] of [
+      [content, code, "GOODFELLOW_CODE_KEY"],
+      [code, content, "GOODFELLOW_CONTENT_KEY"],
+    ] as const) {
+      const [deployKey] = read.deployKeys;
+      expect(deployKey?.read_only).toBe(true);
+      const privateKey = reader.secrets.get(secret);
+      expect(privateKey).toMatch(/^-----BEGIN OPENSSH PRIVATE KEY-----\n/);
+      // The secret is the private half of the deploy key on the repository it reads.
+      const blob = new TextDecoder("latin1").decode(decodeBase64(deployKey?.key.split(" ")[1] ?? ""));
+      expect(keyFor(privateKey)).toContain(blob);
+    }
+  });
+
+  it("warns when the sign-in can't connect the repositories, and leaves public ones as they are", async () => {
+    const { fake, host } = setup({
+      repo: "someone/existing",
+      paidPlan: true,
+      tokens: { t: { login: "someone", secrets: false } },
+    });
+    const account = await host.signInWithToken("t");
+    const owner = (await account.owners())[0];
+    if (!owner) throw new Error("no owner");
+    const link = {
+      code: "someone/site",
+      content: "someone/site-content",
+      private: true,
+      links: separateSetupLinks({ git: "github", host: "github-pages", build: "content" }),
+    };
+    const base = { owner, pages: false, files, message: "Create" };
+    await account.createSite({ ...base, name: "site", private: true });
+    const result = await account.createSite({ ...base, name: "site-content", private: true, link });
+    expect(result.warnings).toContain("connect-unavailable");
+
+    await account.createSite({ ...base, name: "open", private: false });
+    const open = await account.createSite({
+      ...base,
+      name: "open-content",
+      private: false,
+      link: { ...link, code: "someone/open", content: "someone/open-content", private: false },
+    });
+    expect(open.warnings).toEqual([]);
+    expect(fake.created.get("someone/open")?.deployKeys).toEqual([]);
   });
 });

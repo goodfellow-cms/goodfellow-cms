@@ -84,6 +84,7 @@ export async function testSignIn(
       workflows: "write",
       pages: "write",
       actions: "write",
+      secrets: "write",
       metadata: "read",
     } as Record<string, "read" | "write">,
     installations: options.owner ?? [],

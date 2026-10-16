@@ -16,15 +16,28 @@ const kit = await testSignIn({ setupOrigins: ["https://setup.example"] });
 export const editKey = kit.keys.edit;
 const baseEnv: WorkerEnv = kit.env;
 
-export function setup(options: { url?: string; installed?: boolean; env?: Partial<WorkerEnv> } = {}) {
+export function setup(
+  options: {
+    url?: string;
+    installed?: boolean;
+    env?: Partial<WorkerEnv>;
+    /** More of the parish's repositories both apps are installed on, such as the site's code repository. */
+    repositories?: string[];
+    /** The owners' app as it was before it asked for the Secrets permission. */
+    withoutSecrets?: boolean;
+  } = {},
+) {
+  const repositories = ["parish/site", ...(options.repositories ?? [])];
   const editApp: FakeGitHubApp = {
     ...kit.apps.edit,
-    installations: options.installed === false ? [] : [{ id: 11, account: "parish", repositories: ["parish/site"] }],
+    installations: options.installed === false ? [] : [{ id: 11, account: "parish", repositories }],
   };
+  const { secrets: _, ...olderPermissions } = kit.apps.owner.permissions;
   const ownerApp: FakeGitHubApp = {
     ...kit.apps.owner,
+    ...(options.withoutSecrets && { permissions: olderPermissions }),
     installations: [
-      { id: 21, account: "parish", accountType: "Organization", repositories: ["parish/site"] },
+      { id: 21, account: "parish", accountType: "Organization", repositories },
       { id: 22, account: "maria", repositories: [] },
     ],
   };
@@ -84,10 +97,10 @@ export function setup(options: { url?: string; installed?: boolean; env?: Partia
     return { verifier, clientId, back: new URL(callback.headers.get("location") ?? "") };
   }
 
-  async function signIn(login = "maria", purpose = "edit") {
+  async function signIn(login = "maria", purpose = "edit", extra: Record<string, unknown> = {}) {
     const { verifier, back } = await redirect(login, purpose);
     const grant = back.searchParams.get("goodfellow_sign_in");
-    const response = await post("/github/session", { grant, verifier });
+    const response = await post("/github/session", { grant, verifier, ...extra });
     return { response, body: (await response.json()) as Record<string, unknown> & { session: string; token: string } };
   }
 

@@ -1,16 +1,20 @@
 import {
+  type CodeRepository,
   compareReleases,
   GitApiError,
+  type GitBackend,
+  SignInError,
   type SiteUpdates,
   siteVersion,
   type UpdateRun,
   UpdatesError,
 } from "@goodfellow-cms/core";
-import { type ApiOptions, githubJson, githubRequest } from "./api.js";
+import { type ApiOptions, githubJson, githubRequest, repoPath } from "./api.js";
 
 /** The starters' GitHub Pages workflow, which runs `goodfellow update` each night and when it's dispatched. */
 const WORKFLOW = "deploy.yml";
-const WORKFLOW_FILE = `.github/workflows/${WORKFLOW}`;
+/** The code repository's workflow, where a site keeps its content in a repository of its own. */
+const CODE_WORKFLOW = "update.yml";
 
 interface Run {
   id: number;
@@ -43,13 +47,15 @@ export function githubUpdates(
   repo: string,
   branch: string,
   files: Reads,
+  workflow = WORKFLOW,
 ): SiteUpdates {
-  const path = `/repos/${repo}/actions/workflows/${WORKFLOW}`;
+  const path = `/repos/${repo}/actions/workflows/${workflow}`;
+  const workflowFile = `.github/workflows/${workflow}`;
 
   return {
     async setup() {
-      const workflow = await files.read(WORKFLOW_FILE);
-      return workflow?.includes("update --publish") ? "ready" : "missing";
+      const text = await files.read(workflowFile);
+      return text?.includes("update --publish") ? "ready" : "missing";
     },
 
     async lastRun(): Promise<UpdateRun | undefined> {
@@ -96,6 +102,98 @@ export function githubUpdates(
         }
         throw error;
       }
+    },
+  };
+}
+
+/** Whether an error means the sign-in can't see the code repository, or has no token for it. */
+function noAccess(error: unknown): boolean {
+  return (
+    (error instanceof SignInError && error.problem === "no-access") ||
+    (error instanceof GitApiError && (error.status === 403 || error.status === 404))
+  );
+}
+
+export interface CodeUpdatesOptions {
+  /** The code repository, `owner/name`. */
+  repo: string;
+  webUrl: string;
+  /** Reads it, or `undefined` where the sign-in has no token for it. */
+  read: ApiOptions | undefined;
+  /** Runs its workflow: the owner's sign-in, where there is one. */
+  manage: () => ApiOptions | undefined;
+  /** The code repository's files on a branch, read at its newest commit. */
+  open: (api: ApiOptions, branch: string) => Pick<GitBackend, "revision" | "readAt" | "history">;
+}
+
+/**
+ * The nightly update of a site whose content is kept in a repository of its
+ * own, which runs in the code repository's `update.yml`. The sign-in needs to
+ * see the code repository too; where it can't, `setup()` says `no-access`.
+ */
+export function githubCodeUpdates(options: CodeUpdatesOptions): SiteUpdates {
+  const { read } = options;
+  const repo = repoPath(options.repo);
+  let branch: Promise<string> | undefined;
+  const liveBranch = (api: ApiOptions) => {
+    branch ??= githubJson<{ default_branch: string }>(api, `/repos/${repo}`).then((found) => found.default_branch);
+    branch.catch(() => {
+      branch = undefined;
+    });
+    return branch;
+  };
+  /** The code repository at its newest commit, read again each time, since updates change it. */
+  async function files() {
+    if (!read) throw new SignInError("no-access", `This sign-in has no access to ${options.repo}.`);
+    return options.open(read, await liveBranch(read));
+  }
+  /** A file as it is now: setup files are outside the folders backends list, so they're read at the newest commit. */
+  async function readNow(path: string) {
+    const backend = await files();
+    return backend.readAt(path, await backend.revision());
+  }
+  async function updates(): Promise<SiteUpdates> {
+    if (!read) throw new SignInError("no-access", `This sign-in has no access to ${options.repo}.`);
+    const target = await liveBranch(read);
+    return githubUpdates(
+      read,
+      options.manage,
+      repo,
+      target,
+      {
+        read: readNow,
+        readAt: async (path, revision) => (await files()).readAt(path, revision),
+      },
+      CODE_WORKFLOW,
+    );
+  }
+  const code: CodeRepository = {
+    repo: options.repo,
+    webUrl: `${options.webUrl}/${options.repo}`,
+    read: readNow,
+    history: async (path, history) => (await files()).history(path, history),
+    readAt: async (path, revision) => (await files()).readAt(path, revision),
+  };
+  return {
+    code,
+    async setup() {
+      try {
+        return await (await updates()).setup();
+      } catch (error) {
+        if (noAccess(error)) return "no-access";
+        throw error;
+      }
+    },
+    async lastRun() {
+      try {
+        return await (await updates()).lastRun();
+      } catch (error) {
+        if (noAccess(error)) return undefined;
+        throw error;
+      }
+    },
+    async start(target) {
+      await (await updates()).start(target);
     },
   };
 }

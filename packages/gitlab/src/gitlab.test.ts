@@ -1,5 +1,6 @@
 import { CodeChangeError, ConflictError, loadSiteContent, type StorageLike, writeChanges } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
+import { GitLabBackend } from "./backend.js";
 import { type BrowserLocation, gitlab, redirectUri } from "./index.js";
 import { fakeGitLab } from "./testing.js";
 
@@ -516,5 +517,54 @@ describe("on a full-stack site's server", () => {
         expectedRevision: revision,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("updates in a code project of their own", () => {
+  const CODE_CI =
+    "update:\n  script:\n    - npx goodfellow update --publish\nbuild:\n  trigger:\n    project: parish/site-content\n";
+
+  /** The content project's backend, whose updates run in the code project, which the fake serves. */
+  function contentBackend(fake: ReturnType<typeof fakeGitLab>, token = "test-token") {
+    return new GitLabBackend({
+      api: { apiUrl: "https://gitlab.com/api/v4", token: async () => token, canRefresh: false, fetch: fake.fetch },
+      project: "parish/site-content",
+      branch: "main",
+      contentOnly: true,
+      code: { project: "parish/site", webUrl: "https://gitlab.com" },
+      user: { login: "maria" },
+      onSignOut: () => {},
+    });
+  }
+
+  it("follows the code project's update job, and reads the site's release there", async () => {
+    const fake = fakeGitLab({
+      project: "parish/site",
+      files: { ".gitlab-ci.yml": CODE_CI, "package.json": '{"dependencies":{"goodfellow":"0.4.3"}}' },
+      updateJob: "update",
+      tokens: { "test-token": { username: "maria" } },
+    });
+    const updates = contentBackend(fake).updates;
+    if (!updates?.code) throw new Error("No code project");
+    expect(updates.code).toMatchObject({ repo: "parish/site", webUrl: "https://gitlab.com/parish/site" });
+    expect(await updates.code.read("package.json")).toContain("0.4.3");
+    expect(await updates.code.history("package.json")).toHaveLength(1);
+
+    expect(await updates.setup()).toBe("needs-setup");
+    await updates.enable?.();
+    expect(await updates.setup()).toBe("ready");
+    await updates.start("fixes");
+    expect(fake.updateRuns[0]?.variables).toEqual([
+      { key: "GOODFELLOW_UPDATE", variable_type: "env_var", value: "fixes" },
+    ]);
+    fake.addUpdateRun({ trace: 'goodfellow-update {"state":"up-to-date","from":"0.4.3"}\n' });
+    expect(await updates.lastRun()).toMatchObject({ state: "up-to-date" });
+  });
+
+  it("says when the sign-in can't see the code project", async () => {
+    const fake = fakeGitLab({ project: "parish/elsewhere", tokens: { "test-token": { username: "maria" } } });
+    const updates = contentBackend(fake).updates;
+    expect(await updates?.setup()).toBe("no-access");
+    expect(await updates?.lastRun()).toBeUndefined();
   });
 });

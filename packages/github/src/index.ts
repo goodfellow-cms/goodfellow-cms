@@ -51,6 +51,12 @@ export interface GitHubOptions {
    * panel then leaves adding blocks, which changes code, to a developer.
    */
   contentOnly?: boolean;
+  /**
+   * With `contentOnly`, the repository the site's code is kept in, as
+   * `owner/name`, where its updates run: the Updates screen follows them.
+   * On GitHub, Goodfellow's sign-in needs to be installed on it too.
+   */
+  code?: string;
   /** For tests. */
   fetch?: typeof fetch;
   /** For tests. */
@@ -116,7 +122,14 @@ export function github(options: GitHubOptions): GitHost {
   if (!/^[\w.-]+\/[\w.-]+$/.test(options.repo)) {
     throw new Error(`github({ repo }) must look like "owner/name" (got "${options.repo}").`);
   }
+  if (options.code !== undefined && !/^[\w.-]+\/[\w.-]+$/.test(options.code)) {
+    throw new Error(`github({ code }) must look like "owner/name" (got "${options.code}").`);
+  }
   const apiUrl = (options.apiUrl ?? "https://api.github.com").replace(/\/$/, "");
+  const webUrl = (options.webUrl ?? "https://github.com").replace(/\/$/, "");
+  /** The code repository, where the content is in a repository of its own, read with `api`. */
+  const codeRepository = (api: ApiOptions | undefined) =>
+    options.contentOnly && options.code ? { code: { repo: options.code, webUrl, ...(api && { api }) } } : {};
   const links = githubTokenLinks(options.repo, options.webUrl);
   const storage = credentialStorage(`goodfellow:github:${options.repo}`, options.storage);
   const pending = credentialStorage(`goodfellow:github:pending:${options.repo}`, options.storage);
@@ -126,6 +139,9 @@ export function github(options: GitHubOptions): GitHost {
   // Never on this computer: the worker doesn't give tokens there, and `goodfellow dev` doesn't need one.
   const service =
     signInUrl && location && !isLocalAddress(location.href()) ? new SignInService(signInUrl, fetcher) : undefined;
+
+  /** The code repository to ask the worker for a token for, where the Updates screen follows it. */
+  const codeName = () => (options.contentOnly ? options.code : undefined);
 
   function save(value: Saved, remember: boolean): void {
     // Tokens are saved on their own, as they were before sessions with the worker.
@@ -162,8 +178,11 @@ export function github(options: GitHubOptions): GitHost {
   /** Connects with a session from the worker, whose tokens renew themselves. */
   async function connectWorker(issued: IssuedToken, remember: boolean): Promise<GitHubBackend> {
     const worker = service as SignInService;
-    const source = renewingToken(worker, issued, (renewed) =>
-      save({ type: "worker", session: renewed.session }, remember),
+    const source = renewingToken(
+      worker,
+      issued,
+      (renewed) => save({ type: "worker", session: renewed.session }, remember),
+      options.code,
     );
     save({ type: "worker", session: issued.session }, remember);
     const api: ApiOptions = { apiUrl, token: source.token, fetch: fetcher };
@@ -174,12 +193,13 @@ export function github(options: GitHubOptions): GitHost {
       repo: options.repo,
       branch: options.branch ?? repo.default_branch,
       ...(options.contentOnly && { contentOnly: true }),
+      ...codeRepository({ apiUrl, token: source.codeToken, fetch: fetcher }),
       user: { login: user.login, name: user.name, avatarUrl: user.avatarUrl },
       author: { name: user.name || user.login, email: user.email },
       onSignOut: () => {
-        // The worker kept nothing, so forgetting the session is signing out; the token it gave stops working too.
+        // The worker kept nothing, so forgetting the session is signing out; the tokens it gave stop working too.
         storage.clear();
-        revokeToken(source.current().token);
+        revokeIssued(source.current());
       },
       ownerTokenLink: { url: links.owner, label: "owner.token.create" },
       ownerRedirect: (redirectOptions) => redirect("owner", false, redirectOptions),
@@ -191,13 +211,23 @@ export function github(options: GitHubOptions): GitHost {
     void githubRequest({ apiUrl, token, fetch: fetcher }, "/installation/token", { method: "DELETE" }).catch(() => {});
   }
 
+  /** Revokes the tokens the worker gave: the site's, and the code repository's. */
+  function revokeIssued(issued: IssuedToken): void {
+    revokeToken(issued.token);
+    if (issued.code) revokeToken(issued.code.token);
+  }
+
   /** Gives the backend an owner's sign-in that has just come back from GitHub. It's kept in memory only. */
   async function useOwner(backend: GitHubBackend, grant: string, verifier: string): Promise<void> {
     const worker = service as SignInService;
     try {
-      const issued = await worker.session(grant, verifier);
-      const source = renewingToken(worker, issued, () => {});
-      backend.useOwnerSignIn(source.token, () => revokeToken(source.current().token));
+      const issued = await worker.session(grant, verifier, codeName());
+      const source = renewingToken(worker, issued, () => {}, codeName());
+      backend.useOwnerSignIn(
+        source.token,
+        () => revokeIssued(source.current()),
+        codeName() ? source.codeToken : undefined,
+      );
     } catch (error) {
       backend.ownerSignInFailed(error);
     }
@@ -229,7 +259,7 @@ export function github(options: GitHubOptions): GitHost {
       return backend;
     }
     if (failed || !grant) throw signInProblem({ problem: failed });
-    return connectWorker(await service.session(grant, redirect.verifier), redirect.remember);
+    return connectWorker(await service.session(grant, redirect.verifier, codeName()), redirect.remember);
   }
 
   async function restoreSaved(): Promise<GitHubBackend | null> {
@@ -241,7 +271,7 @@ export function github(options: GitHubOptions): GitHost {
         storage.clear();
         return null;
       }
-      return await connectWorker(await service.token(saved.session), storage.remembered());
+      return await connectWorker(await service.token(saved.session, codeName()), storage.remembered());
     } catch (error) {
       if (forgets(error)) storage.clear();
       throw error;
@@ -271,6 +301,8 @@ export function github(options: GitHubOptions): GitHost {
       repo: options.repo,
       branch: options.branch ?? repo.default_branch,
       ...(options.contentOnly && { contentOnly: true }),
+      // A token someone made themselves may reach the code repository too; the Updates screen says if it doesn't.
+      ...codeRepository(api),
       user: { login: user.login, name: user.name ?? undefined, avatarUrl: user.avatar_url },
       onSignOut: () => storage.clear(),
       ownerTokenLink: { url: links.owner, label: "owner.token.create" },

@@ -8,6 +8,7 @@ import {
   writeChanges,
 } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
+import { GitHubBackend } from "./backend.js";
 import { github, githubTokenLinks } from "./index.js";
 import { fakeGitHub } from "./testing.js";
 
@@ -360,6 +361,77 @@ describe("updates", () => {
 
     fake.runs.push(run("failure"));
     expect(await updates.lastRun()).toMatchObject({ state: "failed" });
+  });
+});
+
+describe("updates in a code repository of their own", () => {
+  const packageJson = (version: string) => JSON.stringify({ dependencies: { "@goodfellow-cms/react": version } });
+
+  /** The content repository's backend, whose updates run in the code repository, which the fake serves. */
+  function contentBackend(fake: ReturnType<typeof fakeGitHub>, token?: string) {
+    const api = (value: string) => ({ apiUrl: "https://api.github.com", token: value, fetch: fake.fetch });
+    return new GitHubBackend({
+      api: api("test-token"),
+      repo: "parish/site-content",
+      branch: "main",
+      contentOnly: true,
+      code: { repo: "parish/site", webUrl: "https://github.com", ...(token && { api: api(token) }) },
+      user: { login: "maria" },
+      onSignOut: () => {},
+      ownerTokenLink: { url: "https://github.com/settings/personal-access-tokens/new", label: "owner.token.create" },
+    });
+  }
+
+  it("follows the code repository's update workflow, and reads the site's release there", async () => {
+    const fake = fakeGitHub({
+      repo: "parish/site",
+      files: {
+        "package.json": packageJson("0.4.1"),
+        ".github/workflows/update.yml": "run: npx goodfellow update --publish",
+      },
+      tokens: { "test-token": { login: "maria" }, owner: { login: "maria", admin: true, administration: true } },
+    });
+    const backend = contentBackend(fake, "test-token");
+    const updates = backend.updates;
+    if (!updates?.code) throw new Error("No code repository");
+    expect(updates.code).toMatchObject({ repo: "parish/site", webUrl: "https://github.com/parish/site" });
+    expect(await updates.code.read("package.json")).toBe(packageJson("0.4.1"));
+    expect(await updates.setup()).toBe("ready");
+
+    await expect(updates.start("fixes")).rejects.toMatchObject({ problem: "not-allowed" });
+    backend.useOwnerSignIn(
+      async () => "owner",
+      () => {},
+      async () => "owner",
+    );
+    await updates.start("0.5.0");
+    expect(fake.runs.at(-1)).toMatchObject({
+      event: "workflow_dispatch",
+      inputs: { update: "0.5.0" },
+      path: ".github/workflows/update.yml",
+    });
+    expect(await updates.lastRun()).toMatchObject({ state: "running" });
+
+    fake.runs.push({
+      id: fake.runs.length + 1,
+      sha: fake.repo.head(),
+      event: "schedule",
+      status: "completed",
+      conclusion: "success",
+      path: ".github/workflows/update.yml",
+      jobs: [{ name: "update", conclusion: "success", steps: [] }],
+    });
+    fake.repo.write("package.json", packageJson("0.4.3"), "Update Goodfellow to 0.4.3", "Goodfellow updates");
+    expect(await updates.lastRun()).toMatchObject({ state: "updated", result: { from: "0.4.1", to: "0.4.3" } });
+    // The site's release changed in the code repository, which is read again each time.
+    expect(await updates.code.read("package.json")).toBe(packageJson("0.4.3"));
+  });
+
+  it("says when the sign-in has no token for the code repository", async () => {
+    const fake = fakeGitHub({ repo: "parish/site" });
+    const updates = contentBackend(fake).updates;
+    expect(await updates?.setup()).toBe("no-access");
+    expect(await updates?.lastRun()).toBeUndefined();
   });
 });
 
