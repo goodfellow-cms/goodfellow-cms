@@ -20,6 +20,8 @@ Each night, the site's build on GitHub Pages or GitLab Pages first runs `goodfel
 
 The rest of the build then puts the site online as usual, with the update if it worked.
 
+Where the site's [content is kept in a repository of its own](/docs/content-repository), updates run in the code's repository instead, and the Updates screen only says so.
+
 ## The Updates screen
 
 - **Fixes:** when fixes are ready, **Install fixes now** installs them without waiting for the night.

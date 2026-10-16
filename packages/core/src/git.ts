@@ -67,6 +67,12 @@ export interface GitBackend extends ContentStore {
   readonly updates?: SiteUpdates;
   /** Changes kept on a branch of their own until they're published or submitted for review. Absent where the backend can't. */
   readonly drafts?: SiteDrafts;
+  /**
+   * Whether the repository holds only the site's content (`content/` and
+   * `public/media/`), with its code in a repository of its own. Writes to
+   * anything else throw `CodeChangeError`, so blocks are added by a developer.
+   */
+  readonly contentOnly?: boolean;
   /** Forgets the saved sign-in. */
   signOut(): void;
 }
@@ -128,6 +134,8 @@ export interface ServerGitOptions {
 
 /** The site's repository as a full-stack site's server reaches it: one token, for every editor. */
 export interface ServerGit {
+  /** Whether the repository holds only the site's content, as `GitBackend.contentOnly`. */
+  readonly contentOnly?: boolean;
   /** The newest revision of the live branch. */
   revision(): Promise<string>;
   /**

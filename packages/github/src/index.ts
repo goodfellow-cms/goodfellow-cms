@@ -45,6 +45,12 @@ export interface GitHubOptions {
    * address of your own copy, or `false` for token sign-in only.
    */
   signIn?: string | false;
+  /**
+   * The repository holds only the site's content (`content/` and
+   * `public/media/`), and its code is in a repository of its own. The admin
+   * panel then leaves adding blocks, which changes code, to a developer.
+   */
+  contentOnly?: boolean;
   /** For tests. */
   fetch?: typeof fetch;
   /** For tests. */
@@ -167,6 +173,7 @@ export function github(options: GitHubOptions): GitHost {
       api,
       repo: options.repo,
       branch: options.branch ?? repo.default_branch,
+      ...(options.contentOnly && { contentOnly: true }),
       user: { login: user.login, name: user.name, avatarUrl: user.avatarUrl },
       author: { name: user.name || user.login, email: user.email },
       onSignOut: () => {
@@ -263,6 +270,7 @@ export function github(options: GitHubOptions): GitHost {
       api,
       repo: options.repo,
       branch: options.branch ?? repo.default_branch,
+      ...(options.contentOnly && { contentOnly: true }),
       user: { login: user.login, name: user.name ?? undefined, avatarUrl: user.avatar_url },
       onSignOut: () => storage.clear(),
       ownerTokenLink: { url: links.owner, label: "owner.token.create" },
@@ -293,6 +301,7 @@ export function github(options: GitHubOptions): GitHost {
         api,
         repo: options.repo,
         branch: await liveBranch(),
+        ...(options.contentOnly && { contentOnly: true }),
         user: { login: author?.name ?? options.repo, ...(author && { name: author.name }) },
         onSignOut: () => {},
         ownerTokenLink: { url: links.owner, label: "owner.token.create" },
@@ -300,6 +309,7 @@ export function github(options: GitHubOptions): GitHost {
         ...(author && { author }),
       });
     return {
+      ...(options.contentOnly && { contentOnly: true }),
       async revision() {
         return (await backend()).revision();
       },

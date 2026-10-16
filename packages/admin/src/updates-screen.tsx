@@ -67,7 +67,7 @@ async function previousRelease(
 /** The site's Goodfellow release, the fixes and releases it can update to, and its nightly update job. */
 export function UpdatesScreen() {
   const t = useStrings();
-  const { updates, demo } = useAdmin();
+  const { updates, demo, contentOnly } = useAdmin();
 
   return (
     <div className="gfa-screen">
@@ -77,7 +77,15 @@ export function UpdatesScreen() {
       <SettingsTabs tab="updates" />
       <div className="gfa-form">
         <p>{t("updates.intro")}</p>
-        {demo ? <p>{t("updates.demo")}</p> : updates ? <UpdatesPanel /> : <p>{t("updates.local")}</p>}
+        {demo ? (
+          <p>{t("updates.demo")}</p>
+        ) : contentOnly ? (
+          <p>{t("updates.contentOnly")}</p>
+        ) : updates ? (
+          <UpdatesPanel />
+        ) : (
+          <p>{t("updates.local")}</p>
+        )}
       </div>
     </div>
   );

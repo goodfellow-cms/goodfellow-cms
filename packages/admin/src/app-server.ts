@@ -76,6 +76,7 @@ export function appServer(api: string) {
       const at = async () => pinned ?? (await revision());
       return {
         user: session.user,
+        ...(session.contentOnly && { contentOnly: true }),
         revision,
         async read(path) {
           const response = await request("file", { query: { path, revision: await at() }, missingIsFine: true });

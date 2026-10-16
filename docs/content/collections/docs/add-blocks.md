@@ -21,6 +21,8 @@ The admin panel's **Blocks** screen adds more blocks to the editor, from Goodfel
 | Image carousel | Pictures shown one at a time, with buttons to move between them |
 | Custom HTML | HTML written by hand, such as a widget's embed code. It's made safe (scripts, styles, frames and forms left out) unless you choose to use it exactly as written |
 
+Sites whose [content is kept apart from their code](/docs/content-repository) have no Blocks screen, since adding a block changes the code: their developer adds blocks.
+
 ## Adding a block
 
 **Add** and **Remove** mark blocks to add or remove; **Publish** then makes every change in one save, and **Discard changes** forgets them. Publishing writes each added block's code into the site's repository, as a developer running `npx shadcn add` would: the block goes in `blocks/installed/`, and the shadcn components it uses in `components/ui/`. The editor offers it once the site has been rebuilt, a minute or two after publishing. Like the built-in blocks, these use the site's colors, fonts and corner rounding.

@@ -8,8 +8,13 @@ import {
   type Backend,
   BLOCK_CHOICES,
   type BlockChoice,
+  CONTENT_BUILDS,
+  CONTENT_REPOSITORY_DIR,
   type CommitResult,
+  type ContentBuild,
   commitAll,
+  contentBuildsFor,
+  contentRepositoryDir,
   type GitResult,
   HOSTS,
   type Host,
@@ -18,6 +23,7 @@ import {
   installPackages,
   parseRepo,
   ScaffoldError,
+  type SeparateContent,
   scaffold,
   TEMPLATES,
   type TemplateName,
@@ -33,6 +39,10 @@ Options:
   --github <repo>     The GitHub repository the site will be stored in, such as your-name/your-site
   --gitlab <project>  The GitLab project the site will be stored in, such as your-group/your-site
   --host <host>       github-pages, gitlab-pages or vercel. Keeps only that host's setup file.
+  --content <repo>    Keeps the site's content in a repository of its own, such as
+                      your-name/your-site-content; --github or --gitlab is then the code's
+  --build <where>     With --content on Vercel: content (the default) or code, the
+                      repository Vercel builds the site from
   --blocks <choice>   recommended (the default) to add the recommended blocks, or built-in for Goodfellow's own only
   --no-install        Don't run npm install
   --no-git            Don't make the site a git repository, or commit it
@@ -117,6 +127,8 @@ async function main(): Promise<void> {
       gitlab: { type: "string" },
       host: { type: "string" },
       blocks: { type: "string" },
+      content: { type: "string" },
+      build: { type: "string" },
       "no-git": { type: "boolean" },
       "no-install": { type: "boolean" },
       yes: { type: "boolean", short: "y" },
@@ -142,6 +154,11 @@ async function main(): Promise<void> {
   if (blocks !== undefined && !(blocks in BLOCK_CHOICES)) {
     throw new ScaffoldError(`--blocks takes ${Object.keys(BLOCK_CHOICES).join(" or ")}.`);
   }
+  let build = values.build;
+  if (build !== undefined && !Object.hasOwn(CONTENT_BUILDS, build)) {
+    throw new ScaffoldError(`--build takes ${Object.keys(CONTENT_BUILDS).join(" or ")}.`);
+  }
+  let contentRepo = values.content;
 
   if (stdin.isTTY && !values.yes) {
     if (!folder) folder = (await ask("Folder for the new site (my-site): ")).trim() || "my-site";
@@ -167,6 +184,25 @@ async function main(): Promise<void> {
       if (storage && repo) backend = { host: storage, repo };
     }
     host ??= await chooseHost(storage);
+    if (backend && host && contentRepo === undefined) {
+      const separate = await choose("Where should the site's content be kept?", [
+        { value: false, label: "With the code", note: "One repository for everything." },
+        {
+          value: true,
+          label: "In a repository of its own",
+          note: "Editors can change the content but never the code. For organizations with a developer.",
+        },
+      ]);
+      if (separate) contentRepo = await askContentRepo(backend);
+    }
+    if (contentRepo !== undefined && host && build === undefined && contentBuildsFor(host as Host).length > 1) {
+      build = await choose(
+        `Which repository should ${HOSTS[host as Host].label} build the site from?`,
+        contentBuildsFor(host as Host)
+          .toReversed()
+          .map((value) => ({ value, label: CONTENT_BUILDS[value].label, note: CONTENT_BUILDS[value].description })),
+      );
+    }
     blocks ??= await choose(
       "Which blocks should the editor offer to start with?",
       Object.entries(BLOCK_CHOICES).map(([value, { label, description }]) => ({
@@ -184,6 +220,8 @@ async function main(): Promise<void> {
     throw new ScaffoldError(`${HOSTS[host as Host].label} can't serve a site stored on ${HOST_NAMES[backend.host]}.`);
   }
 
+  const content = contentRepo === undefined ? undefined : separateContent(contentRepo, build, backend, host);
+
   const target = resolve(folder);
   const versions = JSON.parse(readFileSync(join(templatesDir, "versions.json"), "utf8")) as Record<string, string>;
   await scaffold({
@@ -193,8 +231,16 @@ async function main(): Promise<void> {
     ...(backend && { backend }),
     ...(host && { host: host as Host }),
     ...((blocks ?? "recommended") === "recommended" && { registryDir: join(templatesDir, "registry") }),
+    ...(content && { content }),
   });
 
+  // The content repository first: inside the code's repository, git would count it as part of it.
+  const contentDir = contentRepositoryDir(target);
+  const contentGit =
+    content && backend && !values["no-git"]
+      ? initGitRepository(contentDir, { host: backend.host, repo: content.repo })
+      : undefined;
+  const contentCommit = contentGit?.created ? commitAll(contentDir, "Create the site's content") : undefined;
   const git = values["no-git"] ? undefined : initGitRepository(target, backend);
   let installed = false;
   if (!values["no-install"]) {
@@ -211,6 +257,7 @@ async function main(): Promise<void> {
     "",
     `Created a new site in ${where}.`,
     ...(git ? gitLines(git, commit, installed) : []),
+    ...(content ? contentLines(content, contentGit, contentCommit) : []),
     ...(!installed && !values["no-install"]
       ? ["npm install didn't finish, so run it again in the site's folder."]
       : []),
@@ -226,6 +273,68 @@ async function main(): Promise<void> {
     lines.push("Before you do, say where the site is stored in goodfellow.config.tsx; README.md shows how.");
   }
   stdout.write(`${lines.join("\n")}\n`);
+}
+
+/** Asks for the content repository, offering the code's with `-content` after it. */
+async function askContentRepo(backend: Backend): Promise<string> {
+  const suggested = `${backend.repo}-content`;
+  for (;;) {
+    const answer = (
+      await ask(
+        `\nThe ${HOST_NAMES[backend.host]} ${backend.host === "github" ? "repository" : "project"} for the content (${suggested}): `,
+      )
+    ).trim();
+    if (answer === "") return suggested;
+    const repo = parseRepo(backend.host, answer);
+    if (repo && repo !== backend.repo) return repo;
+    stdout.write(
+      repo
+        ? "The content needs a repository of its own, not the code's.\n"
+        : `That doesn't look like a ${HOST_NAMES[backend.host]} address. Type it as ${suggested}.\n`,
+    );
+  }
+}
+
+/** The content repository as the options or answers gave it, checked against the rest. */
+function separateContent(
+  repo: string,
+  build: string | undefined,
+  backend: Backend | undefined,
+  host: string | undefined,
+): SeparateContent {
+  if (!backend || !host) {
+    throw new ScaffoldError(
+      "Keeping the content in a repository of its own needs the code's repository (--github or --gitlab) and a host (--host).",
+    );
+  }
+  const parsed = parseRepo(backend.host, repo);
+  if (!parsed || parsed === backend.repo) {
+    throw new ScaffoldError(
+      "--content takes a repository of its own for the content, such as your-name/your-site-content.",
+    );
+  }
+  const builds = contentBuildsFor(host as Host);
+  const chosen = (build ?? builds.at(-1)) as ContentBuild;
+  if (!builds.includes(chosen)) {
+    throw new ScaffoldError(`${HOSTS[host as Host].label} can only build the site from the content repository.`);
+  }
+  return { repo: parsed, build: chosen };
+}
+
+/** Where the content went, and what's left to do with it. */
+function contentLines(
+  content: SeparateContent,
+  git: GitResult | undefined,
+  commit: CommitResult | undefined,
+): string[] {
+  const lines = [
+    `Its content is in ${CONTENT_REPOSITORY_DIR}/, which content/ and public/media/ link to: a repository of its own for ${content.repo}, which the site's repository ignores.`,
+  ];
+  if (git?.created && commit === "committed")
+    lines.push(`${CONTENT_REPOSITORY_DIR}/ has its content in its first commit.`);
+  else if (git?.created) lines.push(`Commit everything in ${CONTENT_REPOSITORY_DIR}/ as well.`);
+  lines.push("Push both repositories. README.md says what each needs to build the site.");
+  return lines;
 }
 
 /** What happened with git, and what's left to do. */

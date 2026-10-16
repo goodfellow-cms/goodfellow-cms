@@ -39,6 +39,7 @@ body:
         - Publishing, or signing in to GitHub or GitLab
         - Sign in with GitHub (the sign-in service)
         - Building or putting the site online
+        - Keeping the content in a repository of its own
         - Connecting a domain
         - Version history
         - Inviting or removing editors

@@ -4,24 +4,32 @@ import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import {
   type Backend,
   BUNDLED_GITIGNORE,
+  CONTENT_REPOSITORY_DIR,
   GOODFELLOW_REGISTRY,
   type Host,
   planSite,
+  type SeparateContent,
   type SetupRegistry,
   type SiteFiles,
   sitePackageName,
 } from "@goodfellow-cms/core";
+import { setUpContentRepository } from "@goodfellow-cms/core/node";
 
 export {
   type Backend,
   BLOCK_CHOICES,
   type BlockChoice,
   BUNDLED_GITIGNORE,
+  CONTENT_BUILDS,
+  CONTENT_REPOSITORY_DIR,
+  type ContentBuild,
   configureBackend,
+  contentBuildsFor,
   HOSTS,
   type Host,
   hostsFor,
   parseRepo,
+  type SeparateContent,
   sitePackageJson,
   TEMPLATES,
   type TemplateName,
@@ -95,6 +103,12 @@ export interface ScaffoldOptions {
   host?: Host;
   /** The built block registry to install recommended blocks from. Without it, the site has the built-in blocks only. */
   registryDir?: string;
+  /**
+   * Keeps the content in a repository of its own, in the site's
+   * `content-repository/` folder, which `content/` and `public/media/` link to.
+   * `backend` is then the code's repository.
+   */
+  content?: SeparateContent;
 }
 
 async function isEmptyFolder(path: string): Promise<boolean> {
@@ -169,6 +183,7 @@ export async function scaffold({
   backend,
   host,
   registryDir,
+  content,
 }: ScaffoldOptions): Promise<void> {
   if (!(await isEmptyFolder(target))) {
     throw new ScaffoldError(`The folder ${target} already has files in it. Choose a new folder for the site.`);
@@ -180,10 +195,18 @@ export async function scaffold({
     backend,
     host,
     registry: registryDir ? localRegistry(registryDir) : undefined,
+    content,
   });
   await mkdir(target, { recursive: true });
   for (const [path, file] of files) {
     await mkdir(dirname(join(target, path)), { recursive: true });
     await writeFile(join(target, path), file);
   }
+  // So `npm run dev` reads and saves the content repository's own files.
+  if (content) await setUpContentRepository(target);
+}
+
+/** The content repository's folder, inside the site's. */
+export function contentRepositoryDir(target: string): string {
+  return join(target, CONTENT_REPOSITORY_DIR);
 }

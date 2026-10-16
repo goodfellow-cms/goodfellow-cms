@@ -48,6 +48,8 @@ export type AppSession =
       signOut?: string;
       /** The AI services the site's server has keys for. */
       ai: string[];
+      /** The site's repository holds only its content, as `GitBackend.contentOnly`. */
+      contentOnly?: boolean;
     }
   | {
       signedIn: false;

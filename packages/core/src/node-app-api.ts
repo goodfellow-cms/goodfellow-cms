@@ -8,6 +8,7 @@ import {
   type FileChange,
   GitApiError,
   type GitBackend,
+  isContentPath,
   isEditablePath,
   isSettingsPath,
   type ServerGit,
@@ -148,6 +149,7 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       user: { login: editor.login, name: editor.name, ...(editor.avatarUrl && { avatarUrl: editor.avatarUrl }) },
       role: editor.role,
       ai: options.ai?.services ?? [],
+      ...(options.git.contentOnly && { contentOnly: true }),
       ...signOut,
     } satisfies AppSession);
   }
@@ -203,6 +205,10 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       // Checked here, whatever the admin panel shows: the browser can't be trusted to leave settings alone.
       if (editor.role !== "owner" && changes.some((change) => isSettingsPath(change.path))) {
         return json(403, { error: "owners-only" });
+      }
+      // A repository of content only never gets code, such as an installed block's.
+      if (options.git.contentOnly && changes.some((change) => !isContentPath(change.path))) {
+        throw new BadRequest("The site's code is kept in a repository of its own.");
       }
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
       return json(200, await backend.write(changes, { message, expectedRevision }));

@@ -39,6 +39,12 @@ export interface GitLabOptions {
    * one-click "Sign in with GitLab". Without it, people sign in with a token.
    */
   clientId?: string;
+  /**
+   * The project holds only the site's content (`content/` and
+   * `public/media/`), and its code is in a project of its own. The admin
+   * panel then leaves adding blocks, which changes code, to a developer.
+   */
+  contentOnly?: boolean;
   /** For tests. */
   fetch?: typeof fetch;
   /** For tests. */
@@ -137,6 +143,7 @@ export function gitlab(options: GitLabOptions): GitHost {
       api,
       project: options.project,
       branch: options.branch ?? project.default_branch,
+      ...(options.contentOnly && { contentOnly: true }),
       user: { login: user.username, name: user.name, avatarUrl: user.avatar_url },
       onSignOut: () => storage.clear(),
     });
@@ -199,12 +206,14 @@ export function gitlab(options: GitLabOptions): GitHost {
         api,
         project: options.project,
         branch: await liveBranch(),
+        ...(options.contentOnly && { contentOnly: true }),
         user: { login: author?.name ?? options.project, ...(author && { name: author.name }) },
         onSignOut: () => {},
         ...(revision && { revision }),
         ...(author && { author }),
       });
     return {
+      ...(options.contentOnly && { contentOnly: true }),
       async revision() {
         return (await backend()).revision();
       },

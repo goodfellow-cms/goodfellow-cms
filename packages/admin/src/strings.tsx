@@ -359,6 +359,9 @@ export const defaultStrings = {
   "demo.startOver": "Start over",
   "demo.startOverTitle": "Start over?",
   "demo.startOverBody": "Everything you've changed in this demo, including uploads, will be undone.",
+  "blocks.contentOnly": "This site's blocks are added by its developer.",
+  "blocks.contentOnlyHint":
+    "Its code is kept apart from its content, so adding or removing a block is done where the code is, and shows up here once the site has been rebuilt.",
   "blocks.demo":
     "In this demo you can see which blocks there are, but not add or remove them: a block is added to a real site by updating its code.",
 
@@ -622,6 +625,8 @@ export const defaultStrings = {
   "settings.tab.updates": "Updates",
   "updates.intro":
     "Goodfellow, the software the site runs on, gets fixes and new releases. Fixes install on their own each night, and only once the site has been checked to still build with them.",
+  "updates.contentOnly":
+    "This site's code is kept apart from its content, so Goodfellow's updates are installed where the code is, by the site's own setup or its developer.",
   "updates.local": "Updates are shown in the published site's admin panel, where you sign in with GitHub or GitLab.",
   "updates.demo": "Updates aren't installed in a demo.",
   "updates.loading": "Checking for updates…",

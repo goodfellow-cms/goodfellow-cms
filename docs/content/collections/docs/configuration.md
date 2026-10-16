@@ -45,6 +45,7 @@ github({ repo: "owner/name", branch: "main" })
 - `repo`: the repository, as `owner/name`.
 - `branch`: the branch the live site is built from. Defaults to the repository's default branch.
 - `signIn`: the [sign-in service](/docs/sign-in-service) for **Sign in with GitHub**. Defaults to Goodfellow's; give your own copy's address, or `false` for signing in with tokens only.
+- `contentOnly`: `true` where the repository holds only the site's content, with its code in a repository of its own (see [Content in a repository of its own](/docs/content-repository)).
 - `apiUrl`, `webUrl`: for GitHub Enterprise.
 
 ## GitLab
@@ -56,6 +57,7 @@ gitlab({ project: "group/site", clientId: "…" })
 - `project`: the project's path, such as `group/site` or `group/subgroup/site`.
 - `clientId`: the Application ID of the site's OAuth application, for one-click **Sign in with GitLab**. Without it, editors sign in with a token.
 - `branch`: the branch the live site is built from.
+- `contentOnly`: `true` where the project holds only the site's content, as for GitHub.
 - `url`: for self-managed GitLab. Defaults to `https://gitlab.com`.
 
 ## AI services

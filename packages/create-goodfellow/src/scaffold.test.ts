@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -135,6 +135,56 @@ describe("scaffold", () => {
     expect(existsSync(join(target, ".gitlab-ci.yml"))).toBe(true);
     expect(existsSync(join(target, "vercel.ts"))).toBe(false);
     expect(existsSync(join(target, ".github"))).toBe(false);
+  });
+
+  it("keeps the content in a repository of its own, which the code ignores and links to", async () => {
+    const target = join(dir, "site");
+    await scaffold({
+      template: starter,
+      target,
+      versions,
+      backend: { host: "github", repo: "parish/site" },
+      host: "github-pages",
+      content: { repo: "parish/site-content", build: "content" },
+    });
+    expect(await readFile(join(target, "goodfellow.config.tsx"), "utf8")).toContain(
+      '  backend: github({ repo: "parish/site-content", contentOnly: true }),',
+    );
+    // The content is the content repository's, through links, as `npm run dev` reads it.
+    expect((await lstat(join(target, "content"))).isSymbolicLink()).toBe(true);
+    expect(await readFile(join(target, "content/site.json"), "utf8")).toBe(
+      await readFile(join(target, "content-repository/content/site.json"), "utf8"),
+    );
+    expect(existsSync(join(target, "public/media/logo.svg"))).toBe(true);
+    expect(existsSync(join(target, "content-repository/.github/workflows/deploy.yml"))).toBe(true);
+    expect(existsSync(join(target, ".github/workflows/update.yml"))).toBe(true);
+    expect(existsSync(join(target, ".github/workflows/deploy.yml"))).toBe(false);
+
+    for (const [name, value] of Object.entries({
+      GIT_AUTHOR_NAME: "Test",
+      GIT_AUTHOR_EMAIL: "test@example.org",
+      GIT_COMMITTER_NAME: "Test",
+      GIT_COMMITTER_EMAIL: "test@example.org",
+    })) {
+      vi.stubEnv(name, value);
+    }
+    try {
+      // The content repository first, then the code's, which leaves it and the links out.
+      const content = join(target, "content-repository");
+      expect(initGitRepository(content, { host: "github", repo: "parish/site-content" })).toMatchObject({
+        created: true,
+      });
+      expect(commitAll(content, "Create the site's content")).toBe("committed");
+      expect(initGitRepository(target, { host: "github", repo: "parish/site" })).toMatchObject({ created: true });
+      expect(commitAll(target, "Create the site")).toBe("committed");
+      const files = (cwd: string) => execFileSync("git", ["ls-files"], { cwd, encoding: "utf8" }).trim().split("\n");
+      const code = files(target);
+      expect(code).toContain("goodfellow.config.tsx");
+      expect(code.filter((path) => /^(content|public\/media|content-repository)(\/|$)/.test(path))).toEqual([]);
+      expect(files(content)).toContain("content/site.json");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("won't write into a folder that already has files", async () => {

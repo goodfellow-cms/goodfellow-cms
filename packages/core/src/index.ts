@@ -165,6 +165,7 @@ export {
   COLLECTIONS_DIR,
   COMPONENTS_DIR,
   CONTENT_DIR,
+  CONTENT_REPOSITORY_DIR,
   CUSTOM_CSS_FILE,
   collectionSettingsFile,
   entryAddress,
@@ -257,14 +258,28 @@ export {
   withPages,
 } from "./content/site-pages.js";
 export {
+  assertContentChanges,
+  CONTENT_FOLDERS,
+  CodeChangeError,
   ConflictError,
   type ContentStore,
   EDITABLE_FOLDERS,
   type FileChange,
+  isContentPath,
   isEditablePath,
   type WriteOptions,
   writeChanges,
 } from "./content/store.js";
+export {
+  CONTENT_BUILDS,
+  type ContentBuild,
+  contentBuildsFor,
+  REBUILD_JOB,
+  type SeparateContent,
+  type SeparateSetup,
+  type SeparateSetupFiles,
+  separateSetupFiles,
+} from "./content-repository-setup.js";
 export {
   DEMO_CONTENT_PATH,
   type DemoChanges,

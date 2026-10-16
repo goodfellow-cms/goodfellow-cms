@@ -22,6 +22,8 @@ export interface FakeGitLabOptions {
   oauth?: { clientId: string; user: FakeGitLabUser; expiresIn?: number };
   /** Simulates a GitLab Pages pipeline that succeeds after being checked this many times. Off by default. */
   deployAfterChecks?: number;
+  /** The job each published commit's pipeline runs: `pages` by default. */
+  deployJob?: string;
   /** Groups the users belong to, which new projects can be created in. */
   groups?: string[];
   /** Publishes the site with GitLab Pages. Off by default. */
@@ -742,7 +744,11 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       pipeline.checks += 1;
       const done = pipeline.checks > (options.deployAfterChecks ?? 0);
       return json([
-        { name: "pages", status: done ? "success" : "running", target_url: `${webUrl}/${options.project}/-/jobs/1` },
+        {
+          name: options.deployJob ?? "pages",
+          status: done ? "success" : "running",
+          target_url: `${webUrl}/${options.project}/-/jobs/1`,
+        },
       ]);
     }
 

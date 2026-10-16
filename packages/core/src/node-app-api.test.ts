@@ -65,13 +65,13 @@ function fakeServerGit(repo: FakeRepo) {
 const ALICE: AppEditor = { login: "alice", name: "Alice Editor", email: "alice@example.org", role: "editor" };
 const OWEN: AppEditor = { ...ALICE, login: "owen", name: "Owen Owner", email: "owen@example.org", role: "owner" };
 
-function setup(editor: AppEditor | null | false = ALICE) {
+function setup(editor: AppEditor | null | false = ALICE, { contentOnly = false } = {}) {
   const repo = new FakeRepo(FILES);
   const server = fakeServerGit(repo);
   const errors: unknown[] = [];
   let signedIn = editor;
   const api = appApi({
-    git: server.git,
+    git: contentOnly ? { ...server.git, contentOnly } : server.git,
     authorize: () => signedIn,
     signIn: "/sign-in?next=/admin/",
     signOut: "/sign-out",
@@ -120,6 +120,25 @@ describe("appApi", () => {
     });
     signIn(false);
     expect(await (await call("session")).json()).toMatchObject({ signedIn: false, notAllowed: true });
+  });
+
+  it("never writes code to a repository that holds only the site's content", async () => {
+    const { call, post, repo } = setup(OWEN, { contentOnly: true });
+    expect(await (await call("session")).json()).toMatchObject({ signedIn: true, contentOnly: true });
+    const response = await post("write", {
+      changes: [{ path: "blocks/installed/index.ts", content: "export {};" }],
+      message: "Add a block",
+      expectedRevision: repo.head(),
+    });
+    expect(response.status).toBe(400);
+    expect(repo.files(repo.head()).has("blocks/installed/index.ts")).toBe(false);
+
+    const saved = await post("write", {
+      changes: [{ path: "content/pages/about.json", content: "{}" }],
+      message: "Add About",
+      expectedRevision: repo.head(),
+    });
+    expect(saved.status).toBe(200);
   });
 
   it("answers nothing else to people who aren't signed in or allowed", async () => {

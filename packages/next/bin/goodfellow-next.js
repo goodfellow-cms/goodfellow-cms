@@ -2,10 +2,13 @@
 // After `next build`: `goodfellow-next finish out` fixes the export's prefetch files on Windows,
 // writes the calendar files of collections of events and the pages at redirects' old addresses, and the search index for sites with a search block. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
+// `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
+// content is kept in a repository of its own.
 import { rm } from "node:fs/promises";
+import { relative } from "node:path";
 import { parseArgs } from "node:util";
 import { formatUpdateResult } from "@goodfellow-cms/core";
-import { update } from "@goodfellow-cms/core/node";
+import { ContentRepositoryError, setUpContentRepository, update } from "@goodfellow-cms/core/node";
 import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { builtPages, fixSegmentFiles, writeCalendarFiles, writeRedirectFiles } from "@goodfellow-cms/next/export";
 
@@ -35,6 +38,25 @@ if (command === "update") {
   console.log(formatUpdateResult(result));
   process.exit(result.state === "failed" ? 1 : 0);
 }
+if (command === "content") {
+  const [action, from] = process.argv.slice(3);
+  if (action === "link" || action === "copy") {
+    try {
+      const folder =
+        relative(process.cwd(), await setUpContentRepository(".", { from, copy: action === "copy" })) || ".";
+      console.log(
+        action === "copy"
+          ? `Copied content/ and public/media/ from ${folder}`
+          : `Linked content/ and public/media/ to ${folder}, so the site's content is the content repository's`,
+      );
+      process.exit(0);
+    } catch (error) {
+      if (!(error instanceof ContentRepositoryError)) throw error;
+      console.error(error.message);
+      process.exit(1);
+    }
+  }
+}
 if (command !== "finish" && command !== "index") {
   console.error(
     [
@@ -42,6 +64,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next finish --server",
       "       goodfellow-next index [folder]",
       "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish]",
+      "       goodfellow-next content link|copy [folder]",
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
@@ -51,6 +74,9 @@ if (command !== "finish" && command !== "index") {
       "        public/pagefind instead.",
       "index   Only indexes the exported site for its search block.",
       "update  Updates Goodfellow, and blocks from its registry, if the site still builds.",
+      "content For a site whose content is kept in a repository of its own: links content/ and",
+      "        public/media/ to the content repository in folder (default: content-repository),",
+      "        or copies them from it, as builds do.",
     ].join("\n"),
   );
   process.exit(1);

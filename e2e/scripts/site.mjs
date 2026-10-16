@@ -109,19 +109,31 @@ export const builtSites = {
   },
   // A demo, which anyone can try without signing in.
   demo: { port: 4405, demo: true },
+  // Its content in a repository of its own, in content-repository/, which content/ and public/media/ link to.
+  content: {
+    port: 4410,
+    importLine: 'import { github } from "@goodfellow-cms/github";',
+    backend: 'github({ repo: "parish/site-content", contentOnly: true })',
+    separate: true,
+  },
 };
 
 /** Creates a copy of the starter configured with a git backend or as a demo, ready for `goodfellow build`. */
 export function createBuiltSite(name) {
-  const { importLine, backend, demo } = builtSites[name];
+  const { importLine, backend, demo, separate } = builtSites[name];
   const dir = join(here, `../.site-${name}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  for (const entry of ["content", "public", "src", "blocks"]) {
-    cpSync(join(starter, entry), join(dir, entry), { recursive: true });
+  // A site whose content is kept apart has its content and media in content-repository/ instead.
+  const content = separate ? join(dir, "content-repository") : dir;
+  for (const entry of ["src", "blocks", "public"]) cpSync(join(starter, entry), join(dir, entry), { recursive: true });
+  cpSync(join(starter, "content"), join(content, "content"), { recursive: true });
+  if (separate) {
+    rmSync(join(dir, "public/media"), { recursive: true });
+    cpSync(join(starter, "public/media"), join(content, "public/media"), { recursive: true });
   }
   cpSync(testBlocks, join(dir, "blocks"), { recursive: true });
-  writeFileSync(join(dir, "content/pages/islands.json"), `${JSON.stringify(islandsPage, null, 2)}\n`);
+  writeFileSync(join(content, "content/pages/islands.json"), `${JSON.stringify(islandsPage, null, 2)}\n`);
   writeFileSync(join(dir, "goodfellow.config.tsx"), testConfig({ importLine, backend, demo }));
   return dir;
 }

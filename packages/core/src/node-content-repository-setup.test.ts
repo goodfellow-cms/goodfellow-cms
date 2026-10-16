@@ -1,0 +1,206 @@
+import { readFileSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
+import { contentBuildsFor, type SeparateSetup, separateSetupFiles } from "./content-repository-setup.js";
+import { planSite, type SiteFiles, siteFileText } from "./site-setup.js";
+
+const STARTER_VERCEL = readFileSync(new URL("../../../templates/starter/vercel.ts", import.meta.url), "utf8");
+
+const config = `import { defineConfig } from "@goodfellow-cms/core";
+// import { github } from "@goodfellow-cms/github";
+// import { gitlab } from "@goodfellow-cms/gitlab";
+
+export default defineConfig({
+  // backend: github({ repo: "your-name/your-site" }),
+  // backend: gitlab({ project: "your-name/your-site", clientId: "your-application-id" }),
+});
+`;
+
+function template(): SiteFiles {
+  return new Map<string, string | Uint8Array>([
+    ["package.json", JSON.stringify({ name: "template", dependencies: { "@goodfellow-cms/core": "workspace:*" } })],
+    ["README.md", "# Site\n\nHello\n\n## Working on the site\n\nRun it.\n"],
+    ["goodfellow.config.tsx", config],
+    ["_gitignore", "node_modules/\ndist/\n"],
+    [".github/workflows/deploy.yml", "name: Deploy"],
+    [".gitlab-ci.yml", "pages:"],
+    ["vercel.ts", STARTER_VERCEL],
+    ["content/site.json", "{}\n"],
+    ["content/pages/index.json", "{}\n"],
+    ["public/favicon.svg", "<svg/>"],
+    ["public/media/logo.png", new Uint8Array([137, 80, 78, 71])],
+    ["src/styles.css", "@import 'tailwindcss';\n"],
+  ]);
+}
+
+const text = (files: SiteFiles, path: string) => {
+  const file = files.get(path);
+  if (file === undefined) throw new Error(`No ${path}`);
+  return siteFileText(file);
+};
+
+/** Imports a generated `vercel.ts` as Vercel would, from a folder of its own. */
+async function vercelConfig(source: string): Promise<Record<string, unknown>> {
+  const dir = await mkdtemp(join(tmpdir(), "goodfellow-vercel-"));
+  try {
+    await writeFile(join(dir, "vercel.ts"), source);
+    return ((await import(join(dir, "vercel.ts"))) as { config: Record<string, unknown> }).config;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+describe("planSite with the content in a repository of its own", () => {
+  const plan = (host: "github-pages" | "gitlab-pages" | "vercel", build: "content" | "code" = "content") =>
+    planSite({
+      template: template(),
+      name: "my-parish",
+      versions: { "@goodfellow-cms/core": "1.2.3" },
+      backend: { host: host === "gitlab-pages" ? "gitlab" : "github", repo: "parish/site" },
+      host,
+      content: { repo: "parish/site-content", build },
+    });
+
+  it("moves the content into content-repository/, which the code ignores and links to", async () => {
+    const files = await plan("github-pages");
+    expect([...files.keys()].filter((path) => path.startsWith("content/") || path.startsWith("public/media/"))).toEqual(
+      [],
+    );
+    expect(text(files, "content-repository/content/site.json")).toBe("{}\n");
+    expect(files.get("content-repository/public/media/logo.png")).toEqual(new Uint8Array([137, 80, 78, 71]));
+    // The site's own public files stay with the code.
+    expect(files.has("public/favicon.svg")).toBe(true);
+    expect(text(files, ".gitignore")).toMatch(
+      /node_modules\/\ndist\/\n\n#.*\n\/content-repository\/\n\/content\n\/public\/media\n$/,
+    );
+    // The admin panel edits the content repository.
+    expect(text(files, "goodfellow.config.tsx")).toContain(
+      'backend: github({ repo: "parish/site-content", contentOnly: true }),',
+    );
+    expect(text(files, "README.md")).toMatch(/^# Site\n\nHello\n\n## Content in a repository of its own\n/);
+    expect(text(files, "README.md")).toContain(
+      "git clone https://github.com/parish/site-content.git content-repository",
+    );
+    expect(text(files, "content-repository/README.md")).toContain("[parish/site](https://github.com/parish/site)");
+  });
+
+  it("builds GitHub Pages from the content repository, and updates the code in its own", async () => {
+    const files = await plan("github-pages");
+    expect(files.has(".github/workflows/deploy.yml")).toBe(false);
+    expect(files.has(".gitlab-ci.yml")).toBe(false);
+    expect(files.has("vercel.ts")).toBe(false);
+
+    const deploy = parse(text(files, "content-repository/.github/workflows/deploy.yml"));
+    const steps = deploy.jobs.build.steps as Array<Record<string, unknown>>;
+    expect(steps[0]).toEqual({
+      uses: "actions/checkout@v5",
+      with: { repository: "parish/site", "ssh-key": `\${{ secrets.GOODFELLOW_CODE_KEY }}` },
+    });
+    expect(steps[1]).toEqual({ uses: "actions/checkout@v5", with: { path: "content-repository" } });
+    expect(steps.map((step) => step.run).filter(Boolean)).toEqual([
+      "npm ci",
+      "npx goodfellow content copy",
+      `npx goodfellow build --base "\${{ steps.pages.outputs.base_path }}/"`,
+    ]);
+
+    const update = parse(text(files, ".github/workflows/update.yml"));
+    expect(update.jobs.update.steps[1].with).toEqual({
+      repository: "parish/site-content",
+      path: "content-repository",
+      "ssh-key": `\${{ secrets.GOODFELLOW_CONTENT_KEY }}`,
+    });
+    expect(update.jobs.build.steps[0].run).toContain("gh workflow run deploy.yml --repo parish/site-content");
+  });
+
+  it("builds GitLab Pages from the content project, which the code project's pipeline starts", async () => {
+    const files = await plan("gitlab-pages");
+    expect(text(files, "goodfellow.config.tsx")).toContain(
+      'backend: gitlab({ project: "parish/site-content", contentOnly: true }),',
+    );
+    const pages = parse(text(files, "content-repository/.gitlab-ci.yml")).pages;
+    expect(pages.script).toContain("npx goodfellow content copy ..");
+    expect(pages.script[0]).toContain("/parish/site.git");
+    expect(pages.pages).toEqual({ publish: "site/dist" });
+
+    const code = parse(text(files, ".gitlab-ci.yml"));
+    expect(code.update.script[0]).toContain("/parish/site-content.git");
+    expect(code.build.trigger).toEqual({ project: "parish/site-content" });
+  });
+
+  it("builds on Vercel from the code repository, which clones the content when it installs", async () => {
+    const files = await plan("vercel", "code");
+    const vercel = await vercelConfig(text(files, "vercel.ts"));
+    expect(vercel.installCommand).toBe(
+      `npm ci && git clone --depth 1 "https://\${GOODFELLOW_CONTENT_TOKEN:+x-access-token:$GOODFELLOW_CONTENT_TOKEN@}github.com/parish/site-content.git" content-repository && npx goodfellow content copy`,
+    );
+    expect(vercel.outputDirectory).toBe("dist");
+    // The content repository asks Vercel to rebuild the site when it changes.
+    const rebuild = parse(text(files, "content-repository/.github/workflows/rebuild.yml"));
+    expect(rebuild.jobs.rebuild.steps[0].run).toContain('curl --fail --silent --show-error --request POST "$HOOK"');
+  });
+
+  it("builds on Vercel from the content repository, which clones the code", async () => {
+    const files = await plan("vercel", "content");
+    const vercel = await vercelConfig(text(files, "content-repository/vercel.ts"));
+    expect(vercel).toMatchObject({
+      installCommand: `git clone --depth 1 "https://\${GOODFELLOW_CODE_TOKEN:+x-access-token:$GOODFELLOW_CODE_TOKEN@}github.com/parish/site.git" site && cd site && npm ci && npx goodfellow content copy ..`,
+      buildCommand: "cd site && npx goodfellow build",
+      outputDirectory: "site/dist",
+    });
+    expect(parse(text(files, ".github/workflows/rebuild.yml")).on.push).toEqual({ branches: ["main"] });
+  });
+
+  it("needs both repositories and a host", async () => {
+    await expect(
+      planSite({
+        template: template(),
+        name: "x",
+        versions: { "@goodfellow-cms/core": "1.0.0" },
+        content: { repo: "parish/site-content", build: "content" },
+      }),
+    ).rejects.toThrow("needs both repositories and a host");
+  });
+});
+
+describe("separateSetupFiles", () => {
+  const next: SeparateSetup = {
+    git: "gitlab",
+    host: "gitlab-pages",
+    build: "content",
+    code: "parish/web/site",
+    content: "parish/web/site-content",
+    next: true,
+  };
+
+  it("builds Next.js sites with their build script, into out/", () => {
+    const { content, code } = separateSetupFiles(next);
+    const pages = parse(content.get(".gitlab-ci.yml") ?? "").pages;
+    expect(pages.script).toContain("npx goodfellow-next content copy ..");
+    expect(pages.script).toContain("npm run build");
+    expect(pages.pages.publish).toBe("site/out");
+    expect(parse(code.get(".gitlab-ci.yml") ?? "").update.script).toContain("npx goodfellow-next content copy");
+  });
+
+  it("gives Next.js sites on Vercel settings of their own", async () => {
+    const { code, content } = separateSetupFiles({ ...next, git: "github", host: "vercel", build: "code" });
+    expect(await vercelConfig(code.get("vercel.ts") ?? "")).toMatchObject({ framework: "nextjs" });
+    expect([...content.keys()]).toEqual([".github/workflows/rebuild.yml"]);
+    const gitlab = separateSetupFiles({ ...next, host: "vercel", build: "content" });
+    expect(await vercelConfig(gitlab.content.get("vercel.ts") ?? "")).toMatchObject({
+      installCommand: `git clone --depth 1 "https://\${GOODFELLOW_CODE_TOKEN:+oauth2:$GOODFELLOW_CODE_TOKEN@}gitlab.com/parish/web/site.git" site && cd site && npm ci && npx goodfellow-next content copy ..`,
+      outputDirectory: "site/out",
+    });
+    expect(parse(gitlab.code.get(".gitlab-ci.yml") ?? "").rebuild.rules).toEqual([
+      { if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH" },
+    ]);
+  });
+
+  it("builds Pages only from the content repository", () => {
+    expect(contentBuildsFor("github-pages")).toEqual(["content"]);
+    expect(contentBuildsFor("vercel")).toEqual(["code", "content"]);
+    expect(() => separateSetupFiles({ ...next, build: "code" })).toThrow("only build the site from the content");
+  });
+});

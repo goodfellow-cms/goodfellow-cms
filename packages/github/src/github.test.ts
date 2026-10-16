@@ -1,4 +1,5 @@
 import {
+  CodeChangeError,
   ConflictError,
   type GitBackend,
   loadSiteContent,
@@ -468,6 +469,54 @@ describe("reading many files", () => {
     const sizes = await backend.fileSizes?.("content");
     expect(sizes?.get("content/site.json")).toBe(new TextEncoder().encode(FILES["content/site.json"]).length);
     expect([...(sizes?.keys() ?? [])].every((path) => path.startsWith("content/"))).toBe(true);
+  });
+});
+
+describe("a repository of content only", () => {
+  it("publishes content, and never the site's code, which is kept in a repository of its own", async () => {
+    const fake = fakeGitHub({ repo: "parish/site-content", files: FILES });
+    const host = github({ repo: "parish/site-content", contentOnly: true, fetch: fake.fetch, storage: {} });
+    const backend = await host.signInWithToken("test-token", false);
+    expect(backend.contentOnly).toBe(true);
+    // Goodfellow's updates run where the code is.
+    expect(backend.updates).toBeUndefined();
+
+    const revision = await backend.revision();
+    await expect(
+      backend.write([{ path: "blocks/installed/index.ts", content: "export {};" }], {
+        message: "Add a block",
+        expectedRevision: revision,
+      }),
+    ).rejects.toBeInstanceOf(CodeChangeError);
+    await backend.write([{ path: "content/pages/about.json", content: "{}" }], {
+      message: "Update About",
+      expectedRevision: revision,
+    });
+    expect(fake.repo.files().get("content/pages/about.json")).toBe("{}");
+
+    const git = host.server?.({ token: "test-token" });
+    expect(git?.contentOnly).toBe(true);
+    expect((await git?.at(await backend.revision()))?.contentOnly).toBe(true);
+  });
+
+  it("says nothing of a workflow that only asks Vercel to rebuild the site", async () => {
+    const { fake, backend } = await signedIn();
+    const revision = await backend.revision();
+    fake.runs.push({
+      id: 1,
+      sha: revision,
+      status: "completed",
+      conclusion: "success",
+      jobs: [],
+      path: ".github/workflows/rebuild.yml",
+    });
+    expect(await backend.deployStatus(revision)).toEqual({ state: "unknown" });
+  });
+
+  it("is a repository of the whole site otherwise", async () => {
+    const { backend } = await signedIn();
+    expect(backend.contentOnly).toBe(false);
+    expect(backend.updates).toBeDefined();
   });
 });
 

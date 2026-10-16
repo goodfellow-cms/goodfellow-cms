@@ -3,6 +3,17 @@
  * computer and the documentation site's setup page does in the browser: the
  * same choices, worked out the same way, with no disk access.
  */
+
+import { CONTENT_REPOSITORY_DIR } from "./content/paths.js";
+import { CONTENT_FOLDERS } from "./content/store.js";
+import {
+  CODE_GITIGNORE,
+  codeReadmeSection,
+  contentReadme,
+  type SeparateContent,
+  SINGLE_REPOSITORY_SETUP_FILES,
+  separateSetupFiles,
+} from "./content-repository-setup.js";
 import {
   availableBlocks,
   EMPTY_RECORD,
@@ -122,17 +133,21 @@ export function sitePackageJson(source: string, name: string, versions: Record<s
   return `${JSON.stringify(result, null, 2)}\n`;
 }
 
-/** Turns on one of the commented-out `backend` lines in a template's `goodfellow.config.tsx`. */
-export function configureBackend(config: string, backend: Backend): string {
+/**
+ * Turns on one of the commented-out `backend` lines in a template's
+ * `goodfellow.config.tsx`, for a repository that holds only the site's content where `contentOnly`.
+ */
+export function configureBackend(config: string, backend: Backend, { contentOnly = false } = {}): string {
   const importLine = `// import { ${backend.host} } from "@goodfellow-cms/${backend.host}";`;
   const backendLine = new RegExp(`^([ \\t]*)// backend: ${backend.host}\\(.*$`, "m");
   if (!config.includes(importLine) || !backendLine.test(config)) {
     throw new Error(`The template's goodfellow.config.tsx has no ${backend.host} line to turn on.`);
   }
+  const only = contentOnly ? ", contentOnly: true" : "";
   const call =
     backend.host === "github"
-      ? `github({ repo: ${JSON.stringify(backend.repo)} })`
-      : `gitlab({ project: ${JSON.stringify(backend.repo)} })`;
+      ? `github({ repo: ${JSON.stringify(backend.repo)}${only} })`
+      : `gitlab({ project: ${JSON.stringify(backend.repo)}${only} })`;
   return config.replace(importLine, importLine.slice(3)).replace(backendLine, `$1backend: ${call},`);
 }
 
@@ -213,10 +228,27 @@ export interface SitePlan {
   host?: Host;
   /** The block registry to install recommended blocks from. Without it, the site has the built-in blocks only. */
   registry?: SetupRegistry;
+  /**
+   * Keeps the content in a repository of its own: `backend` is then the code's
+   * repository, and the content's files, with its setup files, are under
+   * `content-repository/`, a folder the code ignores.
+   */
+  content?: SeparateContent;
 }
 
 /** Works out a new site's files from a template and the choices made for it. */
-export async function planSite({ template, name, versions, backend, host, registry }: SitePlan): Promise<SiteFiles> {
+export async function planSite({
+  template,
+  name,
+  versions,
+  backend,
+  host,
+  registry,
+  content,
+}: SitePlan): Promise<SiteFiles> {
+  if (content && (!backend || !host)) {
+    throw new Error("Keeping the content in a repository of its own needs both repositories and a host.");
+  }
   const files: SiteFiles = new Map();
   for (const [path, file] of template) {
     const parts = path.split("/");
@@ -236,13 +268,56 @@ export async function planSite({ template, name, versions, backend, host, regist
   if (backend) {
     const config = files.get("goodfellow.config.tsx");
     if (config === undefined) throw new Error("The template has no goodfellow.config.tsx.");
-    files.set("goodfellow.config.tsx", configureBackend(siteFileText(config), backend));
+    const edited = content
+      ? configureBackend(siteFileText(config), { host: backend.host, repo: content.repo }, { contentOnly: true })
+      : configureBackend(siteFileText(config), backend);
+    files.set("goodfellow.config.tsx", edited);
   }
 
-  if (host) {
+  if (content && backend && host)
+    separateContent(files, name, { ...content, git: backend.host, code: backend.repo, host });
+  else if (host) {
     for (const [other, { files: setupFiles }] of Object.entries(HOSTS)) {
       if (other !== host) for (const file of setupFiles) files.delete(file);
     }
   }
   return files;
+}
+
+/**
+ * Moves a new site's content into `content-repository/`, its own repository,
+ * and gives each repository its setup files and README.
+ */
+function separateContent(
+  files: SiteFiles,
+  name: string,
+  { repo, build, git, code, host }: SeparateContent & { git: Backend["host"]; code: string; host: Host },
+): void {
+  const setup = { git, host, build, code, content: repo, next: files.has("next.config.ts") };
+  const vercel = files.get("vercel.ts");
+  const generated = separateSetupFiles(setup, vercel === undefined ? undefined : siteFileText(vercel));
+  for (const path of [...files.keys()]) {
+    if (CONTENT_FOLDERS.some((folder) => path.startsWith(`${folder}/`))) {
+      files.set(`${CONTENT_REPOSITORY_DIR}/${path}`, files.get(path) as SiteFile);
+      files.delete(path);
+    }
+  }
+  for (const file of SINGLE_REPOSITORY_SETUP_FILES) files.delete(file);
+  for (const [path, text] of generated.code) files.set(path, text);
+  for (const [path, text] of generated.content) files.set(`${CONTENT_REPOSITORY_DIR}/${path}`, text);
+
+  const gitignore = files.get(".gitignore");
+  files.set(".gitignore", `${gitignore === undefined ? "" : siteFileText(gitignore).trimEnd()}\n${CODE_GITIGNORE}`);
+  const readme = files.get("README.md");
+  const section = codeReadmeSection(setup);
+  if (readme !== undefined) {
+    const text = siteFileText(readme);
+    // Before the first section, where people setting the site up start reading.
+    const at = text.indexOf("\n## ");
+    files.set(
+      "README.md",
+      at === -1 ? `${text.trimEnd()}\n\n${section}` : `${text.slice(0, at + 1)}${section}\n${text.slice(at + 1)}`,
+    );
+  }
+  files.set(`${CONTENT_REPOSITORY_DIR}/README.md`, contentReadme(setup, name));
 }

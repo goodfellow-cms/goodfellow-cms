@@ -102,6 +102,8 @@ interface AdminContextValue {
   ownerAccess?: OwnerAccess;
   /** The site's nightly update job, when the backend can run it. */
   updates?: SiteUpdates;
+  /** The repository holds only the site's content: its code, and so its blocks, are a developer's to change. */
+  contentOnly: boolean;
 }
 
 const AdminContext = createContext<AdminContextValue | null>(null);
@@ -168,6 +170,7 @@ export function AdminProvider({
   );
   const editors = isGitBackend(store) ? store.editors : undefined;
   const updates = isGitBackend(store) ? store.updates : undefined;
+  const contentOnly = isGitBackend(store) && store.contentOnly === true;
   // The backend's owner access, with whether it's in use as state, so every screen showing it updates together.
   const backendOwner = isGitBackend(store) ? store.ownerAccess : undefined;
   const [ownerActive, setOwnerActive] = useState(backendOwner?.active ?? false);
@@ -282,6 +285,7 @@ export function AdminProvider({
       editors,
       ownerAccess,
       updates,
+      contentOnly,
     }),
     [
       config,
@@ -306,6 +310,7 @@ export function AdminProvider({
       editors,
       ownerAccess,
       updates,
+      contentOnly,
     ],
   );
 
