@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-create",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-create",
+                "align": "left",
+                "className": "mx-auto max-w-3xl",
+                "level": "h1",
+                "text": "Create a site"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-create",
+                "align": "left",
+                "className": "mx-auto mt-4 mb-10 max-w-3xl text-lg",
+                "content": "<p>Sign in to GitHub or GitLab, choose the site's name, and this page creates the site in your account. Your sign-in is used only in this browser tab, and isn't saved.</p>"
+              }
+            },
+            {
+              "type": "SiteSetup",
+              "props": {
+                "id": "SiteSetup-create",
+                "className": "",
+                "gitlabClientId": "574f4bc8e98e25af8d0c0024bc53bb45345ae1523ecb93c0082fc69dcf405ad5",
+                "step": "create"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "Sign in to GitHub or GitLab and create the Goodfellow site you chose.",
+        "image": "",
+        "title": "Create a site: sign in"
+      }
+    }
+  }
+}

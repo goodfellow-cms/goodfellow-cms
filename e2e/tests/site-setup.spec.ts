@@ -3,12 +3,25 @@ import { fakeGitLab } from "@goodfellow-cms/gitlab/testing";
 import { expect, type Page, test } from "@playwright/test";
 import { routeToFake } from "./backends.js";
 
-// The documentation site's setup page, which creates sites in the browser.
+// The documentation site's setup page, which creates sites in the browser: choosing on one page, creating on the next.
 const SETUP = "http://localhost:4406/goodfellow-cms/new-site/";
+const CREATE = "http://localhost:4406/goodfellow-cms/new-site/create/";
 
 /** A file of a created site, as text. */
 function text(file: string | Uint8Array | undefined): string {
   return typeof file === "string" ? file : new TextDecoder().decode(file);
+}
+
+const radio = (page: Page, name: string) => page.getByRole("radio", { name, exact: true });
+
+async function openAdvanced(page: Page) {
+  await page.getByRole("button", { name: "Advanced settings" }).click();
+}
+
+async function continueToCreate(page: Page) {
+  await page.getByRole("link", { name: "Continue" }).click();
+  await expect(page).toHaveURL(/\/new-site\/create\/\?/);
+  await expect(page.getByRole("region", { name: "Your choices" })).toBeVisible();
 }
 
 async function signIn(page: Page, token: string) {
@@ -24,15 +37,30 @@ test("creates a site on GitHub with GitHub Pages, as npm create goodfellow would
   });
   await routeToFake(page, "https://api.github.com", github.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-
-  await page.getByRole("radio", { name: "Parish example" }).check();
-  await expect(page.getByRole("radio", { name: "GitHub Pages" })).toBeChecked();
-  await expect(page.locator("label", { has: page.getByRole("radio", { name: "GitHub Pages" }) })).toContainText(
-    "Recommended",
-  );
   // Sites made from this copy of the docs have no lockfile, which the published docs have.
   await expect(page.getByText(/has no package-lock.json files/)).toBeVisible();
 
+  // Only what the site is for, at first: everything else follows from it.
+  await expect(page.getByRole("group", { name: "Start from" })).toBeHidden();
+  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "Parish example").check();
+  await expect(radio(page, "GitHub")).toBeChecked();
+  // The advanced settings' defaults are said, though they're hidden.
+  await expect(
+    page.getByText(
+      "Public files, published with GitHub Pages, with the recommended blocks, and the content kept with the code.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("group", { name: "Blocks" })).toBeHidden();
+  await openAdvanced(page);
+  await expect(radio(page, "GitHub Pages")).toBeChecked();
+  await expect(page.locator("label", { has: radio(page, "GitHub Pages") })).toContainText("Recommended");
+
+  await continueToCreate(page);
+  const summary = page.getByRole("region", { name: "Your choices" });
+  await expect(summary).toContainText("Parish example");
+  await expect(summary).toContainText("GitHub, public");
+  // Signing in with GitHub isn't offered on this computer, so the token form shows straight away.
   await signIn(page, "gh-token");
   await page.getByLabel("Name", { exact: true }).fill("parish");
   await expect(page.getByText("That name is free.")).toBeVisible();
@@ -44,6 +72,7 @@ test("creates a site on GitHub with GitHub Pages, as npm create goodfellow would
     "https://someone.github.io/parish/",
   );
   await expect(page.getByRole("link", { name: "https://someone.github.io/parish/admin/", exact: true })).toBeVisible();
+  await expect(page.getByText("Delete the token you made for this page")).toBeVisible();
 
   const site = github.created.get("someone/parish");
   expect(site?.private).toBe(false);
@@ -59,12 +88,12 @@ test("creates a site on GitHub with GitHub Pages, as npm create goodfellow would
   expect(Object.keys(JSON.parse(text(files.get("blocks/installed/installed.json"))).blocks)).toContain("shadcn-faq");
 });
 
-test("warns about private repositories on GitHub Pages and business sites on hosts that don't allow them", async ({
-  page,
-}) => {
-  const label = (name: string) => page.locator("label", { has: page.getByRole("radio", { name, exact: true }) });
+test("recommends hosts whose free plans allow the site, and keeps what people chose themselves", async ({ page }) => {
+  const label = (name: string) => page.locator("label", { has: radio(page, name) });
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await page.getByRole("radio", { name: "Private", exact: true }).check();
+  await radio(page, "A church, charity, school or club").check();
+  await openAdvanced(page);
+  await radio(page, "Private").check();
   // Private sites are best on GitLab; Vercel is never the recommendation.
   await expect(label("GitLab")).toContainText("Recommended");
   await expect(page.getByText(/Private sites are best kept on GitLab/)).toBeVisible();
@@ -73,23 +102,38 @@ test("warns about private repositories on GitHub Pages and business sites on hos
   ).toBeVisible();
   await expect(label("GitHub Pages")).not.toContainText("Recommended");
   await expect(label("Vercel")).not.toContainText("Recommended");
-  await page.getByRole("radio", { name: "Vercel" }).check();
-  await expect(
-    page.getByText(/GitHub Pages doesn't work with private repositories on GitHub's free plan, unless/),
-  ).toBeHidden();
   await page.getByRole("button", { name: "Use GitLab" }).click();
-  await expect(page.getByRole("radio", { name: "GitLab Pages" })).toBeChecked();
+  await expect(radio(page, "GitLab Pages")).toBeChecked();
   await expect(label("GitLab Pages")).toContainText("Recommended");
-  await page.getByRole("radio", { name: "Public", exact: true }).check();
-  await page.getByRole("radio", { name: "GitHub", exact: true }).check();
 
-  await page.getByRole("radio", { name: "A business" }).check();
-  // A business site is best kept on GitLab, and the host follows.
-  await expect(page.getByRole("radio", { name: "GitHub Pages" })).toBeChecked({ checked: false });
-  await page.getByRole("radio", { name: "GitLab", exact: true }).check();
-  await expect(page.getByRole("radio", { name: "GitLab Pages" })).toBeChecked();
-  await page.getByRole("radio", { name: "Vercel" }).check();
+  // Choosing Vercel, then saying the site is a business's: the choice stays, with why it may not do.
+  await radio(page, "Vercel").check();
+  await radio(page, "A business").check();
+  await expect(radio(page, "Vercel")).toBeChecked();
   await expect(page.getByText(/Vercel's free plan is for non-commercial sites only/)).toBeVisible();
+  // With the advanced settings hidden, the warning still shows.
+  await page.getByRole("button", { name: "Hide advanced settings" }).click();
+  await expect(page.getByText(/Vercel's free plan is for non-commercial sites only/)).toBeVisible();
+
+  // A business's files default to GitLab, where nobody chose otherwise.
+  await page.goto(SETUP, { waitUntil: "networkidle" });
+  await radio(page, "A business").check();
+  await expect(radio(page, "GitLab")).toBeChecked();
+  await expect(page.getByText(/published with GitLab Pages/)).toBeVisible();
+
+  // The create step says it too, and Change goes back with every choice as it was.
+  await continueToCreate(page);
+  await page.getByRole("link", { name: "Change" }).click();
+  await expect(radio(page, "A business")).toBeChecked();
+  await expect(radio(page, "GitLab")).toBeChecked();
+
+  // An address without choices sends people back to make them.
+  await page.goto(CREATE, { waitUntil: "networkidle" });
+  await page.getByRole("link", { name: "Choose the site's options" }).click();
+  await expect(page.getByRole("group", { name: "What's the site for?" })).toBeVisible();
+  // One with choices that aren't any falls back to the defaults.
+  await page.goto(`${CREATE}?purpose=personal&git=bitbucket&host=netlify`, { waitUntil: "networkidle" });
+  await expect(page.getByRole("region", { name: "Your choices" })).toContainText("GitHub Pages");
 });
 
 test("creates a private project on GitLab with public GitLab Pages", async ({ page }) => {
@@ -100,9 +144,17 @@ test("creates a private project on GitLab with public GitLab Pages", async ({ pa
   });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await page.getByRole("radio", { name: "GitLab", exact: true }).check();
-  await page.getByRole("radio", { name: "Private", exact: true }).check();
-  await page.getByRole("radio", { name: "Built-in blocks only" }).check();
+  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "GitLab").check();
+  await openAdvanced(page);
+  await radio(page, "Private").check();
+  await radio(page, "Built-in blocks only").check();
+  await continueToCreate(page);
+
+  // Sign in with GitLab comes first; the token form only once it's asked for.
+  await expect(page.getByRole("button", { name: "Sign in with GitLab" })).toBeVisible();
+  await expect(page.getByPlaceholder("Paste the token here")).toBeHidden();
+  await page.getByRole("button", { name: "paste a token" }).click();
   await signIn(page, "gl-token");
   await page.getByLabel("Account or group").selectOption("st-joseph");
   await page.getByLabel("Name", { exact: true }).fill("website");
@@ -130,7 +182,10 @@ test("creates a site on GitHub with its content in a repository of its own", asy
   });
   await routeToFake(page, "https://api.github.com", github.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await page.getByRole("radio", { name: "In a repository of its own" }).check();
+  await radio(page, "A church, charity, school or club").check();
+  await openAdvanced(page);
+  await radio(page, "In a repository of its own").check();
+  await continueToCreate(page);
   await signIn(page, "gh-token");
   await page.getByLabel("Name", { exact: true }).fill("parish");
   await expect(
@@ -173,10 +228,14 @@ test("creates a site's code and content projects on GitLab, letting each pipelin
   });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await page.getByRole("radio", { name: "GitLab", exact: true }).check();
-  await page.getByRole("radio", { name: "Private", exact: true }).check();
-  await page.getByRole("radio", { name: "Built-in blocks only" }).check();
-  await page.getByRole("radio", { name: "In a repository of its own" }).check();
+  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "GitLab").check();
+  await openAdvanced(page);
+  await radio(page, "Private").check();
+  await radio(page, "Built-in blocks only").check();
+  await radio(page, "In a repository of its own").check();
+  await continueToCreate(page);
+  await page.getByRole("button", { name: "paste a token" }).click();
   await signIn(page, "gl-token");
   await page.getByLabel("Account or group").selectOption("st-joseph");
   await page.getByLabel("Name", { exact: true }).fill("website");

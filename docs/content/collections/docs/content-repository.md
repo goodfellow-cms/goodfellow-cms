@@ -22,7 +22,7 @@ npm create goodfellow@latest my-site -- --github your-name/my-site --content you
 
 `--github` or `--gitlab` is the code's repository, and `--content` the content's, on the same host. On Vercel, `--build content` or `--build code` says which repository Vercel builds the site from (see below).
 
-The [setup page](/new-site) offers it too, under **Where to keep the content**: it creates both repositories, the content's named after the code's with `-content` after it, and connects them, as the steps below describe. On GitHub, for private repositories, it makes the deploy keys and adds their private halves as secrets; on GitLab, it adds each project to the other's job token allowlist, lets the code project's job token publish updates, and adds its nightly pipeline schedule. What only you can add is left: a `GOODFELLOW_BUILD_TOKEN` on GitHub, and on Vercel, its deploy hook and any tokens.
+The [setup page](/new-site) offers it too, under **Advanced settings**, in **Where to keep the content**: it creates both repositories, the content's named after the code's with `-content` after it, and connects them, as the steps below describe. On GitHub, for private repositories, it makes the deploy keys and adds their private halves as secrets; on GitLab, it adds each project to the other's job token allowlist, lets the code project's job token publish updates, and adds its nightly pipeline schedule. What only you can add is left: a `GOODFELLOW_BUILD_TOKEN` on GitHub, and on Vercel, its deploy hook and any tokens.
 
 The new site's folder is the code's repository, with the content's inside it, which the code ignores:
 
