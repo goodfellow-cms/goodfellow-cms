@@ -1,8 +1,10 @@
-import { GOODFELLOW_SIGN_IN } from "@goodfellow-cms/github";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { testSignIn } from "@goodfellow-cms/worker/testing";
 import { expect, type Page, test } from "@playwright/test";
 import { files, GITHUB_SITE, routeToFake } from "./backends.js";
+
+/** The sign-in worker the built GitHub site's config names (see `scripts/site.mjs`). */
+const SIGN_IN = "https://sign-in.parish.example";
 
 /** The site's own address, where the built GitHub site is served, as its host would serve it. */
 const SITE = "https://parish.example";
@@ -60,7 +62,7 @@ async function setup(page: Page, options: { installed?: boolean } = {}) {
     url.origin === "https://github.com" ? url.pathname.match(/^\/apps\/([^/]+)\/installations\/new$/)?.[1] : undefined;
   const install = (url: URL, slug: string) => {
     const { code, installation } = fake.install(slug, login, ["parish/site"]);
-    const back = new URL(`${GOODFELLOW_SIGN_IN}/github/callback`);
+    const back = new URL(`${SIGN_IN}/github/callback`);
     back.search = new URLSearchParams({
       code,
       installation_id: String(installation),
@@ -72,7 +74,7 @@ async function setup(page: Page, options: { installed?: boolean } = {}) {
 
   // Goodfellow's sign-in worker, the same code Cloudflare runs. Browsers say which page is asking.
   await page.route(
-    (url) => url.href.startsWith(GOODFELLOW_SIGN_IN) || isAuthorize(url) || installSlug(url) !== undefined,
+    (url) => url.href.startsWith(SIGN_IN) || isAuthorize(url) || installSlug(url) !== undefined,
     async (route) => {
       const request = route.request();
       const body = request.postDataBuffer();
@@ -90,7 +92,7 @@ async function setup(page: Page, options: { installed?: boolean } = {}) {
       for (;;) {
         const next = response.status === 302 ? new URL(response.headers.get("location") ?? "") : undefined;
         if (!next) break;
-        if (next.href.startsWith(GOODFELLOW_SIGN_IN)) response = await worker.fetch(new Request(next));
+        if (next.href.startsWith(SIGN_IN)) response = await worker.fetch(new Request(next));
         else if (isAuthorize(next)) response = authorize(next);
         else if (installSlug(next)) response = install(next, installSlug(next) ?? "");
         else {

@@ -631,7 +631,7 @@ export const defaultStrings = {
     "This site's code is kept apart from its content, at {place}, where Goodfellow's updates are installed.",
   "updates.code.link": "See it on {host}",
   "updates.noAccess":
-    "Your sign-in can't see the site's code, at {place}, where its updates are installed. Ask the site's developer to give you access to it. On GitHub, Goodfellow's sign-in needs to be installed there too.",
+    "Your sign-in can't see the site's code, at {place}, where its updates are installed. Ask the site's developer to give you access to it. On GitHub, an access token needs to reach it too, or with Sign in with GitHub, Goodfellow's app needs to be installed there.",
   "updates.back.skip": "Don't install Goodfellow {version} again",
   "updates.local": "Updates are shown in the published site's admin panel, where you sign in with GitHub or GitLab.",
   "updates.demo": "Updates aren't installed in a demo.",

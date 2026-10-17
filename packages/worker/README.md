@@ -1,10 +1,10 @@
 # @goodfellow-cms/worker
 
-Goodfellow's sign-in service: a Cloudflare Worker that lets editors **Sign in with GitHub**, and gives the admin panel a token for the site's repository only, lasting an hour. It stores nothing about anyone's sign-in: editors' own GitHub tokens are revoked as soon as they've signed in.
+Goodfellow's sign-in service, for sites to run: a Cloudflare Worker that lets editors **Sign in with GitHub**, and gives the admin panel a token for the site's repository only, lasting an hour. It stores nothing about anyone's sign-in: editors' own GitHub tokens are revoked as soon as they've signed in.
 
-Goodfellow runs it for every site, at `https://sign-in.goodfellow-cms.workers.dev`. Sites keep working without it: editors can always sign in with a token. It isn't published to npm.
+Goodfellow doesn't run it for everyone yet, and may in the future; a site uses it once its owner runs one and names it in `github({ signIn })`. Sites work without it: editors sign in with a token. It isn't published to npm.
 
-See the documentation's [Sign-in service](https://goodfellow-cms.github.io/goodfellow-cms/docs/sign-in-service) page for how it works, its limits, and running your own copy with your own GitHub Apps:
+See the documentation's [Sign-in service](https://goodfellow-cms.github.io/goodfellow-cms/docs/sign-in-service) page for how it works, its limits, and running it with your own GitHub Apps:
 
 ```sh
 pnpm install
