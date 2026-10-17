@@ -755,8 +755,9 @@ function Created({
         )}
         {code && github && (
           <li>
-            Install Goodfellow's sign-in on {code.repo} too, so the admin panel's Updates screen can follow the updates
-            that run there.
+            {withToken
+              ? `Give the tokens editors sign in with access to ${code.repo} too, with Contents and Actions read, so the admin panel's Updates screen can follow the updates that run there.`
+              : `Install Goodfellow's sign-in on ${code.repo} too, so the admin panel's Updates screen can follow the updates that run there.`}
           </li>
         )}
         {code && (

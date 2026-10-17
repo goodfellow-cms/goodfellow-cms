@@ -15,7 +15,6 @@ import {
   type BrowserLocation,
   browserLocation,
   ERROR_PARAM,
-  GOODFELLOW_SIGN_IN,
   GRANT_PARAM,
   type IssuedToken,
   isLocalAddress,
@@ -28,7 +27,7 @@ import {
 export { GitHubBackend } from "./backend.js";
 export { githubPagesRecords } from "./pages.js";
 export { type GitHubSetupOptions, githubSetup, githubSetupTokenLinks } from "./setup.js";
-export { type BrowserLocation, GOODFELLOW_SIGN_IN } from "./sign-in.js";
+export type { BrowserLocation } from "./sign-in.js";
 
 export interface GitHubOptions {
   /** The site's repository, as `owner/name`. */
@@ -40,9 +39,8 @@ export interface GitHubOptions {
   /** For GitHub Enterprise. Defaults to `https://github.com`. */
   webUrl?: string;
   /**
-   * The sign-in worker, which lets editors sign in with GitHub instead of
-   * pasting a token. Defaults to Goodfellow's (`GOODFELLOW_SIGN_IN`); give the
-   * address of your own copy, or `false` for token sign-in only.
+   * The address of a sign-in worker, which lets editors sign in with GitHub
+   * instead of pasting a token. Without one, editors sign in with a token.
    */
   signIn?: string | false;
   /**
@@ -54,7 +52,7 @@ export interface GitHubOptions {
   /**
    * With `contentOnly`, the repository the site's code is kept in, as
    * `owner/name`, where its updates run: the Updates screen follows them.
-   * On GitHub, Goodfellow's sign-in needs to be installed on it too.
+   * Editors' tokens need to reach it too: a sign-in worker's app installed on it, or tokens made for both.
    */
   code?: string;
   /** For tests. */
@@ -135,7 +133,7 @@ export function github(options: GitHubOptions): GitHost {
   const pending = credentialStorage(`goodfellow:github:pending:${options.repo}`, options.storage);
   const fetcher: typeof fetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const location = options.location ?? browserLocation();
-  const signInUrl = options.signIn === undefined ? GOODFELLOW_SIGN_IN : options.signIn;
+  const signInUrl = options.signIn;
   // Never on this computer: the worker doesn't give tokens there, and `goodfellow dev` doesn't need one.
   const service =
     signInUrl && location && !isLocalAddress(location.href()) ? new SignInService(signInUrl, fetcher) : undefined;

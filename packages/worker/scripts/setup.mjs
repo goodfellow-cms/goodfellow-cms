@@ -40,7 +40,6 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const configPath = join(root, "wrangler.jsonc");
 const windows = process.platform === "win32";
 const APP_NAMES = { edit: "Goodfellow CMS", owner: "Goodfellow CMS owner" };
-const GOODFELLOW_SIGN_IN = "https://sign-in.goodfellow-cms.workers.dev";
 // For trying the script against a fake GitHub, as the worker's own settings allow.
 const GITHUB_WEB = process.env.GITHUB_WEB ?? "https://github.com";
 const GITHUB_API = process.env.GITHUB_API ?? "https://api.github.com";
@@ -289,9 +288,7 @@ async function main() {
     `- Install the editors' app on your sites' repositories: ${GITHUB_WEB}/apps/${health.apps.edit.slug}/installations/new`,
   );
   console.log("  (or let the sign-in screen offer it, the first time someone signs in to a site).");
-  if (worker !== GOODFELLOW_SIGN_IN) {
-    console.log(`- In each site's goodfellow.config.tsx, use it: github({ repo: "…", signIn: "${worker}" })`);
-  }
+  console.log(`- In each site's goodfellow.config.tsx, use it: github({ repo: "…", signIn: "${worker}" })`);
   if (changed !== config) {
     console.log("- Keep the changes to wrangler.jsonc, so later deploys keep the same settings.");
   }

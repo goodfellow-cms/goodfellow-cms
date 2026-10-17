@@ -21,7 +21,6 @@ import {
   type BrowserLocation,
   browserLocation,
   ERROR_PARAM,
-  GOODFELLOW_SIGN_IN,
   GRANT_PARAM,
   isLocalAddress,
   newVerifier,
@@ -36,7 +35,7 @@ export interface GitHubSetupOptions {
   apiUrl?: string;
   /** For GitHub Enterprise. Defaults to `https://github.com`. */
   webUrl?: string;
-  /** The sign-in worker, for "Sign in with GitHub". Defaults to Goodfellow's; `false` for token sign-in only. */
+  /** The address of a sign-in worker, for "Sign in with GitHub". Without one, people sign in with a token. */
   signIn?: string | false;
   /** For tests. */
   fetch?: typeof fetch;
@@ -394,7 +393,7 @@ export function githubSetup(options: GitHubSetupOptions = {}): SetupHost {
   const links = githubSetupTokenLinks(options.webUrl);
   const fetcher: typeof fetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const location = options.location ?? browserLocation();
-  const signInUrl = options.signIn === undefined ? GOODFELLOW_SIGN_IN : options.signIn;
+  const signInUrl = options.signIn;
   const service =
     signInUrl && location && !isLocalAddress(location.href()) ? new SignInService(signInUrl, fetcher) : undefined;
   // Only this tab's verifier, while the browser is at GitHub: tokens are kept in memory only.

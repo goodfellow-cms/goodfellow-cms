@@ -17,26 +17,30 @@ Editors sign in at `/admin` on the live site with their own GitHub or GitLab acc
 
 Owners invite people by their GitHub or GitLab username, and on GitLab by email address too, in which case GitLab helps them make an account if they don't have one. The host emails each person an invitation, which they accept before they can sign in. Invitations can be withdrawn until they're accepted. Nobody can remove themselves or change their own role, so a site always keeps its owner.
 
-- **On GitHub,** everyday sign-in can't change who edits the site, since that needs GitHub's Administration permission, which can also delete the repository. The Editors screen asks owners to **Sign in as an owner with GitHub**, with Goodfellow's second app, the owners' app, for that browser tab only. The Domain and Updates screens use it too, for GitHub Pages settings and running the site's update. Where signing in with GitHub isn't available, owners paste a second token instead, an **owner token**, made from a link that fills in the permissions it needs. Either is kept only until the browser tab closes.
+- **On GitHub,** everyday sign-in can't change who edits the site, since that needs GitHub's Administration permission, which can also delete the repository. The Editors screen asks owners for a second token, an **owner token**, made from a link that fills in the permissions it needs, for that browser tab only. The Domain and Updates screens use it too, for GitHub Pages settings and running the site's update. On a site with a [sign-in service](#signing-in-with-github), owners can **Sign in as an owner with GitHub** instead, with the service's second app, the owners' app. Either is kept only until the browser tab closes.
 - **On GitLab,** owners are Maintainers in the site's project, and editors are Developers. GitLab only lets Maintainers publish to the main branch at first, so the Editors screen offers **Let editors publish**, which lets Developers publish too, while still stopping anyone from rewriting the site's history. People in a GitLab group that has the project are listed too, but are changed in the group on GitLab.
 
 ## GitHub
 
-Editors click **Sign in with GitHub**, approve Goodfellow on GitHub's page the first time, and come back signed in. It goes through Goodfellow's [sign-in service](/docs/sign-in-service), which needs two things:
-
-- **Goodfellow is installed on the site.** GitHub only lets Goodfellow sign editors in to repositories it's installed on. The first time anyone signs in, the sign-in screen says it isn't installed yet and offers **Install Goodfellow on GitHub**: an owner of the site installs it there, choosing the site's repository, and comes back signed in. The Editors, Domain and Updates screens offer the same for the owners' app, which owners sign in with there.
-- **The site's address is in Site settings.** The sign-in service only signs editors in at the address Site settings give, so a copy of the admin panel anywhere else can't use it. Sites made with the setup page have it already.
-
-Each sign-in gives the admin panel a token for the site's repository only, which can change its files and see its builds but not its workflows or settings, and lasts an hour; the admin panel gets a new one while the editor is signed in. The sign-in service revokes editors' own GitHub tokens as soon as they've signed in, and what they publish still shows them as its author.
-
 ### Signing in with a token
 
-Signing in with GitHub works only on the published site, not in `goodfellow dev` or `next dev`, which need no sign-in, or a build viewed on this computer. When it isn't available, or the sign-in service has been used as much as it can be that day, editors sign in with a personal access token instead. The admin panel's **Create a token on GitHub** link opens GitHub's token page with the right permissions already chosen; under **Repository access**, choose **Only select repositories** and pick the site. Paste the token into the admin panel.
+Editors sign in with a personal access token. The admin panel's **Create a token on GitHub** link opens GitHub's token page with the right permissions already chosen; under **Repository access**, choose **Only select repositories** and pick the site. Paste the token into the admin panel.
 
 Every editor needs write access to the repository. GitHub doesn't let collaborators on someone else's personal repository use these fine-grained tokens, so either:
 
 - put the repository in a free GitHub organization and add editors as members, or
 - have collaborators use the **Create a broader token instead** link, which creates a classic token.
+
+### Signing in with GitHub
+
+A site whose owner runs a [sign-in service](/docs/sign-in-service) and names it in the site's config also offers **Sign in with GitHub**. Goodfellow doesn't run one for everyone yet, and may in the future. Editors approve the service's app on GitHub's page the first time, and come back signed in. It needs two things:
+
+- **The app is installed on the site.** GitHub only lets the service sign editors in to repositories its app is installed on. The first time anyone signs in, the sign-in screen says it isn't installed yet and offers to install it: an owner of the site installs it there, choosing the site's repository, and comes back signed in. The Editors, Domain and Updates screens offer the same for the owners' app, which owners sign in with there.
+- **The site's address is in Site settings.** The sign-in service only signs editors in at the address Site settings give, so a copy of the admin panel anywhere else can't use it. Sites made with the setup page have it already.
+
+Each sign-in gives the admin panel a token for the site's repository only, which can change its files and see its builds but not its workflows or settings, and lasts an hour; the admin panel gets a new one while the editor is signed in. The sign-in service revokes editors' own GitHub tokens as soon as they've signed in, and what they publish still shows them as its author.
+
+Signing in with GitHub works only on the published site, not in `goodfellow dev` or `next dev`, which need no sign-in, or a build viewed on this computer. When it isn't available, or the sign-in service has been used as much as it can be that day, editors sign in with a token.
 
 ## GitLab
 

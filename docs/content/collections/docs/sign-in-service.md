@@ -1,19 +1,19 @@
 ---
 version: 1
 title: Sign-in service
-description: How Sign in with GitHub works, what it keeps, its limits, and running your own copy.
+description: How Sign in with GitHub works, what it keeps, its limits, and running it for your sites.
 section: developers
 order: 10
 ---
 
-**Sign in with GitHub** goes through a small service Goodfellow runs on Cloudflare Workers, since GitHub doesn't let a page sign people in by itself. Sites keep working without it: editors can always sign in with a token instead. GitLab needs no service, since GitLab lets pages sign people in themselves.
+**Sign in with GitHub** goes through a small service on Cloudflare Workers, since GitHub doesn't let a page sign people in by itself. Goodfellow doesn't run one for everyone yet, and may in the future; until then, a site offers Sign in with GitHub only once its owner runs one, as [Running your own](#running-your-own) explains, and names it in the site's config. Sites work without it: editors sign in with a token instead. GitLab needs no service, since GitLab lets pages sign people in themselves.
 
 ## How it works
 
-The service gives the admin panel tokens from Goodfellow's GitHub App, which GitHub only gives for repositories the app is installed on. So the first time someone signs in to a site, an owner installs Goodfellow on it: the sign-in screen offers to, and GitHub's install page signs them in as it installs.
+The service gives the admin panel tokens from its GitHub App, which GitHub only gives for repositories the app is installed on. So the first time someone signs in to a site, an owner installs the app on it: the sign-in screen offers to, and GitHub's install page signs them in as it installs.
 
-1. The sign-in screen checks with the service that Goodfellow is installed on the site's repository, and that the admin panel is at the address the site's settings (`content/site.json`) give.
-2. **Sign in with GitHub** goes to GitHub, where the editor approves Goodfellow, and back to the admin panel.
+1. The sign-in screen checks with the service that its app is installed on the site's repository, and that the admin panel is at the address the site's settings (`content/site.json`) give.
+2. **Sign in with GitHub** goes to GitHub, where the editor approves the app, and back to the admin panel.
 3. The service checks the editor can publish to the repository, and gives the admin panel a token for that repository only, lasting an hour, along with a session. The admin panel asks for a new token with the session about once an hour, and each time the service checks with GitHub that the editor still edits the site.
 
 ## What it keeps
@@ -26,9 +26,9 @@ The tokens it gives are GitHub App installation tokens:
 
 | Sign-in | GitHub App | What its tokens can do |
 |---|---|---|
-| Editors | Goodfellow (`goodfellow-cms`) | Read and change the site's files, and see its builds, deployments and GitHub Pages |
-| Owners, on the Editors, Domain and Updates screens | Goodfellow owners (`goodfellow-cms-owner`) | Change who edits the site, its GitHub Pages settings and run its workflows |
-| The setup page | Goodfellow owners | Create the repository, write its first files and workflows, and turn on GitHub Pages and protect its history |
+| Editors | The everyday app | Read and change the site's files, and see its builds, deployments and GitHub Pages |
+| Owners, on the Editors, Domain and Updates screens | The owners' app | Change who edits the site, its GitHub Pages settings and run its workflows |
+| The setup page | The owners' app | Create the repository, write its first files and workflows, and turn on GitHub Pages and protect its history |
 
 Editors' tokens can't change workflows or the repository's settings. Commits made with them name the editor as their author, with GitHub's private email address for them, so they show on the editor's GitHub account.
 
@@ -44,7 +44,7 @@ The service keeps no counts of its own, since every request it gets counts towar
 
 ## Running your own
 
-A site can use its own copy of the service, with its own GitHub Apps. The service is `packages/worker` in Goodfellow's repository, and runs on Cloudflare's free plan. You need a Cloudflare account, a GitHub account and Node 22 or later.
+A site's owner, or an organization for all its sites, can run the service, with GitHub Apps of its own. The service is `packages/worker` in Goodfellow's repository, and runs on Cloudflare's free plan. You need a Cloudflare account, a GitHub account and Node 22 or later.
 
 1. In a copy of Goodfellow's repository, run `pnpm install`.
 2. In `packages/worker`, run `pnpm run setup`. It:

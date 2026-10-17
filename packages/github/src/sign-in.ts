@@ -6,9 +6,6 @@
  */
 import { SignInError, type SignInProblem } from "@goodfellow-cms/core";
 
-/** The sign-in worker Goodfellow runs for every site. Sites can run their own and name it in `github({ signIn })`. */
-export const GOODFELLOW_SIGN_IN = "https://sign-in.goodfellow-cms.workers.dev";
-
 export type SignInPurpose = "edit" | "owner" | "setup";
 
 /** The person signed in, as the worker describes them. */

@@ -100,7 +100,8 @@ export const builtSites = {
   github: {
     port: 4401,
     importLine: 'import { github } from "@goodfellow-cms/github";',
-    backend: 'github({ repo: "parish/site" })',
+    // The sign-in worker is used only off this computer, where sign-in-worker.spec.ts serves the site.
+    backend: 'github({ repo: "parish/site", signIn: "https://sign-in.parish.example" })',
   },
   gitlab: {
     port: 4402,
