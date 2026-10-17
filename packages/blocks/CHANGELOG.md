@@ -1,5 +1,16 @@
 # @goodfellow-cms/blocks
 
+## 0.4.0
+
+### Patch Changes
+
+- a622652: The Search block works in Next.js sites: it passed all its props to its search box, including Puck's functions, which Next.js can't send to the browser, so pages with one failed to build.
+- Updated dependencies [6328aff]
+- Updated dependencies [72607c8]
+- Updated dependencies [4caf245]
+  - @goodfellow-cms/core@0.4.0
+  - @goodfellow-cms/react@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

@@ -1,5 +1,28 @@
 # @goodfellow-cms/core
 
+## 0.4.0
+
+### Minor Changes
+
+- 6328aff: Finishing content in a repository of its own (roadmap step 25).
+  
+  - The setup page offers it under "Where to keep the content". It creates the code's repository and the content's, and connects them: on GitHub, private repositories get read-only deploy keys, with their private halves as Actions secrets of the repository that reads them; on GitLab, each project joins the other's job token allowlist, and the code project's job token may publish updates, with a nightly pipeline schedule. `SetupAccount.createSite()` takes `more` and `link` for this, and `separateSetupLinks()` says what connects a site's repositories.
+  - `github({ repo, contentOnly: true, code })` and `gitlab({ project, contentOnly: true, code })` name the code repository, which new sites' configs now do, and the Updates screen follows its update job: the site's release, running updates and the last run, for people who can see it (`SiteUpdates.code`, and `no-access` where they can't). Going back to an older release from the Updates screen also skips the release it left. On GitHub, the sign-in service gives a second token for the code repository, which can only read it and its workflow runs, or for owners, run them.
+  - The GitHub setup page's token links ask for Secrets as well, for the deploy keys.
+- 72607c8: A site's content can be kept in a repository of its own (roadmap step 25), so editors' sign-in, publishing and a full-stack site's server can change the content but never the code.
+  
+  - `github({ repo, contentOnly: true })` and `gitlab({ project, contentOnly: true })` point the admin panel at a repository that holds only `content/` and `public/media/`. Backends refuse to write anything else (`CodeChangeError`), and so does a full-stack site's API. The admin panel has no Blocks screen there, since adding a block changes the code, and its Updates screen says updates run where the code is.
+  - `goodfellow content link` and `goodfellow-next content link` link `content/` and `public/media/` to the content repository in `content-repository/`, so `goodfellow dev` and `next dev` read and save its files; `content copy` copies them instead, as builds do. The dev servers and builds say what to run when the content hasn't been put in place.
+  - `npm create goodfellow` asks where the content should be kept, or takes `--content your-name/your-site-content` and, on Vercel, `--build content|code`. It makes both repositories, with setup files for each: GitHub Pages and GitLab Pages build the site from the content repository, which checks out the code, while the code's repository runs the nightly update and asks for a rebuild after each change to the code; Vercel builds from either.
+  - The Next.js starter's GitHub Pages and GitLab Pages setups now build with `npm run build`, so they run `goodfellow-next finish out` too, which writes the search index, calendar files and redirect pages.
+- 4caf245: Full-stack Next.js sites (roadmap step 24): a Next.js app with a server of its own can be a Goodfellow site whose editors sign in with the app's own sign-in, while its server reads and publishes through GitHub or GitLab with one token that never reaches a browser.
+  
+  - `goodfellowApi()` from `@goodfellow-cms/next/server` is the admin panel's API, as a catch-all route. The app's `authorize(request)` says who's signed in and whether they're an `editor` or an `owner`; only owners change Site Settings, blocks, and collections' settings and templates, which the server checks on every write. Commits name the editor as their author.
+  - `<GoodfellowAdmin server="/api/goodfellow" />` signs in through the app, and `withGoodfellow(config, { server: true })` builds for a server instead of static files.
+  - `ai: { anthropic: process.env.ANTHROPIC_API_KEY }` sends the AI assistant's requests through the server with the site's key (`aiServer()` in `@goodfellow-cms/ai`), so editors don't need keys of their own.
+  - `github()` and `gitlab()` have `server({ token })`, and core's `appApi()` (in `@goodfellow-cms/core/node`) is the API for other frameworks.
+  - Calendar files and search are static on full-stack sites too: `goodfellow-next finish --server`, after `next build`, writes the calendar files into `public/calendars/` and indexes the pages Next.js rendered into `public/pagefind/`.
+
 ## 0.3.0
 
 ### Minor Changes
