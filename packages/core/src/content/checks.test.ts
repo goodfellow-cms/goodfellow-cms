@@ -1,3 +1,4 @@
+import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
 import { contrastRatio, parseColor } from "../contrast.js";
 import { checkSite, contrastProblems, linkTarget, publishProblems, type SiteProblem } from "./checks.js";
@@ -31,7 +32,7 @@ const blocks = {
   },
   Section: { fields: { content: { type: "slot" } }, render: () => null },
   Pages: withPages({ fields: {}, render: () => null }, () => [{ suffix: "page/2", title: "Page 2" }]),
-};
+} as unknown as Record<string, ComponentConfig>;
 
 const site = (files: Record<string, unknown>) =>
   loadSiteContent(
