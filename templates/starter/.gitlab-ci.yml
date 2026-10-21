@@ -5,7 +5,10 @@
 # automatic updates off (or the release GOODFELLOW_UPDATE names), and publishes
 # them only if the site still builds with them. That
 # needs "Allow Git push requests to the repository" under Settings → CI/CD →
-# Job token permissions, which the Updates screen turns on. See README.md.
+# Job token permissions, which the Updates screen turns on.
+# The admin panel also adds a pipeline schedule for each time a page or item is
+# scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, which
+# only builds the site. See README.md.
 pages:
   image: node:22
   cache:
@@ -15,7 +18,7 @@ pages:
   script:
     - npm ci --cache .npm --prefer-offline
     - |
-      if [ "$CI_PIPELINE_SOURCE" = "schedule" ] || [ -n "$GOODFELLOW_UPDATE" ]; then
+      if { [ "$CI_PIPELINE_SOURCE" = "schedule" ] && [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ]; } || [ -n "$GOODFELLOW_UPDATE" ]; then
         git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_FQDN:-$CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
         npx goodfellow update --publish --to "${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't published; building the site as it is."
       fi

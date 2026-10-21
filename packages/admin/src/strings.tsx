@@ -162,6 +162,41 @@ export const defaultStrings = {
   "pages.delete": "Delete",
   "pages.view": "View",
   "pages.homeCantDelete": "The home page can't be deleted.",
+  "pages.schedule": "Schedule",
+
+  "schedulePage.title": "When “{title}” is on the site",
+  "schedulePage.submit": "Publish",
+  "schedulePage.message": 'Schedule page "{title}"',
+  "schedule.title": "When it's on the site",
+  "schedule.showFrom": "Show from",
+  "schedule.showFromHint": "Leave empty to show it as soon as it's published.",
+  "schedule.hideAfter": "Hide after",
+  "schedule.hideAfterHint": "Leave empty to keep it on the site.",
+  "schedule.zone": "Times are in the site's time zone, {zone}.",
+  "schedule.zoneNew": "Times are in your computer's time zone, {zone}, which becomes the site's time zone.",
+  "schedule.zoneNone": "Times are in UTC, since the site has no time zone. Choose one in Site Settings.",
+  "schedule.invalid": "Enter a date and a time.",
+  "schedule.order": "Choose a time after the one it's shown from.",
+  "schedule.timing.exact": "The site is rebuilt at each of these times, so changes go live then.",
+  "schedule.timing.hourly":
+    "The site checks each hour for changes that are due, so changes go live within an hour of their time.",
+  "schedule.timing.nightly":
+    "The site is rebuilt each night, so changes go live with the first rebuild after their time.",
+  "schedule.timing.none":
+    "Changes go live the next time the site is rebuilt after their time, such as when someone publishes.",
+  "schedule.timing.notAllowed":
+    "{host} didn't let you have the site rebuilt at these times, so changes go live with the nightly rebuild after their time, or at their time once an owner opens the admin panel.",
+  "schedule.public":
+    "Anyone can read what's scheduled before it's shown, since the site's files on {host} are public. Don't schedule anything that must stay secret until then.",
+  "schedule.internal":
+    "Anyone signed in to {host} can read what's scheduled before it's shown, since the site's files are visible to all of them. Don't schedule anything that must stay secret until then.",
+  "schedule.status.waiting": "Shown from {time}",
+  "schedule.status.hides": "Hidden after {time}",
+  "schedule.status.hidden": "Hidden since {time}",
+  "comingUp.title": "Coming up",
+  "comingUp.show": "Shown",
+  "comingUp.hide": "Hidden",
+  "comingUp.zone": "Times are in the site's time zone, {zone}.",
 
   "newPage.title": "New page",
   "newPage.pageTitle": "Page title",
@@ -287,6 +322,8 @@ export const defaultStrings = {
   "deleteEntry.message": 'Delete {entry} "{title}"',
 
   "editEntry.message": 'Update {entry} "{title}"',
+  "editEntry.invalidSchedule":
+    "Check when it's on the site: each time needs a date and a time, and it can only be hidden after it's shown.",
   "editEntry.notFound": "This item doesn't exist. It may have been renamed or deleted.",
   "editEntry.back": "Back to {name}",
   "editEntry.required": "Fill in {fields} before publishing.",

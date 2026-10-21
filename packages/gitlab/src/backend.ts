@@ -18,6 +18,8 @@ import {
   type HistoryOptions,
   type PagesDomains,
   REBUILD_JOB,
+  type RepositoryVisibility,
+  type ScheduledBuilds,
   SignInError,
   type SiteDrafts,
   type SiteEditors,
@@ -27,6 +29,7 @@ import {
 import { type ApiOptions, gitlabJson, gitlabRequest } from "./api.js";
 import { gitlabEditors } from "./editors.js";
 import { gitlabPages } from "./pages.js";
+import { gitlabScheduledBuilds } from "./scheduled-builds.js";
 import { gitlabCodeUpdates, gitlabUpdates } from "./updates.js";
 
 const PAGE_SIZE = 100;
@@ -65,6 +68,7 @@ export class GitLabBackend implements GitBackend {
   /** Absent where the project holds only content: the update job runs where the code is. */
   readonly updates?: SiteUpdates;
   readonly drafts: SiteDrafts;
+  readonly scheduledBuilds: ScheduledBuilds;
   readonly contentOnly: boolean;
   private readonly options: GitLabBackendOptions;
   private readonly api: ApiOptions;
@@ -102,6 +106,15 @@ export class GitLabBackend implements GitBackend {
       });
     }
     this.drafts = branchDrafts(this, this.draftHost());
+    // Pipeline schedules run this project's pipeline, which builds the site, where the content is kept apart too.
+    this.scheduledBuilds = gitlabScheduledBuilds(this.api, options.project, this.branch, async () =>
+      this.readAt(".gitlab-ci.yml", this.pinned ?? (await this.revision())),
+    );
+  }
+
+  async repositoryVisibility(): Promise<RepositoryVisibility> {
+    const { visibility } = await gitlabJson<{ visibility?: string }>(this.api, `/projects/${this.project}`);
+    return visibility === "public" || visibility === "internal" ? visibility : "private";
   }
 
   /** Drafts on branches of the project, with merge requests for review. */

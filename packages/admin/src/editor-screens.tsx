@@ -34,7 +34,7 @@ export function PageEditorScreen({ path }: { path: string }) {
           typeof data.root.props?.title === "string" && data.root.props.title.trim()
             ? data.root.props.title
             : page.path;
-        return { changes: [pageFileChange(page.path, data)], message: t("editPage.message", { title }) };
+        return { changes: [pageFileChange(page.path, data, page.content)], message: t("editPage.message", { title }) };
       }}
     />
   );

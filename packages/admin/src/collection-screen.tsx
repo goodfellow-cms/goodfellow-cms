@@ -14,6 +14,7 @@ import {
 import { type Failure, PublishFailure } from "./publish-failure.js";
 import { PuckEditor } from "./puck-editor.js";
 import { type CollectionTab, collectionHref, entryEditorHref, navigate } from "./router.js";
+import { ScheduleStatus } from "./schedule.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, TextField } from "./ui.js";
 import { AppLink } from "./use-link.js";
@@ -106,7 +107,7 @@ function NewEntryDialog({ collection, onClose }: { collection: Collection; onClo
     if (!title.trim() || !check.ok) return;
     setBusy(true);
     const result = await publish(
-      [entryFileChange(collection, check.slug, { title: title.trim() })],
+      [entryFileChange(collection, check.slug, { title: title.trim() }, undefined)],
       t("newEntry.message", { entry, title: title.trim() }),
     );
     setBusy(false);
@@ -277,6 +278,7 @@ type DialogState = { type: "new" } | { type: "move"; entry: Entry } | { type: "d
 
 /** A collection's items, with buttons to add, edit, rename and delete them. */
 export function EntriesScreen({ collection }: { collection: Collection }) {
+  const { content } = useSiteContent();
   const t = useStrings();
   const { siteUrl } = useAdmin();
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -314,6 +316,7 @@ export function EntriesScreen({ collection }: { collection: Collection }) {
                     <a href={entryEditorHref(collection.id, item.slug)} className="gfa-link-strong">
                       {entryTitle(item)}
                     </a>
+                    <ScheduleStatus schedule={item.content} content={content} />
                   </td>
                   {settings.path && (
                     <td>

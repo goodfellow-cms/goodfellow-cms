@@ -5,6 +5,8 @@ import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   ContentRepositoryError,
   contentRepositoryProblem,
+  reportDue,
+  scheduleDue,
   setUpContentRepository,
   update,
 } from "@goodfellow-cms/core/node";
@@ -23,6 +25,9 @@ Commands:
   preview   Serve the built site the way a static host would
   index     Index a built site's pages for its search block (build does this itself)
   update    Update Goodfellow, and blocks from its registry, if the site still builds
+  due       Say whether a scheduled change has come due since --since (default: the
+            last hour), so the site needs building again; on GitHub Actions it also
+            sets the step's due output to true or false
   content   For a site whose content is kept in a repository of its own:
             content link [folder]  links content/ and public/media/ to the content
                                    repository in folder (default: content-repository)
@@ -37,6 +42,7 @@ Options:
                   content/updates.json turns them off), latest, or a release
                   such as 0.5.0; an older one goes back to it and skips this one
   --publish       For update: publish the update to the site's main branch once it builds
+  --since <time>  For due: when the last check started, such as 2026-11-29T09:17:00Z
   --strict        For build: fail if the site checks find links to pages or media that don't exist
   -h, --help      Show this help
 `;
@@ -57,6 +63,7 @@ async function main(): Promise<void> {
       port: { type: "string" },
       to: { type: "string" },
       publish: { type: "boolean" },
+      since: { type: "string" },
       strict: { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
@@ -71,7 +78,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (command === "dev" || command === "build") checkContent(values.root ?? ".");
+  if (command === "dev" || command === "build" || command === "due") checkContent(values.root ?? ".");
 
   switch (command) {
     case "dev":
@@ -92,6 +99,12 @@ async function main(): Promise<void> {
         `Built ${result.pages.length} page${result.pages.length === 1 ? "" : "s"} into ${result.outDir} in ${seconds}s`,
       );
       if (result.searchIndexed !== undefined) console.log(`Indexed ${result.searchIndexed} pages for search`);
+      if (result.nextChange) {
+        const { kind, title, path, time } = result.nextChange;
+        console.log(
+          `Next scheduled change: ${kind} "${title}"${path ? ` (${path})` : ""} at ${time}, which needs the site built again`,
+        );
+      }
       for (const line of reportSiteProblems(result.problems)) console.log(line);
       if (values.strict && result.problems.some((problem) => problem.severity === "error")) {
         console.log("The build failed because of the site checks' errors (--strict).");
@@ -114,6 +127,11 @@ async function main(): Promise<void> {
       // For the admin panel, which reads it in the host's log.
       console.log(formatUpdateResult(result));
       if (result.state === "failed") process.exitCode = 1;
+      return;
+    }
+    case "due": {
+      const result = await scheduleDue({ root: values.root, since: values.since });
+      for (const line of await reportDue(result)) console.log(line);
       return;
     }
     case "content": {

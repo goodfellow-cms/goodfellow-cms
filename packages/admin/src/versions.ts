@@ -56,7 +56,8 @@ export function contentWithVersion(source: ContentSource, file: string, text: st
 export function restoreChange(content: SiteContent, subject: VersionSubject): FileChange {
   switch (subject.kind) {
     case "page":
-      return pageFileChange(subject.page.path, subject.page.content.data as Data);
+      // As the version was, schedule and all.
+      return pageFileChange(subject.page.path, subject.page.content.data as Data, subject.page.content);
     case "header":
     case "footer":
       return layoutFileChange(subject.file, content[subject.kind].data as Data);
@@ -64,7 +65,7 @@ export function restoreChange(content: SiteContent, subject: VersionSubject): Fi
       // Fields removed since the version was published go, as they went from every item then.
       const names = new Set(subject.collection.settings.fields.map((field) => field.name));
       const fields = Object.entries(subject.entry.content.fields).filter(([name]) => names.has(name));
-      return entryFileChange(subject.collection, subject.entry.slug, Object.fromEntries(fields));
+      return entryFileChange(subject.collection, subject.entry.slug, Object.fromEntries(fields), subject.entry.content);
     }
   }
 }

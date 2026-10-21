@@ -63,7 +63,7 @@ Each host's free plan has its own rules about business use. If the site is for a
 **GitHub Pages** (free for public repositories; not for online businesses or shops)
 
 1. In the repository on GitHub, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
-2. Push. `.github/workflows/deploy.yml` builds and publishes the site on every change and once a night. If your main branch isn't called `main`, change it in that file.
+2. Push. `.github/workflows/deploy.yml` builds and publishes the site on every change and once a night, and `.github/workflows/scheduled.yml` starts it within the hour when a scheduled page or item comes due. If your main branch isn't called `main`, change it in `deploy.yml`.
 
 **GitLab Pages** (free, including for private projects; no rule against business sites that we know of)
 

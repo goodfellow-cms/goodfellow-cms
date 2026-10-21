@@ -1,4 +1,5 @@
-import { allPages, type Page } from "@goodfellow-cms/core";
+import { allPages, type Page, type Schedule, scheduleOf, scheduleProblem } from "@goodfellow-cms/core";
+import type { Data } from "@puckeditor/core";
 import { type FormEvent, useState } from "react";
 import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import {
@@ -12,6 +13,7 @@ import {
 } from "./changes.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
 import { navigate, pageEditorHref } from "./router.js";
+import { ComingUp, ScheduleFields, ScheduleStatus, scheduleSettingsChanges } from "./schedule.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, TextField } from "./ui.js";
 
@@ -43,7 +45,7 @@ function NewPageDialog({ onClose }: { onClose: () => void }) {
     if (!title.trim() || !check.ok) return;
     setBusy(true);
     const result = await publish(
-      [pageFileChange(check.path, newPageData(title.trim()))],
+      [pageFileChange(check.path, newPageData(title.trim()), undefined)],
       t("newPage.message", { title: title.trim() }),
     );
     setBusy(false);
@@ -147,6 +149,46 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
   );
 }
 
+function SchedulePageDialog({ page, onClose }: { page: Page; onClose: () => void }) {
+  const t = useStrings();
+  const { publish } = useAdmin();
+  const { content } = useSiteContent();
+  const [schedule, setSchedule] = useState<Schedule>(scheduleOf(page.content));
+  const [submitted, setSubmitted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<Failure>(null);
+  const title = pageTitle(page);
+
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitted(true);
+    if (scheduleProblem(schedule)) return;
+    setBusy(true);
+    const result = await publish(
+      [pageFileChange(page.path, page.content.data as Data, schedule), ...scheduleSettingsChanges(content, schedule)],
+      t("schedulePage.message", { title }),
+    );
+    setBusy(false);
+    if (result.ok) onClose();
+    else setFailure(result);
+  };
+
+  return (
+    <Dialog title={t("schedulePage.title", { title })} onClose={onClose}>
+      <form onSubmit={onSubmit} className="gfa-form" noValidate>
+        <ScheduleFields value={schedule} onChange={setSchedule} content={content} showErrors={submitted} />
+        <PublishFailure failure={failure} />
+        <div className="gfa-dialog-actions">
+          <Button onClick={onClose}>{t("action.cancel")}</Button>
+          <Button type="submit" variant="primary" disabled={busy}>
+            {busy ? t("publish.publishing") : t("schedulePage.submit")}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
 function DeletePageDialog({ page, onClose }: { page: Page; onClose: () => void }) {
   const t = useStrings();
   const { publish } = useAdmin();
@@ -176,7 +218,12 @@ function DeletePageDialog({ page, onClose }: { page: Page; onClose: () => void }
   );
 }
 
-type DialogState = { type: "new" } | { type: "move"; page: Page } | { type: "delete"; page: Page } | null;
+type DialogState =
+  | { type: "new" }
+  | { type: "move"; page: Page }
+  | { type: "schedule"; page: Page }
+  | { type: "delete"; page: Page }
+  | null;
 
 export function PagesScreen() {
   const t = useStrings();
@@ -193,6 +240,8 @@ export function PagesScreen() {
           {t("pages.new")}
         </Button>
       </div>
+
+      <ComingUp content={content} />
 
       {content.pages.length === 0 ? (
         <p>{t("pages.empty")}</p>
@@ -214,6 +263,7 @@ export function PagesScreen() {
                   <a href={pageEditorHref(page.path)} className="gfa-link-strong">
                     {pageTitle(page)}
                   </a>
+                  <ScheduleStatus schedule={page.content} content={content} />
                 </td>
                 <td>
                   <code>{page.path}</code>
@@ -239,6 +289,13 @@ export function PagesScreen() {
                   </Button>
                   <Button
                     variant="ghost"
+                    onClick={() => setDialog({ type: "schedule", page })}
+                    disabled={page.path === "/"}
+                  >
+                    {t("pages.schedule")}
+                  </Button>
+                  <Button
+                    variant="ghost"
                     onClick={() => setDialog({ type: "delete", page })}
                     disabled={page.path === "/"}
                     title={page.path === "/" ? t("pages.homeCantDelete") : undefined}
@@ -254,6 +311,7 @@ export function PagesScreen() {
 
       {dialog?.type === "new" && <NewPageDialog onClose={close} />}
       {dialog?.type === "move" && <MovePageDialog page={dialog.page} onClose={close} />}
+      {dialog?.type === "schedule" && <SchedulePageDialog page={dialog.page} onClose={close} />}
       {dialog?.type === "delete" && <DeletePageDialog page={dialog.page} onClose={close} />}
     </div>
   );

@@ -162,10 +162,11 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
     async letEditorsPublish() {
       // GitLab's free plan can only choose who may push when a branch is protected, so the
       // branch is protected again, with Developers allowed to push and nobody to force-push.
+      // Developers may merge too, which adding pipeline schedules for scheduled changes needs.
       const protect = (level: number) =>
         gitlabRequest(api, `${base}/protected_branches`, {
           method: "POST",
-          body: { name: branch, push_access_level: level, merge_access_level: MAINTAINER, allow_force_push: false },
+          body: { name: branch, push_access_level: level, merge_access_level: level, allow_force_push: false },
         });
       await gitlabRequest(api, protectedPath, { method: "DELETE", allow: [404] }).catch(notAllowed);
       try {

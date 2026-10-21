@@ -98,6 +98,8 @@ export interface FakeGitHubOptions {
   accounts?: string[];
   /** GitHub Apps, which the sign-in worker signs people in with. */
   apps?: FakeGitHubApp[];
+  /** Whether the site's repository is private. Public by default. */
+  private?: boolean;
 }
 
 /** A GitHub App, as the sign-in worker uses one: its JWTs, installations, OAuth sign-in and tokens. */
@@ -1054,6 +1056,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       return json({
         id: 1,
         full_name: options.repo,
+        private: options.private === true,
+        visibility: options.private === true ? "private" : "public",
         default_branch: repo.defaultBranch,
         permissions: { push: user.push !== false, admin: user.admin === true },
       });

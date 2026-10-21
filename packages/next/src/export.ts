@@ -7,6 +7,7 @@ import {
   type Page,
   redirectFiles,
   type SiteProblem,
+  shownContent,
 } from "@goodfellow-cms/core";
 import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
@@ -17,7 +18,7 @@ import { fileSystemSource } from "@goodfellow-cms/core/node";
  * how many it wrote.
  */
 export async function writeCalendarFiles(outDir: string, root = process.cwd()): Promise<number> {
-  const files = calendarFiles(await loadSiteContent(fileSystemSource(resolve(root))));
+  const files = calendarFiles(shownContent(await loadSiteContent(fileSystemSource(resolve(root)))));
   for (const file of files) {
     const target = join(outDir, file.path.slice(1));
     await mkdir(dirname(target), { recursive: true });
@@ -52,7 +53,7 @@ async function exists(path: string): Promise<boolean> {
  */
 export async function writeRedirectFiles(outDir: string, root = process.cwd()): Promise<number> {
   const dir = resolve(root);
-  const content = await loadSiteContent(fileSystemSource(dir));
+  const content = shownContent(await loadSiteContent(fileSystemSource(dir)));
   const files = redirectFiles(content, {
     taken: allPages(content).map((page) => page.path),
     base: await exportBasePath(dir),
@@ -174,7 +175,7 @@ function contentFile(pages: readonly Page[], path: string): string | undefined {
  * Pages that aren't the site's, such as Next.js's own, are left out.
  */
 export async function checkPages(pages: readonly BuiltPage[], root = process.cwd()): Promise<SiteProblem[]> {
-  const known = allPages(await loadSiteContent(fileSystemSource(resolve(root))));
+  const known = allPages(shownContent(await loadSiteContent(fileSystemSource(resolve(root)))));
   return checkBuiltPages(
     pages.flatMap((page) => {
       const path = page.url.replace(/(.)\/$/, "$1");

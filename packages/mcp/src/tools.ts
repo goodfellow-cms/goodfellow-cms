@@ -330,7 +330,12 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       const built = blocks ? blocksFrom(blocks, site.pageConfig) : { content: before.content, ignored: 0 };
       const data: Data = { ...before, root: { ...before.root, props }, content: built.content };
       const title = typeof props.title === "string" && props.title ? props.title : path;
-      await save(draft, [pageFileChange(path, data)], `${existing ? "Update" : "Add"} page "${title}"`);
+      // A page scheduled in the admin panel keeps its schedule.
+      await save(
+        draft,
+        [pageFileChange(path, data, existing?.content)],
+        `${existing ? "Update" : "Add"} page "${title}"`,
+      );
       return text({
         draft: draft.name,
         address: path,
@@ -466,7 +471,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       if (missing.length > 0) {
         throw new ToolError(`The item needs a value for: ${missing.map((field) => field.name).join(", ")}.`);
       }
-      const change = entryFileChange({ id, settings: collection.settings }, slug, fields);
+      const change = entryFileChange({ id, settings: collection.settings }, slug, fields, existing?.content);
       const title = typeof fields.title === "string" ? fields.title : slug;
       await save(
         draft,

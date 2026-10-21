@@ -8,6 +8,7 @@ import {
   normalizeBase,
   redirectFrom,
   redirectProblems,
+  shownContent,
 } from "@goodfellow-cms/core";
 import {
   contentRepositoryProblem,
@@ -100,7 +101,7 @@ function redirectSource(path: string): string {
  * Content with a problem gives none, and the build reports the problem.
  */
 async function siteRedirects(root: string): Promise<Redirects> {
-  const content = await loadSiteContent(fileSystemSource(root)).catch(() => undefined);
+  const content = await loadSiteContent(fileSystemSource(root)).then(shownContent, () => undefined);
   if (!content?.redirects) return [];
   const taken = new Set(allPages(content).map((page) => page.path));
   const problems = redirectProblems(content.redirects);

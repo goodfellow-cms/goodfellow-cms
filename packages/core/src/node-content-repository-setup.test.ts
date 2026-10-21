@@ -110,6 +110,17 @@ describe("planSite with the content in a repository of its own", () => {
       "npx goodfellow content copy",
       `npx goodfellow build --base "\${{ steps.pages.outputs.base_path }}/"`,
     ]);
+    // Each hour, a build only once a scheduled change has come due, checked with the code and content in place.
+    const scheduled = parse(text(files, "content-repository/.github/workflows/scheduled.yml"));
+    expect(scheduled.on.schedule).toEqual([{ cron: "47 * * * *" }]);
+    const check = scheduled.jobs.check.steps as Array<Record<string, unknown>>;
+    expect(check.slice(0, 2)).toEqual(steps.slice(0, 2));
+    expect(check.map((step) => step.run).filter(Boolean)).toEqual([
+      "npm ci",
+      "npx goodfellow content copy",
+      expect.stringContaining('npx goodfellow due --since "$since"'),
+      'gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"',
+    ]);
 
     const update = parse(text(files, ".github/workflows/update.yml"));
     expect(update.jobs.update.steps[1].with).toEqual({

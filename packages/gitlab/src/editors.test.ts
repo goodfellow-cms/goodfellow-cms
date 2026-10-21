@@ -78,7 +78,7 @@ describe("GitLab editors", () => {
 
     await editors.letEditorsPublish?.();
     expect((await editors.list()).editorsCanPublish).toBe(true);
-    expect(fake.protectedBranches.get("main")).toEqual({ push: 30, merge: 40, forcePush: false });
+    expect(fake.protectedBranches.get("main")).toEqual({ push: 30, merge: 30, forcePush: false });
     await expect(publish()).resolves.toBeDefined();
   });
 

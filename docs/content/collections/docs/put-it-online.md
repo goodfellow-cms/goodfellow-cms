@@ -44,7 +44,7 @@ Each host's free plan has its own rules about business use; read [Hosts and busi
 **GitHub Pages**, free for public repositories:
 
 1. In the repository on GitHub, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
-2. Push. `.github/workflows/deploy.yml` builds and publishes the site on every change and once a night. If your main branch isn't called `main`, change it in that file.
+2. Push. `.github/workflows/deploy.yml` builds and publishes the site on every change and once a night, and `.github/workflows/scheduled.yml` starts it when a [scheduled](/docs/scheduling) page or item comes due. If your main branch isn't called `main`, change it in `deploy.yml`.
 3. If a run fails with "Branch … is not allowed to deploy to github-pages due to environment protection rules", GitHub Pages expects another branch. Under **Settings → Environments → github-pages → Deployment branches and tags**, add the branch the site is built from, then run **Deploy to GitHub Pages** again under **Actions**.
 
 **GitLab Pages**, free for public and private projects:

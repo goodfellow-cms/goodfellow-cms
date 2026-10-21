@@ -3,6 +3,7 @@ import type { ContentStore } from "./content/store.js";
 import type { PagesDomains } from "./domains.js";
 import type { SiteDrafts } from "./drafts.js";
 import type { OwnerAccess, SiteEditors } from "./editors.js";
+import type { RepositoryVisibility, ScheduledBuilds } from "./scheduled-builds.js";
 import type { SiteUpdates } from "./updates.js";
 
 /** The person signed in to the admin panel. */
@@ -67,6 +68,13 @@ export interface GitBackend extends ContentStore {
   readonly updates?: SiteUpdates;
   /** Changes kept on a branch of their own until they're published or submitted for review. Absent where the backend can't. */
   readonly drafts?: SiteDrafts;
+  /** How the site is built again when a scheduled change comes due. Absent where the backend can't say. */
+  readonly scheduledBuilds?: ScheduledBuilds;
+  /**
+   * Who can read the repository, so the admin panel can warn that content
+   * scheduled for later can be read there before it's shown.
+   */
+  repositoryVisibility?(): Promise<RepositoryVisibility>;
   /**
    * Whether the repository holds only the site's content (`content/` and
    * `public/media/`), with its code in a repository of its own. Writes to

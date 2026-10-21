@@ -2,7 +2,8 @@
 # changes (including every Publish in the admin panel), and once a night so
 # date-based content stays current. Each night it first installs Goodfellow's
 # newest fixes, and publishes them only if the site still builds with them,
-# unless content/updates.json turns automatic updates off.
+# unless content/updates.json turns automatic updates off. scheduled.yml also
+# starts it when a page or item scheduled to be shown or hidden comes due.
 # In the repository's Settings → Pages, set "Source" to "GitHub Actions".
 # See README.md.
 name: Deploy to GitHub Pages

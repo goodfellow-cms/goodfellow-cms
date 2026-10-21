@@ -16,15 +16,19 @@ import {
   type OwnerAccess,
   type PagesDomains,
   type RegistrySources,
+  type RepositoryVisibility,
+  type ScheduledBuilds,
+  ScheduledBuildsError,
   SignInError,
   type SiteContent,
   type SiteEditors,
   type SiteUpdates,
+  upcomingChanges,
   writeChanges,
 } from "@goodfellow-cms/core";
 import { createPuckConfig } from "@goodfellow-cms/react";
 import type { Config } from "@puckeditor/core";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ChecksDialog } from "./checks-dialog.js";
 import { mediaUrl } from "./media.js";
 import { createMediaPreviews, type MediaPreviews } from "./media-previews.js";
@@ -117,6 +121,12 @@ interface AdminContextValue {
   updates?: SiteUpdates;
   /** The repository holds only the site's content: its code, and so its blocks, are a developer's to change. */
   contentOnly: boolean;
+  /** How the site is built again when a scheduled change comes due, when the backend can say. */
+  scheduledBuilds?: ScheduledBuilds;
+  /** Who can read the site's repository, when the backend can say. */
+  repositoryVisibility?: () => Promise<RepositoryVisibility>;
+  /** Why the host wouldn't build the site at scheduled times, when the sign-in can't have it do so. */
+  scheduleSyncProblem?: "not-allowed";
 }
 
 const AdminContext = createContext<AdminContextValue | null>(null);
@@ -190,6 +200,12 @@ export function AdminProvider({
   const editors = isGitBackend(store) ? store.editors : undefined;
   const updates = isGitBackend(store) ? store.updates : undefined;
   const contentOnly = isGitBackend(store) && store.contentOnly === true;
+  const scheduledBuilds = isGitBackend(store) ? store.scheduledBuilds : undefined;
+  const repositoryVisibility = useMemo(
+    () => (isGitBackend(store) ? store.repositoryVisibility?.bind(store) : undefined),
+    [store],
+  );
+  const [scheduleSyncProblem, setScheduleSyncProblem] = useState<"not-allowed">();
   // The backend's owner access, with whether it's in use as state, so every screen showing it updates together.
   const backendOwner = isGitBackend(store) ? store.ownerAccess : undefined;
   const [ownerActive, setOwnerActive] = useState(backendOwner?.active ?? false);
@@ -264,6 +280,27 @@ export function AdminProvider({
     [store, state, config, loadAndHandle, onSignInError],
   );
 
+  // Where the host builds the site at each scheduled time (GitLab's pipeline schedules), keeps its builds in step
+  // with the site's schedules: once the site loads, if anything is scheduled, then whenever they change.
+  const syncedTimes = useRef<string>(undefined);
+  useEffect(() => {
+    const sync = scheduledBuilds?.sync?.bind(scheduledBuilds);
+    if (!sync || state.status !== "ready") return;
+    const times = [...new Set(upcomingChanges(state.content).map((change) => change.at.getTime()))];
+    const key = times.join(" ");
+    if (key === syncedTimes.current || (syncedTimes.current === undefined && times.length === 0)) return;
+    syncedTimes.current = key;
+    void sync(times.map((time) => new Date(time))).then(
+      () => setScheduleSyncProblem(undefined),
+      (error: unknown) => {
+        // Changes still go live with the next nightly build; screens say so.
+        if (error instanceof ScheduledBuildsError) setScheduleSyncProblem(error.problem);
+        // Another time, such as when the network is back.
+        else syncedTimes.current = undefined;
+      },
+    );
+  }, [scheduledBuilds, state]);
+
   // Follows the latest publish until it's live (or fails), so editors know when visitors will see it.
   useEffect(() => {
     if (deploy?.state !== "building" || !isGitBackend(store)) return;
@@ -311,6 +348,9 @@ export function AdminProvider({
       ownerAccess,
       updates,
       contentOnly,
+      scheduledBuilds,
+      repositoryVisibility,
+      scheduleSyncProblem,
     }),
     [
       config,
@@ -336,6 +376,9 @@ export function AdminProvider({
       ownerAccess,
       updates,
       contentOnly,
+      scheduledBuilds,
+      repositoryVisibility,
+      scheduleSyncProblem,
     ],
   );
 

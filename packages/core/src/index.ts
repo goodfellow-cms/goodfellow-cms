@@ -233,6 +233,21 @@ export {
 export { type RenderedPage, renderedProblems } from "./content/rendered-checks.js";
 export { sanitizeHtml } from "./content/sanitize.js";
 export {
+  dueChanges,
+  isScheduled,
+  isShown,
+  type Schedule,
+  type ScheduledChange,
+  type ScheduleState,
+  scheduledChanges,
+  scheduleInstant,
+  scheduleOf,
+  scheduleProblem,
+  scheduleState,
+  shownContent,
+  upcomingChanges,
+} from "./content/schedule.js";
+export {
   type CollectionField,
   type CollectionFile,
   collectionFileSchema,
@@ -446,6 +461,12 @@ export {
   type UpdateOptions,
   type UpdatePlan,
 } from "./registry.js";
+export {
+  type RepositoryVisibility,
+  type ScheduledBuilds,
+  ScheduledBuildsError,
+  type ScheduledBuildTiming,
+} from "./scheduled-builds.js";
 export { SEARCH_ATTRIBUTE, SEARCH_INDEX_DIR } from "./search.js";
 export {
   type CreatedSiteRepository,

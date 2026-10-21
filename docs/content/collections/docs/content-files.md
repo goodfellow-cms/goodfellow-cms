@@ -29,6 +29,18 @@ A collection's `_collection.json` has its `name`, `entryName` (what one item is 
 
 An item's JSON file holds `{ "version": 1, "fields": { … } }`. A choice field (`select`) holds one of its `options`' values, and a tags field (`tags`) a list of them, such as `["music", "youth"]`.
 
+## Scheduled pages and items
+
+A page's or item's file can say when it's on the site, beside its `version`: `showFrom`, when it's first shown, and `hideAfter`, when it's hidden again, each a wall-clock time `YYYY-MM-DDTHH:MM` in the site's `timeZone` (UTC without one). Either can be left out, and `hideAfter` must come after `showFrom`. A Markdown item has them in its front matter. Builds leave out pages and items their schedule doesn't show at the time they run (see [Scheduled publishing](/docs/scheduling)).
+
+```json
+{
+  "version": 1,
+  "data": { "root": { "props": { "title": "Advent" } }, "content": [] },
+  "showFrom": "2026-11-29T09:00"
+}
+```
+
 ## Pages blocks add
 
 Some blocks give the page they're on pages of their own, which builds write beside it: a Calendar showing a month at a time a page for each month (`/calendar/2026-11`), and a Collection list or loop its later pages (`/news/page/2`) and a page for each choice of a field (`/news/topics/music`, from the choice's value). These pages aren't in `content/`: they're the same page, showing something else. They never take an address a page or item already has.

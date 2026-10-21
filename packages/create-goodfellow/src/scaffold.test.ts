@@ -157,8 +157,10 @@ describe("scaffold", () => {
     );
     expect(existsSync(join(target, "public/media/logo.svg"))).toBe(true);
     expect(existsSync(join(target, "content-repository/.github/workflows/deploy.yml"))).toBe(true);
+    expect(existsSync(join(target, "content-repository/.github/workflows/scheduled.yml"))).toBe(true);
     expect(existsSync(join(target, ".github/workflows/update.yml"))).toBe(true);
     expect(existsSync(join(target, ".github/workflows/deploy.yml"))).toBe(false);
+    expect(existsSync(join(target, ".github/workflows/scheduled.yml"))).toBe(false);
 
     for (const [name, value] of Object.entries({
       GIT_AUTHOR_NAME: "Test",
