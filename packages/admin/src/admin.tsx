@@ -22,6 +22,7 @@ import { DomainScreen } from "./domain-screen.js";
 import { LayoutEditorScreen, PageEditorScreen } from "./editor-screens.js";
 import { EditorsScreen } from "./editors-screen.js";
 import { EntryEditorScreen } from "./entry-editor.js";
+import { ImportScreen } from "./import-screen.js";
 import { MediaScreen } from "./media-library.js";
 import { PagesScreen } from "./pages-screen.js";
 import { SETTINGS_SECTIONS, useRoute } from "./router.js";
@@ -141,6 +142,7 @@ function Screen() {
   if (section === "settings" && sub === "domain") return <DomainScreen />;
   if (section === "settings" && sub === "editors") return <EditorsScreen />;
   if (section === "settings" && sub === "updates") return <UpdatesScreen />;
+  if (section === "settings" && sub === "import") return <ImportScreen />;
   if (section === "versions") return <VersionsScreen file={params.get("file") ?? ""} />;
   if (section === "settings") {
     const tab = SETTINGS_TABS.includes(sub as SettingsTab) ? (sub as SettingsTab) : "general";

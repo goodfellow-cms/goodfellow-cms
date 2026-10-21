@@ -106,7 +106,9 @@ flowchart TB
     - **Structured data** (schema.org JSON-LD), so search engines show events with their dates and places, and news as articles.
     - **For each page:** hiding it from search engines, and a preview of how it looks when shared.
     - **Feeds:** RSS and Atom feeds of collections whose items are dated, such as news, which feed readers and other sites can follow.
-29. **Moving from and to WordPress.** Import a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected. Export a Goodfellow site as a WordPress export file, with its blocks turned into WordPress's.
+29. **Moving from and to WordPress.**
+    - **Importing** (done): a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, in the admin panel or from the command line, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected.
+    - **Exporting:** a Goodfellow site as a WordPress export file, with its blocks turned into WordPress's.
 30. **Restoring the whole site.** Version history beyond one file: owners can see how the whole site, its content and settings, looked at an earlier publish and what has changed since, and restore it as one publish, for example after a bulk change that went wrong.
 31. **Several languages.** Optional, for sites in more than one language, such as a parish with Masses in two.
     - Translations of a page or collection item linked together, each with its own address, menu, title and description, and dates written the language's way.
