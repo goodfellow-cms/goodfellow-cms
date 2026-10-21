@@ -2,8 +2,15 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { formatWordPressImport, importWordPress, withoutJpegDetails } from "./node-wordpress.js";
+import {
+  exportWordPress,
+  formatWordPressExport,
+  formatWordPressImport,
+  importWordPress,
+  withoutJpegDetails,
+} from "./node-wordpress.js";
 import { fakeWordPress, SAMPLE_IMAGE, SAMPLE_WORDPRESS_URL, sampleWordPressExport } from "./testing.js";
+import { readWordPressExport } from "./wordpress.js";
 
 let root: string;
 afterEach(() => rm(root, { recursive: true, force: true }));
@@ -68,6 +75,31 @@ describe("importing a WordPress site on disk", () => {
     expect(result.written).toBe(false);
     expect(formatWordPressImport(result)).toContain("Importing from WordPress would bring across:");
     await expect(readFile(join(root, "content/pages/about.json"), "utf8")).rejects.toThrow();
+  });
+});
+
+describe("exporting a site on disk to WordPress", () => {
+  it("writes an export file with the site's pages, posts and media", async () => {
+    const write = await site();
+    await write("wordpress.xml", sampleWordPressExport());
+    await importWordPress(root, join(root, "wordpress.xml"), { fetch: fetcher() });
+    await write(
+      "content/site.json",
+      JSON.stringify({ version: 1, title: "St. Brendan's", url: "https://new.example.org" }),
+    );
+
+    const result = await exportWordPress(root, join(root, "out.xml"));
+    expect(result.file).toBe(join(root, "out.xml"));
+    const exported = readWordPressExport(await readFile(result.file, "utf8"));
+    expect(exported.title).toBe("St. Brendan's");
+    expect(exported.items.filter((item) => item.type === "post")).toHaveLength(3);
+    expect(exported.media.map((file) => file.url)).toContain("https://new.example.org/media/church-2.jpg");
+
+    const report = formatWordPressExport(result, root);
+    expect(report).toContain("Wrote out.xml, a WordPress export file with:");
+    expect(report).toContain("- 4 pages");
+    expect(report).toContain("- 3 posts, with");
+    expect(report).toContain("Tools → Import → WordPress");
   });
 });
 

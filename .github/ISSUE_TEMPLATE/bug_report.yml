@@ -49,6 +49,7 @@ body:
         - Forms
         - Redirects
         - Importing from WordPress
+        - Exporting to WordPress
         - Creating a site (the setup page or npm create goodfellow)
         - The AI assistant
         - Claude (the Claude connector or extension)

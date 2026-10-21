@@ -21,6 +21,9 @@ export { localRegistryDir } from "./node-registry.js";
 export { type DueOptions, type DueResult, reportDue, scheduleDue } from "./node-schedule.js";
 export { type RunCommand, type UpdateOptions, update } from "./node-update.js";
 export {
+  type ExportWordPressResult,
+  exportWordPress,
+  formatWordPressExport,
   formatWordPressImport,
   type ImportWordPressOptions,
   type ImportWordPressResult,

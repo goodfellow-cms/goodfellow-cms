@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { fakeWordPress, SAMPLE_WORDPRESS_URL, sampleWordPressExport } from "@goodfellow-cms/core/testing";
 import type { Page } from "@playwright/test";
 import { expect, readJson, readSiteFile, test } from "./helpers.js";
@@ -93,4 +94,25 @@ test("explains a file that isn't a WordPress export file", async ({ page }) => {
     buffer: Buffer.from("<notes><note>Hello</note></notes>"),
   });
   await expect(page.getByRole("alert")).toContainText("That file isn't a WordPress export file.");
+});
+
+test("downloads the site as a WordPress export file", async ({ page }) => {
+  await page.goto("/admin/#/settings/import");
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download the export file" }).click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toBe("my-site.wordpress.xml");
+
+  // The starter has no Site address, which Goodfellow's own import needs, so the file is read as it is.
+  const xml = await readFile(await download.path(), "utf8");
+  expect(xml).toContain("<title>My site</title>");
+  const types = [...xml.matchAll(/<wp:post_type><!\[CDATA\[(\w+)\]\]><\/wp:post_type>/g)].map((match) => match[1]);
+  expect(types.filter((type) => type === "page")).toHaveLength(3);
+  expect(types.filter((type) => type === "post")).toHaveLength(2);
+  expect(xml).toContain("<!-- wp:paragraph -->");
+
+  await expect(page.getByRole("status")).toHaveText("Downloaded the export file.");
+  await expect(page.getByText("Posts: 2")).toBeVisible();
+  // The starter has no Site address, so WordPress couldn't copy its media.
+  await expect(page.getByText(/The site has no address yet/)).toBeVisible();
 });

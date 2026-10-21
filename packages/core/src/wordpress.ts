@@ -1,9 +1,17 @@
 /**
- * `@goodfellow-cms/core/wordpress`: importing WordPress sites. An entry of its
+ * `@goodfellow-cms/core/wordpress`: moving sites from and to WordPress. An entry of its
  * own, so its HTML parser is only loaded where sites are imported.
  */
 export { blockHtml, hasBlocks, parseBlocks, type WordPressBlock } from "./wordpress/blocks.js";
 export type { ConversionNote } from "./wordpress/convert.js";
+export {
+  type WordPressExport,
+  type WordPressExportNote,
+  type WordPressExportOptions,
+  type WordPressExportSummary,
+  wordPressExport,
+  wordPressExportName,
+} from "./wordpress/export.js";
 export { readWordPressExport } from "./wordpress/export-file.js";
 export {
   DEFAULT_IMPORT_NAMES,

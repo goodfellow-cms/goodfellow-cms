@@ -2,9 +2,11 @@
  * Imports a WordPress site into a site on disk, as `goodfellow import
  * wordpress`, `goodfellow-next import wordpress` and `create-goodfellow
  * --wordpress` do: from an export file or the site's address, with the media
- * its pages and posts use downloaded into `public/media/`.
+ * its pages and posts use downloaded into `public/media/`. Also writes a site
+ * on disk as a WordPress export file, as `goodfellow export wordpress` does.
  */
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
+import { relative, resolve } from "node:path";
 import { extensionOf, type FileChange, loadSiteContent, MAX_UPLOAD_BYTES, MEDIA_DIR } from "./index.js";
 import { fileSystemSource } from "./node-fs-source.js";
 import { localFileStore } from "./node-local-files.js";
@@ -12,9 +14,13 @@ import {
   fetchWordPressSite,
   planWordPressImport,
   readWordPressExport,
+  type WordPressExport,
+  type WordPressExportNote,
   type WordPressImport,
   type WordPressImportNote,
   type WordPressSite,
+  wordPressExport,
+  wordPressExportName,
 } from "./wordpress.js";
 
 /** How many media files are downloaded at once. */
@@ -231,9 +237,73 @@ export function formatWordPressImport(result: ImportWordPressResult): string {
   const skippedBig = result.skipped.filter((skip) => skip.reason === "size").length;
   if (skippedSvg)
     notes.push(
-      `${plural(skippedSvg, "SVG image")} weren't copied; upload them in the admin panel, which makes them safe.`,
+      `${plural(skippedSvg, "SVG image")} ${verb(skippedSvg, "wasn't", "weren't")} copied; upload ${verb(skippedSvg, "it", "them")} in the admin panel, which makes ${verb(skippedSvg, "it", "them")} safe.`,
     );
-  if (skippedBig) notes.push(`${plural(skippedBig, "file")} were over the 25 MB upload limit, so they weren't copied.`);
+  if (skippedBig)
+    notes.push(
+      `${plural(skippedBig, "file")} ${verb(skippedBig, "was", "were")} over the 25 MB upload limit, so ${verb(skippedBig, "it wasn't", "they weren't")} copied.`,
+    );
   if (notes.length) lines.push("", "Check these:", ...notes.map((note) => `- ${note}`));
+  return lines.join("\n");
+}
+
+export interface ExportWordPressResult {
+  /** Where the export file was written. */
+  file: string;
+  export: WordPressExport;
+}
+
+/**
+ * Writes the site at `root` as a WordPress export file, at `file` or, by
+ * default, a file named after the site in the current folder.
+ */
+export async function exportWordPress(
+  root: string,
+  file?: string,
+  options: { now?: Date } = {},
+): Promise<ExportWordPressResult> {
+  const source = fileSystemSource(root);
+  const content = await loadSiteContent(source);
+  const result = wordPressExport(content, { mediaFiles: await source.list(MEDIA_DIR), now: options.now });
+  const written = resolve(file ?? wordPressExportName(content));
+  await writeFile(written, result.xml);
+  return { file: written, export: result };
+}
+
+const listed = (items: string[]) =>
+  items.slice(0, 3).join(", ") + (items.length > 3 ? ` and ${items.length - 3} more` : "");
+
+function exportNoteLine(note: WordPressExportNote): string {
+  switch (note.kind) {
+    case "left-out-block":
+      return `WordPress has nothing like the ${note.name} block, so it was left out: ${listed(note.items)}.`;
+    case "no-pages":
+      return `${listed(note.collections)} ${verb(note.collections.length, "has", "have")} no pages of ${verb(note.collections.length, "its", "their")} own, so ${verb(note.collections.length, "its", "their")} items weren't exported.`;
+    case "hidden":
+      return `${plural(note.items.length, "page or post", "pages and posts")} ${verb(note.items.length, "is", "are")} hidden by ${verb(note.items.length, "its", "their")} schedule, so ${verb(note.items.length, "it's", "they're")} exported as ${verb(note.items.length, "a draft", "drafts")}: ${listed(note.items)}.`;
+    case "redirects":
+      return `${plural(note.count, "redirect")} from old addresses ${verb(note.count, "isn't", "aren't")} in the file, since WordPress needs a plugin for redirects.`;
+    case "no-address":
+      return "The site has no address in Site Settings, so WordPress can't download its media. Set it, then export again.";
+    case "layout":
+      return "The header and footer aren't in the file: WordPress's theme shows its own, with the menus.";
+  }
+}
+
+/** What an export wrote, in words, for the command line. */
+export function formatWordPressExport(result: ExportWordPressResult, from = process.cwd()): string {
+  const { summary, notes } = result.export;
+  const near = relative(from, result.file);
+  const shown = near && !near.startsWith("..") ? near : result.file;
+  const lines = [
+    `Wrote ${shown}, a WordPress export file with:`,
+    `- ${plural(summary.pages, "page")}`,
+    `- ${plural(summary.posts, "post")}${summary.categories || summary.tags ? `, with ${plural(summary.categories, "category", "categories")} and ${plural(summary.tags, "tag")}` : ""}`,
+    `- ${plural(summary.menus, "menu")}`,
+    `- ${plural(summary.media, "media file")}, which WordPress downloads from the site`,
+    "",
+    'Import it in WordPress with Tools → Import → WordPress, and check "Download and import file attachments".',
+  ];
+  if (notes.length) lines.push("", "Check these:", ...notes.map((note) => `- ${exportNoteLine(note)}`));
   return lines.join("\n");
 }

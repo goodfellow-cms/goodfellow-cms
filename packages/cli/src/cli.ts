@@ -5,6 +5,8 @@ import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   ContentRepositoryError,
   contentRepositoryProblem,
+  exportWordPress,
+  formatWordPressExport,
   formatWordPressImport,
   importWordPress,
   reportDue,
@@ -34,6 +36,8 @@ Commands:
   import    import wordpress <file or address>  brings a WordPress site's pages, posts,
                                    categories, tags, menus and media into this site,
                                    from its export file (Tools → Export) or its address
+  export    export wordpress [file]  writes this site as a WordPress export file, which
+                                   WordPress imports with Tools → Import → WordPress
   content   For a site whose content is kept in a repository of its own:
             content link [folder]  links content/ and public/media/ to the content
                                    repository in folder (default: content-repository)
@@ -86,7 +90,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (command === "dev" || command === "build" || command === "due" || command === "import")
+  if (command === "dev" || command === "build" || command === "due" || command === "import" || command === "export")
     checkContent(values.root ?? ".");
 
   switch (command) {
@@ -171,6 +175,16 @@ async function main(): Promise<void> {
         log: (line) => console.log(line),
       });
       console.log(formatWordPressImport(result));
+      return;
+    }
+    case "export": {
+      const [, kind, file] = positionals;
+      if (kind !== "wordpress") {
+        console.error(`Say "export wordpress", and the file to write if you like.\n\n${HELP}`);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(formatWordPressExport(await exportWordPress(values.root ?? ".", file)));
       return;
     }
     case "preview":
