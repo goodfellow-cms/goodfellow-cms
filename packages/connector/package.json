@@ -23,7 +23,7 @@
     "@goodfellow-cms/gitlab": "workspace:*",
     "@goodfellow-cms/mcp": "workspace:*",
     "@goodfellow-cms/worker": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.31.0",
+    "@modelcontextprotocol/sdk": "1.32.0",
     "universal-github-app-jwt": "2.2.2"
   },
   "devDependencies": {
