@@ -244,7 +244,7 @@ export function AdminProvider({
   const publish = useCallback(
     async (changes: FileChange[], message: string, options?: { checks?: boolean }): Promise<PublishResult> => {
       if (state.status !== "ready") return { ok: false, reason: "error", error: new Error("The site isn't loaded.") };
-      const checks = options?.checks === false ? undefined : await checkPublish(store, state, changes, config.blocks);
+      const checks = options?.checks === false ? undefined : await checkPublish(store, state, changes, config);
       if (checks && (checks.blocking.length > 0 || checks.warnings.length > 0)) {
         const go = await new Promise<boolean>((decide) => setChecking({ checks, content: checks.content, decide }));
         setChecking(undefined);
@@ -261,7 +261,7 @@ export function AdminProvider({
       setState(await loadAndHandle());
       return { ok: true };
     },
-    [store, state, config.blocks, loadAndHandle, onSignInError],
+    [store, state, config, loadAndHandle, onSignInError],
   );
 
   // Follows the latest publish until it's live (or fails), so editors know when visitors will see it.

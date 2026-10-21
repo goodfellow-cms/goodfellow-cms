@@ -38,9 +38,10 @@ export const Notice: ComponentConfig<NoticeProps> = {
   },
   defaultProps: { title: "Please note", text: "<p>Write the announcement here.</p>", tone: "subtle", className: "" },
   render: ({ title, text, tone, className }) => (
-    <aside className={cx("rounded-lg border-l-4 p-5", toneClasses[tone], className)}>
+    // A note, not an <aside>: asides belong beside the page's content, not in it.
+    <div role="note" className={cx("rounded-lg border-l-4 p-5", toneClasses[tone], className)}>
       {title && <p className="font-heading text-lg font-semibold">{title}</p>}
       <div className="gf-prose mt-1">{text}</div>
-    </aside>
+    </div>
   ),
 };

@@ -14,8 +14,9 @@ export default defineConfig([
     define: { __GOODFELLOW_VERSION__: JSON.stringify(version) },
   },
   {
-    // Node only: reads and writes the site's files on disk, and (on its own, since it runs Pagefind) indexes built sites.
-    entry: ["src/node.ts", "src/node-search.ts"],
+    // Node only: reads and writes the site's files on disk, and (each on its own, since they run Pagefind and
+    // axe-core) indexes built sites and checks their pages.
+    entry: ["src/node.ts", "src/node-search.ts", "src/node-accessibility.ts"],
     format: "esm",
     dts: true,
     platform: "node",

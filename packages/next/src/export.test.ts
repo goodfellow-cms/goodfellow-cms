@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { fixSegmentFiles, writeRedirectFiles } from "./export.js";
+import { checkPages, exportedPages, fixSegmentFiles, writeRedirectFiles } from "./export.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -71,4 +71,29 @@ describe("writeRedirectFiles", () => {
     expect(existsSync(join(out, "out/about/index.html"))).toBe(false);
     expect(await readFile(join(out, "out/events/2026-10.html"), "utf8")).toBe("month");
   });
+});
+
+describe("checkPages", () => {
+  it("checks the export's pages, putting problems down to the content they come from", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-export-"));
+    const page = (main: string) =>
+      `<!doctype html><html lang="en"><head><title>Parish</title></head><body><main class="gf-main">${main}</main></body></html>`;
+    await write("content/site.json", JSON.stringify({ version: 1, title: "Parish" }));
+    await write("content/pages/index.json", JSON.stringify({ version: 1, data: { root: { props: {} }, content: [] } }));
+    await write("content/pages/news.json", JSON.stringify({ version: 1, data: { root: { props: {} }, content: [] } }));
+    await write("out/index.html", page("<h1>Home</h1>"));
+    await write("out/news.html", page("<h1>News</h1><h3>Lent</h3>"));
+    // A list's second page, which the news page adds.
+    await write("out/news/page/2.html", page('<h1>News</h1><img src="/media/lent.jpg">'));
+    await write("out/admin/index.html", page("<h3>Admin</h3>"));
+    await write("out/_not-found.html", page("<h3>Not found</h3>"));
+
+    const pages = await exportedPages(join(out, "out"));
+    expect(pages.map((built) => built.url).sort()).toEqual(["/", "/news", "/news/page/2"]);
+    const problems = await checkPages(pages, out);
+    expect(problems.map((problem) => [problem.kind, problem.file, "path" in problem && problem.path])).toEqual([
+      ["skipped-heading", "content/pages/news.json", "/news"],
+      ["no-alt", "content/pages/news.json", "/news/page/2"],
+    ]);
+  }, 30_000);
 });

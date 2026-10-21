@@ -93,11 +93,10 @@ flowchart TB
     - **In the admin panel**, everything that edits content works as before. Adding and removing blocks writes code, so it becomes a developer's task, and the Updates screen follows the code repository's updates.
     - **Settings stay with the content:** Site Settings, custom CSS and code, and collections' settings stay in the content repository, since some saves change settings and content in one commit, such as removing a collection's field from every item.
     - **Developers** keep a copy of the content repository beside the code, which `goodfellow dev` and `next dev` read and save to.
-26. **Site checks.** Catch mistakes before they're published, in the admin panel when publishing and in `goodfellow build`.
-    - **Errors that stop publishing** (done): links to pages, items or media that don't exist, including ones a save would delete or move, besides the checks loading the site already makes.
-    - **Warnings editors can publish anyway:** pages without a title or description, and theme colors that text is hard to read on, which the Theme tab shows as colors are chosen (done); images without alt text, headings that skip a level, and links whose text doesn't say where they go ("click here").
-    - **In builds** (done): `goodfellow build` lists what the checks find, and `--strict` fails the build on errors.
-    - **Built pages** are checked for accessibility problems with an automated checker as part of the build, explained in plain words. Automated checks can't show that a site is fully accessible, so Goodfellow never claims it is.
+26. **Site checks** (done). Catch mistakes before they're published, in the admin panel when publishing and in builds.
+    - **Errors that stop publishing:** links to pages, items or media that don't exist, including ones a deletion would break, besides the checks loading the site already makes. Moving a page or an item, or changing a collection's addresses, updates every link to them instead.
+    - **Warnings editors can publish anyway:** pages without a title or description, theme colors that text is hard to read on (which the Theme tab shows as colors are chosen), and, on the pages a publish changes as they'll show, images without alt text, headings that skip a level, and links whose text doesn't say where they go ("click here").
+    - **In builds:** `goodfellow build` lists what the checks find, and `--strict` fails the build on errors. Built pages, Next.js sites' too, are also checked for accessibility problems with axe-core, explained in plain words. Automated checks can't show that a site is fully accessible, so Goodfellow never claims it is.
 27. **Scheduled publishing.** Pages and collection items that appear at a date and time, and disappear after one, such as a bulletin, a Lent schedule or a closure notice.
     - Content carries its own "show from" and "hide after", which builds apply in the site's time zone, as calendars do, and the starters' setups rebuild the site each hour, so changes go live within the hour.
     - The admin panel lists what's coming up, and when.

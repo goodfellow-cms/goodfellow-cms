@@ -8,7 +8,7 @@ order: 5
 
 Goodfellow sites run on free plans, which have limits worth knowing about. These are the hosts' rules, not Goodfellow's, and they change, so check the links before deciding. Last checked in October 2026.
 
-| | GitHub Free | GitLab Free |
+| On the free plan | GitHub Free | GitLab Free |
 |---|---|---|
 | Free static hosting | GitHub Pages, public repositories only | GitLab Pages, public or private |
 | Editors | Unlimited collaborators | Up to 5 users in a private group or account; unlimited if public |

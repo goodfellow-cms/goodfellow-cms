@@ -33,7 +33,7 @@
               "type": "Image",
               "props": {
                 "id": "Image-about",
-                "alt": "",
+                "alt": "A placeholder picture, to replace with a photo of your own",
                 "aspect": "wide",
                 "caption": "Replace this image with one of your own.",
                 "className": "mt-8",

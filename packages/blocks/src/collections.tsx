@@ -266,6 +266,8 @@ function CollectionListView({
 
   // A list on its own is just the list; with a heading or links to its other pages, they go around it.
   const top = heading || (moreLabel && moreHref);
+  // Items' titles go under the list's heading, or, without one, are headings of their own on the page.
+  const ItemTitle = heading ? "h3" : "h2";
   const alone = !top && !props.choicePages && listing.pages <= 1;
   const own = alone ? className : "";
   const list =
@@ -303,6 +305,8 @@ function CollectionListView({
                   <SiteImage
                     src={image}
                     alt=""
+                    // Each item's title says what it is; its picture adds nothing for people who can't see it.
+                    aria-hidden
                     loading="lazy"
                     className={
                       cards ? "aspect-video w-full object-cover" : "aspect-video w-32 shrink-0 rounded-md object-cover"
@@ -315,7 +319,7 @@ function CollectionListView({
                       {formatFieldValue(fieldOf(dateField), dateValue, settings.language, settings.timeZone)}
                     </time>
                   )}
-                  <h3 className="font-heading text-lg font-semibold">
+                  <ItemTitle className="font-heading text-lg font-semibold">
                     {entry.path ? (
                       <SiteLink href={entry.path} className="after:absolute after:inset-0 hover:underline">
                         {title}
@@ -323,7 +327,7 @@ function CollectionListView({
                     ) : (
                       title
                     )}
-                  </h3>
+                  </ItemTitle>
                   {summary && <p className="line-clamp-3 text-muted-foreground">{summary}</p>}
                 </div>
               </article>

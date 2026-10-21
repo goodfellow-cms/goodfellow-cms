@@ -90,7 +90,7 @@
                     "type": "Image",
                     "props": {
                       "id": "Image-staff-photo",
-                      "alt": "",
+                      "alt": "{title}",
                       "aspect": "square",
                       "caption": "",
                       "className": "",

@@ -230,6 +230,7 @@ export {
   redirectTarget,
   storedRedirects,
 } from "./content/redirects.js";
+export { type RenderedPage, renderedProblems } from "./content/rendered-checks.js";
 export { sanitizeHtml } from "./content/sanitize.js";
 export {
   type CollectionField,

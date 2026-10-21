@@ -126,7 +126,7 @@ describe("renderPage", () => {
       makePage([{ type: "Photo", props: { id: "p", src: "/media/choir.jpg" } }]),
     );
     expect(html).toContain(
-      '<aside class="gf-credits" data-pagefind-ignore=""><ul><li><a href="https://www.flickr.com/photos/ann/1" rel="noopener" target="_blank">Choir</a> · <a href="https://www.flickr.com/people/ann" rel="noopener" target="_blank">Ann Example</a> · Flickr · <a href="https://creativecommons.org/licenses/by/2.0/" rel="license noopener" target="_blank">CC BY 2.0</a></li></ul></aside></main>',
+      '<div class="gf-credits" data-pagefind-ignore=""><ul><li><a href="https://www.flickr.com/photos/ann/1" rel="noopener" target="_blank">Choir</a> · <a href="https://www.flickr.com/people/ann" rel="noopener" target="_blank">Ann Example</a> · Flickr · <a href="https://creativecommons.org/licenses/by/2.0/" rel="license noopener" target="_blank">CC BY 2.0</a></li></ul></div></main>',
     );
     expect(html).not.toContain("Unused");
     // A page without credited photos has no list.

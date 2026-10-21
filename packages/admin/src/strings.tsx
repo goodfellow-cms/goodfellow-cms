@@ -129,6 +129,17 @@ export const defaultStrings = {
     'Text in "{text}" is hard to read on "{background}": its contrast is {ratio} to 1, and text needs at least 4.5 to 1.',
   "checks.low-contrast.dark":
     'In dark mode, text in "{text}" is hard to read on "{background}": its contrast is {ratio} to 1, and text needs at least 4.5 to 1.',
+  "checks.no-alt":
+    "{place} has an image, {image}, with no description for people who can't see it. Describe it in the image's settings, or say it's only decoration.",
+  "checks.skipped-heading":
+    "{place} has the heading \"{text}\" at level {level}, after one at level {previous}. Headings shouldn't skip a level, or people who move through a page by its headings think they've missed something.",
+  "checks.skipped-heading.first":
+    '{place} starts with the heading "{text}", at level {level}. Start with the page\'s title (level 1) or a section (level 2).',
+  "checks.vague-link":
+    '{place} has a link, "{text}", that doesn\'t say where it goes. Say what people will find there, such as "Our Mass times" rather than "Click here".',
+  "checks.empty-link":
+    "{place} has a link to {target} with no text, so people who can't see the page don't know where it goes.",
+  "checks.accessibility": "{place}: {help}",
   "checks.place.page": 'The page "{title}"',
   "checks.place.entry": '"{title}" in {collection}',
   "checks.place.design": "The design of {collection}",

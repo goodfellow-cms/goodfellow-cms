@@ -57,7 +57,8 @@ function CreditLink({
  */
 function PhotoCredits({ credits, newTab }: { credits: PageCredit[]; newTab: boolean }) {
   return (
-    <aside className="gf-credits" data-pagefind-ignore="">
+    // Not an <aside>, which can't be inside <main>.
+    <div className="gf-credits" data-pagefind-ignore="">
       <ul>
         {credits.map((credit) => (
           <li key={credit.url}>
@@ -79,7 +80,7 @@ function PhotoCredits({ credits, newTab }: { credits: PageCredit[]; newTab: bool
           </li>
         ))}
       </ul>
-    </aside>
+    </div>
   );
 }
 

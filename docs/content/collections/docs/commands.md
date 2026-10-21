@@ -22,7 +22,11 @@ Options: `--root <dir>`, `--out <dir>`, `--port <port>`, and `--base <path>`.
 
 ## Site checks
 
-`goodfellow build` ends with what the [site checks](/docs/publishing#site-checks) find, the same ones the admin panel runs when publishing: links to pages, items and media the site doesn't have are errors, and pages without a title or description, and theme colors text is hard to read on, are warnings. On GitHub Actions each also shows as an annotation on its file. They don't stop the build, so a link broken outside the admin panel, such as by deleting a file in the repository, never takes the site down; `goodfellow build --strict` fails the build when there are errors, for checking changes made in code before they're merged. Next.js sites don't run them in `next build` yet.
+`goodfellow build` ends with what the [site checks](/docs/publishing#site-checks) find, the same ones the admin panel runs when publishing: links to pages, items and media the site doesn't have are errors, and pages without a title or description, and theme colors text is hard to read on, are warnings. On GitHub Actions each also shows as an annotation on its file. They don't stop the build, so a link broken outside the admin panel, such as by deleting a file in the repository, never takes the site down; `goodfellow build --strict` fails the build when there are errors, for checking changes made in code before they're merged.
+
+It then checks every built page for accessibility problems: the ones the admin panel warns about (images without a description, headings that skip a level, and links that don't say where they go), and the rules of [axe-core](https://github.com/dequelabs/axe-core), the checker browsers' developer tools use, each explained in plain words, such as a form field without a label or a frame without a title. Problems in the header and footer are listed once, not for every page. Automated checks find only some accessibility problems, so a build with none doesn't mean the site is accessible: try it with a keyboard and a screen reader too. Contrast is checked on the theme's colors, not on built pages, since that needs a browser.
+
+Next.js sites get the checks of built pages from `goodfellow-next finish`; the checks of content files don't run in `next build` yet.
 
 `goodfellow dev` uses port 4321, or the next free one if another program has it, and `goodfellow preview` uses 4322. Each prints its address when it starts.
 

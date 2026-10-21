@@ -18,6 +18,7 @@ import {
   todayIn,
   withBase,
 } from "@goodfellow-cms/core";
+import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { createServer, build as viteBuild } from "vite";
@@ -192,8 +193,10 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const today = todayIn(content.settings.timeZone);
     const pages = sitePages(content, today, config.blocks);
     const written: string[] = [];
+    const built: BuiltPage[] = [];
     for (const page of pages) {
       const html = applyBasePath(await renderPage(content, page, { stylesheets, ...(islands && { islands }) }), base);
+      built.push({ path: page.path, file: page.file, html });
       const file = join(outDir, pageOutputFile(page.path));
       await mkdir(dirname(file), { recursive: true });
       await writeFile(file, html);
@@ -235,7 +238,11 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const media = (await fileSystemSource(root).list(MEDIA_DIR)).map(
       (path) => `/media/${path.slice(MEDIA_DIR.length + 1)}`,
     );
-    const problems = checkSite(content, { media, blocks: config.blocks, today });
+    // The site checks, then what checking the built pages finds, such as images without alt text.
+    const problems = [
+      ...checkSite(content, { media, blocks: config.blocks, today }),
+      ...(await checkBuiltPages(built)),
+    ];
     return { outDir, pages: written, ...(searchIndexed !== undefined && { searchIndexed }), problems };
   } finally {
     await server.close();

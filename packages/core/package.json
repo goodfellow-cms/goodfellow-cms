@@ -35,6 +35,10 @@
       "types": "./dist/node-search.d.ts",
       "import": "./dist/node-search.js"
     },
+    "./accessibility": {
+      "types": "./dist/node-accessibility.d.ts",
+      "import": "./dist/node-accessibility.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -46,7 +50,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "axe-core": "4.14.0",
     "fontaine": "1.0.0",
+    "happy-dom": "20.14.5",
     "ical.js": "2.2.1",
     "marked": "18.1.0",
     "pagefind": "1.5.2",
