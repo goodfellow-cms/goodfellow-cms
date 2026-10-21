@@ -288,9 +288,9 @@ function ListView({ items, props }: { items: CalendarItem[]; props: CalendarProp
     <ol className="flex flex-col gap-6">
       {[...byDate].map(([date, dayItems]) => (
         <li key={date}>
-          <h3 className="font-heading text-lg font-semibold">
+          <h2 className="font-heading text-lg font-semibold">
             <time dateTime={date}>{formatDate(date, language)}</time>
-          </h3>
+          </h2>
           <ul className="mt-2 flex flex-col divide-y divide-border">
             {dayItems.map((item) => (
               <li key={item.key} className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-6">

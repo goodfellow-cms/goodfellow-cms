@@ -1,6 +1,14 @@
 import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
-import { allPages, calendarFiles, loadSiteContent, redirectFiles } from "@goodfellow-cms/core";
+import {
+  allPages,
+  calendarFiles,
+  loadSiteContent,
+  type Page,
+  redirectFiles,
+  type SiteProblem,
+} from "@goodfellow-cms/core";
+import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
 
 /**
@@ -124,4 +132,54 @@ export async function builtPages(root = process.cwd()): Promise<BuiltPage[]> {
     pages.push({ url, html: await readFile(file, "utf8") });
   }
   return pages;
+}
+
+/**
+ * The pages a static export has, at their addresses on the site, without its
+ * base path: `about.html` and `about/index.html` are `/about`. The admin panel
+ * and Next.js's own files are left out.
+ */
+export async function exportedPages(outDir: string): Promise<BuiltPage[]> {
+  const files = (await readdir(outDir, { recursive: true }))
+    .map((file) => file.split("\\").join("/"))
+    .filter(
+      (file) =>
+        file.endsWith(".html") &&
+        !/^(admin|_next|pagefind)\//.test(file) &&
+        !file.startsWith("_not-found") &&
+        file !== "404/index.html",
+    );
+  const pages: BuiltPage[] = [];
+  for (const file of files) {
+    const url = `/${file.replace(/(^|\/)index\.html$/, "").replace(/\.html$/, "")}`.replace(/\/$/, "") || "/";
+    pages.push({ url, html: await readFile(join(outDir, file), "utf8") });
+  }
+  return pages;
+}
+
+/** The content file a page comes from: its own, or, for pages blocks add such as a list's second page, its page's. */
+function contentFile(pages: readonly Page[], path: string): string | undefined {
+  const own = pages.find((page) => page.path === path);
+  if (own) return own.file;
+  const under = pages
+    .filter((page) => page.path !== "/" && path.startsWith(`${page.path}/`))
+    .sort((a, b) => b.path.length - a.path.length);
+  return under[0]?.file;
+}
+
+/**
+ * What automated checks find on the pages Next.js built, as `goodfellow build`
+ * reports them: images without alt text, headings that skip a level, links
+ * that don't say where they go, and axe-core's checks (`checkBuiltPages()`).
+ * Pages that aren't the site's, such as Next.js's own, are left out.
+ */
+export async function checkPages(pages: readonly BuiltPage[], root = process.cwd()): Promise<SiteProblem[]> {
+  const known = allPages(await loadSiteContent(fileSystemSource(resolve(root))));
+  return checkBuiltPages(
+    pages.flatMap((page) => {
+      const path = page.url.replace(/(.)\/$/, "$1");
+      const file = contentFile(known, path);
+      return file ? [{ path, file, html: page.html }] : [];
+    }),
+  );
 }

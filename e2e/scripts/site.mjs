@@ -27,20 +27,40 @@ const INSTALLED_CODE = ["components", "lib", "hooks"];
  * Resets a site's editable files to those of `from`: content, media and installed blocks. Returns
  * whether it reset blocks' code, which a running dev server takes a moment to notice.
  */
+/** Removes what `target` has that `from` doesn't, folder by folder. */
+function removeExtras(target, from) {
+  for (const name of readdirSync(target)) {
+    const path = join(target, name);
+    const source = join(from, name);
+    if (!existsSync(source) || statSync(source).isDirectory() !== statSync(path).isDirectory()) {
+      rmSync(path, { recursive: true, force: true });
+    } else if (statSync(path).isDirectory()) {
+      removeExtras(path, source);
+    }
+  }
+}
+
 function resetEditable(root, from) {
   // Code is only reset when a test added blocks (or the site is new), so other tests don't make the dev
   // server reload modules.
   const hadBlocks = existsSync(join(root, "blocks/installed/installed.json"));
   const resetCode = hadBlocks || !existsSync(join(root, "blocks/installed/index.ts"));
   for (const dir of ["content", "public", ...(resetCode ? ["blocks/installed", ...INSTALLED_CODE] : [])]) {
-    // Empties folders rather than removing them: a dev server's watcher can miss later changes in a
-    // folder that was removed and made again.
     const target = join(root, dir);
-    if (existsSync(target)) {
-      for (const name of readdirSync(target)) rmSync(join(target, name), { recursive: true, force: true });
+    const source = join(from, dir);
+    if (!existsSync(source)) {
+      // Empties folders rather than removing them: a dev server's watcher can miss later changes in a
+      // folder that was removed and made again.
+      if (existsSync(target)) {
+        for (const name of readdirSync(target)) rmSync(join(target, name), { recursive: true, force: true });
+      }
+      continue;
     }
-    // Some sites have files of their own there, such as the Next.js starter's lib/site.ts.
-    if (existsSync(join(from, dir))) cpSync(join(from, dir), target, { recursive: true });
+    // Copies the files back before removing the rest, so a file the site always has, such as
+    // content/styles/custom.css, which the Next.js starter's CSS imports, is never missing while a dev
+    // server compiles. Some sites have files of their own there, such as the Next.js starter's lib/site.ts.
+    if (existsSync(target)) removeExtras(target, source);
+    cpSync(source, target, { recursive: true, force: true });
   }
   return hadBlocks;
 }

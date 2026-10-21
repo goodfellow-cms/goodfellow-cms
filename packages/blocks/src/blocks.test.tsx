@@ -156,7 +156,10 @@ describe("built-in blocks", () => {
 
   it("shows the site logo and name", async () => {
     const html = await render([{ type: "SiteBrand", props: { id: "b", show: "both", className: "" } }]);
-    expect(html).toContain('<img src="/media/logo.svg" alt="" class="h-10 w-auto"/><span>St. Joseph</span>');
+    // Beside the name, the logo is only decoration.
+    expect(html).toContain(
+      '<img src="/media/logo.svg" alt="" aria-hidden="true" class="h-10 w-auto"/><span>St. Joseph</span>',
+    );
   });
 
   it("shows the dark logo in dark mode, only where the site has dark mode", async () => {
@@ -258,6 +261,26 @@ describe("built-in blocks", () => {
     expect(html).toContain('target="_blank" rel="noopener noreferrer"');
   });
 
+  it("hides images that are only decoration from screen readers", async () => {
+    const image = (decorative: boolean) => ({
+      type: "Image",
+      props: {
+        id: "i",
+        src: "/media/border.svg",
+        alt: "A border",
+        decorative,
+        caption: "",
+        aspect: "auto",
+        rounded: false,
+        className: "",
+      },
+    });
+    expect(await render([image(false)])).toContain('<img src="/media/border.svg" alt="A border" loading="lazy"');
+    expect(await render([image(true)])).toContain(
+      '<img src="/media/border.svg" alt="" aria-hidden="true" loading="lazy"',
+    );
+  });
+
   it("lists a collection's entries as cards linking to their pages", async () => {
     const html = await render([
       {
@@ -282,7 +305,7 @@ describe("built-in blocks", () => {
     expect(html.indexOf("Parish picnic")).toBeLessThan(html.indexOf("Fish fry"));
     expect(html).not.toContain("Undated");
     expect(html).toContain(
-      '<img src="/media/picnic.jpg" alt="" loading="lazy" class="aspect-video w-full object-cover"/>',
+      '<img src="/media/picnic.jpg" alt="" aria-hidden="true" loading="lazy" class="aspect-video w-full object-cover"/>',
     );
     expect(html).toContain('<time dateTime="2026-07-12" class="text-sm text-muted-foreground">July 12, 2026</time>');
     expect(html).toContain(

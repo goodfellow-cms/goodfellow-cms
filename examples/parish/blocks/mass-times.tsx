@@ -41,7 +41,7 @@ export const MassTimes: ComponentConfig<MassTimesProps> = {
   },
   render: ({ title, times, className }) => (
     <div className={cx("rounded-lg border border-border bg-background p-6 text-foreground", className)}>
-      {title && <h3 className="font-heading text-2xl font-semibold">{title}</h3>}
+      {title && <h2 className="font-heading text-2xl font-semibold">{title}</h2>}
       <dl className="mt-4 divide-y divide-border">
         {times.map((item, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: times have no ids, and can repeat

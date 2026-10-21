@@ -17,7 +17,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Heading | A heading, from page title (H1) down to H4 |
 | Text | Formatted text: paragraphs, lists, links |
 | Button | A link styled as a button |
-| Image | An image with an optional caption |
+| Image | An image with an optional caption, and a description for people who can't see it, unless it's only decoration |
 | Video | A video from the media library, YouTube, Vimeo or another site's player |
 | Form | A form whose answers a form service emails to you, or a Google form (see [Forms](/docs/forms)) |
 | Code | Code with syntax highlighting, an optional title and a copy button |

@@ -50,8 +50,8 @@
                           "props": {
                             "id": "Heading-baptism",
                             "align": "left",
-                            "className": "",
-                            "level": "h3",
+                            "className": "text-2xl md:text-2xl font-semibold tracking-normal",
+                            "level": "h2",
                             "text": "Baptism"
                           }
                         },
@@ -82,8 +82,8 @@
                           "props": {
                             "id": "Heading-first-communion",
                             "align": "left",
-                            "className": "",
-                            "level": "h3",
+                            "className": "text-2xl md:text-2xl font-semibold tracking-normal",
+                            "level": "h2",
                             "text": "First Communion"
                           }
                         },
@@ -114,8 +114,8 @@
                           "props": {
                             "id": "Heading-confirmation",
                             "align": "left",
-                            "className": "",
-                            "level": "h3",
+                            "className": "text-2xl md:text-2xl font-semibold tracking-normal",
+                            "level": "h2",
                             "text": "Confirmation"
                           }
                         },
@@ -146,8 +146,8 @@
                           "props": {
                             "id": "Heading-marriage",
                             "align": "left",
-                            "className": "",
-                            "level": "h3",
+                            "className": "text-2xl md:text-2xl font-semibold tracking-normal",
+                            "level": "h2",
                             "text": "Marriage"
                           }
                         },
@@ -178,8 +178,8 @@
                           "props": {
                             "id": "Heading-reconciliation",
                             "align": "left",
-                            "className": "",
-                            "level": "h3",
+                            "className": "text-2xl md:text-2xl font-semibold tracking-normal",
+                            "level": "h2",
                             "text": "Reconciliation"
                           }
                         },
@@ -210,8 +210,8 @@
                           "props": {
                             "id": "Heading-anointing",
                             "align": "left",
-                            "className": "",
-                            "level": "h3",
+                            "className": "text-2xl md:text-2xl font-semibold tracking-normal",
+                            "level": "h2",
                             "text": "Anointing of the sick"
                           }
                         },

@@ -92,6 +92,8 @@ function SiteBrandView({ show, className }: SiteBrandProps) {
   const logo = show !== "title" ? settings.logo : undefined;
   const showTitle = show !== "logo" || !logo;
   const alt = showTitle ? "" : logo?.alt || settings.title;
+  // Beside the site's name, the logo adds nothing for people who can't see it.
+  const decorative = showTitle || undefined;
   const dark = settings.theme.darkMode ? logo?.darkSrc : undefined;
 
   return (
@@ -99,11 +101,11 @@ function SiteBrandView({ show, className }: SiteBrandProps) {
       {logo && dark ? (
         <>
           {/* The dark logo in dark mode, the usual one otherwise; dark: applies only where the site has dark mode. */}
-          <SiteImage src={logo.src} alt={alt} className="h-10 w-auto dark:hidden" />
-          <SiteImage src={dark} alt={alt} className="hidden h-10 w-auto dark:block" />
+          <SiteImage src={logo.src} alt={alt} aria-hidden={decorative} className="h-10 w-auto dark:hidden" />
+          <SiteImage src={dark} alt={alt} aria-hidden={decorative} className="hidden h-10 w-auto dark:block" />
         </>
       ) : (
-        logo && <SiteImage src={logo.src} alt={alt} className="h-10 w-auto" />
+        logo && <SiteImage src={logo.src} alt={alt} aria-hidden={decorative} className="h-10 w-auto" />
       )}
       {showTitle && <span>{settings.title}</span>}
     </SiteLink>

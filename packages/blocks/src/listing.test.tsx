@@ -92,7 +92,8 @@ async function build(content: unknown[]): Promise<Map<string, string>> {
 }
 
 const titles = (html: string | undefined) =>
-  [...(html ?? "").matchAll(/<h3[^>]*>(?:<a[^>]*>)?([^<]+)/g)].map((m) => m[1]);
+  // Items' titles are level 2 headings in a list without a heading of its own, and level 3 under one.
+  [...(html ?? "").matchAll(/<h[23] class="font-heading text-lg[^>]*>(?:<a[^>]*>)?([^<]+)/g)].map((m) => m[1]);
 
 describe("Collection list", () => {
   it("shows a heading and a link to every item, and only items with a choice", async () => {

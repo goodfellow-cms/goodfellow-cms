@@ -130,6 +130,8 @@ const PLACEHOLDER = /^\{[a-z][a-z0-9]*(?:-[a-z0-9]+)*\}$/;
 export interface ImageProps {
   src: string;
   alt: string;
+  /** Only decoration, such as a pattern, which people who can't see it needn't hear about. Stored images may predate it. */
+  decorative?: boolean;
   caption: string;
   aspect: Aspect;
   rounded: boolean;
@@ -148,6 +150,7 @@ export const Image: ComponentConfig<ImageProps> = {
   fields: {
     src: mediaField("Image"),
     alt: { type: "text", label: "Description for screen readers" },
+    decorative: { type: "radio", label: "Only decoration, with nothing to describe", options: yesNo },
     caption: { type: "text", label: "Caption" },
     aspect: {
       type: "select",
@@ -157,8 +160,8 @@ export const Image: ComponentConfig<ImageProps> = {
     rounded: { type: "radio", label: "Rounded corners", options: yesNo },
     className: classNameField,
   },
-  defaultProps: { src: "", alt: "", caption: "", aspect: "auto", rounded: true, className: "" },
-  render: ({ src, alt, caption, aspect, rounded, className }) => (
+  defaultProps: { src: "", alt: "", decorative: false, caption: "", aspect: "auto", rounded: true, className: "" },
+  render: ({ src, alt, decorative, caption, aspect, rounded, className }) => (
     <figure className={className || undefined}>
       {PLACEHOLDER.test(src) ? (
         // A field's placeholder, such as {photo} in a collection's template or loop, filled in where pages are built.
@@ -174,7 +177,8 @@ export const Image: ComponentConfig<ImageProps> = {
       ) : src ? (
         <SiteImage
           src={src}
-          alt={alt}
+          alt={decorative ? "" : alt}
+          aria-hidden={decorative || undefined}
           loading="lazy"
           className={cx("w-full", aspectClasses[aspect], rounded && "rounded-lg")}
         />

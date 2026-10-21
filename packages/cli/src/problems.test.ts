@@ -1,7 +1,8 @@
 import { resolve } from "node:path";
 import { ContentError, type SiteProblem } from "@goodfellow-cms/core";
+import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import { describe, expect, it } from "vitest";
-import { buildCause, reportBuildCause, reportSiteProblems } from "./problems.js";
+import { buildCause, reportBuildCause } from "./problems.js";
 
 const root = resolve("/sites/parish");
 

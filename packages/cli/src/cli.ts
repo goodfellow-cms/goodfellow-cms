@@ -1,6 +1,7 @@
 import { relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { ContentError, formatUpdateResult } from "@goodfellow-cms/core";
+import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   ContentRepositoryError,
   contentRepositoryProblem,
@@ -11,7 +12,7 @@ import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { build } from "./build.js";
 import { dev } from "./dev.js";
 import { preview } from "./preview.js";
-import { buildCause, reportBuildCause, reportSiteProblems } from "./problems.js";
+import { buildCause, reportBuildCause } from "./problems.js";
 import { SiteSetupError } from "./site.js";
 
 const HELP = `Usage: goodfellow <command> [options]

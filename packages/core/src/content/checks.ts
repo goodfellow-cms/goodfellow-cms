@@ -37,6 +37,35 @@ export type SiteProblem =
       /** WCAG's contrast ratio, rounded to one decimal place. */
       ratio: number;
       dark: boolean;
+    }
+  /** An image without alt text, so people who can't see it don't know what it shows (`target` is its address). */
+  | { kind: "no-alt"; severity: "warning"; file: string; path: string; target: string }
+  /** A heading a level or more below the one before it, such as a level 4 after a level 2, or that a page starts with. */
+  | {
+      kind: "skipped-heading";
+      severity: "warning";
+      file: string;
+      path: string;
+      text: string;
+      level: number;
+      previous?: number;
+    }
+  /** A link whose text, such as "Click here", doesn't say where it goes. */
+  | { kind: "vague-link"; severity: "warning"; file: string; path: string; target: string; text: string }
+  /** A link with no text at all, such as an icon without a label. */
+  | { kind: "empty-link"; severity: "warning"; file: string; path: string; target: string }
+  /**
+   * What an automated accessibility checker found on a built page, by its rule
+   * (axe-core's), with what it means in plain words and how many places on the page have it.
+   */
+  | {
+      kind: "accessibility";
+      severity: "warning";
+      file: string;
+      path: string;
+      rule: string;
+      help: string;
+      count: number;
     };
 
 export interface SiteCheckOptions {
@@ -142,6 +171,15 @@ export function problemKey(problem: SiteProblem): string {
       return `${problem.kind} ${problem.file}`;
     case "low-contrast":
       return `${problem.kind} ${problem.text} ${problem.background} ${problem.dark}`;
+    // Not by page: the header's and footer's are on every page, and are one problem.
+    case "no-alt":
+    case "vague-link":
+    case "empty-link":
+      return `${problem.kind} ${problem.file} ${problem.target}`;
+    case "skipped-heading":
+      return `${problem.kind} ${problem.file} ${problem.level} ${problem.text}`;
+    case "accessibility":
+      return `${problem.kind} ${problem.file} ${problem.rule}`;
   }
 }
 
@@ -177,5 +215,17 @@ export function formatSiteProblem(problem: SiteProblem): string {
       return `${problem.file} (${problem.path}) has no description, and the site has none either.`;
     case "low-contrast":
       return `${problem.file}: ${problem.dark ? "dark mode's " : ""}${problem.text} on ${problem.background} has a contrast of ${problem.ratio.toFixed(1)} to 1, below ${MINIMUM_CONTRAST} to 1.`;
+    case "no-alt":
+      return `${problem.file} (${problem.path}) shows ${problem.target || "an image"} without alt text.`;
+    case "skipped-heading":
+      return problem.previous === undefined
+        ? `${problem.file} (${problem.path}) starts with a level ${problem.level} heading, "${problem.text}".`
+        : `${problem.file} (${problem.path}) has a level ${problem.level} heading, "${problem.text}", after a level ${problem.previous} one.`;
+    case "vague-link":
+      return `${problem.file} (${problem.path}) links to ${problem.target} with the text "${problem.text}", which doesn't say where it goes.`;
+    case "empty-link":
+      return `${problem.file} (${problem.path}) has a link to ${problem.target} with no text.`;
+    case "accessibility":
+      return `${problem.path}: ${problem.help} (${problem.rule}${problem.count > 1 ? `, ${problem.count} places` : ""}).`;
   }
 }
