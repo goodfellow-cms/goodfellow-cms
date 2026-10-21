@@ -119,6 +119,7 @@ export function useUploadMedia() {
     const result = await publish(
       credits ? [...changes, credits] : changes,
       replace ? t("media.replaceMessage", { name: names }) : t("media.uploadMessage", { names }),
+      { checks: false },
     );
     if (!result.ok) {
       return {

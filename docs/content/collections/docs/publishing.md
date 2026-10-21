@@ -8,6 +8,15 @@ order: 2
 
 **Publish** saves what you changed to the site's repository on GitHub or GitLab, as one change, from your own browser. The host then rebuilds the site, usually within a minute or two, and the top of the admin panel shows when the live site has been updated, or that the rebuild failed, with a link to the details.
 
+## Site checks
+
+Before publishing, the admin panel checks what the change would do to the site:
+
+- **Links that go nowhere stop a publish:** a link to a page, an item or a file in the media library that the site doesn't have, wherever it is: in a block, a menu, an item's fields, Site Settings or a redirect. That includes links a publish would break elsewhere, such as deleting a page that other pages link to, or deleting a photo they use. Go back, fix or remove the links, and publish again. When you move a page, **Update menu links to this page** updates the menus, and a [redirect](/docs/layout-and-settings#redirects) from its old address keeps other pages' links to it working.
+- **Some things are only suggestions:** a page with no title, a page with no description when the site has none either, and [theme colors](/docs/layout-and-settings#colors-and-contrast) that make text hard to read. These are listed for the files you're publishing, and **Publish anyway** goes ahead.
+
+Links that were already broken before you started don't stop you publishing something else; they're listed as suggestions when you publish the page they're on. Uploading files, the site's address on the **Domain** screen and update settings publish without the checks, since they can't break a link.
+
 ## If the live site isn't updated
 
 When a rebuild fails, the top of the admin panel says the live site couldn't be updated. Your changes are still published; visitors see the site as it was until a rebuild works, and every publish tries again. **What went wrong?** explains why, in plain words, with the host's own details behind a toggle:

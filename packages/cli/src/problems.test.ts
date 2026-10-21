@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
-import { ContentError } from "@goodfellow-cms/core";
+import { ContentError, type SiteProblem } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
-import { buildCause, reportBuildCause } from "./problems.js";
+import { buildCause, reportBuildCause, reportSiteProblems } from "./problems.js";
 
 const root = resolve("/sites/parish");
 
@@ -35,5 +35,33 @@ describe("build causes", () => {
     expect(annotation).toBe(
       "::error file=content/pages/a%2Cb.json,title=A content file has a problem::Line one%0Aline two",
     );
+  });
+});
+
+describe("site checks", () => {
+  const problems: SiteProblem[] = [
+    { kind: "missing-page", severity: "error", file: "content/pages/about.json", target: "/vist" },
+    {
+      kind: "low-contrast",
+      severity: "warning",
+      file: "content/site.json",
+      text: "primaryForeground",
+      background: "primary",
+      ratio: 1.5,
+      dark: false,
+    },
+  ];
+
+  it("lists what they found, and annotates the files on GitHub Actions", () => {
+    expect(reportSiteProblems([], {})).toEqual([]);
+    expect(reportSiteProblems(problems, {})).toEqual([
+      "Site checks found 1 error and 1 warning:",
+      "  error: content/pages/about.json links to /vist, which isn't a page or item on the site.",
+      "  warning: content/site.json: primaryForeground on primary has a contrast of 1.5 to 1, below 4.5 to 1.",
+    ]);
+    expect(reportSiteProblems(problems, { GITHUB_ACTIONS: "true" }).slice(3)).toEqual([
+      "::error file=content/pages/about.json,title=A link goes nowhere::content/pages/about.json links to /vist, which isn't a page or item on the site.",
+      "::warning file=content/site.json,title=Could be better::content/site.json: primaryForeground on primary has a contrast of 1.5 to 1, below 4.5 to 1.",
+    ]);
   });
 });

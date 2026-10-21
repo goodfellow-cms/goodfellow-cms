@@ -33,6 +33,10 @@ A site is light only until you turn on dark mode, under **Colors & fonts → Dar
 
 Turning dark mode off keeps the dark colors, so turning it back on finds them again.
 
+## Colors and contrast
+
+Text needs to stand out from what's behind it, for people who don't see well, on phones in sunlight, and for search engines, which notice. While you choose colors, **Colors & fonts** says which of them make text hard to read: text on the background, muted text on the background and on the subtle background, and each color's text on that color, such as button text on the main color, in dark mode too. It measures them as the Web Content Accessibility Guidelines do, which ask for a contrast of at least 4.5 to 1. Publishing lists them too, and you can [publish anyway](/docs/publishing#site-checks).
+
 ## Code colors
 
 **Colors & fonts → Code colors** chooses how code in Code blocks and Markdown items is colored, from color schemes made for code, such as GitHub's, Everforest or Rosé Pine:

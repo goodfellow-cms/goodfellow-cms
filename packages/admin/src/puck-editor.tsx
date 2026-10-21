@@ -334,6 +334,8 @@ export function PuckEditor({
       published.current = serializeContent(storedData(next));
       setDirty(false);
       setStatus({ type: "done" });
+    } else if (result.reason === "checks") {
+      setStatus({ type: "idle" });
     } else {
       setStatus({ type: "failed", reason: result.reason, error: result.error });
     }

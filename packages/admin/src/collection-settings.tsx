@@ -533,6 +533,8 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
       // New fields and choices now have their names, which can't change any more.
       setDraft(toDraft(settings));
       setStatus({ type: "done" });
+    } else if (result.reason === "checks") {
+      setStatus({ type: "idle" });
     } else {
       setStatus({ type: "failed", reason: result.reason, error: result.error });
     }

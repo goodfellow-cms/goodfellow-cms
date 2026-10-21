@@ -1,5 +1,11 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import { type BuildCause, ContentError, formatBuildCause } from "@goodfellow-cms/core";
+import {
+  type BuildCause,
+  ContentError,
+  formatBuildCause,
+  formatSiteProblem,
+  type SiteProblem,
+} from "@goodfellow-cms/core";
 
 const MAX_MESSAGE = 1000;
 
@@ -56,6 +62,29 @@ export function reportBuildCause(cause: BuildCause, env: NodeJS.ProcessEnv = pro
     const title = cause.kind === "content" ? "A content file has a problem" : "The site's code couldn't be built";
     const file = cause.file ? `file=${escapeCommand(cause.file, true)},` : "";
     lines.push(`::error ${file}title=${escapeCommand(title, true)}::${escapeCommand(cause.message)}`);
+  }
+  return lines;
+}
+
+/**
+ * What the site checks found, for the build's log: a count, then each
+ * problem, and on GitHub Actions an annotation on its file too.
+ */
+export function reportSiteProblems(problems: SiteProblem[], env: NodeJS.ProcessEnv = process.env): string[] {
+  if (problems.length === 0) return [];
+  const count = (severity: SiteProblem["severity"], name: string) => {
+    const found = problems.filter((problem) => problem.severity === severity).length;
+    return found > 0 ? [`${found} ${name}${found === 1 ? "" : "s"}`] : [];
+  };
+  const lines = [`Site checks found ${[...count("error", "error"), ...count("warning", "warning")].join(" and ")}:`];
+  for (const problem of problems) lines.push(`  ${problem.severity}: ${formatSiteProblem(problem)}`);
+  if (env.GITHUB_ACTIONS === "true") {
+    for (const problem of problems) {
+      const title = problem.severity === "error" ? "A link goes nowhere" : "Could be better";
+      lines.push(
+        `::${problem.severity} file=${escapeCommand(problem.file, true)},title=${escapeCommand(title, true)}::${escapeCommand(formatSiteProblem(problem))}`,
+      );
+    }
   }
   return lines;
 }

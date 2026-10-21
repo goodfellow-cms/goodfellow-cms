@@ -10,7 +10,8 @@ export const DEFAULT_THEME_COLORS: Record<ThemeColor, string> = {
   secondary: "#f5f5f5",
   secondaryForeground: "#171717",
   muted: "#f5f5f5",
-  mutedForeground: "#737373",
+  // Darker than shadcn/ui's #737373, which is a little short of WCAG's 4.5:1 on `muted`.
+  mutedForeground: "#6b6b6b",
   accent: "#f5f5f5",
   accentForeground: "#171717",
   border: "#e5e5e5",

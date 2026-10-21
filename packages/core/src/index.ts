@@ -98,6 +98,17 @@ export {
   withoutCredits,
 } from "./content/changes.js";
 export {
+  checkSite,
+  contrastProblems,
+  formatSiteProblem,
+  linkTarget,
+  problemKey,
+  publishProblems,
+  type SiteCheckOptions,
+  type SiteProblem,
+  siteLinks,
+} from "./content/checks.js";
+export {
   HEAD_TAGS,
   HeadCodeError,
   type HeadCodeProblem,
@@ -284,6 +295,7 @@ export {
   separateSetupFiles,
   separateSetupLinks,
 } from "./content-repository-setup.js";
+export { contrastRatio, MINIMUM_CONTRAST, parseColor } from "./contrast.js";
 export {
   DEMO_CONTENT_PATH,
   type DemoChanges,

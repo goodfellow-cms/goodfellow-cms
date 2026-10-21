@@ -74,7 +74,7 @@ export function DomainScreen() {
 
   const saveAddress = useCallback(
     async (url: string | undefined, message: string) => {
-      const result = await publish([siteSettingsFileChange({ ...content.settings, url })], message);
+      const result = await publish([siteSettingsFileChange({ ...content.settings, url })], message, { checks: false });
       if (!result.ok) throw result.error;
     },
     [publish, content.settings],

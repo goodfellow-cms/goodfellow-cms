@@ -213,6 +213,8 @@ export function BlocksScreen() {
       if (result.ok) {
         setPending([]);
         setNotice({ type: "published" });
+      } else if (result.reason === "checks") {
+        setNotice(undefined);
       } else {
         setNotice({
           type: "failed",

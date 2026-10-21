@@ -196,7 +196,7 @@ function VersionDetail({
   const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
-  const [failure, setFailure] = useState<{ reason: "conflict" | "error"; error: unknown }>();
+  const [failure, setFailure] = useState<{ reason: "conflict" | "error" | "checks"; error: unknown }>();
   const date = formatDate(version.date);
   const configs = useMemo(
     () => ({ page: pageConfig, layout: layoutConfig, template: templateConfig }),
@@ -272,7 +272,7 @@ function VersionDetail({
               </Button>
             </div>
           )}
-          {failure && (
+          {failure && failure.reason !== "checks" && (
             <ErrorMessage
               message={t(failure.reason === "conflict" ? "publish.conflict" : "publish.error")}
               error={failure.error}
