@@ -1553,3 +1553,53 @@ body,
   justify-content: space-between;
   gap: 8px;
 }
+
+/* How a link to a page looks when it's shared, at the end of the page's settings. */
+.gfa-share-preview {
+  padding: 16px;
+  border-top: 1px solid var(--gfa-border);
+}
+
+.gfa-share-card {
+  overflow: hidden;
+  margin: 8px 0;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-surface);
+}
+
+.gfa-share-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1.91 / 1;
+  object-fit: cover;
+  background: var(--gfa-checker);
+}
+
+.gfa-share-no-image {
+  display: grid;
+  place-items: center;
+  color: var(--gfa-muted);
+  font-size: 13px;
+}
+
+.gfa-share-text {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.gfa-share-host {
+  color: var(--gfa-muted);
+  font-size: 12px;
+}
+
+.gfa-share-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--gfa-muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}

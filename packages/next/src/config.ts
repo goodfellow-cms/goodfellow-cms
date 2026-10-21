@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   allPages,
   CALENDARS_DIR,
+  FEEDS_DIR,
   loadSiteContent,
   normalizeBase,
   redirectFrom,
@@ -174,15 +175,20 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       source: `${DEV_API_PREFIX}/:path*`,
       destination: `http://127.0.0.1:${port}${DEV_API_PREFIX}/:path*`,
     };
-    // Calendar files, which `goodfellow-next finish` writes into the export, come from the local backend.
+    // Calendar files and feeds, which `goodfellow-next finish` writes into the export, come from the local backend.
     const calendars = {
       source: `/${CALENDARS_DIR}/:file(.+\\.ics)`,
       destination: `http://127.0.0.1:${port}${DEV_API_PREFIX}/${CALENDARS_DIR}/:file`,
     };
+    const feeds = {
+      source: `/${FEEDS_DIR}/:file(.+\\.rss|.+\\.atom)`,
+      destination: `http://127.0.0.1:${port}${DEV_API_PREFIX}/${FEEDS_DIR}/:file`,
+    };
     return {
       ...config,
       experimental: { reactDebugChannel: false, ...nextConfig.experimental },
-      rewrites: async () => withRewrite(withRewrite(await nextConfig.rewrites?.(), calendars), rewrite),
+      rewrites: async () =>
+        withRewrite(withRewrite(withRewrite(await nextConfig.rewrites?.(), calendars), feeds), rewrite),
     };
   };
 }

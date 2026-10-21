@@ -26,7 +26,7 @@ describe("build", () => {
   const read = (file: string) => readFile(join(outDir, file), "utf8");
 
   it("writes one HTML file per page, with clean URLs", () => {
-    expect(pages).toHaveLength(4);
+    expect(pages).toHaveLength(5);
     expect(existsSync(join(outDir, "index.html"))).toBe(true);
     expect(existsSync(join(outDir, "news/index.html"))).toBe(true);
     expect(existsSync(join(outDir, "404.html"))).toBe(true);
@@ -95,7 +95,8 @@ describe("build", () => {
     expect(entry).not.toContain("Hydration failed because");
 
     for (const file of ["index.html", "404.html", "talks/hope/index.html"]) {
-      expect(await read(file), file).not.toContain("<script");
+      // Structured data for search engines is a script element, but not JavaScript.
+      expect(await read(file), file).not.toMatch(/<script(?! type="application\/ld\+json")/);
     }
   });
 
@@ -124,7 +125,21 @@ describe("build", () => {
     expect(sitemap).toContain("<loc>https://example.org/site/news</loc>");
     expect(sitemap).toContain("<loc>https://example.org/site/talks/hope</loc>");
     expect(sitemap).not.toContain("404");
+    // Pages hidden from search engines are built, but not in the sitemap.
+    expect(sitemap).not.toContain("private");
+    expect(await read("private/index.html")).toContain('<meta name="robots" content="noindex"/>');
     expect(await read("robots.txt")).toContain("Sitemap: https://example.org/site/sitemap.xml");
+  });
+
+  it("writes feeds of dated collections, and tells search engines about the site and its items", async () => {
+    expect(await read("feeds/talks.rss")).toContain("<link>https://example.org/site/talks/hope</link>");
+    expect(await read("feeds/talks.atom")).toContain("<published>2026-03-01T00:00:00.000Z</published>");
+    const home = await read("index.html");
+    expect(home).toContain(
+      '<link rel="alternate" type="application/rss+xml" title="Talks – Fixture" href="/from-config/feeds/talks.rss"/>',
+    );
+    expect(home).toContain('"@type":"WebSite"');
+    expect(await read("talks/hope/index.html")).toContain('"@type":"Article","headline":"On hope"');
   });
 
   it("builds the starter template", async () => {

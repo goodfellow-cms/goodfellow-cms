@@ -7,6 +7,8 @@ import {
   checkSite,
   DEMO_CONTENT_PATH,
   demoContent,
+  feedFiles,
+  getPageHead,
   loadSiteContent,
   MEDIA_DIR,
   normalizeBase,
@@ -211,8 +213,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       written.push(relative(root, file).split("\\").join("/"));
     }
 
-    // Calendar files of collections of events, for subscribing and for adding events to calendars.
-    for (const file of calendarFiles(content)) {
+    // Calendar files of collections of events, for subscribing and for adding events to calendars, and feeds.
+    for (const file of [...calendarFiles(content), ...feedFiles(content)]) {
       const target = join(outDir, file.path.slice(1));
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, file.content);
@@ -228,8 +230,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
 
     const { url } = content.settings;
     if (url) {
+      // Pages hidden from search engines, and "Page not found", aren't in the sitemap.
       const urls = pages
-        .filter((page) => page.path !== "/404")
+        .filter((page) => !getPageHead(content.settings, page).noIndex)
         .map((page) => `  <url><loc>${escapeXml(absoluteUrl(url, page.path))}</loc></url>`);
       await writeFile(
         join(outDir, "sitemap.xml"),

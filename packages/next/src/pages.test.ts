@@ -52,7 +52,11 @@ describe("pageMetadata", () => {
     const about = allPages(withUrl).find((page) => page.path === "/about");
     if (!about) throw new Error("The starter has no about page.");
     const metadata = pageMetadata(withUrl, about);
-    expect(metadata.alternates).toEqual({ canonical: "https://example.org/about" });
+    expect(metadata.alternates).toEqual({
+      canonical: "https://example.org/about",
+      // The starter's news, which feed readers find from any page.
+      types: { "application/rss+xml": [{ url: "/feeds/news.rss", title: "News – My site" }] },
+    });
     expect(metadata.openGraph).toMatchObject({ images: ["https://example.org/media/a.png"] });
     expect(metadata.metadataBase).toEqual(new URL("https://example.org"));
   });

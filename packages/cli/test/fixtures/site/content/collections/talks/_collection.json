@@ -1,4 +1,4 @@
 { "version": 1, "name": "Talks", "entryName": "Talk", "path": "/talks/{slug}",
-  "fields": [{ "name": "title", "label": "Title", "type": "text" }, { "name": "speaker", "label": "Speaker", "type": "text" }],
+  "fields": [{ "name": "title", "label": "Title", "type": "text" }, { "name": "speaker", "label": "Speaker", "type": "text" }, { "name": "given", "label": "Given on", "type": "date" }],
   "template": { "root": { "props": { "title": "{title}" } },
     "content": [{ "type": "Greeting", "props": { "id": "g", "name": "{speaker}" } }] } }

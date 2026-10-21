@@ -30,6 +30,7 @@ Because the admin panel talks to GitHub or GitLab directly, nothing else needs t
 - **An AI assistant** that writes into the page, with each editor's own AI service or a free one.
 - **More blocks** from block registries, such as an FAQ or a pricing table, added without a developer.
 - **CSS classes and custom CSS** on any block, shown in the editor straight away, before the site is rebuilt.
+- **Search engines and feeds:** a sitemap, structured data so search engines show events and news as such, pages hidden from search engines, link previews, and RSS and Atom feeds of news. See [Search engines and feeds](/docs/search-engines).
 - **Scheduled publishing** of pages and items, shown from a time and hidden after one. See [Scheduled publishing](/docs/scheduling).
 - **Running the site** without a developer: inviting editors, version history, a custom domain, plain-language explanations when a rebuild fails, and Goodfellow's fixes installed each night.
 - **Blocks of your own**, for developers: any React component can be a block, and parts that respond to visitors run in the browser, with or without Next.js. Pages without them load no JavaScript.

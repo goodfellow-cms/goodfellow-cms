@@ -29,6 +29,10 @@ A collection's `_collection.json` has its `name`, `entryName` (what one item is 
 
 An item's JSON file holds `{ "version": 1, "fields": { … } }`. A choice field (`select`) holds one of its `options`' values, and a tags field (`tags`) a list of them, such as `["music", "youth"]`.
 
+## Pages' settings
+
+A page's `root.props` hold its settings: `title`, `description`, `image` (for link previews), `className` and `noIndex`, which is `true` for a page hidden from search engines (see [Search engines and feeds](/docs/search-engines)). A collection's `template` has the same, which its items' pages share.
+
 ## Scheduled pages and items
 
 A page's or item's file can say when it's on the site, beside its `version`: `showFrom`, when it's first shown, and `hideAfter`, when it's hidden again, each a wall-clock time `YYYY-MM-DDTHH:MM` in the site's `timeZone` (UTC without one). Either can be left out, and `hideAfter` must come after `showFrom`. A Markdown item has them in its front matter. Builds leave out pages and items their schedule doesn't show at the time they run (see [Scheduled publishing](/docs/scheduling)).

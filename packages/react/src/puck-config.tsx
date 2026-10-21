@@ -30,6 +30,14 @@ const pageRootFields: Fields = {
   title: { type: "text", label: "Page title" },
   description: { type: "textarea", label: "Description for search engines" },
   image: mediaField("Image when shared"),
+  noIndex: {
+    type: "radio",
+    label: "Search engines",
+    options: [
+      { label: "Show in search results", value: false },
+      { label: "Hide from search results", value: true },
+    ],
+  },
   className: classNameField,
 };
 

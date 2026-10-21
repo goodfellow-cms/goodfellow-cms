@@ -63,7 +63,8 @@ describe("Form", () => {
     expect(html).toContain('<label for="contact-0" class="block font-medium">Name');
     expect(html).toContain(">Send</button>");
     // No JavaScript unless hCaptcha is on.
-    expect(html).not.toContain("<script");
+    // Only the structured data for search engines, which isn't JavaScript.
+    expect(html).not.toMatch(/<script(?! type="application\/ld\+json")/);
   });
 
   it("shows every kind of question", async () => {

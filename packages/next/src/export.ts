@@ -3,6 +3,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import {
   allPages,
   calendarFiles,
+  feedFiles,
   loadSiteContent,
   type Page,
   redirectFiles,
@@ -19,6 +20,20 @@ import { fileSystemSource } from "@goodfellow-cms/core/node";
  */
 export async function writeCalendarFiles(outDir: string, root = process.cwd()): Promise<number> {
   const files = calendarFiles(shownContent(await loadSiteContent(fileSystemSource(resolve(root)))));
+  for (const file of files) {
+    const target = join(outDir, file.path.slice(1));
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, file.content);
+  }
+  return files.length;
+}
+
+/**
+ * Writes the feeds of the site's collections into the export, as `goodfellow
+ * build` does. Returns how many it wrote: none without the site's address.
+ */
+export async function writeFeedFiles(outDir: string, root = process.cwd()): Promise<number> {
+  const files = feedFiles(shownContent(await loadSiteContent(fileSystemSource(resolve(root)))));
   for (const file of files) {
     const target = join(outDir, file.path.slice(1));
     await mkdir(dirname(target), { recursive: true });

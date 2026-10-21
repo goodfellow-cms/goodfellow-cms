@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "data": {
+    "content": [],
+    "root": {
+      "props": {
+        "noIndex": true,
+        "title": "Staff only"
+      }
+    }
+  }
+}
