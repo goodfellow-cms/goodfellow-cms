@@ -140,7 +140,18 @@ export {
   pageCredits,
   photoCreditSchema,
 } from "./content/credits.js";
+export { dateField, type EntryDetails, entryDetails, SUMMARY_LENGTH } from "./content/entry-details.js";
 export { ContentError, type ContentProblem } from "./content/errors.js";
+export {
+  FEED_LENGTH,
+  FEEDS_DIR,
+  type FeedFormat,
+  feedCollections,
+  feedFiles,
+  feedLinks,
+  feedPath,
+  feedTitle,
+} from "./content/feeds.js";
 export {
   type AddressMove,
   type LinkVisitor,
@@ -303,6 +314,12 @@ export {
   type WriteOptions,
   writeChanges,
 } from "./content/store.js";
+export {
+  type StructuredData,
+  structuredData,
+  structuredDataScript,
+  zonedIso,
+} from "./content/structured-data.js";
 export {
   CONTENT_BUILDS,
   type ContentBuild,

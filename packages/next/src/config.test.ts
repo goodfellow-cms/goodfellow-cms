@@ -96,14 +96,17 @@ describe("withGoodfellow", () => {
 
     const rewrites = await config.rewrites?.();
     if (!Array.isArray(rewrites)) throw new Error("Expected a list of rewrites.");
-    expect(rewrites).toHaveLength(3);
-    const [api, calendars, own] = rewrites;
+    expect(rewrites).toHaveLength(4);
+    const [api, feeds, calendars, own] = rewrites;
     expect(own).toEqual({ source: "/old", destination: "/new" });
     expect(api?.source).toBe("/__goodfellow/api/:path*");
     // Calendar files, which the export gets from `goodfellow-next finish`, come from the local backend too.
     expect(calendars?.source).toBe("/calendars/:file(.+\\.ics)");
     const missing = await fetch(calendars?.destination.replace(":file", "none.ics") ?? "");
     expect(missing.status).toBe(404);
+    // And so do feeds.
+    expect(feeds?.source).toBe("/feeds/:file(.+\\.rss|.+\\.atom)");
+    expect((await fetch(feeds?.destination.replace(":file", "none.rss") ?? "")).status).toBe(404);
 
     const url = api?.destination.replace(":path*", "revision") ?? "";
     const headers = { "x-goodfellow-request": "1" };

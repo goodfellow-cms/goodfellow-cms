@@ -102,10 +102,10 @@ flowchart TB
     - The admin panel lists what's coming up, and when.
     - Scheduled content is in the site's repository before it appears, so on a public repository anyone can read it there early, as the admin panel says when scheduling.
     - Later, a group of changes can be scheduled together, as a draft that's published at a set time.
-28. **Search engines and feeds.**
+28. **Search engines and feeds** (done).
     - **Structured data** (schema.org JSON-LD), so search engines show events with their dates and places, and news as articles.
     - **For each page:** hiding it from search engines, and a preview of how it looks when shared.
-    - **Feeds:** RSS and Atom feeds of collections, such as news, which feed readers and other sites can follow.
+    - **Feeds:** RSS and Atom feeds of collections whose items are dated, such as news, which feed readers and other sites can follow.
 29. **Moving from and to WordPress.** Import a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected. Export a Goodfellow site as a WordPress export file, with its blocks turned into WordPress's.
 30. **Restoring the whole site.** Version history beyond one file: owners can see how the whole site, its content and settings, looked at an earlier publish and what has changed since, and restore it as one publish, for example after a bulk change that went wrong.
 31. **Several languages.** Optional, for sites in more than one language, such as a parish with Masses in two.

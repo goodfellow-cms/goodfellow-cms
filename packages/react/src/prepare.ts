@@ -8,6 +8,9 @@ import {
   type SiteContent,
   type SiteSettings,
   setLinkTargets,
+  structuredData,
+  structuredDataScript,
+  todayIn,
 } from "@goodfellow-cms/core";
 import type { Config, Data } from "@puckeditor/core";
 // The server entry works everywhere and has no browser-only code, so Server Components can prepare pages too.
@@ -44,6 +47,8 @@ export interface PreparedPage {
   data: Data;
   header: Data;
   footer: Data;
+  /** What search engines are told about the page, as JSON-LD (`structuredDataScript()`), if anything. */
+  structuredData?: string;
 }
 
 /**
@@ -183,6 +188,7 @@ export async function preparePage(
   const rebase = rebaser(options, content.settings);
   // The credits of the photos the page shows, which their licenses ask for.
   const credits = pageCredits(content, [data, header, footer]);
+  const structured = structuredDataScript(structuredData(content, page, todayIn(settings.timeZone)));
   return {
     site: credits.length > 0 ? { ...site, credits } : site,
     page: applied,
@@ -191,5 +197,6 @@ export async function preparePage(
     data: rebase(data),
     header: rebase(header),
     footer: rebase(footer),
+    ...(structured && { structuredData: structured }),
   };
 }

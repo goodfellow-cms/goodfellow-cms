@@ -11,7 +11,7 @@ export {
   type DevApiOptions,
   handleDevApi,
   isLocalOrigin,
-  sendCalendarFile,
+  sendBuildFile,
 } from "./node-dev-api.js";
 export { fontStandIns, readStylesheet } from "./node-fonts.js";
 export { fileSystemSource } from "./node-fs-source.js";

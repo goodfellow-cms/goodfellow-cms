@@ -11,6 +11,8 @@ export interface PageBodyProps {
   page: Data;
   header: Data;
   footer: Data;
+  /** What search engines are told about the page, as JSON-LD (`PreparedPage.structuredData`). */
+  structuredData?: string;
 }
 
 export interface PageHeaderProps {
@@ -24,6 +26,8 @@ export interface PageContentProps {
   site: SiteContextValue;
   pageConfig: Config;
   page: Data;
+  /** What search engines are told about the page, as JSON-LD (`PreparedPage.structuredData`). */
+  structuredData?: string;
 }
 
 /** A link out of the site, from a photo's credit, which opens in a new tab if the site's links to other sites do. */
@@ -121,7 +125,7 @@ export function createPageBody({ Render, SiteProvider }: Renderers) {
   }
 
   /** A page's own content, without the site's header and footer. */
-  function PageContent({ site, pageConfig, page }: PageContentProps) {
+  function PageContent({ site, pageConfig, page, structuredData }: PageContentProps) {
     const metadata = siteMetadata(site);
     const rootClassName = (page.root.props as Record<string, unknown> | undefined)?.className;
     return (
@@ -135,17 +139,21 @@ export function createPageBody({ Render, SiteProvider }: Renderers) {
           {site.credits && site.credits.length > 0 && (
             <PhotoCredits credits={site.credits} newTab={site.settings.externalLinksInNewTab === true} />
           )}
+          {structuredData && (
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: structuredDataScript escapes "<", so nothing can end the script
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredData }} />
+          )}
         </main>
       </SiteProvider>
     );
   }
 
   /** A page's visible content: the site header, the page itself and the site footer. */
-  function PageBody({ site, pageConfig, layoutConfig, page, header, footer }: PageBodyProps) {
+  function PageBody({ site, pageConfig, layoutConfig, page, header, footer, structuredData }: PageBodyProps) {
     return (
       <>
         <PageHeader site={site} layoutConfig={layoutConfig} data={header} />
-        <PageContent site={site} pageConfig={pageConfig} page={page} />
+        <PageContent site={site} pageConfig={pageConfig} page={page} structuredData={structuredData} />
         <PageFooter site={site} layoutConfig={layoutConfig} data={footer} />
       </>
     );

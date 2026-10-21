@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // After `next build`: `goodfellow-next finish out` fixes the export's prefetch files on Windows,
-// writes the calendar files of collections of events and the pages at redirects' old addresses, and the search index for sites with a search block,
+// writes the calendar files of collections of events, collections' feeds and the pages at redirects' old addresses, and the search index for sites with a search block,
 // and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
 // `goodfellow-next due [--since <time>]` says whether a scheduled change has come due, as `goodfellow due` does.
@@ -25,17 +25,21 @@ import {
   exportedPages,
   fixSegmentFiles,
   writeCalendarFiles,
+  writeFeedFiles,
   writeRedirectFiles,
 } from "@goodfellow-cms/next/export";
 
 const [command, dir = "out"] = process.argv.slice(2);
 // A full-stack site (withGoodfellow(config, { server: true })): Next.js serves its pages and sends redirects
-// itself, so the calendar files and the search index are written into public/, which `next start` and hosts
+// itself, so the calendar files, feeds and the search index are written into public/, which `next start` and hosts
 // serve as static files, as they are for an export.
 if (command === "finish" && dir === "--server") {
   await rm("public/calendars", { recursive: true, force: true });
   const calendars = await writeCalendarFiles("public");
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files, in public/calendars`);
+  await rm("public/feeds", { recursive: true, force: true });
+  const feeds = await writeFeedFiles("public");
+  if (feeds > 0) console.log(`Wrote ${feeds} feeds, in public/feeds`);
   const pages = await builtPages();
   const indexed = await writePagesSearchIndex(pages, "public/pagefind");
   console.log(
@@ -92,11 +96,11 @@ if (command !== "finish" && command !== "index") {
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
-      "        for collections of events and pages that send visitors on from old addresses,",
-      "        indexes it for search, and lists what automated accessibility checks find on its",
-      "        pages. With --server, for a full-stack site, writes the calendar files into",
-      "        public/calendars and indexes and checks the pages next build rendered, with the",
-      "        index in public/pagefind, instead.",
+      "        for collections of events, collections' feeds and pages that send visitors on from",
+      "        old addresses, indexes it for search, and lists what automated accessibility checks",
+      "        find on its pages. With --server, for a full-stack site, writes the calendar files",
+      "        and feeds into public/calendars and public/feeds and indexes and checks the pages",
+      "        next build rendered, with the index in public/pagefind, instead.",
       "index   Only indexes the exported site for its search block.",
       "update  Updates Goodfellow, and blocks from its registry, if the site still builds.",
       "due     Says whether a scheduled change has come due since --since (default: the last",
@@ -116,6 +120,8 @@ if (command === "finish") {
   if (moved > 0) console.log(`Moved ${moved} of Next.js's prefetch files to where browsers look for them`);
   const calendars = await writeCalendarFiles(dir);
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files`);
+  const feeds = await writeFeedFiles(dir);
+  if (feeds > 0) console.log(`Wrote ${feeds} feeds`);
   // Before the redirects' pages, which aren't the site's.
   problems = await checkPages(await exportedPages(dir));
   const redirects = await writeRedirectFiles(dir);

@@ -35,6 +35,7 @@ describe("createPuckConfig", () => {
       "title",
       "description",
       "image",
+      "noIndex",
       "className",
     ]);
     expect(createPuckConfig(config, "layout").root?.fields).toEqual({});

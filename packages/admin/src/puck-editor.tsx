@@ -34,6 +34,7 @@ import { storedData } from "./changes.js";
 import { MediaChooser } from "./media-library.js";
 import { usePreviewStyles } from "./preview.js";
 import { navigate, SETTINGS_SECTIONS, useUnsavedChanges } from "./router.js";
+import { SharePreview } from "./share-preview.js";
 import { useStrings } from "./strings.js";
 import { Button, ErrorMessage, PublishedNotice } from "./ui.js";
 
@@ -381,8 +382,18 @@ export function PuckEditor({
         </div>
       ),
       fieldTypes: { text: TextFieldWithMedia },
+      // A page's own settings end with how links to it look when shared.
+      ...(kind === "page" &&
+        path && {
+          fields: ({ children, itemSelector }: { children: ReactNode; itemSelector?: unknown }) => (
+            <>
+              {children}
+              {!itemSelector && <SharePreview path={path} />}
+            </>
+          ),
+        }),
     }),
-    [site, actions, justPublished, hidePublished],
+    [site, actions, justPublished, hidePublished, kind, path],
   );
 
   return (

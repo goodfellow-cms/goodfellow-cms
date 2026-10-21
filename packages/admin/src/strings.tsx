@@ -163,6 +163,11 @@ export const defaultStrings = {
   "pages.view": "View",
   "pages.homeCantDelete": "The home page can't be deleted.",
   "pages.schedule": "Schedule",
+  "sharePreview.title": "When a link to this page is shared",
+  "sharePreview.noImage": "No image",
+  "sharePreview.noAddress":
+    "Link previews show the image once the site's address is set in Site Settings, since they need its full address.",
+  "sharePreview.hidden": "This page is hidden from search engines, so it isn't in search results or the sitemap.",
 
   "schedulePage.title": "When “{title}” is on the site",
   "schedulePage.submit": "Publish",

@@ -11,7 +11,10 @@ export interface PageHead {
   canonicalUrl?: string;
   favicon?: string;
   socialImage?: string;
-  /** Pages that shouldn't appear in search results, such as the 404 page. */
+  /**
+   * Pages that shouldn't appear in search results: the 404 page, and pages
+   * whose settings hide them (`noIndex`), which are left out of the sitemap too.
+   */
   noIndex: boolean;
 }
 
@@ -39,6 +42,6 @@ export function getPageHead(settings: SiteSettings, page: Page): PageHead {
     canonicalUrl: settings.url ? absoluteUrl(settings.url, page.path) : undefined,
     favicon: settings.favicon,
     socialImage: readString(props, "image") || settings.socialImage,
-    noIndex: page.path === "/404",
+    noIndex: page.path === "/404" || props?.noIndex === true,
   };
 }

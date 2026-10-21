@@ -19,7 +19,7 @@ import {
   handleDevApi,
   localFileStore,
   localRegistryDir,
-  sendCalendarFile,
+  sendBuildFile,
 } from "@goodfellow-cms/core/node";
 import react from "@vitejs/plugin-react";
 import { createServer, type Plugin, type ViteDevServer } from "vite";
@@ -200,8 +200,8 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
             res.end(JSON.stringify(describe(), null, 2));
             return;
           }
-          // Calendar files, as builds write them, from the content as it is now.
-          if (await sendCalendarFile(fileSystemSource(root), url.pathname, res).catch(() => false)) return;
+          // Calendar files and feeds, as builds write them, from the content as it is now.
+          if (await sendBuildFile(fileSystemSource(root), url.pathname, res).catch(() => false)) return;
           if (/\.[a-z0-9]+$/i.test(url.pathname)) {
             // Old addresses such as /news.html send visitors on, as the built site's pages there do.
             const content = await loadSiteContent(fileSystemSource(root)).then(shownContent, () => undefined);

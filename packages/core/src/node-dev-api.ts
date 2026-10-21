@@ -7,7 +7,9 @@ import {
   type ContentSource,
   type ContentStore,
   calendarFiles,
+  FEEDS_DIR,
   type FileChange,
+  feedFiles,
   loadSiteContent,
   shownContent,
 } from "./index.js";
@@ -107,22 +109,37 @@ function isTrusted(req: IncomingMessage, trustOrigin: DevApiOptions["trustOrigin
  * Handles a request to the development API, or returns `false` if the URL
  * isn't one of its endpoints. Never mounted outside `goodfellow dev`.
  */
+/** The files builds write besides pages, by the folder they're in, and what each kind is served as. */
+const BUILD_FILES = [
+  { dir: CALENDARS_DIR, extensions: [".ics"], files: calendarFiles },
+  { dir: FEEDS_DIR, extensions: [".rss", ".atom"], files: feedFiles },
+];
+
+const BUILD_FILE_TYPES: Record<string, string> = {
+  ".ics": "text/calendar; charset=utf-8",
+  ".rss": "application/rss+xml; charset=utf-8",
+  ".atom": "application/atom+xml; charset=utf-8",
+};
+
 /**
- * Answers a request for one of the calendar files builds write (`/calendars/…`),
- * from the site's content as it is now. Says whether the address was one.
+ * Answers a request for one of the files builds write besides pages, the
+ * calendar files (`/calendars/…`) and feeds (`/feeds/…`), from the site's
+ * content as it is now. Says whether the address was one.
  */
-export async function sendCalendarFile(source: ContentSource, pathname: string, res: ServerResponse): Promise<boolean> {
-  if (!pathname.startsWith(`/${CALENDARS_DIR}/`) || !pathname.endsWith(".ics")) return false;
-  const file = calendarFiles(shownContent(await loadSiteContent(source))).find(
-    (candidate) => candidate.path === pathname,
+export async function sendBuildFile(source: ContentSource, pathname: string, res: ServerResponse): Promise<boolean> {
+  const kind = BUILD_FILES.find(
+    ({ dir, extensions }) =>
+      pathname.startsWith(`/${dir}/`) && extensions.some((extension) => pathname.endsWith(extension)),
   );
+  if (!kind) return false;
+  const file = kind.files(shownContent(await loadSiteContent(source))).find((candidate) => candidate.path === pathname);
   if (!file) {
     res.statusCode = 404;
     res.end();
     return true;
   }
   res.statusCode = 200;
-  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+  res.setHeader("Content-Type", BUILD_FILE_TYPES[pathname.slice(pathname.lastIndexOf("."))] ?? "text/plain");
   res.end(file.content);
   return true;
 }
@@ -142,9 +159,9 @@ export async function handleDevApi(
     await sendRegistryFile(res, options.registryDir, endpoint.slice("registry/".length));
     return true;
   }
-  // Calendar files are public, as they are on the built site: next dev rewrites /calendars/ here.
-  if (req.method === "GET" && endpoint.startsWith(`${CALENDARS_DIR}/`)) {
-    if (!(await sendCalendarFile(store, `/${endpoint}`, res))) send(res, 404, { error: "not-found" });
+  // Calendar files and feeds are public, as they are on the built site: next dev rewrites /calendars/ and /feeds/ here.
+  if (req.method === "GET" && (endpoint.startsWith(`${CALENDARS_DIR}/`) || endpoint.startsWith(`${FEEDS_DIR}/`))) {
+    if (!(await sendBuildFile(store, `/${endpoint}`, res))) send(res, 404, { error: "not-found" });
     return true;
   }
   if (!isTrusted(req, options.trustOrigin)) {

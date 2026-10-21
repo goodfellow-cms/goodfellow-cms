@@ -3,6 +3,7 @@ import {
   colorSchemeMeta,
   colorSchemeScript,
   demoContent,
+  feedLinks,
   findRedirect,
   fontPreloads,
   type GoodfellowConfig,
@@ -99,12 +100,23 @@ function toAbsolute(siteUrl: string | undefined, url: string | undefined): strin
 export function pageMetadata(content: SiteContent, page: Page, basePath = configuredBasePath()): Metadata {
   const head = getPageHead(content.settings, page);
   const socialImage = toAbsolute(content.settings.url, head.socialImage);
+  const feeds = feedLinks(content);
   return {
     ...(content.settings.url && { metadataBase: new URL(content.settings.url) }),
     title: { absolute: head.title },
     ...(head.description && { description: head.description }),
     ...(head.noIndex && { robots: { index: false } }),
-    ...(head.canonicalUrl && { alternates: { canonical: head.canonicalUrl } }),
+    ...((head.canonicalUrl || feeds.length > 0) && {
+      alternates: {
+        ...(head.canonicalUrl && { canonical: head.canonicalUrl }),
+        // The site's feeds, which feed readers find from any page.
+        ...(feeds.length > 0 && {
+          types: {
+            "application/rss+xml": feeds.map((feed) => ({ url: withBase(feed.href, basePath), title: feed.title })),
+          },
+        }),
+      },
+    }),
     ...(head.favicon && { icons: { icon: withBase(head.favicon, basePath) } }),
     openGraph: {
       type: "website",
@@ -228,7 +240,14 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
         notFound();
       }
       const prepared = await preparePage(configs, content, page, await renderOptions());
-      return <PageContent site={prepared.site} pageConfig={prepared.pageConfig} page={prepared.data} />;
+      return (
+        <PageContent
+          site={prepared.site}
+          pageConfig={prepared.pageConfig}
+          page={prepared.data}
+          {...(prepared.structuredData && { structuredData: prepared.structuredData })}
+        />
+      );
     },
 
     /**
@@ -259,13 +278,13 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       );
     },
 
-    /** For `app/sitemap.ts`: every page but "Page not found", once the site's address is set. */
+    /** For `app/sitemap.ts`: every page but "Page not found" and pages hidden from search engines, once the site's address is set. */
     async sitemap(): Promise<MetadataRoute.Sitemap> {
       const content = await site();
       const url = content.settings.url;
       if (!url) return [];
       return exportedPages(content, config.blocks)
-        .filter((page) => page.path !== "/404")
+        .filter((page) => !getPageHead(content.settings, page).noIndex)
         .map((page) => ({ url: absoluteUrl(url, page.path) }));
     },
 

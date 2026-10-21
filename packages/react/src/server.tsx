@@ -2,6 +2,7 @@ import {
   absoluteUrl,
   colorSchemeMeta,
   colorSchemeScript,
+  feedLinks,
   fontPreloads,
   type GoodfellowConfig,
   getPageHead,
@@ -98,6 +99,9 @@ export function createPageRenderer(config: GoodfellowConfig) {
           {head.description && <meta property="og:description" content={head.description} />}
           {head.canonicalUrl && <meta property="og:url" content={head.canonicalUrl} />}
           {socialImage && <meta property="og:image" content={socialImage} />}
+          {feedLinks(content).map((feed) => (
+            <link key={feed.href} rel="alternate" type="application/rss+xml" title={feed.title} href={feed.href} />
+          ))}
           {fontsUrl && (
             <>
               <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -123,6 +127,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
             page={prepared.data}
             header={prepared.header}
             footer={prepared.footer}
+            {...(prepared.structuredData && { structuredData: prepared.structuredData })}
           />
           <BodyCode code={content.code?.body} />
           {assets.scripts?.map((src) => (

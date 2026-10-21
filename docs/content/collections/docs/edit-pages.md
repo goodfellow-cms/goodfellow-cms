@@ -29,4 +29,4 @@ Nothing changes on the live site until you **Publish**.
 
 ## A page's settings
 
-Click outside every block to see the page's own settings: its title (shown in the browser's tab and in search results), a description for search engines and link previews, and an image for link previews.
+Click outside every block to see the page's own settings: its title (shown in the browser's tab and in search results), a description for search engines and link previews, an image for link previews, and whether search engines show it, with a preview of how links to it look when shared (see [Search engines and feeds](/docs/search-engines)).
