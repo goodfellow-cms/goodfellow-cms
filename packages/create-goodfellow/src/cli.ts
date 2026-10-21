@@ -4,6 +4,8 @@ import { stdin, stdout } from "node:process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { formatWordPressImport, importWordPress } from "@goodfellow-cms/core/node";
+import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import {
   type Backend,
   BLOCK_CHOICES,
@@ -44,6 +46,8 @@ Options:
   --build <where>     With --content on Vercel: content (the default) or code, the
                       repository Vercel builds the site from
   --blocks <choice>   recommended (the default) to add the recommended blocks, or built-in for Goodfellow's own only
+  --wordpress <from>  Brings a WordPress site's pages, posts, menus and media into the new site,
+                      from its export file (Tools → Export) or its address
   --no-install        Don't run npm install
   --no-git            Don't make the site a git repository, or commit it
   -y, --yes           Don't ask anything: use the options given, and defaults for the rest
@@ -129,6 +133,7 @@ async function main(): Promise<void> {
       blocks: { type: "string" },
       content: { type: "string" },
       build: { type: "string" },
+      wordpress: { type: "string" },
       "no-git": { type: "boolean" },
       "no-install": { type: "boolean" },
       yes: { type: "boolean", short: "y" },
@@ -236,6 +241,19 @@ async function main(): Promise<void> {
 
   // The content repository first: inside the code's repository, git would count it as part of it.
   const contentDir = contentRepositoryDir(target);
+  // Imported before the first commit, so the site starts with the WordPress site's content.
+  let imported: string[] = [];
+  if (values.wordpress) {
+    stdout.write("\nImporting the WordPress site...\n");
+    try {
+      imported = formatWordPressImport(await importWordPress(content ? contentDir : target, values.wordpress)).split(
+        "\n",
+      );
+    } catch (error) {
+      if (!(error instanceof WordPressReadError)) throw error;
+      imported = [`The WordPress site couldn't be imported: ${error.message}`];
+    }
+  }
   const contentGit =
     content && backend && !values["no-git"]
       ? initGitRepository(contentDir, { host: backend.host, repo: content.repo })
@@ -258,6 +276,7 @@ async function main(): Promise<void> {
     `Created a new site in ${where}.`,
     ...(git ? gitLines(git, commit, installed) : []),
     ...(content ? contentLines(content, contentGit, contentCommit) : []),
+    ...(imported.length > 0 ? ["", ...imported] : []),
     ...(!installed && !values["no-install"]
       ? ["npm install didn't finish, so run it again in the site's folder."]
       : []),

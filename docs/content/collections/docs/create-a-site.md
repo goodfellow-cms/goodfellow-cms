@@ -42,7 +42,7 @@ To skip the questions, give the answers as options:
 npm create goodfellow@latest my-site -- --template parish --github your-name/your-site --host github-pages --blocks built-in
 ```
 
-`--content your-name/your-site-content` keeps the content in a repository of its own. Run it with `--help` for every option.
+`--content your-name/your-site-content` keeps the content in a repository of its own, and `--wordpress wordpress-export.xml` (or a WordPress site's address) starts the site with a WordPress site's pages, posts, menus and media; see [Move from WordPress](/docs/move-from-wordpress). Run it with `--help` for every option.
 
 > To try changes that haven't been released yet, use the sites in [the repository](https://github.com/goodfellow-cms/goodfellow-cms) instead: install [pnpm](https://pnpm.io), run `pnpm install` and `pnpm build` at the root, then `pnpm dev` in `templates/starter`.
 

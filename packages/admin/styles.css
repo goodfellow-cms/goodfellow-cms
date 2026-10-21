@@ -1603,3 +1603,32 @@ body,
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+
+/* Import from WordPress */
+.gfa-import-address {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gfa-import-address .gfa-input {
+  flex: 1 1 288px;
+  width: auto;
+}
+
+.gfa-import-summary,
+.gfa-import-notes {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.gfa-import-notes li + li {
+  margin-top: 6px;
+}
+
+.gfa-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

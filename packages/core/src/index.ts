@@ -187,6 +187,15 @@ export {
   serializeMarkdownEntry,
 } from "./content/markdown.js";
 export {
+  ALLOWED_EXTENSIONS,
+  extensionOf,
+  fileName,
+  MAX_UPLOAD_BYTES,
+  type MediaKind,
+  mediaKind,
+  uploadName,
+} from "./content/media-files.js";
+export {
   addressPatternProblem,
   BODY_CODE_FILE,
   COLLECTION_SETTINGS_FILE,

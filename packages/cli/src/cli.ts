@@ -5,12 +5,15 @@ import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   ContentRepositoryError,
   contentRepositoryProblem,
+  formatWordPressImport,
+  importWordPress,
   reportDue,
   scheduleDue,
   setUpContentRepository,
   update,
 } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
+import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import { build } from "./build.js";
 import { dev } from "./dev.js";
 import { preview } from "./preview.js";
@@ -28,6 +31,9 @@ Commands:
   due       Say whether a scheduled change has come due since --since (default: the
             last hour), so the site needs building again; on GitHub Actions it also
             sets the step's due output to true or false
+  import    import wordpress <file or address>  brings a WordPress site's pages, posts,
+                                   categories, tags, menus and media into this site,
+                                   from its export file (Tools → Export) or its address
   content   For a site whose content is kept in a repository of its own:
             content link [folder]  links content/ and public/media/ to the content
                                    repository in folder (default: content-repository)
@@ -44,6 +50,7 @@ Options:
   --publish       For update: publish the update to the site's main branch once it builds
   --since <time>  For due: when the last check started, such as 2026-11-29T09:17:00Z
   --strict        For build: fail if the site checks find links to pages or media that don't exist
+  --dry-run       For import: say what importing would bring across, and change nothing
   -h, --help      Show this help
 `;
 
@@ -65,6 +72,7 @@ async function main(): Promise<void> {
       publish: { type: "boolean" },
       since: { type: "string" },
       strict: { type: "boolean" },
+      "dry-run": { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -78,7 +86,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (command === "dev" || command === "build" || command === "due") checkContent(values.root ?? ".");
+  if (command === "dev" || command === "build" || command === "due" || command === "import")
+    checkContent(values.root ?? ".");
 
   switch (command) {
     case "dev":
@@ -150,6 +159,20 @@ async function main(): Promise<void> {
       );
       return;
     }
+    case "import": {
+      const [, kind, from] = positionals;
+      if (kind !== "wordpress" || !from) {
+        console.error(`Say "import wordpress" and the export file or the site's address.\n\n${HELP}`);
+        process.exitCode = 1;
+        return;
+      }
+      const result = await importWordPress(values.root ?? ".", from, {
+        dryRun: values["dry-run"],
+        log: (line) => console.log(line),
+      });
+      console.log(formatWordPressImport(result));
+      return;
+    }
     case "preview":
       await preview({ root: values.root, outDir: values.out, base, port });
       return;
@@ -164,7 +187,11 @@ main().catch((error: unknown) => {
     console.error(
       `\nSome content files have problems:\n${error.problems.map((p) => `  ${p.file}: ${p.message}`).join("\n")}\n`,
     );
-  } else if (error instanceof SiteSetupError || error instanceof ContentRepositoryError) {
+  } else if (
+    error instanceof SiteSetupError ||
+    error instanceof ContentRepositoryError ||
+    error instanceof WordPressReadError
+  ) {
     console.error(`\n${error.message}\n`);
   } else {
     console.error(error);

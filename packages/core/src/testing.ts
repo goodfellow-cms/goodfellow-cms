@@ -199,3 +199,12 @@ export class FakeRepo {
     return sha;
   }
 }
+
+export {
+  type FakeWordPressOptions,
+  type FakeWordPressResponse,
+  fakeWordPress,
+  SAMPLE_IMAGE,
+  SAMPLE_WORDPRESS_URL,
+  sampleWordPressExport,
+} from "./wordpress/sample.js";

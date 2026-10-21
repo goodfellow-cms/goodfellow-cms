@@ -285,8 +285,9 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
       watch: { ignored: [CONTENT_DIR, MEDIA_DIR].flatMap((dir) => watchedPaths(join(root, dir))) },
     },
     // Finds the packages the site's blocks use in the browser when the server starts, rather than when a page with
-    // Client Components first loads them, which reloads the page.
-    optimizeDeps: { entries: [configFile], include: ["react-dom/client"] },
+    // Client Components first loads them, which reloads the page. The admin panel's WordPress import loads its HTML
+    // parser only when it's opened, which would reload it in the middle of an import.
+    optimizeDeps: { entries: [configFile], include: ["react-dom/client", "@goodfellow-cms/core > htmlparser2"] },
     plugins: [
       react(),
       ...(base.plugins ?? []),

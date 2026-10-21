@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Commands
-description: goodfellow dev, build, preview, index, update and due, and serving a site from a subfolder.
+description: goodfellow dev, build, preview, index, update, due, content and import, and serving a site from a subfolder.
 section: developers
 order: 5
 ---
@@ -16,10 +16,11 @@ order: 5
 | `goodfellow due [--since <time>]` | Says whether a [scheduled](/docs/scheduling) page or item has been shown or hidden since `--since` (an ISO time; the last hour without one), so the site needs building again. On GitHub Actions it also sets the step's `due` output to `true` or `false`, which the starters' hourly check reads |
 | `goodfellow content link [folder]` | For a site whose [content is in a repository of its own](/docs/content-repository): links `content/` and `public/media/` to it, in `folder` (default: `content-repository`), so `goodfellow dev` reads and saves its files |
 | `goodfellow content copy [folder]` | Copies them from it instead, as builds do |
+| `goodfellow import wordpress <file or address>` | Brings a WordPress site's pages, posts, categories, tags, menus and media into the site, from its export file or its address (see [Move from WordPress](/docs/move-from-wordpress)). `--dry-run` says what would come across and changes nothing |
 
-Next.js sites have the same `update`, `due` and `content` commands as `goodfellow-next update`, `goodfellow-next due` and `goodfellow-next content`.
+Next.js sites have the same `update`, `due`, `content` and `import` commands as `goodfellow-next update`, `goodfellow-next due`, `goodfellow-next content` and `goodfellow-next import`.
 
-Options: `--root <dir>`, `--out <dir>`, `--port <port>`, and `--base <path>`.
+Options: `--root <dir>`, `--out <dir>`, `--port <port>`, `--base <path>` and, for `import`, `--dry-run`.
 
 ## Site checks
 

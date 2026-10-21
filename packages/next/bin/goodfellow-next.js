@@ -6,6 +6,7 @@
 // `goodfellow-next due [--since <time>]` says whether a scheduled change has come due, as `goodfellow due` does.
 // `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
 // content is kept in a repository of its own.
+// `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
 import { rm } from "node:fs/promises";
 import { relative } from "node:path";
 import { parseArgs } from "node:util";
@@ -13,12 +14,16 @@ import { formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   ContentRepositoryError,
+  contentRepositoryProblem,
+  formatWordPressImport,
+  importWordPress,
   reportDue,
   scheduleDue,
   setUpContentRepository,
   update,
 } from "@goodfellow-cms/core/node";
 import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
+import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import {
   builtPages,
   checkPages,
@@ -84,6 +89,30 @@ if (command === "content") {
     }
   }
 }
+if (command === "import") {
+  const { positionals, values } = parseArgs({
+    args: process.argv.slice(3),
+    allowPositionals: true,
+    options: { "dry-run": { type: "boolean" } },
+  });
+  const [kind, from] = positionals;
+  const problem = contentRepositoryProblem(".");
+  if (kind === "wordpress" && from && !problem) {
+    try {
+      const result = await importWordPress(".", from, { dryRun: values["dry-run"], log: (line) => console.log(line) });
+      console.log(formatWordPressImport(result));
+      process.exit(0);
+    } catch (error) {
+      if (!(error instanceof WordPressReadError)) throw error;
+      console.error(error.message);
+      process.exit(1);
+    }
+  }
+  if (problem) {
+    console.error(problem);
+    process.exit(1);
+  }
+}
 if (command !== "finish" && command !== "index") {
   console.error(
     [
@@ -93,6 +122,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish]",
       "       goodfellow-next due [--since <time>]",
       "       goodfellow-next content link|copy [folder]",
+      "       goodfellow-next import wordpress <file or address> [--dry-run]",
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
@@ -109,6 +139,9 @@ if (command !== "finish" && command !== "index") {
       "content For a site whose content is kept in a repository of its own: links content/ and",
       "        public/media/ to the content repository in folder (default: content-repository),",
       "        or copies them from it, as builds do.",
+      "import  Brings a WordPress site's pages, posts, categories, tags, menus and media into",
+      "        this site, from its export file (Tools → Export) or its address. With --dry-run,",
+      "        says what it would bring across and changes nothing.",
     ].join("\n"),
   );
   process.exit(1);

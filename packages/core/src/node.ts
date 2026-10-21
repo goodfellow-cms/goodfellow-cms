@@ -20,3 +20,12 @@ export { readMediaSizes } from "./node-media.js";
 export { localRegistryDir } from "./node-registry.js";
 export { type DueOptions, type DueResult, reportDue, scheduleDue } from "./node-schedule.js";
 export { type RunCommand, type UpdateOptions, update } from "./node-update.js";
+export {
+  formatWordPressImport,
+  type ImportWordPressOptions,
+  type ImportWordPressResult,
+  importWordPress,
+  type MediaSkipReason,
+  readWordPressSource,
+  withoutJpegDetails,
+} from "./node-wordpress.js";
