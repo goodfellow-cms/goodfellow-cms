@@ -9,6 +9,7 @@ import {
   calendarFiles,
   type FileChange,
   loadSiteContent,
+  shownContent,
 } from "./index.js";
 import { InvalidPathError } from "./node-local-files.js";
 
@@ -112,7 +113,9 @@ function isTrusted(req: IncomingMessage, trustOrigin: DevApiOptions["trustOrigin
  */
 export async function sendCalendarFile(source: ContentSource, pathname: string, res: ServerResponse): Promise<boolean> {
   if (!pathname.startsWith(`/${CALENDARS_DIR}/`) || !pathname.endsWith(".ics")) return false;
-  const file = calendarFiles(await loadSiteContent(source)).find((candidate) => candidate.path === pathname);
+  const file = calendarFiles(shownContent(await loadSiteContent(source))).find(
+    (candidate) => candidate.path === pathname,
+  );
   if (!file) {
     res.statusCode = 404;
     res.end();

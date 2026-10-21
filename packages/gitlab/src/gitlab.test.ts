@@ -568,3 +568,59 @@ describe("updates in a code project of their own", () => {
     expect(await updates?.lastRun()).toBeUndefined();
   });
 });
+
+describe("scheduled builds", () => {
+  async function site(token = "test-token", files: Record<string, string> = { ".gitlab-ci.yml": "pages: {}\n" }) {
+    const fake = fakeGitLab({
+      project: "parish/site",
+      files: { ...FILES, ...files },
+      visibility: "public",
+      tokens: {
+        "test-token": { username: "maria" },
+        developer: { username: "joseph", accessLevel: 30 },
+      },
+    });
+    const backend = await gitlab({ project: "parish/site", fetch: fake.fetch }).signInWithToken(token, false);
+    return { fake, backend, builds: backend.scheduledBuilds };
+  }
+
+  it("adds a pipeline schedule at each scheduled time, and removes ones no longer needed", async () => {
+    const { fake, backend, builds } = await site("developer");
+    // Developers can add schedules for the main branch once they may merge to it, as letting editors publish allows.
+    await expect(builds?.sync?.([new Date("2099-01-01T00:00:00Z")])).rejects.toMatchObject({ problem: "not-allowed" });
+    const owner = await gitlab({ project: "parish/site", fetch: fake.fetch }).signInWithToken("test-token", false);
+    await owner.editors?.letEditorsPublish?.();
+    expect(await builds?.timing()).toBe("exact");
+    expect(await backend.repositoryVisibility?.()).toBe("public");
+    // Someone else's, such as the nightly one, is left alone.
+    fake.updateSettings.schedules.push({ id: 99, ref: "main", cron: "17 4 * * *", active: true, owner: "maria" });
+
+    const advent = new Date("2099-11-29T14:00:00Z");
+    const fair = new Date("2099-11-01T23:00:00Z");
+    await builds?.sync?.([advent, fair, new Date("2000-01-01T00:00:00Z")]);
+    expect(fake.updateSettings.schedules.slice(1)).toEqual([
+      {
+        id: 1,
+        ref: "main",
+        cron: "0 23 1 11 *",
+        cronTimezone: "UTC",
+        description: "Goodfellow: build the site for a scheduled change at 2099-11-01T23:00Z",
+        active: true,
+        owner: "joseph",
+        variables: { GOODFELLOW_SCHEDULED_CHANGE: "2099-11-01T23:00Z" },
+      },
+      expect.objectContaining({
+        cron: "0 14 29 11 *",
+        variables: { GOODFELLOW_SCHEDULED_CHANGE: "2099-11-29T14:00Z" },
+      }),
+    ]);
+
+    // Once a time is no longer scheduled, its schedule goes; ones still needed stay as they are.
+    await builds?.sync?.([advent]);
+    expect(fake.updateSettings.schedules.map((schedule) => schedule.id)).toEqual([99, 2]);
+  });
+
+  it("says when a site has no pipeline to build it", async () => {
+    expect(await (await site("test-token", {})).builds?.timing()).toBe("none");
+  });
+});

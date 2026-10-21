@@ -32,6 +32,21 @@ export interface FakeGitLabOptions {
   pages?: { uniqueDomain?: boolean };
   /** Other GitLab accounts that exist, which can be added to the project. Every token's user exists and is a member. */
   accounts?: string[];
+  /** Who can see the project. Private by default. */
+  visibility?: "public" | "internal" | "private";
+}
+
+/** A pipeline schedule, such as the nightly one or one the admin panel adds for a scheduled change. */
+export interface FakeSchedule {
+  id: number;
+  ref: string;
+  cron: string;
+  cronTimezone?: string;
+  description?: string;
+  active: boolean;
+  /** Who added it, who alone (with Maintainers) can change it. */
+  owner?: string;
+  variables?: Record<string, string>;
 }
 
 /** A member of the site's project. */
@@ -229,8 +244,9 @@ export function fakeGitLab(options: FakeGitLabOptions) {
   /** The project's settings for updates: whether job tokens may push, and its pipeline schedules. */
   const updateSettings = {
     jobTokenPush: false,
-    schedules: [] as Array<{ id: number; ref: string; cron: string; active: boolean }>,
+    schedules: [] as FakeSchedule[],
   };
+  let scheduleIds = 0;
   /** Pipelines the update ran in: scheduled, or started through the API, with the pages job's log. */
   const updateRuns: Array<{
     id: number;
@@ -581,6 +597,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     if (rest === "" && request.method !== "PUT") {
       return json({
         default_branch: repo.defaultBranch,
+        visibility: options.visibility ?? "private",
         permissions: { project_access: { access_level: accessLevel }, group_access: null },
         ci_push_repository_for_job_token_allowed: updateSettings.jobTokenPush,
       });
@@ -811,17 +828,47 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     if (rest === "/pipeline_schedules") {
       if (accessLevel < 30) return json({ message: "403 Forbidden" }, 403);
       if (request.method === "POST") {
-        const body = (await request.json()) as { ref: string; cron: string; active?: boolean };
-        const schedule = {
-          id: updateSettings.schedules.length + 1,
+        const body = (await request.json()) as {
+          ref: string;
+          cron: string;
+          cron_timezone?: string;
+          description?: string;
+          active?: boolean;
+        };
+        // Schedules for a protected branch need permission to merge to it, as on GitLab.
+        const protection = protectedBranches.get(body.ref);
+        if (protection && accessLevel < protection.merge) return json({ message: "403 Forbidden" }, 403);
+        const schedule: FakeSchedule = {
+          id: ++scheduleIds,
           ref: body.ref,
           cron: body.cron,
           active: body.active ?? true,
+          ...(body.description !== undefined && { description: body.description }),
+          ...(body.cron_timezone !== undefined && { cronTimezone: body.cron_timezone }),
+          owner: user.username,
         };
         updateSettings.schedules.push(schedule);
         return json(schedule, 201);
       }
       return json(updateSettings.schedules);
+    }
+    const scheduleMatch = rest.match(/^\/pipeline_schedules\/(\d+)(\/variables)?$/);
+    if (scheduleMatch) {
+      const schedule = updateSettings.schedules.find((candidate) => candidate.id === Number(scheduleMatch[1]));
+      if (!schedule) return json({ message: "404 Not found" }, 404);
+      // Only a schedule's owner or a Maintainer can change it.
+      if (accessLevel < 30 || (accessLevel < 40 && schedule.owner !== user.username)) {
+        return json({ message: "403 Forbidden" }, 403);
+      }
+      if (scheduleMatch[2] && request.method === "POST") {
+        const body = (await request.json()) as { key: string; value: string };
+        schedule.variables = { ...schedule.variables, [body.key]: body.value };
+        return json(body, 201);
+      }
+      if (!scheduleMatch[2] && request.method === "DELETE") {
+        updateSettings.schedules = updateSettings.schedules.filter((candidate) => candidate !== schedule);
+        return new Response(null, { status: 204 });
+      }
     }
     if (rest === "" && request.method === "PUT") {
       if (accessLevel < 40) return json({ message: "403 Forbidden" }, 403);

@@ -36,22 +36,37 @@ export function parseMarkdownEntry(text: string, body: string): Record<string, u
   if (front === null || typeof front !== "object" || Array.isArray(front)) {
     throw new Error("must have front matter that lists fields, such as `title: My page`.");
   }
-  const { version, ...fields } = front as Record<string, unknown>;
+  // Fields' names are lowercase, so the schedule's times can't be one.
+  const { version, showFrom, hideAfter, ...fields } = front as Record<string, unknown>;
   const markdown = text
     .slice(match[0].length)
     .replace(/^\r?\n/, "")
     .trimEnd();
-  return { version, fields: { ...fields, [body]: markdown } };
+  return {
+    version,
+    ...(showFrom !== undefined && { showFrom }),
+    ...(hideAfter !== undefined && { hideAfter }),
+    fields: { ...fields, [body]: markdown },
+  };
 }
 
 /**
- * Writes a Markdown entry: `version` and the fields in the collection's order in
- * the front matter (then any others, alphabetically), and the body after it.
+ * Writes a Markdown entry: `version`, the schedule's times and the fields in the
+ * collection's order in the front matter (then any others, alphabetically),
+ * and the body after it.
  */
-export function serializeMarkdownEntry(settings: CollectionFile, fields: Record<string, unknown>): string {
+export function serializeMarkdownEntry(
+  settings: CollectionFile,
+  fields: Record<string, unknown>,
+  schedule: { showFrom?: string; hideAfter?: string } = {},
+): string {
   const body = settings.markdown?.body;
   if (!body) throw new Error("The collection doesn't store its entries as Markdown.");
-  const front: Record<string, unknown> = { version: CURRENT_VERSION.entry };
+  const front: Record<string, unknown> = {
+    version: CURRENT_VERSION.entry,
+    ...(schedule.showFrom && { showFrom: schedule.showFrom }),
+    ...(schedule.hideAfter && { hideAfter: schedule.hideAfter }),
+  };
   const known = settings.fields.map((field) => field.name).filter((name) => name !== body);
   const others = Object.keys(fields)
     .filter((name) => name !== body && !known.includes(name))

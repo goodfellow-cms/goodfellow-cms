@@ -3,6 +3,7 @@
 // writes the calendar files of collections of events and the pages at redirects' old addresses, and the search index for sites with a search block,
 // and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
+// `goodfellow-next due [--since <time>]` says whether a scheduled change has come due, as `goodfellow due` does.
 // `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
 // content is kept in a repository of its own.
 import { rm } from "node:fs/promises";
@@ -10,7 +11,13 @@ import { relative } from "node:path";
 import { parseArgs } from "node:util";
 import { formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
-import { ContentRepositoryError, setUpContentRepository, update } from "@goodfellow-cms/core/node";
+import {
+  ContentRepositoryError,
+  reportDue,
+  scheduleDue,
+  setUpContentRepository,
+  update,
+} from "@goodfellow-cms/core/node";
 import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import {
   builtPages,
@@ -49,6 +56,11 @@ if (command === "update") {
   console.log(formatUpdateResult(result));
   process.exit(result.state === "failed" ? 1 : 0);
 }
+if (command === "due") {
+  const { values } = parseArgs({ args: process.argv.slice(3), options: { since: { type: "string" } } });
+  for (const line of await reportDue(await scheduleDue({ since: values.since }))) console.log(line);
+  process.exit(0);
+}
 if (command === "content") {
   const [action, from] = process.argv.slice(3);
   if (action === "link" || action === "copy") {
@@ -75,6 +87,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next finish --server",
       "       goodfellow-next index [folder]",
       "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish]",
+      "       goodfellow-next due [--since <time>]",
       "       goodfellow-next content link|copy [folder]",
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
@@ -86,6 +99,9 @@ if (command !== "finish" && command !== "index") {
       "        index in public/pagefind, instead.",
       "index   Only indexes the exported site for its search block.",
       "update  Updates Goodfellow, and blocks from its registry, if the site still builds.",
+      "due     Says whether a scheduled change has come due since --since (default: the last",
+      "        hour), so the site needs building again, and sets the step's due output on",
+      "        GitHub Actions.",
       "content For a site whose content is kept in a repository of its own: links content/ and",
       "        public/media/ to the content repository in folder (default: content-repository),",
       "        or copies them from it, as builds do.",

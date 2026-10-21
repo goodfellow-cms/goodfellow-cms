@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Commands
-description: goodfellow dev, build, preview, index and update, and serving a site from a subfolder.
+description: goodfellow dev, build, preview, index, update and due, and serving a site from a subfolder.
 section: developers
 order: 5
 ---
@@ -9,14 +9,15 @@ order: 5
 | Command | What it does |
 |---|---|
 | `goodfellow dev` | Serves the site, rendering each page from the files on disk, plus the admin panel at `/admin`, which saves to those files |
-| `goodfellow build` | Writes one HTML file per page to `dist/`, builds the CSS and copies `public/`. Also writes `sitemap.xml` and `robots.txt` if the site's address is set, the admin panel if the config has a `backend` or `demo`, the JavaScript for [Client Components](/docs/interactive-blocks), [calendar files and month pages](/docs/calendars) for collections of events, lists' [later pages and pages for each choice](/docs/showing-collections#pages-of-items), and a [search index](/docs/search) if a page has a Search block |
+| `goodfellow build` | Writes one HTML file per page that's shown at the time (see [Scheduled publishing](/docs/scheduling)) to `dist/`, builds the CSS and copies `public/`. Also writes `sitemap.xml` and `robots.txt` if the site's address is set, the admin panel if the config has a `backend` or `demo`, the JavaScript for [Client Components](/docs/interactive-blocks), [calendar files and month pages](/docs/calendars) for collections of events, lists' [later pages and pages for each choice](/docs/showing-collections#pages-of-items), and a [search index](/docs/search) if a page has a Search block |
 | `goodfellow preview` | Serves `dist/` the way a host would, including the "Page not found" page |
 | `goodfellow index` | Writes the search index for a site built another way |
 | `goodfellow update` | Updates Goodfellow, and blocks from its registry, if the site still builds with the update (see [Keeping a site up to date](/docs/updates)) |
+| `goodfellow due [--since <time>]` | Says whether a [scheduled](/docs/scheduling) page or item has been shown or hidden since `--since` (an ISO time; the last hour without one), so the site needs building again. On GitHub Actions it also sets the step's `due` output to `true` or `false`, which the starters' hourly check reads |
 | `goodfellow content link [folder]` | For a site whose [content is in a repository of its own](/docs/content-repository): links `content/` and `public/media/` to it, in `folder` (default: `content-repository`), so `goodfellow dev` reads and saves its files |
 | `goodfellow content copy [folder]` | Copies them from it instead, as builds do |
 
-Next.js sites have the same `update` and `content` commands as `goodfellow-next update` and `goodfellow-next content`.
+Next.js sites have the same `update`, `due` and `content` commands as `goodfellow-next update`, `goodfellow-next due` and `goodfellow-next content`.
 
 Options: `--root <dir>`, `--out <dir>`, `--port <port>`, and `--base <path>`.
 

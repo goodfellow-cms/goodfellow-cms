@@ -12,6 +12,7 @@ import {
   normalizePagePath,
   type Page,
   type SiteContent,
+  shownContent,
   sitePages,
   themeToCss,
   todayIn,
@@ -62,11 +63,14 @@ export interface PageProps {
 }
 
 /**
- * Reads the site's content from disk. Cached for the length of one request, so
- * a page and its metadata read it once, and content edits show on reload in development.
+ * Reads the site's content from disk, as visitors see it now: without pages
+ * and items scheduled for later, or hidden again (`shownContent()`). Cached
+ * for the length of one request, so a page and its metadata read it once, and
+ * content edits show on reload in development.
  */
 export const loadSite = cache(
-  (root: string = process.cwd()): Promise<SiteContent> => loadSiteContent(fileSystemSource(root)),
+  async (root: string = process.cwd()): Promise<SiteContent> =>
+    shownContent(await loadSiteContent(fileSystemSource(root))),
 );
 
 function pathOf(segments: string[] | undefined): string {

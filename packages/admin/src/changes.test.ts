@@ -103,7 +103,7 @@ describe("checkPageAddress", () => {
 
 describe("page file changes", () => {
   it("writes the page's file in canonical form, without Puck's empty zones", () => {
-    const change = pageFileChange("/about", { root: { props: { title: "About" } }, content: [], zones: {} });
+    const change = pageFileChange("/about", { root: { props: { title: "About" } }, content: [], zones: {} }, undefined);
     expect(change).toEqual({
       path: "content/pages/about.json",
       content:
@@ -250,7 +250,9 @@ describe("collections", () => {
   };
 
   it("leaves empty fields out of entry files", () => {
-    expect(entryFileChange(videos, "easter", { title: "Easter", speaker: "", text: "<p></p>", count: 0 })).toEqual({
+    expect(
+      entryFileChange(videos, "easter", { title: "Easter", speaker: "", text: "<p></p>", count: 0 }, undefined),
+    ).toEqual({
       path: "content/collections/videos/easter.json",
       content: '{\n  "version": 1,\n  "fields": {\n    "count": 0,\n    "title": "Easter"\n  }\n}\n',
     });
@@ -348,7 +350,7 @@ describe("collections", () => {
     };
 
     it("writes entries as Markdown files", () => {
-      expect(entryFileChange(docs, "intro", { title: "Intro", body: "Text" })).toEqual({
+      expect(entryFileChange(docs, "intro", { title: "Intro", body: "Text" }, undefined)).toEqual({
         path: "content/collections/docs/intro.md",
         content: "---\nversion: 1\ntitle: Intro\n---\n\nText\n",
       });

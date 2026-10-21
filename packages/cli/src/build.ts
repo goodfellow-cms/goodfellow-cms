@@ -12,10 +12,13 @@ import {
   normalizeBase,
   pageOutputFile,
   redirectFiles,
+  type ScheduledChange,
   SITE_DESCRIPTION_PATH,
   type SiteProblem,
+  shownContent,
   sitePages,
   todayIn,
+  upcomingChanges,
   withBase,
 } from "@goodfellow-cms/core";
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
@@ -43,6 +46,8 @@ export interface BuildResult {
   searchIndexed?: number;
   /** What the site checks found: links to pages and media the site doesn't have, and things to improve. */
   problems: SiteProblem[];
+  /** The next change the site's schedules make, which the site must be rebuilt for. */
+  nextChange?: ScheduledChange;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -129,7 +134,10 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
   try {
     const { config, renderPage, describe } = await loadServerEntry(server);
     const base = normalizeBase(options.base ?? config.base);
-    const content = await loadSiteContent(fileSystemSource(root));
+    // The site as visitors see it now: pages and items scheduled for later, or hidden again, are left out.
+    const now = new Date();
+    const loaded = await loadSiteContent(fileSystemSource(root));
+    const content = shownContent(loaded, now);
     const styles = await writeStylesEntries(root, config);
     const withAdmin = Boolean(config.backend || config.demo);
 
@@ -238,12 +246,17 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const media = (await fileSystemSource(root).list(MEDIA_DIR)).map(
       (path) => `/media/${path.slice(MEDIA_DIR.length + 1)}`,
     );
-    // The site checks, then what checking the built pages finds, such as images without alt text.
-    const problems = [
-      ...checkSite(content, { media, blocks: config.blocks, today }),
-      ...(await checkBuiltPages(built)),
-    ];
-    return { outDir, pages: written, ...(searchIndexed !== undefined && { searchIndexed }), problems };
+    // The site checks, then what checking the built pages finds, such as images without alt text. The site
+    // checks check the site as it's written, so links to pages that aren't shown yet aren't errors.
+    const problems = [...checkSite(loaded, { media, blocks: config.blocks, today }), ...(await checkBuiltPages(built))];
+    const [nextChange] = upcomingChanges(loaded, now);
+    return {
+      outDir,
+      pages: written,
+      ...(searchIndexed !== undefined && { searchIndexed }),
+      problems,
+      ...(nextChange && { nextChange }),
+    };
   } finally {
     await server.close();
   }

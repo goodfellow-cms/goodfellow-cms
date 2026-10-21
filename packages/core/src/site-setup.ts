@@ -50,7 +50,7 @@ export interface Backend {
 export const HOSTS = {
   "github-pages": {
     label: "GitHub Pages",
-    files: [".github/workflows/deploy.yml"],
+    files: [".github/workflows/deploy.yml", ".github/workflows/scheduled.yml"],
     note: "Free for public repositories. Not allowed for online businesses or shops.",
   },
   "gitlab-pages": {

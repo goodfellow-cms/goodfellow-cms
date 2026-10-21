@@ -14,10 +14,11 @@ const docs = resolve(import.meta.dirname, "../../../docs");
 describe("build", () => {
   let outDir: string;
   let pages: string[];
+  let nextChange: Awaited<ReturnType<typeof build>>["nextChange"];
 
   beforeAll(async () => {
     outDir = await mkdtemp(join(tmpdir(), "goodfellow-build-"));
-    ({ pages } = await build({ root: fixture, outDir }));
+    ({ pages, nextChange } = await build({ root: fixture, outDir }));
   }, 60_000);
 
   afterAll(() => rm(outDir, { recursive: true, force: true }));
@@ -29,6 +30,12 @@ describe("build", () => {
     expect(existsSync(join(outDir, "index.html"))).toBe(true);
     expect(existsSync(join(outDir, "news/index.html"))).toBe(true);
     expect(existsSync(join(outDir, "404.html"))).toBe(true);
+  });
+
+  it("leaves out pages and items their schedules don't show yet, or any more, and says what's next", () => {
+    expect(existsSync(join(outDir, "advent/index.html"))).toBe(false);
+    expect(existsSync(join(outDir, "talks/old/index.html"))).toBe(false);
+    expect(nextChange).toMatchObject({ kind: "show", time: "2099-11-29T09:00", path: "/advent" });
   });
 
   it("describes the site's blocks for tools that edit its content, such as the Claude connector", async () => {
@@ -321,6 +328,7 @@ describe("parish example", () => {
   it("has the same deploy setups as the starter", async () => {
     for (const file of [
       ".github/workflows/deploy.yml",
+      ".github/workflows/scheduled.yml",
       ".gitlab-ci.yml",
       "vercel.ts",
       ".gitignore",

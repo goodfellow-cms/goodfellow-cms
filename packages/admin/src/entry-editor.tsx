@@ -7,8 +7,11 @@ import {
   eventValueProblem,
   findEntry,
   isEmptyValue,
+  type Schedule,
   type SiteContent,
   type SiteSettings,
+  scheduleOf,
+  scheduleProblem,
 } from "@goodfellow-cms/core";
 import { applyEntry, type SiteContextValue, SiteProvider, siteMetadata } from "@goodfellow-cms/react";
 import {
@@ -32,6 +35,7 @@ import { EventField } from "./event-field.js";
 import { MarkdownField } from "./markdown-field.js";
 import { MediaChooser } from "./media-library.js";
 import { PuckEditor, SiteFrame } from "./puck-editor.js";
+import { ScheduleFields, scheduleSettingsChanges } from "./schedule.js";
 import { useStrings } from "./strings.js";
 import { AppLink } from "./use-link.js";
 import { VersionsLink } from "./versions-screen.js";
@@ -310,13 +314,28 @@ function EntryPreview({ collection, entry, content, templateConfig, layoutConfig
   );
 }
 
-/** The values Puck edits: the entry's stored values, with every field present so Puck shows it. */
+/**
+ * Where the item's schedule is among the values Puck edits. Fields' names are
+ * lowercase letters, numbers and hyphens, so none can have this one.
+ */
+const SCHEDULE_PROP = "_schedule";
+
+/** The values Puck edits: the entry's stored values, with every field present so Puck shows it, and its schedule. */
 function formValues(collection: Collection, entry: Entry): Record<string, unknown> {
   const values: Record<string, unknown> = { ...entry.content.fields };
   for (const field of collection.settings.fields) {
     if (values[field.name] === undefined && field.type !== "number") values[field.name] = "";
   }
+  values[SCHEDULE_PROP] = scheduleOf(entry.content);
   return values;
+}
+
+/** The item's schedule, last in its fields, which the AI assistant leaves alone. */
+function scheduleField(content: SiteContent): Field<Schedule> {
+  return {
+    type: "custom",
+    render: ({ value, onChange }) => <ScheduleFields value={value ?? {}} onChange={onChange} content={content} />,
+  };
 }
 
 function EntryEditor({ collection, entry }: { collection: Collection; entry: Entry }) {
@@ -329,9 +348,10 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
     () => ({
       components: {},
       root: {
-        fields: Object.fromEntries(
-          fields.map((field) => [field.name, puckField(field, collection, content.settings)]),
-        ) as Fields,
+        fields: Object.fromEntries([
+          ...fields.map((field) => [field.name, puckField(field, collection, content.settings)]),
+          [SCHEDULE_PROP, scheduleField(content)],
+        ]) as Fields,
         render: () => (
           <EntryPreview
             collection={collection}
@@ -368,6 +388,7 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
       actions={<VersionsLink file={entry.file} />}
       validate={(next) => {
         const values: Record<string, unknown> = next.root.props ?? {};
+        if (scheduleProblem((values[SCHEDULE_PROP] ?? {}) as Schedule)) return t("editEntry.invalidSchedule");
         const missing = fields.filter((field) => field.required && isEmptyValue(values[field.name]));
         if (missing.length > 0) {
           return t("editEntry.required", { fields: missing.map((field) => field.label).join(", ") });
@@ -381,10 +402,15 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
           : undefined;
       }}
       toChanges={(next) => {
-        const values = Object.fromEntries(Object.entries(next.root.props ?? {}).filter(([name]) => name !== "id"));
+        const { [SCHEDULE_PROP]: schedule = {}, ...values } = Object.fromEntries(
+          Object.entries(next.root.props ?? {}).filter(([name]) => name !== "id"),
+        );
         const title = typeof values.title === "string" && values.title.trim() ? values.title.trim() : entry.slug;
         return {
-          changes: [entryFileChange(collection, entry.slug, values)],
+          changes: [
+            entryFileChange(collection, entry.slug, values, schedule as Schedule),
+            ...scheduleSettingsChanges(content, schedule as Schedule),
+          ],
           message: t("editEntry.message", { entry: entryName, title }),
         };
       }}

@@ -33,6 +33,7 @@ import {
   UPDATES_FILE,
 } from "./paths.js";
 import { type Redirect, redirectFrom } from "./redirects.js";
+import { type Schedule, scheduleOf } from "./schedule.js";
 import {
   type CollectionField,
   type CollectionFile,
@@ -89,10 +90,15 @@ export function storedData(data: Data): Data {
   return rest;
 }
 
-export function pageFileChange(path: string, data: Data): FileChange {
+/**
+ * Writes a page's file. `schedule` is when it's on the site: pass the page's
+ * own (`scheduleOf(page.content)`) to keep it, since leaving it out shows the
+ * page straight away.
+ */
+export function pageFileChange(path: string, data: Data, schedule: Schedule | undefined): FileChange {
   return {
     path: pagePathToFile(path),
-    content: serializeContent({ version: CURRENT_VERSION.page, data: storedData(data) }),
+    content: serializeContent({ version: CURRENT_VERSION.page, ...scheduleOf(schedule ?? {}), data: storedData(data) }),
   };
 }
 
@@ -189,7 +195,7 @@ export function relinkedChanges(
       for (const collection of content.collections) {
         if (collection.file === file) return [collectionFileChange(collection.id, collection.settings)];
         const entry = collection.entries.find((candidate) => candidate.file === file);
-        if (entry) return [entryFileChange(collection, entry.slug, entry.content.fields)];
+        if (entry) return [entryFileChange(collection, entry.slug, entry.content.fields, entry.content)];
       }
       return [];
     });
@@ -281,18 +287,25 @@ type EntryCollection = Pick<Collection, "id" | "settings">;
 
 /**
  * Writes an entry's file: JSON, or in a collection of Markdown files, Markdown
- * whose body is the body field's value (Markdown already).
+ * whose body is the body field's value (Markdown already). `schedule` is when
+ * it's on the site: pass the entry's own (`entry.content`) to keep it, since
+ * leaving it out shows the entry straight away.
  */
 export function entryFileChange(
   collection: EntryCollection,
   slug: string,
   values: Record<string, unknown>,
+  schedule: Schedule | undefined,
 ): FileChange {
   const fields = storedEntryFields(values);
   const { settings } = collection;
+  const times = scheduleOf(schedule ?? {});
   return settings.markdown
-    ? { path: entryFile(collection.id, slug, "markdown"), content: serializeMarkdownEntry(settings, fields) }
-    : { path: entryFile(collection.id, slug), content: serializeContent({ version: CURRENT_VERSION.entry, fields }) };
+    ? { path: entryFile(collection.id, slug, "markdown"), content: serializeMarkdownEntry(settings, fields, times) }
+    : {
+        path: entryFile(collection.id, slug),
+        content: serializeContent({ version: CURRENT_VERSION.entry, ...times, fields }),
+      };
 }
 
 /** A new collection's settings: a title and some text, shown by a template that lists every field. */
@@ -467,7 +480,7 @@ export function moveEntryChanges(
       ?.entries.find((candidate) => candidate.file === entry.file) ?? entry;
   return [
     { path: entry.file, delete: true },
-    entryFileChange(collection, slug, moved.content.fields),
+    entryFileChange(collection, slug, moved.content.fields, moved.content),
     ...relinkedChanges(relinked, [entry.file]),
   ];
 }

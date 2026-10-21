@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { wallClock } from "../calendar.js";
 import { addressPatternProblem } from "./paths.js";
 
 /** Theme color names. They map to shadcn-compatible CSS variables (`primaryForeground` → `--primary-foreground`). */
@@ -165,16 +166,43 @@ export const puckDataSchema = z.looseObject({
   content: z.array(componentData).default([]),
 });
 
-export const pageFileSchema = z.object({
-  version: z.literal(1),
-  data: puckDataSchema,
-});
+/** A wall-clock date and time in the site's time zone, `YYYY-MM-DDTHH:MM`, as scheduled changes use. */
+const scheduleTime = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "must be a date and time written as YYYY-MM-DDTHH:MM")
+  .refine((value) => wallClock(value) !== undefined, "must be a date and time that exists");
+
+/**
+ * When a page or entry is on the site (see `schedule.ts`): from `showFrom`,
+ * and until `hideAfter`, each in the site's time zone. Either can be left out.
+ */
+const scheduleShape = {
+  showFrom: scheduleTime.optional(),
+  hideAfter: scheduleTime.optional(),
+};
+
+function checkSchedule(file: { showFrom?: string; hideAfter?: string }, ctx: z.RefinementCtx) {
+  if (file.showFrom && file.hideAfter && file.hideAfter <= file.showFrom) {
+    ctx.addIssue({ code: "custom", path: ["hideAfter"], message: "must be after showFrom" });
+  }
+}
+
+export const pageFileSchema = z
+  .object({
+    version: z.literal(1),
+    ...scheduleShape,
+    data: puckDataSchema,
+  })
+  .superRefine(checkSchedule);
 
 export type PageFile = z.output<typeof pageFileSchema>;
 
-/** The header and footer use the same format as pages. */
-export const layoutFileSchema = pageFileSchema;
-export type LayoutFile = PageFile;
+/** The header and footer use the same format as pages, without a schedule. */
+export const layoutFileSchema = z.object({
+  version: z.literal(1),
+  data: puckDataSchema,
+});
+export type LayoutFile = z.output<typeof layoutFileSchema>;
 
 /** The kinds of information an entry can hold. */
 export const FIELD_TYPES = [
@@ -321,9 +349,12 @@ export const collectionFileSchema = z
 export type CollectionFile = z.output<typeof collectionFileSchema>;
 
 /** One entry: its field values, keyed by field name. Checked against its collection's fields when loaded. */
-export const entryFileSchema = z.object({
-  version: z.literal(1),
-  fields: z.record(z.string(), z.unknown()).default({}),
-});
+export const entryFileSchema = z
+  .object({
+    version: z.literal(1),
+    ...scheduleShape,
+    fields: z.record(z.string(), z.unknown()).default({}),
+  })
+  .superRefine(checkSchedule);
 
 export type EntryFile = z.output<typeof entryFileSchema>;

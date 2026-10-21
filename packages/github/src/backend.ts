@@ -19,6 +19,8 @@ import {
   type PagesDomains,
   REBUILD_JOB,
   type RedirectOptions,
+  type RepositoryVisibility,
+  type ScheduledBuilds,
   SignInError,
   type SiteDrafts,
   type SiteEditors,
@@ -29,6 +31,7 @@ import {
 import { type ApiOptions, githubJson, githubRequest, repoPath, type TokenSource } from "./api.js";
 import { githubEditors, githubOwnerAccess } from "./editors.js";
 import { githubPages } from "./pages.js";
+import { githubScheduledBuilds } from "./scheduled-builds.js";
 import { githubCodeUpdates, githubUpdates } from "./updates.js";
 
 interface TreeResponse {
@@ -109,6 +112,7 @@ export class GitHubBackend implements GitBackend {
   /** Absent where the repository holds only content: the update job runs where the code is. */
   readonly updates?: SiteUpdates;
   readonly drafts: SiteDrafts;
+  readonly scheduledBuilds: ScheduledBuilds;
   readonly contentOnly: boolean;
   private readonly options: GitHubBackendOptions;
   private readonly api: ApiOptions;
@@ -157,6 +161,14 @@ export class GitHubBackend implements GitBackend {
       });
     }
     this.drafts = branchDrafts(this, this.draftHost());
+    // The workflows are the repository's own, where the content is kept apart too.
+    this.scheduledBuilds = githubScheduledBuilds((path) => this.read(path));
+  }
+
+  async repositoryVisibility(): Promise<RepositoryVisibility> {
+    const found = await githubJson<{ private?: boolean; visibility?: string }>(this.api, `/repos/${this.repo}`);
+    if (found.visibility === "internal") return "internal";
+    return found.private === false || found.visibility === "public" ? "public" : "private";
   }
 
   /** Drafts on branches of the repository, with pull requests for review. */

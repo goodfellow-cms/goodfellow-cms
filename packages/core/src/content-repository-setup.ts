@@ -62,13 +62,19 @@ export interface SeparateSetupFiles {
 }
 
 const GITHUB_PAGES_WORKFLOW = ".github/workflows/deploy.yml";
+const GITHUB_SCHEDULED_WORKFLOW = ".github/workflows/scheduled.yml";
 const GITHUB_UPDATE_WORKFLOW = ".github/workflows/update.yml";
 const GITHUB_REBUILD_WORKFLOW = `.github/workflows/${REBUILD_JOB}.yml`;
 const GITLAB_CI = ".gitlab-ci.yml";
 const VERCEL_CONFIG = "vercel.ts";
 
 /** The files the template's own setup has, which a site with separate content replaces. */
-export const SINGLE_REPOSITORY_SETUP_FILES = [GITHUB_PAGES_WORKFLOW, GITLAB_CI, VERCEL_CONFIG];
+export const SINGLE_REPOSITORY_SETUP_FILES = [
+  GITHUB_PAGES_WORKFLOW,
+  GITHUB_SCHEDULED_WORKFLOW,
+  GITLAB_CI,
+  VERCEL_CONFIG,
+];
 
 /** Comment lines, wrapped at about 80 columns. */
 function comment(text: string, prefix = "# "): string {
@@ -91,6 +97,7 @@ function commands(setup: SeparateSetup) {
   return {
     copy: `npx ${cli} content copy`,
     update: `npx ${cli} update`,
+    due: `npx ${cli} due`,
     output: setup.next ? "out" : "dist",
   };
 }
@@ -168,6 +175,63 @@ ${build}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+`;
+}
+
+/**
+ * The content repository's hourly check on GitHub, with the code checked out as
+ * its build does: whether a scheduled change has come due, and if one has, its
+ * build, so the change goes live within the hour.
+ */
+function githubScheduledContentWorkflow(setup: SeparateSetup): string {
+  const { copy, due } = commands(setup);
+  return `${comment(
+    `Checks each hour whether a page or item scheduled to be shown or hidden has come due since the last check, and if one has, starts the "Deploy to GitHub Pages" workflow (deploy.yml), so the change goes live within the hour. On a private repository each check counts as a minute of GitHub Actions. Delete this file to have scheduled changes go live with the nightly build.`,
+  )}
+name: Scheduled changes
+
+on:
+  schedule:
+    - cron: "47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: scheduled-changes
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # The site's code, with this repository's content in ${CONTENT_REPOSITORY_DIR}/, as its build has them.
+      - uses: actions/checkout@v5
+        with:
+          repository: ${setup.code}
+          ssh-key: \${{ secrets.GOODFELLOW_CODE_KEY }}
+      - uses: actions/checkout@v5
+        with:
+          path: ${CONTENT_REPOSITORY_DIR}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: ${copy}
+      # Since the last check that worked.
+      - id: due
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          since="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scheduled.yml --status success --limit 1 --json startedAt --jq '.[0].startedAt' || true)"
+          ${due} --since "$since"
+      - if: steps.due.outputs.due == 'true'
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
 `;
 }
 
@@ -420,6 +484,7 @@ export function separateSetupFiles(setup: SeparateSetup, vercelTemplate?: string
   }
   if (setup.host === "github-pages") {
     content.set(GITHUB_PAGES_WORKFLOW, githubPagesContentWorkflow(setup));
+    content.set(GITHUB_SCHEDULED_WORKFLOW, githubScheduledContentWorkflow(setup));
     code.set(GITHUB_UPDATE_WORKFLOW, githubUpdateWorkflow(setup));
   } else if (setup.host === "gitlab-pages") {
     content.set(GITLAB_CI, gitlabPagesContentPipeline(setup));

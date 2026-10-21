@@ -641,3 +641,35 @@ describe("on a full-stack site's server", () => {
     expect(asked).toBeGreaterThan(0);
   });
 });
+
+describe("scheduled builds", () => {
+  async function site(files: Record<string, string>, options: { private?: boolean } = {}) {
+    const fake = fakeGitHub({
+      repo: "parish/site",
+      files: { ...FILES, ...files },
+      tokens: { "test-token": { login: "maria", admin: true } },
+      ...options,
+    });
+    return github({ repo: "parish/site", fetch: fake.fetch }).signInWithToken("test-token", false);
+  }
+  // As the starters' workflows have them.
+  const deploy = 'on:\n  push:\n    branches: [main]\n  schedule:\n    - cron: "17 4 * * *"\n';
+  const scheduled =
+    'on:\n  schedule:\n    - cron: "47 * * * *"\njobs:\n  check:\n    steps:\n      - run: npx goodfellow due\n';
+
+  it("go live within the hour with the starters' hourly check, or else with the nightly build", async () => {
+    const backend = await site({
+      ".github/workflows/deploy.yml": deploy,
+      ".github/workflows/scheduled.yml": scheduled,
+    });
+    expect(await backend.scheduledBuilds?.timing()).toBe("hourly");
+    expect(backend.scheduledBuilds?.sync).toBeUndefined();
+    expect(await (await site({ ".github/workflows/deploy.yml": deploy })).scheduledBuilds?.timing()).toBe("nightly");
+    expect(await (await site({})).scheduledBuilds?.timing()).toBe("none");
+  });
+
+  it("says who can read the repository", async () => {
+    expect(await (await site({})).repositoryVisibility?.()).toBe("public");
+    expect(await (await site({}, { private: true })).repositoryVisibility?.()).toBe("private");
+  });
+});

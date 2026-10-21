@@ -11,6 +11,7 @@ import {
   MEDIA_DIR,
   redirectPage,
   SITE_DESCRIPTION_PATH,
+  shownContent,
   todayIn,
 } from "@goodfellow-cms/core";
 import {
@@ -203,14 +204,15 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
           if (await sendCalendarFile(fileSystemSource(root), url.pathname, res).catch(() => false)) return;
           if (/\.[a-z0-9]+$/i.test(url.pathname)) {
             // Old addresses such as /news.html send visitors on, as the built site's pages there do.
-            const content = await loadSiteContent(fileSystemSource(root)).catch(() => undefined);
+            const content = await loadSiteContent(fileSystemSource(root)).then(shownContent, () => undefined);
             const redirect = content && findRedirect(content, url.pathname);
             if (content && redirect) return void res.end(redirectPage(content, redirect.to));
             return next();
           }
 
           try {
-            const content = await loadSiteContent(fileSystemSource(root));
+            // As a build now would show the site: pages and items scheduled for later are left out.
+            const content = shownContent(await loadSiteContent(fileSystemSource(root)));
             const { config, renderPage } = await loadServerEntry(server);
             const match = findSitePage(content, todayIn(content.settings.timeZone), config.blocks, url.pathname);
             // Pages win over redirects, as in builds.

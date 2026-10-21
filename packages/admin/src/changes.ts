@@ -128,7 +128,7 @@ export function collectionSettingsChanges(
       if (before !== undefined && typeof kept[before] === "string") kept[before] = formattedHtml(kept[before]);
       if (after !== undefined && typeof kept[after] === "string") kept[after] = htmlToMarkdown(kept[after]);
     }
-    const change = entryFileChange({ id: collection.id, settings }, entry.slug, kept);
+    const change = entryFileChange({ id: collection.id, settings }, entry.slug, kept, entry.content);
     if (change.path !== entry.file) changes.push({ path: entry.file, delete: true });
     changes.push(change);
   }

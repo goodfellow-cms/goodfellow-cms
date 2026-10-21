@@ -1,0 +1,42 @@
+# Checks each hour whether a page or item scheduled to be shown or hidden has
+# come due since the last check, and if one has, starts the "Deploy to GitHub
+# Pages" workflow (deploy.yml), so the change goes live within the hour.
+# On a private repository each check counts as a minute of GitHub Actions.
+# Delete this file to have scheduled changes go live with the nightly build.
+# See README.md.
+name: Scheduled changes
+
+on:
+  schedule:
+    - cron: "47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: scheduled-changes
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Since the last check that worked.
+      - id: due
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          since="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scheduled.yml --status success --limit 1 --json startedAt --jq '.[0].startedAt' || true)"
+          npx goodfellow-next due --since "$since"
+      - if: steps.due.outputs.due == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
