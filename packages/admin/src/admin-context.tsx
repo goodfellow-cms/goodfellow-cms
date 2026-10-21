@@ -25,9 +25,11 @@ import {
 import { createPuckConfig } from "@goodfellow-cms/react";
 import type { Config } from "@puckeditor/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { ChecksDialog } from "./checks-dialog.js";
 import { mediaUrl } from "./media.js";
 import { createMediaPreviews, type MediaPreviews } from "./media-previews.js";
 import { REGISTRY_VERSION } from "./registry-version.js";
+import { checkPublish, type PublishChecks } from "./site-checks.js";
 import { showSiteIcon } from "./site-icon.js";
 
 /** How previews load the site's styles. Provided by the dev server or build that serves the admin panel. */
@@ -45,7 +47,12 @@ export type LoadState =
   | { status: "error"; error: unknown }
   | { status: "ready"; content: SiteContent; revision: string; media: string[] };
 
-export type PublishResult = { ok: true } | { ok: false; reason: "conflict" | "error"; error: unknown };
+/**
+ * How a publish went. `checks` means the site checks stopped it, or the editor
+ * went back to fix what they found: their dialog has said why, so screens say
+ * nothing more.
+ */
+export type PublishResult = { ok: true } | { ok: false; reason: "conflict" | "error" | "checks"; error: unknown };
 
 /** Whether the latest publish has reached the live site. `previous` is the revision before it. */
 export type DeployProgress = { revision: string; previous?: string } & DeployStatus;
@@ -80,8 +87,14 @@ interface AdminContextValue {
   /** Where to show media from in the admin panel, including files the live site doesn't have yet. */
   mediaPreviews: MediaPreviews;
   reload(): Promise<void>;
-  /** Saves changes as one commit, then reloads the site's content. */
-  publish(changes: FileChange[], message: string): Promise<PublishResult>;
+  /**
+   * Saves changes as one commit, then reloads the site's content. The site
+   * checks run first, unless `checks` is `false`: for publishes that can't
+   * break a link and that the editor didn't write, such as the site's
+   * address or uploads, where warnings about the rest of the file would only
+   * be in the way.
+   */
+  publish(changes: FileChange[], message: string, options?: { checks?: boolean }): Promise<PublishResult>;
   /** Reads one of the site's files at the loaded revision, or `undefined` if it doesn't exist. */
   readFile(path: string): Promise<string | undefined>;
   /** Lists the site's files under a folder at the loaded revision. */
@@ -149,6 +162,12 @@ export function AdminProvider({
 }) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [deploy, setDeploy] = useState<DeployProgress>();
+  // What the site checks found in the publish waiting for the editor's answer.
+  const [checking, setChecking] = useState<{
+    checks: PublishChecks;
+    content: SiteContent;
+    decide: (publish: boolean) => void;
+  }>();
   const pageConfig = useMemo(() => createPuckConfig(config, "page"), [config]);
   const layoutConfig = useMemo(() => createPuckConfig(config, "layout"), [config]);
   const templateConfig = useMemo(() => createPuckConfig(config, "template"), [config]);
@@ -223,8 +242,14 @@ export function AdminProvider({
   }, [reload]);
 
   const publish = useCallback(
-    async (changes: FileChange[], message: string): Promise<PublishResult> => {
+    async (changes: FileChange[], message: string, options?: { checks?: boolean }): Promise<PublishResult> => {
       if (state.status !== "ready") return { ok: false, reason: "error", error: new Error("The site isn't loaded.") };
+      const checks = options?.checks === false ? undefined : await checkPublish(store, state, changes, config.blocks);
+      if (checks && (checks.blocking.length > 0 || checks.warnings.length > 0)) {
+        const go = await new Promise<boolean>((decide) => setChecking({ checks, content: checks.content, decide }));
+        setChecking(undefined);
+        if (!go) return { ok: false, reason: "checks", error: undefined };
+      }
       let revision: string;
       try {
         ({ revision } = await writeChanges(store, changes, { message, expectedRevision: state.revision }));
@@ -236,7 +261,7 @@ export function AdminProvider({
       setState(await loadAndHandle());
       return { ok: true };
     },
-    [store, state, loadAndHandle, onSignInError],
+    [store, state, config.blocks, loadAndHandle, onSignInError],
   );
 
   // Follows the latest publish until it's live (or fails), so editors know when visitors will see it.
@@ -314,7 +339,12 @@ export function AdminProvider({
     ],
   );
 
-  return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;
+  return (
+    <AdminContext.Provider value={value}>
+      {children}
+      {checking && <ChecksDialog checks={checking.checks} content={checking.content} onDecide={checking.decide} />}
+    </AdminContext.Provider>
+  );
 }
 
 /** Whether the signed-in person may change Site Settings, blocks, and collections' settings and templates. */

@@ -3,13 +3,14 @@
  * in canonical form however it's made: the admin panel, the Claude connector
  * and anything else that edits a site use these.
  */
-import type { Data } from "@puckeditor/core";
+import type { ComponentConfig, Data } from "@puckeditor/core";
 import { CURRENT_VERSION } from "../migrations/index.js";
 import { updateSettingsFile } from "../updates.js";
 import { storedCode } from "./code.js";
 import { type Collection, type Entry, isEmptyValue } from "./collections.js";
 import type { PhotoCredit } from "./credits.js";
-import type { Page, SiteCode } from "./load.js";
+import { relinkSite } from "./links.js";
+import type { Page, SiteCode, SiteContent } from "./load.js";
 import { serializeMarkdownEntry } from "./markdown.js";
 import {
   BODY_CODE_FILE,
@@ -17,7 +18,9 @@ import {
   collectionSettingsFile,
   entryAddress,
   entryFile,
+  FOOTER_FILE,
   HEAD_CODE_FILE,
+  HEADER_FILE,
   isAddressSegment,
   isReservedPagePath,
   MEDIA_FILE,
@@ -102,29 +105,6 @@ export function newPageData(title: string): Data {
   return { root: { props: { title } }, content: [] };
 }
 
-/** Points every menu link at `from` (or inside it) to `to` instead. Returns `undefined` if no link changed. */
-export function updateMenuLinks(menus: Menus, from: string, to: string): Menus | undefined {
-  let changed = false;
-  const move = (href: string) => {
-    if (href === from || href.startsWith(`${from}/`)) {
-      changed = true;
-      return `${to}${href.slice(from.length)}` || "/";
-    }
-    return href;
-  };
-  const updated = Object.fromEntries(
-    Object.entries(menus).map(([name, items]) => [
-      name,
-      items.map((item) => ({
-        ...item,
-        href: move(item.href),
-        ...(item.children && { children: item.children.map((child) => ({ ...child, href: move(child.href) })) }),
-      })),
-    ]),
-  );
-  return changed ? updated : undefined;
-}
-
 export function menusFileChange(menus: Menus): FileChange {
   return { path: MENUS_FILE, content: serializeContent({ version: CURRENT_VERSION.menus, menus }) };
 }
@@ -183,29 +163,67 @@ export function movedPageRedirects(redirects: readonly Redirect[], from: string,
 }
 
 /**
- * Moves a page to a new address in one save, optionally updating menu links to
- * it, and sending visitors on from its old address (`redirects`, the site's
- * redirects as they are) unless it's the home page.
+ * The changes that write the files `relinkSite()` changed, from the site as it
+ * left it, leaving out `skip`: files the caller writes itself, such as the
+ * page being moved.
+ */
+export function relinkedChanges(
+  relinked: { content: SiteContent; files: readonly string[] },
+  skip: readonly string[] = [],
+): FileChange[] {
+  const { content } = relinked;
+  return relinked.files
+    .filter((file) => !skip.includes(file))
+    .flatMap((file): FileChange[] => {
+      if (file === HEADER_FILE || file === FOOTER_FILE) {
+        const layout = file === HEADER_FILE ? content.header : content.footer;
+        return [{ path: file, content: serializeContent({ ...layout, version: CURRENT_VERSION.layout }) }];
+      }
+      if (file === MENUS_FILE) return [menusFileChange(content.menus)];
+      if (file === REDIRECTS_FILE) {
+        return [redirectsFileChange({ redirects: content.redirects ?? [], message: content.redirectMessage })];
+      }
+      if (file === SITE_FILE) return [siteSettingsFileChange(content.settings)];
+      const page = content.pages.find((candidate) => candidate.file === file);
+      if (page) return [{ path: file, content: serializeContent({ ...page.content, version: CURRENT_VERSION.page }) }];
+      for (const collection of content.collections) {
+        if (collection.file === file) return [collectionFileChange(collection.id, collection.settings)];
+        const entry = collection.entries.find((candidate) => candidate.file === file);
+        if (entry) return [entryFileChange(collection, entry.slug, entry.content.fields)];
+      }
+      return [];
+    });
+}
+
+/**
+ * Moves a page to a new address in one save, with every link to it on the
+ * site pointing to the new one (`blocks` say which props hold links), and,
+ * with `redirect`, sending visitors on from its old address unless it's the
+ * home page.
  */
 export function movePageChanges(
+  content: SiteContent,
   page: Page,
   to: string,
-  menus: Menus,
-  updateLinks: boolean,
-  redirects?: SiteRedirects,
+  { blocks, redirect = false }: { blocks?: Record<string, ComponentConfig>; redirect?: boolean } = {},
 ): FileChange[] {
+  const relinked = relinkSite(content, [{ from: page.path, to }], blocks);
+  const moved = relinked.content.pages.find((candidate) => candidate.file === page.file) ?? page;
   const changes: FileChange[] = [
     { path: page.file, delete: true },
-    { path: pagePathToFile(to), content: serializeContent({ ...page.content, version: CURRENT_VERSION.page }) },
+    { path: pagePathToFile(to), content: serializeContent({ ...moved.content, version: CURRENT_VERSION.page }) },
   ];
-  const updatedMenus = updateLinks ? updateMenuLinks(menus, page.path, to) : undefined;
-  if (updatedMenus) changes.push(menusFileChange(updatedMenus));
-  if (redirects && page.path !== "/") {
+  const skip = [page.file];
+  if (redirect && page.path !== "/") {
+    skip.push(REDIRECTS_FILE);
     changes.push(
-      redirectsFileChange({ ...redirects, redirects: movedPageRedirects(redirects.redirects, page.path, to) }),
+      redirectsFileChange({
+        redirects: movedPageRedirects(relinked.content.redirects ?? [], page.path, to),
+        message: content.redirectMessage,
+      }),
     );
   }
-  return changes;
+  return [...changes, ...relinkedChanges(relinked, skip)];
 }
 
 export function siteSettingsFileChange(settings: SiteSettings): FileChange {
@@ -432,22 +450,26 @@ export function checkEntrySlug(
   return { ok: true, slug, path };
 }
 
-/** Renames an entry, which changes its address, optionally updating menu links to it. */
+/** Renames an entry, which changes its address, with every link to its page pointing to the new one. */
 export function moveEntryChanges(
+  content: SiteContent,
   collection: EntryCollection,
   entry: Entry,
   slug: string,
   path: string | undefined,
-  menus: Menus,
-  updateLinks: boolean,
+  blocks?: Record<string, ComponentConfig>,
 ): FileChange[] {
-  const changes: FileChange[] = [
+  const relinked =
+    entry.path && path ? relinkSite(content, [{ from: entry.path, to: path }], blocks) : { content, files: [] };
+  const moved =
+    relinked.content.collections
+      .find((candidate) => candidate.id === collection.id)
+      ?.entries.find((candidate) => candidate.file === entry.file) ?? entry;
+  return [
     { path: entry.file, delete: true },
-    entryFileChange(collection, slug, entry.content.fields),
+    entryFileChange(collection, slug, moved.content.fields),
+    ...relinkedChanges(relinked, [entry.file]),
   ];
-  const updatedMenus = updateLinks && entry.path && path ? updateMenuLinks(menus, entry.path, path) : undefined;
-  if (updatedMenus) changes.push(menusFileChange(updatedMenus));
-  return changes;
 }
 
 /** Deletes a collection and all its entries. */

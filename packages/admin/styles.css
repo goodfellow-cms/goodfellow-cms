@@ -460,6 +460,15 @@ body,
   margin-top: 8px;
 }
 
+.gfa-check-list {
+  display: grid;
+  gap: 6px;
+  max-height: 40vh;
+  margin: 0 0 16px;
+  padding-left: 20px;
+  overflow-y: auto;
+}
+
 .gfa-editor {
   position: relative;
   display: flex;

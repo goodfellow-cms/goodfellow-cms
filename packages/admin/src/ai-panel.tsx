@@ -377,6 +377,7 @@ function AiPanel({ context }: { context: AiContext }) {
       const result = await publish(
         [...stockPhotoChanges(added), mediaFileChange(credits)],
         t("ai.photos.message", { names: added.map((photo) => fileName(photo.url)).join(", ") }),
+        { checks: false },
       );
       if (!result.ok) {
         failure = result.error;

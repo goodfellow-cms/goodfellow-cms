@@ -126,6 +126,8 @@ describe("build", () => {
       const result = await build({ root: starter, outDir: starterOut, base: "/" });
       // Four pages, plus a page for each of the two news stories.
       expect(result.pages).toHaveLength(6);
+      // New sites start without anything for the site checks to point out.
+      expect(result.problems).toEqual([]);
       const html = await readFile(join(starterOut, "about/index.html"), "utf8");
       expect(html).toContain("<title>About us | My site</title>");
       expect(html).toContain('<nav aria-label="main" data-gf-menu="">');
@@ -144,6 +146,7 @@ describe("build", () => {
       // The calendar has a page for each month, from last month to a year ahead, and the news a second page
       // and one for each of its four topics.
       expect(result.pages).toHaveLength(24 + 14 + 5);
+      expect(result.problems).toEqual([]);
       const home = await readFile(join(parishOut, "index.html"), "utf8");
       expect(home).toContain("<title>St. Joseph Parish, Anytown</title>");
       expect(home).toContain("Weekend Masses");
@@ -271,6 +274,7 @@ describe("documentation site", () => {
     try {
       const result = await build({ root: docs, outDir: out, base: "/" });
       expect(result.searchIndexed).toBe(result.pages.length - 1);
+      expect(result.problems).toEqual([]);
       // Each page's address, from its file: docs/intro/index.html → /docs/intro.
       const pages = new Map<string, string>();
       const files = (await readdir(out, { recursive: true })).map((file) => file.split("\\").join("/"));

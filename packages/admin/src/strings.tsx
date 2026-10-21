@@ -114,6 +114,30 @@ export const defaultStrings = {
     "Someone else changed the site since you opened this page, so your changes weren't published. Reload to see their changes, then make yours again.",
   "publish.error": "Your changes couldn't be published. Check your connection and try again.",
   "publish.invalid": "Fix the highlighted problems before publishing.",
+  "checks.blocked.title": "This can't be published yet",
+  "checks.blocked.intro": "Publishing this would leave links that go nowhere. Change or remove them first.",
+  "checks.warnings.title": "Publish anyway?",
+  "checks.warnings.intro": "A few things could be better. You can publish anyway, or go back and fix them first.",
+  "checks.alsoWarnings": "These could be better too:",
+  "checks.publishAnyway": "Publish anyway",
+  "checks.goBack": "Go back",
+  "checks.missing-page": "{place} links to {target}, which isn't a page on the site.",
+  "checks.missing-media": "{place} uses {target}, which isn't in the media library.",
+  "checks.no-title": "{place} has no title, so browser tabs and search results show only the site's name.",
+  "checks.no-description": "{place} has no description for search results and link previews to show.",
+  "checks.low-contrast":
+    'Text in "{text}" is hard to read on "{background}": its contrast is {ratio} to 1, and text needs at least 4.5 to 1.',
+  "checks.low-contrast.dark":
+    'In dark mode, text in "{text}" is hard to read on "{background}": its contrast is {ratio} to 1, and text needs at least 4.5 to 1.',
+  "checks.place.page": 'The page "{title}"',
+  "checks.place.entry": '"{title}" in {collection}',
+  "checks.place.design": "The design of {collection}",
+  "checks.place.header": "The header",
+  "checks.place.footer": "The footer",
+  "checks.place.menus": "A menu",
+  "checks.place.settings": "Site Settings",
+  "checks.place.redirects": "A redirect",
+  "checks.place.file": "{file}",
   "unsaved.confirm": "You have changes that aren't published yet. Leave anyway and lose them?",
   "unsaved.label": "Unpublished changes",
 
@@ -137,17 +161,17 @@ export const defaultStrings = {
 
   "movePage.title": "Change the address of {title}",
   "movePage.address": "New address",
-  "movePage.updateLinks": "Update menu links to this page",
+  "movePage.links": "Links to it anywhere on this site, menus included, change to the new address.",
   "movePage.redirect": "Keep {from} working by sending visitors on to the page",
   "movePage.redirectHint":
     "Links to the old address elsewhere, such as on other websites, keep working. Site Settings → Redirects lists it.",
-  "movePage.warning":
-    "Links to the old address elsewhere, such as in page text or on other websites, will stop working.",
+  "movePage.warning": "Links to the old address on other websites will stop working.",
   "movePage.submit": "Change address",
   "movePage.message": 'Move page "{title}" from {from} to {to}',
 
   "deletePage.title": "Delete {title}?",
-  "deletePage.body": "The page at {path} will be removed from the site. Menu links to it will stop working.",
+  "deletePage.body":
+    "The page at {path} will be removed from the site. If anything on the site links to it, those links need changing first.",
   "deletePage.submit": "Delete page",
   "deletePage.message": 'Delete page "{title}"',
 
@@ -248,7 +272,7 @@ export const defaultStrings = {
   "moveEntry.message": 'Move {entry} "{title}" from {from} to {to}',
   "deleteEntry.body": "{title} will be removed from {name}.",
   "deleteEntry.bodyPage":
-    "{title} will be removed from {name}, and its page at {path} from the site. Menu links to it will stop working.",
+    "{title} will be removed from {name}, and its page at {path} from the site. If anything on the site links to it, those links need changing first.",
   "deleteEntry.message": 'Delete {entry} "{title}"',
 
   "editEntry.message": 'Update {entry} "{title}"',
@@ -313,7 +337,7 @@ export const defaultStrings = {
   "collectionSettings.path": "Address of each item's page",
   "collectionSettings.pathHint": "{slug} stands for each item's own address, as in /videos/{slug}.",
   "collectionSettings.pathWarning":
-    "Changing this changes the address of every item's page. Links to the old addresses elsewhere will stop working.",
+    "Changing this changes the address of every item's page, and links to them on this site change with it. Links to the old addresses on other websites will stop working.",
   "collectionSettings.sortField": "Order items by",
   "collectionSettings.sortOrder": "Direction",
   "collectionSettings.ascending": "A to Z, oldest or smallest first",
@@ -437,7 +461,8 @@ export const defaultStrings = {
   "media.deleteMessage": "Delete {name}",
   "media.deleteTitle": "Delete {name}?",
   "media.deleteBody": "{name} will be removed from the site.",
-  "media.deleteUsed": "It's used in: {places}. Those places will show a missing image or a broken link.",
+  "media.deleteUsed":
+    "It's used in: {places}. Choose another file there first, since the site can't be published using a file that's gone.",
   "media.notUsed": "Nothing on the site uses it.",
   "media.error.type":
     "{name} can't be uploaded. The site can use images (JPEG, PNG, GIF, WebP, AVIF and SVG), PDFs, office documents, MP3 audio, MP4 and WebM video, and captions for videos (WebVTT).",

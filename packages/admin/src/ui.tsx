@@ -88,12 +88,14 @@ export function ErrorMessage({ message, error, action }: { message: string; erro
 /** A modal dialog using the native `<dialog>` element. */
 export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Its own id, since a dialog can open over another, such as the site checks' over a delete dialog.
+  const titleId = useId();
   useEffect(() => {
     ref.current?.showModal();
   }, []);
   return (
-    <dialog ref={ref} className="gfa-dialog" onClose={onClose} aria-labelledby="gfa-dialog-title">
-      <h2 id="gfa-dialog-title" className="gfa-dialog-title">
+    <dialog ref={ref} className="gfa-dialog" onClose={onClose} aria-labelledby={titleId}>
+      <h2 id={titleId} className="gfa-dialog-title">
         {title}
       </h2>
       {children}

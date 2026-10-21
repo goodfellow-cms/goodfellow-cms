@@ -4,13 +4,16 @@ import {
   absoluteUrl,
   applyBasePath,
   calendarFiles,
+  checkSite,
   DEMO_CONTENT_PATH,
   demoContent,
   loadSiteContent,
+  MEDIA_DIR,
   normalizeBase,
   pageOutputFile,
   redirectFiles,
   SITE_DESCRIPTION_PATH,
+  type SiteProblem,
   sitePages,
   todayIn,
   withBase,
@@ -37,6 +40,8 @@ export interface BuildResult {
   pages: string[];
   /** How many pages the search index has, if the site has a search block. */
   searchIndexed?: number;
+  /** What the site checks found: links to pages and media the site doesn't have, and things to improve. */
+  problems: SiteProblem[];
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -184,7 +189,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     // What tools that edit the site without its code, such as the Claude connector, need to know about its blocks.
     await writeFile(join(outDir, SITE_DESCRIPTION_PATH), `${JSON.stringify(describe(), null, 2)}\n`);
 
-    const pages = sitePages(content, todayIn(content.settings.timeZone), config.blocks);
+    const today = todayIn(content.settings.timeZone);
+    const pages = sitePages(content, today, config.blocks);
     const written: string[] = [];
     for (const page of pages) {
       const html = applyBasePath(await renderPage(content, page, { stylesheets, ...(islands && { islands }) }), base);
@@ -226,7 +232,11 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
 
     // Last, once every page is written: the index is made from the finished HTML.
     const searchIndexed = await writeSearchIndex(outDir);
-    return { outDir, pages: written, ...(searchIndexed !== undefined && { searchIndexed }) };
+    const media = (await fileSystemSource(root).list(MEDIA_DIR)).map(
+      (path) => `/media/${path.slice(MEDIA_DIR.length + 1)}`,
+    );
+    const problems = checkSite(content, { media, blocks: config.blocks, today });
+    return { outDir, pages: written, ...(searchIndexed !== undefined && { searchIndexed }), problems };
   } finally {
     await server.close();
   }

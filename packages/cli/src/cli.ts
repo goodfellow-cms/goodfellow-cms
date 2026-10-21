@@ -11,7 +11,7 @@ import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { build } from "./build.js";
 import { dev } from "./dev.js";
 import { preview } from "./preview.js";
-import { buildCause, reportBuildCause } from "./problems.js";
+import { buildCause, reportBuildCause, reportSiteProblems } from "./problems.js";
 import { SiteSetupError } from "./site.js";
 
 const HELP = `Usage: goodfellow <command> [options]
@@ -36,6 +36,7 @@ Options:
                   content/updates.json turns them off), latest, or a release
                   such as 0.5.0; an older one goes back to it and skips this one
   --publish       For update: publish the update to the site's main branch once it builds
+  --strict        For build: fail if the site checks find links to pages or media that don't exist
   -h, --help      Show this help
 `;
 
@@ -55,6 +56,7 @@ async function main(): Promise<void> {
       port: { type: "string" },
       to: { type: "string" },
       publish: { type: "boolean" },
+      strict: { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -89,6 +91,11 @@ async function main(): Promise<void> {
         `Built ${result.pages.length} page${result.pages.length === 1 ? "" : "s"} into ${result.outDir} in ${seconds}s`,
       );
       if (result.searchIndexed !== undefined) console.log(`Indexed ${result.searchIndexed} pages for search`);
+      for (const line of reportSiteProblems(result.problems)) console.log(line);
+      if (values.strict && result.problems.some((problem) => problem.severity === "error")) {
+        console.log("The build failed because of the site checks' errors (--strict).");
+        process.exitCode = 1;
+      }
       return;
     }
     case "index": {

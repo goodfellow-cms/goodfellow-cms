@@ -20,6 +20,10 @@ Next.js sites have the same `update` and `content` commands as `goodfellow-next 
 
 Options: `--root <dir>`, `--out <dir>`, `--port <port>`, and `--base <path>`.
 
+## Site checks
+
+`goodfellow build` ends with what the [site checks](/docs/publishing#site-checks) find, the same ones the admin panel runs when publishing: links to pages, items and media the site doesn't have are errors, and pages without a title or description, and theme colors text is hard to read on, are warnings. On GitHub Actions each also shows as an annotation on its file. They don't stop the build, so a link broken outside the admin panel, such as by deleting a file in the repository, never takes the site down; `goodfellow build --strict` fails the build when there are errors, for checking changes made in code before they're merged. Next.js sites don't run them in `next build` yet.
+
 `goodfellow dev` uses port 4321, or the next free one if another program has it, and `goodfellow preview` uses 4322. Each prints its address when it starts.
 
 ## Serving from a subfolder

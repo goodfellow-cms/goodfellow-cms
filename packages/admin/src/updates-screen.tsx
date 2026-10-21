@@ -194,6 +194,7 @@ function UpdatesPanel() {
         const result = await publish(
           [updateSettingsFileChange({ ...settings, skip: [...settings.skip, current] })],
           t("updates.back.skip", { version: current }),
+          { checks: false },
         );
         if (!result.ok) throw new SaveError(result.error);
       },
@@ -202,7 +203,7 @@ function UpdatesPanel() {
   // The settings are content, published like any other change; publishing reloads the site, and so this screen.
   const saveSettings = (settings: Pick<UpdateSettings, "automatic" | "skip">, message: string) =>
     act(async () => {
-      const result = await publish([updateSettingsFileChange(settings)], message);
+      const result = await publish([updateSettingsFileChange(settings)], message, { checks: false });
       if (!result.ok) throw new SaveError(result.error);
     });
 

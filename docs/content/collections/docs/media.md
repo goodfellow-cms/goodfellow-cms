@@ -19,7 +19,7 @@ Choose files, or drop them onto the Media screen. Wherever an image goes, such a
 
 ## Replace and delete
 
-Replacing a file keeps its address, so everything that uses it shows the new version. Deleting a file first lists everything that uses it.
+Replacing a file keeps its address, so everything that uses it shows the new version. Deleting a file first lists everything that uses it, and can't be published until they use another file (see [Site checks](/docs/publishing#site-checks)).
 
 ## Credits
 

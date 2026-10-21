@@ -10,7 +10,7 @@ A collection is a group of similar items, such as news stories, events, videos o
 
 ## Create a collection
 
-On the **Collections** screen, click **New collection** and give it a name ("Events") and a name for one item ("Event"). Choose whether items have pages of their own, and their address, such as `/events/{slug}`, where `{slug}` is each item's name.
+On the **Collections** screen, click **New collection** and give it a name ("Events") and a name for one item ("Event"). Choose whether items have pages of their own, and their address, such as `/events/{slug}`, where `{slug}` is each item's name. Changing the address later, or an item's name, changes every link to their pages on the site to match.
 
 ## Fields
 

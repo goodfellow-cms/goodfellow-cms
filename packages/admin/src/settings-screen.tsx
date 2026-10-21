@@ -1,5 +1,6 @@
 import {
   CODE_THEMES,
+  contrastProblems,
   DEFAULT_CODE_THEMES,
   DEFAULT_DARK_THEME_COLORS,
   DEFAULT_THEME_COLORS,
@@ -14,6 +15,7 @@ import {
   type Redirect,
   redirectProblems,
   type SiteCode,
+  type SiteProblem,
   type SiteSettings,
   serializeContent,
   sitePages,
@@ -43,6 +45,7 @@ import { MenusEditor } from "./menus-editor.js";
 import { PreviewFrame, type PreviewScheme } from "./preview.js";
 import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
 import { type SettingsSection, useUnsavedChanges } from "./router.js";
+import { describeContrast } from "./site-checks.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { useDarkMode } from "./theme.js";
 import { Button, ErrorMessage, Field, PublishedNotice, TextField } from "./ui.js";
@@ -76,13 +79,16 @@ function headCodeProblem(t: ReturnType<typeof useStrings>, head: string): string
   }
 }
 
+/** The colors the form has values for, leaving out the ones left at their defaults. */
+function filledColors(colors: Partial<Record<ThemeColor, string>> | undefined): Partial<Record<ThemeColor, string>> {
+  return Object.fromEntries(Object.entries(colors ?? {}).filter(([, value]) => value?.trim()));
+}
+
 /** Turns the form's values into settings: empty optional fields are left out rather than saved as "". */
 function cleanSettings(draft: SiteSettings): unknown {
   const optional = (value: string | undefined) => (value?.trim() ? value.trim() : undefined);
-  const filled = (colors: Partial<Record<ThemeColor, string>> | undefined) =>
-    Object.fromEntries(Object.entries(colors ?? {}).filter(([, value]) => value?.trim()));
-  const colors = filled(draft.theme.colors);
-  const darkColors = filled(draft.theme.darkColors);
+  const colors = filledColors(draft.theme.colors);
+  const darkColors = filledColors(draft.theme.darkColors);
   const darkLogo = optional(draft.logo?.darkSrc);
   return {
     ...draft,
@@ -421,6 +427,24 @@ function ColorGrid({
   );
 }
 
+/** Text the colors chosen make hard to read, as the site checks will say when publishing. */
+function ContrastNotes({ problems, dark }: { problems: SiteProblem[]; dark: boolean }) {
+  const t = useStrings();
+  const contrast = problems.flatMap((problem) =>
+    problem.kind === "low-contrast" && problem.dark === dark ? [problem] : [],
+  );
+  if (contrast.length === 0) return null;
+  return (
+    <div className="gfa-notice" role="status">
+      <ul className="gfa-check-list">
+        {contrast.map((problem) => (
+          <li key={`${problem.text} ${problem.background}`}>{describeContrast(t, problem)}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function ThemeTab({
   draft,
   errors,
@@ -440,6 +464,15 @@ function ThemeTab({
     onChange({ ...draft, theme: { ...theme, colors: { ...theme.colors, [name]: value } } });
   const setDarkColor = (name: ThemeColor, value: string) =>
     onChange({ ...draft, theme: { ...theme, darkColors: { ...theme.darkColors, [name]: value } } });
+  const contrast = useMemo(
+    () =>
+      contrastProblems({
+        ...theme,
+        colors: filledColors(theme.colors),
+        darkColors: filledColors(theme.darkColors),
+      }),
+    [theme],
+  );
 
   return (
     <div className="gfa-form">
@@ -451,6 +484,7 @@ function ThemeTab({
         errorPrefix="theme.colors"
         onChange={setColor}
       />
+      <ContrastNotes problems={contrast} dark={false} />
 
       <h2 className="gfa-section-title">{t("theme.darkMode")}</h2>
       <label className="gfa-checkbox">
@@ -487,6 +521,7 @@ function ThemeTab({
               errorPrefix="theme.darkColors"
               onChange={setDarkColor}
             />
+            <ContrastNotes problems={contrast} dark />
           </fieldset>
         </>
       )}
@@ -753,7 +788,9 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     if (changes.length === 0) return;
     setStatus({ type: "publishing" });
     const result = await publish(changes, t("settings.message"));
-    setStatus(result.ok ? { type: "done" } : { type: "failed", reason: result.reason, error: result.error });
+    if (result.ok) setStatus({ type: "done" });
+    else if (result.reason === "checks") setStatus({ type: "idle" });
+    else setStatus({ type: "failed", reason: result.reason, error: result.error });
   };
 
   // The preview shows unpublished changes as they're made.

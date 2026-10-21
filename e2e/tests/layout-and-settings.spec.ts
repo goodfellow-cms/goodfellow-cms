@@ -184,7 +184,7 @@ test("saves the site's contact details, leaving out empty ones", async ({ page }
   expect(readSiteFile("content/site.json")).not.toContain('"email"');
 });
 
-test("adds a link to a menu", async ({ page }) => {
+test("adds a link to a menu, once it goes to a page the site has", async ({ page }) => {
   await page.goto("/admin#/settings/menus");
   await page.getByRole("tab", { name: "main" }).click();
   await page.getByRole("button", { name: "Add link", exact: true }).click();
@@ -192,10 +192,17 @@ test("adds a link to a menu", async ({ page }) => {
   await page.getByLabel("Link to").last().fill("/contact");
   await expect(page.frameLocator(".gfa-preview iframe").getByRole("link", { name: "Contact" }).first()).toBeVisible();
 
+  // There's no page at /contact yet.
+  await page.getByRole("button", { name: "Publish" }).click();
+  const checks = page.getByRole("dialog", { name: "This can't be published yet" });
+  await expect(checks).toContainText("A menu links to /contact, which isn't a page on the site.");
+  await checks.getByRole("button", { name: "Go back" }).click();
+
+  await page.getByLabel("Link to").last().fill("/about#contact");
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   const menus = readJson("content/menus.json") as { menus: { main: Array<{ label: string; href: string }> } };
-  expect(menus.menus.main.at(-1)).toEqual({ label: "Contact", href: "/contact" });
+  expect(menus.menus.main.at(-1)).toEqual({ label: "Contact", href: "/about#contact" });
 });
 
 test("shows a clear message when content files have problems", async ({ page }) => {
