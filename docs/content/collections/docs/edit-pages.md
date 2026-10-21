@@ -24,7 +24,7 @@ Nothing changes on the live site until you **Publish**.
 ## Create, move and delete pages
 
 - **New page** asks for a title and suggests an address from it, such as `/mass-times` for "Mass Times". Addresses use lowercase letters, numbers and hyphens, and folders such as `/about/staff` are fine.
-- **Change address** moves a page. It can update the menu links that point to it at the same time, and keeps the old address working with a [redirect](/docs/layout-and-settings#redirects).
+- **Change address** moves a page. Every link to it on the site, in menus, buttons, text and items alike, changes to the new address in the same publish, and a [redirect](/docs/layout-and-settings#redirects) keeps the old address working for links from other websites.
 - **Delete** removes a page. The home page can't be deleted, and a page other pages or menus link to can't be deleted until those links are changed (see [Site checks](/docs/publishing#site-checks)).
 
 ## A page's settings

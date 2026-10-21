@@ -86,6 +86,7 @@ export {
   pageFileChange,
   pageTitle,
   redirectsFileChange,
+  relinkedChanges,
   type SiteRedirects,
   siteSettingsFileChange,
   slugify,
@@ -93,7 +94,6 @@ export {
   storedData,
   storedEntryFields,
   uniqueName,
-  updateMenuLinks,
   updateSettingsFileChange,
   withoutCredits,
 } from "./content/changes.js";
@@ -101,12 +101,10 @@ export {
   checkSite,
   contrastProblems,
   formatSiteProblem,
-  linkTarget,
   problemKey,
   publishProblems,
   type SiteCheckOptions,
   type SiteProblem,
-  siteLinks,
 } from "./content/checks.js";
 export {
   HEAD_TAGS,
@@ -143,6 +141,14 @@ export {
   photoCreditSchema,
 } from "./content/credits.js";
 export { ContentError, type ContentProblem } from "./content/errors.js";
+export {
+  type AddressMove,
+  type LinkVisitor,
+  linkTarget,
+  mapSiteLinks,
+  relinkSite,
+  siteLinks,
+} from "./content/links.js";
 export {
   allPages,
   type ContentSource,

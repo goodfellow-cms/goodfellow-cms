@@ -115,8 +115,7 @@ export const defaultStrings = {
   "publish.error": "Your changes couldn't be published. Check your connection and try again.",
   "publish.invalid": "Fix the highlighted problems before publishing.",
   "checks.blocked.title": "This can't be published yet",
-  "checks.blocked.intro":
-    "Publishing this would leave links that go nowhere. Fix them first, or, for a page that has moved, add a redirect from its old address on Site Settings' Redirects tab.",
+  "checks.blocked.intro": "Publishing this would leave links that go nowhere. Change or remove them first.",
   "checks.warnings.title": "Publish anyway?",
   "checks.warnings.intro": "A few things could be better. You can publish anyway, or go back and fix them first.",
   "checks.alsoWarnings": "These could be better too:",
@@ -162,12 +161,11 @@ export const defaultStrings = {
 
   "movePage.title": "Change the address of {title}",
   "movePage.address": "New address",
-  "movePage.updateLinks": "Update menu links to this page",
+  "movePage.links": "Links to it anywhere on this site, menus included, change to the new address.",
   "movePage.redirect": "Keep {from} working by sending visitors on to the page",
   "movePage.redirectHint":
     "Links to the old address elsewhere, such as on other websites, keep working. Site Settings → Redirects lists it.",
-  "movePage.warning":
-    "Links to the old address on other websites will stop working, and links to it on this site need changing before this can be published.",
+  "movePage.warning": "Links to the old address on other websites will stop working.",
   "movePage.submit": "Change address",
   "movePage.message": 'Move page "{title}" from {from} to {to}',
 
@@ -339,7 +337,7 @@ export const defaultStrings = {
   "collectionSettings.path": "Address of each item's page",
   "collectionSettings.pathHint": "{slug} stands for each item's own address, as in /videos/{slug}.",
   "collectionSettings.pathWarning":
-    "Changing this changes the address of every item's page. Links to the old addresses on other websites will stop working, and links to them on this site need changing before this can be published.",
+    "Changing this changes the address of every item's page, and links to them on this site change with it. Links to the old addresses on other websites will stop working.",
   "collectionSettings.sortField": "Order items by",
   "collectionSettings.sortOrder": "Direction",
   "collectionSettings.ascending": "A to Z, oldest or smallest first",

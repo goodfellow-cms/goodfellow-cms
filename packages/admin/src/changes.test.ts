@@ -3,9 +3,12 @@ import {
   type CollectionFile,
   collectionFileSchema,
   type Entry,
+  type Menus,
   type Page,
+  type SiteContent,
   siteSettingsSchema,
 } from "@goodfellow-cms/core";
+import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
 import {
   addressPatternFor,
@@ -26,7 +29,6 @@ import {
   storedCss,
   storedData,
   uniqueName,
-  updateMenuLinks,
   withoutCredits,
 } from "./changes.js";
 
@@ -37,6 +39,33 @@ const page = (path: string, title?: string): Page => ({
 });
 
 const pages = [page("/", "Home"), page("/about", "About us")];
+
+/** A site with these pages, collections, menus and redirects, and nothing else. */
+const site = (parts: Partial<SiteContent>): SiteContent => ({
+  settings: siteSettingsSchema.parse({ version: 1, title: "St. Joseph" }),
+  menus: {},
+  header: { version: 1, data: { root: {}, content: [] } },
+  footer: { version: 1, data: { root: {}, content: [] } },
+  pages: [],
+  collections: [],
+  customCss: "",
+  ...parts,
+});
+
+const blocks = {
+  Button: { fields: { href: { type: "text" }, label: { type: "text" } }, render: () => null },
+  Text: { fields: { text: { type: "richtext" } }, render: () => null },
+} as unknown as Record<string, ComponentConfig>;
+
+const withBlocks = (path: string, title: string, content: unknown[]): Page => ({
+  ...page(path, title),
+  content: { version: 1, data: { root: { props: { title } }, content } as Page["content"]["data"] },
+});
+
+const written = (changes: ReturnType<typeof movePageChanges>, path: string): string => {
+  const change = changes.find((candidate) => candidate.path === path);
+  return change && "content" in change && typeof change.content === "string" ? change.content : "";
+};
 
 describe("slugify", () => {
   it.each([
@@ -88,40 +117,24 @@ describe("page file changes", () => {
   });
 });
 
-describe("updateMenuLinks", () => {
-  const menus = {
-    main: [
-      { label: "About", href: "/about", children: [{ label: "Staff", href: "/about/staff" }] },
-      { label: "Aboutness", href: "/aboutness" },
-    ],
-  };
-
-  it("moves links to the page and pages inside it, but not similar addresses", () => {
-    expect(updateMenuLinks(menus, "/about", "/who-we-are")).toEqual({
-      main: [
-        { label: "About", href: "/who-we-are", children: [{ label: "Staff", href: "/who-we-are/staff" }] },
-        { label: "Aboutness", href: "/aboutness" },
-      ],
-    });
-  });
-
-  it("reports when nothing changed", () => {
-    expect(updateMenuLinks(menus, "/contact", "/get-in-touch")).toBeUndefined();
-  });
-});
-
 describe("movePageChanges", () => {
   it("sends visitors on from the old address, and keeps redirects to it from going through two", () => {
-    const changes = movePageChanges(page("/about", "About us"), "/who-we-are", {}, true, {
-      redirects: [
-        { from: "/about-us", to: "/about" },
-        { from: "/who-we-are", to: "/elsewhere" },
-        { from: "/about/", to: "/old" },
-      ],
-      message: "Diese Seite ist umgezogen: {page}",
-    });
-    const redirects = changes.find((change) => change.path === "content/redirects.json");
-    expect(redirects && "content" in redirects && JSON.parse(redirects.content as string)).toEqual({
+    const about = page("/about", "About us");
+    const changes = movePageChanges(
+      site({
+        pages: [about],
+        redirects: [
+          { from: "/about-us", to: "/about" },
+          { from: "/who-we-are", to: "/elsewhere" },
+          { from: "/about/", to: "/old" },
+        ],
+        redirectMessage: "Diese Seite ist umgezogen: {page}",
+      }),
+      about,
+      "/who-we-are",
+      { redirect: true },
+    );
+    expect(JSON.parse(written(changes, "content/redirects.json"))).toEqual({
       version: 1,
       redirects: [
         { from: "/about-us", to: "/who-we-are" },
@@ -129,31 +142,56 @@ describe("movePageChanges", () => {
       ],
       message: "Diese Seite ist umgezogen: {page}",
     });
+    const home = page("/");
     expect(
-      movePageChanges(page("/"), "/welcome", {}, true, { redirects: [] }).map((change) => change.path),
+      movePageChanges(site({ pages: [home] }), home, "/welcome", { redirect: true }).map((change) => change.path),
     ).not.toContain("content/redirects.json");
   });
 
-  it("deletes the old file, writes the new one and updates menus in one save", () => {
-    const changes = movePageChanges(
-      page("/about", "About us"),
-      "/who-we-are",
-      { main: [{ label: "About", href: "/about" }] },
-      true,
-    );
+  it("moves the page and points every link to it at the new address, in one save", () => {
+    const about = withBlocks("/about", "About us", [
+      { type: "Button", props: { id: "Button-1", href: "/about#history", label: "Our history" } },
+    ]);
+    const home = withBlocks("/", "Home", [
+      { type: "Button", props: { id: "Button-1", href: "/about/", label: "About" } },
+      {
+        type: "Text",
+        props: { id: "Text-1", text: '<p><a href="/about?from=home">Us</a> <a href="/aboutness">x</a></p>' },
+      },
+    ]);
+    const menus: Menus = {
+      main: [
+        { label: "About", href: "/about", children: [{ label: "Staff", href: "/about/staff" }] },
+        { label: "Aboutness", href: "/aboutness" },
+      ],
+    };
+    const changes = movePageChanges(site({ pages: [home, about], menus }), about, "/who-we-are", { blocks });
     expect(changes.map((change) => [change.path, "delete" in change])).toEqual([
       ["content/pages/about.json", true],
       ["content/pages/who-we-are.json", false],
+      ["content/pages/index.json", false],
       ["content/menus.json", false],
     ]);
+    // Its links to itself move too.
+    expect(written(changes, "content/pages/who-we-are.json")).toContain('"href": "/who-we-are#history"');
+    const index = written(changes, "content/pages/index.json");
+    expect(index).toContain('"href": "/who-we-are"');
+    expect(index).toContain('href=\\"/who-we-are?from=home\\"');
+    expect(index).toContain('href=\\"/aboutness\\"');
+    expect(JSON.parse(written(changes, "content/menus.json")).menus).toEqual({
+      main: [
+        { label: "About", href: "/who-we-are", children: [{ label: "Staff", href: "/who-we-are/staff" }] },
+        { label: "Aboutness", href: "/aboutness" },
+      ],
+    });
   });
 
-  it("leaves menus alone when asked to", () => {
+  it("leaves links to pages under the old address that stay where they are", () => {
+    const about = page("/about");
     const changes = movePageChanges(
-      page("/about"),
+      site({ pages: [about, page("/about/staff")], menus: { main: [{ label: "Staff", href: "/about/staff" }] } }),
+      about,
       "/who-we-are",
-      { main: [{ label: "About", href: "/about" }] },
-      false,
     );
     expect(changes).toHaveLength(2);
   });
@@ -216,6 +254,22 @@ describe("collections", () => {
       path: "content/collections/videos/easter.json",
       content: '{\n  "version": 1,\n  "fields": {\n    "count": 0,\n    "title": "Easter"\n  }\n}\n',
     });
+  });
+
+  it("points links to items' pages at their new addresses when the address pattern changes", () => {
+    const home = withBlocks("/", "Home", [
+      { type: "Button", props: { id: "Button-1", href: "/videos/easter", label: "Easter" } },
+    ]);
+    const changes = collectionSettingsChanges(
+      videos,
+      { ...settings, path: "/watch/{slug}" },
+      { content: site({ pages: [home], collections: [videos] }), blocks },
+    );
+    expect(changes.map((change) => change.path)).toEqual([
+      "content/collections/videos/_collection.json",
+      "content/pages/index.json",
+    ]);
+    expect(changes[1]).toMatchObject({ content: expect.stringContaining('"href": "/watch/easter"') });
   });
 
   it("removes deleted fields and choices from every entry in the same save", () => {
@@ -335,15 +389,14 @@ describe("collections", () => {
     expect(checkEntrySlug("easter", videos, addresses, videos.entries[0])).toMatchObject({ ok: true });
   });
 
-  it("moves an entry and the menu links to it", () => {
+  it("moves an entry and the links to it", () => {
     const easter = videos.entries[0] as Entry;
     const changes = moveEntryChanges(
+      site({ collections: [videos], menus: { main: [{ label: "Easter", href: "/videos/easter" }] } }),
       videos,
       easter,
       "easter-sunday",
       "/videos/easter-sunday",
-      { main: [{ label: "Easter", href: "/videos/easter" }] },
-      true,
     );
     expect(changes.map((change) => change.path)).toEqual([
       "content/collections/videos/easter.json",

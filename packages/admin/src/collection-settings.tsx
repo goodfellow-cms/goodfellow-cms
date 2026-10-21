@@ -461,7 +461,7 @@ function addressClash(collection: Collection, path: string, addresses: Set<strin
 /** A collection's name, page addresses, order and fields. */
 export function CollectionSettingsScreen({ collection }: { collection: Collection }) {
   const t = useStrings();
-  const { publish, reload } = useAdmin();
+  const { config, publish, reload } = useAdmin();
   const { content } = useSiteContent();
   const [draft, setDraft] = useState(() => toDraft(collection.settings));
   const [showErrors, setShowErrors] = useState(false);
@@ -526,7 +526,7 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
     setStatus({ type: "publishing" });
     const settings = collectionFileSchema.parse(next);
     const result = await publish(
-      collectionSettingsChanges(collection, settings),
+      collectionSettingsChanges(collection, settings, { content, blocks: config.blocks }),
       t("collectionSettings.message", { name: next.name }),
     );
     if (result.ok) {

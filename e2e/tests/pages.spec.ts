@@ -81,7 +81,7 @@ test("refuses addresses that can't be used", async ({ page }) => {
   await expect(page.getByText(/Use lowercase letters, numbers and hyphens/)).toBeVisible();
 });
 
-test("changes a page's address, updates menu links to it, and sends visitors on from the old one", async ({ page }) => {
+test("changes a page's address, updates links to it, and sends visitors on from the old one", async ({ page }) => {
   await page.goto("/admin");
   await page
     .getByRole("row", { name: /About us/ })
@@ -95,6 +95,9 @@ test("changes a page's address, updates menu links to it, and sends visitors on 
   expect(readJson("content/pages/about-us.json")).toMatchObject({ data: { root: { props: { title: "About us" } } } });
   expect(readSiteFile("content/menus.json")).toContain('"href": "/about-us"');
   expect(readSiteFile("content/menus.json")).not.toContain('"href": "/about"');
+  // The home page's button to it, too.
+  expect(readSiteFile("content/pages/index.json")).toContain('"href": "/about-us"');
+  expect(readSiteFile("content/pages/index.json")).not.toContain('"href": "/about"');
   expect(readJson("content/redirects.json")).toEqual({ version: 1, redirects: [{ from: "/about", to: "/about-us" }] });
 
   await page.goto("/about");

@@ -166,10 +166,9 @@ function MoveEntryDialog({
   onClose: () => void;
 }) {
   const t = useStrings();
-  const { publish } = useAdmin();
+  const { config, publish } = useAdmin();
   const { content } = useSiteContent();
   const [slug, setSlug] = useState(entry.slug);
-  const [updateLinks, setUpdateLinks] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
@@ -191,7 +190,7 @@ function MoveEntryDialog({
     if (check.slug === entry.slug) return onClose();
     setBusy(true);
     const result = await publish(
-      moveEntryChanges(collection, entry, check.slug, check.path, content.menus, updateLinks),
+      moveEntryChanges(content, collection, entry, check.slug, check.path, config.blocks),
       t("moveEntry.message", {
         entry: inSentence(collection.settings.entryName),
         title,
@@ -215,10 +214,7 @@ function MoveEntryDialog({
           autoFocus
           onChange={setSlug}
         />
-        <label className="gfa-checkbox">
-          <input type="checkbox" checked={updateLinks} onChange={(event) => setUpdateLinks(event.target.checked)} />
-          {t("movePage.updateLinks")}
-        </label>
+        <p className="gfa-hint">{t("movePage.links")}</p>
         <p className="gfa-hint">{t("movePage.warning")}</p>
         <PublishFailure failure={failure} />
         <div className="gfa-dialog-actions">

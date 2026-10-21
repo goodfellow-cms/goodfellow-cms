@@ -108,14 +108,31 @@ test("picks an existing image for the site's logo", async ({ page }) => {
   await expect(page.getByLabel("Logo", { exact: true })).toHaveValue("/media/placeholder.svg");
 });
 
-test("says where a file is used before deleting it", async ({ page }) => {
+test("says where a file is used, and keeps it while it is", async ({ page }) => {
   await page.goto("/admin#/media");
   await page.locator(".gfa-media-card", { hasText: "placeholder.svg" }).getByRole("button", { name: "Delete" }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByRole("dialog", { name: /Delete/ });
   await expect(dialog).toContainText("It's used in: About us, Welcome to our new website.");
   await dialog.getByRole("button", { name: "Delete" }).click();
-  await expect(page.locator(".gfa-media-name", { hasText: "placeholder.svg" })).toHaveCount(0);
-  expect(existsSync(join(site, "public/media/placeholder.svg"))).toBe(false);
+  const checks = page.getByRole("dialog", { name: "This can't be published yet" });
+  await expect(checks).toContainText("/media/placeholder.svg, which isn't in the media library");
+  await checks.getByRole("button", { name: "Go back" }).click();
+  await expect(checks).toHaveCount(0);
+  expect(existsSync(join(site, "public/media/placeholder.svg"))).toBe(true);
+});
+
+test("deletes a file nothing uses", async ({ page }) => {
+  await page.goto("/admin#/media");
+  await uploadInput(page).setInputFiles([
+    { name: "bulletin.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF\n") },
+  ]);
+  await expect(page.getByText("Uploaded.", { exact: false })).toBeVisible();
+  await page.locator(".gfa-media-card", { hasText: "bulletin.pdf" }).getByRole("button", { name: "Delete" }).click();
+  const dialog = page.getByRole("dialog", { name: /Delete/ });
+  await expect(dialog).toContainText("Nothing on the site uses it.");
+  await dialog.getByRole("button", { name: "Delete" }).click();
+  await expect(page.locator(".gfa-media-name", { hasText: "bulletin.pdf" })).toHaveCount(0);
+  expect(existsSync(join(site, "public/media/bulletin.pdf"))).toBe(false);
 });
 
 test("replaces a file, keeping its address", async ({ page }) => {

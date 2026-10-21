@@ -92,11 +92,10 @@ function NewPageDialog({ onClose }: { onClose: () => void }) {
 
 function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) {
   const t = useStrings();
-  const { publish } = useAdmin();
+  const { config, publish } = useAdmin();
   const { content } = useSiteContent();
   const owner = useCanChangeSettings();
   const [address, setAddress] = useState(page.path);
-  const [updateLinks, setUpdateLinks] = useState(true);
   // The home page has no old address to send visitors on from: another page takes it.
   // Redirects are in Site Settings, which only owners change on sites with their own sign-in.
   const canRedirect = page.path !== "/" && owner;
@@ -116,13 +115,7 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
     if (check.path === page.path) return onClose();
     setBusy(true);
     const result = await publish(
-      movePageChanges(
-        page,
-        check.path,
-        content.menus,
-        updateLinks,
-        redirect ? { redirects: content.redirects ?? [], message: content.redirectMessage } : undefined,
-      ),
+      movePageChanges(content, page, check.path, { blocks: config.blocks, redirect }),
       t("movePage.message", { title, from: page.path, to: check.path }),
     );
     setBusy(false);
@@ -134,10 +127,7 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
     <Dialog title={t("movePage.title", { title })} onClose={onClose}>
       <form onSubmit={onSubmit} className="gfa-form" noValidate>
         <TextField label={t("movePage.address")} value={address} error={addressError} autoFocus onChange={setAddress} />
-        <label className="gfa-checkbox">
-          <input type="checkbox" checked={updateLinks} onChange={(event) => setUpdateLinks(event.target.checked)} />
-          {t("movePage.updateLinks")}
-        </label>
+        <p className="gfa-hint">{t("movePage.links")}</p>
         {canRedirect && (
           <label className="gfa-checkbox">
             <input type="checkbox" checked={redirect} onChange={(event) => setRedirect(event.target.checked)} />

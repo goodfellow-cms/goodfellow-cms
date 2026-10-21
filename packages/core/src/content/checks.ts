@@ -8,14 +8,13 @@
  * - Warnings: pages without a title or description, and theme colors that
  *   text is hard to read on.
  */
-import type { ComponentConfig, Field } from "@puckeditor/core";
+import type { ComponentConfig } from "@puckeditor/core";
 import { contrastRatio, MINIMUM_CONTRAST } from "../contrast.js";
 import { DEFAULT_THEME_COLORS, darkThemeColor } from "../theme.js";
-import type { Collection } from "./collections.js";
+import { linkTarget, siteLinks } from "./links.js";
 import type { Page, SiteContent } from "./load.js";
 import { allPages } from "./load.js";
-import { markdownToHtml } from "./markdown.js";
-import { FOOTER_FILE, HEADER_FILE, MENUS_FILE, REDIRECTS_FILE, RESERVED_PAGE_PATHS, SITE_FILE } from "./paths.js";
+import { SITE_FILE } from "./paths.js";
 import type { ThemeColor } from "./schemas.js";
 import { sitePages } from "./site-pages.js";
 
@@ -58,169 +57,6 @@ const COLOR_PAIRS: ReadonlyArray<readonly [ThemeColor, ThemeColor]> = [
   ["mutedForeground", "muted"],
   ["accentForeground", "accent"],
 ];
-
-/** Addresses on the site that aren't pages or media, which checks leave alone. */
-const NOT_PAGES = ["/calendars/", "/pagefind/", "/__goodfellow/"];
-
-/** Where a link goes on the site, or `undefined` for a link elsewhere, or to a file checks can't know about. */
-export function linkTarget(link: string): { kind: "page" | "media"; path: string } | undefined {
-  const raw = link.trim().split("#")[0]?.split("?")[0] ?? "";
-  if (!raw.startsWith("/") || raw.startsWith("//") || /\s/.test(raw)) return undefined;
-  let path: string;
-  try {
-    path = decodeURI(raw);
-  } catch {
-    path = raw;
-  }
-  if (path.startsWith("/media/")) return path.length > "/media/".length ? { kind: "media", path } : undefined;
-  if (NOT_PAGES.some((prefix) => path.startsWith(prefix))) return undefined;
-  if (RESERVED_PAGE_PATHS.some((reserved) => path === reserved || path.startsWith(`${reserved}/`))) return undefined;
-  // Other files, such as /favicon.ico or a feed, are the site's code's: only the build knows they're there.
-  if (/\.[a-z0-9]+$/i.test(path.split("/").at(-1) ?? "")) return undefined;
-  const trimmed = path.replace(/\/+$/, "");
-  return { kind: "page", path: trimmed || "/" };
-}
-
-const ATTRIBUTE = /\b(?:href|src|poster)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
-
-/** The addresses an HTML string links to or shows, such as rich text's links and images. */
-function htmlLinks(html: string): string[] {
-  if (!html.includes("<")) return [];
-  return [...html.matchAll(ATTRIBUTE)].map((match) => (match[1] ?? match[2] ?? "").replaceAll("&amp;", "&"));
-}
-
-/** Whether a whole value is an address on the site, such as `/about` or `/media/photo.jpg`. */
-function isSiteAddress(value: string): boolean {
-  return value.startsWith("/") && !value.startsWith("//") && !/\s/.test(value);
-}
-
-/** A value with a template's `{placeholder}`, filled in for each item, which can't be checked as written. */
-function hasPlaceholder(value: string): boolean {
-  return /\{[a-z][a-z0-9-]*\}/.test(value);
-}
-
-interface ComponentLike {
-  type: string;
-  props: Record<string, unknown>;
-}
-
-function isComponent(value: unknown): value is ComponentLike {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { type?: unknown }).type === "string" &&
-    typeof (value as { props?: unknown }).props === "object"
-  );
-}
-
-/**
- * The links in a value. A whole value is a link when its field is a single
- * line of text, as links and media fields are; elsewhere, such as rich text
- * and HTML, links are found in the HTML.
- */
-function valueLinks(value: unknown, field: Field | undefined, blocks: SiteCheckOptions["blocks"], out: string[]): void {
-  if (typeof value === "string") {
-    if (hasPlaceholder(value)) return;
-    // Without a field to say what it holds, a value is only searched for HTML links.
-    if (field?.type === "text" && isSiteAddress(value)) out.push(value);
-    out.push(...htmlLinks(value));
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if (isComponent(item)) componentLinks(item, blocks, out);
-      else if (field?.type === "array") objectLinks(item, field.arrayFields, blocks, out);
-      else valueLinks(item, undefined, blocks, out);
-    }
-    return;
-  }
-  if (typeof value === "object" && value !== null) {
-    objectLinks(value, field?.type === "object" ? field.objectFields : undefined, blocks, out);
-  }
-}
-
-function objectLinks(
-  value: unknown,
-  fields: Record<string, Field> | undefined,
-  blocks: SiteCheckOptions["blocks"],
-  out: string[],
-): void {
-  if (typeof value !== "object" || value === null) return;
-  for (const [key, item] of Object.entries(value)) valueLinks(item, fields?.[key], blocks, out);
-}
-
-function componentLinks(component: ComponentLike, blocks: SiteCheckOptions["blocks"], out: string[]): void {
-  const fields = blocks?.[component.type]?.fields as Record<string, Field> | undefined;
-  for (const [key, value] of Object.entries(component.props)) {
-    if (key === "id" || key === "className") continue;
-    valueLinks(value, fields?.[key], blocks, out);
-  }
-}
-
-/** The links in Puck data: its root's settings, such as a page's social image, and every block. */
-function dataLinks(
-  data: { root?: { props?: Record<string, unknown> }; content?: unknown[] },
-  blocks: SiteCheckOptions["blocks"],
-): string[] {
-  const out: string[] = [];
-  for (const value of Object.values(data.root?.props ?? {})) {
-    if (typeof value === "string" && !hasPlaceholder(value)) {
-      if (isSiteAddress(value)) out.push(value);
-      out.push(...htmlLinks(value));
-    }
-  }
-  for (const item of data.content ?? []) if (isComponent(item)) componentLinks(item, blocks, out);
-  return out;
-}
-
-function entryLinks(collection: Collection, fields: Record<string, unknown>): string[] {
-  const out: string[] = [];
-  for (const field of collection.settings.fields) {
-    const value = fields[field.name];
-    if (typeof value !== "string" || value === "") continue;
-    if (field.type === "link" || field.type === "image") {
-      if (isSiteAddress(value)) out.push(value);
-    } else if (collection.settings.markdown?.body === field.name) {
-      out.push(...htmlLinks(markdownToHtml(value)));
-    } else {
-      out.push(...htmlLinks(value));
-    }
-  }
-  return out;
-}
-
-/** Every content file's links, by file. */
-export function siteLinks(content: SiteContent, blocks?: SiteCheckOptions["blocks"]): Map<string, string[]> {
-  const links = new Map<string, string[]>();
-  const add = (file: string, found: string[]) => {
-    if (found.length) links.set(file, [...(links.get(file) ?? []), ...found]);
-  };
-  for (const page of content.pages) add(page.file, dataLinks(page.content.data, blocks));
-  add(HEADER_FILE, dataLinks(content.header.data, blocks));
-  add(FOOTER_FILE, dataLinks(content.footer.data, blocks));
-  for (const collection of content.collections) {
-    add(collection.file, dataLinks(collection.settings.template, blocks));
-    for (const entry of collection.entries) add(entry.file, entryLinks(collection, entry.content.fields));
-  }
-  add(
-    MENUS_FILE,
-    Object.values(content.menus).flatMap((items) =>
-      items.flatMap((item) => [item.href, ...(item.children ?? []).map((child) => child.href)]),
-    ),
-  );
-  const { settings } = content;
-  add(
-    SITE_FILE,
-    [settings.favicon, settings.logo?.src, settings.logo?.darkSrc, settings.socialImage].filter(
-      (value): value is string => typeof value === "string" && value !== "",
-    ),
-  );
-  add(
-    REDIRECTS_FILE,
-    (content.redirects ?? []).map((redirect) => redirect.to),
-  );
-  return links;
-}
 
 function readString(props: Record<string, unknown> | undefined, key: string): string {
   const value = props?.[key];
