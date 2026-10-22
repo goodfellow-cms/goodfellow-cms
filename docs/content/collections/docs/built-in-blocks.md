@@ -61,6 +61,10 @@ On a site with [dark mode](/docs/layout-and-settings#dark-mode), the Dark mode s
 
 The visitor's choice is kept in their browser and put back at the start of every page, before it shows, so pages never flash the other colors first. Every word is the block's to set, so sites in other languages can translate them. On a site without dark mode, the switch isn't shown, and the editor says where to turn dark mode on.
 
+## Language switch
+
+On a site in [several languages](/docs/languages), the Language switch links to the page in each of them, each language named in itself: to the page's translation, or to the language's home page where it has none. **Show as** chooses links side by side or a menu that opens, which needs no JavaScript. On a site in one language, it isn't shown, and the editor says where to add a language.
+
 ## Search
 
 The Search block searches the whole site in the visitor's browser, with [Pagefind](https://pagefind.app), so no search service is needed. When a site has a Search block, its build makes a search index of every page's main content; headers, footers and "Page not found" are left out. Search only works on the built site, so in the editor the box says so. See [Search](/docs/search) for details.

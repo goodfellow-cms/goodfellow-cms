@@ -1,4 +1,14 @@
-import { allPages, type Collection, type Entry, entryAddress, entryTitle } from "@goodfellow-cms/core";
+import {
+  allPages,
+  type Collection,
+  type Entry,
+  entryAddress,
+  entryLanguage,
+  entryPathIn,
+  entryTitle,
+  mainLanguage,
+  siteLanguages,
+} from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
@@ -16,7 +26,8 @@ import { PuckEditor } from "./puck-editor.js";
 import { type CollectionTab, collectionHref, entryEditorHref, navigate } from "./router.js";
 import { ScheduleStatus } from "./schedule.js";
 import { type StringKey, useStrings } from "./strings.js";
-import { Button, Dialog, TextField } from "./ui.js";
+import { EntryTranslations, unlinkEntryTranslations } from "./translations.js";
+import { Button, Dialog, Field, TextField } from "./ui.js";
 import { AppLink } from "./use-link.js";
 
 const nameErrors: Record<EntryNameProblem, StringKey> = {
@@ -84,6 +95,8 @@ function NewEntryDialog({ collection, onClose }: { collection: Collection; onClo
   const [failure, setFailure] = useState<Failure>(null);
   const { settings } = collection;
   const entry = inSentence(settings.entryName);
+  const languages = siteLanguages(content.settings);
+  const [language, setLanguage] = useState(mainLanguage(content.settings));
 
   // Entries without pages get a file name from their title, since nobody sees it.
   const name = settings.path
@@ -97,6 +110,8 @@ function NewEntryDialog({ collection, onClose }: { collection: Collection; onClo
     name,
     collection,
     allPages(content).map((page) => page.path),
+    undefined,
+    { settings: content.settings, code: language },
   );
   const titleError = submitted && !title.trim() ? t("field.required") : undefined;
   const slugError = submitted && !check.ok ? t(nameErrors[check.problem]) : undefined;
@@ -107,7 +122,14 @@ function NewEntryDialog({ collection, onClose }: { collection: Collection; onClo
     if (!title.trim() || !check.ok) return;
     setBusy(true);
     const result = await publish(
-      [entryFileChange(collection, check.slug, { title: title.trim() }, undefined)],
+      [
+        entryFileChange(
+          collection,
+          check.slug,
+          { title: title.trim() },
+          language === mainLanguage(content.settings) ? undefined : { inLanguage: language },
+        ),
+      ],
       t("newEntry.message", { entry, title: title.trim() }),
     );
     setBusy(false);
@@ -132,10 +154,32 @@ function NewEntryDialog({ collection, onClose }: { collection: Collection; onClo
             if (!slugEdited) setSlug(slugify(value));
           }}
         />
+        {languages.length > 1 && (
+          <Field label={t("menus.language")} hint={t("newEntry.languageHint")}>
+            {(props) => (
+              <select
+                {...props}
+                className="gfa-input"
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+              >
+                {languages.map((candidate) => (
+                  <option key={candidate.code} value={candidate.code}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
         {settings.path && (
           <TextField
             label={t("newEntry.address")}
-            hint={t("newEntry.addressHint", { example: entryAddress(settings.path, slug || "easter-vigil") })}
+            hint={t("newEntry.addressHint", {
+              example:
+                entryPathIn(content.settings, settings, slug || "easter-vigil", language) ??
+                entryAddress(settings.path, slug || "easter-vigil"),
+            })}
             value={slug}
             error={slugError}
             onChange={(value) => {
@@ -174,13 +218,16 @@ function MoveEntryDialog({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
   const title = entryTitle(entry);
-  const pattern = collection.settings.path ?? "/{slug}";
+  const language = { settings: content.settings, code: entryLanguage(content.settings, entry) };
+  const address = (candidate: string) =>
+    entryPathIn(content.settings, collection.settings, candidate, language.code) ?? entryAddress("/{slug}", candidate);
 
   const check = checkEntrySlug(
     slug,
     collection,
     allPages(content).map((page) => page.path),
     entry,
+    language,
   );
   const slugError = submitted && !check.ok ? t(nameErrors[check.problem]) : undefined;
 
@@ -209,7 +256,7 @@ function MoveEntryDialog({
       <form onSubmit={onSubmit} className="gfa-form" noValidate>
         <TextField
           label={t("movePage.address")}
-          hint={t("newEntry.addressHint", { example: entryAddress(pattern, slug || entry.slug) })}
+          hint={t("newEntry.addressHint", { example: address(slug || entry.slug) })}
           value={slug}
           error={slugError}
           autoFocus
@@ -248,7 +295,8 @@ function DeleteEntryDialog({
   const onDelete = async () => {
     setBusy(true);
     const result = await publish(
-      [{ path: entry.file, delete: true }],
+      // Its translations stay, as items of their own.
+      [{ path: entry.file, delete: true }, ...unlinkEntryTranslations(collection, entry)],
       t("deleteEntry.message", { entry: inSentence(collection.settings.entryName), title }),
     );
     setBusy(false);
@@ -317,6 +365,11 @@ export function EntriesScreen({ collection }: { collection: Collection }) {
                       {entryTitle(item)}
                     </a>
                     <ScheduleStatus schedule={item.content} content={content} />
+                    <EntryTranslations
+                      collection={collection}
+                      entry={item}
+                      entryHref={(slug) => entryEditorHref(collection.id, slug)}
+                    />
                   </td>
                   {settings.path && (
                     <td>

@@ -29,6 +29,8 @@ Pages carry structured data, in the [schema.org](https://schema.org) vocabulary 
 
 Other pages, and pages hidden from search engines, have none. There's nothing to set: it's worked out from the site's settings and the collections' fields when the site is built.
 
+On a site in [several languages](/docs/languages), each page also links to its translations with `hreflang`, and the sitemap lists them with each page, so search engines show people the page in their own language. Each language's home page describes the site in that language.
+
 ## Feeds
 
 Each collection whose items have pages and a date field, such as news, has a feed, which feed readers and other sites follow to see new items as they're published: an RSS feed at `/feeds/<collection>.rss` and an Atom feed at `/feeds/<collection>.atom`, such as `/feeds/news.rss`. They list the newest 50 items, each with its title, date, summary (or the start of its text) and link. Every page names the RSS feeds, so feed readers find them from the site's address alone.

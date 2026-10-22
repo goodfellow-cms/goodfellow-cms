@@ -175,20 +175,26 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       source: `${DEV_API_PREFIX}/:path*`,
       destination: `http://127.0.0.1:${port}${DEV_API_PREFIX}/:path*`,
     };
-    // Calendar files and feeds, which `goodfellow-next finish` writes into the export, come from the local backend.
-    const calendars = {
-      source: `/${CALENDARS_DIR}/:file(.+\\.ics)`,
-      destination: `http://127.0.0.1:${port}${DEV_API_PREFIX}/${CALENDARS_DIR}/:file`,
-    };
-    const feeds = {
-      source: `/${FEEDS_DIR}/:file(.+\\.rss|.+\\.atom)`,
-      destination: `http://127.0.0.1:${port}${DEV_API_PREFIX}/${FEEDS_DIR}/:file`,
-    };
+    // Calendar files and feeds, which `goodfellow-next finish` writes into the export, come from the local backend,
+    // in the site's other languages too (`/es/feeds/…`).
+    const buildFiles = [
+      { dir: CALENDARS_DIR, file: ":file(.+\\.ics)" },
+      { dir: FEEDS_DIR, file: ":file(.+\\.rss|.+\\.atom)" },
+    ].flatMap(({ dir, file }) => [
+      { source: `/${dir}/${file}`, destination: `http://127.0.0.1:${port}${DEV_API_PREFIX}/${dir}/:file` },
+      {
+        source: `/:language([a-z0-9-]+)/${dir}/${file}`,
+        destination: `http://127.0.0.1:${port}${DEV_API_PREFIX}/:language/${dir}/:file`,
+      },
+    ]);
     return {
       ...config,
       experimental: { reactDebugChannel: false, ...nextConfig.experimental },
-      rewrites: async () =>
-        withRewrite(withRewrite(withRewrite(await nextConfig.rewrites?.(), calendars), feeds), rewrite),
+      rewrites: async () => {
+        let rewrites = await nextConfig.rewrites?.();
+        for (const next of [...buildFiles, rewrite]) rewrites = withRewrite(rewrites, next);
+        return rewrites ?? [];
+      },
     };
   };
 }

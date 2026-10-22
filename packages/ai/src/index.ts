@@ -6,6 +6,7 @@ export {
   parseAnswer,
   type SiteSummary,
   SYSTEM_PROMPT,
+  translationSchema,
 } from "./prompt.js";
 export {
   AiError,

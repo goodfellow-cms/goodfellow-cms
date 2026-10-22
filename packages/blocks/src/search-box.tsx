@@ -12,6 +12,7 @@ interface Result {
 
 interface Pagefind {
   options(options: { baseUrl: string }): Promise<void>;
+  destroy(): Promise<void>;
   debouncedSearch(query: string): Promise<{ results: Array<{ data(): Promise<PagefindData> }> } | null>;
 }
 
@@ -30,9 +31,26 @@ function excerptHtml(excerpt: string): string {
 }
 
 let loaded: Promise<Pagefind> | undefined;
+/** The page language Pagefind started in, which chose the index it searches. */
+let loadedLanguage: string | undefined;
 
-/** Loads Pagefind from the site's own index, which the build wrote. */
+/**
+ * Loads Pagefind from the site's own index, which the build wrote. Pagefind
+ * searches the pages in the language `<html lang>` says when it starts, so on
+ * a site in several languages it starts again when a visitor moves to a page
+ * in another one without loading a new page, as Next.js sites do.
+ */
 function loadPagefind(base: string | undefined): Promise<Pagefind> {
+  const language = document.documentElement.lang;
+  if (loaded && loadedLanguage !== language) {
+    const previous = loaded;
+    loaded = previous.then(async (pagefind) => {
+      await pagefind.destroy();
+      await pagefind.options({ baseUrl: "/" });
+      return pagefind;
+    });
+  }
+  loadedLanguage = language;
   loaded ??= (
     import(
       /* @vite-ignore */ /* webpackIgnore: true */ withBase(`/${SEARCH_INDEX_DIR}/pagefind.js`, base)

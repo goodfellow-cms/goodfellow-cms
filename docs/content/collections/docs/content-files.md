@@ -45,6 +45,19 @@ A page's or item's file can say when it's on the site, beside its `version`: `sh
 }
 ```
 
+## Translations
+
+On a site in [several languages](/docs/languages), a page's file can say which page it translates, `translationOf`, with `translatedFrom`, a hash of that page as it was when it was translated, which tells whether the translation is out of date. An item's file has `inLanguage` too, since an item's language isn't its address. Both go beside `version`, and in Markdown items' front matter.
+
+```json
+{
+  "version": 1,
+  "translationOf": "/about",
+  "translatedFrom": "3f1c9a0b5d7e2468",
+  "data": { "root": { "props": { "title": "Quiénes somos" } }, "content": [] }
+}
+```
+
 ## Pages blocks add
 
 Some blocks give the page they're on pages of their own, which builds write beside it: a Calendar showing a month at a time a page for each month (`/calendar/2026-11`), and a Collection list or loop its later pages (`/news/page/2`) and a page for each choice of a field (`/news/topics/music`, from the choice's value). These pages aren't in `content/`: they're the same page, showing something else. They never take an address a page or item already has.

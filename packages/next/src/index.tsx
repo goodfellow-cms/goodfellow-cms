@@ -2,18 +2,21 @@ import {
   absoluteUrl,
   colorSchemeMeta,
   colorSchemeScript,
+  contentForPage,
   demoContent,
   feedLinks,
   findRedirect,
   fontPreloads,
   type GoodfellowConfig,
-  getPageHead,
   googleFontsUrl,
+  hasLanguages,
   loadSiteContent,
   normalizePagePath,
   type Page,
+  pageHead,
   type SiteContent,
   shownContent,
+  sitemapPages,
   sitePages,
   themeToCss,
   todayIn,
@@ -38,7 +41,7 @@ import type { Metadata, MetadataRoute } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { preload } from "react-dom";
-import { CurrentMenuLinks, NextImage, NextLink } from "./components.js";
+import { CurrentMenuLinks, NextImage, NextLink, PageLanguage } from "./components.js";
 
 export interface GoodfellowPagesOptions {
   /** The site's folder, holding `content/`. Defaults to the folder Next.js runs in. */
@@ -98,9 +101,10 @@ function toAbsolute(siteUrl: string | undefined, url: string | undefined): strin
 
 /** A page's title, description and link previews, as Next.js metadata. */
 export function pageMetadata(content: SiteContent, page: Page, basePath = configuredBasePath()): Metadata {
-  const head = getPageHead(content.settings, page);
+  const head = pageHead(content, page);
   const socialImage = toAbsolute(content.settings.url, head.socialImage);
-  const feeds = feedLinks(content);
+  // The feeds in the page's language.
+  const feeds = feedLinks(contentForPage(content, page));
   return {
     ...(content.settings.url && { metadataBase: new URL(content.settings.url) }),
     title: { absolute: head.title },
@@ -109,6 +113,10 @@ export function pageMetadata(content: SiteContent, page: Page, basePath = config
     ...((head.canonicalUrl || feeds.length > 0) && {
       alternates: {
         ...(head.canonicalUrl && { canonical: head.canonicalUrl }),
+        // The page in the site's other languages.
+        ...(head.alternates && {
+          languages: Object.fromEntries(head.alternates.map(({ language, href }) => [language, href])),
+        }),
         // The site's feeds, which feed readers find from any page.
         ...(feeds.length > 0 && {
           types: {
@@ -213,15 +221,17 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
      */
     async Layout({ children }: { children: ReactNode }) {
       const content = await site();
-      const layout = await prepareLayout(configs, content, await renderOptions());
+      // A site in several languages shows each page's header and footer in its language, so pages render them.
+      const shared = !hasLanguages(content.settings);
+      const layout = shared ? await prepareLayout(configs, content, await renderOptions()) : undefined;
       return (
         <>
           <Theme content={content} />
           {/* React moves the head's links, meta tags and loading scripts into the head; inline scripts run here. */}
           <HeadCode code={content.code?.head} />
-          <PageHeader site={layout.site} layoutConfig={layout.layoutConfig} data={layout.header} />
+          {layout && <PageHeader site={layout.site} layoutConfig={layout.layoutConfig} data={layout.header} />}
           {children}
-          <PageFooter site={layout.site} layoutConfig={layout.layoutConfig} data={layout.footer} />
+          {layout && <PageFooter site={layout.site} layoutConfig={layout.layoutConfig} data={layout.footer} />}
           <CurrentMenuLinks basePath={basePath()} />
           <BodyCode code={content.code?.body} />
         </>
@@ -240,13 +250,22 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
         notFound();
       }
       const prepared = await preparePage(configs, content, page, await renderOptions());
-      return (
+      const pageContent = (
         <PageContent
           site={prepared.site}
           pageConfig={prepared.pageConfig}
           page={prepared.data}
           {...(prepared.structuredData && { structuredData: prepared.structuredData })}
         />
+      );
+      if (!hasLanguages(content.settings)) return pageContent;
+      return (
+        <>
+          <PageLanguage language={prepared.site.settings.language} />
+          <PageHeader site={prepared.site} layoutConfig={prepared.layoutConfig} data={prepared.header} />
+          {pageContent}
+          <PageFooter site={prepared.site} layoutConfig={prepared.layoutConfig} data={prepared.footer} />
+        </>
       );
     },
 
@@ -262,7 +281,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       return (
         <>
           {/* Next.js doesn't take metadata from not-found pages; React moves this into the head. */}
-          <title>{getPageHead(content.settings, page).title}</title>
+          <title>{pageHead(content, page).title}</title>
           <Theme content={content} />
           <HeadCode code={content.code?.head} />
           <PageBody
@@ -281,11 +300,10 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
     /** For `app/sitemap.ts`: every page but "Page not found" and pages hidden from search engines, once the site's address is set. */
     async sitemap(): Promise<MetadataRoute.Sitemap> {
       const content = await site();
-      const url = content.settings.url;
-      if (!url) return [];
-      return exportedPages(content, config.blocks)
-        .filter((page) => !getPageHead(content.settings, page).noIndex)
-        .map((page) => ({ url: absoluteUrl(url, page.path) }));
+      return sitemapPages(content, exportedPages(content, config.blocks)).map(({ url, alternates }) => ({
+        url,
+        ...(alternates && { alternates: { languages: alternates } }),
+      }));
     },
 
     /**

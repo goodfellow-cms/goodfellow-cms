@@ -88,7 +88,7 @@ export interface SiteBrandProps {
 
 /** The site's logo and/or title (from Site Settings), linking to the home page. */
 function SiteBrandView({ show, className }: SiteBrandProps) {
-  const { settings } = useSite();
+  const { settings, home = "/" } = useSite();
   const logo = show !== "title" ? settings.logo : undefined;
   const showTitle = show !== "logo" || !logo;
   const alt = showTitle ? "" : logo?.alt || settings.title;
@@ -97,7 +97,7 @@ function SiteBrandView({ show, className }: SiteBrandProps) {
   const dark = settings.theme.darkMode ? logo?.darkSrc : undefined;
 
   return (
-    <SiteLink href="/" className={cx("inline-flex items-center gap-3 font-heading text-xl font-bold", className)}>
+    <SiteLink href={home} className={cx("inline-flex items-center gap-3 font-heading text-xl font-bold", className)}>
       {logo && dark ? (
         <>
           {/* The dark logo in dark mode, the usual one otherwise; dark: applies only where the site has dark mode. */}

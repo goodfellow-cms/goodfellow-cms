@@ -1,4 +1,4 @@
-import { allPages, type Page, type Schedule, scheduleOf, scheduleProblem } from "@goodfellow-cms/core";
+import { allPages, type Page, type Schedule, scheduleOf, scheduleProblem, withSchedule } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, useState } from "react";
 import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
@@ -15,6 +15,7 @@ import { type Failure, PublishFailure } from "./publish-failure.js";
 import { navigate, pageEditorHref } from "./router.js";
 import { ComingUp, ScheduleFields, ScheduleStatus, scheduleSettingsChanges } from "./schedule.js";
 import { type StringKey, useStrings } from "./strings.js";
+import { PageTranslations, unlinkTranslations } from "./translations.js";
 import { Button, Dialog, TextField } from "./ui.js";
 
 const addressErrors: Record<AddressProblem, StringKey> = {
@@ -165,7 +166,10 @@ function SchedulePageDialog({ page, onClose }: { page: Page; onClose: () => void
     if (scheduleProblem(schedule)) return;
     setBusy(true);
     const result = await publish(
-      [pageFileChange(page.path, page.content.data as Data, schedule), ...scheduleSettingsChanges(content, schedule)],
+      [
+        pageFileChange(page.path, page.content.data as Data, withSchedule(page.content, schedule)),
+        ...scheduleSettingsChanges(content, schedule),
+      ],
       t("schedulePage.message", { title }),
     );
     setBusy(false);
@@ -192,13 +196,18 @@ function SchedulePageDialog({ page, onClose }: { page: Page; onClose: () => void
 function DeletePageDialog({ page, onClose }: { page: Page; onClose: () => void }) {
   const t = useStrings();
   const { publish } = useAdmin();
+  const { content } = useSiteContent();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
   const title = pageTitle(page);
 
   const onDelete = async () => {
     setBusy(true);
-    const result = await publish([{ path: page.file, delete: true }], t("deletePage.message", { title }));
+    // Its translations stay, as pages of their own.
+    const result = await publish(
+      [{ path: page.file, delete: true }, ...unlinkTranslations(content, page)],
+      t("deletePage.message", { title }),
+    );
     setBusy(false);
     if (result.ok) onClose();
     else setFailure(result);
@@ -264,6 +273,7 @@ export function PagesScreen() {
                     {pageTitle(page)}
                   </a>
                   <ScheduleStatus schedule={page.content} content={content} />
+                  <PageTranslations page={page} />
                 </td>
                 <td>
                   <code>{page.path}</code>

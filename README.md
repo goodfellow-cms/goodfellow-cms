@@ -110,10 +110,10 @@ flowchart TB
     - **Importing:** a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, in the admin panel or from the command line, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected.
     - **Exporting:** a Goodfellow site as a WordPress export file, in the admin panel or from the command line, with its blocks turned into WordPress's.
 30. **Restoring the whole site** (done). Version history beyond one file: owners can see how the whole site, its content and settings, looked at an earlier publish and what has changed since, and restore it as one publish, for example after a bulk change that went wrong.
-31. **Several languages.** Optional, for sites in more than one language, such as a parish with Masses in two.
-    - Translations of a page or collection item linked together, each with its own address, menu, title and description, and dates written the language's way.
-    - A language switch, `hreflang` links, and sitemaps that list each language.
-    - Which translations are missing or out of date, and what visitors see where one is missing.
+31. **Several languages** (done). Optional, for sites in more than one language, such as a parish with Masses in two.
+    - Translations of a page or collection item linked together, each language's pages under its code (`/es/…`), with its own menus, site name and description, and dates written the language's way.
+    - A Language switch block, `hreflang` links, sitemaps that list each language, and search that finds pages in the page's own language.
+    - Which translations are missing or out of date, and translating a page or item with AI. Where a page has no translation, the switch goes to the language's home page, and a language's pages list only its own items.
 32. **Cloudflare Pages.** Put sites online with [Cloudflare Pages](https://pages.cloudflare.com), whose free plan builds from private repositories on GitHub and GitLab and has no rule we've found against business sites. That makes it the free choice for a business site whose repository is private on GitHub, where GitHub Pages doesn't work.
     - **Setup:** `create-goodfellow` and the setup page set it up, the admin panel shows when the new version is live, and the Domain screen explains connecting a domain in Cloudflare, as it does for Vercel.
     - **Pages or Workers:** Cloudflare's newer features go to Workers, which can also serve a site's files and build it from GitHub or GitLab, and it has a guide for moving Pages projects there. This step starts by choosing between them.

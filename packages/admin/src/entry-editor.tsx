@@ -3,6 +3,7 @@ import {
   type Collection,
   type CollectionField,
   type Entry,
+  entryLanguage,
   entryTitle,
   eventValueProblem,
   findEntry,
@@ -12,6 +13,7 @@ import {
   type SiteSettings,
   scheduleOf,
   scheduleProblem,
+  withSchedule,
 } from "@goodfellow-cms/core";
 import { applyEntry, type SiteContextValue, SiteProvider, siteMetadata } from "@goodfellow-cms/react";
 import {
@@ -376,6 +378,7 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
       key={entry.file}
       kind="entry"
       path={entry.path ?? "/"}
+      language={entryLanguage(content.settings, entry)}
       title={entryTitle(entry)}
       data={data}
       collection={collection}
@@ -408,7 +411,7 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
         const title = typeof values.title === "string" && values.title.trim() ? values.title.trim() : entry.slug;
         return {
           changes: [
-            entryFileChange(collection, entry.slug, values, schedule as Schedule),
+            entryFileChange(collection, entry.slug, values, withSchedule(entry.content, schedule as Schedule)),
             ...scheduleSettingsChanges(content, schedule as Schedule),
           ],
           message: t("editEntry.message", { entry: entryName, title }),

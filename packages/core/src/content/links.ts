@@ -13,8 +13,16 @@ import type { ComponentConfig, Field } from "@puckeditor/core";
 import type { Collection } from "./collections.js";
 import { allPages, type SiteContent } from "./load.js";
 import { markdownToHtml } from "./markdown.js";
-import { FOOTER_FILE, HEADER_FILE, MENUS_FILE, REDIRECTS_FILE, RESERVED_PAGE_PATHS, SITE_FILE } from "./paths.js";
-import type { MenuItem } from "./schemas.js";
+import {
+  FOOTER_FILE,
+  HEADER_FILE,
+  languageLayoutFile,
+  MENUS_FILE,
+  REDIRECTS_FILE,
+  RESERVED_PAGE_PATHS,
+  SITE_FILE,
+} from "./paths.js";
+import type { MenuItem, Menus } from "./schemas.js";
 
 type Blocks = Record<string, ComponentConfig> | undefined;
 
@@ -239,8 +247,14 @@ export function mapSiteLinks(
   };
   const pages = content.pages.map((page) => {
     const visitor = visit(page.file);
+    // The page a translation translates is named by its address, so it moves with it.
+    const translationOf =
+      page.content.translationOf === undefined ? undefined : visitor.link(page.content.translationOf);
     const data = mapData(page.content.data, blocks, visitor);
-    return changed(page.file, page, { ...page, content: { ...page.content, data } });
+    return changed(page.file, page, {
+      ...page,
+      content: { ...page.content, ...(translationOf !== undefined && { translationOf }), data },
+    });
   });
   const header = changed(HEADER_FILE, content.header, {
     ...content.header,
@@ -259,17 +273,34 @@ export function mapSiteLinks(
     });
     return { ...collection, settings, entries };
   });
-  const menusVisitor = visit(MENUS_FILE);
-  const menus = changed(
-    MENUS_FILE,
-    content.menus,
+  const languageLayouts =
+    content.languageLayouts &&
     Object.fromEntries(
-      Object.entries(content.menus).map(([name, items]) => [
-        name,
-        items.map((item) => mapMenuItem(item, menusVisitor)),
+      Object.entries(content.languageLayouts).map(([language, layouts]) => [
+        language,
+        Object.fromEntries(
+          (["header", "footer"] as const).flatMap((part) => {
+            const layout = layouts[part];
+            if (!layout) return [];
+            const file = languageLayoutFile(part, language);
+            return [[part, changed(file, layout, { ...layout, data: mapData(layout.data, blocks, visit(file)) })]];
+          }),
+        ),
       ]),
-    ),
-  );
+    );
+  const menusVisitor = visit(MENUS_FILE);
+  const mapMenus = (menus: Menus): Menus =>
+    Object.fromEntries(
+      Object.entries(menus).map(([name, items]) => [name, items.map((item) => mapMenuItem(item, menusVisitor))]),
+    );
+  const before = { menus: content.menus, languageMenus: content.languageMenus };
+  const after = {
+    menus: mapMenus(content.menus),
+    languageMenus:
+      content.languageMenus &&
+      Object.fromEntries(Object.entries(content.languageMenus).map(([language, own]) => [language, mapMenus(own)])),
+  };
+  const { menus, languageMenus } = changed(MENUS_FILE, before, after);
   const { settings } = content;
   const settingsVisitor = visit(SITE_FILE);
   const media = (value: string | undefined) => (value ? settingsVisitor.link(value) : value);
@@ -301,6 +332,8 @@ export function mapSiteLinks(
       footer,
       collections,
       menus,
+      ...(languageMenus && { languageMenus }),
+      ...(languageLayouts && { languageLayouts }),
       settings: site,
       ...(redirects && { redirects }),
     },

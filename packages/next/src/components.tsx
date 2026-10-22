@@ -49,3 +49,15 @@ export function CurrentMenuLinks({ basePath = "" }: { basePath?: string }) {
   }, [pathname, basePath]);
   return null;
 }
+
+/**
+ * On a site in several languages, says the page's language on `<html>`, which
+ * the root layout shared by every page can't. `goodfellow-next finish` writes
+ * it into exported pages; this keeps it right as visitors move between pages.
+ */
+export function PageLanguage({ language }: { language: string }) {
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+  return null;
+}

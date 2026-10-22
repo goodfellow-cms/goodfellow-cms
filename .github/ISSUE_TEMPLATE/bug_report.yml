@@ -48,6 +48,7 @@ body:
         - Lists of collections, and their pages
         - Forms
         - Redirects
+        - Sites in several languages
         - Importing from WordPress
         - Exporting to WordPress
         - Creating a site (the setup page or npm create goodfellow)

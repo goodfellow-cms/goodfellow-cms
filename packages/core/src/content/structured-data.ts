@@ -9,6 +9,7 @@ import { isEventLike, shownOccurrence, todayIn, zonedInstant, zoneOffset } from 
 import { absoluteUrl, getPageHead } from "../head.js";
 import { type Collection, type Entry, richTextToPlainText } from "./collections.js";
 import { dateField, entryDetails } from "./entry-details.js";
+import { contentForPage, isLanguageHome } from "./languages.js";
 import { findEntry, type Page, type SiteContent } from "./load.js";
 import { markdownText } from "./markdown.js";
 
@@ -114,16 +115,18 @@ export function structuredData(
   page: Page,
   today = todayIn(content.settings.timeZone),
 ): StructuredData[] {
+  // In the page's language: its home page is the site in that language, and its items are that language's.
+  content = contentForPage(content, page);
   const { settings } = content;
   const siteUrl = settings.url;
   if (!siteUrl || getPageHead(settings, page).noIndex) return [];
   if (page.view && page.view.path !== page.path) return [];
-  if (page.path === "/" && !page.entry) {
+  if (isLanguageHome(settings, page.path) && !page.entry) {
     return [
       {
         "@type": "WebSite",
         name: settings.title,
-        url: absoluteUrl(siteUrl, "/"),
+        url: absoluteUrl(siteUrl, page.path),
         ...(settings.description && { description: settings.description }),
         inLanguage: settings.language,
       },

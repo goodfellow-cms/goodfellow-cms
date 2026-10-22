@@ -75,13 +75,53 @@ const themeSchema = z.object({
     .optional(),
 });
 
+/**
+ * A language's code, as BCP 47 writes it, such as `es` or `pt-BR`: what
+ * `<html lang>` says, and, in lowercase, the start of its pages' addresses.
+ */
+const LANGUAGE_CODE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
+export const languageCode = z.string().regex(LANGUAGE_CODE, "must be a language's code, such as es or pt-BR");
+
+/** Whether text is a language's code, such as `es` or `pt-BR`. */
+export function isLanguageCode(code: string): boolean {
+  return LANGUAGE_CODE.test(code);
+}
+
+/** The site's wording in one of its other languages. Left out, a setting is the main language's. */
+const settingsTranslation = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  titleTemplate: z.string().optional(),
+});
+
 export const siteSettingsSchema = z.object({
   version: z.literal(1),
   title: z.string().default("My site"),
   description: z.string().default(""),
   /** The site's public address, such as `https://example.org`. Used for the sitemap and link previews. */
   url: z.url({ protocol: /^https?$/ }).optional(),
+  /** The site's main language, whose pages are at the root of its address. */
   language: z.string().default("en"),
+  /** The main language's name as visitors see it in a language switch, such as "English". Worked out from its code if left out. */
+  languageName: z.string().optional(),
+  /**
+   * The site's other languages, in the order a language switch lists them.
+   * Each one's pages are under its code, such as `/es/…`, and link to the
+   * main language's page they translate.
+   */
+  languages: z
+    .array(z.object({ code: languageCode, name: z.string().optional() }))
+    .optional()
+    .superRefine((languages, ctx) => {
+      const seen = new Set<string>();
+      (languages ?? []).forEach((language, index) => {
+        const prefix = language.code.toLowerCase();
+        if (seen.has(prefix)) ctx.addIssue({ code: "custom", path: [index, "code"], message: "is listed twice" });
+        seen.add(prefix);
+      });
+    }),
+  /** The site's title, description and title template in each of its other languages, by code. */
+  translations: z.record(z.string(), settingsTranslation).optional(),
   favicon: z.string().optional(),
   logo: z
     .object({
@@ -123,7 +163,14 @@ export const siteSettingsSchema = z.object({
   theme: themeSchema.default({ colors: {}, fonts: {} }),
 });
 
-export type SiteSettings = z.output<typeof siteSettingsSchema>;
+export type SiteSettings = z.output<typeof siteSettingsSchema> & {
+  /**
+   * Set only on the settings a page in another language is shown with
+   * (`localizedSettings()`), whose `language` is the page's: the site's main
+   * language. Never stored.
+   */
+  mainLanguage?: string;
+};
 export type Theme = SiteSettings["theme"];
 
 const menuLink = z.object({
@@ -138,6 +185,8 @@ const menuItem = menuLink.extend({
 export const menusFileSchema = z.object({
   version: z.literal(1),
   menus: z.record(z.string(), z.array(menuItem)).default({}),
+  /** The menus in the site's other languages, by code. A language without a menu of its own shows the main language's. */
+  languages: z.record(z.string(), z.record(z.string(), z.array(menuItem))).optional(),
 });
 
 export type MenusFile = z.output<typeof menusFileSchema>;
@@ -181,6 +230,17 @@ const scheduleShape = {
   hideAfter: scheduleTime.optional(),
 };
 
+/**
+ * Which page or item a translation translates (`translationOf`: a page's
+ * address, or an item's name in its collection), and a hash of it as it was
+ * when it was translated (`translatedFrom`, see `translationHash()`), which
+ * says whether the translation is out of date.
+ */
+const translationShape = {
+  translationOf: z.string().optional(),
+  translatedFrom: z.string().optional(),
+};
+
 function checkSchedule(file: { showFrom?: string; hideAfter?: string }, ctx: z.RefinementCtx) {
   if (file.showFrom && file.hideAfter && file.hideAfter <= file.showFrom) {
     ctx.addIssue({ code: "custom", path: ["hideAfter"], message: "must be after showFrom" });
@@ -191,6 +251,7 @@ export const pageFileSchema = z
   .object({
     version: z.literal(1),
     ...scheduleShape,
+    ...translationShape,
     data: puckDataSchema,
   })
   .superRefine(checkSchedule);
@@ -260,6 +321,12 @@ export const collectionFileSchema = z
      * without one have no pages of their own and are only shown in lists.
      */
     path: z.string().optional(),
+    /**
+     * The address of each item's page in the site's other languages, by code,
+     * such as `{ es: "/es/noticias/{slug}" }`. Left out, it's `path` under the
+     * language's code: `/es/news/{slug}`.
+     */
+    languagePaths: z.record(z.string(), z.string()).optional(),
     fields: z.array(collectionField).min(1),
     /** How entries are ordered in the admin panel and, by default, in lists. Defaults to by title. */
     sort: z.object({ field: fieldName, order: z.enum(["asc", "desc"]) }).optional(),
@@ -295,6 +362,10 @@ export const collectionFileSchema = z
     if (file.path !== undefined) {
       const problem = addressPatternProblem(file.path);
       if (problem) ctx.addIssue({ code: "custom", path: ["path"], message: problem });
+    }
+    for (const [code, pattern] of Object.entries(file.languagePaths ?? {})) {
+      const problem = addressPatternProblem(pattern);
+      if (problem) ctx.addIssue({ code: "custom", path: ["languagePaths", code], message: problem });
     }
     if (file.sort && !names.has(file.sort.field)) {
       ctx.addIssue({ code: "custom", path: ["sort", "field"], message: "must be one of the collection's fields" });
@@ -353,6 +424,9 @@ export const entryFileSchema = z
   .object({
     version: z.literal(1),
     ...scheduleShape,
+    /** The item's language, one of the site's other languages. Left out, it's the main language. */
+    inLanguage: languageCode.optional(),
+    ...translationShape,
     fields: z.record(z.string(), z.unknown()).default({}),
   })
   .superRefine(checkSchedule);

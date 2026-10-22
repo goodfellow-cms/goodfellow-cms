@@ -40,8 +40,9 @@ import {
 import { CodeEditor } from "./code-editor.js";
 import { FontPicker } from "./font-picker.js";
 import { useHistory } from "./history.js";
+import { cleanLanguages, LanguagesTab, languagesProblem } from "./languages-tab.js";
 import { MediaField } from "./media-library.js";
-import { MenusEditor } from "./menus-editor.js";
+import { MenusTab } from "./menus-editor.js";
 import { PreviewFrame, type PreviewScheme } from "./preview.js";
 import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
 import { type SettingsSection, useUnsavedChanges } from "./router.js";
@@ -51,11 +52,12 @@ import { useDarkMode } from "./theme.js";
 import { Button, ErrorMessage, Field, PublishedNotice, TextField } from "./ui.js";
 import { AppLink } from "./use-link.js";
 
-export type SettingsTab = "general" | "theme" | "menus" | "redirects" | "css" | "code";
-export const SETTINGS_TABS: SettingsTab[] = ["general", "theme", "menus", "redirects", "css", "code"];
+export type SettingsTab = "general" | "languages" | "theme" | "menus" | "redirects" | "css" | "code";
+export const SETTINGS_TABS: SettingsTab[] = ["general", "languages", "theme", "menus", "redirects", "css", "code"];
 
 const tabLabels: Record<SettingsTab, StringKey> = {
   general: "settings.tab.general",
+  languages: "settings.tab.languages",
   theme: "settings.tab.theme",
   menus: "settings.tab.menus",
   redirects: "settings.tab.redirects",
@@ -92,6 +94,7 @@ function cleanSettings(draft: SiteSettings): unknown {
   const darkLogo = optional(draft.logo?.darkSrc);
   return {
     ...draft,
+    ...cleanLanguages(draft),
     url: optional(draft.url),
     externalLinksInNewTab: draft.externalLinksInNewTab || undefined,
     timeZone: optional(draft.timeZone),
@@ -294,7 +297,7 @@ function GeneralTab({
   onChange: (draft: SiteSettings) => void;
 }) {
   const t = useStrings();
-  const text = (key: "title" | "description" | "url" | "language" | "titleTemplate" | "favicon" | "socialImage") => ({
+  const text = (key: "title" | "description" | "url" | "titleTemplate" | "favicon" | "socialImage") => ({
     value: draft[key] ?? "",
     error: errors[key],
     onChange: (value: string) => onChange({ ...draft, [key]: value }),
@@ -320,7 +323,6 @@ function GeneralTab({
       </label>
       <p className="gfa-hint">{t("general.externalLinksInNewTabHint")}</p>
       <TextField label={t("general.titleTemplate")} hint={t("general.titleTemplateHint")} {...text("titleTemplate")} />
-      <TextField label={t("general.language")} hint={t("general.languageHint")} {...text("language")} />
       <TimeZoneField value={draft.timeZone ?? ""} onChange={(timeZone) => onChange({ ...draft, timeZone })} />
       <MediaField
         label={t("general.logo")}
@@ -711,6 +713,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
   const history = useHistory<{
     settings: SiteSettings;
     menus: Menus;
+    languageMenus: Record<string, Menus>;
     redirects: Redirect[];
     redirectMessage: string;
     css: string;
@@ -718,15 +721,20 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
   }>({
     settings: content.settings,
     menus: content.menus,
+    languageMenus: content.languageMenus ?? {},
     redirects: content.redirects ?? [],
     redirectMessage: content.redirectMessage ?? "",
     css: content.customCss,
     code: content.code ?? EMPTY_CODE,
   });
-  const { settings, menus, redirects, redirectMessage, css, code } = history.present;
+  const { settings, menus, languageMenus, redirects, redirectMessage, css, code } = history.present;
   const { update } = history;
   const setSettings = useCallback((settings: SiteSettings) => update((form) => ({ ...form, settings })), [update]);
   const setMenus = useCallback((menus: Menus) => update((form) => ({ ...form, menus })), [update]);
+  const setLanguageMenus = useCallback(
+    (languageMenus: Record<string, Menus>) => update((form) => ({ ...form, languageMenus })),
+    [update],
+  );
   const setRedirects = useCallback((redirects: Redirect[]) => update((form) => ({ ...form, redirects })), [update]);
   const setRedirectMessage = useCallback(
     (redirectMessage: string) => update((form) => ({ ...form, redirectMessage })),
@@ -756,7 +764,12 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     if (validation.settings && serializeContent(validation.settings) !== serializeContent(content.settings)) {
       result.push(siteSettingsFileChange(validation.settings));
     }
-    if (serializeContent(menus) !== serializeContent(content.menus)) result.push(menusFileChange(menus));
+    if (
+      serializeContent(menus) !== serializeContent(content.menus) ||
+      serializeContent(languageMenus) !== serializeContent(content.languageMenus ?? {})
+    ) {
+      result.push(menusFileChange({ menus, languageMenus }));
+    }
     if (
       serializeContent(savedRedirects) !== serializeContent(content.redirects ?? []) ||
       redirectMessage.trim() !== (content.redirectMessage ?? "").trim()
@@ -766,7 +779,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     if (storedCss(css) !== storedCss(content.customCss)) result.push(customCssFileChange(css));
     result.push(...codeFileChanges(code, content.code));
     return result;
-  }, [validation, menus, savedRedirects, redirectMessage, css, code, content]);
+  }, [validation, menus, languageMenus, savedRedirects, redirectMessage, css, code, content]);
 
   const dirty = changes.length > 0 || !validation.settings;
   // "Published." goes after a few seconds, or as soon as anything changes.
@@ -783,7 +796,8 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     setShowErrors(true);
     if (
       !validation.settings ||
-      !menusFileSchema.safeParse({ version: 1, menus }).success ||
+      !menusFileSchema.safeParse({ version: 1, menus, languages: languageMenus }).success ||
+      languagesProblem(t, settings, content) ||
       headError ||
       formsError ||
       redirectsInvalid
@@ -897,7 +911,18 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
             onPreviewScheme={setChosenScheme}
           />
         )}
-        {tab === "menus" && <MenusEditor menus={menus} onChange={setMenus} />}
+        {tab === "languages" && (
+          <LanguagesTab draft={settings} content={content} showErrors={showErrors} onChange={setSettings} />
+        )}
+        {tab === "menus" && (
+          <MenusTab
+            settings={content.settings}
+            menus={menus}
+            languageMenus={languageMenus}
+            onMenusChange={setMenus}
+            onLanguageMenusChange={setLanguageMenus}
+          />
+        )}
         {tab === "redirects" && (
           <RedirectsEditor
             redirects={redirects}

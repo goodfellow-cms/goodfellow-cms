@@ -164,15 +164,21 @@ describe("build", () => {
     const parishOut = await mkdtemp(join(tmpdir(), "goodfellow-parish-"));
     try {
       const result = await build({ root: parish, outDir: parishOut, base: "/" });
-      // Ten pages, plus five events, seven news stories and two bulletins. Staff have no pages of their own.
-      // The calendar has a page for each month, from last month to a year ahead, and the news a second page
-      // and one for each of its four topics.
-      expect(result.pages).toHaveLength(24 + 14 + 5);
+      // Ten pages and two in Spanish, plus five events, seven news stories and two bulletins. Staff have no
+      // pages of their own. The calendar has a page for each month, from last month to a year ahead, and the
+      // news a second page and one for each of its four topics.
+      expect(result.pages).toHaveLength(26 + 14 + 5);
       expect(result.problems).toEqual([]);
       const home = await readFile(join(parishOut, "index.html"), "utf8");
       expect(home).toContain("<title>St. Joseph Parish, Anytown</title>");
       expect(home).toContain("Weekend Masses");
       expect(home).toContain('href="tel:5550100100"');
+      // The Spanish pages are in Spanish, with the site's name in it, and the header's Language switch.
+      const spanish = await readFile(join(parishOut, "es/horarios-de-misa/index.html"), "utf8");
+      expect(spanish).toContain('<html lang="es">');
+      expect(spanish).toContain("<title>Horarios de misa | Parroquia de San José</title>");
+      expect(spanish).toContain('aria-label="Languages"');
+      expect(spanish).toMatch(/<a href="\/mass-times" hrefLang="en"[^>]*>English<\/a>/);
       const bulletin = await readFile(join(parishOut, "bulletins/2026-10-04/index.html"), "utf8");
       expect(bulletin).toContain('href="/media/bulletin-example.pdf"');
       // The home page's news has a heading, and a link to the rest.
@@ -241,6 +247,11 @@ describe("the starter's vercel.ts", () => {
     try {
       await cp(join(fixture, "content"), join(site, "content"), { recursive: true });
       await copyFile(join(starter, "vercel.ts"), join(site, "vercel.ts"));
+      // An item in Spanish, whose page is under the language's code.
+      await writeFile(
+        join(site, "content/collections/talks/esperanza.json"),
+        JSON.stringify({ version: 1, inLanguage: "es", fields: { title: "Esperanza" } }),
+      );
       await writeFile(
         join(site, "content/redirects.json"),
         JSON.stringify({
@@ -249,6 +260,7 @@ describe("the starter's vercel.ts", () => {
             { from: "/old-news", to: "/news" },
             { from: "/news", to: "/elsewhere" },
             { from: "/talks/hope", to: "/" },
+            { from: "/es/talks/esperanza", to: "/" },
             { from: "/2019/talk(1).html", to: "https://talks.example.org/hope" },
           ],
         }),

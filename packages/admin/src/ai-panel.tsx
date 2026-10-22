@@ -17,7 +17,18 @@ import {
   toValues,
   withStockPhotos,
 } from "@goodfellow-cms/ai";
-import { allPages, type Collection, entryTitle, type SiteContent } from "@goodfellow-cms/core";
+import {
+  allPages,
+  type Collection,
+  entryTitle,
+  hasLanguages,
+  mainLanguage,
+  pageLanguage,
+  pageTranslations,
+  pathLanguage,
+  type SiteContent,
+  siteLanguages,
+} from "@goodfellow-cms/core";
 import { type ComponentData, createUsePuck, type Fields, type Plugin, useGetPuck } from "@puckeditor/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
@@ -37,6 +48,8 @@ export interface AiContext {
   path: string;
   title: string;
   collection?: Collection;
+  /** The language of what's being edited. */
+  language?: string;
 }
 
 type Mode = "add" | "edit" | "fill";
@@ -47,11 +60,12 @@ const claudeModelLabels: Record<string, StringKey> = {
   "claude-haiku-4-5": "ai.model.claude-haiku-4-5",
 };
 
-function siteSummary(content: SiteContent, media: string[], stockPhotos: boolean): SiteSummary {
+function siteSummary(content: SiteContent, media: string[], stockPhotos: boolean, language: string): SiteSummary {
   return {
     title: content.settings.title,
     description: content.settings.description,
-    language: content.settings.language,
+    // The language of the page being edited, which may be one of the site's other languages.
+    language,
     pages: allPages(content)
       .slice(0, 200)
       .map((page) => {
@@ -342,6 +356,19 @@ function AiPanel({ context }: { context: AiContext }) {
     const blocks = toContent(answer, puckConfig, newId);
     const [first] = blocks;
     if (!first) throw new AiError("answer", "The answer didn't contain any blocks that could be used.");
+    if (task.kind === "translate") {
+      const root = answer && typeof answer === "object" ? (answer as { root?: unknown }).root : undefined;
+      const props = toValues({ values: root }, task.rootFields, task.root);
+      dispatch({
+        type: "setData",
+        data: (previous) => ({
+          ...previous,
+          root: { ...previous.root, props: { ...previous.root.props, ...props } },
+          content: blocks,
+        }),
+      });
+      return;
+    }
     if (task.kind === "edit") {
       const selector = getSelectorForId(task.block.props.id);
       if (!selector) throw new AiError("answer", "The block being changed is no longer on the page.");
@@ -394,11 +421,62 @@ function AiPanel({ context }: { context: AiContext }) {
     return { answer: withStockPhotos(answer, photos), photos: report };
   };
 
+  // The language of the page or item being edited, and whether it's one to translate into.
+  const language = context.language ?? pathLanguage(content.settings, context.path);
+  const translating =
+    hasLanguages(content.settings) &&
+    (context.kind === "page" || context.kind === "entry") &&
+    language !== mainLanguage(content.settings)
+      ? siteLanguages(content.settings).find((candidate) => candidate.code === language)
+      : undefined;
+
+  /** Translates the whole page, or every field of the item, into the page's language. */
+  const translationTask = (): AiTask | undefined => {
+    if (!translating) return undefined;
+    const { appState, config: puckConfig } = getPuck();
+    const named = `${translating.name} (${translating.code})`;
+    if (context.kind === "entry") {
+      return {
+        kind: "fill",
+        name: itemName,
+        fields: (puckConfig.root?.fields ?? {}) as Fields,
+        values: { ...(appState.data.root.props ?? {}) },
+        instruction: `Translate every value into ${named}. Keep addresses, image addresses, dates and times as they are.${
+          instruction.trim() ? `\n\n${instruction.trim()}` : ""
+        }`,
+      };
+    }
+    // Links to pages that have a translation in this language go to it.
+    const links = content.pages.flatMap((page) => {
+      const translation = pageTranslations(content, page).get(language);
+      return pageLanguage(content, page) === mainLanguage(content.settings) && translation
+        ? [{ from: page.path, to: translation.path }]
+        : [];
+    });
+    return {
+      kind: "translate",
+      page: { path: context.path, title: context.title },
+      content: appState.data.content,
+      rootFields: (puckConfig.root?.fields ?? {}) as Fields,
+      root: Object.fromEntries(Object.entries(appState.data.root.props ?? {}).filter(([name]) => name !== "id")),
+      language: named,
+      links,
+      ...(instruction.trim() && { instruction: instruction.trim() }),
+    };
+  };
+
   const run = async () => {
     const text = instruction.trim();
     if (!text) return;
-    const task = taskFor(text);
-    const request: AiRequest = buildRequest(task, getPuck().config, siteSummary(content, media, photosAllowed));
+    await runTask(taskFor(text));
+  };
+
+  const runTask = async (task: AiTask) => {
+    const request: AiRequest = buildRequest(
+      task,
+      getPuck().config,
+      siteSummary(content, media, photosAllowed, language),
+    );
     if (settings.provider === "manual") {
       setReply("");
       setCopied(false);
@@ -454,6 +532,26 @@ function AiPanel({ context }: { context: AiContext }) {
             ? t("ai.mode.edit", { block: blockName(selected) })
             : t("ai.mode.add")}
       </p>
+
+      {translating && (
+        <div className="gfa-ai-translate">
+          <p className="gfa-hint">
+            {t(context.kind === "entry" ? "ai.translate.entryHint" : "ai.translate.hint", {
+              language: translating.name,
+            })}
+          </p>
+          <Button
+            variant="primary"
+            disabled={working || !ready}
+            onClick={() => {
+              const task = translationTask();
+              if (task) void runTask(task);
+            }}
+          >
+            {t("ai.translate", { language: translating.name })}
+          </Button>
+        </div>
+      )}
 
       <Field label={t("ai.instruction")}>
         {(props) => (

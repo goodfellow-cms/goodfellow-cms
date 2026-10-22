@@ -1,4 +1,13 @@
-import type { Collection, Entry, ImageSize, Menus, PageCredit, PageView, SiteSettings } from "@goodfellow-cms/core";
+import type {
+  Collection,
+  Entry,
+  ImageSize,
+  LanguageLink,
+  Menus,
+  PageCredit,
+  PageView,
+  SiteSettings,
+} from "@goodfellow-cms/core";
 import type { Metadata } from "@puckeditor/core";
 import type { AnchorHTMLAttributes, ComponentType, ImgHTMLAttributes } from "react";
 
@@ -24,7 +33,7 @@ export interface SiteComponents {
 
 /** What every block can know about the site and the page being rendered. */
 /** A place in the admin panel that blocks' notes in the editor can link to: Site Settings, or a section of it. */
-export type AdminPlace = "settings" | "contact-settings" | "forms-settings" | "theme-settings";
+export type AdminPlace = "settings" | "contact-settings" | "forms-settings" | "theme-settings" | "language-settings";
 
 /** A link into the admin panel, for a block's note in the editor: spread it onto an `<a>`. */
 export interface AdminLinkProps {
@@ -62,6 +71,13 @@ export interface SiteContextValue {
   components?: SiteComponents;
   /** The sizes of the site's images, by address (`/media/photo.jpg`), where they're known. */
   media?: Record<string, ImageSize>;
+  /**
+   * On a site in several languages, the page in each of them: its translation,
+   * or the language's home page where it has none, for a language switch.
+   */
+  languages?: LanguageLink[];
+  /** On a site in several languages, the home page of the page's language, such as `/es`, which the site's name links to. */
+  home?: string;
   /** The credits of the photos the page shows, such as ones from Openverse, which the page lists at its end. */
   credits?: PageCredit[];
   /** In the admin panel's editor only: links to its screens, so a block's note can say where to fix something. */
@@ -78,5 +94,6 @@ export function siteMetadata(site: SiteContextValue): Metadata {
     collection: site.collection,
     entry: site.entry,
     view: site.view,
+    languages: site.languages,
   };
 }

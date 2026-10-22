@@ -8,6 +8,12 @@
   "description": "An example parish website made with Goodfellow. St. Joseph Parish, its people and its details are made up.",
   "favicon": "/media/favicon.svg",
   "language": "en",
+  "languages": [
+    {
+      "code": "es",
+      "name": "Español"
+    }
+  ],
   "logo": {
     "alt": "St. Joseph Parish",
     "src": "/media/logo.svg"
@@ -34,5 +40,12 @@
   },
   "timeZone": "America/New_York",
   "title": "St. Joseph Parish",
-  "titleTemplate": "%s | St. Joseph Parish"
+  "titleTemplate": "%s | St. Joseph Parish",
+  "translations": {
+    "es": {
+      "description": "Un sitio parroquial de ejemplo hecho con Goodfellow. La Parroquia de San José, su gente y sus datos son inventados.",
+      "title": "Parroquia de San José",
+      "titleTemplate": "%s | Parroquia de San José"
+    }
+  }
 }

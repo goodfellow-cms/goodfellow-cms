@@ -35,6 +35,15 @@
                       "menu": "main",
                       "orientation": "horizontal"
                     }
+                  },
+                  {
+                    "type": "LanguageSwitch",
+                    "props": {
+                      "id": "LanguageSwitch-header",
+                      "className": "",
+                      "display": "links",
+                      "label": "Languages"
+                    }
                   }
                 ],
                 "justify": "between",

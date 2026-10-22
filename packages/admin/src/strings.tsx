@@ -124,6 +124,8 @@ export const defaultStrings = {
   "checks.missing-page": "{place} links to {target}, which isn't a page on the site.",
   "checks.missing-media": "{place} uses {target}, which isn't in the media library.",
   "checks.no-title": "{place} has no title, so browser tabs and search results show only the site's name.",
+  "checks.bad-translation":
+    "{place} says it's a translation of {target}, but only pages and items in the site's main language have translations.",
   "checks.no-description": "{place} has no description for search results and link previews to show.",
   "checks.low-contrast":
     'Text in "{text}" is hard to read on "{background}": its contrast is {ratio} to 1, and text needs at least 4.5 to 1.',
@@ -555,6 +557,11 @@ export const defaultStrings = {
   "ai.photos.error.unreachable":
     "Couldn't reach Openverse, so some images are left empty. Check your connection, or choose them from the media library.",
   "ai.photos.error.publish": "The photos found couldn't be added to the media library, so their images are left empty.",
+  "ai.translate": "Translate into {language}",
+  "ai.translate.hint":
+    "This page is in {language}. The AI can translate all of it, blocks and settings, keeping its layout. Anything you write below is passed on too, such as how formal to be.",
+  "ai.translate.entryHint":
+    "This item is in {language}. The AI can translate all its fields. Anything you write below is passed on too.",
   "ai.write": "Write it",
   "ai.change": "Change it",
   "ai.fill": "Fill it in",
@@ -606,6 +613,7 @@ export const defaultStrings = {
   "appearance.light": "Light",
   "appearance.dark": "Dark",
   "settings.tab.general": "General",
+  "settings.tab.languages": "Languages",
   "settings.tab.theme": "Colors & fonts",
   "settings.tab.menus": "Menus",
   "settings.tab.css": "Custom CSS",
@@ -946,6 +954,23 @@ export const defaultStrings = {
     "Applies to every link to another site: menus, buttons and text. Links to this site's own pages open in the same tab.",
   "general.language": "Language code",
   "general.languageHint": "Such as en, es or fr.",
+  "languages.intro":
+    "A site can be in several languages. Pages in the main language are at the site's address; each other language's pages are under its code, such as /es/about for Spanish. Translate a page from the Pages screen once its language is published.",
+  "languages.main": "Main language",
+  "languages.mainCodeHintUsed": "It can't change while the site has pages or items in other languages.",
+  "languages.name": "Name",
+  "languages.nameHint": "How the language switch names it, in that language.",
+  "languages.new": "New language",
+  "languages.add": "Add a language",
+  "languages.remove": "Remove this language",
+  "languages.codeHint": "Such as es, fr or pt-BR. Its pages go under its code, so it can't change once published.",
+  "languages.codeHintPublished": "Its pages are under {prefix}.",
+  "languages.codeInvalid": "Use a language code, such as es, fr or pt-BR.",
+  "languages.codeTaken": "The site has this language already.",
+  "languages.codeUsed": "The site has pages under {prefix} already. Move them first, or choose another code.",
+  "languages.titleHint": "The site's title in this language. Left empty, it's the main language's.",
+  "languages.inUse":
+    "Pages and items in this language: {count}. To remove the language, delete them or move them out of it first.",
   "general.timeZone": "Time zone",
   "general.timeZoneHint":
     "The time zone events' times are in. Calendars show them in it, and visitors' calendars move them to their own.",
@@ -1051,6 +1076,26 @@ export const defaultStrings = {
   "menus.moveUp": "Move up",
   "menus.moveDown": "Move down",
   "menus.remove": "Remove",
+  "translations.add": "Translate into {language}",
+  "translations.current": "Up to date",
+  "translations.outdated": "Out of date",
+  "translations.markCurrent": "Mark as up to date",
+  "translations.markCurrentMessage": "Mark {title} as up to date",
+  "translations.of": "Translation of {title}",
+  "translations.entryOf": "In {language}: translation of {title}",
+  "translations.inLanguage": "In {language}",
+  "translations.addTitle": "Translate {title} into {language}",
+  "translations.addHint":
+    "This makes a copy in {language} for you to translate. The Pages screen says when the original changes, so you know to update the translation.",
+  "translations.addSubmit": "Make the copy",
+  "translations.addMessage": "Translate {title} into {language}",
+  "translations.addressLanguage": "Pages in {language} have addresses starting with {prefix}.",
+  "menus.language": "Language",
+  "newEntry.languageHint":
+    "For an item only in this language. To translate an item, use “Translate into” in the list instead, which keeps the two linked.",
+  "menus.ownMenus": "{language} has menus of its own",
+  "menus.sameAsMain":
+    "Pages in {language} show the main language's menus. Give it menus of its own to translate their links' names and point them at its pages.",
   "menus.newLink": "New link",
 
   "redirects.intro":

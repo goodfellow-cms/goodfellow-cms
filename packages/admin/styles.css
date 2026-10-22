@@ -24,6 +24,8 @@
   --gfa-published-text: light-dark(#ffffff, #022c22);
   --gfa-error-bg: light-dark(#fef2f2, #3b0d0d);
   --gfa-error-text: light-dark(#991b1b, #fca5a5);
+  --gfa-warning-bg: light-dark(#fef3c7, #451a03);
+  --gfa-warning-text: light-dark(#92400e, #fde68a);
   --gfa-demo-bg: light-dark(#fef9c3, #422006);
   --gfa-demo-border: light-dark(#fde68a, #854d0e);
   --gfa-demo-text: light-dark(#713f12, #fde68a);
@@ -1640,4 +1642,53 @@ body,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* One of the site's other languages, on Site Settings' Languages tab. */
+.gfa-language-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-surface);
+}
+
+.gfa-language-card > .gfa-section-title {
+  margin: 0;
+}
+
+.gfa-language-card > .gfa-button {
+  align-self: flex-start;
+}
+
+/* A page's or item's translations, in the Pages screen's and collections' lists. */
+.gfa-translations {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.gfa-translation {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gfa-badge-warning {
+  background: var(--gfa-warning-bg);
+  color: var(--gfa-warning-text);
+}
+
+.gfa-ai-translate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--gfa-border);
 }

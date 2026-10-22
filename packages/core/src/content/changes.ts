@@ -9,6 +9,7 @@ import { updateSettingsFile } from "../updates.js";
 import { storedCode } from "./code.js";
 import { type Collection, type Entry, isEmptyValue } from "./collections.js";
 import type { PhotoCredit } from "./credits.js";
+import { entryPathIn } from "./languages.js";
 import { relinkSite } from "./links.js";
 import type { Page, SiteCode, SiteContent } from "./load.js";
 import { serializeMarkdownEntry } from "./markdown.js";
@@ -23,6 +24,7 @@ import {
   HEADER_FILE,
   isAddressSegment,
   isReservedPagePath,
+  languageLayoutFile,
   MEDIA_FILE,
   MENUS_FILE,
   normalizePagePath,
@@ -33,7 +35,7 @@ import {
   UPDATES_FILE,
 } from "./paths.js";
 import { type Redirect, redirectFrom } from "./redirects.js";
-import { type Schedule, scheduleOf } from "./schedule.js";
+import { type FileDetails, fileDetailsOf } from "./schedule.js";
 import {
   type CollectionField,
   type CollectionFile,
@@ -91,14 +93,16 @@ export function storedData(data: Data): Data {
 }
 
 /**
- * Writes a page's file. `schedule` is when it's on the site: pass the page's
- * own (`scheduleOf(page.content)`) to keep it, since leaving it out shows the
- * page straight away.
+ * Writes a page's file. `details` are when it's on the site and what it
+ * translates: pass the page's own (`page.content`) to keep them, since
+ * leaving them out shows the page straight away, as a page of its own.
  */
-export function pageFileChange(path: string, data: Data, schedule: Schedule | undefined): FileChange {
+export function pageFileChange(path: string, data: Data, details: FileDetails | undefined): FileChange {
+  // A page's language is its address, so its file doesn't say it.
+  const { inLanguage: _language, ...kept } = fileDetailsOf(details ?? {});
   return {
     path: pagePathToFile(path),
-    content: serializeContent({ version: CURRENT_VERSION.page, ...scheduleOf(schedule ?? {}), data: storedData(data) }),
+    content: serializeContent({ version: CURRENT_VERSION.page, ...kept, data: storedData(data) }),
   };
 }
 
@@ -111,8 +115,25 @@ export function newPageData(title: string): Data {
   return { root: { props: { title } }, content: [] };
 }
 
-export function menusFileChange(menus: Menus): FileChange {
-  return { path: MENUS_FILE, content: serializeContent({ version: CURRENT_VERSION.menus, menus }) };
+/** Writes the menus: the main language's, and every other language's, which pass through unless they're given. */
+export function menusFileChange({
+  menus,
+  languageMenus,
+}: {
+  menus: Menus;
+  languageMenus?: Record<string, Menus>;
+}): FileChange {
+  const languages = Object.fromEntries(
+    Object.entries(languageMenus ?? {}).filter(([, own]) => Object.keys(own).length > 0),
+  );
+  return {
+    path: MENUS_FILE,
+    content: serializeContent({
+      version: CURRENT_VERSION.menus,
+      menus,
+      ...(Object.keys(languages).length > 0 && { languages }),
+    }),
+  };
 }
 
 /** The site's redirects as `content/redirects.json` holds them: the list, and what the page at an old address says. */
@@ -185,7 +206,15 @@ export function relinkedChanges(
         const layout = file === HEADER_FILE ? content.header : content.footer;
         return [{ path: file, content: serializeContent({ ...layout, version: CURRENT_VERSION.layout }) }];
       }
-      if (file === MENUS_FILE) return [menusFileChange(content.menus)];
+      for (const [language, layouts] of Object.entries(content.languageLayouts ?? {})) {
+        for (const part of ["header", "footer"] as const) {
+          const layout = layouts[part];
+          if (layout && file === languageLayoutFile(part, language)) {
+            return [{ path: file, content: serializeContent({ ...layout, version: CURRENT_VERSION.layout }) }];
+          }
+        }
+      }
+      if (file === MENUS_FILE) return [menusFileChange(content)];
       if (file === REDIRECTS_FILE) {
         return [redirectsFileChange({ redirects: content.redirects ?? [], message: content.redirectMessage })];
       }
@@ -233,7 +262,9 @@ export function movePageChanges(
 }
 
 export function siteSettingsFileChange(settings: SiteSettings): FileChange {
-  return { path: SITE_FILE, content: serializeContent({ ...settings, version: CURRENT_VERSION.site }) };
+  // Only the settings a page in another language is shown with have it.
+  const { mainLanguage: _shown, ...stored } = settings;
+  return { path: SITE_FILE, content: serializeContent({ ...stored, version: CURRENT_VERSION.site }) };
 }
 
 /** Whether fixes install each night, and the releases updates skip. */
@@ -287,19 +318,20 @@ type EntryCollection = Pick<Collection, "id" | "settings">;
 
 /**
  * Writes an entry's file: JSON, or in a collection of Markdown files, Markdown
- * whose body is the body field's value (Markdown already). `schedule` is when
- * it's on the site: pass the entry's own (`entry.content`) to keep it, since
- * leaving it out shows the entry straight away.
+ * whose body is the body field's value (Markdown already). `details` are when
+ * it's on the site, its language and what it translates: pass the entry's own
+ * (`entry.content`) to keep them, since leaving them out shows the entry
+ * straight away, in the main language.
  */
 export function entryFileChange(
   collection: EntryCollection,
   slug: string,
   values: Record<string, unknown>,
-  schedule: Schedule | undefined,
+  details: FileDetails | undefined,
 ): FileChange {
   const fields = storedEntryFields(values);
   const { settings } = collection;
-  const times = scheduleOf(schedule ?? {});
+  const times = fileDetailsOf(details ?? {});
   return settings.markdown
     ? { path: entryFile(collection.id, slug, "markdown"), content: serializeMarkdownEntry(settings, fields, times) }
     : {
@@ -444,20 +476,28 @@ export type EntryNameProblem = "invalid" | "reserved" | "taken";
 /**
  * Checks the name an entry's file and address use. `addresses` are the
  * addresses already in use on the site; `current` is the entry's own name.
+ * Names are the collection's, whatever an entry's language, and an entry in
+ * another language (`language`, with the site's `settings`) has its address
+ * under that language's.
  */
 export function checkEntrySlug(
   input: string,
   collection: Collection,
   addresses: string[],
   current?: Entry,
+  language?: { settings: SiteSettings; code: string },
 ): { ok: true; slug: string; path?: string } | { ok: false; problem: EntryNameProblem } {
   const slug = input.trim();
   if (!isAddressSegment(slug)) return { ok: false, problem: "invalid" };
   if (slug !== current?.slug && collection.entries.some((entry) => entry.slug === slug)) {
     return { ok: false, problem: "taken" };
   }
-  if (collection.settings.path === undefined) return { ok: true, slug };
-  const path = entryAddress(collection.settings.path, slug);
+  const path = language
+    ? entryPathIn(language.settings, collection.settings, slug, language.code)
+    : collection.settings.path === undefined
+      ? undefined
+      : entryAddress(collection.settings.path, slug);
+  if (path === undefined) return { ok: true, slug };
   if (isReservedPagePath(path)) return { ok: false, problem: "reserved" };
   if (path !== current?.path && addresses.includes(path)) return { ok: false, problem: "taken" };
   return { ok: true, slug, path };
@@ -474,14 +514,22 @@ export function moveEntryChanges(
 ): FileChange[] {
   const relinked =
     entry.path && path ? relinkSite(content, [{ from: entry.path, to: path }], blocks) : { content, files: [] };
-  const moved =
-    relinked.content.collections
-      .find((candidate) => candidate.id === collection.id)
-      ?.entries.find((candidate) => candidate.file === entry.file) ?? entry;
+  const after = relinked.content.collections.find((candidate) => candidate.id === collection.id);
+  const moved = after?.entries.find((candidate) => candidate.file === entry.file) ?? entry;
+  // Its translations name it by its name, so they're renamed with it.
+  const translations = (after?.entries ?? []).filter(
+    (candidate) => candidate.file !== entry.file && candidate.content.translationOf === entry.slug,
+  );
   return [
     { path: entry.file, delete: true },
     entryFileChange(collection, slug, moved.content.fields, moved.content),
-    ...relinkedChanges(relinked, [entry.file]),
+    ...translations.map((translation) =>
+      entryFileChange(collection, translation.slug, translation.content.fields, {
+        ...translation.content,
+        translationOf: slug,
+      }),
+    ),
+    ...relinkedChanges(relinked, [entry.file, ...translations.map((translation) => translation.file)]),
   ];
 }
 

@@ -1,7 +1,7 @@
-import type { MenuItem, Menus } from "@goodfellow-cms/core";
+import { hasLanguages, type MenuItem, type Menus, type SiteSettings, siteLanguages } from "@goodfellow-cms/core";
 import { useState } from "react";
 import { useStrings } from "./strings.js";
-import { Button, TextField } from "./ui.js";
+import { Button, Field, TextField } from "./ui.js";
 
 const MENU_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -176,6 +176,80 @@ export function MenusEditor({ menus, onChange }: { menus: Menus; onChange: (menu
           {t("menus.add")}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The Menus tab: the main language's menus, and on a site in several
+ * languages, each other language's, which start as a copy of the main
+ * language's and are used in place of them on its pages. A language without
+ * menus of its own shows the main language's.
+ */
+export function MenusTab({
+  settings,
+  menus,
+  languageMenus,
+  onMenusChange,
+  onLanguageMenusChange,
+}: {
+  /** The settings as published, whose languages have pages already. */
+  settings: SiteSettings;
+  menus: Menus;
+  languageMenus: Record<string, Menus>;
+  onMenusChange: (menus: Menus) => void;
+  onLanguageMenusChange: (languageMenus: Record<string, Menus>) => void;
+}) {
+  const t = useStrings();
+  const languages = siteLanguages(settings);
+  const [chosen, setChosen] = useState(languages[0]?.code ?? "");
+  const language = languages.find((candidate) => candidate.code === chosen) ?? languages[0];
+  if (!hasLanguages(settings) || !language) return <MenusEditor menus={menus} onChange={onMenusChange} />;
+  const own = languageMenus[language.code];
+  return (
+    <div className="gfa-form">
+      <Field label={t("menus.language")}>
+        {(props) => (
+          <select
+            {...props}
+            className="gfa-input"
+            value={language.code}
+            onChange={(event) => setChosen(event.target.value)}
+          >
+            {languages.map((candidate) => (
+              <option key={candidate.code} value={candidate.code}>
+                {candidate.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+      {language.main ? (
+        <MenusEditor key={language.code} menus={menus} onChange={onMenusChange} />
+      ) : (
+        <>
+          <label className="gfa-checkbox">
+            <input
+              type="checkbox"
+              checked={own !== undefined}
+              onChange={(event) => {
+                const { [language.code]: _dropped, ...others } = languageMenus;
+                onLanguageMenusChange(event.target.checked ? { ...others, [language.code]: menus } : others);
+              }}
+            />
+            {t("menus.ownMenus", { language: language.name })}
+          </label>
+          {own ? (
+            <MenusEditor
+              key={language.code}
+              menus={own}
+              onChange={(next) => onLanguageMenusChange({ ...languageMenus, [language.code]: next })}
+            />
+          ) : (
+            <p className="gfa-hint">{t("menus.sameAsMain", { language: language.name })}</p>
+          )}
+        </>
+      )}
     </div>
   );
 }

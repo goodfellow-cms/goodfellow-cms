@@ -153,6 +153,38 @@ export {
   feedTitle,
 } from "./content/feeds.js";
 export {
+  contentForPage,
+  contentInLanguage,
+  entryLanguage,
+  entryPathIn,
+  entrySourceHash,
+  entryTranslations,
+  hasLanguages,
+  isLanguageHome,
+  isOtherLanguage,
+  type LanguageLink,
+  languageHome,
+  languageLinks,
+  languageName,
+  languagePattern,
+  languagePrefix,
+  layoutIn,
+  localizedSettings,
+  mainLanguage,
+  menusIn,
+  pageAlternates,
+  pageLanguage,
+  pageSourceHash,
+  pageTranslations,
+  pathLanguage,
+  type SiteLanguage,
+  settingsPrefix,
+  siteLanguages,
+  type TranslationState,
+  translationHash,
+  translationState,
+} from "./content/languages.js";
+export {
   type AddressMove,
   type LinkVisitor,
   linkTarget,
@@ -218,6 +250,7 @@ export {
   isAddressSegment,
   isReservedPagePath,
   LIB_DIR,
+  languageLayoutFile,
   MEDIA_DIR,
   MEDIA_FILE,
   MENUS_FILE,
@@ -254,6 +287,8 @@ export { type RenderedPage, renderedProblems } from "./content/rendered-checks.j
 export { sanitizeHtml } from "./content/sanitize.js";
 export {
   dueChanges,
+  type FileDetails,
+  fileDetailsOf,
   isScheduled,
   isShown,
   type Schedule,
@@ -266,6 +301,7 @@ export {
   scheduleState,
   shownContent,
   upcomingChanges,
+  withSchedule,
 } from "./content/schedule.js";
 export {
   type CollectionField,
@@ -278,6 +314,7 @@ export {
   type FieldType,
   FONT_CATEGORIES,
   type FontCategory,
+  isLanguageCode,
   type LayoutFile,
   layoutFileSchema,
   type MenuItem,
@@ -445,7 +482,7 @@ export {
   type StorageLike,
   type TokenLink,
 } from "./git.js";
-export { absoluteUrl, getPageHead, type PageHead } from "./head.js";
+export { absoluteUrl, getPageHead, type PageHead, pageHead, type SitemapPage, sitemapPages } from "./head.js";
 export {
   type CalendarEvent,
   type CalendarFileOptions,

@@ -5,6 +5,7 @@
  * `Page.view` (and `useSite().view` in `@goodfellow-cms/react`).
  */
 
+import { contentForPage } from "./languages.js";
 import { allPages, type Page, type SiteContent } from "./load.js";
 import { normalizePagePath } from "./paths.js";
 
@@ -113,7 +114,8 @@ function blockWithPages(
   blocks: Record<string, unknown>,
 ): Found | undefined {
   if (page.entry || page.path === "/404") return undefined;
-  const context = { content, page, today };
+  // Blocks see the site in the page's language, so a list counts only that language's items.
+  const context = { content: contentForPage(content, page), page, today };
   const data = page.content.data;
   return firstPages(data.content, blocks, context) ?? firstPages(data.zones, blocks, context);
 }
