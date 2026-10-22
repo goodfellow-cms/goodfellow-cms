@@ -30,7 +30,19 @@ function filesIn(dir: string): string[] {
   return readdirSync(dir, { recursive: true, encoding: "utf8" }).map((file) => file.split("\\").join("/"));
 }
 
-/** The addresses that have pages: `content/pages/about.json` is /about, and each collection item has its own. */
+/** The language an item is in, if it isn't the site's main one: `inLanguage` in its file, or its front matter. */
+function itemLanguage(file: string): string | undefined {
+  const text = readFileSync(file, "utf8");
+  const language = file.endsWith(".md")
+    ? /^inLanguage:\s*["']?([A-Za-z0-9-]+)/m.exec(/^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? "")?.[1]
+    : JSON.parse(text).inLanguage;
+  return typeof language === "string" ? language : undefined;
+}
+
+/**
+ * The addresses that have pages: `content/pages/about.json` is /about, and each collection item has its
+ * own, under its language's code (`/es/…`) if it's in another of the site's languages.
+ */
 function pageAddresses(): Set<string> {
   const addresses = new Set<string>();
   for (const file of filesIn("content/pages")) {
@@ -38,11 +50,16 @@ function pageAddresses(): Set<string> {
   }
   for (const id of filesIn("content/collections").filter((file) => file.endsWith("/_collection.json"))) {
     const folder = id.slice(0, -"/_collection.json".length);
-    const pattern = readJson(join("content/collections", id))?.path;
+    const settings = readJson(join("content/collections", id));
+    const pattern = settings?.path;
     if (typeof pattern !== "string") continue;
+    const languagePaths = (settings?.languagePaths ?? {}) as Record<string, string>;
     for (const file of readdirSync(join("content/collections", folder))) {
       const slug = /^(.+)\.(json|md)$/.exec(file)?.[1];
-      if (slug && file !== "_collection.json") addresses.add(pattern.replace("{slug}", slug).replace(/\/+$/, ""));
+      if (!slug || file === "_collection.json") continue;
+      const language = itemLanguage(join("content/collections", folder, file));
+      const own = language ? (languagePaths[language] ?? `/${language.toLowerCase()}${pattern}`) : pattern;
+      addresses.add(own.replace("{slug}", slug).replace(/\/+$/, ""));
     }
   }
   return addresses;

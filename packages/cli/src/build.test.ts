@@ -247,6 +247,11 @@ describe("the starter's vercel.ts", () => {
     try {
       await cp(join(fixture, "content"), join(site, "content"), { recursive: true });
       await copyFile(join(starter, "vercel.ts"), join(site, "vercel.ts"));
+      // An item in Spanish, whose page is under the language's code.
+      await writeFile(
+        join(site, "content/collections/talks/esperanza.json"),
+        JSON.stringify({ version: 1, inLanguage: "es", fields: { title: "Esperanza" } }),
+      );
       await writeFile(
         join(site, "content/redirects.json"),
         JSON.stringify({
@@ -255,6 +260,7 @@ describe("the starter's vercel.ts", () => {
             { from: "/old-news", to: "/news" },
             { from: "/news", to: "/elsewhere" },
             { from: "/talks/hope", to: "/" },
+            { from: "/es/talks/esperanza", to: "/" },
             { from: "/2019/talk(1).html", to: "https://talks.example.org/hope" },
           ],
         }),
