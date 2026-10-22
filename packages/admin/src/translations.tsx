@@ -402,15 +402,7 @@ export function unlinkEntryTranslations(collection: Collection, entry: Entry) {
 }
 
 /** A link to a translation in an editor's header, saying when it's out of date. */
-function TranslationLink({
-  href,
-  language,
-  outdated,
-}: {
-  href: string;
-  language: SiteLanguage;
-  outdated: boolean;
-}) {
+function TranslationLink({ href, language, outdated }: { href: string; language: SiteLanguage; outdated: boolean }) {
   const t = useStrings();
   return (
     <AppLink href={href} className="gfa-button gfa-button-ghost" lang={language.code}>
@@ -432,8 +424,7 @@ export function PageEditorTranslations({ page }: { page: Page }) {
   if (!hasLanguages(content.settings)) return null;
   const main = mainLanguage(content.settings);
   const own = pageLanguage(content, page);
-  const source =
-    own === main ? page : content.pages.find((candidate) => candidate.path === page.content.translationOf);
+  const source = own === main ? page : content.pages.find((candidate) => candidate.path === page.content.translationOf);
   if (!source || pageLanguage(content, source) !== main) return null;
   const group = pageTranslations(content, source);
   const hash = pageSourceHash(source);

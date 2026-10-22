@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pageHead, sitemapPages } from "../head.js";
 import { calendarFiles } from "./calendars.js";
 import { moveEntryChanges, movePageChanges } from "./changes.js";
-import { checkSite } from "./checks.js";
+import { checkSite, publishProblems } from "./checks.js";
 import { feedFiles, feedLinks } from "./feeds.js";
 import {
   contentForPage,
@@ -240,6 +240,52 @@ describe("translations", () => {
     expect(checkSite(missing, { media: [] }).some((problem) => problem.kind === "missing-page")).toBe(true);
   });
 
+  it("says which pages and items have no translation, or one that's out of date", async () => {
+    const content = await site({
+      "content/pages/about.json": page("About our parish"),
+      "content/pages/es/sobre.json": page("Quiénes somos", {
+        translationOf: "/about",
+        translatedFrom: "0000000000000000",
+      }),
+    });
+    const problems = checkSite(content, { media: [] }).filter(
+      (problem) => problem.kind === "missing-translation" || problem.kind === "outdated-translation",
+    );
+    expect(problems).toEqual([
+      // The home page has a translation in Spanish, but the Mass and the choir story have none.
+      {
+        kind: "outdated-translation",
+        severity: "warning",
+        file: "content/pages/about.json",
+        path: "/about",
+        language: "es",
+        translation: "/es/sobre",
+      },
+      {
+        kind: "missing-translation",
+        severity: "warning",
+        file: "content/collections/events/mass.json",
+        path: "/events/mass",
+        language: "es",
+      },
+      {
+        kind: "missing-translation",
+        severity: "warning",
+        file: "content/collections/news/choir.json",
+        path: "/news/choir",
+        language: "es",
+      },
+    ]);
+
+    // When publishing, they're said only when the publish brings them, since a site may leave pages untranslated.
+    const changed = ["content/pages/about.json", "content/collections/news/choir.json"];
+    expect(publishProblems(problems, problems, changed).warnings).toEqual([]);
+    expect(publishProblems([], problems, changed).warnings.map((problem) => problem.kind)).toEqual([
+      "outdated-translation",
+      "missing-translation",
+    ]);
+  });
+
   it("keeps translations linked when a page moves or an item is renamed", async () => {
     const content = await site();
     const moved = movePageChanges(content, await pageAt("/about", content), "/about-us");
@@ -316,6 +362,9 @@ describe("search engines", () => {
     ]);
     const [website] = structuredData(content, await pageAt("/es", content));
     expect(website).toMatchObject({ name: "San José", url: "https://parish.example/es", inLanguage: "es" });
+    // An item's page says its language too.
+    const [article] = structuredData(content, await pageAt("/es/noticias/feria", content));
+    expect(article).toMatchObject({ "@type": "Article", headline: "La feria", inLanguage: "es" });
   });
 });
 

@@ -74,6 +74,7 @@ function eventData(content: SiteContent, collection: Collection, entry: Entry, s
   return {
     "@type": "Event",
     name: details.title,
+    inLanguage: content.settings.language,
     startDate: zonedIso(occurrence.start, timeZone),
     ...(occurrence.end && { endDate: zonedIso(occurrence.end, timeZone) }),
     eventStatus: `${CONTEXT}/EventScheduled`,
@@ -93,6 +94,7 @@ function articleData(content: SiteContent, collection: Collection, entry: Entry,
   const publisher = organization(content, siteUrl);
   return {
     "@type": "Article",
+    inLanguage: content.settings.language,
     // Search engines show headlines of up to 110 characters.
     headline: details.title.length > 110 ? `${details.title.slice(0, 109)}…` : details.title,
     datePublished: details.date,

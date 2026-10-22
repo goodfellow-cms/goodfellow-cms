@@ -39,8 +39,8 @@ import { MediaChooser } from "./media-library.js";
 import { PuckEditor, SiteFrame } from "./puck-editor.js";
 import { ScheduleFields, scheduleSettingsChanges } from "./schedule.js";
 import { useStrings } from "./strings.js";
-import { AppLink } from "./use-link.js";
 import { EntryEditorTranslations } from "./translations.js";
+import { AppLink } from "./use-link.js";
 import { VersionsLink } from "./versions-screen.js";
 
 const usePuck = createUsePuck();

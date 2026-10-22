@@ -124,6 +124,10 @@ export const defaultStrings = {
   "checks.missing-page": "{place} links to {target}, which isn't a page on the site.",
   "checks.missing-media": "{place} uses {target}, which isn't in the media library.",
   "checks.no-title": "{place} has no title, so browser tabs and search results show only the site's name.",
+  "checks.missing-translation":
+    "{place} has no translation in {language} yet. Visitors reading in {language} are sent to its home page instead.",
+  "checks.outdated-translation":
+    "{place} has changed since its translation in {language} was made. Update the translation, then mark it as up to date.",
   "checks.bad-translation":
     "{place} says it's a translation of {target}, but only pages and items in the site's main language have translations.",
   "checks.no-description": "{place} has no description for search results and link previews to show.",

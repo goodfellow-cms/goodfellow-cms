@@ -12,7 +12,17 @@
 import type { ComponentConfig } from "@puckeditor/core";
 import { contrastRatio, MINIMUM_CONTRAST } from "../contrast.js";
 import { DEFAULT_THEME_COLORS, darkThemeColor } from "../theme.js";
-import { entryLanguage, mainLanguage, pageLanguage } from "./languages.js";
+import {
+  entryLanguage,
+  entrySourceHash,
+  entryTranslations,
+  mainLanguage,
+  pageLanguage,
+  pageSourceHash,
+  pageTranslations,
+  siteLanguages,
+  translationState,
+} from "./languages.js";
 import { linkTarget, siteLinks } from "./links.js";
 import type { Page, SiteContent } from "./load.js";
 import { allPages } from "./load.js";
@@ -62,6 +72,20 @@ export type SiteProblem =
    * the address or item's name it names.
    */
   | { kind: "bad-translation"; severity: "warning"; file: string; target: string }
+  /**
+   * A page or item in the main language (`file`, at `path`, or the item's name)
+   * that has no translation in one of the site's other languages.
+   */
+  | { kind: "missing-translation"; severity: "warning"; file: string; path: string; language: string }
+  /** A page's or item's translation (`translation`) that it has changed since, in `language`. */
+  | {
+      kind: "outdated-translation";
+      severity: "warning";
+      file: string;
+      path: string;
+      language: string;
+      translation: string;
+    }
   /**
    * What an automated accessibility checker found on a built page, by its rule
    * (axe-core's), with what it means in plain words and how many places on the page have it.
@@ -167,6 +191,55 @@ function translationProblems(content: SiteContent): SiteProblem[] {
       else if (entryLanguage(settings, source) !== main) bad(entry.file, target);
     }
   }
+  // What the main language's pages and items lack, or have that's out of date, in each other language.
+  const others = siteLanguages(settings).filter((language) => !language.main);
+  /** Each other language's translation of a page or item: missing, or out of date with `source`, its hash now. */
+  const untranslated = (
+    file: string,
+    path: string,
+    source: string,
+    translations: Map<string, { translatedFrom?: string; at: string }>,
+  ) => {
+    for (const language of others) {
+      const translation = translations.get(language.code);
+      if (!translation) {
+        problems.push({ kind: "missing-translation", severity: "warning", file, path, language: language.code });
+      } else if (translationState(source, translation) === "outdated") {
+        problems.push({
+          kind: "outdated-translation",
+          severity: "warning",
+          file,
+          path,
+          language: language.code,
+          translation: translation.at,
+        });
+      }
+    }
+  };
+  if (others.length > 0) {
+    for (const page of content.pages) {
+      if (page.path === "/404" || pageLanguage(content, page) !== main) continue;
+      const translations = new Map(
+        [...pageTranslations(content, page)].map(([code, translation]) => [
+          code,
+          { translatedFrom: translation.content.translatedFrom, at: translation.path },
+        ]),
+      );
+      untranslated(page.file, page.path, pageSourceHash(page), translations);
+    }
+    for (const collection of content.collections) {
+      for (const entry of collection.entries) {
+        if (entryLanguage(settings, entry) !== main) continue;
+        const translations = new Map(
+          [...entryTranslations(settings, collection, entry)].map(([code, translation]) => [
+            code,
+            { translatedFrom: translation.content.translatedFrom, at: translation.path ?? translation.slug },
+          ]),
+        );
+        untranslated(entry.file, entry.path ?? entry.slug, entrySourceHash(entry), translations);
+      }
+    }
+  }
   return problems;
 }
 
@@ -216,6 +289,9 @@ export function problemKey(problem: SiteProblem): string {
     case "empty-link":
     case "bad-translation":
       return `${problem.kind} ${problem.file} ${problem.target}`;
+    case "missing-translation":
+    case "outdated-translation":
+      return `${problem.kind} ${problem.file} ${problem.language}`;
     case "skipped-heading":
       return `${problem.kind} ${problem.file} ${problem.level} ${problem.text}`;
     case "accessibility":
@@ -238,9 +314,19 @@ export function publishProblems(
   const changed = new Set(changedFiles);
   const blocking = after.filter((problem) => problem.severity === "error" && !existing.has(problemKey(problem)));
   const blocked = new Set(blocking);
-  const warnings = after.filter((problem) => !blocked.has(problem) && changed.has(problem.file));
+  // Translations missing or out of date are said once, when a publish brings them: a site may well leave pages
+  // untranslated for good.
+  const warnings = after.filter(
+    (problem) =>
+      !blocked.has(problem) &&
+      changed.has(problem.file) &&
+      (!ONCE_ONLY.has(problem.kind) || !existing.has(problemKey(problem))),
+  );
   return { blocking, warnings };
 }
+
+/** Warnings a publish shows only when it brings them. */
+const ONCE_ONLY = new Set<SiteProblem["kind"]>(["missing-translation", "outdated-translation"]);
 
 /** A problem as developers' tools say it, such as `goodfellow build`, naming the file it's in. */
 export function formatSiteProblem(problem: SiteProblem): string {
@@ -267,6 +353,10 @@ export function formatSiteProblem(problem: SiteProblem): string {
       return `${problem.file} (${problem.path}) has a link to ${problem.target} with no text.`;
     case "bad-translation":
       return `${problem.file} says it translates ${problem.target}, but translations translate a page or item in the site's main language.`;
+    case "missing-translation":
+      return `${problem.file} (${problem.path}) has no translation in ${problem.language}.`;
+    case "outdated-translation":
+      return `${problem.file} (${problem.path}) has changed since ${problem.translation}, its translation in ${problem.language}, was made.`;
     case "accessibility":
       return `${problem.path}: ${problem.help} (${problem.rule}${problem.count > 1 ? `, ${problem.count} places` : ""}).`;
   }

@@ -139,7 +139,7 @@ describe("build", () => {
       '<link rel="alternate" type="application/rss+xml" title="Talks – Fixture" href="/from-config/feeds/talks.rss"/>',
     );
     expect(home).toContain('"@type":"WebSite"');
-    expect(await read("talks/hope/index.html")).toContain('"@type":"Article","headline":"On hope"');
+    expect(await read("talks/hope/index.html")).toContain('"@type":"Article","inLanguage":"en","headline":"On hope"');
   });
 
   it("builds the starter template", async () => {
@@ -168,7 +168,11 @@ describe("build", () => {
       // four stories in Spanish. Staff have no pages of their own. The calendar has a page for each month, from
       // last month to a year ahead, and the news a second page and one for each of its four topics.
       expect(result.pages).toHaveLength(26 + 9 + 14 + 5);
-      expect(result.problems).toEqual([]);
+      // Only some of its pages and items are in Spanish, as a real parish's might be, and the build says which aren't.
+      expect(result.problems.filter((problem) => problem.kind !== "missing-translation")).toEqual([]);
+      expect(result.problems).toContainEqual(
+        expect.objectContaining({ kind: "missing-translation", file: "content/pages/about.json", language: "es" }),
+      );
       const home = await readFile(join(parishOut, "index.html"), "utf8");
       expect(home).toContain("<title>St. Joseph Parish, Anytown</title>");
       expect(home).toContain("Weekend Masses");
