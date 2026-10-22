@@ -1080,6 +1080,7 @@ export const defaultStrings = {
   "menus.remove": "Remove",
   "translations.add": "Translate into {language}",
   "translations.current": "Up to date",
+  "translations.label": "Translations",
   "translations.outdated": "Out of date",
   "translations.markCurrent": "Mark as up to date",
   "translations.markCurrentMessage": "Mark {title} as up to date",

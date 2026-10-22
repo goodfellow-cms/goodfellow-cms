@@ -7,6 +7,7 @@ import { type Failure, PublishFailure } from "./publish-failure.js";
 import { PuckEditor } from "./puck-editor.js";
 import { navigate } from "./router.js";
 import { useStrings } from "./strings.js";
+import { PageEditorTranslations } from "./translations.js";
 import { Button } from "./ui.js";
 import { AppLink } from "./use-link.js";
 import { VersionsLink } from "./versions-screen.js";
@@ -32,7 +33,12 @@ export function PageEditorScreen({ path }: { path: string }) {
       path={page.path}
       title={pageTitle(page)}
       data={page.content.data as Data}
-      actions={<VersionsLink file={page.file} />}
+      actions={
+        <>
+          <PageEditorTranslations page={page} />
+          <VersionsLink file={page.file} />
+        </>
+      }
       toChanges={(data) => {
         const title =
           typeof data.root.props?.title === "string" && data.root.props.title.trim()
