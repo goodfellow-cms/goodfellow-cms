@@ -105,10 +105,6 @@ function isTrusted(req: IncomingMessage, trustOrigin: DevApiOptions["trustOrigin
   return origin === undefined || trustOrigin(origin, req.headers.host);
 }
 
-/**
- * Handles a request to the development API, or returns `false` if the URL
- * isn't one of its endpoints. Never mounted outside `goodfellow dev`.
- */
 /** The files builds write besides pages, by the folder they're in, and what each kind is served as. */
 const BUILD_FILES = [
   { dir: CALENDARS_DIR, extensions: [".ics"], files: calendarFiles },
@@ -121,16 +117,23 @@ const BUILD_FILE_TYPES: Record<string, string> = {
   ".atom": "application/atom+xml; charset=utf-8",
 };
 
+/** The kind of build file an address is, under the site's other languages' codes (`/es/feeds/…`) too. */
+function buildFileKind(pathname: string) {
+  return BUILD_FILES.find(
+    ({ dir, extensions }) =>
+      new RegExp(`^(?:/[a-z0-9-]+)?/${dir}/`).test(pathname) &&
+      extensions.some((extension) => pathname.endsWith(extension)),
+  );
+}
+
 /**
  * Answers a request for one of the files builds write besides pages, the
- * calendar files (`/calendars/…`) and feeds (`/feeds/…`), from the site's
- * content as it is now. Says whether the address was one.
+ * calendar files (`/calendars/…`) and feeds (`/feeds/…`), each also under the
+ * site's other languages' codes, from the site's content as it is now. Says
+ * whether the address was one.
  */
 export async function sendBuildFile(source: ContentSource, pathname: string, res: ServerResponse): Promise<boolean> {
-  const kind = BUILD_FILES.find(
-    ({ dir, extensions }) =>
-      pathname.startsWith(`/${dir}/`) && extensions.some((extension) => pathname.endsWith(extension)),
-  );
+  const kind = buildFileKind(pathname);
   if (!kind) return false;
   const file = kind.files(shownContent(await loadSiteContent(source))).find((candidate) => candidate.path === pathname);
   if (!file) {
@@ -144,6 +147,10 @@ export async function sendBuildFile(source: ContentSource, pathname: string, res
   return true;
 }
 
+/**
+ * Handles a request to the development API, or returns `false` if the URL
+ * isn't one of its endpoints. Never mounted outside `goodfellow dev`.
+ */
 export async function handleDevApi(
   store: ContentStore,
   req: IncomingMessage,
@@ -160,7 +167,7 @@ export async function handleDevApi(
     return true;
   }
   // Calendar files and feeds are public, as they are on the built site: next dev rewrites /calendars/ and /feeds/ here.
-  if (req.method === "GET" && (endpoint.startsWith(`${CALENDARS_DIR}/`) || endpoint.startsWith(`${FEEDS_DIR}/`))) {
+  if (req.method === "GET" && buildFileKind(`/${endpoint}`)) {
     if (!(await sendBuildFile(store, `/${endpoint}`, res))) send(res, 404, { error: "not-found" });
     return true;
   }

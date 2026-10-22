@@ -1,4 +1,12 @@
-import { allPages, type Collection, type Entry, entryAddress, entryTitle } from "@goodfellow-cms/core";
+import {
+  allPages,
+  type Collection,
+  type Entry,
+  entryAddress,
+  entryLanguage,
+  entryPathIn,
+  entryTitle,
+} from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
@@ -174,13 +182,16 @@ function MoveEntryDialog({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
   const title = entryTitle(entry);
-  const pattern = collection.settings.path ?? "/{slug}";
+  const language = { settings: content.settings, code: entryLanguage(content.settings, entry) };
+  const address = (candidate: string) =>
+    entryPathIn(content.settings, collection.settings, candidate, language.code) ?? entryAddress("/{slug}", candidate);
 
   const check = checkEntrySlug(
     slug,
     collection,
     allPages(content).map((page) => page.path),
     entry,
+    language,
   );
   const slugError = submitted && !check.ok ? t(nameErrors[check.problem]) : undefined;
 
@@ -209,7 +220,7 @@ function MoveEntryDialog({
       <form onSubmit={onSubmit} className="gfa-form" noValidate>
         <TextField
           label={t("movePage.address")}
-          hint={t("newEntry.addressHint", { example: entryAddress(pattern, slug || entry.slug) })}
+          hint={t("newEntry.addressHint", { example: address(slug || entry.slug) })}
           value={slug}
           error={slugError}
           autoFocus

@@ -9,12 +9,14 @@ import {
   type CollectionField,
   type CollectionFile,
   collectionFileChange,
-  entryAddress,
   entryFileChange,
+  entryLanguage,
+  entryPathIn,
   type FileChange,
   relinkedChanges,
   relinkSite,
   type SiteContent,
+  type SiteSettings,
 } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
 import { formattedHtml, htmlToMarkdown } from "./markdown-text.js";
@@ -70,13 +72,13 @@ function keptValue(fields: Map<string, CollectionField>, name: string, value: un
   return value;
 }
 
-/** Where each item's page goes when its collection's address pattern changes. */
-function movedEntryPages(collection: Collection, settings: CollectionFile): AddressMove[] {
-  const pattern = settings.path;
-  if (!collection.settings.path || !pattern || collection.settings.path === pattern) return [];
-  return collection.entries.flatMap((entry) =>
-    entry.path ? [{ from: entry.path, to: entryAddress(pattern, entry.slug) }] : [],
-  );
+/** Where each item's page goes when its collection's address patterns change, in each of the site's languages. */
+function movedEntryPages(site: SiteSettings, collection: Collection, settings: CollectionFile): AddressMove[] {
+  if (!collection.settings.path || !settings.path) return [];
+  return collection.entries.flatMap((entry) => {
+    const to = entryPathIn(site, settings, entry.slug, entryLanguage(site, entry));
+    return entry.path && to && to !== entry.path ? [{ from: entry.path, to }] : [];
+  });
 }
 
 /**
@@ -102,7 +104,7 @@ export function collectionSettingsChanges(
               : candidate,
           ),
         },
-        movedEntryPages(collection, settings),
+        movedEntryPages(site.content.settings, collection, settings),
         site.blocks,
       )
     : undefined;

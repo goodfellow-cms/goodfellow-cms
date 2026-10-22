@@ -789,7 +789,7 @@ export function planWordPressImport(
       writtenMenus.push("main");
     }
   }
-  if (writtenMenus.length > 0) changes.push(menusFileChange(menus));
+  if (writtenMenus.length > 0) changes.push(menusFileChange({ menus, languageMenus: content.languageMenus }));
 
   /* Site settings. */
   const settings = {

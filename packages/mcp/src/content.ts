@@ -11,9 +11,10 @@ import {
   type ContentSource,
   collectionFileSchema,
   type EntryFile,
-  entryAddress,
+  entryPathIn,
   FOOTER_FILE,
   HEADER_FILE,
+  hasLanguages,
   isAddressSegment,
   type LayoutFile,
   layoutFileSchema,
@@ -22,6 +23,7 @@ import {
   MENUS_FILE,
   type Menus,
   mediaFileSchema,
+  mainLanguage,
   menusFileSchema,
   normalizePagePath,
   PAGES_DIR,
@@ -59,9 +61,12 @@ export async function readSettings(source: ContentSource): Promise<SiteSettings>
     : parsed(parseContentFile("site", siteSettingsSchema, SITE_FILE, text));
 }
 
-export async function readMenus(source: ContentSource): Promise<Menus> {
+/** The site's menus, and the ones of its other languages that have menus of their own. */
+export async function readMenus(source: ContentSource): Promise<{ menus: Menus; languageMenus: Record<string, Menus> }> {
   const text = await source.read(MENUS_FILE);
-  return text === undefined ? {} : parsed(parseContentFile("menus", menusFileSchema, MENUS_FILE, text)).menus;
+  if (text === undefined) return { menus: {}, languageMenus: {} };
+  const file = parsed(parseContentFile("menus", menusFileSchema, MENUS_FILE, text));
+  return { menus: file.menus, languageMenus: file.languages ?? {} };
 }
 
 export async function readLayout(source: ContentSource, part: "header" | "footer"): Promise<LayoutFile> {
@@ -159,17 +164,62 @@ export async function readEntry(
 }
 
 /**
+ * Each item's language, by its name. Only a site with other languages has
+ * items in them, so only then are the items' files read, all in one go where
+ * the source can.
+ */
+export async function entryLanguages(
+  source: ContentSource,
+  collection: LoadedCollection,
+  site: SiteSettings,
+): Promise<Map<string, string>> {
+  const main = mainLanguage(site);
+  if (!hasLanguages(site)) return new Map(collection.entries.map((entry) => [entry.slug, main]));
+  const texts = await readTextFiles(
+    source,
+    collection.entries.map((entry) => entry.file),
+  );
+  return new Map(
+    collection.entries.map((entry) => {
+      const text = texts.get(entry.file);
+      const file = text === undefined ? undefined : parseEntryFile(collection.settings, entry.file, text);
+      return [entry.slug, (file?.ok && file.value.inLanguage) || main];
+    }),
+  );
+}
+
+/** Each item's address, by its name, in its language, where its collection gives items pages. */
+export async function entryAddresses(
+  source: ContentSource,
+  collection: LoadedCollection,
+  site: SiteSettings,
+): Promise<Map<string, string>> {
+  if (collection.settings.path === undefined) return new Map();
+  const languages = await entryLanguages(source, collection, site);
+  return new Map(
+    collection.entries.flatMap((entry) => {
+      const path = entryPathIn(site, collection.settings, entry.slug, languages.get(entry.slug) ?? mainLanguage(site));
+      return path === undefined ? [] : [[entry.slug, path] as const];
+    }),
+  );
+}
+
+/**
  * Every address the site's pages and entries have, so a new page or entry
- * never takes one. Entries' addresses come from their collections' settings.
+ * never takes one. Entries' addresses come from their collections' settings,
+ * and in a site with other languages, their own languages.
  */
 export async function takenAddresses(source: ContentSource): Promise<Set<string>> {
   const addresses = new Set((await listPages(source)).map((page) => page.address));
+  const site = await readSettings(source);
   for (const collection of await listCollections(source)) {
     const text = await source.read(collection.file);
     if (text === undefined) continue;
     const settings = parseContentFile("collection", collectionFileSchema, collection.file, text);
     if (!settings.ok || settings.value.path === undefined) continue;
-    for (const entry of collection.entries) addresses.add(entryAddress(settings.value.path, entry.slug));
+    for (const address of (await entryAddresses(source, { ...collection, settings: settings.value }, site)).values()) {
+      addresses.add(address);
+    }
   }
   return addresses;
 }

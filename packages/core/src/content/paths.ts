@@ -9,6 +9,11 @@ export const REDIRECTS_FILE = "content/redirects.json";
 export const MEDIA_FILE = "content/media.json";
 export const HEADER_FILE = "content/layout/header.json";
 export const FOOTER_FILE = "content/layout/footer.json";
+
+/** The header or footer in one of the site's other languages, which replaces the main one there: `content/layout/header.es.json`. */
+export function languageLayoutFile(part: "header" | "footer", language: string): string {
+  return `content/layout/${part}.${language}.json`;
+}
 export const CUSTOM_CSS_FILE = "content/styles/custom.css";
 /** Admin-written code for every page: in the `<head>`, and at the end of the `<body>`. */
 export const HEAD_CODE_FILE = "content/code/head.html";

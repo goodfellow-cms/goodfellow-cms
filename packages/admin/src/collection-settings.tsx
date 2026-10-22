@@ -5,11 +5,13 @@ import {
   type CollectionField,
   type CollectionFile,
   collectionFileSchema,
-  entryAddress,
+  entryLanguage,
+  entryPathIn,
   entryTitle,
   FIELD_TYPES,
   type FieldType,
   isReservedPagePath,
+  type SiteSettings,
   serializeContent,
   TITLE_FIELD,
 } from "@goodfellow-cms/core";
@@ -448,10 +450,16 @@ function DeleteCollectionDialog({ collection, onClose }: { collection: Collectio
 }
 
 /** Finds an entry whose page would take an address something else already has, with a new address pattern. */
-function addressClash(collection: Collection, path: string, addresses: Set<string>): string | undefined {
+function addressClash(
+  site: SiteSettings,
+  collection: Collection,
+  settings: CollectionFile,
+  addresses: Set<string>,
+): string | undefined {
   const used = new Set(addresses);
   for (const entry of collection.entries) {
-    const address = entryAddress(path, entry.slug);
+    const address = entryPathIn(site, settings, entry.slug, entryLanguage(site, entry));
+    if (address === undefined) continue;
     if (used.has(address) || isReservedPagePath(address)) return entryTitle(entry);
     used.add(address);
   }
@@ -493,7 +501,7 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
             .filter((page) => page.entry?.collection !== collection.id)
             .map((page) => page.path),
         );
-        const clash = addressClash(collection, next.path, others);
+        const clash = addressClash(content.settings, collection, next, others);
         if (clash) result.path = t("collectionSettings.addressClash", { title: clash });
       }
     }

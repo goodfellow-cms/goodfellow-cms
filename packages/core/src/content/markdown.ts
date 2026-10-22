@@ -36,8 +36,11 @@ export function parseMarkdownEntry(text: string, body: string): Record<string, u
   if (front === null || typeof front !== "object" || Array.isArray(front)) {
     throw new Error("must have front matter that lists fields, such as `title: My page`.");
   }
-  // Fields' names are lowercase, so the schedule's times can't be one.
-  const { version, showFrom, hideAfter, ...fields } = front as Record<string, unknown>;
+  // Fields' names are lowercase, so the schedule's times and the translation's details can't be one.
+  const { version, showFrom, hideAfter, inLanguage, translationOf, translatedFrom, ...fields } = front as Record<
+    string,
+    unknown
+  >;
   const markdown = text
     .slice(match[0].length)
     .replace(/^\r?\n/, "")
@@ -46,19 +49,28 @@ export function parseMarkdownEntry(text: string, body: string): Record<string, u
     version,
     ...(showFrom !== undefined && { showFrom }),
     ...(hideAfter !== undefined && { hideAfter }),
+    ...(inLanguage !== undefined && { inLanguage }),
+    ...(translationOf !== undefined && { translationOf }),
+    ...(translatedFrom !== undefined && { translatedFrom }),
     fields: { ...fields, [body]: markdown },
   };
 }
 
 /**
- * Writes a Markdown entry: `version`, the schedule's times and the fields in the
- * collection's order in the front matter (then any others, alphabetically),
- * and the body after it.
+ * Writes a Markdown entry: `version`, the schedule's times, the translation's
+ * details and the fields in the collection's order in the front matter (then
+ * any others, alphabetically), and the body after it.
  */
 export function serializeMarkdownEntry(
   settings: CollectionFile,
   fields: Record<string, unknown>,
-  schedule: { showFrom?: string; hideAfter?: string } = {},
+  schedule: {
+    showFrom?: string;
+    hideAfter?: string;
+    inLanguage?: string;
+    translationOf?: string;
+    translatedFrom?: string;
+  } = {},
 ): string {
   const body = settings.markdown?.body;
   if (!body) throw new Error("The collection doesn't store its entries as Markdown.");
@@ -66,6 +78,9 @@ export function serializeMarkdownEntry(
     version: CURRENT_VERSION.entry,
     ...(schedule.showFrom && { showFrom: schedule.showFrom }),
     ...(schedule.hideAfter && { hideAfter: schedule.hideAfter }),
+    ...(schedule.inLanguage && { inLanguage: schedule.inLanguage }),
+    ...(schedule.translationOf && { translationOf: schedule.translationOf }),
+    ...(schedule.translatedFrom && { translatedFrom: schedule.translatedFrom }),
   };
   const known = settings.fields.map((field) => field.name).filter((name) => name !== body);
   const others = Object.keys(fields)

@@ -10,6 +10,7 @@ import { absoluteUrl } from "../head.js";
 import type { BuildFile } from "./calendars.js";
 import type { Collection } from "./collections.js";
 import { dateField, entryDetails } from "./entry-details.js";
+import { contentInLanguage, settingsPrefix, siteLanguages } from "./languages.js";
 import type { SiteContent } from "./load.js";
 
 /** Where builds put feeds. */
@@ -20,9 +21,9 @@ export const FEED_LENGTH = 50;
 
 export type FeedFormat = "rss" | "atom";
 
-/** The address of a collection's feed. */
-export function feedPath(collection: string, format: FeedFormat = "rss"): string {
-  return `/${FEEDS_DIR}/${collection}.${format}`;
+/** The address of a collection's feed: in the site's other languages, under the language's code (`prefix`). */
+export function feedPath(collection: string, format: FeedFormat = "rss", prefix = ""): string {
+  return `${prefix}/${FEEDS_DIR}/${collection}.${format}`;
 }
 
 /** The collections that have feeds: ones whose items have pages and a date field, apart from calendars. */
@@ -140,23 +141,32 @@ function atomFeed(content: SiteContent, collection: Collection, items: FeedItem[
   return `${lines.join("\n")}\n`;
 }
 
-/** The feeds a build writes: RSS and Atom for each collection that has them. */
+/** The feeds a build writes: RSS and Atom for each collection that has them, in each of the site's languages. */
 export function feedFiles(content: SiteContent, now = new Date()): BuildFile[] {
-  return feedCollections(content).flatMap((collection) => {
-    const items = feedItems(content, collection);
-    return [
-      { path: feedPath(collection.id, "rss"), content: rssFeed(content, collection, items) },
-      { path: feedPath(collection.id, "atom"), content: atomFeed(content, collection, items, now) },
-    ];
+  return siteLanguages(content.settings).flatMap((language) => {
+    const shown = contentInLanguage(content, language.code);
+    const prefix = settingsPrefix(shown.settings);
+    return feedCollections(shown).flatMap((collection) => {
+      const items = feedItems(shown, collection);
+      return [
+        { path: feedPath(collection.id, "rss", prefix), content: rssFeed(shown, collection, items) },
+        { path: feedPath(collection.id, "atom", prefix), content: atomFeed(shown, collection, items, now) },
+      ];
+    });
   });
 }
 
-/** What pages link to so feed readers find the site's feeds: each collection's RSS feed, with its title. */
+/**
+ * What pages link to so feed readers find the site's feeds: each collection's
+ * RSS feed, with its title. Given the site as a page's language shows it
+ * (`contentForPage()`), the feeds in that language.
+ */
 export function feedLinks(
   content: Pick<SiteContent, "collections" | "settings">,
 ): Array<{ title: string; href: string }> {
+  const prefix = settingsPrefix(content.settings);
   return feedCollections(content).map((collection) => ({
     title: feedTitle(collection, content.settings.title),
-    href: feedPath(collection.id, "rss"),
+    href: feedPath(collection.id, "rss", prefix),
   }));
 }

@@ -3,18 +3,19 @@ import { type ContentKind, migrateContent } from "../migrations/index.js";
 import { type Collection, type Entry, entryFieldProblems, sortCollectionEntries } from "./collections.js";
 import { mediaFileSchema, type PhotoCredit } from "./credits.js";
 import { ContentError, type ContentProblem } from "./errors.js";
+import { entryLanguage, entryPathIn, isOtherLanguage, siteLanguages } from "./languages.js";
 import { parseMarkdownEntry } from "./markdown.js";
 import {
   BODY_CODE_FILE,
   COLLECTION_SETTINGS_FILE,
   COLLECTIONS_DIR,
   CUSTOM_CSS_FILE,
-  entryAddress,
   FOOTER_FILE,
   HEAD_CODE_FILE,
   HEADER_FILE,
   isAddressSegment,
   isReservedPagePath,
+  languageLayoutFile,
   MEDIA_FILE,
   MENUS_FILE,
   PAGES_DIR,
@@ -84,9 +85,14 @@ export interface Page {
 
 export interface SiteContent {
   settings: SiteSettings;
+  /** The main language's menus. */
   menus: Menus;
+  /** The menus in the site's other languages, by code (see `menusIn()`). */
+  languageMenus?: Record<string, Menus>;
   header: LayoutFile;
   footer: LayoutFile;
+  /** Headers and footers of the site's other languages, by code, where they have their own (see `layoutIn()`). */
+  languageLayouts?: Record<string, { header?: LayoutFile; footer?: LayoutFile }>;
   /** Pages sorted by path. Entries' pages aren't included; see `allPages`. */
   pages: Page[];
   /** Collections sorted by id, each with its entries. */
@@ -245,7 +251,27 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
       }),
   );
 
-  const collections = await loadCollections(source, collectionFiles, problems);
+  // A language can have a header and footer of its own.
+  const languageLayouts: NonNullable<SiteContent["languageLayouts"]> = {};
+  await Promise.all(
+    siteLanguages(settings)
+      .filter((language) => !language.main)
+      .flatMap((language) =>
+        (["header", "footer"] as const).map(async (part) => {
+          const file = languageLayoutFile(part, language.code);
+          const text = await source.read(file);
+          if (text === undefined) return;
+          const result = parseContentFile("layout", layoutFileSchema, file, text);
+          if (!result.ok) {
+            problems.push(result.problem);
+            return;
+          }
+          languageLayouts[language.code] = { ...languageLayouts[language.code], [part]: result.value };
+        }),
+      ),
+  );
+
+  const collections = await loadCollections(source, collectionFiles, problems, settings);
 
   // Entries' pages share addresses with ordinary pages, so they can't clash with them.
   for (const collection of collections) {
@@ -288,8 +314,10 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
   return {
     settings,
     menus: menusFile.menus,
+    ...(menusFile.languages && { languageMenus: menusFile.languages }),
     header,
     footer,
+    ...(Object.keys(languageLayouts).length > 0 && { languageLayouts }),
     pages,
     collections,
     customCss: customCss ?? "",
@@ -353,6 +381,7 @@ async function loadCollections(
   source: ContentSource,
   files: string[],
   problems: ContentProblem[],
+  site: SiteSettings,
 ): Promise<Collection[]> {
   const folders = new Map<string, { settings?: string; entries: string[] }>();
   for (const file of files) {
@@ -426,13 +455,16 @@ async function loadCollections(
             problems.push(entry.problem);
             return undefined;
           }
-          return {
-            collection: id,
-            slug,
-            file,
-            ...(settings.path !== undefined && { path: entryAddress(settings.path, slug) }),
-            content: entry.value,
-          };
+          const language = entryLanguage(site, { content: entry.value });
+          if (language !== site.language && !isOtherLanguage(site, language)) {
+            problems.push({
+              file,
+              message: `is in ${language}, which isn't one of the site's languages. Add it in Site Settings, or take inLanguage out.`,
+            });
+            return undefined;
+          }
+          const path = entryPathIn(site, settings, slug, language);
+          return { collection: id, slug, file, ...(path !== undefined && { path }), content: entry.value };
         }),
       );
 

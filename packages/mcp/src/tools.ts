@@ -13,22 +13,26 @@ import {
   type ContentStore,
   type Draft,
   DraftError,
-  entryAddress,
   entryFieldProblems,
   entryFileChange,
+  entryPathIn,
   type FileChange,
   FOOTER_FILE,
   HEADER_FILE,
+  hasLanguages,
   isAddressSegment,
   isEmptyValue,
+  isOtherLanguage,
   isReservedPagePath,
   layoutFileChange,
+  mainLanguage,
   menusFileChange,
   menusFileSchema,
   newDraftName,
   pageFileChange,
   pageFileToPath,
   SignInError,
+  siteLanguages,
   siteSettingsFileChange,
   siteSettingsSchema,
   writeChanges,
@@ -39,6 +43,8 @@ import type { Config, Content, Data, Fields } from "@puckeditor/core";
 import { z } from "zod";
 import {
   contentFiles,
+  entryAddresses,
+  entryLanguages,
   isMediaAddress,
   listCollections,
   listMedia,
@@ -71,6 +77,10 @@ const NO_PUBLISHING =
   "The site's owner has turned off publishing from Claude. Submit the draft for review instead (submit_for_review), and someone who looks after the site publishes it.";
 
 const siteArg = z.string().optional().describe("Which site, from list_sites. Leave it out when there's only one.");
+const languageArg = z
+  .string()
+  .optional()
+  .describe("On a site in several languages, the code of a language from get_site. Leave it out for the main language.");
 const draftArg = z
   .string()
   .optional()
@@ -244,7 +254,14 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         ...(site.settings.theme.darkMode && { darkMode: true }),
         pages: pages.map((page) => page.address),
         collections: collections.map((collection) => ({ id: collection.id, entries: collection.entries.length })),
-        menus: Object.keys(menus),
+        menus: Object.keys(menus.menus),
+        ...(hasLanguages(site.settings) && {
+          languages: siteLanguages(site.settings).map((language) => ({
+            code: language.code,
+            name: language.name,
+            ...(language.main ? { main: true } : { pagesUnder: language.prefix }),
+          })),
+        }),
         blocks: Object.entries(site.description.blocks).map(([name, block]) => ({
           name,
           ...(block.label && { label: block.label }),
@@ -399,8 +416,15 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     { site: siteArg, collection: z.string().describe("The collection's id, from get_site."), draft: draftArg },
     async ({ site: given, collection: id, draft }) => {
       const site = await open(given);
-      const collection = await readCollection(await reading(site, draft), id);
+      const source = await reading(site, draft);
+      const collection = await readCollection(source, id);
       const { settings } = collection;
+      const siteSettings = await readSettings(source);
+      const [languages, addresses] = await Promise.all([
+        entryLanguages(source, collection, siteSettings),
+        entryAddresses(source, collection, siteSettings),
+      ]);
+      const several = hasLanguages(siteSettings);
       return text({
         id,
         name: settings.name,
@@ -410,7 +434,8 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         fields: settings.fields,
         items: collection.entries.map((entry) => ({
           slug: entry.slug,
-          ...(settings.path !== undefined && { address: entryAddress(settings.path, entry.slug) }),
+          ...(addresses.has(entry.slug) && { address: addresses.get(entry.slug) }),
+          ...(several && { language: languages.get(entry.slug) }),
         })),
       });
     },
@@ -442,18 +467,32 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         .string()
         .describe("The item's name in its address and file: lowercase letters, numbers and hyphens, such as open-day."),
       values: z.record(z.string(), z.unknown()).describe("Field values, by the fields' names from get_collection."),
+      language: z
+        .string()
+        .optional()
+        .describe(
+          "For a new item on a site in several languages, the code of the language it's in, from get_site. Leave it out for the site's main language. Names are the collection's whatever an item's language, so a translation has a name of its own.",
+        ),
       draft: draftArg,
     },
-    async ({ site: given, collection: id, slug, values, draft: name }) => {
+    async ({ site: given, collection: id, slug, values, language, draft: name }) => {
       const site = await open(given);
       const draft = await changing(site, name);
       const collection = await readCollection(draft.store, id);
       const existing = await readEntry(draft.store, collection, slug);
+      const siteSettings = await readSettings(draft.store);
+      if (language !== undefined && existing && language !== (existing.content.inLanguage ?? mainLanguage(siteSettings))) {
+        throw new ToolError(`An item's language can't change. Save the translation as an item of its own.`);
+      }
+      if (language !== undefined && language !== mainLanguage(siteSettings) && !isOtherLanguage(siteSettings, language)) {
+        throw new ToolError(`${language} isn't one of the site's languages. get_site lists them.`);
+      }
+      const inLanguage = language !== undefined && language !== mainLanguage(siteSettings) ? language : undefined;
       if (!existing) {
         if (!isAddressSegment(slug)) {
           throw new ToolError(`"${slug}" can't be an item's name: use lowercase letters, numbers and hyphens.`);
         }
-        const path = collection.settings.path === undefined ? undefined : entryAddress(collection.settings.path, slug);
+        const path = entryPathIn(siteSettings, collection.settings, slug, inLanguage ?? mainLanguage(siteSettings));
         if (path && (isReservedPagePath(path) || (await takenAddresses(draft.store)).has(path))) {
           throw new ToolError(`${path} is already taken on the site. Choose another name.`);
         }
@@ -471,7 +510,12 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       if (missing.length > 0) {
         throw new ToolError(`The item needs a value for: ${missing.map((field) => field.name).join(", ")}.`);
       }
-      const change = entryFileChange({ id, settings: collection.settings }, slug, fields, existing?.content);
+      const change = entryFileChange(
+        { id, settings: collection.settings },
+        slug,
+        fields,
+        existing?.content ?? (inLanguage ? { inLanguage } : undefined),
+      );
       const title = typeof fields.title === "string" ? fields.title : slug;
       await save(
         draft,
@@ -536,11 +580,14 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
 
   tool(
     "get_menus",
-    "The site's menus, by name: each a list of links, which can have links of their own under them.",
-    { site: siteArg, draft: draftArg },
-    async ({ site: given, draft }) => {
+    "The site's menus, by name: each a list of links, which can have links of their own under them. On a site in several languages, give a language's code for its menus; a language without menus of its own shows the main language's.",
+    { site: siteArg, language: languageArg, draft: draftArg },
+    async ({ site: given, language, draft }) => {
       const site = await open(given);
-      return text(await readMenus(await reading(site, draft)));
+      const { menus, languageMenus } = await readMenus(await reading(site, draft));
+      if (language === undefined || language === mainLanguage(site.settings)) return text(menus);
+      const own = languageMenus[language];
+      return text(own ? own : { sameAsMainLanguage: true, menus });
     },
     true,
   );
@@ -552,19 +599,37 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       site: siteArg,
       menu: z.string().describe("The menu's name, such as main or footer."),
       items: z.array(z.unknown()),
+      language: languageArg,
       draft: draftArg,
     },
-    async ({ site: given, menu, items, draft: name }) => {
+    async ({ site: given, menu, items, language, draft: name }) => {
       const site = await open(given);
       const draft = await changing(site, name);
-      const menus = await readMenus(draft.store);
-      const result = menusFileSchema.safeParse({ version: 1, menus: { ...menus, [menu]: items } });
+      const { menus, languageMenus } = await readMenus(draft.store);
+      const settings = await readSettings(draft.store);
+      const other = language !== undefined && language !== mainLanguage(settings);
+      if (other && !isOtherLanguage(settings, language)) {
+        throw new ToolError(`${language} isn't one of the site's languages. get_site lists them.`);
+      }
+      // A language's own menus start as a copy of the main language's.
+      const file = other
+        ? {
+            version: 1,
+            menus,
+            languages: { ...languageMenus, [language]: { ...(languageMenus[language] ?? menus), [menu]: items } },
+          }
+        : { version: 1, menus: { ...menus, [menu]: items }, languages: languageMenus };
+      const result = menusFileSchema.safeParse(file);
       if (!result.success) {
         throw new ToolError(
           `That menu doesn't fit: ${result.error.issues.map((issue) => `${issue.path.join(".")} ${issue.message}`).join("; ")}.`,
         );
       }
-      await save(draft, [menusFileChange(result.data.menus)], `Update menu "${menu}"`);
+      await save(
+        draft,
+        [menusFileChange({ menus: result.data.menus, languageMenus: result.data.languages })],
+        `Update menu "${menu}"`,
+      );
       return text({ draft: draft.name, menu, saved: "changed" });
     },
   );

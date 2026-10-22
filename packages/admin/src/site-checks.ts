@@ -203,6 +203,8 @@ export function describeProblem(t: Translate, content: SiteContent, problem: Sit
     case "no-title":
     case "no-description":
       return t(`checks.${problem.kind}`, { place: problemPlace(t, content, problem.file) });
+    case "bad-translation":
+      return t("checks.bad-translation", { place: problemPlace(t, content, problem.file), target: problem.target });
     case "low-contrast":
       return describeContrast(t, problem);
     case "no-alt":

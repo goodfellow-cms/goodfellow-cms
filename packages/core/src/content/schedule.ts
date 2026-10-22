@@ -31,6 +31,27 @@ export function scheduleOf(file: Schedule): Schedule {
   };
 }
 
+/**
+ * What a page's or item's file says besides its content: when it's shown,
+ * and for a translation, its language (items only, since a page's is its
+ * address) and what it translates.
+ */
+export interface FileDetails extends Schedule {
+  inLanguage?: string;
+  translationOf?: string;
+  translatedFrom?: string;
+}
+
+/** A file's details, with only the ones it has. */
+export function fileDetailsOf(file: FileDetails): FileDetails {
+  return {
+    ...scheduleOf(file),
+    ...(file.inLanguage && { inLanguage: file.inLanguage }),
+    ...(file.translationOf && { translationOf: file.translationOf }),
+    ...(file.translatedFrom && { translatedFrom: file.translatedFrom }),
+  };
+}
+
 /** Whether a schedule has either time. */
 export function isScheduled(schedule: Schedule): boolean {
   return Boolean(schedule.showFrom || schedule.hideAfter);
@@ -111,7 +132,18 @@ export function shownContent(content: SiteContent, now: Date = new Date()): Site
     return { ...collection, entries };
   });
   if (!changed) return content;
-  return { ...content, pages, collections, menus: shownMenus(content.menus, hidden) };
+  const languageMenus =
+    content.languageMenus &&
+    Object.fromEntries(
+      Object.entries(content.languageMenus).map(([language, menus]) => [language, shownMenus(menus, hidden)]),
+    );
+  return {
+    ...content,
+    pages,
+    collections,
+    menus: shownMenus(content.menus, hidden),
+    ...(languageMenus && { languageMenus }),
+  };
 }
 
 /** One change a schedule makes: a page or entry is shown, or hidden again. */

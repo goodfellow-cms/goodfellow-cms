@@ -5,12 +5,14 @@
  * Node alike, without rendering pages.
  *
  * - Errors: links to pages, items or media that don't exist.
- * - Warnings: pages without a title or description, and theme colors that
- *   text is hard to read on.
+ * - Warnings: pages without a title or description, theme colors that text
+ *   is hard to read on, and translations of something that isn't in the main
+ *   language.
  */
 import type { ComponentConfig } from "@puckeditor/core";
 import { contrastRatio, MINIMUM_CONTRAST } from "../contrast.js";
 import { DEFAULT_THEME_COLORS, darkThemeColor } from "../theme.js";
+import { entryLanguage, mainLanguage, pageLanguage } from "./languages.js";
 import { linkTarget, siteLinks } from "./links.js";
 import type { Page, SiteContent } from "./load.js";
 import { allPages } from "./load.js";
@@ -54,6 +56,12 @@ export type SiteProblem =
   | { kind: "vague-link"; severity: "warning"; file: string; path: string; target: string; text: string }
   /** A link with no text at all, such as an icon without a label. */
   | { kind: "empty-link"; severity: "warning"; file: string; path: string; target: string }
+  /**
+   * A translation of something that isn't in the main language, or a page or
+   * item in the main language that says it translates something: `target` is
+   * the address or item's name it names.
+   */
+  | { kind: "bad-translation"; severity: "warning"; file: string; target: string }
   /**
    * What an automated accessibility checker found on a built page, by its rule
    * (axe-core's), with what it means in plain words and how many places on the page have it.
@@ -132,6 +140,36 @@ export function contrastProblems(theme: SiteContent["settings"]["theme"]): SiteP
   return problems;
 }
 
+/**
+ * Translations that don't link up: of a page or item that isn't in the main
+ * language, or from the main language itself. A translation of a page that
+ * doesn't exist is a link to it that's missing, so it's an error already.
+ */
+function translationProblems(content: SiteContent): SiteProblem[] {
+  const { settings } = content;
+  const main = mainLanguage(settings);
+  const problems: SiteProblem[] = [];
+  const bad = (file: string, target: string) =>
+    problems.push({ kind: "bad-translation", severity: "warning", file, target });
+  for (const page of content.pages) {
+    const target = page.content.translationOf;
+    if (target === undefined) continue;
+    const source = content.pages.find((candidate) => candidate.path === target);
+    if (pageLanguage(content, page) === main) bad(page.file, target);
+    else if (source && pageLanguage(content, source) !== main) bad(page.file, target);
+  }
+  for (const collection of content.collections) {
+    for (const entry of collection.entries) {
+      const target = entry.content.translationOf;
+      if (target === undefined) continue;
+      const source = collection.entries.find((candidate) => candidate.slug === target);
+      if (!source || entryLanguage(settings, entry) === main) bad(entry.file, target);
+      else if (entryLanguage(settings, source) !== main) bad(entry.file, target);
+    }
+  }
+  return problems;
+}
+
 /** Every problem the site has, errors first, in the order its files are listed. */
 export function checkSite(content: SiteContent, options: SiteCheckOptions): SiteProblem[] {
   const pages = options.blocks && options.today ? sitePages(content, options.today, options.blocks) : allPages(content);
@@ -155,6 +193,7 @@ export function checkSite(content: SiteContent, options: SiteCheckOptions): Site
   }
   const warnings = [
     ...content.pages.flatMap((page) => pageWarnings(content, page)),
+    ...translationProblems(content),
     ...contrastProblems(content.settings.theme),
   ];
   return [...errors, ...warnings];
@@ -175,6 +214,7 @@ export function problemKey(problem: SiteProblem): string {
     case "no-alt":
     case "vague-link":
     case "empty-link":
+    case "bad-translation":
       return `${problem.kind} ${problem.file} ${problem.target}`;
     case "skipped-heading":
       return `${problem.kind} ${problem.file} ${problem.level} ${problem.text}`;
@@ -225,6 +265,8 @@ export function formatSiteProblem(problem: SiteProblem): string {
       return `${problem.file} (${problem.path}) links to ${problem.target} with the text "${problem.text}", which doesn't say where it goes.`;
     case "empty-link":
       return `${problem.file} (${problem.path}) has a link to ${problem.target} with no text.`;
+    case "bad-translation":
+      return `${problem.file} says it translates ${problem.target}, but translations translate a page or item in the site's main language.`;
     case "accessibility":
       return `${problem.path}: ${problem.help} (${problem.rule}${problem.count > 1 ? `, ${problem.count} places` : ""}).`;
   }

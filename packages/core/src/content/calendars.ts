@@ -8,6 +8,7 @@ import { isEventLike } from "../calendar.js";
 import { absoluteUrl } from "../head.js";
 import { type CalendarEvent, calendarFile } from "../ics.js";
 import { type Collection, entryTitle, richTextToPlainText } from "./collections.js";
+import { contentInLanguage, settingsPrefix, siteLanguages } from "./languages.js";
 import type { SiteContent } from "./load.js";
 import { markdownText } from "./markdown.js";
 
@@ -17,9 +18,13 @@ export const CALENDARS_DIR = "calendars";
 /** The most months a calendar gives pages before or after the current one. */
 export const MAX_CALENDAR_MONTHS = 36;
 
-/** The address of the calendar file of a collection's events, which visitors subscribe to. */
-export function calendarFilePath(collection: string): string {
-  return `/${CALENDARS_DIR}/${collection}.ics`;
+/**
+ * The address of the calendar file of a collection's events, which visitors
+ * subscribe to. In the site's other languages, it's under the language's code
+ * (`prefix`, see `settingsPrefix()`), with the events in that language.
+ */
+export function calendarFilePath(collection: string, prefix = ""): string {
+  return `${prefix}/${CALENDARS_DIR}/${collection}.ics`;
 }
 
 /** The address of one event's calendar file, for adding it to a calendar. */
@@ -95,16 +100,26 @@ export interface BuildFile {
 /**
  * The calendar files a build writes: one for each calendar collection, which
  * visitors subscribe to, and one for each of its events, which visitors add to
- * their calendars.
+ * their calendars. A site in several languages has a collection's file for
+ * each, with the events in that language.
  */
 export function calendarFiles(content: SiteContent, now = new Date()): BuildFile[] {
+  return siteLanguages(content.settings).flatMap((language) =>
+    languageCalendarFiles(contentInLanguage(content, language.code), now),
+  );
+}
+
+function languageCalendarFiles(content: SiteContent, now: Date): BuildFile[] {
   const { settings } = content;
   const options = { timeZone: settings.timeZone, now };
+  const prefix = settingsPrefix(settings);
   return calendarCollections(content).flatMap((collection) => {
     const events = collectionEvents(collection, settings.url);
     const name = `${collection.settings.name} – ${settings.title}`;
+    // A site in one language has a file for each collection; in several, one for each language that has events.
+    if (prefix && events.length === 0) return [];
     return [
-      { path: calendarFilePath(collection.id), content: calendarFile(events, { ...options, name }) },
+      { path: calendarFilePath(collection.id, prefix), content: calendarFile(events, { ...options, name }) },
       ...events.map(({ slug, ...event }) => ({
         path: eventFilePath(collection.id, slug),
         content: calendarFile([event], { ...options, name: event.title }),
