@@ -192,12 +192,17 @@ export class GitLabBackend implements GitBackend {
   }
 
   async revision(): Promise<string> {
+    this.pinned = await this.head();
+    return this.pinned;
+  }
+
+  /** The branch's latest commit, without moving the revision reads are pinned to. */
+  private async head(): Promise<string> {
     const branch = await gitlabJson<{ commit: { id: string } }>(
       this.api,
       this.repo(`/branches/${encodeURIComponent(this.branch)}`),
     );
-    this.pinned = branch.commit.id;
-    return this.pinned;
+    return branch.commit.id;
   }
 
   /** Every file in one folder at a commit, page by page. */
@@ -470,7 +475,15 @@ export class GitLabBackend implements GitBackend {
         const before = parents[0] ? (await this.statuses(parents[0])).filter(builds) : [];
         return { state: before.length > 0 ? "building" : "unknown" };
       }
-      const failed = statuses.find((status) => status.status === "failed" || status.status === "canceled");
+      const failed =
+        statuses.find((status) => status.status === "failed") ??
+        statuses.find((status) => status.status === "canceled");
+      if (failed?.status === "canceled") {
+        // A newer publish cancels a build that's still running (the Pages job is interruptible), and its own
+        // build includes this commit.
+        const head = await this.head();
+        if (head !== revision) return this.deployStatus(head);
+      }
       if (failed) {
         const problem = await this.jobProblem(revision).catch(() => undefined);
         return { state: "failed", detailsUrl: failed.target_url ?? undefined, ...(problem && { problem }) };

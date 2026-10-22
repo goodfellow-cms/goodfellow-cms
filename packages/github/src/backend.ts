@@ -249,12 +249,17 @@ export class GitHubBackend implements GitBackend {
   }
 
   async revision(): Promise<string> {
+    this.pinned = await this.head();
+    return this.pinned;
+  }
+
+  /** The branch's latest commit, without moving the revision reads are pinned to. */
+  private async head(): Promise<string> {
     const ref = await githubJson<{ object: { sha: string } }>(
       this.api,
       `/repos/${this.repo}/git/ref/heads/${encodeURIComponent(this.branch)}`,
     );
-    this.pinned = ref.object.sha;
-    return this.pinned;
+    return ref.object.sha;
   }
 
   /** Path → blob id for every file at a commit. Commits never change, so this is cached. */
@@ -562,6 +567,12 @@ export class GitHubBackend implements GitBackend {
       const cloudflare = await this.cloudflareBuild(revision);
       if (cloudflare) return cloudflare;
       const run = await this.workflowRun(revision);
+      if (run?.status === "completed" && run.conclusion === "cancelled") {
+        // A newer publish's run replaces one still waiting in the workflow's concurrency group, and builds this
+        // commit with its own.
+        const head = await this.head();
+        if (head !== revision) return this.deployStatus(head);
+      }
       if (run?.status === "completed" && run.conclusion !== "success" && run.conclusion !== "skipped") {
         return { state: "failed", detailsUrl: run.html_url, problem: await this.runProblem(run) };
       }

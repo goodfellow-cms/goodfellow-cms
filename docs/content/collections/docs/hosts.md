@@ -18,7 +18,7 @@ We recommend keeping the site on GitLab and publishing it with GitLab Pages, wha
 
 Its limits:
 
-- **400 build minutes a month,** shared by every project in the account or group. A publish or the nightly update takes a few minutes, so that's enough for most sites, but a busy one, or several sites in one group, can run out, and then nothing is published until the next month. Such a site can keep its files on GitLab and be built by [Cloudflare Pages](#cloudflare-pages) instead.
+- **400 build minutes a month,** shared by every project in the account or group. A publish or the nightly update takes a few minutes, and a publish made while the site is still building cancels that build, so that's enough for most sites, but a busy one, or several sites in one group, can run out, and then nothing is published until the next month. Such a site can keep its files on GitLab and be built by [Cloudflare Pages](#cloudflare-pages) instead.
 - **Up to 5 people** in a private group or account.
 - **New accounts may be asked to verify** a phone number or card before GitLab runs their first build.
 - **Editors' sign-in reaches every project they can change,** where GitHub's sign-in service gives a token for the site's repository alone, so keep editors' GitLab accounts to the sites they edit.

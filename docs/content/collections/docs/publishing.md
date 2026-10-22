@@ -6,7 +6,7 @@ section: editors
 order: 2
 ---
 
-**Publish** saves what you changed to the site's repository on GitHub or GitLab, as one change, from your own browser. The host then rebuilds the site, usually within a minute or two, and the top of the admin panel shows when the live site has been updated, or that the rebuild failed, with a link to the details.
+**Publish** saves what you changed to the site's repository on GitHub or GitLab, as one change, from your own browser. The host then rebuilds the site, usually within a minute or two, and the top of the admin panel shows when the live site has been updated, or that the rebuild failed, with a link to the details. Publishing several pages one after another doesn't cost a rebuild each: on GitLab Pages, a publish made while the site is still rebuilding cancels that rebuild and builds both, and on GitHub Pages, the publishes made during a rebuild share the next one.
 
 ## Site checks
 
