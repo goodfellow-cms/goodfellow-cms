@@ -2,10 +2,11 @@
 
 import type { ImageSize } from "@goodfellow-cms/core";
 import type { SiteImageProps, SiteLinkProps } from "@goodfellow-cms/react";
+import { CurrentPathProvider } from "@goodfellow-cms/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 
 // A Client Component module, so Server Components can pass these to the browser for Client Components in blocks.
 
@@ -60,4 +61,19 @@ export function PageLanguage({ language }: { language: string }) {
     document.documentElement.lang = language;
   }, [language]);
   return null;
+}
+
+/**
+ * On a site in several languages, shows the layout's header or footer in the
+ * language of the page at the current address: the layout has one of each,
+ * already rendered, for every language. Blocks inside it learn the address
+ * from `useCurrentPath()`, such as the Language switch, whose links follow it.
+ */
+export function ByLanguage({ variants }: { variants: Array<{ prefix: string; children: ReactNode }> }) {
+  const pathname = usePathname();
+  const shown =
+    variants.find(
+      (variant) => variant.prefix && (pathname === variant.prefix || pathname.startsWith(`${variant.prefix}/`)),
+    ) ?? variants.find((variant) => !variant.prefix);
+  return <CurrentPathProvider path={pathname}>{shown?.children}</CurrentPathProvider>;
 }

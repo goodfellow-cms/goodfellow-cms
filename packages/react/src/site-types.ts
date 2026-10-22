@@ -3,6 +3,7 @@ import type {
   Entry,
   ImageSize,
   LanguageLink,
+  LanguageMap,
   Menus,
   PageCredit,
   PageView,
@@ -76,6 +77,12 @@ export interface SiteContextValue {
    * or the language's home page where it has none, for a language switch.
    */
   languages?: LanguageLink[];
+  /**
+   * In a layout shared by every page on a site in several languages, where
+   * each page's translations are, for a language switch to work out its links
+   * from the current address (`useCurrentPath()`).
+   */
+  languageMap?: LanguageMap;
   /** On a site in several languages, the home page of the page's language, such as `/es`, which the site's name links to. */
   home?: string;
   /** The credits of the photos the page shows, such as ones from Openverse, which the page lists at its end. */

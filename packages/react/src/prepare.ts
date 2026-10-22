@@ -4,6 +4,7 @@ import {
   contentInLanguage,
   findEntry,
   type GoodfellowConfig,
+  hasLanguages,
   languageHome,
   languageLinks,
   mainLanguage,
@@ -26,7 +27,7 @@ import { createPuckConfig } from "./puck-config.js";
 import { type SiteContextValue, siteMetadata } from "./site-types.js";
 
 /** How the page will be rendered, for renderers that don't rewrite the finished HTML. */
-export type RenderOptions = Pick<SiteContextValue, "base" | "components" | "media">;
+export type RenderOptions = Pick<SiteContextValue, "base" | "components" | "media" | "languageMap">;
 
 /** The Puck configs a site's pages are rendered with. */
 export interface PuckConfigs {
@@ -138,21 +139,24 @@ function rebaser(options: RenderOptions, settings: SiteSettings) {
 
 /**
  * Gets the site's header and footer ready to render for a layout shared by
- * every page, such as a Next.js layout. They're given no current page (`path`
- * is empty), so blocks that highlight it, such as Menu, leave that to the browser.
+ * every page, such as a Next.js layout, in one of the site's languages (the
+ * main one unless given). They're given no current page (`path` is empty), so
+ * blocks that highlight it, such as Menu, leave that to the browser.
  */
 export async function prepareLayout(
   configs: PuckConfigs,
-  content: SiteContent,
+  loaded: SiteContent,
   options: RenderOptions = {},
+  language = mainLanguage(loaded.settings),
 ): Promise<PreparedLayout> {
-  // A layout shared by every page can only show the main language: sites in several render it in each page instead.
-  content = contentInLanguage(content, mainLanguage(content.settings));
+  const content = contentInLanguage(loaded, language);
+  const home = hasLanguages(loaded.settings) ? languageHome(loaded, language) : undefined;
   const site: SiteContextValue = {
     settings: content.settings,
     menus: content.menus,
     path: "",
     collections: content.collections,
+    ...(home && { home }),
     ...options,
   };
   const [header, footer] = await Promise.all([

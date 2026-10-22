@@ -19,3 +19,18 @@ export function useSite(): SiteContextValue {
   }
   return value;
 }
+
+const CurrentPathContext = createContext<string | undefined>(undefined);
+
+/**
+ * The address of the page being shown, for blocks in a layout shared by every
+ * page, such as Next.js's, which can't know it when it's rendered.
+ */
+export function CurrentPathProvider({ path, children }: { path: string; children: ReactNode }) {
+  return <CurrentPathContext.Provider value={path}>{children}</CurrentPathContext.Provider>;
+}
+
+/** The address `CurrentPathProvider` gives, if a layout has one. */
+export function useCurrentPath(): string | undefined {
+  return useContext(CurrentPathContext);
+}

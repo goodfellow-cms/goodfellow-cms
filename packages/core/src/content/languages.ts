@@ -11,9 +11,13 @@
  * own settings, menus, header and footer, and only its own items.
  */
 import type { Collection, Entry } from "./collections.js";
+import { type LanguageLink, type LanguageMap, languageLinksAt } from "./language-map.js";
 import { allPages, type Page, type SiteContent } from "./load.js";
 import { entryAddress } from "./paths.js";
 import type { CollectionFile, LayoutFile, Menus, SiteSettings } from "./schemas.js";
+
+export type { LanguageLink, LanguageMap } from "./language-map.js";
+
 import { serializeContent } from "./serialize.js";
 
 /** One of a site's languages. */
@@ -318,36 +322,42 @@ export function isLanguageHome(settings: SiteSettings, path: string): boolean {
   return path === "/" || siteLanguages(settings).some((language) => !language.main && path === language.prefix);
 }
 
-/** One link of a language switch. */
-export interface LanguageLink {
-  code: string;
-  name: string;
-  /** The page's translation in this language, or, without one, the language's home page. */
-  path: string;
-  /** Whether the page has a translation in this language. */
-  translated: boolean;
-  /** Whether this is the page's own language. */
-  current: boolean;
+/** The translations of a page, or of the page it's on for a page a block added. */
+function switchPaths(content: SiteContent, page: Page): Map<string, string> {
+  const own =
+    page.view && page.view.path !== page.path
+      ? allPages(content).find((candidate) => candidate.path === page.view?.path)
+      : page;
+  return own ? translationPaths(content, own) : new Map<string, string>();
+}
+
+/**
+ * The site's languages and, for each of `pages` with translations, where they
+ * are, so a language switch can link to the page's translations wherever it's
+ * shown (`languageLinksAt()`), even in a layout shared by every page. Takes
+ * the site as loaded.
+ */
+export function languageMap(content: SiteContent, pages: readonly Page[]): LanguageMap {
+  const translations: LanguageMap["translations"] = {};
+  if (hasLanguages(content.settings)) {
+    for (const page of pages) {
+      const paths = switchPaths(content, page);
+      if (paths.size > 1) translations[page.path] = Object.fromEntries(paths);
+    }
+  }
+  return {
+    languages: siteLanguages(content.settings).map(({ code, name, prefix }) => ({
+      code,
+      name,
+      prefix,
+      home: languageHome(content, code),
+    })),
+    translations,
+  };
 }
 
 /** The links a language switch shows on a page: each of the site's languages, to the page's translation where it has one. */
 export function languageLinks(content: SiteContent, page: Page): LanguageLink[] {
   if (!hasLanguages(content.settings)) return [];
-  // A page a block added links to the translations of the page it's on.
-  const own =
-    page.view && page.view.path !== page.path
-      ? allPages(content).find((candidate) => candidate.path === page.view?.path)
-      : page;
-  const alternates = own ? translationPaths(content, own) : new Map<string, string>();
-  const current = pageLanguage(content, page);
-  return siteLanguages(content.settings).map((language) => {
-    const path = alternates.get(language.code);
-    return {
-      code: language.code,
-      name: language.name,
-      path: path ?? languageHome(content, language.code),
-      translated: path !== undefined,
-      current: language.code === current,
-    };
-  });
+  return languageLinksAt(languageMap(content, [page]), page.path);
 }
