@@ -22,7 +22,7 @@ Goodfellow sites run on free plans, which have limits worth knowing about. These
 - **500 builds a month**, one at a time, each up to 20 minutes. Each publish, nightly update and scheduled change that comes due is one build.
 - **20,000 files**, each up to 25 MiB.
 - **2,000 redirects** in the `_redirects` file the build writes, two for each old address, so about 1,000 old addresses; past that, the build says so, and the pages it writes at old addresses handle the rest.
-- **Domains:** a subdomain, such as `www.example.org`, can keep its DNS where it is, with a CNAME record; the domain itself, such as `example.org`, has to use Cloudflare's nameservers. See [Custom domains](/docs/custom-domains#sites-on-cloudflare-pages).
+- **Domains:** a subdomain, such as `www.example.org`, can keep its DNS where it is, with a CNAME record; the domain itself, such as `example.org`, has to use Cloudflare's nameservers, or redirect to the subdomain through your registrar or a redirect service. See [Custom domains](/docs/custom-domains#sites-on-cloudflare-pages).
 
 Cloudflare can't build on a schedule, so the site's nightly update and its hourly check for scheduled changes run on GitHub Actions or GitLab CI, and ask Cloudflare to rebuild the site through its deploy hook. On a private GitHub repository, the hourly check uses about 720 of the free plan's 2,000 minutes a month; delete `.github/workflows/scheduled.yml` to have scheduled changes go live with the nightly rebuild instead.
 
