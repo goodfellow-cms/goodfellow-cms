@@ -21,7 +21,7 @@ interface Host {
   name: string;
   site: string;
   /** Signs in with a token, and gives the files on the fake host. */
-  signIn: (page: Page) => Promise<() => Map<string, unknown>>;
+  signIn: (page: Page) => Promise<() => ReadonlyMap<string, unknown>>;
 }
 
 const hosts: Host[] = [
