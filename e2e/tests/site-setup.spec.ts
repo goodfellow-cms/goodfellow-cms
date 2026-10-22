@@ -44,7 +44,13 @@ test("creates a site on GitHub with GitHub Pages, as npm create goodfellow would
   await expect(page.getByRole("group", { name: "Start from" })).toBeHidden();
   await radio(page, "A church, charity, school or club").check();
   await radio(page, "Parish example").check();
-  await expect(radio(page, "GitHub")).toBeChecked();
+  // GitLab is recommended for every site.
+  await expect(radio(page, "GitLab")).toBeChecked();
+  await expect(page.locator("label", { has: radio(page, "GitLab") })).toContainText("Recommended");
+  await expect(page.getByText(/published with GitLab Pages/)).toBeVisible();
+  // Keeping the files on GitHub instead says what GitLab would have given the site.
+  await radio(page, "GitHub").check();
+  await expect(page.getByText(/On GitLab, editors sign in with GitLab without a sign-in service/)).toBeVisible();
   // The advanced settings' defaults are said, though they're hidden.
   await expect(
     page.getByText(
@@ -94,9 +100,11 @@ test("recommends hosts whose free plans allow the site, and keeps what people ch
   await radio(page, "A church, charity, school or club").check();
   await openAdvanced(page);
   await radio(page, "Private").check();
-  // Private sites are best on GitLab, or on Cloudflare Pages where they're kept on GitHub; Vercel is never the recommendation.
+  // GitLab Pages publishes private sites, which kept on GitHub go on Cloudflare Pages; Vercel is never the recommendation.
   await expect(label("GitLab")).toContainText("Recommended");
-  await expect(page.getByText(/private sites kept on GitHub are published with Cloudflare Pages/)).toBeVisible();
+  await expect(radio(page, "GitLab Pages")).toBeChecked();
+  await radio(page, "GitHub").check();
+  await expect(page.getByText(/a private site kept on GitHub is published with Cloudflare Pages/)).toBeVisible();
   await expect(radio(page, "Cloudflare Pages")).toBeChecked();
   await expect(label("Cloudflare Pages")).toContainText("Recommended");
   await expect(label("GitHub Pages")).not.toContainText("Recommended");
@@ -119,7 +127,7 @@ test("recommends hosts whose free plans allow the site, and keeps what people ch
   await page.getByRole("button", { name: "Hide advanced settings" }).click();
   await expect(page.getByText(/Vercel's free plan is for non-commercial sites only/)).toBeVisible();
 
-  // A business's files default to GitLab, where nobody chose otherwise.
+  // A business's files are kept on GitLab, where nobody chose otherwise, like everyone else's.
   await page.goto(SETUP, { waitUntil: "networkidle" });
   await radio(page, "A business").check();
   await expect(radio(page, "GitLab")).toBeChecked();
@@ -137,7 +145,7 @@ test("recommends hosts whose free plans allow the site, and keeps what people ch
   await expect(page.getByRole("group", { name: "What's the site for?" })).toBeVisible();
   // One with choices that aren't any falls back to the defaults.
   await page.goto(`${CREATE}?purpose=personal&git=bitbucket&host=netlify`, { waitUntil: "networkidle" });
-  await expect(page.getByRole("region", { name: "Your choices" })).toContainText("GitHub Pages");
+  await expect(page.getByRole("region", { name: "Your choices" })).toContainText("GitLab Pages");
 });
 
 test("creates a private project on GitLab with public GitLab Pages", async ({ page }) => {
@@ -187,6 +195,7 @@ test("creates a site on GitHub with its content in a repository of its own", asy
   await routeToFake(page, "https://api.github.com", github.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
   await radio(page, "A church, charity, school or club").check();
+  await radio(page, "GitHub").check();
   await openAdvanced(page);
   await radio(page, "In a repository of its own").check();
   await continueToCreate(page);

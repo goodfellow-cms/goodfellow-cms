@@ -49,10 +49,15 @@ export const PURPOSES: Record<Purpose, { label: string; description: string }> =
 };
 
 export const GIT_HOSTS: Record<GitHostName, { label: string; description: string }> = {
-  github: { label: "GitHub", description: "Free. GitHub Pages needs a public repository on GitHub's free plan." },
+  github: {
+    label: "GitHub",
+    description:
+      "Free. GitHub Pages needs a public repository and isn't for business sites on the free plan, and editors sign in with a token or a sign-in service you run.",
+  },
   gitlab: {
     label: "GitLab",
-    description: "Free, for public and private projects. A private group can have up to 5 people on the free plan.",
+    description:
+      "Free, with GitLab Pages for public and private sites, business ones included. Editors sign in with GitLab. The free plan has 400 build minutes a month, and a private group can have up to 5 people.",
   },
 };
 
@@ -83,18 +88,12 @@ export const CONTENT_PLACES: Record<ContentPlace, { label: string; description: 
 /** The content repository's name, beside the code's. */
 export const contentName = (name: string) => `${name}-content`;
 
-/** Where to keep a business's files, whose free hosting is GitLab Pages, and everyone else's. */
-function defaultGit(purpose: Purpose): GitHostName {
-  return purpose === "business" ? "gitlab" : "github";
-}
-
 /**
- * Where to keep a site's files: GitLab for business sites and private ones,
- * whose free hosting allows both. Either is fine otherwise.
+ * Where to keep a site's files: GitLab, whatever the site is for. Editors sign
+ * in with GitLab without a sign-in service, GitLab Pages publishes business and
+ * private sites with no other account, and scheduled changes go live on time.
  */
-export function recommendedGit(choices: Choices): GitHostName | undefined {
-  return choices.purpose === "business" || choices.visibility === "private" ? "gitlab" : undefined;
-}
+export const RECOMMENDED_GIT: GitHostName = "gitlab";
 
 /**
  * The host whose free plan allows a site like this, for the git host chosen.
@@ -108,7 +107,7 @@ export function recommendedHost(choices: Pick<Choices, "purpose" | "git" | "visi
 
 /** The choices people haven't made themselves: the defaults, and what follows from what they have made. */
 export function withDefaults(chosen: Partial<Choices> & { purpose: Purpose }): Choices {
-  const git = chosen.git ?? defaultGit(chosen.purpose);
+  const git = chosen.git ?? RECOMMENDED_GIT;
   const visibility = chosen.visibility ?? "public";
   const recommended = recommendedHost({ purpose: chosen.purpose, git, visibility });
   const usable = hostsFor(git);
@@ -148,12 +147,18 @@ export function hostProblem(choices: Choices): string | undefined {
   return undefined;
 }
 
-/** The note under "Where to keep the site's files" when the other host suits the site better. */
+/** The note under "Where to keep the site's files" when they're kept on GitHub, saying what GitLab would give the site. */
 export function gitNote(choices: Choices): string | undefined {
-  if (choices.git !== "github" || recommendedGit(choices) !== "gitlab") return undefined;
-  return choices.purpose === "business"
-    ? "GitHub's free hosting isn't for business sites, so business sites kept on GitHub are published with Cloudflare Pages, or kept on GitLab, with GitLab Pages, which needs no other account."
-    : "GitHub Pages doesn't work with private repositories on GitHub's free plan, so private sites kept on GitHub are published with Cloudflare Pages, or kept on GitLab, whose Pages work with private projects and need no other account.";
+  if (choices.git !== "github") return undefined;
+  const why =
+    "On GitLab, editors sign in with GitLab without a sign-in service of your own, GitLab Pages publishes the site with no other account, and scheduled changes go live on time rather than within the hour.";
+  if (choices.purpose === "business") {
+    return `${why} GitHub's free hosting isn't for business sites, so a business site kept on GitHub is published with Cloudflare Pages, which needs a Cloudflare account.`;
+  }
+  if (choices.visibility === "private") {
+    return `${why} GitHub Pages doesn't work with private repositories on GitHub's free plan, so a private site kept on GitHub is published with Cloudflare Pages, which needs a Cloudflare account.`;
+  }
+  return why;
 }
 
 function lowerFirst(text: string): string {

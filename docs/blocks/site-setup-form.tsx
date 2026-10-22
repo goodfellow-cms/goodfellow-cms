@@ -27,7 +27,7 @@ import {
   PURPOSES,
   type Purpose,
   parseChoices,
-  recommendedGit,
+  RECOMMENDED_GIT,
   recommendedHost,
   VISIBILITIES,
   type Visibility,
@@ -126,7 +126,7 @@ function Choose({
             value={value}
             current={choices.git}
             {...GIT_HOSTS[value]}
-            badge={value === recommendedGit(choices) ? "Recommended" : undefined}
+            badge={value === RECOMMENDED_GIT ? "Recommended" : undefined}
             // A host chosen before that this git host can't use gives way to the one recommended for it.
             onChange={(git) => choose({ git })}
           />

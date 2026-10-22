@@ -10,7 +10,7 @@ Setup takes four steps, done once by whoever sets up the site. A site made with 
 
 ## 1. Store the site on GitHub or GitLab
 
-Create an empty repository on GitHub or GitLab, without a README, and push the site's folder to it:
+Create an empty repository on GitHub or GitLab, without a README, and push the site's folder to it. If you're not sure which, we recommend GitLab, with GitLab Pages: see [Which to choose](/docs/hosts#which-to-choose).
 
 ```sh
 git remote add origin https://github.com/your-name/your-site.git   # unless origin is already set
