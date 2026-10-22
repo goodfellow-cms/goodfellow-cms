@@ -297,6 +297,19 @@ export {
 } from "./content/schemas.js";
 export { serializeContent } from "./content/serialize.js";
 export {
+  type ChangedFile,
+  describeSiteChanges,
+  isRestoredPath,
+  SITE_FOLDERS,
+  type SinceChange,
+  type SiteChange,
+  type SiteChangeSubject,
+  type SiteHistory,
+  siteChangesSince,
+  siteHistory,
+  siteRestoreChanges,
+} from "./content/site-history.js";
+export {
   type BlockPages,
   type BlockPagesContext,
   blockPages,
@@ -424,6 +437,7 @@ export {
   type GitUser,
   type HistoryOptions,
   type RedirectOptions,
+  type RevisionFiles,
   type ServerGit,
   type ServerGitOptions,
   SignInError,

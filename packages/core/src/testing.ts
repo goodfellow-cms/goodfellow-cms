@@ -134,13 +134,24 @@ export class FakeRepo {
     return this.commit([{ path, content }], message, { author });
   }
 
-  /** The commits at or before `ref` that changed `path`, newest first, as git hosts list a file's history. */
+  /**
+   * The commits at or before `ref` that changed `path`, newest first, as git
+   * hosts list a file's history, or for a folder, anything in it.
+   */
   history(path: string, ref: string = this.defaultBranch): FakeCommit[] {
     const found: FakeCommit[] = [];
+    const folder = `${path.replace(/\/+$/, "")}/`;
+    const changed = (commit: FakeCommit, parent: FakeCommit | undefined) => {
+      if (fileKey(commit.files.get(path)) !== fileKey(parent?.files.get(path))) return true;
+      const paths = new Set([...commit.files.keys(), ...(parent?.files.keys() ?? [])]);
+      return [...paths].some(
+        (file) => file.startsWith(folder) && fileKey(commit.files.get(file)) !== fileKey(parent?.files.get(file)),
+      );
+    };
     let commit = this.commits.get(this.branches.get(ref) ?? ref);
     while (commit) {
       const parent = commit.parent ? this.commits.get(commit.parent) : undefined;
-      if (fileKey(commit.files.get(path)) !== fileKey(parent?.files.get(path))) found.push(commit);
+      if (changed(commit, parent)) found.push(commit);
       commit = parent;
     }
     return found;

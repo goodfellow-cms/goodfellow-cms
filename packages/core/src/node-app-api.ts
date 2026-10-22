@@ -228,7 +228,10 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       if (!Number.isInteger(page) || page < 1 || !Number.isInteger(perPage) || perPage < 1 || perPage > 100) {
         throw new BadRequest("That isn't a page of versions.");
       }
-      return json(200, { versions: await backend.history(editablePath(query("path")), { page, perPage }) });
+      // A file's versions, or a folder's, such as `content` for the whole site's.
+      const path = query("path");
+      const subject = typeof path === "string" && isEditablePath(path) ? path : editableDir(path);
+      return json(200, { versions: await backend.history(subject, { page, perPage }) });
     }
     if (get && endpoint === "version") {
       const revision = revisionParam(query("revision"));

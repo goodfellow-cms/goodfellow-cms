@@ -45,6 +45,20 @@ The header, the footer and each item in a collection have a **Version history** 
 - **Moved pages:** a page moved to a new address starts a new history there.
 - **Where it works:** in the published site's admin panel, where you sign in with GitHub or GitLab. There's no history in a demo, or when the site runs on your own computer.
 
+## Restoring the whole site
+
+When a change to many pages at once goes wrong, such as an import or a bulk edit, the whole site can go back to how it was. **Site Settings → Site history** lists every publish that changed the site's pages, items, settings or media, newest first. Choose one to see:
+
+- **What has changed since:** the pages, items, settings and media files that are different now, in three lists: changed since, added since (which restoring removes) and removed since (which restoring brings back).
+- **How the site looked then:** choose any page to preview it as it was, with its pictures.
+
+Then choose **Restore the site as it was** to put everything back in one publish. Like restoring one page, it's a new change of its own, so the site as it was before stays in the history, and you can restore that too. A few things to know:
+
+- **What's restored:** everything in `content/` and `public/media/`: pages, collections and their items, the header and footer, Site Settings, menus, redirects, custom CSS and code, photo credits, and media files. The site's code, the blocks added under **Blocks**, and the [update settings](/docs/updates) stay as they are.
+- **Sites that can't be restored:** a version that uses blocks the site doesn't have any more, until they're added again under **Blocks**.
+- **Who can:** Site Settings is for owners, so on a [full-stack Next.js site](/docs/full-stack-nextjs), editors can't restore the whole site.
+- **Where it works:** as with a page's version history, in the published site's admin panel.
+
 ## Unpublished changes
 
 Leaving a screen with unpublished changes asks first, so nothing is lost by accident. Changes aren't saved anywhere until you publish, so publish before closing the tab.

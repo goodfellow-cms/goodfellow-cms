@@ -295,6 +295,34 @@ describe("version history", () => {
     expect(await backend.history("content/pages/about.json", { perPage: 2, page: 2 })).toHaveLength(1);
   });
 
+  it("lists the whole site's publishes and reads the site as it was at one", async () => {
+    const { fake, backend } = await signedIn();
+    const photo = new Uint8Array([0xff, 0xd8, 0xff, 7]);
+    fake.repo.commit([{ path: "public/media/church.jpg", bytes: photo }], "Upload church.jpg");
+    fake.repo.write("content/pages/about.json", '{"version":1}', "Update About");
+    fake.repo.commit([{ path: "public/media/church.jpg", delete: true }], "Delete church.jpg");
+    await backend.revision();
+
+    expect((await backend.history("content")).map((version) => version.message)).toEqual([
+      "Update About",
+      "Initial commit",
+    ]);
+    const media = await backend.history("public/media");
+    expect(media.slice(0, 2).map((version) => version.message)).toEqual(["Delete church.jpg", "Upload church.jpg"]);
+
+    const then = backend.filesAt(media[1]?.revision ?? "");
+    expect(await then.list("public/media")).toContain("public/media/church.jpg");
+    expect(await then.readBytes("public/media/church.jpg")).toEqual(photo);
+    expect(await then.read("content/pages/about.json")).toBe(
+      await backend.readAt("content/pages/about.json", media[1]?.revision ?? ""),
+    );
+    expect(await then.readFiles?.(["content/site.json", "content/pages/missing.json"])).toEqual(
+      new Map([["content/site.json", await backend.readAt("content/site.json", media[1]?.revision ?? "")]]),
+    );
+    // Reading an earlier revision doesn't move the backend's own reads.
+    expect(await backend.list("public/media")).not.toContain("public/media/church.jpg");
+  });
+
   it("lists versions up to the revision it's reading", async () => {
     const { fake, backend } = await signedIn();
     await backend.revision();

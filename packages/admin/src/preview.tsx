@@ -2,7 +2,7 @@ import { COLOR_SCHEME_ATTRIBUTE, escapeStyleText, googleFontsUrl, type Theme, th
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type PreviewOptions, useAdmin } from "./admin-context.js";
-import { showMediaInPreview } from "./media-previews.js";
+import { type MediaPreviews, showMediaInPreview } from "./media-previews.js";
 import { useDarkMode } from "./theme.js";
 
 /** Whether a preview shows the site light or dark. */
@@ -91,9 +91,14 @@ function preventNavigation(doc: Document): void {
   });
 }
 
-/** Applies preview styles to a document whenever the theme or custom CSS change, and keeps its media showing. */
-export function usePreviewStyles(doc: Document | null | undefined, styles: PreviewStyles): void {
-  const { preview, mediaPreviews } = useAdmin();
+/**
+ * Applies preview styles to a document whenever the theme or custom CSS
+ * change, and keeps its media showing: the site's own, or `media`, such as the
+ * site's media as it was at an earlier publish.
+ */
+export function usePreviewStyles(doc: Document | null | undefined, styles: PreviewStyles, media?: MediaPreviews): void {
+  const { preview, mediaPreviews: current } = useAdmin();
+  const mediaPreviews = media ?? current;
   const dark = useDarkMode();
   const scheme = styles.scheme ?? (dark ? "dark" : "light");
   useEffect(() => {
@@ -115,17 +120,20 @@ const EMPTY_DOCUMENT =
 export function PreviewFrame({
   title,
   styles,
+  media,
   children,
 }: {
   title: string;
   styles: PreviewStyles;
+  /** Where the preview's media comes from, if not the site as it is now. */
+  media?: MediaPreviews;
   children: ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [doc, setDoc] = useState<Document | null>(null);
   const [scale, setScale] = useState(0.5);
   const [height, setHeight] = useState(800);
-  usePreviewStyles(doc, styles);
+  usePreviewStyles(doc, styles, media);
 
   useEffect(() => {
     const element = container.current;

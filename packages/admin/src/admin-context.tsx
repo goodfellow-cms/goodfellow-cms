@@ -110,7 +110,7 @@ interface AdminContextValue {
   /** The git host's own Pages, for connecting a domain, when the backend can. */
   pages?: PagesDomains;
   /** Earlier versions of the site's files, when the site is stored on a git host. */
-  versions?: Pick<GitBackend, "history" | "readAt">;
+  versions?: Pick<GitBackend, "history" | "readAt" | "filesAt">;
   /** The files that changed between two revisions, when the site is stored on a git host. */
   changedPaths?: (from: string, to: string) => Promise<string[]>;
   /** Who edits the site, when the backend can say. */
