@@ -8,6 +8,23 @@ order: 5
 
 Goodfellow sites run on free plans, which have limits worth knowing about. These are the hosts' rules, not Goodfellow's, and they change, so check the links before deciding. Last checked in October 2026.
 
+## Which to choose
+
+We recommend keeping the site on GitLab and publishing it with GitLab Pages, whatever the site is for. The [setup page](/new-site) starts with that.
+
+- **Editors sign in with GitLab** straight away. Sign in with GitHub needs a [sign-in service](/docs/sign-in-service) someone runs; without one, GitHub editors paste a token.
+- **No other account:** GitLab Pages publishes business sites and private projects for free, where on GitHub those need Cloudflare Pages and an account there.
+- **Scheduled changes go live on time,** where on GitHub they go live within the hour ([Scheduling](/docs/scheduling)).
+
+Its limits:
+
+- **400 build minutes a month,** shared by every project in the account or group. A publish or the nightly update takes a few minutes, so that's enough for most sites, but a busy one, or several sites in one group, can run out, and then nothing is published until the next month. Such a site can keep its files on GitLab and be built by [Cloudflare Pages](#cloudflare-pages) instead.
+- **Up to 5 people** in a private group or account.
+- **New accounts may be asked to verify** a phone number or card before GitLab runs their first build.
+- **Editors' sign-in reaches every project they can change,** where GitHub's sign-in service gives a token for the site's repository alone, so keep editors' GitLab accounts to the sites they edit.
+
+GitHub suits a site whose editors already use GitHub, or one with a developer who prefers it.
+
 | On the free plan | GitHub Free | GitLab Free |
 |---|---|---|
 | Free static hosting | GitHub Pages, public repositories only; or Cloudflare Pages, public or private | GitLab Pages or Cloudflare Pages, public or private |
