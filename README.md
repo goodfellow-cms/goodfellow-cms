@@ -175,8 +175,9 @@ flowchart TB
     - **Any block:** each of the site's blocks becomes a Gutenberg block of its own, made from the site's config, with its props kept exactly as they are and its slots as Gutenberg's inner blocks, never written as HTML, so going back and forth loses nothing. A test round-trips every page of the starters, the example and the docs. Blocks with several slots need a way to place each one inside the block's own layout, which Gutenberg doesn't offer, so a prototype of one comes first.
     - **The rest of the editor:** blocks' fields as Gutenberg's settings, page settings in a sidebar of their own, Gutenberg's own styling options turned off since content has nowhere to keep them, pasted HTML turned into Goodfellow's blocks with the WordPress import's code, and the AI assistant, the media chooser and the link preview working as they do with Puck.
     - **In the plugin system:** step 35 gets a kind of plugin that replaces the page editor, run in a sandboxed frame like the editor in step 33, which hands back the page's data and never sees a token; the admin panel checks what comes back against the blocks' fields before publishing.
-
-Planned for later: per-user permissions and importing from other systems.
+38. **Per-user permissions.** Owners can limit what each editor may change, beyond the owner, editor and viewer roles the Editors screen gives today: some pages or collections, the media library, or the header and footer, with everything else read-only to them in the admin panel.
+    - **Where it's enforced:** git hosts give each person access to a whole repository, so on a static site whose editors sign in themselves, a limit only the admin panel applies stops changes made by mistake, not on purpose, and the Editors screen says so. A limit that has to hold needs something between editors and the repository: full-stack sites' servers check it on every write, as they check roles (step 24's `authorize()`), and the token broker (step 33) refuses publishes outside it. Without either, an editor's changes outside their limits can go to review instead, as a draft submitted for review (step 34), for an owner to publish.
+    - **Kept where editors can't change it:** the limits are a file of their own under `content/`, which `isSettingsPath()` covers, so only owners change it wherever settings are protected.
 
 ## Contributing
 
