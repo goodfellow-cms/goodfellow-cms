@@ -60,7 +60,8 @@ const hosts: Host[] = [
   },
 ];
 
-const editor = (page: Page) => page.locator(".gfa-editor");
+/** The editor's language menu, beside Publish. */
+const language = (page: Page) => page.locator(".gfa-header-actions").getByLabel("Language");
 const canvas = (page: Page) => page.frameLocator("iframe#preview-frame");
 
 for (const host of hosts) {
@@ -70,20 +71,21 @@ for (const host of hosts) {
     const repo = await host.signIn(page);
     await expect(page.getByRole("link", { name: "About us", exact: true })).toBeVisible();
 
-    // The editor's header offers to translate the page.
+    // The editor's language menu offers to translate the page.
     await page.goto(`${host.site}/admin/#/pages/edit?path=%2Fabout`);
     await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible();
-    const translations = editor(page).getByRole("navigation", { name: "Translations" });
-    await translations.getByRole("button", { name: "Translate into Español" }).click();
+    await expect(language(page).locator("option")).toHaveText(["English", "Translate into Español…"]);
+    await language(page).selectOption("es");
     await page.getByRole("dialog").getByRole("button", { name: "Make the copy" }).click();
 
-    // The copy opens, in Spanish, with a link back to the English page.
+    // The copy opens, in Spanish, and the menu goes back to the English page.
     await expect(page).toHaveURL(/path=%2Fes%2Fabout/);
     await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible();
     expect(JSON.parse(String(repo().get("content/pages/es/about.json")))).toMatchObject({ translationOf: "/about" });
-    await editor(page).getByRole("navigation", { name: "Translations" }).getByRole("link", { name: "English" }).click();
+    await expect(language(page)).toHaveValue("es");
+    await language(page).selectOption("en");
     await expect(page).toHaveURL(/path=%2Fabout$/);
-    await expect(editor(page).getByRole("link", { name: "Español" })).toBeVisible();
+    await expect(language(page).locator("option")).toHaveText(["English", "Español"]);
 
     // Spanish starts with the main language's footer, until it has one of its own.
     await page.goto(`${host.site}/admin/#/layout/footer?language=es`);

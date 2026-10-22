@@ -130,3 +130,25 @@ test("gives each language its own menus", async ({ page }) => {
   expect(menus.languages.es?.main?.[0]?.label).toBe("Inicio");
   expect(menus.menus.main?.[0]?.label).not.toBe("Inicio");
 });
+
+test("the item editor's language menu opens an item's translations, and says which are out of date", async ({
+  page,
+}) => {
+  addSpanish();
+  writeSiteFile(
+    "content/collections/news/bienvenida.json",
+    json({
+      version: 1,
+      inLanguage: "es",
+      translationOf: "welcome",
+      translatedFrom: "older",
+      fields: { title: "Bienvenidos" },
+    }),
+  );
+  await page.goto("/admin#/collections/news/edit?slug=welcome");
+  const language = page.locator(".gfa-header-actions").getByLabel("Language");
+  await expect(language.locator("option")).toHaveText(["English", "Español (out of date)"]);
+  await language.selectOption("es");
+  await expect(page).toHaveURL(/slug=bienvenida$/);
+  await expect(language).toHaveValue("es");
+});

@@ -31,7 +31,6 @@ import { type Failure, PublishFailure } from "./publish-failure.js";
 import { entryEditorHref, navigate, pageEditorHref } from "./router.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, TextField } from "./ui.js";
-import { AppLink } from "./use-link.js";
 
 const addressErrors: Record<AddressProblem, StringKey> = {
   invalid: "address.invalid",
@@ -401,24 +400,61 @@ export function unlinkEntryTranslations(collection: Collection, entry: Entry) {
     );
 }
 
-/** A link to a translation in an editor's header, saying when it's out of date. */
-function TranslationLink({ href, language, outdated }: { href: string; language: SiteLanguage; outdated: boolean }) {
+/** One of the site's languages in an editor's language menu: its translation, if it has one. */
+interface LanguageChoice {
+  language: SiteLanguage;
+  href?: string;
+  outdated: boolean;
+}
+
+/**
+ * The menu of languages in an editor's header, like the Header & Footer
+ * editor's, so it stays one control however many languages the site has.
+ * Choosing a language opens its translation, or offers to make one.
+ */
+function TranslationMenu({
+  own,
+  choices,
+  onAdd,
+}: {
+  own: SiteLanguage;
+  choices: LanguageChoice[];
+  onAdd: (language: SiteLanguage) => void;
+}) {
   const t = useStrings();
+  const choose = (code: string) => {
+    const choice = choices.find((candidate) => candidate.language.code === code);
+    if (!choice) return;
+    if (choice.href) navigate(choice.href, () => window.confirm(t("unsaved.confirm")));
+    else onAdd(choice.language);
+  };
   return (
-    <AppLink href={href} className="gfa-button gfa-button-ghost" lang={language.code}>
-      {language.name}
-      {outdated && <span className="gfa-badge gfa-badge-warning">{t("translations.outdated")}</span>}
-    </AppLink>
+    <label className="gfa-inline-field">
+      {t("menus.language")}
+      <select className="gfa-input" value={own.code} onChange={(event) => choose(event.target.value)}>
+        <option value={own.code} lang={own.code}>
+          {own.name}
+        </option>
+        {choices.map(({ language, href, outdated }) => (
+          <option key={language.code} value={language.code} lang={href ? language.code : undefined}>
+            {href
+              ? outdated
+                ? t("translations.optionOutdated", { language: language.name })
+                : language.name
+              : t("translations.optionAdd", { language: language.name })}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
 /**
- * In the page editor's header, on a site in several languages: the page in
- * each of the site's other languages, to open its translation or make one.
+ * In the page editor's header, on a site in several languages: a menu of the
+ * site's languages, to open the page's translation in one or make one.
  * A page in another language that translates nothing has none.
  */
 export function PageEditorTranslations({ page }: { page: Page }) {
-  const t = useStrings();
   const { content } = useSiteContent();
   const [adding, setAdding] = useState<SiteLanguage>();
   if (!hasLanguages(content.settings)) return null;
@@ -428,36 +464,29 @@ export function PageEditorTranslations({ page }: { page: Page }) {
   if (!source || pageLanguage(content, source) !== main) return null;
   const group = pageTranslations(content, source);
   const hash = pageSourceHash(source);
+  const languages = siteLanguages(content.settings);
+  const current = languages.find((language) => language.code === own);
+  if (!current) return null;
+  const choices = languages
+    .filter((language) => language.code !== own)
+    .map((language) => {
+      const translation = group.get(language.code);
+      return {
+        language,
+        href: translation && pageEditorHref(translation.path),
+        outdated: !!translation && !language.main && translationState(hash, translation.content) === "outdated",
+      };
+    });
   return (
-    <nav className="gfa-editor-translations" aria-label={t("translations.label")}>
-      {siteLanguages(content.settings)
-        .filter((language) => language.code !== own)
-        .map((language) => {
-          const translation = group.get(language.code);
-          if (translation) {
-            return (
-              <TranslationLink
-                key={language.code}
-                href={pageEditorHref(translation.path)}
-                language={language}
-                outdated={!language.main && translationState(hash, translation.content) === "outdated"}
-              />
-            );
-          }
-          return (
-            <Button key={language.code} variant="ghost" onClick={() => setAdding(language)}>
-              {t("translations.add", { language: language.name })}
-            </Button>
-          );
-        })}
+    <>
+      <TranslationMenu own={current} choices={choices} onAdd={setAdding} />
       {adding && <AddPageTranslationDialog page={source} language={adding} onClose={() => setAdding(undefined)} />}
-    </nav>
+    </>
   );
 }
 
 /** The same in the item editor's header, for an item's translations. */
 export function EntryEditorTranslations({ collection, entry }: { collection: Collection; entry: Entry }) {
-  const t = useStrings();
   const { content } = useSiteContent();
   const [adding, setAdding] = useState<SiteLanguage>();
   const { settings } = content;
@@ -470,28 +499,22 @@ export function EntryEditorTranslations({ collection, entry }: { collection: Col
   const group = entryTranslations(settings, collection, source);
   const hash = entrySourceHash(source);
   const entryHref = (slug: string) => entryEditorHref(collection.id, slug);
+  const languages = siteLanguages(settings);
+  const current = languages.find((language) => language.code === own);
+  if (!current) return null;
+  const choices = languages
+    .filter((language) => language.code !== own)
+    .map((language) => {
+      const translation = group.get(language.code);
+      return {
+        language,
+        href: translation && entryHref(translation.slug),
+        outdated: !!translation && !language.main && translationState(hash, translation.content) === "outdated",
+      };
+    });
   return (
-    <nav className="gfa-editor-translations" aria-label={t("translations.label")}>
-      {siteLanguages(settings)
-        .filter((language) => language.code !== own)
-        .map((language) => {
-          const translation = group.get(language.code);
-          if (translation) {
-            return (
-              <TranslationLink
-                key={language.code}
-                href={entryHref(translation.slug)}
-                language={language}
-                outdated={!language.main && translationState(hash, translation.content) === "outdated"}
-              />
-            );
-          }
-          return (
-            <Button key={language.code} variant="ghost" onClick={() => setAdding(language)}>
-              {t("translations.add", { language: language.name })}
-            </Button>
-          );
-        })}
+    <>
+      <TranslationMenu own={current} choices={choices} onAdd={setAdding} />
       {adding && (
         <AddEntryTranslationDialog
           collection={collection}
@@ -501,6 +524,6 @@ export function EntryEditorTranslations({ collection, entry }: { collection: Col
           onClose={() => setAdding(undefined)}
         />
       )}
-    </nav>
+    </>
   );
 }

@@ -1712,11 +1712,3 @@ body,
   padding-bottom: 12px;
   border-bottom: 1px solid var(--gfa-border);
 }
-
-/* An editor's links to the page's or item's translations, beside Publish. */
-.gfa-editor-translations {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-}
