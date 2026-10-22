@@ -28,7 +28,7 @@ import {
   pageTitle,
 } from "./changes.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
-import { navigate, pageEditorHref } from "./router.js";
+import { entryEditorHref, navigate, pageEditorHref } from "./router.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, TextField } from "./ui.js";
 
@@ -192,7 +192,8 @@ function AddPageTranslationDialog({
     setBusy(false);
     if (result.ok) {
       onClose();
-      navigate(pageEditorHref(check.path), () => true);
+      // From the page editor, unpublished changes there are kept only if the editor chooses to stay.
+      navigate(pageEditorHref(check.path), () => window.confirm(t("unsaved.confirm")));
     } else {
       setFailure(result);
     }
@@ -356,7 +357,7 @@ function AddEntryTranslationDialog({
     setBusy(false);
     if (result.ok) {
       onClose();
-      navigate(entryHref(check.slug), () => true);
+      navigate(entryHref(check.slug), () => window.confirm(t("unsaved.confirm")));
     } else {
       setFailure(result);
     }
@@ -397,4 +398,132 @@ export function unlinkEntryTranslations(collection: Collection, entry: Entry) {
         translatedFrom: undefined,
       }),
     );
+}
+
+/** One of the site's languages in an editor's language menu: its translation, if it has one. */
+interface LanguageChoice {
+  language: SiteLanguage;
+  href?: string;
+  outdated: boolean;
+}
+
+/**
+ * The menu of languages in an editor's header, like the Header & Footer
+ * editor's, so it stays one control however many languages the site has.
+ * Choosing a language opens its translation, or offers to make one.
+ */
+function TranslationMenu({
+  own,
+  choices,
+  onAdd,
+}: {
+  own: SiteLanguage;
+  choices: LanguageChoice[];
+  onAdd: (language: SiteLanguage) => void;
+}) {
+  const t = useStrings();
+  const choose = (code: string) => {
+    const choice = choices.find((candidate) => candidate.language.code === code);
+    if (!choice) return;
+    if (choice.href) navigate(choice.href, () => window.confirm(t("unsaved.confirm")));
+    else onAdd(choice.language);
+  };
+  return (
+    <label className="gfa-inline-field">
+      {t("menus.language")}
+      <select className="gfa-input" value={own.code} onChange={(event) => choose(event.target.value)}>
+        <option value={own.code} lang={own.code}>
+          {own.name}
+        </option>
+        {choices.map(({ language, href, outdated }) => (
+          <option key={language.code} value={language.code} lang={href ? language.code : undefined}>
+            {href
+              ? outdated
+                ? t("translations.optionOutdated", { language: language.name })
+                : language.name
+              : t("translations.optionAdd", { language: language.name })}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * In the page editor's header, on a site in several languages: a menu of the
+ * site's languages, to open the page's translation in one or make one.
+ * A page in another language that translates nothing has none.
+ */
+export function PageEditorTranslations({ page }: { page: Page }) {
+  const { content } = useSiteContent();
+  const [adding, setAdding] = useState<SiteLanguage>();
+  if (!hasLanguages(content.settings)) return null;
+  const main = mainLanguage(content.settings);
+  const own = pageLanguage(content, page);
+  const source = own === main ? page : content.pages.find((candidate) => candidate.path === page.content.translationOf);
+  if (!source || pageLanguage(content, source) !== main) return null;
+  const group = pageTranslations(content, source);
+  const hash = pageSourceHash(source);
+  const languages = siteLanguages(content.settings);
+  const current = languages.find((language) => language.code === own);
+  if (!current) return null;
+  const choices = languages
+    .filter((language) => language.code !== own)
+    .map((language) => {
+      const translation = group.get(language.code);
+      return {
+        language,
+        href: translation && pageEditorHref(translation.path),
+        outdated: !!translation && !language.main && translationState(hash, translation.content) === "outdated",
+      };
+    });
+  return (
+    <>
+      <TranslationMenu own={current} choices={choices} onAdd={setAdding} />
+      {adding && <AddPageTranslationDialog page={source} language={adding} onClose={() => setAdding(undefined)} />}
+    </>
+  );
+}
+
+/** The same in the item editor's header, for an item's translations. */
+export function EntryEditorTranslations({ collection, entry }: { collection: Collection; entry: Entry }) {
+  const { content } = useSiteContent();
+  const [adding, setAdding] = useState<SiteLanguage>();
+  const { settings } = content;
+  if (!hasLanguages(settings)) return null;
+  const main = mainLanguage(settings);
+  const own = entry.content.inLanguage ?? main;
+  const source =
+    own === main ? entry : collection.entries.find((candidate) => candidate.slug === entry.content.translationOf);
+  if (!source || (source.content.inLanguage ?? main) !== main) return null;
+  const group = entryTranslations(settings, collection, source);
+  const hash = entrySourceHash(source);
+  const entryHref = (slug: string) => entryEditorHref(collection.id, slug);
+  const languages = siteLanguages(settings);
+  const current = languages.find((language) => language.code === own);
+  if (!current) return null;
+  const choices = languages
+    .filter((language) => language.code !== own)
+    .map((language) => {
+      const translation = group.get(language.code);
+      return {
+        language,
+        href: translation && entryHref(translation.slug),
+        outdated: !!translation && !language.main && translationState(hash, translation.content) === "outdated",
+      };
+    });
+  return (
+    <>
+      <TranslationMenu own={current} choices={choices} onAdd={setAdding} />
+      {adding && (
+        <AddEntryTranslationDialog
+          collection={collection}
+          entry={source}
+          language={adding}
+          entryHref={entryHref}
+          onClose={() => setAdding(undefined)}
+        />
+      )}
+    </>
+  );
 }

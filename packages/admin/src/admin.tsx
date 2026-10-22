@@ -139,7 +139,14 @@ function Screen() {
   }
 
   if (section === "pages" && sub === "edit") return <PageEditorScreen path={params.get("path") ?? "/"} />;
-  if (section === "layout") return <LayoutEditorScreen part={sub === "footer" ? "footer" : "header"} />;
+  if (section === "layout") {
+    return (
+      <LayoutEditorScreen
+        part={sub === "footer" ? "footer" : "header"}
+        language={params.get("language") ?? undefined}
+      />
+    );
+  }
   if (section === "settings" && sub === "domain") return <DomainScreen />;
   if (section === "settings" && sub === "editors") return <EditorsScreen />;
   if (section === "settings" && sub === "updates") return <UpdatesScreen />;

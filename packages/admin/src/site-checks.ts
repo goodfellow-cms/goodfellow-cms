@@ -18,6 +18,7 @@ import {
   SITE_FILE,
   type SiteContent,
   type SiteProblem,
+  siteLanguages,
   todayIn,
 } from "@goodfellow-cms/core";
 import { createPuckConfigs, PageBody, preparePage } from "@goodfellow-cms/react";
@@ -194,6 +195,11 @@ export function describeContrast(t: Translate, problem: Extract<SiteProblem, { k
   });
 }
 
+/** One of the site's languages, as it's named in the switch. */
+function languageName(content: SiteContent, code: string): string {
+  return siteLanguages(content.settings).find((language) => language.code === code)?.name ?? code;
+}
+
 /** What a problem means, in plain words. */
 export function describeProblem(t: Translate, content: SiteContent, problem: SiteProblem): string {
   switch (problem.kind) {
@@ -205,6 +211,12 @@ export function describeProblem(t: Translate, content: SiteContent, problem: Sit
       return t(`checks.${problem.kind}`, { place: problemPlace(t, content, problem.file) });
     case "bad-translation":
       return t("checks.bad-translation", { place: problemPlace(t, content, problem.file), target: problem.target });
+    case "missing-translation":
+    case "outdated-translation":
+      return t(`checks.${problem.kind}`, {
+        place: problemPlace(t, content, problem.file),
+        language: languageName(content, problem.language),
+      });
     case "low-contrast":
       return describeContrast(t, problem);
     case "no-alt":

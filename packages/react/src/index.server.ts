@@ -46,5 +46,6 @@ export {
   templateOnly,
   withClassName,
 } from "./puck-config.js";
+export { CurrentPathProvider, useCurrentPath } from "./site-context.js";
 export { type SiteContextValue, SiteProvider, useSite } from "./site-context.server.js";
 export type { AdminLinkProps, AdminPlace, SiteComponents, SiteImageProps, SiteLinkProps } from "./site-types.js";

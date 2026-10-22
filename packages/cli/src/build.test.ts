@@ -139,7 +139,7 @@ describe("build", () => {
       '<link rel="alternate" type="application/rss+xml" title="Talks – Fixture" href="/from-config/feeds/talks.rss"/>',
     );
     expect(home).toContain('"@type":"WebSite"');
-    expect(await read("talks/hope/index.html")).toContain('"@type":"Article","headline":"On hope"');
+    expect(await read("talks/hope/index.html")).toContain('"@type":"Article","inLanguage":"en","headline":"On hope"');
   });
 
   it("builds the starter template", async () => {
@@ -164,11 +164,15 @@ describe("build", () => {
     const parishOut = await mkdtemp(join(tmpdir(), "goodfellow-parish-"));
     try {
       const result = await build({ root: parish, outDir: parishOut, base: "/" });
-      // Ten pages and two in Spanish, plus five events, seven news stories and two bulletins. Staff have no
-      // pages of their own. The calendar has a page for each month, from last month to a year ahead, and the
-      // news a second page and one for each of its four topics.
-      expect(result.pages).toHaveLength(26 + 14 + 5);
-      expect(result.problems).toEqual([]);
+      // Ten pages and two in Spanish, plus five events, seven news stories and two bulletins, and the events and
+      // four stories in Spanish. Staff have no pages of their own. The calendar has a page for each month, from
+      // last month to a year ahead, and the news a second page and one for each of its four topics.
+      expect(result.pages).toHaveLength(26 + 9 + 14 + 5);
+      // Only some of its pages and items are in Spanish, as a real parish's might be, and the build says which aren't.
+      expect(result.problems.filter((problem) => problem.kind !== "missing-translation")).toEqual([]);
+      expect(result.problems).toContainEqual(
+        expect.objectContaining({ kind: "missing-translation", file: "content/pages/about.json", language: "es" }),
+      );
       const home = await readFile(join(parishOut, "index.html"), "utf8");
       expect(home).toContain("<title>St. Joseph Parish, Anytown</title>");
       expect(home).toContain("Weekend Masses");
@@ -179,6 +183,12 @@ describe("build", () => {
       expect(spanish).toContain("<title>Horarios de misa | Parroquia de San José</title>");
       expect(spanish).toContain('aria-label="Languages"');
       expect(spanish).toMatch(/<a href="\/mass-times" hrefLang="en"[^>]*>English<\/a>/);
+      // The footer has words of its own in Spanish, and the home page's lists show the Spanish items.
+      expect(spanish).toContain("Una familia parroquial católica en Anytown.");
+      const spanishHome = await readFile(join(parishOut, "es/index.html"), "utf8");
+      expect(spanishHome).toContain("Misa de recuerdo");
+      expect(spanishHome).not.toContain("Mass of Remembrance");
+      expect(spanishHome).toContain('href="/es/eventos/');
       const bulletin = await readFile(join(parishOut, "bulletins/2026-10-04/index.html"), "utf8");
       expect(bulletin).toContain('href="/media/bulletin-example.pdf"');
       // The home page's news has a heading, and a link to the rest.

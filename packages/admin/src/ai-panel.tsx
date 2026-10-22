@@ -424,9 +424,7 @@ function AiPanel({ context }: { context: AiContext }) {
   // The language of the page or item being edited, and whether it's one to translate into.
   const language = context.language ?? pathLanguage(content.settings, context.path);
   const translating =
-    hasLanguages(content.settings) &&
-    (context.kind === "page" || context.kind === "entry") &&
-    language !== mainLanguage(content.settings)
+    hasLanguages(content.settings) && context.kind !== "template" && language !== mainLanguage(content.settings)
       ? siteLanguages(content.settings).find((candidate) => candidate.code === language)
       : undefined;
 

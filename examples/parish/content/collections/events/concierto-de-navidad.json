@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "fields": {
+    "image": "/media/gathering.svg",
+    "place": "Iglesia",
+    "summary": "El coro parroquial y el coro infantil cantan villancicos antiguos y nuevos. Gratis, con una colecta para el banco de alimentos.",
+    "text": "<p>Traiga a su familia y amigos a una tarde de villancicos, seguida de chocolate caliente en el salón parroquial.</p>",
+    "title": "Concierto de Navidad",
+    "when": {
+      "end": "2026-12-13T16:30",
+      "start": "2026-12-13T15:00"
+    }
+  },
+  "inLanguage": "es",
+  "translatedFrom": "53f997772ca2b825",
+  "translationOf": "christmas-concert"
+}

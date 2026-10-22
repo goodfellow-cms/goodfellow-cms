@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "fields": {
+    "image": "/media/gathering.svg",
+    "place": "Salón parroquial",
+    "summary": "Juegos, comida y conversación para estudiantes de secundaria, todos los miércoles durante el curso escolar.",
+    "text": "<p>Todos los estudiantes de secundaria son bienvenidos, sean o no feligreses. No hay grupo de jóvenes la víspera de Acción de Gracias ni durante las vacaciones de Navidad.</p>",
+    "title": "Grupo de jóvenes",
+    "when": {
+      "end": "2026-09-09T20:30",
+      "repeat": {
+        "every": "week",
+        "skip": [
+          "2026-11-25",
+          "2026-12-23",
+          "2026-12-30"
+        ],
+        "until": "2027-06-09"
+      },
+      "start": "2026-09-09T19:00"
+    }
+  },
+  "inLanguage": "es",
+  "translatedFrom": "2f90617413328e9a",
+  "translationOf": "youth-group"
+}

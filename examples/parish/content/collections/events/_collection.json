@@ -42,6 +42,9 @@
       "name": "text"
     }
   ],
+  "languagePaths": {
+    "es": "/es/eventos/{slug}"
+  },
   "name": "Events",
   "path": "/events/{slug}",
   "sort": {

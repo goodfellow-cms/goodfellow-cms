@@ -16,6 +16,8 @@ import {
   pageHead,
   type SiteContent,
   shownContent,
+  languageMap as siteLanguageMap,
+  siteLanguages,
   sitemapPages,
   sitePages,
   themeToCss,
@@ -41,7 +43,7 @@ import type { Metadata, MetadataRoute } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { preload } from "react-dom";
-import { CurrentMenuLinks, NextImage, NextLink, PageLanguage } from "./components.js";
+import { ByLanguage, CurrentMenuLinks, NextImage, NextLink, PageLanguage } from "./components.js";
 
 export interface GoodfellowPagesOptions {
   /** The site's folder, holding `content/`. Defaults to the folder Next.js runs in. */
@@ -221,17 +223,48 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
      */
     async Layout({ children }: { children: ReactNode }) {
       const content = await site();
-      // A site in several languages shows each page's header and footer in its language, so pages render them.
-      const shared = !hasLanguages(content.settings);
-      const layout = shared ? await prepareLayout(configs, content, await renderOptions()) : undefined;
+      const options = await renderOptions();
+      let header: ReactNode;
+      let footer: ReactNode;
+      if (hasLanguages(content.settings)) {
+        // A header and footer for each language, which the browser picks from by the page's address, with where each
+        // page's translations are, for the Language switch.
+        const languageMap = siteLanguageMap(content, exportedPages(content, config.blocks));
+        const layouts = await Promise.all(
+          siteLanguages(content.settings).map(async (language) => ({
+            prefix: language.prefix,
+            layout: await prepareLayout(configs, content, { ...options, languageMap }, language.code),
+          })),
+        );
+        header = (
+          <ByLanguage
+            variants={layouts.map(({ prefix, layout }) => ({
+              prefix,
+              children: <PageHeader site={layout.site} layoutConfig={layout.layoutConfig} data={layout.header} />,
+            }))}
+          />
+        );
+        footer = (
+          <ByLanguage
+            variants={layouts.map(({ prefix, layout }) => ({
+              prefix,
+              children: <PageFooter site={layout.site} layoutConfig={layout.layoutConfig} data={layout.footer} />,
+            }))}
+          />
+        );
+      } else {
+        const layout = await prepareLayout(configs, content, options);
+        header = <PageHeader site={layout.site} layoutConfig={layout.layoutConfig} data={layout.header} />;
+        footer = <PageFooter site={layout.site} layoutConfig={layout.layoutConfig} data={layout.footer} />;
+      }
       return (
         <>
           <Theme content={content} />
           {/* React moves the head's links, meta tags and loading scripts into the head; inline scripts run here. */}
           <HeadCode code={content.code?.head} />
-          {layout && <PageHeader site={layout.site} layoutConfig={layout.layoutConfig} data={layout.header} />}
+          {header}
           {children}
-          {layout && <PageFooter site={layout.site} layoutConfig={layout.layoutConfig} data={layout.footer} />}
+          {footer}
           <CurrentMenuLinks basePath={basePath()} />
           <BodyCode code={content.code?.body} />
         </>
@@ -262,9 +295,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       return (
         <>
           <PageLanguage language={prepared.site.settings.language} />
-          <PageHeader site={prepared.site} layoutConfig={prepared.layoutConfig} data={prepared.header} />
           {pageContent}
-          <PageFooter site={prepared.site} layoutConfig={prepared.layoutConfig} data={prepared.footer} />
         </>
       );
     },

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "fields": {
+    "date": "2026-09-14",
+    "image": "/media/placeholder.svg",
+    "summary": "Seis nuevos cantores se unieron al coro parroquial este otoño, y hay sitio para más.",
+    "text": "<p>El coro ensaya los jueves por la tarde en la iglesia. No hace falta experiencia, solo amor por el canto. Hable con el director de música después de cualquier misa del domingo.</p>",
+    "title": "El coro da la bienvenida a nuevas voces",
+    "topics": [
+      "music",
+      "parish-life"
+    ]
+  },
+  "inLanguage": "es",
+  "translatedFrom": "f425dbde4864eb84",
+  "translationOf": "choir-new-voices"
+}

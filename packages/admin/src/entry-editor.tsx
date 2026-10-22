@@ -39,6 +39,7 @@ import { MediaChooser } from "./media-library.js";
 import { PuckEditor, SiteFrame } from "./puck-editor.js";
 import { ScheduleFields, scheduleSettingsChanges } from "./schedule.js";
 import { useStrings } from "./strings.js";
+import { EntryEditorTranslations } from "./translations.js";
 import { AppLink } from "./use-link.js";
 import { VersionsLink } from "./versions-screen.js";
 
@@ -388,7 +389,12 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
       ui={siteConfig.ai === false ? { leftSideBarVisible: false } : entryUi}
       plugins={siteConfig.ai === false ? entryPlugins : undefined}
       rightSideBar={ENTRY_SIDEBAR}
-      actions={<VersionsLink file={entry.file} />}
+      actions={
+        <>
+          <EntryEditorTranslations collection={collection} entry={entry} />
+          <VersionsLink file={entry.file} />
+        </>
+      }
       validate={(next) => {
         const values: Record<string, unknown> = next.root.props ?? {};
         if (scheduleProblem((values[SCHEDULE_PROP] ?? {}) as Schedule)) return t("editEntry.invalidSchedule");

@@ -55,6 +55,9 @@
       "name": "text"
     }
   ],
+  "languagePaths": {
+    "es": "/es/noticias/{slug}"
+  },
   "name": "News",
   "path": "/news/{slug}",
   "sort": {

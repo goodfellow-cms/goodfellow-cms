@@ -124,6 +124,10 @@ export const defaultStrings = {
   "checks.missing-page": "{place} links to {target}, which isn't a page on the site.",
   "checks.missing-media": "{place} uses {target}, which isn't in the media library.",
   "checks.no-title": "{place} has no title, so browser tabs and search results show only the site's name.",
+  "checks.missing-translation":
+    "{place} has no translation in {language} yet. Visitors reading in {language} are sent to its home page instead.",
+  "checks.outdated-translation":
+    "{place} has changed since its translation in {language} was made. Update the translation, then mark it as up to date.",
   "checks.bad-translation":
     "{place} says it's a translation of {target}, but only pages and items in the site's main language have translations.",
   "checks.no-description": "{place} has no description for search results and link previews to show.",
@@ -269,6 +273,8 @@ export const defaultStrings = {
 
   "layout.header": "Header",
   "layout.footer": "Footer",
+  "layout.headerWord": "header",
+  "layout.footerWord": "footer",
   "layout.headerMessage": "Update the header",
   "layout.footerMessage": "Update the footer",
 
@@ -1079,6 +1085,8 @@ export const defaultStrings = {
   "translations.add": "Translate into {language}",
   "translations.current": "Up to date",
   "translations.outdated": "Out of date",
+  "translations.optionOutdated": "{language} (out of date)",
+  "translations.optionAdd": "Translate into {language}…",
   "translations.markCurrent": "Mark as up to date",
   "translations.markCurrentMessage": "Mark {title} as up to date",
   "translations.of": "Translation of {title}",
@@ -1091,6 +1099,13 @@ export const defaultStrings = {
   "translations.addMessage": "Translate {title} into {language}",
   "translations.addressLanguage": "Pages in {language} have addresses starting with {prefix}.",
   "menus.language": "Language",
+  "layout.languageShared":
+    "Pages in {language} show the main language's {part}, with {language}'s menus and site name. Give {language} a {part} of its own to translate the words typed into it.",
+  "layout.languageCopy": "Make a {part} for {language}",
+  "layout.languageCopyMessage": "Make a {part} for {language}",
+  "layout.languageRemove": "Use the main language's {part}",
+  "layout.languageRemoveMessage": "Use the main language's {part} in {language}",
+  "layout.languageMessage": "Update the {part} in {language}",
   "newEntry.languageHint":
     "For an item only in this language. To translate an item, use “Translate into” in the list instead, which keeps the two linked.",
   "menus.ownMenus": "{language} has menus of its own",

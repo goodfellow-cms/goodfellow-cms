@@ -152,6 +152,7 @@ export {
   feedPath,
   feedTitle,
 } from "./content/feeds.js";
+export { languageLinksAt } from "./content/language-map.js";
 export {
   contentForPage,
   contentInLanguage,
@@ -163,8 +164,10 @@ export {
   isLanguageHome,
   isOtherLanguage,
   type LanguageLink,
+  type LanguageMap,
   languageHome,
   languageLinks,
+  languageMap,
   languageName,
   languagePattern,
   languagePrefix,

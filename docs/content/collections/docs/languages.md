@@ -21,7 +21,7 @@ On the **Pages** screen, each page in the main language lists the site's other l
 - **Translate into Español** makes a copy of the page under the language's code, which you then translate in the editor. The copy remembers which page it translates.
 - Once a translation exists, it shows **Up to date**, or **Out of date** when the original has changed since. Update the translation, then **Mark as up to date**.
 
-The editor shows a page in its own language: the site's name and menus in that language, and only that language's items in lists.
+The editor shows a page in its own language: the site's name and menus in that language, and only that language's items in lists. Its header has a **Language** menu, as **Header & Footer** does: pick a language to open the page's translation in it, marked **(out of date)** where the original has changed since, or **Translate into Español…** for a language it has none in. A translation's menu goes back to the original, and to its other translations. Items' editors have the same.
 
 Deleting a page keeps its translations, as pages of their own. Moving a page keeps them linked to it.
 
@@ -39,16 +39,24 @@ An item's page is under its language's code: a story at `/news/{slug}` in Englis
 
 On the **Menus** tab, pick a language. Each language starts with the main language's menus; tick **Español has menus of its own** to give it its own, with its links' names in Spanish and links to its pages. The header and footer show each page's language's menus.
 
+## The header and footer
+
+Each language starts with the main language's header and footer. In **Header & Footer**, pick a language, then **Make a footer for Español** to give it one of its own, a copy of the main language's to translate, with the [AI assistant](/docs/ai-assistant) too. The language's pages then show it in place of the main one. **Use the main language's footer** goes back.
+
 ## The Language switch
 
 The **Language switch** block, under Navigation, links to the page in each of the site's languages, each named in itself: to its translation, or, where it has none, to the language's home page. Put it in the header so it's on every page. It shows as links side by side, or as a menu that opens.
 
 The site's name and logo link to the home page of the page's own language.
 
+## Checking translations
+
+The [site checks](/docs/publishing#site-checks) suggest translating pages and items that have no translation into one of the site's languages, or whose translation is out of date. They're listed when you publish a change that brings them, such as a new page, not every time, and builds list them all. A page or item that's only for one language can stay as it is.
+
 ## Search and search engines
 
 - **Search** only finds pages in the language of the page it's on. Each page says its language, and [search](/docs/search) keeps each language's pages apart.
-- **Search engines** are told each page's translations with `hreflang` links, and the sitemap lists them, so they show people the page in their own language. Both need the Site address.
+- **Search engines** are told each page's translations with `hreflang` links, and the sitemap lists them, so they show people the page in their own language. Events and stories say their language in the details search engines read. All of these need the Site address.
 - **Feeds and calendars** come in each language that has items, under its code: `/es/feeds/news.rss`, `/es/calendars/events.ics`.
 
 ## For developers
@@ -62,4 +70,4 @@ What the languages are and what translates what is all in [content files](/docs/
 - A collection's `languagePaths` gives a language's items an address pattern of its own, such as `{ "es": "/es/noticias/{slug}" }`, in place of the collection's under the language's code.
 - A language can have a header or footer of its own in `content/layout/header.es.json` or `footer.es.json`, used in place of the main one on its pages.
 
-[Site checks](/docs/publishing) warn about a translation of a page that isn't in the main language. With Next.js, a site in several languages shows the header and footer in each page rather than in the shared layout, and `goodfellow-next finish` writes each exported page's language on its `<html>`.
+[Site checks](/docs/publishing) warn about a translation of a page that isn't in the main language, and about missing and out-of-date translations. With Next.js, the shared layout has the header and footer in each language, and the browser shows the one for the page's address, so they stay mounted as visitors move between pages, even from one language to another; the Language switch there finds the page's translations in the browser too. `goodfellow-next finish` writes each exported page's language on its `<html>`.

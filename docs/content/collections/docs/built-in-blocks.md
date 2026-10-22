@@ -63,7 +63,7 @@ The visitor's choice is kept in their browser and put back at the start of every
 
 ## Language switch
 
-On a site in [several languages](/docs/languages), the Language switch links to the page in each of them, each language named in itself: to the page's translation, or to the language's home page where it has none. **Show as** chooses links side by side or a menu that opens, which needs no JavaScript. On a site in one language, it isn't shown, and the editor says where to add a language.
+On a site in [several languages](/docs/languages), the Language switch links to the page in each of them, each language named in itself: to the page's translation, or to the language's home page where it has none. **Show as** chooses links side by side or a menu that opens, which needs no JavaScript, except in a Next.js site's header and footer, which are shared by every page, so the browser finds the page's translations. On a site in one language, it isn't shown, and the editor says where to add a language.
 
 ## Search
 

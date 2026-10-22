@@ -166,3 +166,58 @@ test("adds the site's own code to every page once, kept when moving between page
   expect(await page.evaluate(() => (window as { headRan?: number }).headRan)).toBe(1);
   expect(await page.evaluate(() => (window as { bodyRan?: number }).bodyRan)).toBe(1);
 });
+
+test("shows the header and footer in each page's language, as visitors move between languages", async ({ page }) => {
+  const write = (path: string, value: unknown) => {
+    mkdirSync(join(nextSite, path, ".."), { recursive: true });
+    writeFileSync(join(nextSite, path), `${JSON.stringify(value, null, 2)}\n`);
+  };
+  const read = (path: string) => JSON.parse(readFileSync(join(nextSite, path), "utf8"));
+  write("content/site.json", {
+    ...read("content/site.json"),
+    languages: [{ code: "es", name: "Español" }],
+    translations: { es: { title: "Mi sitio" } },
+  });
+  const about = read("content/pages/about.json");
+  write("content/pages/es/sobre.json", {
+    ...about,
+    translationOf: "/about",
+    data: { ...about.data, root: { props: { ...about.data.root.props, title: "Quiénes somos" } } },
+  });
+  const header = read("content/layout/header.json");
+  header.data.content.push({
+    type: "LanguageSwitch",
+    props: { id: "LanguageSwitch-test", display: "links", label: "Languages", className: "" },
+  });
+  write("content/layout/header.json", header);
+  // Spanish's own footer, for the words typed into it.
+  write(
+    "content/layout/footer.es.json",
+    JSON.parse(
+      JSON.stringify(read("content/layout/footer.json")).replace("Built with Goodfellow", "Hecho con Goodfellow"),
+    ),
+  );
+
+  await page.goto(`${BASE}/about/`);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  const languages = page.getByRole("navigation", { name: "Languages" });
+  await expect(languages.getByRole("link", { name: "English" })).toHaveAttribute("aria-current", "true");
+  await expect(page.locator("footer")).toContainText("Built with Goodfellow");
+
+  // Moving to the translation without loading a new page: the layout follows.
+  await languages.getByRole("link", { name: "Español" }).click();
+  await expect(page.getByRole("heading", { name: "About us", level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/es\/sobre\/$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
+  await expect(page.locator("footer")).toContainText("Hecho con Goodfellow");
+  await expect(page.locator("header")).toContainText("Mi sitio");
+  await expect(languages.getByRole("link", { name: "Español" })).toHaveAttribute("aria-current", "true");
+  await expect(languages.getByRole("link", { name: "English" })).toHaveAttribute("href", "/about/");
+
+  // Loaded on its own, a Spanish page is Spanish from the start.
+  const html = await (await page.request.get(`${BASE}/es/sobre/`)).text();
+  // The page's data carries every language's footer, for moving between them; the HTML shows Spanish's.
+  const footer = /<footer[\s\S]*?<\/footer>/.exec(html)?.[0] ?? "";
+  expect(footer).toContain("Hecho con Goodfellow");
+  expect(footer).not.toContain("Built with Goodfellow");
+});
