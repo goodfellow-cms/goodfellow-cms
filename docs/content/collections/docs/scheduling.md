@@ -34,6 +34,8 @@ Visitors see the site as it was last built, so a scheduled change goes live when
 | GitLab | At their time. The admin panel adds a pipeline schedule for each time, which builds the site then, and removes it once it's no longer needed. |
 | GitHub | Within the hour after their time. The site's `.github/workflows/scheduled.yml` checks each hour whether anything has come due, and builds the site only then. |
 
+Sites built by Cloudflare Pages work the same way: the schedule or the hourly check asks Cloudflare to rebuild the site through the Pages project's deploy hook, which the site's setup files need as `CLOUDFLARE_DEPLOY_HOOK` (see [Put it online](/docs/put-it-online#3-choose-a-host)).
+
 Sites without these, such as ones made before scheduled publishing, or built by Vercel, get scheduled changes with the nightly rebuild after their time, or the next time anyone publishes.
 
 On GitHub, each hourly check of a **private** repository counts as a minute of GitHub Actions, about 720 a month, out of the free plan's 2,000; public repositories don't count. To go back to the nightly rebuild, delete `.github/workflows/scheduled.yml`.

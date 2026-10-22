@@ -39,6 +39,7 @@ On GitHub, installing an update or going back from the screen runs the site's wo
 
 - **GitHub Pages:** the starter's workflow, `.github/workflows/deploy.yml`, updates the site each night already.
 - **GitLab Pages:** GitLab needs two things first, which **Turn on automatic updates** on the Updates screen does: letting the site's build publish (**Allow Git push requests to the repository**, under **Settings → CI/CD → Job token permissions**, which GitLab offers from release 18.4), and a pipeline schedule that runs the build each night. It needs the Maintainer role in the site's project.
+- **Cloudflare Pages:** a site made with Cloudflare Pages as its host has the same nightly update in its own setup files: on GitHub, `.github/workflows/deploy.yml`, which asks Cloudflare to rebuild the site through its deploy hook when there's no update to publish; on GitLab, `.gitlab-ci.yml`, which **Turn on automatic updates** sets up as for GitLab Pages.
 - **Older sites, and sites on Vercel:** their build setup doesn't update Goodfellow, so the Updates screen says so. A developer can copy the `update` job from the starter's `deploy.yml`, or the update step from its `.gitlab-ci.yml`, or run `npx goodfellow update` and publish the result.
 
 ## For developers

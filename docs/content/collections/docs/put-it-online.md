@@ -6,7 +6,7 @@ section: start
 order: 4
 ---
 
-Setup takes four steps, done once by whoever sets up the site. A site made with the [setup page](/new-site) has done the first three, unless it's on Vercel, so start at [step 4](#4-set-up-sign-in).
+Setup takes four steps, done once by whoever sets up the site. A site made with the [setup page](/new-site) has done the first three, unless it's on Cloudflare Pages or Vercel, which you connect it to in step 3, so start at [step 4](#4-set-up-sign-in).
 
 ## 1. Store the site on GitHub or GitLab
 
@@ -52,6 +52,12 @@ Each host's free plan has its own rules about business use; read [Hosts and busi
 1. Push. `.gitlab-ci.yml` builds and publishes the site on every change to the default branch.
 2. For nightly rebuilds, add a schedule under **Build → Pipeline schedules**.
 3. The site's address is under **Deploy → Pages**.
+
+**Cloudflare Pages**, which works with GitHub and GitLab, including private repositories, and has no rule against business sites that we know of:
+
+1. Make the site with Cloudflare Pages as its host: `npm create goodfellow@latest -- --host cloudflare-pages`, or choose it on the [setup page](/new-site). That gives it Cloudflare's setup files in place of the other hosts': on GitHub, `.github/workflows/deploy.yml` and `scheduled.yml`; on GitLab, `.gitlab-ci.yml`.
+2. In [Cloudflare's dashboard](https://dash.cloudflare.com/), go to **Workers & Pages** and create a Pages project with **Import an existing Git repository**. Connect your GitHub or GitLab account, choose the repository, and set no framework preset, the build command `npm run build` and the build output directory `dist` (`out` for the Next.js starter). Cloudflare builds and publishes the site on every change, including every Publish in the admin panel, and sends the site's [redirects](/docs/layout-and-settings#redirects) itself.
+3. Cloudflare can't build on a schedule, so the setup files do it: each night they install Goodfellow's [updates](/docs/updates), and they check for [scheduled changes](/docs/scheduling), asking Cloudflare to rebuild the site when there's nothing new for it to build. They ask through the project's deploy hook: under the project's **Settings → Builds**, add one for the main branch, and add its address to the repository as the `CLOUDFLARE_DEPLOY_HOOK` secret (GitHub: **Settings → Secrets and variables → Actions**) or masked variable (GitLab: **Settings → CI/CD → Variables**). On GitLab, turn on updates on the admin panel's **Updates** screen too, which adds the nightly schedule.
 
 **Vercel**, which works with GitHub and GitLab:
 
