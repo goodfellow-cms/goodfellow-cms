@@ -41,7 +41,7 @@ Blocks use the site's colors, fonts and corner rounding. Every block accepts ext
 
 The Video block shows a video from one of four places, chosen in **Video from**:
 
-- **The media library**: an MP4 or WebM video uploaded to the site, up to 25 MB, with an optional picture shown before it plays and captions as a WebVTT (`.vtt`) file. Uploaded videos are kept in the site's repository for good, even after they're replaced, so longer ones are better on YouTube or Vimeo.
+- **The media library**: an MP4 or WebM video uploaded to the site, up to 25 MB, with an optional picture shown before it plays and captions as a WebVTT (`.vtt`) file. Uploaded videos are kept in the site's repository for good, even after they're replaced, so longer ones are better on YouTube or Vimeo, as are any on a site published with [Cloudflare Pages](/docs/hosts#business-and-commercial-sites).
 - **YouTube**: paste the video's address in any form YouTube gives it (a `watch` address, a `youtu.be` link, a Short, a live stream, or the embed code), or just its ID. A start time in the address, such as `t=1m30s`, is kept. It plays in YouTube's privacy-enhanced player, which sets no cookies until it's played.
 - **Vimeo**: paste the video's address, including an unlisted video's, or its embed code. It plays with Vimeo's "do not track" on.
 - **Another site's player**: paste the player's embed address, or the whole embed code the other site gives. It's shown in a sandbox, with only what players need, and only from a secure (`https://`) address on another site.

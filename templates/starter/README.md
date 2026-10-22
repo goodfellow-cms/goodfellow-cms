@@ -58,7 +58,7 @@ Also set the site's address under **Site settings → General → Site address**
 
 ### 3. Choose a host
 
-Each host's free plan has its own rules about business use. If the site is for a business, sells anything, shows ads, or is built or looked after by someone who's paid for it, check those rules first. As of October 2026, GitHub Pages and Vercel's free plan don't allow most of these, and GitLab Pages has no rule against them that we know of. See [Hosts and business sites](https://goodfellow-cms.github.io/goodfellow-cms/docs/hosts) in Goodfellow's documentation.
+Each host's free plan has its own rules about business use. If the site is for a business, sells anything, shows ads, or is built or looked after by someone who's paid for it, check those rules first. As of October 2026, GitHub Pages and Vercel's free plan don't allow most of these, and GitLab Pages and Cloudflare Pages have no rule against them that we know of. See [Hosts and business sites](https://goodfellow-cms.github.io/goodfellow-cms/docs/hosts) in Goodfellow's documentation.
 
 **GitHub Pages** (free for public repositories; not for online businesses or shops)
 
@@ -70,6 +70,12 @@ Each host's free plan has its own rules about business use. If the site is for a
 1. Push. `.gitlab-ci.yml` builds and publishes the site on every change to the default branch.
 2. For nightly rebuilds, add a schedule under **Build → Pipeline schedules**.
 3. The site's address is under **Deploy → Pages**.
+
+**Cloudflare Pages** (works with GitHub and GitLab, including private repositories; no rule against business sites that we know of)
+
+1. Create the site with Cloudflare Pages as its host (`npm create goodfellow@latest -- --host cloudflare-pages`, or on the setup page). That writes its setup files in place of the other hosts': a nightly update and rebuild in `.github/workflows/deploy.yml` and `scheduled.yml`, or in `.gitlab-ci.yml`.
+2. In Cloudflare's dashboard, under **Workers & Pages**, create a Pages project from the repository, with no framework preset, the build command `npm run build` and the build output directory `dist`. Cloudflare then builds and publishes the site on every change, and sends its redirects itself.
+3. Under the project's **Settings → Builds**, add a deploy hook for the main branch, and add it to the repository as the `CLOUDFLARE_DEPLOY_HOOK` secret on GitHub, or masked variable on GitLab, for the nightly rebuild and scheduled changes. On GitLab, also turn on updates on the admin panel's **Updates** screen, which adds the nightly schedule.
 
 **Vercel** (works with GitHub and GitLab; the free plan is for non-commercial sites only)
 

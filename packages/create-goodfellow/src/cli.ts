@@ -40,7 +40,8 @@ Options:
   --template <name>   starter (the default), parish, or next for a Next.js site
   --github <repo>     The GitHub repository the site will be stored in, such as your-name/your-site
   --gitlab <project>  The GitLab project the site will be stored in, such as your-group/your-site
-  --host <host>       github-pages, gitlab-pages or vercel. Keeps only that host's setup file.
+  --host <host>       github-pages, gitlab-pages, cloudflare-pages or vercel. Keeps only that
+                      host's setup files (for Cloudflare Pages, a nightly update and rebuild)
   --content <repo>    Keeps the site's content in a repository of its own, such as
                       your-name/your-site-content; --github or --gitlab is then the code's
   --build <where>     With --content on Vercel: content (the default) or code, the

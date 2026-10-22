@@ -69,6 +69,8 @@ export async function testSignIn(
       deployments: "read",
       actions: "read",
       pages: "read",
+      checks: "read",
+      statuses: "read",
     } as Record<string, "read" | "write">,
     installations: options.edit ?? [],
   };

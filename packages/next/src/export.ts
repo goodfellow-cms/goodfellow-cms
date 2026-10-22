@@ -3,13 +3,16 @@ import { dirname, join, relative, resolve } from "node:path";
 import {
   allPages,
   CALENDARS_DIR,
+  CLOUDFLARE_REDIRECTS_PATH,
   calendarFiles,
+  cloudflareRedirects,
   FEEDS_DIR,
   feedFiles,
   hasLanguages,
   loadSiteContent,
   type Page,
   pathLanguage,
+  type Redirect,
   redirectFiles,
   type SiteProblem,
   shownContent,
@@ -78,19 +81,26 @@ async function exists(path: string): Promise<boolean> {
   );
 }
 
+/** What `writeRedirectFiles()` wrote. */
+export interface RedirectsWritten {
+  /** How many pages at old addresses. */
+  pages: number;
+  /** How many redirects didn't fit in Cloudflare Pages' `_redirects`, and are left to their pages. */
+  cloudflareLeft: number;
+}
+
 /**
  * Writes a page at each of the site's old addresses that sends visitors on, as
- * `goodfellow build` does. Pages win: an address the export has a page at keeps
- * it. Returns how many it wrote.
+ * `goodfellow build` does, and the same redirects in `_redirects` for
+ * Cloudflare Pages, which sends them itself. Pages win: an address the export
+ * has a page at keeps it.
  */
-export async function writeRedirectFiles(outDir: string, root = process.cwd()): Promise<number> {
+export async function writeRedirectFiles(outDir: string, root = process.cwd()): Promise<RedirectsWritten> {
   const dir = resolve(root);
   const content = shownContent(await loadSiteContent(fileSystemSource(dir)));
-  const files = redirectFiles(content, {
-    taken: allPages(content).map((page) => page.path),
-    base: await exportBasePath(dir),
-  });
-  let written = 0;
+  const base = await exportBasePath(dir);
+  const files = redirectFiles(content, { taken: allPages(content).map((page) => page.path), base });
+  const written: Redirect[] = [];
   for (const file of files) {
     const target = join(outDir, file.path.slice(1));
     // Next.js writes pages as `about.html`, such as ones blocks add.
@@ -98,9 +108,13 @@ export async function writeRedirectFiles(outDir: string, root = process.cwd()): 
     if ((await exists(target)) || (await exists(page))) continue;
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, file.content);
-    written++;
+    written.push(file);
   }
-  return written;
+  const cloudflare = cloudflareRedirects(written, base);
+  const redirects = join(outDir, CLOUDFLARE_REDIRECTS_PATH.slice(1));
+  // A site's own public/_redirects stays as it is.
+  if (cloudflare.file && !(await exists(redirects))) await writeFile(redirects, cloudflare.file.content);
+  return { pages: written.length, cloudflareLeft: cloudflare.left };
 }
 
 /**

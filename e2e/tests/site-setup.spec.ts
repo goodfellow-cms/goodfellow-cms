@@ -94,14 +94,18 @@ test("recommends hosts whose free plans allow the site, and keeps what people ch
   await radio(page, "A church, charity, school or club").check();
   await openAdvanced(page);
   await radio(page, "Private").check();
-  // Private sites are best on GitLab; Vercel is never the recommendation.
+  // Private sites are best on GitLab, or on Cloudflare Pages where they're kept on GitHub; Vercel is never the recommendation.
   await expect(label("GitLab")).toContainText("Recommended");
-  await expect(page.getByText(/Private sites are best kept on GitLab/)).toBeVisible();
+  await expect(page.getByText(/private sites kept on GitHub are published with Cloudflare Pages/)).toBeVisible();
+  await expect(radio(page, "Cloudflare Pages")).toBeChecked();
+  await expect(label("Cloudflare Pages")).toContainText("Recommended");
+  await expect(label("GitHub Pages")).not.toContainText("Recommended");
+  await expect(label("Vercel")).not.toContainText("Recommended");
+  // Choosing GitHub Pages anyway says why it won't work.
+  await radio(page, "GitHub Pages").check();
   await expect(
     page.getByText(/GitHub Pages doesn't work with private repositories on GitHub's free plan, unless/),
   ).toBeVisible();
-  await expect(label("GitHub Pages")).not.toContainText("Recommended");
-  await expect(label("Vercel")).not.toContainText("Recommended");
   await page.getByRole("button", { name: "Use GitLab" }).click();
   await expect(radio(page, "GitLab Pages")).toBeChecked();
   await expect(label("GitLab Pages")).toContainText("Recommended");

@@ -12,6 +12,7 @@ The [setup page](/new-site) creates a site without installing anything. It asks 
 
 - **Signing in:** on GitHub, paste a token the page links to, with the permissions it needs filled in, and choose **All repositories** under Repository access, since the repository doesn't exist yet. (Goodfellow doesn't run a sign-in service for Sign in with GitHub yet, and may in the future.) The token is used only in that tab and never saved; delete it on GitHub once the site is created. On GitLab, sign in with GitLab or paste a token in the same way.
 - **Private sites:** GitHub Pages doesn't work with private repositories on GitHub's free plan, so the page recommends GitLab for a site whose files are private. GitLab Pages works with private projects, and the page makes a private project's site public.
+- **Cloudflare Pages:** the page creates the repository, then you import it in Cloudflare's dashboard, with the build settings the page shows, and add the Pages project's deploy hook to the repository for the nightly update and rebuild.
 - **Vercel:** the page creates the repository, then you import it at [vercel.com/new](https://vercel.com/new).
 - **Content in a repository of its own:** for organizations with a developer, the page can keep the content in a [repository of its own](/docs/content-repository), so editors can change the content but never the code. It creates both repositories and connects them.
 - **History:** on GitHub, the page also adds a rule that stops anyone rewriting or deleting the main branch's history, where the plan allows it. GitLab does this for every project.
@@ -30,7 +31,7 @@ It asks these questions, with menus you move through with the arrow keys and cho
 
 - **Which site to start from:** the **Starter** (a home page, an about page and a news section), the **Parish example** (a complete made-up parish site, with collections and blocks of its own) or the **Starter for Next.js** (see [Next.js](/docs/nextjs)).
 - **Where the site will be stored:** GitHub or GitLab, and the repository's name.
-- **Where it will be hosted:** GitHub Pages, GitLab Pages or Vercel, with each host's rules for business sites. Only that host's setup file is kept.
+- **Where it will be hosted:** GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel, with each host's rules for business sites. Only that host's setup files are kept; Cloudflare Pages gets setup files of its own, for its nightly update and rebuild.
 - **Where the content will be kept:** with the code, or, for organizations with a developer, in a [repository of its own](/docs/content-repository), so editors can change the content but never the code.
 - **Which blocks to start with:** the recommended blocks from Goodfellow's [block registry](/docs/add-blocks), such as an FAQ and tabs, or the built-in blocks only. Either way, blocks can be added and removed later in the admin panel.
 

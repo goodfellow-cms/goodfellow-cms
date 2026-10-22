@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // After `next build`: `goodfellow-next finish out` fixes the export's prefetch files on Windows,
-// writes the calendar files of collections of events, collections' feeds and the pages at redirects' old addresses, and the search index for sites with a search block,
+// writes the calendar files of collections of events, collections' feeds, the pages at redirects' old addresses and Cloudflare Pages' _redirects, and the search index for sites with a search block,
 // and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
 // `goodfellow-next due [--since <time>]` says whether a scheduled change has come due, as `goodfellow due` does.
@@ -11,7 +11,7 @@
 import { rm } from "node:fs/promises";
 import { relative } from "node:path";
 import { parseArgs } from "node:util";
-import { formatUpdateResult } from "@goodfellow-cms/core";
+import { CLOUDFLARE_REDIRECTS_LIMIT, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   ContentRepositoryError,
@@ -182,7 +182,12 @@ if (command === "finish") {
   // Before the redirects' pages, which aren't the site's.
   problems = await checkPages(await exportedPages(dir));
   const redirects = await writeRedirectFiles(dir);
-  if (redirects > 0) console.log(`Wrote ${redirects} redirects`);
+  if (redirects.pages > 0) console.log(`Wrote ${redirects.pages} redirects`);
+  if (redirects.cloudflareLeft > 0) {
+    console.log(
+      `Cloudflare Pages reads only the first ${CLOUDFLARE_REDIRECTS_LIMIT.toLocaleString("en")} lines of _redirects, so ${redirects.cloudflareLeft} old address${redirects.cloudflareLeft === 1 ? " is" : "es are"} left to the pages that send visitors on.`,
+    );
+  }
 }
 const indexed = await writeSearchIndex(dir);
 console.log(

@@ -53,6 +53,24 @@ Each registrar's help explains where its DNS settings are. The parts that trip p
 
 Never delete MX records, which deliver the domain's email.
 
+## Sites on Cloudflare Pages
+
+A site published with Cloudflare Pages connects its domain in Cloudflare: open the site's Pages project, go to **Custom domains** and set up the domain.
+
+- **A subdomain**, such as `www.example.org`, can keep its DNS where it is: Cloudflare shows a CNAME record pointing at the project's `pages.dev` address, to add at your registrar.
+- **The domain itself**, such as `example.org`, has to use Cloudflare's nameservers. Cloudflare walks you through adding the domain to your account, copies its existing records, and shows the two nameservers to set at your registrar. Keep the MX records, which deliver the domain's email. To keep your DNS where it is instead, see [Keeping your DNS at your registrar](#keeping-your-dns-at-your-registrar).
+
+Once the site opens at its new address, put the address in **Site Settings → General → Site address** and publish.
+
+### Keeping your DNS at your registrar
+
+To keep the domain's DNS where it is, put the site at `www.example.org` and have something else send visitors from `example.org` to it. Whatever you choose must work over HTTPS: many people type or follow `https://example.org`, and some domains, such as `.dev` and `.app`, only open over HTTPS. A redirect that only works over plain HTTP gives those visitors a security warning instead of your site. Once it's set up, open `https://example.org` to check that it reaches the site.
+
+- **Your registrar's forwarding:** most registrars forward a domain for free, but many only over plain HTTP, and some only while the domain uses their own DNS. Porkbun says its forwarding works over HTTPS. Forward `example.org` to `https://www.example.org` as a permanent (301) redirect.
+- **A redirect service:** services such as [redirect.pizza](https://redirect.pizza/support/redirecting-non-www-to-www) (free for a few domains and a limit on visits each month), [ApexToWWW](https://www.apextowww.com/) and [ApexWise](https://apexwise.io/) give you an A record (and sometimes an AAAA record) for `example.org`, set up HTTPS and redirect to `www`. They see every visit that comes in through `example.org`, and the redirect stops working if the service shuts down, so read their terms first.
+
+Either way, the Site address is `https://www.example.org`.
+
 ## Sites on Vercel
 
 A site published with Vercel connects its domain in Vercel: open the site's project, go to **Settings → Domains** and add the domain, and Vercel shows the records to add at your registrar. Once the site opens at its new address, put the address in **Site Settings → General → Site address** and publish.

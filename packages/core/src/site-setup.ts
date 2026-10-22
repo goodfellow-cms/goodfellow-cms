@@ -4,6 +4,7 @@
  * same choices, worked out the same way, with no disk access.
  */
 
+import { cloudflareSetupFiles } from "./cloudflare-setup.js";
 import { CONTENT_REPOSITORY_DIR } from "./content/paths.js";
 import { CONTENT_FOLDERS } from "./content/store.js";
 import {
@@ -63,15 +64,21 @@ export const HOSTS = {
     files: ["vercel.ts"],
     note: "Works with GitHub and GitLab. The free plan is for non-commercial sites only.",
   },
+  // Its setup files are written for the site by cloudflareSetupFiles(), in place of the other hosts'.
+  "cloudflare-pages": {
+    label: "Cloudflare Pages",
+    files: [],
+    note: "Works with GitHub and GitLab, including private repositories. No rule against business sites that we know of.",
+  },
 } as const;
 
 export type Host = keyof typeof HOSTS;
 
 /** The hosts that can serve a site stored with `backend`: GitHub Pages only builds GitHub repositories, and so on. */
 export function hostsFor(backend: Backend["host"] | undefined): Host[] {
-  if (backend === "github") return ["github-pages", "vercel"];
-  if (backend === "gitlab") return ["gitlab-pages", "vercel"];
-  return ["github-pages", "gitlab-pages", "vercel"];
+  if (backend === "github") return ["github-pages", "cloudflare-pages", "vercel"];
+  if (backend === "gitlab") return ["gitlab-pages", "cloudflare-pages", "vercel"];
+  return ["github-pages", "gitlab-pages", "cloudflare-pages", "vercel"];
 }
 
 /** Which blocks a new site starts with, besides the built-in ones. */
@@ -288,6 +295,11 @@ export async function planSite({
   else if (host) {
     for (const [other, { files: setupFiles }] of Object.entries(HOSTS)) {
       if (other !== host) for (const file of setupFiles) files.delete(file);
+    }
+    if (host === "cloudflare-pages") {
+      for (const [path, text] of cloudflareSetupFiles({ git: backend?.host, next: files.has("next.config.ts") })) {
+        files.set(path, text);
+      }
     }
   }
   return files;

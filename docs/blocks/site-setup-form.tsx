@@ -203,6 +203,12 @@ function Choose({
                 non-commercial sites.
               </Note>
             )}
+            {choices.host === "cloudflare-pages" && (
+              <Note>
+                Once the repository is created, you'll connect it to Cloudflare Pages, which needs a Cloudflare account,
+                free for business sites too, and add its deploy hook for the nightly update and rebuild.
+              </Note>
+            )}
           </Question>
 
           <Question title="Where to keep the content">

@@ -48,7 +48,7 @@ export type RedirectProblem =
   | "duplicate";
 
 /** Addresses Goodfellow writes files at itself, besides the admin panel's. */
-const RESERVED_PREFIXES = ["/media", "/calendars", "/pagefind", "/_next"];
+const RESERVED_PREFIXES = ["/media", "/calendars", "/pagefind", "/_next", "/_redirects"];
 
 /** Characters a part of an old address can't have, since builds write a folder named after it. */
 const UNSAFE_SEGMENT = /[\s\\/?#<>"|*:%\p{Cc}]/u;
@@ -234,6 +234,9 @@ export function findRedirect(content: Pick<SiteContent, "redirects">, path: stri
   });
 }
 
+/** A redirect's page, with the redirect it's for, so a build can list the ones it wrote for Cloudflare. */
+export interface RedirectFile extends BuildFile, Redirect {}
+
 /**
  * The pages a build writes for the site's redirects, leaving out any whose old
  * address a page has (`taken`), since pages always win. `base` is the site's
@@ -242,7 +245,7 @@ export function findRedirect(content: Pick<SiteContent, "redirects">, path: stri
 export function redirectFiles(
   content: Pick<SiteContent, "settings" | "redirects" | "redirectMessage"> & Partial<Pick<SiteContent, "pages">>,
   options: { taken?: Iterable<string>; base?: string } = {},
-): BuildFile[] {
+): RedirectFile[] {
   const taken = new Set(options.taken ?? []);
   const redirects = content.redirects ?? [];
   const problems = redirectProblems(redirects);
@@ -250,6 +253,50 @@ export function redirectFiles(
     const from = redirectFrom(redirect.from);
     const to = redirectTarget(redirect.to);
     if (problems[index] !== undefined || !from.ok || !to || taken.has(from.path)) return [];
-    return [{ path: `/${redirectOutputFile(from.path)}`, content: redirectPage(content, to, options.base) }];
+    return [
+      {
+        path: `/${redirectOutputFile(from.path)}`,
+        content: redirectPage(content, to, options.base),
+        from: from.path,
+        to,
+      },
+    ];
   });
+}
+
+/** Where Cloudflare Pages reads redirects from, in the site's build output. Other hosts serve it as a file. */
+export const CLOUDFLARE_REDIRECTS_PATH = "/_redirects";
+
+/** How many fixed redirects Cloudflare Pages reads from `_redirects`; it leaves out the rest. */
+export const CLOUDFLARE_REDIRECTS_LIMIT = 2000;
+
+/**
+ * Cloudflare Pages' `_redirects` file for the redirects a build wrote pages
+ * for, so Cloudflare sends visitors on itself, as a permanent redirect, while
+ * the pages stay for other hosts. Cloudflare follows a redirect even where the
+ * site has a file, so only those the build wrote a page for are listed, since
+ * an address with a page of its own never gets one. Each old address takes two
+ * lines, without and with a trailing slash; past Cloudflare's limit, the rest
+ * are left to their pages, and `left` says how many.
+ */
+export function cloudflareRedirects(
+  redirects: readonly Redirect[],
+  base?: string,
+): { file: BuildFile | undefined; left: number } {
+  const lines: string[] = [];
+  let left = 0;
+  for (const { from, to } of redirects) {
+    const target = to.startsWith("/") ? withBase(to, base).replace(/ /g, "%20") : to;
+    const old = encodeURI(withBase(from, base));
+    const spellings = /\.html?$/i.test(from) ? [old] : [old, `${old}/`];
+    if (lines.length + spellings.length > CLOUDFLARE_REDIRECTS_LIMIT) {
+      left++;
+      continue;
+    }
+    for (const spelling of spellings) lines.push(`${spelling} ${target} 301`);
+  }
+  return {
+    file: lines.length > 0 ? { path: CLOUDFLARE_REDIRECTS_PATH, content: `${lines.join("\n")}\n` } : undefined,
+    left,
+  };
 }

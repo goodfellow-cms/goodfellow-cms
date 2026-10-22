@@ -64,12 +64,16 @@ describe("writeRedirectFiles", () => {
     // A page a block added, which the content's own pages don't list.
     await write("out/events/2026-10.html", "month");
 
-    expect(await writeRedirectFiles(join(out, "out"), join(out, "site"))).toBe(1);
+    expect(await writeRedirectFiles(join(out, "out"), join(out, "site"))).toEqual({ pages: 1, cloudflareLeft: 0 });
     const html = await readFile(join(out, "out/about-us/index.html"), "utf8");
     expect(html).toContain('content="0; url=/site/about"');
     expect(html).toContain('href="https://example.org/site/about"');
     expect(existsSync(join(out, "out/about/index.html"))).toBe(false);
     expect(await readFile(join(out, "out/events/2026-10.html"), "utf8")).toBe("month");
+    // Cloudflare Pages sends the same redirects itself, leaving out the addresses the export has pages at.
+    expect(await readFile(join(out, "out/_redirects"), "utf8")).toBe(
+      "/site/about-us /site/about 301\n/site/about-us/ /site/about 301\n",
+    );
   });
 });
 

@@ -98,12 +98,12 @@ export function recommendedGit(choices: Choices): GitHostName | undefined {
 
 /**
  * The host whose free plan allows a site like this, for the git host chosen.
- * None for a private repository on GitHub, which GitHub Pages' free plan
- * doesn't serve: GitLab is recommended instead.
+ * A business site, or a private repository, on GitHub goes on Cloudflare
+ * Pages, since GitHub Pages allows neither on its free plan.
  */
 export function recommendedHost(choices: Pick<Choices, "purpose" | "git" | "visibility">): Host | undefined {
-  if (choices.git === "gitlab" || choices.purpose === "business") return "gitlab-pages";
-  return choices.visibility === "private" ? undefined : "github-pages";
+  if (choices.git === "gitlab") return "gitlab-pages";
+  return choices.purpose === "business" || choices.visibility === "private" ? "cloudflare-pages" : "github-pages";
 }
 
 /** The choices people haven't made themselves: the defaults, and what follows from what they have made. */
@@ -134,16 +134,16 @@ export function withDefaults(chosen: Partial<Choices> & { purpose: Purpose }): C
 /** Why a host's free plan may not allow this site, or `undefined` if it does. */
 export function hostProblem(choices: Choices): string | undefined {
   if (choices.purpose === "business" && choices.host === "github-pages") {
-    return "GitHub Pages isn't for running a business or a shop. GitLab Pages is the free host for business sites.";
+    return "GitHub Pages isn't for running a business or a shop. Cloudflare Pages, or GitLab Pages for a site kept on GitLab, are free hosts for business sites.";
   }
   if (choices.purpose === "business" && choices.host === "vercel") {
-    return "Vercel's free plan is for non-commercial sites only. GitLab Pages is the free host for business sites.";
+    return "Vercel's free plan is for non-commercial sites only. Cloudflare Pages, or GitLab Pages for a site kept on GitLab, are free hosts for business sites.";
   }
   if (choices.host === "vercel" && choices.purpose === "group") {
     return "Vercel's free plan counts a site as commercial if anyone is paid to make or update it. A site kept by volunteers is fine.";
   }
   if (choices.visibility === "private" && choices.host === "github-pages") {
-    return "GitHub Pages doesn't work with private repositories on GitHub's free plan, unless your account has GitHub Pro, Team or Enterprise. Keep the site on GitLab instead, or make the repository public.";
+    return "GitHub Pages doesn't work with private repositories on GitHub's free plan, unless your account has GitHub Pro, Team or Enterprise. Publish the site with Cloudflare Pages instead, keep it on GitLab, or make the repository public.";
   }
   return undefined;
 }
@@ -152,8 +152,8 @@ export function hostProblem(choices: Choices): string | undefined {
 export function gitNote(choices: Choices): string | undefined {
   if (choices.git !== "github" || recommendedGit(choices) !== "gitlab") return undefined;
   return choices.purpose === "business"
-    ? "GitHub's free hosting isn't for business sites, so business sites are best kept on GitLab, with GitLab Pages."
-    : "Private sites are best kept on GitLab: GitLab Pages works with private projects on its free plan, and GitHub Pages doesn't work with private repositories on GitHub's.";
+    ? "GitHub's free hosting isn't for business sites, so business sites kept on GitHub are published with Cloudflare Pages, or kept on GitLab, with GitLab Pages, which needs no other account."
+    : "GitHub Pages doesn't work with private repositories on GitHub's free plan, so private sites kept on GitHub are published with Cloudflare Pages, or kept on GitLab, whose Pages work with private projects and need no other account.";
 }
 
 function lowerFirst(text: string): string {

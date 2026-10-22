@@ -25,11 +25,15 @@ export function setup(
     repositories?: string[];
     /** The owners' app as it was before it asked for the Secrets permission. */
     withoutSecrets?: boolean;
+    /** The everyday app as it was before it asked for the Checks and Commit statuses permissions. */
+    withoutChecks?: boolean;
   } = {},
 ) {
   const repositories = ["parish/site", ...(options.repositories ?? [])];
+  const { checks: _checks, statuses: _statuses, ...olderEditPermissions } = kit.apps.edit.permissions;
   const editApp: FakeGitHubApp = {
     ...kit.apps.edit,
+    ...(options.withoutChecks && { permissions: olderEditPermissions }),
     installations: options.installed === false ? [] : [{ id: 11, account: "parish", repositories }],
   };
   const { secrets: _, ...olderPermissions } = kit.apps.owner.permissions;

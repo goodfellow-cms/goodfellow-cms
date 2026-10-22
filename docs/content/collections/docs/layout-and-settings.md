@@ -59,6 +59,8 @@ GitHub Light and GitHub Dark are the defaults.
 
 On **Vercel**, Vercel sends the redirects itself, as permanent redirects, so visitors go straight to the new address: the site's `vercel.ts` gives them to Vercel, or, on a Next.js site, `withGoodfellow()` in `next.config.ts` does. (`next build` then warns that redirects don't work with a static export, which is true of other hosts, and why they get the pages below instead.)
 
+On **Cloudflare Pages**, Cloudflare sends them too: the build writes them into a `_redirects` file next to the pages below, leaving out any from an address the site has a page at, since Cloudflare would send visitors on even from there. Cloudflare reads up to 2,000 lines of it, two for each old address (with and without a trailing slash), so past about 1,000 old addresses the build says so, and the pages below handle the rest.
+
 Hosts such as GitHub Pages and GitLab Pages can't send redirects themselves, so when the site is built, each old address gets a small page that sends visitors on at once and tells search engines where the page is now. Search engines treat it as a permanent redirect, and Back skips it. For the moment it shows, or for good in browsers without JavaScript, it says **This page has moved to** and links to the page. **Message while visitors are sent on** changes the wording, such as to the site's own language; `{page}` in it becomes the link.
 
 A page always wins: if a page or a collection's item has a redirect's old address, visitors see the page, and the Redirects tab says so.

@@ -24,6 +24,11 @@ export interface FakeGitLabOptions {
   deployAfterChecks?: number;
   /** The job each published commit's pipeline runs: `pages` by default. */
   deployJob?: string;
+  /**
+   * Has `deployJob` report as a host outside GitLab does, such as Cloudflare
+   * Pages: a commit status with no pipeline the project lists.
+   */
+  external?: boolean;
   /** The job the update runs in, which `addUpdateRun()` logs: `pages` by default, as in the starters, or a code project's `update`. */
   updateJob?: string;
   /** Groups the users belong to, which new projects can be created in. */
@@ -783,6 +788,13 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       );
     }
 
+    const commitSha = rest.match(/^\/repository\/commits\/([0-9a-f]{40})$/)?.[1];
+    if (commitSha) {
+      const found = repo.commitAt(commitSha);
+      if (!found) return json({ message: "404 Commit Not Found" }, 404);
+      return json({ id: commitSha, parent_ids: found.parent ? [found.parent] : [] });
+    }
+
     if (rest === "/repository/compare") {
       const changed = repo.changedPaths(url.searchParams.get("from") ?? "", url.searchParams.get("to") ?? "");
       return json({ diffs: changed.map((changedPath) => ({ old_path: changedPath, new_path: changedPath })) });
@@ -894,7 +906,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     if (rest === "/pipelines") {
       const sha = url.searchParams.get("sha");
       return json(
-        [...pipelines.keys()]
+        [...(options.external ? [] : pipelines.keys())]
           .map((pipelineSha, index) => ({ id: index + 1, sha: pipelineSha }))
           .filter((pipeline) => !sha || pipeline.sha === sha),
       );

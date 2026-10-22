@@ -52,6 +52,7 @@ describe("signing in", () => {
       target_name: "parish",
       contents: "write",
       deployments: "read",
+      statuses: "read",
       expires_in: "90",
     });
     expect(new URL(classic).searchParams.get("scopes")).toBe("repo");
@@ -258,6 +259,53 @@ describe("deploy status", () => {
     const { backend, revision, fake } = await published();
     fake.failBuild(revision, step, job);
     expect((await backend.deployStatus(revision)).problem?.step).toBe(expected);
+  });
+
+  async function publishedOnCloudflare(options: Partial<Parameters<typeof fakeGitHub>[0]>) {
+    const { backend, fake } = await signedIn(options);
+    const write = async () =>
+      (
+        await backend.write([{ path: "content/site.json", content: String(Math.random()) }], {
+          message: "Publish",
+          expectedRevision: await backend.revision(),
+        })
+      ).revision;
+    return { backend, fake, write };
+  }
+
+  it("follows Cloudflare Pages' build, from its GitHub App's check run", async () => {
+    const { backend, write } = await publishedOnCloudflare({ cloudflare: { afterChecks: 1 } });
+    const revision = await write();
+    const detailsUrl = `https://dash.cloudflare.com/builds/${revision}`;
+    expect(await backend.deployStatus(revision)).toEqual({ state: "building", detailsUrl });
+    expect(await backend.deployStatus(revision)).toEqual({ state: "live", detailsUrl });
+  });
+
+  it("reads Cloudflare's commit status where the token can't read check runs, as fine-grained tokens can't", async () => {
+    const { backend, fake, write } = await publishedOnCloudflare({
+      cloudflare: { afterChecks: 0, report: "statuses" },
+      checkRunsForbidden: true,
+    });
+    const revision = await write();
+    expect(await backend.deployStatus(revision)).toEqual({
+      state: "live",
+      detailsUrl: `https://dash.cloudflare.com/builds/${revision}`,
+    });
+    fake.failCloudflare(revision);
+    expect(await backend.deployStatus(revision)).toEqual({
+      state: "failed",
+      detailsUrl: `https://dash.cloudflare.com/builds/${revision}`,
+      problem: { step: "build", detail: "Build failed" },
+    });
+  });
+
+  it("counts a commit as building before Cloudflare reports on it, if it reported on the one before", async () => {
+    const { backend, fake, write } = await publishedOnCloudflare({ cloudflare: { afterChecks: 0 } });
+    await write();
+    const revision = await write();
+    // Cloudflare hasn't started this one yet.
+    fake.cloudflareBuilds.delete(revision);
+    expect(await backend.deployStatus(revision)).toEqual({ state: "building" });
   });
 
   it("doesn't need Actions, for tokens that can't see it", async () => {

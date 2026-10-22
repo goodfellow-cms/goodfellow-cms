@@ -24,7 +24,7 @@ Owners invite people by their GitHub or GitLab username, and on GitLab by email 
 
 ### Signing in with a token
 
-Editors sign in with a personal access token. The admin panel's **Create a token on GitHub** link opens GitHub's token page with the right permissions already chosen; under **Repository access**, choose **Only select repositories** and pick the site. Paste the token into the admin panel.
+Editors sign in with a personal access token. The admin panel's **Create a token on GitHub** link opens GitHub's token page with the right permissions already chosen (**Contents** read and write; **Actions**, **Commit statuses** and **Deployments** read-only, which show when the new version of the site is live); under **Repository access**, choose **Only select repositories** and pick the site. Paste the token into the admin panel.
 
 Every editor needs write access to the repository. GitHub doesn't let collaborators on someone else's personal repository use these fine-grained tokens, so either:
 

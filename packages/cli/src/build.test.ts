@@ -115,6 +115,18 @@ describe("build", () => {
     expect(await read("sitemap.xml")).not.toContain("old-news");
   });
 
+  it("lists the same redirects for Cloudflare Pages, which sends them itself", async () => {
+    // Each old address without and with a trailing slash, with the base path, and none from /news, a page's.
+    expect(await read("_redirects")).toBe(
+      [
+        "/from-config/old-news /from-config/news 301",
+        "/from-config/old-news/ /from-config/news 301",
+        "/from-config/2019/talk.html https://talks.example.org/hope 301",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("copies the public folder", async () => {
     expect(await read("media/note.txt")).toBe("hello\n");
   });

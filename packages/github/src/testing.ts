@@ -84,6 +84,14 @@ export interface FakeGitHubOptions {
    * reports success after being checked this many times. Off by default.
    */
   deployAfterChecks?: number;
+  /**
+   * Simulates Cloudflare Pages: every commit to the default branch gets a
+   * build, which reports success after being checked this many times, as a
+   * check run of Cloudflare's GitHub App, or as a commit status. Off by default.
+   */
+  cloudflare?: { afterChecks: number; report?: "check-runs" | "statuses" };
+  /** Answers 403 to reading check runs, as GitHub does for fine-grained tokens, which can't have the permission. */
+  checkRunsForbidden?: boolean;
   /** Organizations the users belong to, which new repositories can be created in. */
   orgs?: string[];
   /** The default branch of repositories created through the API, as an account's settings choose. Defaults to `main`. */
@@ -199,6 +207,12 @@ interface Deployment {
   checks: number;
 }
 
+/** A build Cloudflare Pages reports on a commit, which tests can fail with `failCloudflare()`. */
+export interface FakeCloudflareBuild {
+  checks: number;
+  failed?: boolean;
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
@@ -218,6 +232,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
   let nextToken = 1;
   let nextRepoId = 100;
   const deployments: Deployment[] = [];
+  const cloudflareBuilds = new Map<string, FakeCloudflareBuild>();
   const runs: FakeRun[] = [];
   const requests: Request[] = [];
   let nextDeployment = 1;
@@ -628,8 +643,22 @@ export function fakeGitHub(options: FakeGitHubOptions) {
   }
 
   function deploy(sha: string): void {
+    if (options.cloudflare) cloudflareBuilds.set(sha, { checks: 0 });
     if (options.deployAfterChecks === undefined) return;
     deployments.unshift({ id: nextDeployment++, sha, statuses: [{ state: "in_progress" }], checks: 0 });
+  }
+
+  /** Where a Cloudflare build is up to, counting the check. */
+  function cloudflareState(sha: string): "building" | "success" | "failure" | undefined {
+    const build = cloudflareBuilds.get(sha);
+    if (!build) return undefined;
+    build.checks += 1;
+    if (build.failed) return "failure";
+    return build.checks > (options.cloudflare?.afterChecks ?? 0) ? "success" : "building";
+  }
+
+  function failCloudflare(sha: string): void {
+    cloudflareBuilds.set(sha, { checks: 0, failed: true });
   }
 
   function commit(
@@ -1186,6 +1215,50 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       });
     }
 
+    const commitSha = rest.match(/^\/commits\/([0-9a-f]{40})$/)?.[1];
+    if (commitSha) {
+      const found = repo.commitAt(commitSha);
+      if (!found) return json({ message: "No commit found for SHA" }, 422);
+      return json({ sha: commitSha, parents: found.parent ? [{ sha: found.parent }] : [] });
+    }
+
+    const checkRunsSha = rest.match(/^\/commits\/([0-9a-f]{40})\/check-runs$/)?.[1];
+    if (checkRunsSha) {
+      if (options.checkRunsForbidden) return json({ message: "Resource not accessible by personal access token" }, 403);
+      const state = options.cloudflare?.report === "statuses" ? undefined : cloudflareState(checkRunsSha);
+      const runsFound = state
+        ? [
+            {
+              id: 1,
+              name: "Cloudflare Pages",
+              app: { slug: "cloudflare-workers-and-pages" },
+              status: state === "building" ? "in_progress" : "completed",
+              conclusion: state === "building" ? null : state,
+              details_url: `https://dash.cloudflare.com/builds/${checkRunsSha}`,
+              output: { title: state === "failure" ? "Build failed" : "Deployed" },
+            },
+          ]
+        : [];
+      return json({ total_count: runsFound.length, check_runs: runsFound });
+    }
+
+    const statusesSha = rest.match(/^\/commits\/([0-9a-f]{40})\/statuses$/)?.[1];
+    if (statusesSha) {
+      const state = options.cloudflare?.report === "statuses" ? cloudflareState(statusesSha) : undefined;
+      return json(
+        state
+          ? [
+              {
+                context: "Cloudflare Pages",
+                state: state === "building" ? "pending" : state,
+                target_url: `https://dash.cloudflare.com/builds/${statusesSha}`,
+                description: state === "failure" ? "Build failed" : "Deployed",
+              },
+            ]
+          : [],
+      );
+    }
+
     if (rest === "/deployments") {
       const sha = url.searchParams.get("sha");
       const list = deployments.filter((deployment) => !sha || deployment.sha === sha);
@@ -1231,6 +1304,9 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     invitations,
     accept,
     deployments,
+    /** Cloudflare Pages' builds, by commit, with `cloudflare`; `failCloudflare()` makes one fail. */
+    cloudflareBuilds,
+    failCloudflare,
     /** GitHub Actions workflow runs, which tests add with `failBuild()`. */
     runs,
     failBuild,

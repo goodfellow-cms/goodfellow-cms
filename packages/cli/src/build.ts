@@ -3,8 +3,10 @@ import { dirname, join, relative, resolve } from "node:path";
 import {
   absoluteUrl,
   applyBasePath,
+  CLOUDFLARE_REDIRECTS_PATH,
   calendarFiles,
   checkSite,
+  cloudflareRedirects,
   DEMO_CONTENT_PATH,
   demoContent,
   feedFiles,
@@ -12,6 +14,7 @@ import {
   MEDIA_DIR,
   normalizeBase,
   pageOutputFile,
+  type Redirect,
   redirectFiles,
   type ScheduledChange,
   SITE_DESCRIPTION_PATH,
@@ -50,6 +53,11 @@ export interface BuildResult {
   problems: SiteProblem[];
   /** The next change the site's schedules make, which the site must be rebuilt for. */
   nextChange?: ScheduledChange;
+  /**
+   * How many redirects didn't fit in Cloudflare Pages' `_redirects`, past its
+   * limit of 2,000 lines, and are left to their pages.
+   */
+  redirectsLeft?: number;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -221,12 +229,18 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     }
 
     // A page at each old address that sends visitors on. Pages, and files in public/, win over redirects.
+    const redirected: Redirect[] = [];
     for (const file of redirectFiles(content, { taken: pages.map((page) => page.path), base })) {
       const target = join(outDir, file.path.slice(1));
       if (await exists(target)) continue;
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, file.content);
+      redirected.push(file);
     }
+    // And the same redirects for Cloudflare Pages, which sends them itself, unless the site has its own file.
+    const cloudflare = cloudflareRedirects(redirected, base);
+    const redirectsTarget = join(outDir, CLOUDFLARE_REDIRECTS_PATH.slice(1));
+    if (cloudflare.file && !(await exists(redirectsTarget))) await writeFile(redirectsTarget, cloudflare.file.content);
 
     const { url } = content.settings;
     if (url) {
@@ -267,6 +281,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       ...(searchIndexed !== undefined && { searchIndexed }),
       problems,
       ...(nextChange && { nextChange }),
+      ...(cloudflare.left > 0 && { redirectsLeft: cloudflare.left }),
     };
   } finally {
     await server.close();

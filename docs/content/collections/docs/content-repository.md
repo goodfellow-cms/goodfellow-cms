@@ -46,6 +46,7 @@ Whoever can push to the repository a host builds from controls the build: its se
 | Site | Builds from |
 |---|---|
 | On GitHub Pages or GitLab Pages | The content repository, which publishes the site with Pages |
+| On Cloudflare Pages | The content repository, which Cloudflare reports its builds to, so the admin panel shows when changes are live |
 | On Vercel, with no secrets in its Vercel project | Either: building from the content repository lets the admin panel show when changes are live |
 | A [full-stack Next.js site](/docs/full-stack-nextjs) | The code repository, always, since its build has the server's token and keys |
 
@@ -60,6 +61,13 @@ Whoever can push to the repository a host builds from controls the build: its se
 - **The content project's** `.gitlab-ci.yml` clones the code, copies the content into it, builds the site and publishes it with GitLab Pages, whenever the content changes and when the code project's pipeline starts it.
 - **The code project's** `.gitlab-ci.yml` installs Goodfellow's fixes on scheduled pipelines and then starts the content project's pipeline, as it does after every change to the code. Set up a pipeline schedule to run each night under Build → Pipeline schedules, and turn on "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, which lets it publish updates.
 - **Job tokens:** each pipeline reads the other project with its job token, which that project has to allow, even where it's public: add each project to the other's job token allowlist, under Settings → CI/CD → Job token permissions.
+
+### Cloudflare Pages
+
+- **The content repository** is the one Cloudflare builds: import it in Cloudflare's dashboard, with no framework preset, and the build command and output directory in its README.md, which clone the code into `site/`, copy the content into it and build it (`site/dist`, or `site/out` for the Next.js starter). If the code repository isn't public, add a token that can only read it as the Pages project's `GOODFELLOW_CODE_TOKEN` variable. Cloudflare builds the site whenever the content changes; its `.github/workflows/scheduled.yml` on GitHub, or `.gitlab-ci.yml` on the pipeline schedules the admin panel adds, asks it to rebuild when a [scheduled](/docs/scheduling) page or item comes due.
+- **The code repository's** `.github/workflows/update.yml` on GitHub, or `.gitlab-ci.yml` on GitLab with a pipeline schedule to run each night, installs Goodfellow's fixes, building the site with the content to check it still works, and asks Cloudflare to rebuild the site, as it does after every change to the code.
+- **The deploy hook:** both ask through the Pages project's deploy hook (Settings → Builds), which can only start builds: add it to each as `CLOUDFLARE_DEPLOY_HOOK`, a secret on GitHub or a masked variable on GitLab.
+- **Private repositories:** the workflows read the other repository as on GitHub Pages or GitLab Pages, above: with deploy keys on GitHub, and the code project in the content project's job token allowlist on GitLab.
 
 ### Vercel
 

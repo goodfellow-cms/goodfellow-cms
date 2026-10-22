@@ -93,6 +93,8 @@ export function githubTokenLinks(repo: string, webUrl = "https://github.com") {
     deployments: "read",
     // Which step of a failed rebuild failed, so the admin panel can explain it.
     actions: "read",
+    // When Cloudflare Pages has built the site. Its check runs need a GitHub App's permission, which tokens can't have.
+    statuses: "read",
   });
   const classic = new URLSearchParams({ scopes: "repo", description: `Goodfellow admin for ${repo}` });
   // Changing editors and GitHub Pages settings needs permissions signing in doesn't ask for, including

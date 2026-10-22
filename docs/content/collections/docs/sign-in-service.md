@@ -26,7 +26,7 @@ The tokens it gives are GitHub App installation tokens:
 
 | Sign-in | GitHub App | What its tokens can do |
 |---|---|---|
-| Editors | The everyday app | Read and change the site's files, and see its builds, deployments and GitHub Pages |
+| Editors | The everyday app | Read and change the site's files, and see its builds, deployments and GitHub Pages, and what Cloudflare Pages says of its builds |
 | Owners, on the Editors, Domain and Updates screens | The owners' app | Change who edits the site, its GitHub Pages settings and run its workflows |
 | The setup page | The owners' app | Create the repository, write its first files and workflows, and turn on GitHub Pages and protect its history |
 
@@ -71,7 +71,7 @@ If the script can't run, the same steps by hand are:
    - under **Where can this GitHub App be installed?**, choose **Any account**, unless only your own sites will use it.
 
    Give them these repository permissions:
-   - the everyday app: **Contents** read and write; **Actions**, **Deployments**, **Metadata** and **Pages** read-only;
+   - the everyday app: **Contents** read and write; **Actions**, **Checks**, **Commit statuses**, **Deployments**, **Metadata** and **Pages** read-only. **Checks** and **Commit statuses** show when [Cloudflare Pages](/docs/put-it-online#3-choose-a-host) has built the site; an app made before it asked for them still signs editors in, without showing that, until every installation has accepted them;
    - the owners' app: **Administration**, **Actions**, **Contents**, **Pages**, **Secrets** and **Workflows** read and write; **Metadata** read-only. The setup page uses **Secrets** to connect a site's code and content repositories, where its [content is kept in a repository of its own](/docs/content-repository); an app made before it asked for Secrets still creates sites, and the setup page explains what to add instead. Adding it to an existing app asks every installation to accept it.
 
    For each, note its **App ID**, its **Client ID** and the last part of its address (its slug), generate a client secret, and generate a private key, which downloads a `.pem` file.
