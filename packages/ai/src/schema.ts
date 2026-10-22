@@ -124,7 +124,7 @@ export function objectSchema(fields: Fields | undefined): JsonSchema | undefined
   return { type: "object", properties, required: names, additionalProperties: false };
 }
 
-const EMPTY_OBJECT: JsonSchema = { type: "object", properties: {}, required: [], additionalProperties: false };
+export const EMPTY_OBJECT: JsonSchema = { type: "object", properties: {}, required: [], additionalProperties: false };
 
 /** The names of a block's slot fields: the places other blocks go inside it. */
 export function slotNames(component: AnyComponent | undefined): string[] {

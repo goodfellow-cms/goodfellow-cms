@@ -289,6 +289,7 @@ export {
   dueChanges,
   type FileDetails,
   fileDetailsOf,
+  withSchedule,
   isScheduled,
   isShown,
   type Schedule,

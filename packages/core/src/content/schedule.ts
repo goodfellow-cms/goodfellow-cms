@@ -52,6 +52,12 @@ export function fileDetailsOf(file: FileDetails): FileDetails {
   };
 }
 
+/** A file's details with a new schedule in place of its own, keeping what it translates and its language. */
+export function withSchedule(file: FileDetails, schedule: Schedule): FileDetails {
+  const { showFrom: _from, hideAfter: _after, ...rest } = fileDetailsOf(file);
+  return { ...rest, ...scheduleOf(schedule) };
+}
+
 /** Whether a schedule has either time. */
 export function isScheduled(schedule: Schedule): boolean {
   return Boolean(schedule.showFrom || schedule.hideAfter);

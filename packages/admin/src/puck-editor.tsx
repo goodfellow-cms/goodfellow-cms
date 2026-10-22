@@ -1,9 +1,15 @@
 import {
+  allPages,
   type Collection,
+  contentInLanguage,
   type FileChange,
+  hasLanguages,
+  languageLinks,
+  mainLanguage,
   type PageFile,
   type PageView,
   pageView,
+  pathLanguage,
   serializeContent,
   todayIn,
 } from "@goodfellow-cms/core";
@@ -166,6 +172,8 @@ export interface PuckEditorProps {
    * the width Puck shares between every editor.
    */
   rightSideBar?: { key: string; width: number };
+  /** The language of the item being edited, on a site in several languages; pages' come from their address. */
+  language?: string;
 }
 
 /** Where Puck remembers the sidebars' widths for every editor. */
@@ -242,10 +250,23 @@ export function PuckEditor({
   ui,
   plugins,
   rightSideBar,
+  language: givenLanguage,
 }: PuckEditorProps) {
   const t = useStrings();
   const { config: siteConfig, pageConfig, layoutConfig, templateConfig, publish, reload } = useAdmin();
-  const { content } = useSiteContent();
+  const { content: loaded } = useSiteContent();
+  // The site as the page's language shows it: its settings, menus, header, footer and items.
+  const language =
+    givenLanguage ?? (kind === "page" ? pathLanguage(loaded.settings, path) : mainLanguage(loaded.settings));
+  const content = useMemo(() => contentInLanguage(loaded, language), [loaded, language]);
+  // On a site in several languages, where the page's language switch goes.
+  const languages = useMemo(() => {
+    if (!hasLanguages(loaded.settings)) return undefined;
+    const page = kind === "page" ? allPages(loaded).find((candidate) => candidate.path === path) : undefined;
+    const home = loaded.pages.find((candidate) => candidate.path === "/");
+    const shown = page ?? home;
+    return shown ? languageLinks(loaded, shown) : undefined;
+  }, [loaded, kind, path]);
   const [status, setStatus] = useState<
     | { type: "idle" | "publishing" | "done" }
     | { type: "invalid"; message: string }
@@ -301,9 +322,10 @@ export function PuckEditor({
       collections: content.collections,
       collection,
       ...(view && { view }),
+      ...(languages && { languages }),
       adminLink,
     }),
-    [content, path, collection, view, adminLink],
+    [content, path, collection, view, languages, adminLink],
   );
   const config = useMemo(
     () =>
@@ -363,9 +385,9 @@ export function PuckEditor({
   const allPlugins = useMemo(
     () => [
       ...(plugins ?? []),
-      ...(siteConfig.ai === false ? [] : [aiPlugin({ kind, path, title, collection }, aiLabel)]),
+      ...(siteConfig.ai === false ? [] : [aiPlugin({ kind, path, title, collection, language }, aiLabel)]),
     ],
-    [plugins, siteConfig.ai, kind, path, title, collection, aiLabel],
+    [plugins, siteConfig.ai, kind, path, title, collection, language, aiLabel],
   );
 
   const overrides = useMemo(

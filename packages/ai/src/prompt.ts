@@ -1,5 +1,5 @@
 import type { ComponentData, Config, Content, Fields } from "@puckeditor/core";
-import { blocksSchema, type JsonSchema, toFlatBlocks, valuesSchema } from "./schema.js";
+import { blocksSchema, EMPTY_OBJECT, type JsonSchema, objectSchema, toFlatBlocks, valuesSchema } from "./schema.js";
 import { MAX_STOCK_PHOTOS, STOCK_PHOTO_PREFIX } from "./stock-photos.js";
 
 /** What the AI is told about the site, so it can link to real pages and write in the right language. */
@@ -34,6 +34,23 @@ export type AiTask =
       kind: "edit";
       block: ComponentData;
       instruction: string;
+    }
+  | {
+      /**
+       * Translate a page: every block, kept as it is apart from the words
+       * people read, and its settings (`rootFields`), such as its title.
+       */
+      kind: "translate";
+      page: { path: string; title: string };
+      content: Content;
+      rootFields: Fields;
+      root: Record<string, unknown>;
+      /** The language to translate into, such as "Español (es)". */
+      language: string;
+      /** Links to pages that have a translation in the language, which go to the translation instead. */
+      links?: Array<{ from: string; to: string }>;
+      /** Anything the person adds, such as how formal to be. */
+      instruction?: string;
     }
   | {
       /** Fill in a set of fields, such as a collection item's. */
@@ -103,6 +120,17 @@ function json(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+/** The answer to a translation: the page's blocks and its settings' values. */
+export function translationSchema(config: Config, rootFields: Fields): JsonSchema {
+  const { blocks } = blocksSchema(config).properties as Record<string, JsonSchema>;
+  return {
+    type: "object",
+    properties: { blocks, root: objectSchema(rootFields) ?? EMPTY_OBJECT },
+    required: ["blocks", "root"],
+    additionalProperties: false,
+  };
+}
+
 /** Builds the request for a task: the instructions, the site's details and the format of the answer. */
 export function buildRequest(task: AiTask, config: Config, site: SiteSummary): AiRequest {
   const context = siteContext(site);
@@ -127,6 +155,28 @@ ${current.length > 0 ? json(current) : "(none)"}
 
 What to write:
 ${task.instruction}`,
+    };
+  }
+
+  if (task.kind === "translate") {
+    const links = task.links?.length
+      ? `\n\nThese pages have a translation, so links to them go to the translation instead:\n${task.links
+          .map((link) => `${link.from} → ${link.to}`)
+          .join("\n")}`
+      : "";
+    return {
+      system: SYSTEM_PROMPT,
+      schema: translationSchema(config, task.rootFields),
+      effort: "medium",
+      prompt: `${context}
+
+Translate the page "${task.page.title}" at ${task.page.path} into ${task.language}. Answer with every block, in the same order and format, with the same types, ids, parents and slots, and every prop as it is apart from the words people read, which you translate. Keep addresses, image addresses, CSS classes and names in braces, such as {title}, as they are. Translate the page's settings in "root" the same way.${links}
+
+The page's blocks:
+${json(toFlatBlocks(task.content, config))}
+
+The page's settings:
+${json(task.root)}${task.instruction?.trim() ? `\n\nAlso:\n${task.instruction.trim()}` : ""}`,
     };
   }
 

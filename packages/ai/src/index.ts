@@ -2,6 +2,7 @@ export {
   type AiRequest,
   type AiTask,
   buildRequest,
+  translationSchema,
   manualPrompt,
   parseAnswer,
   type SiteSummary,
