@@ -58,6 +58,22 @@ export interface GitLabBackendOptions {
 }
 
 /** The files under a folder of a tree, in order. */
+/** A commit's status: a job of its pipeline, or what another host, such as Vercel or Cloudflare Pages, reports. */
+interface CommitStatus {
+  name?: string;
+  status: string;
+  target_url?: string | null;
+}
+
+/**
+ * Whether a status says when the site is live. A job that only asks another
+ * host to rebuild the site doesn't, and nor does the nightly update where
+ * Cloudflare builds the site, which runs on the newest commit too.
+ */
+function builds(status: CommitStatus): boolean {
+  return status.name !== REBUILD_JOB && status.name !== "update";
+}
+
 function listFrom(tree: Map<string, string>, dir: string): string[] {
   const prefix = `${dir}/`;
   return [...tree.keys()].filter((path) => path.startsWith(prefix)).sort();
@@ -435,21 +451,24 @@ export class GitLabBackend implements GitBackend {
 
   /**
    * Reads the commit's pipeline and external statuses (GitLab Pages jobs, or
-   * Vercel). Before any exist, the site counts as building if it has pipelines.
+   * Vercel or Cloudflare Pages). Before any exist, the site counts as building
+   * if it has pipelines, or if the host reported on the commit before.
    */
   async deployStatus(revision: string): Promise<DeployStatus> {
     try {
-      const all = await gitlabJson<Array<{ name?: string; status: string; target_url?: string | null }>>(
-        this.api,
-        this.repo(`/commits/${revision}/statuses`),
-      );
-      // A job that only asks another host to rebuild the site, where the content is kept apart from the code,
-      // says nothing about when it's live.
-      const statuses = all.filter((status) => status.name !== REBUILD_JOB);
+      const all = await this.statuses(revision);
+      const statuses = all.filter(builds);
       if (all.length > 0 && statuses.length === 0) return { state: "unknown" };
       if (statuses.length === 0) {
         const pipelines = await gitlabJson<unknown[]>(this.api, `/projects/${this.project}/pipelines?per_page=1`);
-        return { state: pipelines.length > 0 ? "building" : "unknown" };
+        if (pipelines.length > 0) return { state: "building" };
+        // Cloudflare reports a build a little after the commit, so one it reported on the commit before is coming.
+        const { parent_ids: parents = [] } = await gitlabJson<{ parent_ids?: string[] }>(
+          this.api,
+          this.repo(`/commits/${revision}`),
+        );
+        const before = parents[0] ? (await this.statuses(parents[0])).filter(builds) : [];
+        return { state: before.length > 0 ? "building" : "unknown" };
       }
       const failed = statuses.find((status) => status.status === "failed" || status.status === "canceled");
       if (failed) {
@@ -464,6 +483,10 @@ export class GitLabBackend implements GitBackend {
       if (error instanceof GitApiError) return { state: "unknown" };
       throw error;
     }
+  }
+
+  private statuses(revision: string) {
+    return gitlabJson<CommitStatus[]>(this.api, this.repo(`/commits/${revision}/statuses`));
   }
 
   /** Why a commit's pipeline failed: the failed job's reason, and its log for which command failed and why. */

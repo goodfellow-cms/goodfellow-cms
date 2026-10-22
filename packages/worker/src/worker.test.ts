@@ -34,6 +34,15 @@ describe("signing in", () => {
     expect(fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true);
   });
 
+  it("still signs in where the app hasn't been given the permissions it asked for later", async () => {
+    const { fake, signIn, redirect } = setup({ withoutChecks: true });
+    await redirect("maria");
+    const { response, body } = await signIn();
+    expect(response.status).toBe(200);
+    const { checks: _, statuses: __, ...older } = PERMISSIONS.edit;
+    expect(fake.issued.find((item) => item.token === body.token)?.permissions).toEqual(older);
+  });
+
   it("gives tokens only to the address in the site's settings, never to this computer", async () => {
     const { call } = setup();
     const challenge = await challengeFor("x".repeat(43));

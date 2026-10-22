@@ -49,6 +49,28 @@ interface WorkflowRun {
   html_url?: string;
 }
 
+/** A check run, such as the one Cloudflare Pages' GitHub App adds for its build. */
+interface CheckRun {
+  name: string;
+  app?: { slug?: string } | null;
+  status: string;
+  conclusion: string | null;
+  details_url?: string | null;
+  html_url?: string | null;
+  output?: { title?: string | null } | null;
+}
+
+/** A commit status, which Cloudflare Pages may report its build as. */
+interface CommitStatus {
+  context: string;
+  state: "error" | "failure" | "pending" | "success";
+  target_url?: string | null;
+  description?: string | null;
+}
+
+/** Cloudflare Pages' check runs (its GitHub App is "Cloudflare Workers and Pages") and commit statuses. */
+const CLOUDFLARE = /cloudflare/i;
+
 interface Job {
   name: string;
   conclusion: string | null;
@@ -505,10 +527,11 @@ export class GitHubBackend implements GitBackend {
   }
 
   /**
-   * Reads the deployment GitHub Pages or Vercel created for a commit, and for
-   * GitHub Actions, the workflow run that builds it: a build that fails never
-   * creates a deployment. Before either exists, the site counts as building
-   * if it has ever been deployed.
+   * Reads the deployment GitHub Pages or Vercel created for a commit, or what
+   * Cloudflare Pages reports on it, and for GitHub Actions, the workflow run
+   * that builds it: a build that fails never creates a deployment. Before any
+   * exists, the site counts as building if it has ever been deployed, or if
+   * Cloudflare reported on the commit before.
    */
   async deployStatus(revision: string): Promise<DeployStatus> {
     try {
@@ -536,18 +559,66 @@ export class GitHubBackend implements GitBackend {
             return { state: "building", detailsUrl };
         }
       }
+      const cloudflare = await this.cloudflareBuild(revision);
+      if (cloudflare) return cloudflare;
       const run = await this.workflowRun(revision);
       if (run?.status === "completed" && run.conclusion !== "success" && run.conclusion !== "skipped") {
         return { state: "failed", detailsUrl: run.html_url, problem: await this.runProblem(run) };
       }
       if (run) return { state: "building", detailsUrl: run.html_url };
       const any = await githubJson<unknown[]>(this.api, `/repos/${this.repo}/deployments?per_page=1`);
-      return { state: any.length > 0 ? "building" : "unknown" };
+      if (any.length > 0) return { state: "building" };
+      // Cloudflare reports a build a little after the commit, so one it reported on the commit before is coming.
+      const parent = await this.parentOf(revision);
+      return { state: parent && (await this.cloudflareBuild(parent)) ? "building" : "unknown" };
     } catch (error) {
       // Tokens without the Deployments permission can still publish; they just can't see deploys.
       if (error instanceof GitApiError) return { state: "unknown" };
       throw error;
     }
+  }
+
+  /**
+   * What Cloudflare Pages reports on a commit: a check run of its GitHub App,
+   * or a commit status, which fine-grained tokens can read where check runs
+   * need a GitHub App's permission. `undefined` if it reported nothing.
+   */
+  private async cloudflareBuild(revision: string): Promise<DeployStatus | undefined> {
+    const checks = await githubRequest(this.api, `/repos/${this.repo}/commits/${revision}/check-runs?per_page=50`, {
+      allow: [403, 404],
+    });
+    if (checks.ok) {
+      const { check_runs: found = [] } = (await checks.json()) as { check_runs?: CheckRun[] };
+      const run = found.find((candidate) => CLOUDFLARE.test(`${candidate.app?.slug ?? ""} ${candidate.name}`));
+      if (run) {
+        const detailsUrl = run.details_url ?? run.html_url ?? undefined;
+        if (run.status !== "completed") return { state: "building", detailsUrl };
+        if (run.conclusion === "success" || run.conclusion === "neutral" || run.conclusion === "skipped") {
+          return { state: "live", detailsUrl };
+        }
+        return { state: "failed", detailsUrl, problem: { step: "build", detail: run.output?.title ?? undefined } };
+      }
+    }
+    const statuses = await githubRequest(this.api, `/repos/${this.repo}/commits/${revision}/statuses?per_page=50`, {
+      allow: [403, 404],
+    });
+    if (!statuses.ok) return undefined;
+    // Newest first, so the first is where the build is up to.
+    const status = ((await statuses.json()) as CommitStatus[]).find((candidate) => CLOUDFLARE.test(candidate.context));
+    if (!status) return undefined;
+    const detailsUrl = status.target_url ?? undefined;
+    if (status.state === "success") return { state: "live", detailsUrl };
+    if (status.state === "pending") return { state: "building", detailsUrl };
+    return { state: "failed", detailsUrl, problem: { step: "build", detail: status.description ?? undefined } };
+  }
+
+  /** The commit a commit was made on top of, if the token can see it. */
+  private async parentOf(revision: string): Promise<string | undefined> {
+    const response = await githubRequest(this.api, `/repos/${this.repo}/commits/${revision}`, {
+      allow: [403, 404, 422],
+    });
+    if (!response.ok) return undefined;
+    return ((await response.json()) as { parents?: Array<{ sha: string }> }).parents?.[0]?.sha;
   }
 
   /** The site's deploy workflow run for a commit, or `undefined` if there's none or the token can't see Actions. */

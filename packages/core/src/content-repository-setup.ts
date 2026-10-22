@@ -4,6 +4,7 @@
  * `planSite()` uses them for new sites, so `create-goodfellow` and the setup
  * page make the same ones.
  */
+import { CLOUDFLARE_DEPLOY_HOOK } from "./cloudflare-setup.js";
 import { CONTENT_REPOSITORY_DIR } from "./content/paths.js";
 import type { Host } from "./site-setup.js";
 
@@ -33,12 +34,17 @@ export interface SeparateContent {
 
 /**
  * The name of the job, and of the GitHub workflow file, that only asks
- * another host (Vercel) to rebuild the site. It says nothing about when the
+ * another host (Vercel or Cloudflare Pages) to rebuild the site. It says nothing about when the
  * site is live, so backends leave it out of deploy status.
  */
 export const REBUILD_JOB = "rebuild";
 
-/** Where each host can build a site from: GitHub Pages and GitLab Pages publish the repository that builds. */
+/**
+ * Where each host can build a site from: GitHub Pages and GitLab Pages publish
+ * the repository that builds, and Cloudflare Pages builds the content
+ * repository, which it reports builds to, so the admin panel shows when
+ * changes are live.
+ */
 export function contentBuildsFor(host: Host): ContentBuild[] {
   return host === "vercel" ? ["code", "content"] : ["content"];
 }
@@ -185,8 +191,26 @@ ${build}
  */
 function githubScheduledContentWorkflow(setup: SeparateSetup): string {
   const { copy, due } = commands(setup);
+  const cloudflare = setup.host === "cloudflare-pages";
+  const starts = cloudflare
+    ? `asks Cloudflare to rebuild the site through the Pages project's deploy hook, which can only start builds: add it here as the ${CLOUDFLARE_DEPLOY_HOOK} secret (Settings → Secrets and variables → Actions)`
+    : `starts the "Deploy to GitHub Pages" workflow (deploy.yml)`;
+  const start = cloudflare
+    ? `      - if: steps.due.outputs.due == 'true'
+        env:
+          HOOK: \${{ secrets.${CLOUDFLARE_DEPLOY_HOOK} }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "Add the Cloudflare Pages project's deploy hook as this repository's ${CLOUDFLARE_DEPLOY_HOOK} secret."
+            exit 1
+          fi
+          curl --fail --silent --show-error --request POST "$HOOK"`
+    : `      - if: steps.due.outputs.due == 'true'
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"`;
   return `${comment(
-    `Checks each hour whether a page or item scheduled to be shown or hidden has come due since the last check, and if one has, starts the "Deploy to GitHub Pages" workflow (deploy.yml), so the change goes live within the hour. On a private repository each check counts as a minute of GitHub Actions. Delete this file to have scheduled changes go live with the nightly build.`,
+    `Checks each hour whether a page or item scheduled to be shown or hidden has come due since the last check, and if one has, ${starts}, so the change goes live within the hour. On a private repository each check counts as a minute of GitHub Actions. Delete this file to have scheduled changes go live with the nightly build.`,
   )}
 name: Scheduled changes
 
@@ -228,18 +252,50 @@ jobs:
         run: |
           since="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scheduled.yml --status success --limit 1 --json startedAt --jq '.[0].startedAt' || true)"
           ${due} --since "$since"
-      - if: steps.due.outputs.due == 'true'
-        env:
-          GH_TOKEN: \${{ github.token }}
-        run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+${start}
 `;
 }
 
 /** The code repository's nightly update on GitHub, which then asks the content repository to build. */
 function githubUpdateWorkflow(setup: SeparateSetup): string {
   const { copy, update } = commands(setup);
+  const cloudflare = setup.host === "cloudflare-pages";
+  const builds = cloudflare
+    ? `Cloudflare Pages builds and publishes the site from ${setup.content}: after each change to the code here, and each night, so date-based content stays current, this asks Cloudflare to rebuild the site through the Pages project's deploy hook, which can only start builds: add it here as the ${CLOUDFLARE_DEPLOY_HOOK} secret (Settings → Secrets and variables → Actions).`
+    : `The site is built and published from ${setup.content}: after each change to the code here, including updates, this starts its build, if this repository has a GOODFELLOW_BUILD_TOKEN secret (a fine-grained token for ${setup.content} only, with Actions read and write). Without it, changes to the code go live with that repository's nightly build.`;
+  const build = cloudflare
+    ? `  ${REBUILD_JOB}:
+    needs: update
+    # Cloudflare builds the content repository, so it's asked after any change to the code, and each night.
+    if: \${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          HOOK: \${{ secrets.${CLOUDFLARE_DEPLOY_HOOK} }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "Add the Cloudflare Pages project's deploy hook as this repository's ${CLOUDFLARE_DEPLOY_HOOK} secret."
+            exit 1
+          fi
+          curl --fail --silent --show-error --request POST "$HOOK"
+`
+    : `  build:
+    needs: update
+    # After a change to the code, or an update that was published.
+    if: \${{ !cancelled() && (github.event_name != 'schedule' || needs.update.outputs.sha != '') }}
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: \${{ secrets.GOODFELLOW_BUILD_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "There's no GOODFELLOW_BUILD_TOKEN secret, so the site gets this with ${setup.content}'s nightly build."
+            exit 0
+          fi
+          gh workflow run deploy.yml --repo ${setup.content}
+`;
   return `${comment(
-    `Installs Goodfellow's newest fixes each night, and publishes them only if the site still builds with them, unless content/updates.json in ${setup.content}, which holds the site's content, turns automatic updates off. The site is built and published from ${setup.content}: after each change to the code here, including updates, this starts its build, if this repository has a GOODFELLOW_BUILD_TOKEN secret (a fine-grained token for ${setup.content} only, with Actions read and write). Without it, changes to the code go live with that repository's nightly build.
+    `Installs Goodfellow's newest fixes each night, and publishes them only if the site still builds with them, unless content/updates.json in ${setup.content}, which holds the site's content, turns automatic updates off. ${builds}
 If ${setup.content} is private, this workflow needs a deploy key to read it: add its public half to ${setup.content} (Settings → Deploy keys, without write access), and its private half here as the GOODFELLOW_CONTENT_KEY secret (Settings → Secrets and variables → Actions).`,
   )}
 name: Update Goodfellow
@@ -286,21 +342,7 @@ jobs:
           TO: \${{ inputs.update || 'automatic' }}
         run: ${update} --publish --to "$TO"
 
-  build:
-    needs: update
-    # After a change to the code, or an update that was published.
-    if: \${{ !cancelled() && (github.event_name != 'schedule' || needs.update.outputs.sha != '') }}
-    runs-on: ubuntu-latest
-    steps:
-      - env:
-          GH_TOKEN: \${{ secrets.GOODFELLOW_BUILD_TOKEN }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "There's no GOODFELLOW_BUILD_TOKEN secret, so the site gets this with ${setup.content}'s nightly build."
-            exit 0
-          fi
-          gh workflow run deploy.yml --repo ${setup.content}
-`;
+${build}`;
 }
 
 /** GitLab Pages, built from the content project: its pipeline clones the code, then copies the content into it. */
@@ -335,9 +377,38 @@ pages:
 /** The code project's pipeline on GitLab: nightly updates, then the content project's build. */
 function gitlabCodePipeline(setup: SeparateSetup): string {
   const { copy, update } = commands(setup);
+  const cloudflare = setup.host === "cloudflare-pages";
+  const builds = cloudflare
+    ? `Cloudflare Pages builds and publishes the site from ${setup.content}: after every change to the code, and each scheduled pipeline, this asks Cloudflare to rebuild it through the Pages project's deploy hook, which can only start builds: add it here as the ${CLOUDFLARE_DEPLOY_HOOK} variable (Settings → CI/CD → Variables, masked).`
+    : `The site is built and published by ${setup.content}: after every change to the code, and each scheduled pipeline, this starts its pipeline.`;
+  const build = cloudflare
+    ? `${REBUILD_JOB}:
+  image: node:22
+  needs:
+    - job: update
+      optional: true
+  script:
+    - |
+      if [ -z "$${CLOUDFLARE_DEPLOY_HOOK}" ]; then
+        echo "Add the Cloudflare Pages project's deploy hook as this project's ${CLOUDFLARE_DEPLOY_HOOK} variable."
+        exit 1
+      fi
+    - curl --fail --silent --show-error --request POST "$${CLOUDFLARE_DEPLOY_HOOK}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+`
+    : `build:
+  needs:
+    - job: update
+      optional: true
+  trigger:
+    project: ${setup.content}
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+`;
   return `${comment(
     `On scheduled pipelines (set one up to run each night under Build → Pipeline schedules), installs Goodfellow's newest fixes, unless content/updates.json in ${setup.content}, which holds the site's content, turns automatic updates off (or the release GOODFELLOW_UPDATE names), and publishes them only if the site still builds with them. That needs "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, and, if ${setup.content} is private, this project in its job token allowlist.
-The site is built and published by ${setup.content}: after every change to the code, and each scheduled pipeline, this starts its pipeline.`,
+${builds}`,
   )}
 update:
   image: node:22
@@ -354,15 +425,46 @@ update:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE)
 
-build:
-  needs:
-    - job: update
-      optional: true
-  trigger:
-    project: ${setup.content}
+${build}`;
+}
+
+/**
+ * The content project's pipeline on GitLab where Cloudflare Pages builds it:
+ * only the pipeline schedules the admin panel adds for scheduled changes, which
+ * ask Cloudflare to rebuild the site then. Cloudflare builds every change itself.
+ */
+function gitlabCloudflareContentPipeline(setup: SeparateSetup): string {
+  return `${comment(
+    `Cloudflare Pages builds and publishes the site from this project whenever its content changes (including every Publish in the admin panel), with the code from ${setup.code}. This project holds only the site's content.
+The admin panel adds a pipeline schedule for each time a page or item is scheduled to be shown or hidden, and on those this asks Cloudflare to rebuild the site, through the Pages project's deploy hook, which can only start builds: add it here as the ${CLOUDFLARE_DEPLOY_HOOK} variable (Settings → CI/CD → Variables, masked).`,
+  )}
+${REBUILD_JOB}:
+  image: node:22
+  script:
+    - |
+      if [ -z "$${CLOUDFLARE_DEPLOY_HOOK}" ]; then
+        echo "Add the Cloudflare Pages project's deploy hook as this project's ${CLOUDFLARE_DEPLOY_HOOK} variable."
+        exit 1
+      fi
+    - curl --fail --silent --show-error --request POST "$${CLOUDFLARE_DEPLOY_HOOK}"
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "schedule"
 `;
+}
+
+/**
+ * The build command of a Cloudflare Pages project that builds a site from its
+ * content repository, which it puts in the project's settings: it clones the
+ * code into site/ and copies the content into it, as the other hosts' builds do.
+ */
+export function cloudflareContentBuild(setup: SeparateSetup): { command: string; output: string } {
+  const { output } = commands(setup);
+  const cli = setup.next ? "goodfellow-next" : "goodfellow";
+  const build = setup.next ? "npm run build" : "npx goodfellow build";
+  return {
+    command: `git clone --depth 1 "${cloneUrl(setup, setup.code, "GOODFELLOW_CODE_TOKEN")}" site && cd site && npm ci && npx ${cli} content copy .. && ${build}`,
+    output: `site/${output}`,
+  };
 }
 
 /** Asks Vercel to rebuild the site when this repository changes, through the Vercel project's deploy hook. */
@@ -489,6 +591,14 @@ export function separateSetupFiles(setup: SeparateSetup, vercelTemplate?: string
   } else if (setup.host === "gitlab-pages") {
     content.set(GITLAB_CI, gitlabPagesContentPipeline(setup));
     code.set(GITLAB_CI, gitlabCodePipeline(setup));
+  } else if (setup.host === "cloudflare-pages") {
+    if (setup.git === "github") {
+      content.set(GITHUB_SCHEDULED_WORKFLOW, githubScheduledContentWorkflow(setup));
+      code.set(GITHUB_UPDATE_WORKFLOW, githubUpdateWorkflow(setup));
+    } else {
+      content.set(GITLAB_CI, gitlabCloudflareContentPipeline(setup));
+      code.set(GITLAB_CI, gitlabCodePipeline(setup));
+    }
   } else {
     const [builds, other] = setup.build === "code" ? [code, content] : [content, code];
     builds.set(
@@ -537,9 +647,13 @@ export function separateSetupLinks(setup: Pick<SeparateSetup, "git" | "host" | "
     return { reads: [], nightly: setup.git === "gitlab" ? [setup.build === "code" ? "content" : "code"] : [] };
   }
   const gitlab = setup.git === "gitlab";
+  // Cloudflare reads the code with a token in its own settings; on GitLab, nothing else in the content project does.
+  const contentReadsCode = !(gitlab && setup.host === "cloudflare-pages");
   return {
     reads: [
-      { reader: "content", read: "code", ...(!gitlab && { secret: "GOODFELLOW_CODE_KEY" }) },
+      ...(contentReadsCode
+        ? [{ reader: "content", read: "code", ...(!gitlab && { secret: "GOODFELLOW_CODE_KEY" }) } as const]
+        : []),
       { reader: "code", read: "content", ...(!gitlab && { secret: "GOODFELLOW_CONTENT_KEY" }) },
     ],
     nightly: gitlab ? ["code"] : [],
@@ -559,6 +673,11 @@ function buildNote(setup: SeparateSetup): string {
   }
   if (setup.host === "gitlab-pages") {
     return `The site is built and published with GitLab Pages from the content project, by its \`${GITLAB_CI}\`, which clones the code. The code's \`${GITLAB_CI}\` installs Goodfellow's fixes on scheduled pipelines and starts the content project's pipeline after each change to the code: set up a pipeline schedule there to run each night.`;
+  }
+  if (setup.host === "cloudflare-pages") {
+    const { command, output } = cloudflareContentBuild(setup);
+    const update = setup.git === "github" ? GITHUB_UPDATE_WORKFLOW : GITLAB_CI;
+    return `Cloudflare Pages builds and publishes the site from the content repository, so the admin panel can show when changes are live. In the Pages project's settings, use no framework preset, the build command \`${command}\` and the output directory \`${output}\`; if the code repository isn't public, add a token that can only read it as the project's GOODFELLOW_CODE_TOKEN variable. The code's \`${update}\` installs Goodfellow's fixes each night and asks Cloudflare to rebuild the site after each change to the code, through the Pages project's deploy hook, its ${CLOUDFLARE_DEPLOY_HOOK} ${setup.git === "github" ? "secret" : "variable"}${setup.git === "gitlab" ? ": set up a pipeline schedule there to run each night" : ""}. The content repository's ${setup.git === "github" ? `\`${GITHUB_SCHEDULED_WORKFLOW}\`` : `\`${GITLAB_CI}\``} uses the same hook to rebuild the site when scheduled changes come due.`;
   }
   return setup.build === "code"
     ? `Vercel builds the site from the code repository: its \`${VERCEL_CONFIG}\` clones the content when it installs. The content repository's \`${rebuild}\` asks Vercel to rebuild the site whenever the content changes.`

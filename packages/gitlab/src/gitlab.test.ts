@@ -219,6 +219,25 @@ describe("publishing", () => {
       detailsUrl: "https://gitlab.com/parish/web/site/-/jobs/1",
     });
   });
+
+  it("follows Cloudflare's commit status, and counts a commit it hasn't reported on yet as building", async () => {
+    const { backend, fake } = await signedIn({ deployAfterChecks: 0, deployJob: "Cloudflare Pages", external: true });
+    const { revision } = await backend.write([{ path: "content/site.json", content: "{}" }], {
+      message: "Publish",
+      expectedRevision: await backend.revision(),
+    });
+    expect(await backend.deployStatus(revision)).toEqual({
+      state: "live",
+      detailsUrl: "https://gitlab.com/parish/web/site/-/jobs/1",
+    });
+    // A commit Cloudflare hasn't reported on yet, after one it has.
+    const next = fake.repo.commit([{ path: "content/site.json", content: '{"a":1}' }], "Publish again");
+    expect(await backend.deployStatus(next)).toEqual({ state: "building" });
+    // One whose commit before had nothing either.
+    const unknown = await signedIn({ deployJob: "Cloudflare Pages", external: true });
+    const first = unknown.fake.repo.commit([{ path: "content/site.json", content: "{}" }], "First");
+    expect(await unknown.backend.deployStatus(first)).toEqual({ state: "unknown" });
+  });
 });
 
 describe("version history", () => {

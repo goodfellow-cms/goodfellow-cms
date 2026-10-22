@@ -92,9 +92,21 @@ export type SignInProblem =
   | "name-invalid"
   | "not-allowed";
 
-/** What each kind of sign-in's tokens may do. Editors' tokens can't change workflows or the repository's settings. */
+/**
+ * What each kind of sign-in's tokens may do. Editors' tokens can't change
+ * workflows or the repository's settings. Checks and Commit statuses show
+ * when Cloudflare Pages has built the site.
+ */
 export const PERMISSIONS: Record<Purpose, Permissions> = {
-  edit: { contents: "write", metadata: "read", deployments: "read", actions: "read", pages: "read" },
+  edit: {
+    contents: "write",
+    metadata: "read",
+    deployments: "read",
+    actions: "read",
+    pages: "read",
+    checks: "read",
+    statuses: "read",
+  },
   owner: { administration: "write", pages: "write", actions: "write", contents: "read", metadata: "read" },
   setup: {
     administration: "write",
@@ -105,6 +117,22 @@ export const PERMISSIONS: Record<Purpose, Permissions> = {
     metadata: "read",
   },
 };
+
+/**
+ * Permissions added since the apps were first set up, which installations
+ * accept only when someone approves them on GitHub. Until then, tokens are
+ * made without them, and the admin panel does without what they're for.
+ */
+export const LATER_PERMISSIONS: Partial<Record<Purpose, string[]>> = {
+  edit: ["checks", "statuses"],
+  setup: ["secrets"],
+};
+
+/** `permissions` without those an installation may not have accepted yet. */
+function withoutLater(purpose: Purpose, permissions: Permissions): Permissions {
+  const later = new Set(LATER_PERMISSIONS[purpose] ?? []);
+  return Object.fromEntries(Object.entries(permissions).filter(([name]) => !later.has(name)));
+}
 
 /**
  * What tokens for a site's code repository may do, where its content is kept
@@ -438,19 +466,23 @@ export function createWorker(options: WorkerOptions = {}) {
      * once GitHub says the person still edits the site (or owns it, for an
      * owner's sign-in), and the session to use next time.
      */
+    /** A token with a purpose's permissions, or, for an installation that hasn't accepted the later ones, without them. */
+    async function purposeToken(jwt: string, installation: number, repo: string, purpose: Purpose) {
+      try {
+        return await installationToken(config, jwt, installation, repo, PERMISSIONS[purpose]);
+      } catch (error) {
+        if (!(error instanceof GitHubError && error.status === 422) || !LATER_PERMISSIONS[purpose]) throw error;
+        return installationToken(config, jwt, installation, repo, withoutLater(purpose, PERMISSIONS[purpose]));
+      }
+    }
+
     async function issue(session: SessionData, code?: unknown) {
       const repo = session.repo;
       if (!repo) throw new Problem("bad-request", 400);
       const app = appFor(session.purpose);
       const installation = await installationFor(app, repo);
       if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
-      const issued = await installationToken(
-        config,
-        await jwtFor(app),
-        installation,
-        repo,
-        PERMISSIONS[session.purpose],
-      );
+      const issued = await purposeToken(await jwtFor(app), installation, repo, session.purpose);
       try {
         await checkStillAllowed(session, repo, issued.token);
         // Checked every time, since the site's address can change, and its old address shouldn't keep getting tokens.
@@ -793,15 +825,8 @@ export function createWorker(options: WorkerOptions = {}) {
           });
         }
         const jwt = await jwtFor(app);
-        let issued: { token: string; expiresAt: string };
-        try {
-          issued = await installationToken(config, jwt, installation.id, repo.full_name, PERMISSIONS.setup);
-        } catch (error) {
-          // An installation that hasn't accepted the Secrets permission yet: the setup page explains what to add.
-          if (!(error instanceof GitHubError && error.status === 422)) throw error;
-          const { secrets: _, ...withoutSecrets } = PERMISSIONS.setup;
-          issued = await installationToken(config, jwt, installation.id, repo.full_name, withoutSecrets);
-        }
+        // An installation that hasn't accepted the Secrets permission yet gets one without: the setup page explains what to add.
+        const issued = await purposeToken(jwt, installation.id, repo.full_name, "setup");
         const editApp = apps.edit;
         const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;
         // The repository exists, which is all the person's own token was kept for, unless another one follows.

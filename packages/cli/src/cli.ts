@@ -1,6 +1,6 @@
 import { relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { ContentError, formatUpdateResult } from "@goodfellow-cms/core";
+import { CLOUDFLARE_REDIRECTS_LIMIT, ContentError, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   ContentRepositoryError,
@@ -116,6 +116,11 @@ async function main(): Promise<void> {
         const { kind, title, path, time } = result.nextChange;
         console.log(
           `Next scheduled change: ${kind} "${title}"${path ? ` (${path})` : ""} at ${time}, which needs the site built again`,
+        );
+      }
+      if (result.redirectsLeft) {
+        console.log(
+          `Cloudflare Pages reads only the first ${CLOUDFLARE_REDIRECTS_LIMIT.toLocaleString("en")} lines of _redirects, so ${result.redirectsLeft} old address${result.redirectsLeft === 1 ? " is" : "es are"} left to the pages that send visitors on.`,
         );
       }
       for (const line of reportSiteProblems(result.problems)) console.log(line);

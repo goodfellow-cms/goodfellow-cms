@@ -4,6 +4,7 @@ import { useAdmin, useSiteContent } from "./admin-context.js";
 import { withoutCredits } from "./changes.js";
 import { extensionOf, fileName, mediaKind, mediaPath, mediaUrl, mediaUsage, uploadName } from "./media.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
+import { useOutsideHost } from "./site-host.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, Field } from "./ui.js";
 import { prepareUpload, UploadError } from "./upload.js";
@@ -250,6 +251,9 @@ function useUploads() {
 }
 
 /** Every uploaded image and file, with buttons to upload, replace and delete them. */
+/** Cloudflare's terms for its CDN, which limit serving video on its free plans. */
+const CLOUDFLARE_TERMS = "https://www.cloudflare.com/service-specific-terms-application-services/";
+
 export function MediaScreen() {
   const t = useStrings();
   const { content, media } = useSiteContent();
@@ -271,6 +275,10 @@ export function MediaScreen() {
       window.removeEventListener("drop", stop);
     };
   }, []);
+  // Cloudflare's free plans limit serving video, so sites it builds are told where else to put theirs.
+  const outside = useOutsideHost();
+  const cloudflareVideos =
+    outside === "cloudflare-pages" && media.some((path) => mediaKind(mediaUrl(path)) === "video");
   const urls = useMemo(
     () =>
       media
@@ -291,6 +299,14 @@ export function MediaScreen() {
         />
       </div>
       <p className="gfa-hint">{t("media.intro")}</p>
+      {cloudflareVideos && (
+        <p className="gfa-notice" role="note">
+          {t("media.cloudflareVideo")}{" "}
+          <a href={CLOUDFLARE_TERMS} target="_blank" rel="noreferrer">
+            {t("media.cloudflareVideoTerms")}
+          </a>
+        </p>
+      )}
       <UploadStatus status={status} />
 
       {media.length > 0 && (

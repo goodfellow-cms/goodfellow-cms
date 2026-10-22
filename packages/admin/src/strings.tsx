@@ -504,6 +504,9 @@ export const defaultStrings = {
   "blocks.error.not-installed": "{name} hasn't been added, so there's nothing to remove.",
   "blocks.error.in-use": "{name} is still used on the site. Take it out first, then remove it.",
   "media.title": "Media",
+  "media.cloudflareVideo":
+    "This site is published with Cloudflare Pages, whose terms limit serving video and other large files on its free plans without one of its paid services. To be safe, put videos on YouTube or Vimeo and show them with the Video block, which plays them from there.",
+  "media.cloudflareVideoTerms": "Cloudflare's terms",
   "media.intro":
     "Images and files for the site. Upload them here, or while editing a page. Large photos are made smaller, and details hidden in photos, such as where they were taken, are removed.",
   "media.upload": "Upload files",
@@ -639,6 +642,8 @@ export const defaultStrings = {
   "domain.demo": "Domains can't be connected in a demo.",
   "domain.loading": "Finding where the site is published…",
   "domain.elsewhere": "This site isn't published with {host} Pages, so its domain is connected where it is published.",
+  "domain.elsewhere.cloudflare":
+    "On Cloudflare Pages: open the site's project, go to Custom domains and set up the domain. For a domain such as www.example.org, Cloudflare shows a CNAME record to add at your registrar. For example.org itself, the domain has to use Cloudflare's nameservers, which Cloudflare walks you through. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.elsewhere.vercel":
     "On Vercel: open the site's project, go to Settings → Domains and add the domain. Vercel shows the records to add at your registrar. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.field": "Domain",

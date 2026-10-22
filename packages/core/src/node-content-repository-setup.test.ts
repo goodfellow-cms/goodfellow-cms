@@ -59,12 +59,16 @@ async function vercelConfig(source: string): Promise<Record<string, unknown>> {
 }
 
 describe("planSite with the content in a repository of its own", () => {
-  const plan = (host: "github-pages" | "gitlab-pages" | "vercel", build: "content" | "code" = "content") =>
+  const plan = (
+    host: "github-pages" | "gitlab-pages" | "vercel" | "cloudflare-pages",
+    build: "content" | "code" = "content",
+    git: "github" | "gitlab" = host === "gitlab-pages" ? "gitlab" : "github",
+  ) =>
     planSite({
       template: template(),
       name: "my-parish",
       versions: { "@goodfellow-cms/core": "1.2.3" },
-      backend: { host: host === "gitlab-pages" ? "gitlab" : "github", repo: "parish/site" },
+      backend: { host: git, repo: "parish/site" },
       host,
       content: { repo: "parish/site-content", build },
     });
@@ -167,6 +171,41 @@ describe("planSite with the content in a repository of its own", () => {
       outputDirectory: "site/dist",
     });
     expect(parse(text(files, ".github/workflows/rebuild.yml")).on.push).toEqual({ branches: ["main"] });
+  });
+
+  it("builds on Cloudflare Pages from the content repository, which the code asks to rebuild", async () => {
+    const github = await plan("cloudflare-pages");
+    expect([...github.keys()].filter((path) => path.includes(".github") || path.endsWith(".gitlab-ci.yml"))).toEqual([
+      ".github/workflows/update.yml",
+      "content-repository/.github/workflows/scheduled.yml",
+    ]);
+    const update = parse(text(github, ".github/workflows/update.yml"));
+    expect(update.jobs.rebuild.if).toBe(`\${{ !cancelled() }}`);
+    expect(update.jobs.rebuild.steps[0].env.HOOK).toBe(`\${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}`);
+    const scheduled = parse(text(github, "content-repository/.github/workflows/scheduled.yml"));
+    expect(scheduled.jobs.check.steps.at(-1).env.HOOK).toBe(`\${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}`);
+    // The README says what to put in Cloudflare's settings.
+    expect(text(github, "content-repository/README.md")).toContain(
+      `the build command \`git clone --depth 1 "https://\${GOODFELLOW_CODE_TOKEN:+x-access-token:$GOODFELLOW_CODE_TOKEN@}github.com/parish/site.git" site && cd site && npm ci && npx goodfellow content copy .. && npx goodfellow build\` and the output directory \`site/dist\``,
+    );
+
+    const gitlab = await plan("cloudflare-pages", "content", "gitlab");
+    const content = parse(text(gitlab, "content-repository/.gitlab-ci.yml"));
+    expect(Object.keys(content)).toEqual(["rebuild"]);
+    expect(content.rebuild.rules).toEqual([
+      { if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "schedule"' },
+    ]);
+    const code = parse(text(gitlab, ".gitlab-ci.yml"));
+    expect(Object.keys(code)).toEqual(["update", "rebuild"]);
+    expect(code.rebuild.script.at(-1)).toBe(
+      'curl --fail --silent --show-error --request POST "$CLOUDFLARE_DEPLOY_HOOK"',
+    );
+    expect(contentBuildsFor("cloudflare-pages")).toEqual(["content"]);
+    expect(separateSetupLinks({ git: "gitlab", host: "cloudflare-pages", build: "content" })).toEqual({
+      reads: [{ reader: "code", read: "content" }],
+      nightly: ["code"],
+      updates: "code",
+    });
   });
 
   it("needs both repositories and a host", async () => {

@@ -16,6 +16,7 @@ import { useAdmin, useSiteContent } from "./admin-context.js";
 import { siteSettingsFileChange } from "./changes.js";
 import { OwnerTokenActive, OwnerTokenForm } from "./owner-token.js";
 import { SettingsTabs } from "./settings-screen.js";
+import { useOutsideHost } from "./site-host.js";
 import { useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
 
@@ -61,6 +62,7 @@ export function DomainScreen() {
   const { pages, account, demo, publish } = useAdmin();
   const { content } = useSiteContent();
   const host = account?.hostName ?? "";
+  const outside = useOutsideHost();
   const [site, setSite] = useState<PagesSite | null>();
   const [error, setError] = useState<unknown>();
 
@@ -89,7 +91,8 @@ export function DomainScreen() {
     body = (
       <>
         <p>{t("domain.elsewhere", { host })}</p>
-        <p>{t("domain.elsewhere.vercel")}</p>
+        {outside !== "vercel" && <p>{t("domain.elsewhere.cloudflare")}</p>}
+        {outside !== "cloudflare-pages" && <p>{t("domain.elsewhere.vercel")}</p>}
       </>
     );
   } else if (site.domain) {

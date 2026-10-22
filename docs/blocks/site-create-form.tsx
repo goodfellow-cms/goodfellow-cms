@@ -2,9 +2,11 @@
 
 import {
   BLOCK_CHOICES,
+  CLOUDFLARE_DEPLOY_HOOK,
   CONTENT_BUILDS,
   CONTENT_REPOSITORY_DIR,
   type CreatedSiteRepository,
+  cloudflareContentBuild,
   contentBuildsFor,
   type FileChange,
   GOODFELLOW_REGISTRY,
@@ -355,7 +357,7 @@ function CreateSite({
         message: "Create the site",
       };
       // GitHub Pages and GitLab Pages publish the repository that builds the site: the content's, where it has one.
-      const pages = choices.host !== "vercel";
+      const pages = choices.host === "github-pages" || choices.host === "gitlab-pages";
       if (!content) {
         setCreated(await account.createSite({ ...site, name, pages, files: fileChanges(files, "code") }, setStep));
         return;
@@ -516,7 +518,9 @@ function CreateSite({
             <p className="text-sm">
               The code goes in {chosenOwner?.path ?? ""}/{name}, and the content in {chosenOwner?.path ?? ""}/
               {contentName(name)}
-              {choices.host === "vercel" ? "." : ", which publishes the site, so its address follows that name."}
+              {choices.host === "vercel" || choices.host === "cloudflare-pages"
+                ? "."
+                : ", which publishes the site, so its address follows that name."}
             </p>
           )}
         </Question>
@@ -635,6 +639,54 @@ function RepoLink({ repo }: { repo: CreatedSiteRepository }) {
 }
 
 /**
+ * Putting a site created for Cloudflare Pages online: importing the repository
+ * Cloudflare builds, which is the content's where it has one, with its build
+ * settings, then giving the setup files the project's deploy hook.
+ */
+function CloudflareSteps({
+  created,
+  code,
+  choices,
+}: {
+  created: CreatedSiteRepository;
+  code?: CreatedSiteRepository;
+  choices: Choices;
+}) {
+  const github = choices.git === "github";
+  const next = choices.template === "next";
+  const build = code
+    ? cloudflareContentBuild({
+        git: choices.git,
+        host: "cloudflare-pages",
+        build: "content",
+        code: code.repo,
+        content: created.repo,
+        next,
+      })
+    : { command: "npm run build", output: next ? "out" : "dist" };
+  const hookIn = code ? `${code.repo} and ${created.repo}` : created.repo;
+  return (
+    <Note>
+      Now put it online with Cloudflare Pages. In{" "}
+      <SiteLink className={link} href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">
+        Cloudflare's dashboard
+      </SiteLink>
+      , go to Workers &amp; Pages, create a Pages project with Import an existing Git repository, connect your{" "}
+      {github ? "GitHub" : "GitLab"} account and choose {created.repo}. Choose no framework preset, the build command{" "}
+      <code>{build.command}</code> and the build output directory <code>{build.output}</code>
+      {code &&
+        ", and if the code repository is private, add a token that can only read it as the GOODFELLOW_CODE_TOKEN variable"}
+      . Then, under the project's Settings → Builds, add a deploy hook for the main branch, and add it to {hookIn} as
+      the {CLOUDFLARE_DEPLOY_HOOK}{" "}
+      {github
+        ? "secret (Settings → Secrets and variables → Actions)"
+        : "variable (Settings → CI/CD → Variables, masked)"}
+      , for the nightly update and rebuild{github ? "" : ", which the admin panel's Updates screen turns on"}.
+    </Note>
+  );
+}
+
+/**
  * The site that was created. For a site whose content has a repository of its
  * own, `created` is the content's, which editors sign in to and Pages
  * publishes, and `code` the code's.
@@ -690,7 +742,9 @@ function Created({
           GitHub Actions, and run Deploy to GitHub Pages again under Actions.
         </Note>
       )}
-      {choices.host === "vercel" ? (
+      {choices.host === "cloudflare-pages" ? (
+        <CloudflareSteps created={created} code={code} choices={choices} />
+      ) : choices.host === "vercel" ? (
         <Note>
           Now put it online with Vercel: open{" "}
           <SiteLink className={link} href="https://vercel.com/new" target="_blank" rel="noopener noreferrer">

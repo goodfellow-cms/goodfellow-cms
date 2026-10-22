@@ -49,6 +49,13 @@ export {
   zonedInstant,
   zonedTime,
 } from "./calendar.js";
+export {
+  CLOUDFLARE_BUILD_SETTINGS,
+  CLOUDFLARE_DEPLOY_HOOK,
+  type CloudflareSetup,
+  cloudflareSetupFiles,
+  outsideHost,
+} from "./cloudflare-setup.js";
 export { COLOR_SCHEME_ATTRIBUTE, COLOR_SCHEME_STORAGE_KEY, colorSchemeScript } from "./color-scheme.js";
 export { type AiConfig, type ClaudeConfig, defineConfig, type GoodfellowConfig } from "./config.js";
 export {
@@ -269,11 +276,15 @@ export {
   UPDATES_FILE,
 } from "./content/paths.js";
 export {
+  CLOUDFLARE_REDIRECTS_LIMIT,
+  CLOUDFLARE_REDIRECTS_PATH,
+  cloudflareRedirects,
   findRedirect,
   isReservedRedirect,
   REDIRECT_LINK_PLACEHOLDER,
   REDIRECT_MESSAGE,
   type Redirect,
+  type RedirectFile,
   type RedirectProblem,
   type RedirectsFile,
   redirectFiles,
@@ -385,6 +396,7 @@ export {
 export {
   CONTENT_BUILDS,
   type ContentBuild,
+  cloudflareContentBuild,
   contentBuildsFor,
   REBUILD_JOB,
   type RepositoryRead,

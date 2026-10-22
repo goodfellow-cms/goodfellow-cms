@@ -287,9 +287,9 @@ describe("helpers", () => {
   });
 
   it("only offers hosts that can build the site's repository", () => {
-    expect(hostsFor("github")).toEqual(["github-pages", "vercel"]);
-    expect(hostsFor("gitlab")).toEqual(["gitlab-pages", "vercel"]);
-    expect(hostsFor(undefined)).toHaveLength(3);
+    expect(hostsFor("github")).toEqual(["github-pages", "cloudflare-pages", "vercel"]);
+    expect(hostsFor("gitlab")).toEqual(["gitlab-pages", "cloudflare-pages", "vercel"]);
+    expect(hostsFor(undefined)).toHaveLength(4);
   });
 
   it("writes repository names safely into the config", () => {

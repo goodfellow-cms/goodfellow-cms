@@ -39,7 +39,7 @@ export function gitlabUpdates(
   project: string,
   branch: string,
   readAt: (path: string) => Promise<string | undefined>,
-  /** The job that runs `update`: the pages job in a site's own pipeline, or the code project's `update` job. */
+  /** The job that runs `update`: the pages job in a site's own pipeline, or an `update` job, as the code project's. */
   jobName = "pages",
 ): SiteUpdates {
   const base = `/projects/${encodeURIComponent(project)}`;
@@ -103,7 +103,8 @@ export function gitlabUpdates(
           api,
           `${base}/pipelines/${pipeline.id}/jobs?per_page=100`,
         );
-        const job = jobs.find((candidate) => candidate.name === jobName);
+        // Where Cloudflare Pages builds the site, the site's own pipeline updates in an `update` job.
+        const job = jobs.find((candidate) => candidate.name === jobName || candidate.name === "update");
         if (!job) continue;
         const response = await gitlabRequest(api, `${base}/jobs/${job.id}/trace`, { allow: [403, 404] });
         const result = response.ok ? findUpdateResult(await response.text()) : undefined;
