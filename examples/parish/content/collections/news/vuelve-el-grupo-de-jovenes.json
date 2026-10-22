@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "fields": {
+    "date": "2026-09-14",
+    "image": "/media/gathering.svg",
+    "summary": "Los estudiantes de secundaria se reúnen los domingos por la tarde después de la misa de las 18:00, con pizza.",
+    "text": "<p>Cada semana hay comida, juegos, conversación y una breve reflexión. Los nuevos miembros siempre son bienvenidos, y los padres pueden pedir detalles a la oficina parroquial.</p>",
+    "title": "Vuelve el grupo de jóvenes",
+    "topics": [
+      "youth"
+    ]
+  },
+  "inLanguage": "es",
+  "translatedFrom": "230860cdb90fc13b",
+  "translationOf": "youth-group"
+}

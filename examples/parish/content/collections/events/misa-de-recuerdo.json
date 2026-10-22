@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "fields": {
+    "image": "/media/candles.svg",
+    "place": "Iglesia",
+    "summary": "En el Día de los Fieles Difuntos, rezamos por los feligreses y seres queridos que han fallecido este año.",
+    "text": "<p>Las familias de quienes tuvieron su funeral en San José este año están invitadas a encender una vela en su memoria. Cualquiera puede añadir un nombre al Libro del Recuerdo, al fondo de la iglesia.</p>",
+    "title": "Misa de recuerdo",
+    "when": {
+      "end": "2026-11-02T20:00",
+      "start": "2026-11-02T19:00"
+    }
+  },
+  "inLanguage": "es",
+  "translatedFrom": "a9b3d1aa2fca4f98",
+  "translationOf": "all-souls"
+}

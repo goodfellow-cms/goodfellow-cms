@@ -558,11 +558,31 @@ body,
   height: 100%;
 }
 
-.gfa-layout-screen > .gfa-tabs {
-  margin: 0;
+.gfa-layout-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
   padding: 8px 16px;
   background: var(--gfa-surface);
   border-bottom: 1px solid var(--gfa-border);
+}
+
+.gfa-layout-bar > .gfa-tabs {
+  margin: 0;
+}
+
+/* A field with its label beside it, such as the layout editor's language. */
+.gfa-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.gfa-inline-field > .gfa-input {
+  width: auto;
 }
 
 .gfa-layout-screen > .gfa-editor {

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "fields": {
+    "date": "2026-10-04",
+    "image": "/media/placeholder.svg",
+    "summary": "Traiga abrigos limpios y calientes para niños y adultos al salón parroquial en octubre.",
+    "text": "<p>Los abrigos se entregan a familias del barrio a través del equipo de ayuda de la parroquia. También se agradecen gorros, guantes y bufandas.</p>",
+    "title": "Comienza la colecta de abrigos de invierno",
+    "topics": [
+      "outreach"
+    ]
+  },
+  "inLanguage": "es",
+  "translatedFrom": "789659aa5b937570",
+  "translationOf": "winter-coats"
+}

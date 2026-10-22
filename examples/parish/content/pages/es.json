@@ -5,7 +5,77 @@
       {
         "type": "Section",
         "props": {
-          "id": "Section-es-welcome",
+          "id": "Section-hero",
+          "background": "primary",
+          "backgroundImage": "/media/church.svg",
+          "className": "py-28 text-shadow-lg md:py-36",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-hero",
+                "align": "left",
+                "className": "",
+                "level": "h1",
+                "text": "Bienvenidos a la Parroquia de San José"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-hero",
+                "align": "left",
+                "className": "mt-4 max-w-2xl text-lg opacity-90",
+                "content": "<p>Una comunidad católica en el corazón de Anytown. Tanto si acaba de llegar a la zona como si vuelve a la Iglesia o solo está de visita, aquí es bienvenido.</p>"
+              }
+            },
+            {
+              "type": "Flex",
+              "props": {
+                "id": "Flex-hero",
+                "align": "center",
+                "className": "mt-8",
+                "direction": "row",
+                "gap": "md",
+                "items": [
+                  {
+                    "type": "Button",
+                    "props": {
+                      "id": "Button-mass-times",
+                      "className": "",
+                      "href": "/es/horarios-de-misa",
+                      "label": "Horarios de misa",
+                      "newTab": false,
+                      "size": "lg",
+                      "variant": "secondary"
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "props": {
+                      "id": "Button-visit",
+                      "className": "",
+                      "href": "/contact",
+                      "label": "Planee su visita",
+                      "newTab": false,
+                      "size": "lg",
+                      "variant": "outline"
+                    }
+                  }
+                ],
+                "justify": "start",
+                "wrap": true
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      },
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-times",
           "background": "none",
           "backgroundImage": "",
           "className": "",
@@ -13,36 +83,297 @@
             {
               "type": "Heading",
               "props": {
-                "id": "Heading-es-welcome",
+                "id": "Heading-times",
                 "align": "left",
-                "className": "",
-                "level": "h1",
-                "text": "Bienvenidos a San José"
+                "className": "mb-8",
+                "level": "h2",
+                "text": "Misa y confesión"
               }
             },
             {
-              "type": "Text",
+              "type": "Grid",
               "props": {
-                "id": "Text-es-welcome",
-                "align": "left",
-                "className": "mt-4 max-w-2xl text-lg text-muted-foreground",
-                "content": "<p>Somos una comunidad parroquial abierta a todos. Celebramos la misa cada día y una misa en español cada domingo. Si es su primera visita, le esperamos con gusto.</p>"
+                "id": "Grid-times",
+                "className": "",
+                "columns": "3",
+                "gap": "md",
+                "items": [
+                  {
+                    "type": "MassTimes",
+                    "props": {
+                      "id": "MassTimes-weekend",
+                      "className": "",
+                      "times": [
+                        {
+                          "day": "Sábado",
+                          "note": "Misa de vigilia",
+                          "time": "17:00"
+                        },
+                        {
+                          "day": "Domingo",
+                          "note": "",
+                          "time": "8:00"
+                        },
+                        {
+                          "day": "Domingo",
+                          "note": "Con el coro parroquial",
+                          "time": "10:30"
+                        }
+                      ],
+                      "title": "Misas del fin de semana"
+                    }
+                  },
+                  {
+                    "type": "MassTimes",
+                    "props": {
+                      "id": "MassTimes-weekday",
+                      "className": "",
+                      "times": [
+                        {
+                          "day": "De lunes a viernes",
+                          "note": "",
+                          "time": "8:00"
+                        },
+                        {
+                          "day": "Sábado",
+                          "note": "",
+                          "time": "9:00"
+                        }
+                      ],
+                      "title": "Misas entre semana"
+                    }
+                  },
+                  {
+                    "type": "MassTimes",
+                    "props": {
+                      "id": "MassTimes-confession",
+                      "className": "",
+                      "times": [
+                        {
+                          "day": "Sábado",
+                          "note": "",
+                          "time": "De 15:30 a 16:30"
+                        },
+                        {
+                          "day": "En cualquier momento",
+                          "note": "Llame a la oficina parroquial",
+                          "time": "Con cita previa"
+                        }
+                      ],
+                      "title": "Confesión"
+                    }
+                  }
+                ]
               }
             },
             {
               "type": "Button",
               "props": {
-                "id": "Button-es-mass-times",
-                "className": "mt-6",
+                "id": "Button-all-times",
+                "className": "mt-8",
                 "href": "/es/horarios-de-misa",
-                "label": "Horarios de misa",
+                "label": "Todos los horarios de misa y confesión",
                 "newTab": false,
                 "size": "md",
-                "variant": "primary"
+                "variant": "link"
               }
             }
           ],
           "padding": "lg",
+          "width": "normal"
+        }
+      },
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-scripture",
+          "background": "muted",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Scripture",
+              "props": {
+                "id": "Scripture-home",
+                "align": "center",
+                "className": "",
+                "reference": "Mateo 11, 28",
+                "text": "Venid a mí todos los que andáis agobiados con trabajos y cargas, que yo os aliviaré."
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "narrow"
+        }
+      },
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-events",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Flex",
+              "props": {
+                "id": "Flex-events",
+                "align": "center",
+                "className": "mb-8",
+                "direction": "row",
+                "gap": "md",
+                "items": [
+                  {
+                    "type": "Heading",
+                    "props": {
+                      "id": "Heading-events",
+                      "align": "left",
+                      "className": "",
+                      "level": "h2",
+                      "text": "Próximamente"
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "props": {
+                      "id": "Button-events",
+                      "className": "",
+                      "href": "/events",
+                      "label": "Todos los eventos",
+                      "newTab": false,
+                      "size": "md",
+                      "variant": "outline"
+                    }
+                  }
+                ],
+                "justify": "between",
+                "wrap": true
+              }
+            },
+            {
+              "type": "CollectionList",
+              "props": {
+                "id": "CollectionList-events-home",
+                "className": "",
+                "collection": "events",
+                "columns": "3",
+                "dateField": "when",
+                "emptyText": "Por ahora no hay nada en el calendario. Vuelva pronto.",
+                "imageField": "image",
+                "layout": "cards",
+                "limit": 3,
+                "order": "default",
+                "show": "upcoming",
+                "summaryField": "summary"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      },
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-news",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "CollectionList",
+              "props": {
+                "id": "CollectionList-news-home",
+                "className": "",
+                "collection": "news",
+                "columns": "3",
+                "dateField": "date",
+                "emptyText": "Todavía no hay noticias.",
+                "heading": "Noticias de la parroquia",
+                "imageField": "image",
+                "layout": "list",
+                "limit": 3,
+                "moreHref": "/news",
+                "moreLabel": "Todas las noticias",
+                "order": "newest",
+                "show": "all",
+                "summaryField": "summary"
+              }
+            }
+          ],
+          "padding": "md",
+          "width": "normal"
+        }
+      },
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-welcome",
+          "background": "secondary",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Flex",
+              "props": {
+                "id": "Flex-welcome",
+                "align": "center",
+                "className": "",
+                "direction": "row",
+                "gap": "md",
+                "items": [
+                  {
+                    "type": "Flex",
+                    "props": {
+                      "id": "Flex-welcome-text",
+                      "align": "start",
+                      "className": "",
+                      "direction": "column",
+                      "gap": "sm",
+                      "items": [
+                        {
+                          "type": "Heading",
+                          "props": {
+                            "id": "Heading-welcome",
+                            "align": "left",
+                            "className": "",
+                            "level": "h2",
+                            "text": "¿Es nuevo en la parroquia?"
+                          }
+                        },
+                        {
+                          "type": "Text",
+                          "props": {
+                            "id": "Text-welcome",
+                            "align": "left",
+                            "className": "max-w-xl",
+                            "content": "<p>Nos encantaría conocerle. Inscríbase en la parroquia para recibir el boletín y enterarse de los eventos.</p>"
+                          }
+                        }
+                      ],
+                      "justify": "start",
+                      "wrap": true
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "props": {
+                      "id": "Button-register",
+                      "className": "",
+                      "href": "/contact",
+                      "label": "Inscribirse",
+                      "newTab": false,
+                      "size": "lg",
+                      "variant": "primary"
+                    }
+                  }
+                ],
+                "justify": "between",
+                "wrap": true
+              }
+            }
+          ],
+          "padding": "md",
           "width": "normal"
         }
       }
@@ -50,9 +381,9 @@
     "root": {
       "props": {
         "className": "",
-        "description": "Bienvenidos a la Parroquia de San José: horarios de misa, sacramentos y vida parroquial.",
+        "description": "Horarios de misa, eventos y noticias de la Parroquia de San José en Anytown. Todos son bienvenidos.",
         "image": "",
-        "title": "Parroquia de San José"
+        "title": "Parroquia de San José, Anytown"
       }
     }
   },

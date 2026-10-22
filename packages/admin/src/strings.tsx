@@ -269,6 +269,8 @@ export const defaultStrings = {
 
   "layout.header": "Header",
   "layout.footer": "Footer",
+  "layout.headerWord": "header",
+  "layout.footerWord": "footer",
   "layout.headerMessage": "Update the header",
   "layout.footerMessage": "Update the footer",
 
@@ -1091,6 +1093,13 @@ export const defaultStrings = {
   "translations.addMessage": "Translate {title} into {language}",
   "translations.addressLanguage": "Pages in {language} have addresses starting with {prefix}.",
   "menus.language": "Language",
+  "layout.languageShared":
+    "Pages in {language} show the main language's {part}, with {language}'s menus and site name. Give {language} a {part} of its own to translate the words typed into it.",
+  "layout.languageCopy": "Make a {part} for {language}",
+  "layout.languageCopyMessage": "Make a {part} for {language}",
+  "layout.languageRemove": "Use the main language's {part}",
+  "layout.languageRemoveMessage": "Use the main language's {part} in {language}",
+  "layout.languageMessage": "Update the {part} in {language}",
   "newEntry.languageHint":
     "For an item only in this language. To translate an item, use “Translate into” in the list instead, which keeps the two linked.",
   "menus.ownMenus": "{language} has menus of its own",

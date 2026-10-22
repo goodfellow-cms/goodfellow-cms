@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "fields": {
+    "date": "2026-09-28",
+    "image": "/media/church.svg",
+    "summary": "Los horarios de misa, los eventos y el boletín semanal ahora son más fáciles de encontrar, en cualquier teléfono o computadora.",
+    "text": "<p>La oficina parroquial ahora puede mantener el sitio al día, así que siempre encontrará aquí los horarios y las noticias de la semana. ¿Falta algo? Díganos.</p>",
+    "title": "Bienvenidos a nuestro nuevo sitio web",
+    "topics": [
+      "parish-life"
+    ]
+  },
+  "inLanguage": "es",
+  "translatedFrom": "d2f7f9edb53ee5c3",
+  "translationOf": "new-website"
+}

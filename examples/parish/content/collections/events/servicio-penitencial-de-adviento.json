@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "fields": {
+    "image": "/media/candles.svg",
+    "place": "Iglesia",
+    "summary": "Prepárese para la Navidad con un breve servicio y confesión individual, con varios sacerdotes disponibles.",
+    "text": "<p>El servicio comienza con lecturas y un examen de conciencia, seguido de la oportunidad de confesarse. Suele terminar hacia las 20:30.</p>",
+    "title": "Servicio penitencial de Adviento",
+    "when": {
+      "end": "2026-12-09T20:30",
+      "start": "2026-12-09T19:00"
+    }
+  },
+  "inLanguage": "es",
+  "translatedFrom": "4e350c304c890c4e",
+  "translationOf": "advent-penance-service"
+}

@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-footer",
+          "background": "muted",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Grid",
+              "props": {
+                "id": "Grid-footer",
+                "className": "",
+                "columns": "3",
+                "gap": "lg",
+                "items": [
+                  {
+                    "type": "Flex",
+                    "props": {
+                      "id": "Flex-footer-about",
+                      "align": "start",
+                      "className": "",
+                      "direction": "column",
+                      "gap": "sm",
+                      "items": [
+                        {
+                          "type": "SiteBrand",
+                          "props": {
+                            "id": "SiteBrand-footer",
+                            "className": "",
+                            "show": "both"
+                          }
+                        },
+                        {
+                          "type": "Text",
+                          "props": {
+                            "id": "Text-footer-about",
+                            "align": "left",
+                            "className": "text-muted-foreground",
+                            "content": "<p>Una familia parroquial católica en Anytown. Todos son bienvenidos.</p>"
+                          }
+                        }
+                      ],
+                      "justify": "start",
+                      "wrap": true
+                    }
+                  },
+                  {
+                    "type": "Flex",
+                    "props": {
+                      "id": "Flex-footer-contact",
+                      "align": "start",
+                      "className": "",
+                      "direction": "column",
+                      "gap": "sm",
+                      "items": [
+                        {
+                          "type": "Heading",
+                          "props": {
+                            "id": "Heading-footer-contact",
+                            "align": "left",
+                            "className": "",
+                            "level": "h4",
+                            "text": "Visítenos"
+                          }
+                        },
+                        {
+                          "type": "ContactDetails",
+                          "props": {
+                            "id": "ContactDetails-footer",
+                            "address": true,
+                            "className": "text-muted-foreground",
+                            "email": true,
+                            "layout": "stacked",
+                            "phone": true
+                          }
+                        }
+                      ],
+                      "justify": "start",
+                      "wrap": true
+                    }
+                  },
+                  {
+                    "type": "Flex",
+                    "props": {
+                      "id": "Flex-footer-links",
+                      "align": "start",
+                      "className": "",
+                      "direction": "column",
+                      "gap": "sm",
+                      "items": [
+                        {
+                          "type": "Heading",
+                          "props": {
+                            "id": "Heading-footer-links",
+                            "align": "left",
+                            "className": "",
+                            "level": "h4",
+                            "text": "Encuentre"
+                          }
+                        },
+                        {
+                          "type": "Menu",
+                          "props": {
+                            "id": "Menu-footer",
+                            "className": "-mx-3",
+                            "menu": "footer",
+                            "orientation": "vertical"
+                          }
+                        }
+                      ],
+                      "justify": "start",
+                      "wrap": true
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-footer-note",
+                "align": "left",
+                "className": "mt-10 border-t pt-6 text-sm text-muted-foreground",
+                "content": "<p>La Parroquia de San José no es una parroquia real: este es un sitio de ejemplo, hecho con Goodfellow.</p>"
+              }
+            }
+          ],
+          "padding": "md",
+          "width": "wide"
+        }
+      }
+    ],
+    "root": {
+      "props": {}
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "fields": {
+    "image": "/media/gathering.svg",
+    "place": "Terrenos de la iglesia",
+    "summary": "Comida, juegos, música y venta de pasteles para toda la familia.",
+    "text": "<p>¡Nuestro gran día del año! Hay almuerzo a la parrilla, juegos y pintacaras para los niños, música en vivo por la tarde y la famosa venta de pasteles.</p><p>Los voluntarios siempre son bienvenidos: apúntese después de cualquier misa del fin de semana.</p>",
+    "title": "Fiesta de otoño",
+    "when": {
+      "end": "2026-10-17T17:00",
+      "start": "2026-10-17T11:00"
+    }
+  },
+  "inLanguage": "es",
+  "translatedFrom": "41d430ee6e78a350",
+  "translationOf": "fall-festival"
+}
