@@ -289,7 +289,6 @@ export {
   dueChanges,
   type FileDetails,
   fileDetailsOf,
-  withSchedule,
   isScheduled,
   isShown,
   type Schedule,
@@ -302,6 +301,7 @@ export {
   scheduleState,
   shownContent,
   upcomingChanges,
+  withSchedule,
 } from "./content/schedule.js";
 export {
   type CollectionField,

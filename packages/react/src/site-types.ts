@@ -76,6 +76,8 @@ export interface SiteContextValue {
    * or the language's home page where it has none, for a language switch.
    */
   languages?: LanguageLink[];
+  /** On a site in several languages, the home page of the page's language, such as `/es`, which the site's name links to. */
+  home?: string;
   /** The credits of the photos the page shows, such as ones from Openverse, which the page lists at its end. */
   credits?: PageCredit[];
   /** In the admin panel's editor only: links to its screens, so a block's note can say where to fix something. */

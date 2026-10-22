@@ -11,6 +11,7 @@ The **AI** tab beside the editor writes with AI. Describe what you want:
 - With nothing selected, it adds new blocks to the end of the page.
 - With a block selected, it changes that block.
 - For a collection's item, it fills in the item's fields.
+- On a page or item in another of the site's [languages](/docs/languages), **Translate into** translates all of it, keeping its layout.
 
 The result goes straight into the editor, so you can check it, change it or undo it before publishing. It's told never to make up facts such as times or names, and to leave `[placeholders]` instead.
 

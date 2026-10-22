@@ -1,5 +1,33 @@
 {
   "version": 1,
+  "languages": {
+    "es": {
+      "footer": [
+        {
+          "href": "/es/horarios-de-misa",
+          "label": "Horarios de misa"
+        },
+        {
+          "href": "/contact",
+          "label": "Contacto"
+        }
+      ],
+      "main": [
+        {
+          "href": "/es",
+          "label": "Inicio"
+        },
+        {
+          "href": "/es/horarios-de-misa",
+          "label": "Horarios de misa"
+        },
+        {
+          "href": "/contact",
+          "label": "Contacto"
+        }
+      ]
+    }
+  },
   "menus": {
     "footer": [
       {

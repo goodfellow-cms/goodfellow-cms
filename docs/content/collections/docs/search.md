@@ -17,6 +17,8 @@ Builds index a site only if one of its pages has a Search block. The block marks
 - [Full-stack Next.js sites](/docs/full-stack-nextjs) run `goodfellow-next finish --server` after `next build`, which indexes the pages Next.js rendered while building into `public/pagefind/`, where the site's server serves it.
 - `goodfellow index <folder>` indexes any other built site.
 
+On a site in [several languages](/docs/languages), each page says its language on its `<html>`, and Pagefind keeps each language's pages in an index of their own: the Search block on a Spanish page finds only Spanish pages.
+
 Pages mark their main content with Pagefind's `data-pagefind-body`, so the header and footer, which are on every page, aren't indexed, and neither is "Page not found". Search doesn't work in `goodfellow dev` or the editor's preview, since there's no index there; the box says so, in words the block's settings choose.
 
 ## Other search blocks

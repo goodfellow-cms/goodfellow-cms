@@ -4,6 +4,7 @@ import {
   contentInLanguage,
   type FileChange,
   hasLanguages,
+  languageHome,
   languageLinks,
   mainLanguage,
   type PageFile,
@@ -322,10 +323,10 @@ export function PuckEditor({
       collections: content.collections,
       collection,
       ...(view && { view }),
-      ...(languages && { languages }),
+      ...(languages && { languages, home: languageHome(loaded, language) }),
       adminLink,
     }),
-    [content, path, collection, view, languages, adminLink],
+    [content, loaded, language, path, collection, view, languages, adminLink],
   );
   const config = useMemo(
     () =>

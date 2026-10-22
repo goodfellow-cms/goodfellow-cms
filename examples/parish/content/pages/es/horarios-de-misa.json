@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-mass-times",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-mass-times",
+                "align": "left",
+                "className": "",
+                "level": "h1",
+                "text": "Horarios de misa"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-mass-times",
+                "align": "left",
+                "className": "mt-4 max-w-2xl text-lg text-muted-foreground",
+                "content": "<p>Todas las misas son en la iglesia, salvo que se indique otra cosa. La iglesia está abierta todos los días de 7:30 a 19:00 para la oración en silencio.</p>"
+              }
+            },
+            {
+              "type": "Grid",
+              "props": {
+                "id": "Grid-mass-times",
+                "className": "mt-10",
+                "columns": "2",
+                "gap": "md",
+                "items": [
+                  {
+                    "type": "MassTimes",
+                    "props": {
+                      "id": "MassTimes-weekend",
+                      "className": "",
+                      "times": [
+                        {
+                          "day": "Sábado",
+                          "note": "Misa de vigilia",
+                          "time": "17:00"
+                        },
+                        {
+                          "day": "Domingo",
+                          "note": "",
+                          "time": "8:00"
+                        },
+                        {
+                          "day": "Domingo",
+                          "note": "Con el coro parroquial",
+                          "time": "10:30"
+                        },
+                        {
+                          "day": "Domingo",
+                          "note": "Misa de jóvenes",
+                          "time": "18:00"
+                        }
+                      ],
+                      "title": "Misas del fin de semana"
+                    }
+                  },
+                  {
+                    "type": "MassTimes",
+                    "props": {
+                      "id": "MassTimes-weekday",
+                      "className": "",
+                      "times": [
+                        {
+                          "day": "De lunes a viernes",
+                          "note": "",
+                          "time": "8:00"
+                        },
+                        {
+                          "day": "Miércoles",
+                          "note": "Seguida de adoración hasta las 20:00",
+                          "time": "18:30"
+                        },
+                        {
+                          "day": "Sábado",
+                          "note": "",
+                          "time": "9:00"
+                        }
+                      ],
+                      "title": "Misas entre semana"
+                    }
+                  },
+                  {
+                    "type": "MassTimes",
+                    "props": {
+                      "id": "MassTimes-confession",
+                      "className": "",
+                      "times": [
+                        {
+                          "day": "Sábado",
+                          "note": "",
+                          "time": "De 15:30 a 16:30"
+                        },
+                        {
+                          "day": "Miércoles",
+                          "note": "Durante la adoración",
+                          "time": "De 19:00 a 20:00"
+                        },
+                        {
+                          "day": "En cualquier momento",
+                          "note": "Llame a la oficina parroquial",
+                          "time": "Con cita previa"
+                        }
+                      ],
+                      "title": "Confesión"
+                    }
+                  },
+                  {
+                    "type": "MassTimes",
+                    "props": {
+                      "id": "MassTimes-holy-days",
+                      "className": "",
+                      "times": [
+                        {
+                          "day": "La víspera",
+                          "note": "Misa de vigilia",
+                          "time": "19:00"
+                        },
+                        {
+                          "day": "El mismo día",
+                          "note": "",
+                          "time": "8:00 y 19:00"
+                        }
+                      ],
+                      "title": "Días de precepto"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Notice",
+              "props": {
+                "id": "Notice-holidays",
+                "className": "mt-10",
+                "text": "<p>Los horarios cambian en Navidad, Semana Santa y Pascua. El <a href=\"/bulletins\">boletín</a> trae el horario de cada año unas semanas antes.</p>",
+                "title": "Navidad y Pascua",
+                "tone": "highlight"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "Misas del fin de semana, entre semana y de los días de precepto, y horarios de confesión.",
+        "image": "",
+        "title": "Horarios de misa"
+      }
+    }
+  },
+  "translatedFrom": "b613851520cd5fbb",
+  "translationOf": "/mass-times"
+}

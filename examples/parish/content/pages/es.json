@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-es-welcome",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-es-welcome",
+                "align": "left",
+                "className": "",
+                "level": "h1",
+                "text": "Bienvenidos a San José"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-es-welcome",
+                "align": "left",
+                "className": "mt-4 max-w-2xl text-lg text-muted-foreground",
+                "content": "<p>Somos una comunidad parroquial abierta a todos. Celebramos la misa cada día y una misa en español cada domingo. Si es su primera visita, le esperamos con gusto.</p>"
+              }
+            },
+            {
+              "type": "Button",
+              "props": {
+                "id": "Button-es-mass-times",
+                "className": "mt-6",
+                "href": "/es/horarios-de-misa",
+                "label": "Horarios de misa",
+                "newTab": false,
+                "size": "md",
+                "variant": "primary"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "Bienvenidos a la Parroquia de San José: horarios de misa, sacramentos y vida parroquial.",
+        "image": "",
+        "title": "Parroquia de San José"
+      }
+    }
+  },
+  "translatedFrom": "692dc7489ace5cea",
+  "translationOf": "/"
+}

@@ -1,10 +1,19 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fakeAi, fakeOpenverse } from "@goodfellow-cms/ai/testing";
 import type { Page } from "@playwright/test";
 import { site } from "../scripts/site.mjs";
 import { routeToFake } from "./backends.js";
-import { canvas, expect, openPageEditor, publishInEditor, readJson, readSiteFile, test } from "./helpers.js";
+import {
+  canvas,
+  expect,
+  openPageEditor,
+  publishInEditor,
+  readJson,
+  readSiteFile,
+  test,
+  writeSiteFile,
+} from "./helpers.js";
 
 const KEY = "sk-ant-test-key";
 
@@ -239,4 +248,34 @@ test("explains a key that doesn't work", async ({ page }) => {
   await panel.getByRole("button", { name: "Write it" }).click();
   await expect(panel.getByText("Claude didn't accept the API key.", { exact: false })).toBeVisible();
   await expect(panel).not.toContainText("sk-ant-wrong-key-123456", { useInnerText: true });
+});
+
+test("translates a page in another language, blocks and settings, keeping its layout", async ({ page }) => {
+  writeSiteFile(
+    "content/site.json",
+    `${JSON.stringify({ ...readJson("content/site.json"), languages: [{ code: "es", name: "Español" }] }, null, 2)}\n`,
+  );
+  const about = readJson("content/pages/about.json");
+  mkdirSync(join(site as string, "content/pages/es"), { recursive: true });
+  writeSiteFile("content/pages/es/about.json", `${JSON.stringify({ ...about, translationOf: "/about" }, null, 2)}\n`);
+  const fake = await fakeClaude(page, () => ({
+    blocks: [{ type: "Heading", id: "h", parent: null, slot: null, props: { text: "Quiénes somos", level: "h1" } }],
+    root: { title: "Quiénes somos", description: "Quiénes somos y qué hacemos." },
+  }));
+  await page.addInitScript((key) => localStorage.setItem("goodfellow.ai.key.anthropic", key), KEY);
+  await openPageEditor(page, "/es/about", "About us");
+  const panel = await openAiPanel(page);
+  await panel.getByRole("button", { name: "Translate into Español" }).click();
+
+  await expect(canvas(page).getByRole("heading", { name: "Quiénes somos" })).toBeVisible();
+  const prompt = JSON.stringify(fake.requests[0]?.body.messages);
+  expect(prompt).toContain("into Español (es)");
+  // The page's language, not the site's main one.
+  expect(prompt).toMatch(/language code is \\+"es/);
+  await publishInEditor(page);
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readJson("content/pages/es/about.json")).toMatchObject({
+    translationOf: "/about",
+    data: { root: { props: { title: "Quiénes somos", description: "Quiénes somos y qué hacemos." } } },
+  });
 });

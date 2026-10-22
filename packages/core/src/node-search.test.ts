@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writePagesSearchIndex, writeSearchIndex } from "./node-search.js";
 
-const page = (body: string, main = true) =>
-  `<!DOCTYPE html><html lang="en"><head><title>Page</title></head><body><header>Site name</header>${
+const page = (body: string, main = true, lang = "en") =>
+  `<!DOCTYPE html><html lang="${lang}"><head><title>Page</title></head><body><header>Site name</header>${
     main ? `<main data-pagefind-body="">${body}</main>` : `<main>${body}</main>`
   }</body></html>`;
 

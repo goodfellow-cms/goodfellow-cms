@@ -4,11 +4,13 @@ import {
   contentInLanguage,
   findEntry,
   type GoodfellowConfig,
+  languageHome,
   languageLinks,
   mainLanguage,
   normalizeBase,
   type Page,
   pageCredits,
+  pageLanguage,
   type SiteContent,
   type SiteSettings,
   setLinkTargets,
@@ -183,7 +185,7 @@ export async function preparePage(
     collections: content.collections,
     ...(found && { collection: found.collection, entry: found.entry }),
     ...(page.view && { view: page.view }),
-    ...(languages.length > 0 && { languages }),
+    ...(languages.length > 0 && { languages, home: languageHome(loaded, pageLanguage(loaded, page)) }),
     ...options,
   };
   // An entry's page is its collection's template, with the entry's values filled in.

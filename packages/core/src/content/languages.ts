@@ -141,7 +141,12 @@ export function localizedSettings(settings: SiteSettings, language: string): Sit
     mainLanguage: main,
     ...(own?.title && { title: own.title }),
     ...(own?.description && { description: own.description }),
-    ...(own?.titleTemplate && { titleTemplate: own.titleTemplate }),
+    // Without a template of its own, the main language's, with the site's name in this language.
+    titleTemplate:
+      own?.titleTemplate ||
+      (own?.title && settings.title
+        ? settings.titleTemplate.replaceAll(settings.title, own.title)
+        : settings.titleTemplate),
   };
 }
 
