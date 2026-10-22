@@ -7,6 +7,7 @@ import { Button, Heading, Image, Text } from "./content.js";
 import { DarkModeSwitch } from "./dark-mode-switch.js";
 import { CollectionNav, EntryPager, OnThisPage } from "./docs.js";
 import { Form } from "./form.js";
+import { LanguageSwitch } from "./language-switch.js";
 import { Flex, Grid, Section, Space } from "./layout.js";
 import { CollectionLoop } from "./loop.js";
 import { Menu, SiteBrand } from "./navigation.js";
@@ -62,6 +63,7 @@ export {
   highlightCode,
   loadHighlighter,
 } from "./highlight.js";
+export { LanguageSwitch, type LanguageSwitchProps } from "./language-switch.js";
 export {
   Flex,
   type FlexProps,
@@ -104,6 +106,7 @@ export const blocks = {
   SiteBrand,
   Search,
   DarkModeSwitch,
+  LanguageSwitch,
   CollectionNav,
   CollectionList,
   CollectionLoop,
@@ -121,7 +124,10 @@ export const categories = {
     title: "Content",
     components: ["Heading", "Text", "Button", "Image", "Video", "Form", "Code", "ContactDetails"],
   },
-  navigation: { title: "Navigation", components: ["Menu", "SiteBrand", "Search", "DarkModeSwitch", "CollectionNav"] },
+  navigation: {
+    title: "Navigation",
+    components: ["Menu", "SiteBrand", "Search", "DarkModeSwitch", "LanguageSwitch", "CollectionNav"],
+  },
   collections: {
     title: "Collections",
     components: [

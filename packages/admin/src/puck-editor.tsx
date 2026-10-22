@@ -139,6 +139,7 @@ const ADMIN_PLACES: Record<AdminPlace, string> = {
   "contact-settings": `#/settings/general?section=${SETTINGS_SECTIONS.contact}`,
   "forms-settings": `#/settings/general?section=${SETTINGS_SECTIONS.forms}`,
   "theme-settings": "#/settings/theme",
+  "language-settings": "#/settings/languages",
 };
 
 export interface PuckEditorProps {

@@ -8,7 +8,6 @@ import {
   DEMO_CONTENT_PATH,
   demoContent,
   feedFiles,
-  getPageHead,
   loadSiteContent,
   MEDIA_DIR,
   normalizeBase,
@@ -18,6 +17,7 @@ import {
   SITE_DESCRIPTION_PATH,
   type SiteProblem,
   shownContent,
+  sitemapPages,
   sitePages,
   todayIn,
   upcomingChanges,
@@ -230,13 +230,21 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
 
     const { url } = content.settings;
     if (url) {
-      // Pages hidden from search engines, and "Page not found", aren't in the sitemap.
-      const urls = pages
-        .filter((page) => !getPageHead(content.settings, page).noIndex)
-        .map((page) => `  <url><loc>${escapeXml(absoluteUrl(url, page.path))}</loc></url>`);
+      // Pages hidden from search engines, and "Page not found", aren't in the sitemap. Translations list each other.
+      const listed = sitemapPages(content, pages);
+      const urls = listed.map(({ url: loc, alternates }) => {
+        const links = Object.entries(alternates ?? {}).map(
+          ([language, href]) =>
+            `<xhtml:link rel="alternate" hreflang="${escapeXml(language)}" href="${escapeXml(href)}"/>`,
+        );
+        return `  <url><loc>${escapeXml(loc)}</loc>${links.join("")}</url>`;
+      });
+      const namespaces = listed.some((page) => page.alternates)
+        ? ' xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"'
+        : ' xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"';
       await writeFile(
         join(outDir, "sitemap.xml"),
-        `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`,
+        `<?xml version="1.0" encoding="UTF-8"?>\n<urlset${namespaces}>\n${urls.join("\n")}\n</urlset>\n`,
       );
       await writeFile(
         join(outDir, "robots.txt"),

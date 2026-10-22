@@ -96,9 +96,14 @@ describe("withGoodfellow", () => {
 
     const rewrites = await config.rewrites?.();
     if (!Array.isArray(rewrites)) throw new Error("Expected a list of rewrites.");
-    expect(rewrites).toHaveLength(4);
-    const [api, feeds, calendars, own] = rewrites;
+    expect(rewrites).toHaveLength(6);
+    const [api, spanishFeeds, feeds, spanishCalendars, calendars, own] = rewrites;
     expect(own).toEqual({ source: "/old", destination: "/new" });
+    // Each of the site's other languages has its own, under its code.
+    expect(spanishCalendars?.source).toBe("/:language([a-z0-9-]+)/calendars/:file(.+\\.ics)");
+    expect(spanishFeeds?.source).toBe("/:language([a-z0-9-]+)/feeds/:file(.+\\.rss|.+\\.atom)");
+    const spanish = spanishFeeds?.destination.replace(":language", "es").replace(":file", "none.rss") ?? "";
+    expect((await fetch(spanish)).status).toBe(404);
     expect(api?.source).toBe("/__goodfellow/api/:path*");
     // Calendar files, which the export gets from `goodfellow-next finish`, come from the local backend too.
     expect(calendars?.source).toBe("/calendars/:file(.+\\.ics)");

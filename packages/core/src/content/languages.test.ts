@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pageHead, sitemapPages } from "../head.js";
 import { calendarFiles } from "./calendars.js";
 import { moveEntryChanges, movePageChanges } from "./changes.js";
 import { checkSite } from "./checks.js";
@@ -19,6 +20,8 @@ import {
 } from "./languages.js";
 import { allPages, type ContentSource, loadSiteContent } from "./load.js";
 import { parseMarkdownEntry, serializeMarkdownEntry } from "./markdown.js";
+import { collectionFileSchema } from "./schemas.js";
+import { structuredData } from "./structured-data.js";
 
 function memorySource(files: Record<string, unknown>): ContentSource {
   const text = Object.fromEntries(
@@ -47,7 +50,8 @@ const FILES: Record<string, unknown> = {
     timeZone: "America/New_York",
     language: "en",
     languages: [{ code: "es", name: "Español" }],
-    translations: { es: { title: "San José", description: "Una parroquia y escuela" } },
+    titleTemplate: "%s | St. Joseph",
+    translations: { es: { title: "San José", description: "Una parroquia y escuela", titleTemplate: "%s | San José" } },
   },
   "content/menus.json": {
     version: 1,
@@ -217,10 +221,7 @@ describe("translations", () => {
     expect(translationState(hash, undefined)).toBe("missing");
     expect(translationState(hash, {})).toBe("current");
     expect(translationState(hash, { translatedFrom: hash })).toBe("current");
-    const changed = await pageAt(
-      "/about",
-      await site({ "content/pages/about.json": page("About our parish") }),
-    );
+    const changed = await pageAt("/about", await site({ "content/pages/about.json": page("About our parish") }));
     expect(translationState(pageSourceHash(changed), { translatedFrom: hash })).toBe("outdated");
   });
 
@@ -229,14 +230,14 @@ describe("translations", () => {
       "content/pages/es/historia.json": page("Historia", { translationOf: "/es/sobre" }),
       "content/pages/history.json": page("History", { translationOf: "/about" }),
     });
-    const problems = checkSite(content, {}).filter((problem) => problem.kind === "bad-translation");
+    const problems = checkSite(content, { media: [] }).filter((problem) => problem.kind === "bad-translation");
     expect(problems).toEqual([
       { kind: "bad-translation", severity: "warning", file: "content/pages/es/historia.json", target: "/es/sobre" },
       { kind: "bad-translation", severity: "warning", file: "content/pages/history.json", target: "/about" },
     ]);
     // A translation of a page that isn't there is a missing link.
     const missing = await site({ "content/pages/es/nada.json": page("Nada", { translationOf: "/nothing" }) });
-    expect(checkSite(missing, {}).some((problem) => problem.kind === "missing-page")).toBe(true);
+    expect(checkSite(missing, { media: [] }).some((problem) => problem.kind === "missing-page")).toBe(true);
   });
 
   it("keeps translations linked when a page moves or an item is renamed", async () => {
@@ -259,16 +260,16 @@ describe("translations", () => {
   });
 
   it("keeps an item's language and translation in Markdown front matter", () => {
-    const settings = {
-      version: 1 as const,
+    const settings = collectionFileSchema.parse({
+      version: 1,
       name: "Posts",
       entryName: "Post",
       fields: [
-        { name: "title", label: "Title", type: "text" as const },
-        { name: "body", label: "Body", type: "richtext" as const },
+        { name: "title", label: "Title", type: "text" },
+        { name: "body", label: "Body", type: "richtext" },
       ],
       markdown: { body: "body" },
-    };
+    });
     const text = serializeMarkdownEntry(
       settings,
       { title: "La feria", body: "Juegos y comida." },
@@ -281,6 +282,40 @@ describe("translations", () => {
       translatedFrom: "0123456789abcdef",
       fields: { title: "La feria", body: "Juegos y comida." },
     });
+  });
+});
+
+describe("search engines", () => {
+  it("names each page in its language and links its translations", async () => {
+    const content = await site();
+    const head = pageHead(content, await pageAt("/es/sobre", content));
+    expect(head).toMatchObject({ title: "Quiénes somos | San José", language: "es" });
+    expect(head.alternates).toEqual([
+      { language: "en", href: "https://parish.example/about" },
+      { language: "es", href: "https://parish.example/es/sobre" },
+      { language: "x-default", href: "https://parish.example/about" },
+    ]);
+    // A language's home page is named after the site in that language.
+    expect(pageHead(content, await pageAt("/es", content)).title).toBe("Inicio");
+    expect(pageHead(content, await pageAt("/news/choir", content)).alternates).toBeUndefined();
+  });
+
+  it("lists translations in the sitemap, and describes each language's home page", async () => {
+    const content = await site();
+    const listed = sitemapPages(content, [await pageAt("/about", content), await pageAt("/news/choir", content)]);
+    expect(listed).toEqual([
+      {
+        url: "https://parish.example/about",
+        alternates: {
+          en: "https://parish.example/about",
+          es: "https://parish.example/es/sobre",
+          "x-default": "https://parish.example/about",
+        },
+      },
+      { url: "https://parish.example/news/choir" },
+    ]);
+    const [website] = structuredData(content, await pageAt("/es", content));
+    expect(website).toMatchObject({ name: "San José", url: "https://parish.example/es", inLanguage: "es" });
   });
 });
 

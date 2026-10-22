@@ -28,12 +28,14 @@ import {
 import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import {
+  buildFileFolders,
   builtPages,
   checkPages,
   exportedPages,
   fixSegmentFiles,
   writeCalendarFiles,
   writeFeedFiles,
+  writePageLanguages,
   writeRedirectFiles,
 } from "@goodfellow-cms/next/export";
 
@@ -42,12 +44,14 @@ const [command, dir = "out"] = process.argv.slice(2);
 // itself, so the calendar files, feeds and the search index are written into public/, which `next start` and hosts
 // serve as static files, as they are for an export.
 if (command === "finish" && dir === "--server") {
-  await rm("public/calendars", { recursive: true, force: true });
+  for (const folder of await buildFileFolders()) await rm(`public/${folder}`, { recursive: true, force: true });
   const calendars = await writeCalendarFiles("public");
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files, in public/calendars`);
-  await rm("public/feeds", { recursive: true, force: true });
   const feeds = await writeFeedFiles("public");
   if (feeds > 0) console.log(`Wrote ${feeds} feeds, in public/feeds`);
+  // Before the pages are read, so the search index and the checks see each page's language.
+  const languages = await writePageLanguages(undefined);
+  if (languages > 0) console.log(`Marked ${languages} pages with their language`);
   const pages = await builtPages();
   const indexed = await writePagesSearchIndex(pages, "public/pagefind");
   console.log(
@@ -173,6 +177,8 @@ if (command === "finish") {
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files`);
   const feeds = await writeFeedFiles(dir);
   if (feeds > 0) console.log(`Wrote ${feeds} feeds`);
+  const languages = await writePageLanguages(dir);
+  if (languages > 0) console.log(`Marked ${languages} pages with their language`);
   // Before the redirects' pages, which aren't the site's.
   problems = await checkPages(await exportedPages(dir));
   const redirects = await writeRedirectFiles(dir);

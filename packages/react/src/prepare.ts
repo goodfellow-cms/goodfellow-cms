@@ -1,7 +1,11 @@
 import {
   applyBasePath,
+  contentForPage,
+  contentInLanguage,
   findEntry,
   type GoodfellowConfig,
+  languageLinks,
+  mainLanguage,
   normalizeBase,
   type Page,
   pageCredits,
@@ -140,6 +144,8 @@ export async function prepareLayout(
   content: SiteContent,
   options: RenderOptions = {},
 ): Promise<PreparedLayout> {
+  // A layout shared by every page can only show the main language: sites in several render it in each page instead.
+  content = contentInLanguage(content, mainLanguage(content.settings));
   const site: SiteContextValue = {
     settings: content.settings,
     menus: content.menus,
@@ -157,16 +163,19 @@ export async function prepareLayout(
 
 /**
  * Gets a page ready to render: fills in an entry's values, and resolves the
- * page, header and footer. With a `base`, rich text's links and images get it too.
+ * page, header and footer, in the page's language (`contentForPage()`). With a
+ * `base`, rich text's links and images get it too. Takes the site as loaded.
  */
 export async function preparePage(
   configs: PuckConfigs,
-  content: SiteContent,
+  loaded: SiteContent,
   page: Page,
   options: RenderOptions = {},
 ): Promise<PreparedPage> {
+  const content = contentForPage(loaded, page);
   const { settings } = content;
   const found = pageEntry(content, page);
+  const languages = languageLinks(loaded, page);
   const site: SiteContextValue = {
     settings,
     menus: content.menus,
@@ -174,6 +183,7 @@ export async function preparePage(
     collections: content.collections,
     ...(found && { collection: found.collection, entry: found.entry }),
     ...(page.view && { view: page.view }),
+    ...(languages.length > 0 && { languages }),
     ...options,
   };
   // An entry's page is its collection's template, with the entry's values filled in.
@@ -188,7 +198,7 @@ export async function preparePage(
   const rebase = rebaser(options, content.settings);
   // The credits of the photos the page shows, which their licenses ask for.
   const credits = pageCredits(content, [data, header, footer]);
-  const structured = structuredDataScript(structuredData(content, page, todayIn(settings.timeZone)));
+  const structured = structuredDataScript(structuredData(loaded, page, todayIn(settings.timeZone)));
   return {
     site: credits.length > 0 ? { ...site, credits } : site,
     page: applied,

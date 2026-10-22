@@ -2,13 +2,18 @@ import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs
 import { dirname, join, relative, resolve } from "node:path";
 import {
   allPages,
+  CALENDARS_DIR,
   calendarFiles,
+  FEEDS_DIR,
   feedFiles,
+  hasLanguages,
   loadSiteContent,
   type Page,
+  pathLanguage,
   redirectFiles,
   type SiteProblem,
   shownContent,
+  siteLanguages,
 } from "@goodfellow-cms/core";
 import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
@@ -40,6 +45,18 @@ export async function writeFeedFiles(outDir: string, root = process.cwd()): Prom
     await writeFile(target, file.content);
   }
   return files.length;
+}
+
+/**
+ * The folders the calendar files and feeds go in: `calendars/` and `feeds/`,
+ * and on a site in several languages, the same under each other language's
+ * code, such as `es/feeds/`.
+ */
+export async function buildFileFolders(root = process.cwd()): Promise<string[]> {
+  const { settings } = await loadSiteContent(fileSystemSource(resolve(root)));
+  return siteLanguages(settings).flatMap((language) =>
+    [CALENDARS_DIR, FEEDS_DIR].map((dir) => `${language.prefix.slice(1)}${language.prefix ? "/" : ""}${dir}`),
+  );
 }
 
 /** The `basePath` the export was built with, which Next.js records in `.next/routes-manifest.json`. */
@@ -115,6 +132,37 @@ export async function fixSegmentFiles(outDir: string): Promise<number> {
   }
   await visit(outDir);
   return moved;
+}
+
+/** Says a page's language on its `<html>`, in place of the root layout's. */
+function withPageLanguage(html: string, language: string): string {
+  return html.replace(/<html\b([^>]*?)\slang="[^"]*"/, `<html$1 lang="${language}"`);
+}
+
+/**
+ * On a site in several languages, puts each page's language on its `<html>`,
+ * which Next.js's root layout, shared by every page, says is the main one:
+ * in a static export's pages (`outDir`), or, without one, in the pages a
+ * full-stack site's `next build` rendered ahead. Returns how many it changed.
+ */
+export async function writePageLanguages(outDir: string | undefined, root = process.cwd()): Promise<number> {
+  const dir = resolve(root);
+  const { settings } = await loadSiteContent(fileSystemSource(dir));
+  if (!hasLanguages(settings)) return 0;
+  const base = outDir ?? join(dir, ".next/server/app");
+  const files = (await readdir(base, { recursive: true }))
+    .map((file) => file.split("\\").join("/"))
+    .filter((file) => file.endsWith(".html") && !/^(admin|_next|pagefind)\//.test(file));
+  let changed = 0;
+  for (const file of files) {
+    const path = `/${file.replace(/(^|\/)index\.html$/, "").replace(/\.html$/, "")}`.replace(/\/$/, "") || "/";
+    const html = await readFile(join(base, file), "utf8");
+    const fixed = withPageLanguage(html, pathLanguage(settings, path));
+    if (fixed === html) continue;
+    await writeFile(join(base, file), fixed);
+    changed++;
+  }
+  return changed;
 }
 
 /** A page `next build` rendered ahead: its address on the site, and its HTML. */

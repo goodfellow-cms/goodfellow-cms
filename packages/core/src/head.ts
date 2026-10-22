@@ -1,4 +1,5 @@
-import type { Page } from "./content/load.js";
+import { contentForPage, isLanguageHome, mainLanguage, pageAlternates } from "./content/languages.js";
+import type { Page, SiteContent } from "./content/load.js";
 import type { SiteSettings } from "./content/schemas.js";
 import { trimChars } from "./trim.js";
 
@@ -16,6 +17,13 @@ export interface PageHead {
    * whose settings hide them (`noIndex`), which are left out of the sitemap too.
    */
   noIndex: boolean;
+  /**
+   * The page in each of the site's languages it has a translation in, itself
+   * included, with `x-default` for the main language's, for `hreflang` links:
+   * only with the site's address, and only where it has translations
+   * (`pageHead()`).
+   */
+  alternates?: Array<{ language: string; href: string }>;
 }
 
 function readString(props: Record<string, unknown> | undefined, key: string): string {
@@ -33,7 +41,8 @@ export function getPageHead(settings: SiteSettings, page: Page): PageHead {
   const ownTitle = readString(props, "title");
   // A page a block added says what it shows, such as a calendar's month.
   const pageTitle = page.view?.title ? [ownTitle || settings.title, page.view.title].join(": ") : ownTitle;
-  const isHome = page.path === "/";
+  // Each language's home page is a home page, so it's named after the site in that language.
+  const isHome = isLanguageHome(settings, page.path);
 
   return {
     title: pageTitle && !isHome ? settings.titleTemplate.replaceAll("%s", pageTitle) : pageTitle || settings.title,
@@ -44,4 +53,49 @@ export function getPageHead(settings: SiteSettings, page: Page): PageHead {
     socialImage: readString(props, "image") || settings.socialImage,
     noIndex: page.path === "/404" || props?.noIndex === true,
   };
+}
+
+/**
+ * A page's head as the site shows it: in the page's language (`contentForPage()`),
+ * with its translations as `alternates`. Takes the site as loaded.
+ */
+export function pageHead(content: SiteContent, page: Page): PageHead {
+  const head = getPageHead(contentForPage(content, page).settings, page);
+  const { url } = content.settings;
+  const translations = pageAlternates(content, page);
+  if (!url || translations.size === 0 || head.noIndex) return head;
+  const main = translations.get(mainLanguage(content.settings));
+  const alternates = [...translations].map(([language, path]) => ({ language, href: absoluteUrl(url, path) }));
+  return {
+    ...head,
+    alternates: main ? [...alternates, { language: "x-default", href: absoluteUrl(url, main) }] : alternates,
+  };
+}
+
+/** One page in a sitemap: its full address and, where it has translations, theirs by language. */
+export interface SitemapPage {
+  url: string;
+  alternates?: Record<string, string>;
+}
+
+/**
+ * The pages a sitemap lists, once the site's address is set: every page but
+ * "Page not found" and pages hidden from search engines, each with its
+ * translations, as `hreflang` links list them. Takes the site as loaded.
+ */
+export function sitemapPages(content: SiteContent, pages: readonly Page[]): SitemapPage[] {
+  const { url } = content.settings;
+  if (!url) return [];
+  return pages.flatMap((page) => {
+    const head = pageHead(content, page);
+    if (head.noIndex) return [];
+    return [
+      {
+        url: absoluteUrl(url, page.path),
+        ...(head.alternates && {
+          alternates: Object.fromEntries(head.alternates.map(({ language, href }) => [language, href])),
+        }),
+      },
+    ];
+  });
 }

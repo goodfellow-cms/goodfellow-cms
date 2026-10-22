@@ -190,8 +190,11 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
     return {
       ...config,
       experimental: { reactDebugChannel: false, ...nextConfig.experimental },
-      rewrites: async () =>
-        [...buildFiles, rewrite].reduce((rewrites, next) => withRewrite(rewrites, next), await nextConfig.rewrites?.()),
+      rewrites: async () => {
+        let rewrites = await nextConfig.rewrites?.();
+        for (const next of [...buildFiles, rewrite]) rewrites = withRewrite(rewrites, next);
+        return rewrites ?? [];
+      },
     };
   };
 }

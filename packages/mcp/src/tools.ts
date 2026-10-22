@@ -80,7 +80,9 @@ const siteArg = z.string().optional().describe("Which site, from list_sites. Lea
 const languageArg = z
   .string()
   .optional()
-  .describe("On a site in several languages, the code of a language from get_site. Leave it out for the main language.");
+  .describe(
+    "On a site in several languages, the code of a language from get_site. Leave it out for the main language.",
+  );
 const draftArg = z
   .string()
   .optional()
@@ -481,10 +483,18 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       const collection = await readCollection(draft.store, id);
       const existing = await readEntry(draft.store, collection, slug);
       const siteSettings = await readSettings(draft.store);
-      if (language !== undefined && existing && language !== (existing.content.inLanguage ?? mainLanguage(siteSettings))) {
+      if (
+        language !== undefined &&
+        existing &&
+        language !== (existing.content.inLanguage ?? mainLanguage(siteSettings))
+      ) {
         throw new ToolError(`An item's language can't change. Save the translation as an item of its own.`);
       }
-      if (language !== undefined && language !== mainLanguage(siteSettings) && !isOtherLanguage(siteSettings, language)) {
+      if (
+        language !== undefined &&
+        language !== mainLanguage(siteSettings) &&
+        !isOtherLanguage(siteSettings, language)
+      ) {
         throw new ToolError(`${language} isn't one of the site's languages. get_site lists them.`);
       }
       const inLanguage = language !== undefined && language !== mainLanguage(siteSettings) ? language : undefined;

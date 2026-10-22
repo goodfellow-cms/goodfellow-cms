@@ -22,8 +22,8 @@ import {
   MEDIA_FILE,
   MENUS_FILE,
   type Menus,
-  mediaFileSchema,
   mainLanguage,
+  mediaFileSchema,
   menusFileSchema,
   normalizePagePath,
   PAGES_DIR,
@@ -62,7 +62,9 @@ export async function readSettings(source: ContentSource): Promise<SiteSettings>
 }
 
 /** The site's menus, and the ones of its other languages that have menus of their own. */
-export async function readMenus(source: ContentSource): Promise<{ menus: Menus; languageMenus: Record<string, Menus> }> {
+export async function readMenus(
+  source: ContentSource,
+): Promise<{ menus: Menus; languageMenus: Record<string, Menus> }> {
   const text = await source.read(MENUS_FILE);
   if (text === undefined) return { menus: {}, languageMenus: {} };
   const file = parsed(parseContentFile("menus", menusFileSchema, MENUS_FILE, text));

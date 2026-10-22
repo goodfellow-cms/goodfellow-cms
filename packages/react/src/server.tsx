@@ -2,12 +2,13 @@ import {
   absoluteUrl,
   colorSchemeMeta,
   colorSchemeScript,
+  contentForPage,
   feedLinks,
   fontPreloads,
   type GoodfellowConfig,
-  getPageHead,
   googleFontsUrl,
   type Page,
+  pageHead,
   type SiteContent,
   themeToCss,
 } from "@goodfellow-cms/core";
@@ -67,11 +68,13 @@ export function createPageRenderer(config: GoodfellowConfig) {
   const configs = createPuckConfigs(config);
 
   return async function renderPage(content: SiteContent, page: Page, assets: PageAssets = {}): Promise<string> {
-    const { settings } = content;
     const prepared = await preparePage(configs, content, page);
     page = prepared.page;
+    // The site in the page's language: its title, menus and feeds.
+    const shown = contentForPage(content, page);
+    const { settings } = shown;
 
-    const head = getPageHead(settings, page);
+    const head = pageHead(content, page);
     const fontsUrl = googleFontsUrl(settings.theme);
     const [fontFiles, standIns] = await Promise.all([
       fontPreloads(settings.theme, readStylesheet),
@@ -93,13 +96,16 @@ export function createPageRenderer(config: GoodfellowConfig) {
           {head.description && <meta name="description" content={head.description} />}
           {head.noIndex && <meta name="robots" content="noindex" />}
           {head.canonicalUrl && <link rel="canonical" href={head.canonicalUrl} />}
+          {head.alternates?.map((alternate) => (
+            <link key={alternate.language} rel="alternate" hrefLang={alternate.language} href={alternate.href} />
+          ))}
           {head.favicon && <link rel="icon" href={head.favicon} />}
           <meta property="og:type" content="website" />
           <meta property="og:title" content={head.title} />
           {head.description && <meta property="og:description" content={head.description} />}
           {head.canonicalUrl && <meta property="og:url" content={head.canonicalUrl} />}
           {socialImage && <meta property="og:image" content={socialImage} />}
-          {feedLinks(content).map((feed) => (
+          {feedLinks(shown).map((feed) => (
             <link key={feed.href} rel="alternate" type="application/rss+xml" title={feed.title} href={feed.href} />
           ))}
           {fontsUrl && (
