@@ -19,6 +19,7 @@ import {
   type PagesDomains,
   REBUILD_JOB,
   type RepositoryVisibility,
+  type RevisionFiles,
   type ScheduledBuilds,
   SignInError,
   type SiteDrafts,
@@ -54,6 +55,12 @@ export interface GitLabBackendOptions {
   contentOnly?: boolean;
   /** The code project, for a project that holds only content, where the site's updates run. */
   code?: { project: string; webUrl: string };
+}
+
+/** The files under a folder of a tree, in order. */
+function listFrom(tree: Map<string, string>, dir: string): string[] {
+  const prefix = `${dir}/`;
+  return [...tree.keys()].filter((path) => path.startsWith(prefix)).sort();
 }
 
 /**
@@ -214,8 +221,12 @@ export class GitLabBackend implements GitBackend {
   }
 
   async read(path: string): Promise<string | undefined> {
-    const sha = (await this.currentTree()).get(path);
-    if (!sha) return undefined;
+    return this.readFrom(await this.currentTree(), path);
+  }
+
+  private readFrom(tree: Map<string, string>, path: string): Promise<string | undefined> {
+    const sha = tree.get(path);
+    if (!sha) return Promise.resolve(undefined);
     let blob = this.blobs.get(sha);
     if (!blob) {
       blob = gitlabRequest(this.api, this.repo(`/blobs/${sha}/raw`)).then((response) => response.text());
@@ -227,10 +238,13 @@ export class GitLabBackend implements GitBackend {
 
   /** Reads many text files in a few GraphQL requests rather than one request each. */
   async readFiles(paths: string[]): Promise<Map<string, string>> {
-    const tree = await this.currentTree();
+    const ref = this.pinned ?? (await this.revision());
+    return this.readFilesFrom(ref, await this.tree(ref), paths);
+  }
+
+  private async readFilesFrom(ref: string, tree: Map<string, string>, paths: string[]): Promise<Map<string, string>> {
     const wanted = paths.filter((path) => tree.has(path));
     const fetch = wanted.filter((path) => !this.blobs.has(tree.get(path) ?? ""));
-    const ref = this.pinned ?? (await this.revision());
     for (let start = 0; start < fetch.length; start += GRAPHQL_BATCH) {
       const batch = fetch.slice(start, start + GRAPHQL_BATCH);
       // GitLab's GraphQL API is beside its REST API, at /api/graphql.
@@ -255,22 +269,34 @@ export class GitLabBackend implements GitBackend {
     }
     const result = new Map<string, string>();
     for (const path of wanted) {
-      const text = await this.read(path);
+      const text = await this.readFrom(tree, path);
       if (text !== undefined) result.set(path, text);
     }
     return result;
   }
 
   async readBytes(path: string): Promise<Uint8Array | undefined> {
-    const sha = (await this.currentTree()).get(path);
+    return this.bytesFrom(await this.currentTree(), path);
+  }
+
+  private async bytesFrom(tree: Map<string, string>, path: string): Promise<Uint8Array | undefined> {
+    const sha = tree.get(path);
     if (!sha) return undefined;
     const response = await gitlabRequest(this.api, this.repo(`/blobs/${sha}/raw`));
     return new Uint8Array(await response.arrayBuffer());
   }
 
   async list(dir: string): Promise<string[]> {
-    const prefix = `${dir}/`;
-    return [...(await this.currentTree()).keys()].filter((path) => path.startsWith(prefix)).sort();
+    return listFrom(await this.currentTree(), dir);
+  }
+
+  filesAt(revision: string): RevisionFiles {
+    return {
+      read: async (path) => this.readFrom(await this.tree(revision), path),
+      readFiles: async (paths) => this.readFilesFrom(revision, await this.tree(revision), paths),
+      readBytes: async (path) => this.bytesFrom(await this.tree(revision), path),
+      list: async (dir) => listFrom(await this.tree(revision), dir),
+    };
   }
 
   /** GitLab's tree doesn't say how large files are, so they're asked for with GraphQL, in batches. */

@@ -20,6 +20,7 @@ import {
   REBUILD_JOB,
   type RedirectOptions,
   type RepositoryVisibility,
+  type RevisionFiles,
   type ScheduledBuilds,
   SignInError,
   type SiteDrafts,
@@ -97,6 +98,12 @@ export interface GitHubBackendOptions {
    * site's updates run: `api` reads it, absent where the sign-in can't.
    */
   code?: { repo: string; webUrl: string; api?: ApiOptions };
+}
+
+/** The files under a folder of a tree, in order. */
+function listFrom(tree: Map<string, string>, dir: string): string[] {
+  const prefix = `${dir}/`;
+  return [...tree.keys()].filter((path) => path.startsWith(prefix)).sort();
 }
 
 /**
@@ -273,7 +280,10 @@ export class GitHubBackend implements GitBackend {
 
   /** Reads many text files in a few GraphQL requests rather than one request each. */
   async readFiles(paths: string[]): Promise<Map<string, string>> {
-    const tree = await this.currentTree();
+    return this.readFilesFrom(await this.currentTree(), paths);
+  }
+
+  private async readFilesFrom(tree: Map<string, string>, paths: string[]): Promise<Map<string, string>> {
     const wanted = paths.flatMap((path) => {
       const sha = tree.get(path);
       return sha ? [[path, sha] as const] : [];
@@ -307,7 +317,11 @@ export class GitHubBackend implements GitBackend {
   }
 
   async readBytes(path: string): Promise<Uint8Array | undefined> {
-    const sha = (await this.currentTree()).get(path);
+    return this.bytesFrom(await this.currentTree(), path);
+  }
+
+  private async bytesFrom(tree: Map<string, string>, path: string): Promise<Uint8Array | undefined> {
+    const sha = tree.get(path);
     if (!sha) return undefined;
     const response = await githubRequest(this.api, `/repos/${this.repo}/git/blobs/${sha}`, {
       accept: "application/vnd.github.raw+json",
@@ -316,8 +330,16 @@ export class GitHubBackend implements GitBackend {
   }
 
   async list(dir: string): Promise<string[]> {
-    const prefix = `${dir}/`;
-    return [...(await this.currentTree()).keys()].filter((path) => path.startsWith(prefix)).sort();
+    return listFrom(await this.currentTree(), dir);
+  }
+
+  filesAt(revision: string): RevisionFiles {
+    return {
+      read: async (path) => this.readFrom(await this.tree(revision), path),
+      readFiles: async (paths) => this.readFilesFrom(await this.tree(revision), paths),
+      readBytes: async (path) => this.bytesFrom(await this.tree(revision), path),
+      list: async (dir) => listFrom(await this.tree(revision), dir),
+    };
   }
 
   async fileSizes(dir: string): Promise<Map<string, number>> {

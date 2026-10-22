@@ -7,6 +7,7 @@ import {
   encodeBase64Bytes,
   type FileVersion,
   type GitBackend,
+  type RevisionFiles,
   SignInError,
 } from "@goodfellow-cms/core";
 
@@ -74,17 +75,15 @@ export function appServer(api: string) {
         return pinned;
       };
       const at = async () => pinned ?? (await revision());
-      return {
-        user: session.user,
-        ...(session.contentOnly && { contentOnly: true }),
-        revision,
+      // Reads of the files at a revision: the one loaded, or an earlier one.
+      const files = (which: () => Promise<string>): RevisionFiles => ({
         async read(path) {
-          const response = await request("file", { query: { path, revision: await at() }, missingIsFine: true });
+          const response = await request("file", { query: { path, revision: await which() }, missingIsFine: true });
           return response.status === 404 ? undefined : ((await response.json()) as { content: string }).content;
         },
         async readBytes(path) {
           const response = await request("file", {
-            query: { path, revision: await at(), as: "bytes" },
+            query: { path, revision: await which(), as: "bytes" },
             missingIsFine: true,
           });
           return response.status === 404
@@ -93,15 +92,24 @@ export function appServer(api: string) {
         },
         async list(dir) {
           return (
-            (await (await request("files", { query: { dir, revision: await at() } })).json()) as { files: string[] }
+            (await (await request("files", { query: { dir, revision: await which() } })).json()) as {
+              files: string[];
+            }
           ).files;
         },
         async readFiles(paths) {
-          const answer = (await (await request("files", { body: { paths, revision: await at() } })).json()) as {
+          const answer = (await (await request("files", { body: { paths, revision: await which() } })).json()) as {
             files: Record<string, string>;
           };
           return new Map(Object.entries(answer.files));
         },
+      });
+      return {
+        user: session.user,
+        ...(session.contentOnly && { contentOnly: true }),
+        revision,
+        ...files(at),
+        filesAt: (earlier) => files(() => Promise.resolve(earlier)),
         async write(changes, { message, expectedRevision }) {
           const saved = (await (
             await request("write", {

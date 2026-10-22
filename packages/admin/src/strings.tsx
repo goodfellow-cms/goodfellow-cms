@@ -701,7 +701,43 @@ export const defaultStrings = {
 
   "settings.tab.editors": "Editors",
   "settings.tab.updates": "Updates",
+  "settings.tab.history": "Site history",
   "settings.tab.import": "WordPress",
+
+  "siteHistory.intro":
+    "Every publish that changed the site's pages, items, settings or media, newest first. Choose one to see how the site looked after it and what has changed since, then restore the whole site as it was.",
+  "siteHistory.local": "Site history is in the published site's admin panel, where you sign in with GitHub or GitLab.",
+  "siteHistory.demo": "Site history isn't kept in a demo.",
+  "siteHistory.error": "The site's history couldn't be loaded. Check your connection and try again.",
+  "siteHistory.current": "The site now",
+  "siteHistory.preview": "The site on {date}",
+  "siteHistory.loadingVersion": "Loading the site as it was…",
+  "siteHistory.readError": "The site as it was then couldn't be loaded. Check your connection and try again.",
+  "siteHistory.unfit":
+    "The site as it was then can't be shown or restored, because it doesn't fit the site as it is now.",
+  "siteHistory.unknownBlocks":
+    "The site as it was then can't be restored, because it uses blocks the site doesn't have any more: {blocks}.",
+  "siteHistory.same": "Nothing has changed since: this is how the site is now.",
+  "siteHistory.since": "What has changed since",
+  "siteHistory.changed": "Changed since (restoring puts them back as they were):",
+  "siteHistory.added": "Added since (restoring removes them):",
+  "siteHistory.removed": "Removed since (restoring brings them back):",
+  "siteHistory.page": "Page to look at",
+  "siteHistory.restore": "Restore the site as it was",
+  "siteHistory.restoreTitle": "Restore the site as it was on {date}?",
+  "siteHistory.restoreBody":
+    "Everything listed ({count}) goes back to how it was then, in one publish. The site as it is now stays in the history, so you can restore it again later. The site's code and update settings stay as they are.",
+  "siteHistory.restoreMessage": "Restore the site as it was on {date}",
+  "siteHistory.restored": "Restored the site as it was on {date}.",
+  "siteHistory.subject.page": "{title} ({path})",
+  "siteHistory.subject.entry": "{title}, in {collection}",
+  "siteHistory.subject.collection": "The settings and page design of {name}",
+  "siteHistory.subject.settings": "Site settings",
+  "siteHistory.subject.menus": "Menus",
+  "siteHistory.subject.redirects": "Redirects",
+  "siteHistory.subject.credits": "Photo credits",
+  "siteHistory.subject.css": "Custom CSS",
+  "siteHistory.subject.code": "Code added to every page",
 
   "import.title": "Import from WordPress",
   "import.intro":

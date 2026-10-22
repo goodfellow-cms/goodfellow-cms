@@ -40,7 +40,7 @@ export interface MediaPreviews {
   remember(url: string, bytes: Uint8Array): void;
 }
 
-export function createMediaPreviews(store: ContentStore, siteUrl: string): MediaPreviews {
+export function createMediaPreviews(store: Pick<ContentStore, "readBytes">, siteUrl: string): MediaPreviews {
   const local = new Map<string, string>();
   const loading = new Map<string, Promise<string | undefined>>();
   const base = trimChars(siteUrl, "/", { start: false });

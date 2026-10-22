@@ -109,7 +109,7 @@ flowchart TB
 29. **Moving from and to WordPress** (done).
     - **Importing:** a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, in the admin panel or from the command line, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected.
     - **Exporting:** a Goodfellow site as a WordPress export file, in the admin panel or from the command line, with its blocks turned into WordPress's.
-30. **Restoring the whole site.** Version history beyond one file: owners can see how the whole site, its content and settings, looked at an earlier publish and what has changed since, and restore it as one publish, for example after a bulk change that went wrong.
+30. **Restoring the whole site** (done). Version history beyond one file: owners can see how the whole site, its content and settings, looked at an earlier publish and what has changed since, and restore it as one publish, for example after a bulk change that went wrong.
 31. **Several languages.** Optional, for sites in more than one language, such as a parish with Masses in two.
     - Translations of a page or collection item linked together, each with its own address, menu, title and description, and dates written the language's way.
     - A language switch, `hreflang` links, and sitemaps that list each language.

@@ -1,4 +1,5 @@
 import type { BuildProblem } from "./build-problems.js";
+import type { ContentSource } from "./content/load.js";
 import type { ContentStore } from "./content/store.js";
 import type { PagesDomains } from "./domains.js";
 import type { SiteDrafts } from "./drafts.js";
@@ -39,6 +40,9 @@ export interface FileVersion {
   message: string;
 }
 
+/** The site's files at one revision: its text files and its media's bytes. */
+export type RevisionFiles = ContentSource & Pick<ContentStore, "readBytes">;
+
 export interface HistoryOptions {
   /** Which page of versions, from 1 (the newest). */
   page?: number;
@@ -53,11 +57,14 @@ export interface GitBackend extends ContentStore {
   deployStatus(revision: string): Promise<DeployStatus>;
   /**
    * The published versions of a file, newest first, up to the revision reads
-   * are pinned to. A file that was moved starts again at its new path.
+   * are pinned to. A file that was moved starts again at its new path. For a
+   * folder, such as `content`, the publishes that changed anything in it.
    */
   history(path: string, options?: HistoryOptions): Promise<FileVersion[]>;
   /** A file's text in an earlier version, or `undefined` if it didn't exist then. */
   readAt(path: string, revision: string): Promise<string | undefined>;
+  /** The site's files as they were at an earlier revision, to read only, as a whole-site restore reads them. */
+  filesAt(revision: string): RevisionFiles;
   /** The git host's own Pages, for connecting a custom domain. Absent where the backend can't. */
   readonly pages?: PagesDomains;
   /** Who can edit the site, and inviting and removing them. Absent where the backend can't. */

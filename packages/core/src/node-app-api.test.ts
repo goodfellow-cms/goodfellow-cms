@@ -49,6 +49,7 @@ function fakeServerGit(repo: FakeRepo) {
         const file = repo.files(at).get(path);
         return file === undefined ? undefined : new TextDecoder().decode(fakeFileBytes(file));
       },
+      filesAt: (at) => backend(at),
       signOut: () => {},
     };
   };
@@ -263,6 +264,10 @@ describe("appApi", () => {
     ).json()) as { revision: string };
     const history = await call("history", { query: { path: "content/pages/index.json", revision: next } });
     expect(((await history.json()) as { versions: unknown[] }).versions).toHaveLength(2);
+    // A folder's history is the whole site's, for restoring it.
+    const site = await call("history", { query: { path: "content", revision: next } });
+    expect(((await site.json()) as { versions: unknown[] }).versions).toHaveLength(2);
+    expect((await call("history", { query: { path: "src", revision: next } })).status).toBe(400);
     const version = await call("version", { query: { path: "content/pages/index.json", revision } });
     expect(await version.json()).toEqual({ content: FILES["content/pages/index.json"] });
     const changed = await call("changed", { query: { from: revision, to: next } });

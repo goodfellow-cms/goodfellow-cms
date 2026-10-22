@@ -28,6 +28,7 @@ import { PagesScreen } from "./pages-screen.js";
 import { SETTINGS_SECTIONS, useRoute } from "./router.js";
 import { SETTINGS_TABS, SettingsScreen, type SettingsTab } from "./settings-screen.js";
 import { SignInGate } from "./sign-in.js";
+import { SiteHistoryScreen } from "./site-history-screen.js";
 import { isPreviewAddress, SitePreview } from "./site-preview.js";
 import { defaultStrings, type Strings, StringsProvider, useStrings } from "./strings.js";
 import { setThemeChoice, type ThemeChoice, useApplyThemeChoice, useThemeChoice } from "./theme.js";
@@ -142,6 +143,7 @@ function Screen() {
   if (section === "settings" && sub === "domain") return <DomainScreen />;
   if (section === "settings" && sub === "editors") return <EditorsScreen />;
   if (section === "settings" && sub === "updates") return <UpdatesScreen />;
+  if (section === "settings" && sub === "history") return <SiteHistoryScreen />;
   if (section === "settings" && sub === "import") return <ImportScreen />;
   if (section === "versions") return <VersionsScreen file={params.get("file") ?? ""} />;
   if (section === "settings") {

@@ -32,7 +32,7 @@ function editorHref(subject: VersionSubject): string {
   return `#/layout/${subject.kind}`;
 }
 
-function formatDate(date: string): string {
+export function formatDate(date: string): string {
   const parsed = new Date(date);
   return Number.isNaN(parsed.getTime())
     ? date

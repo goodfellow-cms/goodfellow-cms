@@ -1406,6 +1406,15 @@ body,
   overflow: hidden;
 }
 
+.gfa-site-changes {
+  display: grid;
+  gap: 8px;
+}
+
+.gfa-site-changes .gfa-label {
+  margin: 0 0 4px;
+}
+
 @media (max-width: 900px) {
   .gfa-versions-layout {
     grid-template-columns: 1fr;
