@@ -17,8 +17,9 @@ order: 5
 | `goodfellow content link [folder]` | For a site whose [content is in a repository of its own](/docs/content-repository): links `content/` and `public/media/` to it, in `folder` (default: `content-repository`), so `goodfellow dev` reads and saves its files |
 | `goodfellow content copy [folder]` | Copies them from it instead, as builds do |
 | `goodfellow import wordpress <file or address>` | Brings a WordPress site's pages, posts, categories, tags, menus and media into the site, from its export file or its address (see [Move from WordPress](/docs/move-from-wordpress)). `--dry-run` says what would come across and changes nothing |
+| `goodfellow export wordpress [file]` | Writes the site as a WordPress export file, at `file` or in a file named after the site, which WordPress imports with **Tools → Import → WordPress** (see [Move from WordPress](/docs/move-from-wordpress#moving-to-wordpress)) |
 
-Next.js sites have the same `update`, `due`, `content` and `import` commands as `goodfellow-next update`, `goodfellow-next due`, `goodfellow-next content` and `goodfellow-next import`.
+Next.js sites have the same `update`, `due`, `content`, `import` and `export` commands as `goodfellow-next update`, `goodfellow-next due`, `goodfellow-next content`, `goodfellow-next import` and `goodfellow-next export`.
 
 Options: `--root <dir>`, `--out <dir>`, `--port <port>`, `--base <path>` and, for `import`, `--dry-run`.
 

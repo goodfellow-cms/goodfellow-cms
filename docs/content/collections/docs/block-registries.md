@@ -56,3 +56,7 @@ export default defineConfig({
   registries: { "@acme": "https://acme.example/r/{name}.json" },
 });
 ```
+
+## Making it easy to find
+
+Call the registry's repository `goodfellow-blocks-<name>`, such as `goodfellow-blocks-acme`, and give it the `goodfellow-blocks` topic on GitHub or GitLab, so developers looking for Goodfellow blocks find it by searching either. Plugins and themes are named the same way, `goodfellow-plugin-<name>` and `goodfellow-theme-<name>`. You can also ask for it to be listed in [shadcn's directory of registries](https://ui.shadcn.com/docs/directory), where shadcn's users look. Goodfellow's own registry is the exception: it's `@goodfellow-cms/registry`, in Goodfellow's repository, since the admin panel installs the release that matches it.

@@ -1,5 +1,7 @@
 import type { FileChange } from "@goodfellow-cms/core";
 import type {
+  WordPressExport,
+  WordPressExportNote,
   WordPressImport,
   WordPressImportNames,
   WordPressImportNote,
@@ -67,6 +69,110 @@ function noteText(t: Translate, note: WordPressImportNote): string {
     case "no-menus":
       return t("import.note.noMenus");
   }
+}
+
+/** What an export couldn't bring across as it was, in words. */
+function exportNoteText(t: Translate, note: WordPressExportNote, blockName: (name: string) => string): string {
+  const listed = (items: string[]) => {
+    const shown = items.slice(0, 3).join(", ");
+    return items.length > 3 ? t("import.note.more", { items: shown, count: String(items.length - 3) }) : shown;
+  };
+  switch (note.kind) {
+    case "left-out-block":
+      return t("export.note.leftOutBlock", { name: blockName(note.name), items: listed(note.items) });
+    case "no-pages":
+      return t("export.note.noPages", { collections: listed(note.collections) });
+    case "hidden":
+      return t("export.note.hidden", { items: listed(note.items) });
+    case "redirects":
+      return t("export.note.redirects", { count: String(note.count) });
+    case "no-address":
+      return t("export.note.noAddress");
+    case "layout":
+      return t("export.note.layout");
+  }
+}
+
+/** Saves text as a file on the editor's computer. */
+function download(text: string, name: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "application/xml" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Writes the site as a WordPress export file, downloaded to the editor's computer. */
+function ExportSection() {
+  const t = useStrings();
+  const { config } = useAdmin();
+  const { content, media } = useSiteContent();
+  const [result, setResult] = useState<WordPressExport>();
+  const [problem, setProblem] = useState<unknown>();
+  const [busy, setBusy] = useState(false);
+  const blockName = (name: string) => config.blocks[name]?.label ?? name;
+
+  const exportSite = async () => {
+    setBusy(true);
+    setProblem(undefined);
+    try {
+      const wordpress = await import("@goodfellow-cms/core/wordpress");
+      const written = wordpress.wordPressExport(content, { mediaFiles: media });
+      download(written.xml, wordpress.wordPressExportName(content));
+      setResult(written);
+    } catch (error) {
+      setProblem(error ?? new Error("Export failed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section aria-labelledby="gfa-export-title">
+      <h2 id="gfa-export-title" className="gfa-section-title">
+        {t("export.title")}
+      </h2>
+      <p>{t("export.intro")}</p>
+      {problem !== undefined && <ErrorMessage message={t("export.error")} error={problem} />}
+      <p className="gfa-import-actions">
+        <Button onClick={() => void exportSite()} disabled={busy}>
+          {t("export.download")}
+        </Button>
+      </p>
+      {result && (
+        <>
+          <p role="status" className="gfa-notice gfa-notice-success">
+            {t("export.done")}
+          </p>
+          <ul className="gfa-import-summary">
+            <li>{t("export.summary.pages", { count: String(result.summary.pages) })}</li>
+            <li>{t("export.summary.posts", { count: String(result.summary.posts) })}</li>
+            {(result.summary.categories > 0 || result.summary.tags > 0) && (
+              <li>
+                {t("import.summary.terms", {
+                  categories: String(result.summary.categories),
+                  tags: String(result.summary.tags),
+                })}
+              </li>
+            )}
+            <li>{t("import.summary.menus", { count: String(result.summary.menus) })}</li>
+            <li>{t("export.summary.media", { count: String(result.summary.media) })}</li>
+          </ul>
+          {result.notes.length > 0 && (
+            <>
+              <h3 className="gfa-section-title">{t("import.check")}</h3>
+              <ul className="gfa-import-notes">
+                {result.notes.map((note) => (
+                  <li key={JSON.stringify(note)}>{exportNoteText(t, note, blockName)}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
 }
 
 function Summary({ plan }: { plan: WordPressImport }) {
@@ -244,6 +350,7 @@ export function ImportScreen() {
       <div className="gfa-form">
         {stage.kind === "choose" || stage.kind === "reading" ? (
           <>
+            <h2 className="gfa-section-title">{t("import.title")}</h2>
             <p>{t("import.intro")}</p>
             {problem && <ErrorMessage message={problem.message} error={problem.error} />}
             <Field label={t("import.file")} hint={t("import.fileHint")}>
@@ -288,6 +395,7 @@ export function ImportScreen() {
               </Field>
             </form>
             {stage.kind === "reading" && <p role="status">{t("import.reading")}</p>}
+            <ExportSection />
           </>
         ) : stage.kind === "done" ? (
           <>

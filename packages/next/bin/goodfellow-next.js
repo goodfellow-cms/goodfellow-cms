@@ -7,6 +7,7 @@
 // `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
 // content is kept in a repository of its own.
 // `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
+// `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, as `goodfellow export` does.
 import { rm } from "node:fs/promises";
 import { relative } from "node:path";
 import { parseArgs } from "node:util";
@@ -15,6 +16,8 @@ import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   ContentRepositoryError,
   contentRepositoryProblem,
+  exportWordPress,
+  formatWordPressExport,
   formatWordPressImport,
   importWordPress,
   reportDue,
@@ -113,6 +116,18 @@ if (command === "import") {
     process.exit(1);
   }
 }
+if (command === "export") {
+  const [kind, file] = process.argv.slice(3);
+  const problem = contentRepositoryProblem(".");
+  if (problem) {
+    console.error(problem);
+    process.exit(1);
+  }
+  if (kind === "wordpress") {
+    console.log(formatWordPressExport(await exportWordPress(".", file)));
+    process.exit(0);
+  }
+}
 if (command !== "finish" && command !== "index") {
   console.error(
     [
@@ -123,6 +138,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next due [--since <time>]",
       "       goodfellow-next content link|copy [folder]",
       "       goodfellow-next import wordpress <file or address> [--dry-run]",
+      "       goodfellow-next export wordpress [file]",
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
@@ -142,6 +158,8 @@ if (command !== "finish" && command !== "index") {
       "import  Brings a WordPress site's pages, posts, categories, tags, menus and media into",
       "        this site, from its export file (Tools → Export) or its address. With --dry-run,",
       "        says what it would bring across and changes nothing.",
+      "export  Writes this site as a WordPress export file (default: named after the site),",
+      "        which WordPress imports with Tools → Import → WordPress.",
     ].join("\n"),
   );
   process.exit(1);

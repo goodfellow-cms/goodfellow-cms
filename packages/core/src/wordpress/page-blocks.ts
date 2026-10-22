@@ -124,7 +124,7 @@ function videoBlock(writer: BlockWriter, url: string, caption: string): BlockDat
     poster: "",
     rounded: false,
     shape: "auto",
-    source: youtube ? "youtube" : vimeo ? "vimeo" : "file",
+    source: youtube ? "youtube" : vimeo ? "vimeo" : "upload",
     title: caption,
     vimeo: vimeo ? url : "",
     youtube: youtube ? url : "",

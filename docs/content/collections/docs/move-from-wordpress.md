@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Move from WordPress
-description: Bring a WordPress site's pages, posts, categories, tags, menus and media into a Goodfellow site, from its export file or its address.
+description: Bring a WordPress site's pages, posts, categories, tags, menus and media into a Goodfellow site, from its export file or its address, or move a Goodfellow site to WordPress.
 section: owners
 order: 6
 ---
@@ -17,7 +17,7 @@ Nothing changes on the WordPress site, and you can keep it running until the new
 
 ## In the admin panel
 
-1. Go to **Site Settings → Import**.
+1. Go to **Site Settings → WordPress**.
 2. Choose the export file, or type the site's address and click **Read the site**.
 3. Check what will come across: how many pages and posts, where the posts will be, which of the site's pages will be replaced, and anything that couldn't come across as it was.
 4. Click **Import**. Goodfellow copies the media, then publishes everything in one go.
@@ -78,4 +78,27 @@ Check the pages the import lists, then:
 
 Importing again brings the site across again, replacing the pages and posts at the same addresses, and copies its media again, as new files. Version history keeps everything it replaced.
 
-Moving a Goodfellow site to WordPress, as a WordPress export file, is on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap).
+## Moving to WordPress
+
+A Goodfellow site can go to WordPress too, as a WordPress export file, so choosing Goodfellow never locks a site in. The export is also a copy of the site that any WordPress site can read.
+
+1. Set the site's address in **Site Settings → General**, if it hasn't one, since WordPress copies the media from it.
+2. Go to **Site Settings → WordPress** and click **Download the export file**, or run `npx goodfellow export wordpress` in the site's folder (`npx goodfellow-next export wordpress` for a Next.js site), which writes a file named after the site, or the file you name after it.
+3. In WordPress, go to **Tools → Import → WordPress**, install the importer if it asks, and choose the file.
+4. Tick **Download and import file attachments**, which copies the media library from the Goodfellow site, and click **Submit**.
+
+What goes across:
+
+- **Pages** keep their addresses, such as `/about/staff`, with their place under other pages. The home page is a page called "home", which you can make WordPress's home page in **Settings → Reading**.
+- **Blocks** become WordPress's own: headings, text with its lists and links, images with their captions, buttons, columns and rows, sections with a picture behind them as covers, YouTube and Vimeo videos and video files, code, spaces, contact details as text, and collection lists as a list of the latest posts. A page's first heading is left out when it's the page's title, since WordPress's themes show the title.
+- **Items of collections with pages** become posts, with their dates, summaries, first images as featured images and text, each collection a category and its tags and choices as tags. [Scheduled](/docs/scheduling) items stay scheduled, and ones their schedule has hidden again become drafts.
+- **Menus** go across with their links, which point at the pages and posts they went to.
+- **Media**: every file in the media library, which WordPress copies from the site's address.
+
+What doesn't:
+
+- **Blocks WordPress has nothing like**, such as forms, calendars, search and the dark mode switch. The export lists the pages they were on, so you can use a plugin in their place.
+- **Collections without pages of their own**, such as a list of staff, since WordPress's posts each have a page.
+- **The header and footer, and the theme.** WordPress's theme shows its own, with the menus.
+- **Redirects**, which WordPress needs a plugin for. The export says how many there are, and they're in `content/redirects.json`.
+- **Blocks from block registries**, apart from what's in their slots.

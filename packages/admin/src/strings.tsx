@@ -701,8 +701,9 @@ export const defaultStrings = {
 
   "settings.tab.editors": "Editors",
   "settings.tab.updates": "Updates",
-  "settings.tab.import": "Import",
+  "settings.tab.import": "WordPress",
 
+  "import.title": "Import from WordPress",
   "import.intro":
     "Bring a WordPress site's pages, posts, categories, tags, menus and media into this site. Pages keep their addresses, posts become a collection, and old addresses send visitors on to the new ones. You'll see what comes across before anything changes.",
   "import.file": "WordPress export file",
@@ -769,6 +770,24 @@ export const defaultStrings = {
   "import.names.tags": "Tags",
   "import.names.text": "Text",
   "import.names.allPosts": "All posts",
+
+  "export.title": "Export to WordPress",
+  "export.intro":
+    "Download this site as a WordPress export file, to move it to WordPress or keep a copy. Pages keep their addresses and blocks become WordPress's, items of collections with pages become posts, and menus come too. In WordPress, go to Tools → Import → WordPress, choose the file and tick “Download and import file attachments”, which copies the media from this site.",
+  "export.download": "Download the export file",
+  "export.done": "Downloaded the export file.",
+  "export.error": "The export file couldn't be made.",
+  "export.summary.pages": "Pages: {count}",
+  "export.summary.posts": "Posts: {count}",
+  "export.summary.media": "Media files, which WordPress copies from this site: {count}",
+  "export.note.leftOutBlock": "WordPress has nothing like the {name} block, so it was left out: {items}.",
+  "export.note.noPages":
+    "Collections without pages of their own aren't in the file, since WordPress's posts each have a page: {collections}.",
+  "export.note.hidden": "Hidden by their schedule, so they're drafts in the file: {items}.",
+  "export.note.redirects": "Redirects aren't in the file, since WordPress needs a plugin for them: {count}.",
+  "export.note.noAddress":
+    "The site has no address yet, so WordPress can't copy its media. Set it on the General tab, then download the file again.",
+  "export.note.layout": "The header and footer aren't in the file. WordPress's theme shows its own, with the menus.",
   "updates.intro":
     "Goodfellow, the software the site runs on, gets fixes and new releases. Fixes install on their own each night, and only once the site has been checked to still build with them.",
   "updates.contentOnly":

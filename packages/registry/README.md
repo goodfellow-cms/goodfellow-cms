@@ -97,6 +97,10 @@ export default defineConfig({
 });
 ```
 
+### Making it easy to find
+
+Call the registry's repository `goodfellow-blocks-<name>` and give it the `goodfellow-blocks` topic on GitHub or GitLab, so searching either finds it, as `goodfellow-plugin-<name>` and `goodfellow-theme-<name>` do for plugins and themes. You can also ask for it to be listed in [shadcn's directory of registries](https://ui.shadcn.com/docs/directory). This registry is the exception, since it's released with Goodfellow.
+
 ## Working on this registry
 
 - `registry.json` lists the blocks, whose files are in `site/blocks/installed/`, laid out as they'll be in a site.

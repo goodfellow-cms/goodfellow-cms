@@ -49,7 +49,7 @@ The other differences are about who it's for. Tina's content model, its collecti
 
 ## What Goodfellow can't do (yet)
 
-- **It's early.** Goodfellow is new, and some features, such as moving a site to WordPress or having it in several languages, are still on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap). Moving from WordPress [works already](/docs/move-from-wordpress).
+- **It's early.** Goodfellow is new, and some features, such as having a site in several languages, are still on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap). Moving from WordPress, and back to it, [works already](/docs/move-from-wordpress).
 - **Sites are static.** Shops, member logins and comments need a service of their own, or a developer who makes the site part of a [Next.js app with a server](/docs/full-stack-nextjs). Contact forms work through a form service; see [Forms](/docs/forms).
 - **Publishing takes a minute or two**, while the host rebuilds the site. The editor shows changes at once, but visitors see them after the rebuild.
 - **Editors need a GitHub or GitLab account** with permission to change the site's repository, except on [full-stack Next.js sites](/docs/full-stack-nextjs), where they sign in with the app's own accounts.
