@@ -60,10 +60,14 @@ export function canvas(page: Page) {
   return editor(page).locator(".gf-canvas").first();
 }
 
-/** Opens the editor for a page and waits for its canvas to show it. */
+/**
+ * Opens the editor for a page and waits for its canvas to show it. The frame
+ * starts Puck and the site's code in a page of its own, which a development
+ * server still starting other sites can take longer than the usual wait to serve.
+ */
 export async function openPageEditor(page: Page, path: string, heading: string) {
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent(path)}`);
-  await expect(canvas(page).getByRole("heading", { name: heading })).toBeVisible();
+  await expect(canvas(page).getByRole("heading", { name: heading })).toBeVisible({ timeout: 20_000 });
 }
 
 /** A field in Puck's right-hand panel. Puck renders hidden copies of fields, so only visible ones count. */
