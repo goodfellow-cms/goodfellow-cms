@@ -6,7 +6,7 @@ section: editors
 order: 6
 ---
 
-The **AI** tab beside the editor writes with AI. Describe what you want:
+The **AI** button above the editor opens the AI panel beside it, which writes with AI. Describe what you want:
 
 - With nothing selected, it adds new blocks to the end of the page.
 - With a block selected, it changes that block.
@@ -17,7 +17,7 @@ The result goes straight into the editor, so you can check it, change it or undo
 
 ## Photos
 
-Where the media library has no image that fits, the assistant can find openly licensed photos on [Openverse](https://openverse.org), which gathers Creative Commons and public domain images from Wikimedia Commons, Flickr and other collections. Leave **Find openly licensed photos** ticked in the AI tab (it's remembered in your browser), and ask for what you need, such as "a section about our choir, with a photo".
+Where the media library has no image that fits, the assistant can find openly licensed photos on [Openverse](https://openverse.org), which gathers Creative Commons and public domain images from Wikimedia Commons, Flickr and other collections. Leave **Find openly licensed photos** ticked in the AI panel (it's remembered in your browser), and ask for what you need, such as "a section about our choir, with a photo".
 
 - Only photos whose license allows any use, including changes such as cropping, are used: CC BY, CC BY-SA, CC0 and the Public Domain Mark.
 - Each photo is added to the media library, and its credit (its title, who made it, where it came from and its license) is saved with it. Every page that shows the photo lists its credit at the bottom, as the license requires, with links to the photo and the license.
@@ -28,7 +28,7 @@ Deleting or replacing a photo in the media library removes its credit too. A sit
 
 ## Choosing a service
 
-Each editor chooses a service in the AI tab's settings, and it's called straight from their browser, with their own account:
+Each editor chooses a service in the AI panel's settings, and it's called straight from their browser, with their own account:
 
 | Service | Needs | Cost |
 |---|---|---|

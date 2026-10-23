@@ -171,10 +171,15 @@ export async function writeEditorPolicy(dir: string): Promise<boolean> {
     const file = join(dir, name);
     const html = await readFile(file, "utf8").catch(() => undefined);
     if (html === undefined || html.includes('http-equiv="Content-Security-Policy"')) continue;
-    const inline = [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((match) => match[1] ?? "");
+    const inline = [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
+      (match) => match[1] ?? "",
+    );
     const policy = editorPolicy({ scriptHashes: [EDITOR_PRELUDE, ...inline].map(scriptHash), blobScripts: true });
     const head = `<meta http-equiv="Content-Security-Policy" content="${policy}"/><script>${EDITOR_PRELUDE}</script>`;
-    await writeFile(file, html.replace(/<head([^>]*)>/, (open) => `${open}${head}`));
+    await writeFile(
+      file,
+      html.replace(/<head([^>]*)>/, (open) => `${open}${head}`),
+    );
     found = true;
   }
   return found;

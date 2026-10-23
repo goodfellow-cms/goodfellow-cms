@@ -113,7 +113,7 @@ describe("the Next.js template's static export", () => {
     const admin = await read("admin/index.html");
     const editor = await read("admin/editor/index.html");
     // A block's label, which only the site's config has.
-    expect(editor).toContain("<head><meta http-equiv=\"Content-Security-Policy\"");
+    expect(editor).toContain('<head><meta http-equiv="Content-Security-Policy"');
     expect(editor).toMatch(/script-src 'self' 'sha256-/);
     const scripts = (html: string) => [...html.matchAll(/<script src="([^"]+)"/g)].map((match) => match[1] ?? "");
     const editorOnly = scripts(editor).filter((script) => !scripts(admin).includes(script));

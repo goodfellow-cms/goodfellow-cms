@@ -204,7 +204,7 @@ export function PuckEditor({
   const aiOffered = site.ai !== false;
 
   return (
-    <div className={cx("gfa-editor", `gfa-editor-${kind}`)}>
+    <div className={cx("gfa-editor", `gfa-editor-for-${kind}`)}>
       {notice && <div className="gfa-editor-notice">{notice}</div>}
       <div className="gfa-editor-header">
         <div className="gfa-editor-tools">

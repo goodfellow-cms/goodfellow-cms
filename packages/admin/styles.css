@@ -1321,11 +1321,9 @@ body,
 
 /*
  * Items have no blocks, so the item editor leaves out Puck's Blocks and Outline
- * buttons, always the first two in its side bar (after the legacy side bar's,
- * which only shows on wide screens, when the AI assistant is off).
+ * buttons, the two after the legacy side bar's, which only shows on wide screens.
  */
-.gfa-editor-entry.gfa-editor-ai nav[class*="_Nav_"] > ul > li:nth-child(-n + 2),
-.gfa-editor-entry:not(.gfa-editor-ai) nav[class*="_Nav_"] > ul > li:nth-child(n + 2):nth-child(-n + 3) {
+.gfa-editor-for-entry nav[class*="_Nav_"] > ul > li:nth-child(n + 2):nth-child(-n + 3) {
   display: none;
 }
 

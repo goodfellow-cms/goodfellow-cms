@@ -1,7 +1,15 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: ["src/index.tsx", "src/config.ts", "src/admin.tsx", "src/editor.tsx", "src/components.tsx", "src/export.ts", "src/server.ts"],
+  entry: [
+    "src/index.tsx",
+    "src/config.ts",
+    "src/admin.tsx",
+    "src/editor.tsx",
+    "src/components.tsx",
+    "src/export.ts",
+    "src/server.ts",
+  ],
   format: "esm",
   dts: true,
   platform: "neutral",

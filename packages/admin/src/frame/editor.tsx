@@ -349,7 +349,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
   );
 
   return (
-    <div className={`gfa-editor-puck gfa-editor-${kind}`}>
+    <div className={`gfa-editor-puck gfa-editor-for-${kind}`}>
       <SiteProvider value={site}>
         <Puck
           config={config}

@@ -147,7 +147,10 @@ test("won't remove a block that's in use, and removes it once it isn't", async (
   await publishBlocks(page);
   await expect.poll(() => onDisk("blocks/installed/shadcn-faq/block.tsx")).toBe(false);
   expect(onDisk("components/ui/accordion.tsx")).toBe(false);
-  expect(readFileSync(join(site as string, "blocks/installed/index.ts"), "utf8")).not.toContain("shadcn-faq");
+  // The index is written after the block's files are removed.
+  await expect
+    .poll(() => readFileSync(join(site as string, "blocks/installed/index.ts"), "utf8"))
+    .not.toContain("shadcn-faq");
 });
 
 // The built site's admin panel installs from the registry's release on jsDelivr; tests serve the built registry instead.

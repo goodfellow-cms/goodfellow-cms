@@ -1,5 +1,4 @@
 export type { AdminSite } from "./admin-site.js";
-export { EDITOR_PRELUDE, editorPolicy } from "./editor-policy.js";
 export {
   APP_API_HEADER,
   type AppEditor,
@@ -451,6 +450,7 @@ export {
   newDraftName,
   type SiteDrafts,
 } from "./drafts.js";
+export { EDITOR_PRELUDE, editorPolicy } from "./editor-policy.js";
 export {
   type EditorList,
   type EditorRole,
