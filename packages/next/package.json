@@ -87,7 +87,7 @@
     "@tailwindcss/browser": "4.3.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "next": "16.4.1",
+    "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
