@@ -161,6 +161,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          check-latest: true
           cache: npm
       - id: pages
         uses: actions/configure-pages@v5
@@ -242,6 +243,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          check-latest: true
           cache: npm
       - run: npm ci
       - run: ${copy}
@@ -334,6 +336,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          check-latest: true
           cache: npm
       - run: npm ci
       - run: ${copy}

@@ -21,7 +21,7 @@ The site's first build starts at once. Once it's online, sign in to its admin pa
 
 ## With create-goodfellow
 
-You need [Node.js](https://nodejs.org) 22 or later.
+You need [Node.js](https://nodejs.org) 22.23.4 or later, 24.22.1 or later, or 26.12.1 or later. Earlier versions have a security problem that a calendar feed or another site the build reads could use to run code on the computer building the site.
 
 ```sh
 npm create goodfellow@latest my-site

@@ -89,6 +89,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          check-latest: true
           cache: npm
       - run: npm ci
       - id: update
@@ -143,6 +144,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          check-latest: true
           cache: npm
       - run: npm ci
       # Since the last check that worked.

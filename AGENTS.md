@@ -341,7 +341,7 @@ What a site's own files are is described in the docs' Create a site and Content 
 | End-to-end tests | Playwright, in `e2e/` |
 | Versioning and changelogs | Changesets, every package on one version |
 | Releases | `pnpm release:version`, then the Release workflow and `pnpm release:approve` (`scripts/release.mjs`); see RELEASING.md |
-| Node | 22 or later |
+| Node | 22.23.4, 24.22.1 or 26.12.1 or later in its line (`engines`), since earlier versions decompress Brotli unsafely (CVE-2026-111497); CI's `setup-node` steps use `check-latest: true` so they never take a runner's older copy |
 
 Get pnpm with `corepack enable` (or `npm install -g pnpm`). The starters and examples use the workspace's own packages (`workspace:*`), so run `pnpm install` from the repo root; `npm install` inside them fails.
 
