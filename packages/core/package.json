@@ -64,7 +64,7 @@
     "pagefind": "1.5.2",
     "xss": "1.0.15",
     "yaml": "2.9.1",
-    "zod": "4.6.5"
+    "zod": "4.6.6"
   },
   "peerDependencies": {
     "@puckeditor/core": "0.23.0"

@@ -48,7 +48,7 @@
     "@goodfellow-cms/github": "workspace:*",
     "@goodfellow-cms/gitlab": "workspace:*",
     "@modelcontextprotocol/sdk": "1.32.1",
-    "zod": "4.6.5"
+    "zod": "4.6.6"
   },
   "optionalDependencies": {
     "playwright-core": "1.63.0"
