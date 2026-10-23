@@ -1,4 +1,4 @@
-import { canvas, expect, test, writeSiteFile } from "./helpers.js";
+import { canvas, editor, expect, test, writeSiteFile } from "./helpers.js";
 
 function videosPage() {
   const video = (id: string, props: Record<string, unknown>) => ({
@@ -42,7 +42,7 @@ test("shows YouTube's player and an uploaded video, and chooses videos from the 
     /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/,
   );
   await canvas(page).locator('[data-puck-component="Video-upload"]').click();
-  await page.locator(".gfa-editor").getByRole("button", { name: "Choose video" }).filter({ visible: true }).click();
+  await editor(page).getByRole("button", { name: "Choose video" }).filter({ visible: true }).click();
   const dialog = page.getByRole("dialog", { name: "Choose a video" });
   await expect(dialog.getByText("welcome.mp4")).toBeVisible();
   // Only videos: the starter's pictures aren't offered.

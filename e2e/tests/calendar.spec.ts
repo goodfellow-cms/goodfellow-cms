@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, publishInEditor, readJson, test, writeSiteFile } from "./helpers.js";
+import { editor, expect, publishInEditor, readJson, test, writeSiteFile } from "./helpers.js";
 
 test.use({ timezoneId: "America/New_York" });
 
@@ -16,7 +16,7 @@ function nextMonth(date: string): string {
 
 /** A visible control in the item editor's sidebar; Puck renders hidden copies of its fields. */
 function sidebar(page: Page, label: string) {
-  return page.locator(".gfa-editor").getByLabel(label, { exact: true }).filter({ visible: true }).first();
+  return editor(page).getByLabel(label, { exact: true }).filter({ visible: true }).first();
 }
 
 test("creates a collection of events, adds a weekly one, and shows it in calendars", async ({ page, request }) => {
@@ -47,24 +47,17 @@ test("creates a collection of events, adds a weekly one, and shows it in calenda
   await sidebar(page, "Starts").fill(start);
   await sidebar(page, "Time").fill("19:30");
   // A select's label includes its options' text, so it's found by its accessible name.
-  await page
-    .locator(".gfa-editor")
-    .getByRole("combobox", { name: "Repeats" })
-    .filter({ visible: true })
-    .first()
-    .selectOption("week");
+  await editor(page).getByRole("combobox", { name: "Repeats" }).filter({ visible: true }).first().selectOption("week");
   await sidebar(page, "A date it doesn't happen").fill(skipped);
-  await page.locator(".gfa-editor").getByRole("button", { name: "Skip this date" }).filter({ visible: true }).click();
+  await editor(page).getByRole("button", { name: "Skip this date" }).filter({ visible: true }).click();
   // Its name includes its hint.
-  await page
-    .locator(".gfa-editor")
+  await editor(page)
     .getByRole("textbox", { name: /^Place/ })
     .filter({ visible: true })
     .first()
     .fill("Choir loft");
   await expect(
-    page
-      .locator(".gfa-editor")
+    editor(page)
       .getByText(/^Next: /)
       .filter({ visible: true }),
   ).toContainText("7:30 PM");

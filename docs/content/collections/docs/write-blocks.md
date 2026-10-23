@@ -54,6 +54,14 @@ export const MassTimes: ComponentConfig<MassTimesProps> = {
 - **No hooks in `render`**, other than `useSite()`: in Next.js, blocks render as Server Components. Interactive parts go in [Client Components](/docs/interactive-blocks).
 - **Labels for everyone:** fields' labels and options are for people who aren't developers: "Space above and below", not "padding-y".
 
+## In the editor
+
+The admin panel's own page, which signs editors in and publishes, never runs a block's code. Blocks run in the editor, which the admin panel shows in a frame sandboxed away from it, so no block can reach editors' sign-in or AI keys. The editor's previews, and the pages rendered to check a publish, run in frames like it. There, a block:
+
+- **Can't fetch anything**, or store anything in the browser: the frame's Content Security Policy refuses requests, and a sandboxed page has no storage. Work that needs the network belongs in `resolveData` when the site is built, as the Calendar block's feeds do, or in a Client Component, which runs on the live site's pages as usual.
+- **Shares the page with Puck's controls.** The site's CSS is kept to the canvas, and its media queries on the page's width become container queries on the canvas's, so the editor's **Phone** and **Tablet** buttons show the layout at those widths. Viewport units, such as `100vh`, still measure the editor's frame.
+- **Runs only the site's own scripts:** a block can't load a script from another address in the editor. On the live site, nothing changes.
+
 ## Blocks for collections
 
 In a collection's page design, Puck's `metadata` holds the item being shown (`metadata.entry`) and its collection (`metadata.collection`), for `resolveFields` and `resolveData`; `useSite().entry` has the item while rendering. Wrap blocks that only make sense there in `templateOnly()`, which leaves them out of the other editors.

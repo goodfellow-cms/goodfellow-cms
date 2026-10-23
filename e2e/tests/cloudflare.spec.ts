@@ -3,6 +3,7 @@ import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { fakeGitLab } from "@goodfellow-cms/gitlab/testing";
 import { expect, type Page, test } from "@playwright/test";
 import { files, GITHUB_SITE, GITLAB_SITE, routeToFake } from "./backends.js";
+import { editor } from "./helpers.js";
 
 /** The starter as a site Cloudflare Pages builds: its setup files in place of the other hosts', and a video. */
 function cloudflareFiles(git: "github" | "gitlab"): Record<string, string> {
@@ -24,9 +25,9 @@ function cloudflareFiles(git: "github" | "gitlab"): Record<string, string> {
 
 async function publishAbout(page: Page) {
   await page.getByRole("link", { name: "About us", exact: true }).click();
-  await page.frameLocator("iframe#preview-frame").getByRole("heading", { name: "About us" }).click();
-  await page.locator('.gfa-editor input[name="text"]:visible').fill("About our parish");
-  await page.locator(".gfa-editor").getByText("Publish", { exact: true }).click();
+  await editor(page).locator(".gf-canvas").first().getByRole("heading", { name: "About us" }).click();
+  await editor(page).locator('input[name="text"]:visible').fill("About our parish");
+  await page.locator(".gfa-editor-header").getByText("Publish", { exact: true }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
 }
 

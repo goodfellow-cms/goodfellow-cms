@@ -1,9 +1,9 @@
 import type { Page } from "@playwright/test";
-import { canvas, expect, publishInEditor, readJson, readSiteFile, test } from "./helpers.js";
+import { canvas, editor, expect, publishInEditor, readJson, readSiteFile, test } from "./helpers.js";
 
 /** A labelled field in Puck's right-hand panel. Puck renders hidden copies of fields, so only visible ones count. */
 function sidebarField(page: Page, label: string) {
-  return page.locator(".gfa-editor").getByLabel(label, { exact: true }).filter({ visible: true }).first();
+  return editor(page).getByLabel(label, { exact: true }).filter({ visible: true }).first();
 }
 
 test("builds a page for each item, and lists items on other pages", async ({ request }) => {
@@ -35,23 +35,27 @@ test("edits an item, previewing it with the collection's page design", async ({ 
 });
 
 test("the item editor shows only what items need, with a wider sidebar of its own", async ({ page }) => {
-  const rightSideBar = page.locator('[class*="_Sidebar--right_"]');
+  const rightSideBar = editor(page).locator('[class*="_Sidebar--right_"]');
   const sideBarWidth = async () => Math.round((await rightSideBar.boundingBox())?.width ?? 0);
+  const widths = (key: string) =>
+    page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "{}").rightSideBarWidth, key);
   await page.goto("/admin#/");
-  await page.evaluate(() => localStorage.setItem("puck-sidebar-widths", JSON.stringify({ right: 300 })));
+  await page.evaluate(() =>
+    localStorage.setItem("goodfellow-editor-sidebar-widths", JSON.stringify({ rightSideBarWidth: 300 })),
+  );
 
   await page.goto("/admin#/collections/news/edit?slug=welcome");
   await expect(canvas(page).getByRole("heading", { name: "Welcome to our new website" })).toBeVisible();
-  // No blocks to add or outline: only the AI assistant, which starts closed.
-  const nav = page.locator('.gfa-editor nav[class*="_Nav_"]');
-  await expect(nav.getByText("AI", { exact: true })).toBeVisible();
+  // No blocks to add or outline, and the AI assistant, outside the editor's frame, starts closed.
+  const nav = editor(page).locator('nav[class*="_Nav_"]');
+  await expect(page.locator(".gfa-editor-header").getByRole("button", { name: "AI", exact: true })).toBeVisible();
   await expect(nav.getByText("Blocks", { exact: true })).toBeHidden();
   await expect(nav.getByText("Outline", { exact: true })).toBeHidden();
   await expect(page.locator(".gfa-ai")).toBeHidden();
   await expect.poll(sideBarWidth).toBe(520);
 
   // Resizing it is remembered for items only.
-  const handle = page.locator('[class*="_ResizeHandle--right_"]');
+  const handle = editor(page).locator('[class*="_ResizeHandle--right_"]');
   const box = await handle.boundingBox();
   if (!box) throw new Error("No resize handle");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -59,14 +63,12 @@ test("the item editor shows only what items need, with a wider sidebar of its ow
   await page.mouse.move(box.x + box.width / 2 - 80, box.y + box.height / 2, { steps: 5 });
   await page.mouse.up();
   await expect.poll(sideBarWidth).toBe(600);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("goodfellow-entry-sidebar-width"))).toBe("600");
-  await expect
-    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("puck-sidebar-widths") ?? "{}").right))
-    .toBe(300);
+  await expect.poll(() => widths("goodfellow-entry-sidebar-widths")).toBe(600);
+  await expect.poll(() => widths("goodfellow-editor-sidebar-widths")).toBe(300);
 
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/about")}`);
   await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible();
-  await expect(page.locator('.gfa-editor nav[class*="_Nav_"]').getByText("Blocks", { exact: true })).toBeVisible();
+  await expect(editor(page).locator('nav[class*="_Nav_"]').getByText("Blocks", { exact: true })).toBeVisible();
   await expect.poll(sideBarWidth).toBe(300);
   await page.goto("/admin#/collections/news/edit?slug=welcome");
   await expect.poll(sideBarWidth).toBe(600);
@@ -163,7 +165,7 @@ test("edits the page design every item shares", async ({ page, request }) => {
   const button = canvas(page).getByRole("link", { name: "All news" });
   await expect(button).toBeVisible();
   await canvas(page).locator('[data-puck-component="Button-news"]').click();
-  await page.locator('.gfa-editor input[name="label"]:visible').first().fill("More news");
+  await editor(page).locator('input[name="label"]:visible').first().fill("More news");
   await expect(canvas(page).getByRole("link", { name: "More news" })).toBeVisible();
 
   await publishInEditor(page);
@@ -201,7 +203,7 @@ test("chooses which collection a list shows in the page editor", async ({ page }
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/news")}`);
   await expect(canvas(page).getByRole("link", { name: "Welcome to our new website" })).toBeVisible();
   await canvas(page).locator('[data-puck-component="CollectionList-news"]').click();
-  const sidebar = page.locator(".gfa-editor");
+  const sidebar = editor(page);
   // Puck's options name themselves with their label attribute.
   const options = (name: string) =>
     sidebar

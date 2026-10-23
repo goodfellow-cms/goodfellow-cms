@@ -64,7 +64,7 @@ The content still lives in the site's repository, so the site is still rebuilt w
 4. In `app/admin/page.tsx`, point the admin panel at it:
 
    ```tsx
-   <GoodfellowAdmin config={config} server="/api/goodfellow" />
+   <GoodfellowAdmin site={site.admin()} server="/api/goodfellow" />
    ```
 
 5. Give the server its token as `GOODFELLOW_GIT_TOKEN` in the host's environment variables:

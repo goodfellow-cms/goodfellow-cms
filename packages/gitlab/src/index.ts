@@ -3,6 +3,7 @@ import {
   credentialStorage,
   GitApiError,
   type GitHost,
+  hostSource,
   type ServerGit,
   type ServerGitOptions,
   SignInError,
@@ -229,6 +230,7 @@ export function gitlab(options: GitLabOptions): GitHost {
 
   return {
     name: "GitLab",
+    source: hostSource("@goodfellow-cms/gitlab", "gitlab", options, ["fetch", "storage", "location"]),
     canRedirect: Boolean(options.clientId),
     redirectAddressesListed: Boolean(options.clientId),
     tokenLinks: [

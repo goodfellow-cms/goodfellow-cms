@@ -274,13 +274,11 @@ export function GET(request: Request) {
   });
 }
 `,
-  "app/admin/page.tsx": `"use client";
-
-import { GoodfellowAdmin } from "@goodfellow-cms/next/admin";
-import config from "@/goodfellow.config";
+  "app/admin/page.tsx": `import { GoodfellowAdmin } from "@goodfellow-cms/next/admin";
+import { site } from "@/lib/site";
 
 export default function AdminPage() {
-  return <GoodfellowAdmin config={config} server="/api/goodfellow" />;
+  return <GoodfellowAdmin site={site.admin()} server="/api/goodfellow" />;
 }
 `,
 };

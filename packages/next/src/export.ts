@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import {
@@ -6,6 +7,8 @@ import {
   CLOUDFLARE_REDIRECTS_PATH,
   calendarFiles,
   cloudflareRedirects,
+  EDITOR_PRELUDE,
+  editorPolicy,
   FEEDS_DIR,
   feedFiles,
   hasLanguages,
@@ -146,6 +149,40 @@ export async function fixSegmentFiles(outDir: string): Promise<number> {
   }
   await visit(outDir);
   return moved;
+}
+
+/** Where the editor's frames' page is in an export, and in a full-stack site's build. */
+export const EDITOR_PAGES = ["admin/editor/index.html", "admin/editor.html"];
+
+function scriptHash(text: string): string {
+  return `sha256-${createHash("sha256").update(text).digest("base64")}`;
+}
+
+/**
+ * Gives the editor's frames' page (`app/admin/editor/`) its Content Security
+ * Policy and first script, which removes WebRTC, as the first things in its
+ * head, so they apply before anything Next.js put there. The policy runs only
+ * the site's own scripts, Next.js's inline ones by their hashes, and fetches
+ * nothing (`editorPolicy()`). Returns whether it found the page.
+ */
+export async function writeEditorPolicy(dir: string): Promise<boolean> {
+  let found = false;
+  for (const name of EDITOR_PAGES) {
+    const file = join(dir, name);
+    const html = await readFile(file, "utf8").catch(() => undefined);
+    if (html === undefined || html.includes('http-equiv="Content-Security-Policy"')) continue;
+    const inline = [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
+      (match) => match[1] ?? "",
+    );
+    const policy = editorPolicy({ scriptHashes: [EDITOR_PRELUDE, ...inline].map(scriptHash), blobScripts: true });
+    const head = `<meta http-equiv="Content-Security-Policy" content="${policy}"/><script>${EDITOR_PRELUDE}</script>`;
+    await writeFile(
+      file,
+      html.replace(/<head([^>]*)>/, (open) => `${open}${head}`),
+    );
+    found = true;
+  }
+  return found;
 }
 
 /** Says a page's language on its `<html>`, in place of the root layout's. */

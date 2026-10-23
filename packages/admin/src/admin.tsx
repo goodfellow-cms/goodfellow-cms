@@ -1,10 +1,10 @@
 import {
+  type AdminSite,
   COLLECTIONS_DIR,
   ContentError,
   type ContentStore,
   FOOTER_FILE,
   type GitHost,
-  type GoodfellowConfig,
   HEADER_FILE,
 } from "@goodfellow-cms/core";
 import { useMemo, useState } from "react";
@@ -22,6 +22,7 @@ import { DomainScreen } from "./domain-screen.js";
 import { LayoutEditorScreen, PageEditorScreen } from "./editor-screens.js";
 import { EditorsScreen } from "./editors-screen.js";
 import { EntryEditorScreen } from "./entry-editor.js";
+import type { FrameSource } from "./frame/host.js";
 import { ImportScreen } from "./import-screen.js";
 import { MediaScreen } from "./media-library.js";
 import { PagesScreen } from "./pages-screen.js";
@@ -38,15 +39,21 @@ import { AppLink } from "./use-link.js";
 import { VersionsScreen } from "./versions-screen.js";
 
 export interface AdminProps {
-  /** The site's `goodfellow.config.tsx`. */
-  config: GoodfellowConfig;
+  /**
+   * What the admin panel knows about the site, made from its config where the
+   * config is loaded (`adminSite()` in `@goodfellow-cms/react`): the admin
+   * panel's own page never loads the config, whose blocks run in sandboxed frames.
+   */
+  site: AdminSite;
+  /** Where those frames are loaded from. */
+  frames: FrameSource;
   /**
    * Where the site's files are read from and published to, without signing in.
    * Used by `goodfellow dev`. Otherwise the admin panel signs in to `host`. In a
    * demo (the config's `demo`), it's only read from, and changes stay in the browser.
    */
   store?: ContentStore;
-  /** The git host the site is stored on. Defaults to the config's `backend`. */
+  /** The git host the site is stored on, made from `site.backend`. */
   host?: GitHost;
   /**
    * The address of a full-stack site's API for the admin panel, such as
@@ -326,22 +333,10 @@ function MissingBackend() {
 }
 
 /** The admin panel. Render it on its own page, such as `/admin`. */
-export function Admin({
-  config,
-  store,
-  host = config.backend,
-  server,
-  preview,
-  siteUrl = "/",
-  strings,
-  registry,
-}: AdminProps) {
+export function Admin({ site, frames, store, host, server, preview, siteUrl = "/", strings, registry }: AdminProps) {
   // Light or dark everywhere, signing in included.
   useApplyThemeChoice();
-  const demo = useMemo(
-    () => (config.demo ? createDemoStore(siteUrl, store) : undefined),
-    [config.demo, siteUrl, store],
-  );
+  const demo = useMemo(() => (site.demo ? createDemoStore(siteUrl, store) : undefined), [site.demo, siteUrl, store]);
   // In a demo, "Published." would mislead: the changes are only saved in the browser.
   const text = useMemo(
     () =>
@@ -350,21 +345,26 @@ export function Admin({
   );
   // The page tools such as the Claude connector take screenshots of drafts with; it signs nobody in.
   if (typeof location !== "undefined" && isPreviewAddress(location.hash)) {
-    return <SitePreview config={config} preview={preview} />;
+    return (
+      <StringsProvider strings={text}>
+        <SitePreview frames={frames} preview={preview} siteUrl={siteUrl} />
+      </StringsProvider>
+    );
   }
   const body = demo ? (
-    <AdminProvider config={config} store={demo} preview={preview} siteUrl={siteUrl} registry={registry}>
+    <AdminProvider site={site} frames={frames} store={demo} preview={preview} siteUrl={siteUrl} registry={registry}>
       <Shell />
     </AdminProvider>
   ) : store ? (
-    <AdminProvider config={config} store={store} preview={preview} siteUrl={siteUrl} registry={registry}>
+    <AdminProvider site={site} frames={frames} store={store} preview={preview} siteUrl={siteUrl} registry={registry}>
       <Shell />
     </AdminProvider>
   ) : server ? (
     <AppSignInGate api={server}>
       {(backend, session, signOut) => (
         <AdminProvider
-          config={config}
+          site={site}
+          frames={frames}
           store={backend}
           account={{
             user: backend.user,
@@ -394,7 +394,8 @@ export function Admin({
     <SignInGate host={host}>
       {(backend, signOut) => (
         <AdminProvider
-          config={config}
+          site={site}
+          frames={frames}
           store={backend}
           account={{
             user: backend.user,

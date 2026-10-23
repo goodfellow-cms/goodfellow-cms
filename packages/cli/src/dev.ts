@@ -23,7 +23,14 @@ import {
 } from "@goodfellow-cms/core/node";
 import react from "@vitejs/plugin-react";
 import { createServer, type Plugin, type ViteDevServer } from "vite";
-import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
+import {
+  ADMIN_ENTRY,
+  adminEntryPlugin,
+  adminHtml,
+  DEV_ADMIN_SITE_PATH,
+  EDITOR_PATH,
+  editorHtml,
+} from "./admin-entry.js";
 import { type ClientModules, ISLANDS_DEV_URL } from "./islands.js";
 import {
   baseViteConfig,
@@ -178,6 +185,13 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
       // Runs after Vite's own middleware, so modules, assets and public/ files are served first.
       return () => {
         server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+          if (req.url === DEV_ADMIN_SITE_PATH) {
+            const { admin } = await loadServerEntry(server);
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-cache");
+            res.end(JSON.stringify(admin()));
+            return;
+          }
           if (await handleDevApi(store, req, res, { registryDir })) return;
           if (req.method !== "GET" && req.method !== "HEAD") return next();
           const url = new URL(req.url ?? "/", "http://localhost");
@@ -191,6 +205,11 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
             );
             const html = adminHtml({ scripts: [`/@id/__x00__${ADMIN_ENTRY}`], ...(icon && { icon }) });
             res.end(await server.transformIndexHtml("/admin", html));
+            return;
+          }
+          // The editor's frames, which run the site's config, Puck and every block.
+          if (url.pathname === `/${EDITOR_PATH}`) {
+            res.end(await server.transformIndexHtml(url.pathname, editorHtml()));
             return;
           }
           if (url.pathname === `/${SITE_DESCRIPTION_PATH}`) {

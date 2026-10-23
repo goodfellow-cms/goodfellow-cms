@@ -5,7 +5,7 @@ import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { expect as baseExpect, test as baseTest, type Page } from "@playwright/test";
 import { nextSite, resetNextContent, site } from "../scripts/site.mjs";
 import { files, GITHUB_SITE, routeToFake } from "./backends.js";
-import { test, waitForCode, writeSiteFile } from "./helpers.js";
+import { canvas, editor, test, waitForCode, writeSiteFile } from "./helpers.js";
 
 // Adding a block rebuilds the dev server's modules, so allow for that.
 const expect = baseExpect.configure({ timeout: 30_000 });
@@ -65,7 +65,7 @@ test("adds a block from Goodfellow's registry, which the editor then offers and 
 
   // The editor offers it, in its own group.
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/about")}`);
-  await expect(page.locator(".gfa-editor").getByText("FAQ", { exact: true }).first()).toBeVisible();
+  await expect(editor(page).getByText("FAQ", { exact: true }).first()).toBeVisible();
 
   // And it runs on the site: answers open when their question is clicked.
   writeSiteFile("content/pages/help.json", `${JSON.stringify(faqPage, null, 2)}\n`);
@@ -118,20 +118,12 @@ test("runs custom HTML used as written on the site, but only in a sandboxed fram
 
   await page.goto("/admin#/");
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/widget")}`);
-  const frame = page.frameLocator("iframe#preview-frame").frameLocator('iframe[title="Custom HTML"]');
+  const frame = canvas(page).frameLocator('iframe[title="Custom HTML"]');
   await expect(frame.locator("#widget")).toHaveText("Ran 1");
-  await expect(page.frameLocator("iframe#preview-frame").locator('iframe[title="Custom HTML"]')).toHaveAttribute(
-    "sandbox",
-    "allow-scripts",
-  );
+  await expect(canvas(page).locator('iframe[title="Custom HTML"]')).toHaveAttribute("sandbox", "allow-scripts");
   // Its script couldn't reach the editor.
   expect(await page.title()).not.toBe("Reached");
-  expect(
-    await page
-      .frameLocator("iframe#preview-frame")
-      .locator("body")
-      .evaluate((body) => body.ownerDocument.title),
-  ).not.toBe("Reached");
+  expect(await canvas(page).evaluate((element: Element) => element.ownerDocument.title)).not.toBe("Reached");
 });
 
 test("won't remove a block that's in use, and removes it once it isn't", async ({ page }) => {
@@ -155,7 +147,10 @@ test("won't remove a block that's in use, and removes it once it isn't", async (
   await publishBlocks(page);
   await expect.poll(() => onDisk("blocks/installed/shadcn-faq/block.tsx")).toBe(false);
   expect(onDisk("components/ui/accordion.tsx")).toBe(false);
-  expect(readFileSync(join(site as string, "blocks/installed/index.ts"), "utf8")).not.toContain("shadcn-faq");
+  // The index is written after the block's files are removed.
+  await expect
+    .poll(() => readFileSync(join(site as string, "blocks/installed/index.ts"), "utf8"))
+    .not.toContain("shadcn-faq");
 });
 
 // The built site's admin panel installs from the registry's release on jsDelivr; tests serve the built registry instead.

@@ -3,6 +3,7 @@ import { type ContentSource, type GoodfellowConfig, loadSiteContent } from "@goo
 import type { ComponentConfig } from "@puckeditor/core";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
+import { localSiteCode } from "./frame/local-code.js";
 import { checkPublish, describeProblem } from "./site-checks.js";
 import { defaultStrings, type StringKey } from "./strings.js";
 
@@ -56,7 +57,7 @@ describe("checkPublish on rendered pages", () => {
           ]),
         },
       ],
-      config,
+      { blocks: config.blocks, code: localSiteCode(config) },
     );
     expect(checks.blocking).toEqual([]);
     expect(checks.warnings.map((problem) => describeProblem(t, checks.content, problem))).toEqual([

@@ -34,6 +34,7 @@ import {
   exportedPages,
   fixSegmentFiles,
   writeCalendarFiles,
+  writeEditorPolicy,
   writeFeedFiles,
   writePageLanguages,
   writeRedirectFiles,
@@ -45,6 +46,8 @@ const [command, dir = "out"] = process.argv.slice(2);
 // serve as static files, as they are for an export.
 if (command === "finish" && dir === "--server") {
   for (const folder of await buildFileFolders()) await rm(`public/${folder}`, { recursive: true, force: true });
+  // The editor's frames' page, which next start serves as it was rendered.
+  await writeEditorPolicy(".next/server/app");
   const calendars = await writeCalendarFiles("public");
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files, in public/calendars`);
   const feeds = await writeFeedFiles("public");
@@ -172,6 +175,7 @@ if (command !== "finish" && command !== "index") {
 let problems = [];
 if (command === "finish") {
   const moved = await fixSegmentFiles(dir);
+  await writeEditorPolicy(dir);
   if (moved > 0) console.log(`Moved ${moved} of Next.js's prefetch files to where browsers look for them`);
   const calendars = await writeCalendarFiles(dir);
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files`);

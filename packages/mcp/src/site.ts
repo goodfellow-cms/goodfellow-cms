@@ -4,6 +4,7 @@
  * blocks it has, since the connector doesn't have the site's code.
  */
 import {
+  describedConfig,
   type GitBackend,
   GOODFELLOW_VERSION,
   parseSiteDescription,
@@ -61,25 +62,6 @@ export interface OpenedSite {
   versionProblem?: string;
 }
 
-function configFrom(description: SiteDescription, templates: boolean): Config {
-  return {
-    components: Object.fromEntries(
-      Object.entries(description.blocks)
-        .filter(([, block]) => templates || !block.templateOnly)
-        .map(([name, block]) => [
-          name,
-          {
-            ...(block.label && { label: block.label }),
-            fields: block.fields,
-            ...(block.defaultProps && { defaultProps: block.defaultProps }),
-            render: () => null,
-          },
-        ]),
-    ),
-    root: { fields: description.root.fields },
-  } as unknown as Config;
-}
-
 const VERSION_PROBLEMS = {
   "site-too-old": (site: string) =>
     `The site was built with Goodfellow ${site}, which is too old for Claude to change it. Ask the site's owner to update it on the admin panel's Updates screen; reading it still works.`,
@@ -114,8 +96,8 @@ export async function openSite(context: ConnectorContext, id: string): Promise<O
     settings,
     url,
     description,
-    pageConfig: configFrom(description, false),
-    templateConfig: configFrom(description, true),
+    pageConfig: describedConfig(description, "page"),
+    templateConfig: describedConfig(description, "template"),
     ...(problem && { versionProblem: VERSION_PROBLEMS[problem](description.goodfellow) }),
   };
 }

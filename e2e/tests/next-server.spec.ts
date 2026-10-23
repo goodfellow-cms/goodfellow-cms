@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { NEXT_SERVER } from "../scripts/site.mjs";
+import { editor } from "./helpers.js";
 
 const SITE = `http://localhost:${NEXT_SERVER.port}`;
 const GITHUB = `http://127.0.0.1:${NEXT_SERVER.github}`;
@@ -45,10 +46,10 @@ test("signs in with the site's own sign-in, and never sends the browser to GitHu
 test("publishes through the site's server, naming the editor as the author", async ({ page }) => {
   await signIn(page, "alice");
   await page.getByRole("link", { name: "About us", exact: true }).click();
-  const heading = page.frameLocator("iframe#preview-frame").getByRole("heading", { name: "About us" });
+  const heading = editor(page).locator(".gf-canvas").first().getByRole("heading", { name: "About us" });
   await heading.click();
-  await page.locator('.gfa-editor input[name="text"]:visible').fill("About our parish");
-  await page.locator(".gfa-editor").getByText("Publish", { exact: true }).click();
+  await editor(page).locator('input[name="text"]:visible').fill("About our parish");
+  await page.locator(".gfa-editor-header").getByText("Publish", { exact: true }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
 
   const [commit] = await github<Array<{ commit: { message: string; author: { name: string; email?: string } } }>>(
@@ -120,8 +121,8 @@ test("refuses requests from other sites", async ({ request }) => {
 test("writes with the site's AI service and key, which the browser never has", async ({ page }) => {
   await signIn(page, "alice");
   await page.getByRole("link", { name: "About us", exact: true }).click();
-  await expect(page.frameLocator("iframe#preview-frame").getByRole("heading", { name: "About us" })).toBeVisible();
-  await page.locator(".gfa-editor").getByText("AI", { exact: true }).first().click();
+  await expect(editor(page).locator(".gf-canvas").first().getByRole("heading", { name: "About us" })).toBeVisible();
+  await page.locator(".gfa-editor-header").getByRole("button", { name: "AI", exact: true }).first().click();
   const panel = page.locator(".gfa-ai");
   await expect(panel.getByRole("heading", { name: "Write with AI" })).toBeVisible();
 
@@ -133,7 +134,7 @@ test("writes with the site's AI service and key, which the browser never has", a
   await panel.getByLabel("What should it write?").fill("A heading");
   await panel.getByRole("button", { name: "Write it" }).click();
   await expect(
-    page.frameLocator("iframe#preview-frame").getByRole("heading", { name: "Written by the site's AI" }),
+    editor(page).locator(".gf-canvas").first().getByRole("heading", { name: "Written by the site's AI" }),
   ).toBeVisible();
   expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain(
     NEXT_SERVER.aiKey,

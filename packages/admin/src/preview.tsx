@@ -1,7 +1,8 @@
 import { COLOR_SCHEME_ATTRIBUTE, escapeStyleText, googleFontsUrl, type Theme, themeToCss } from "@goodfellow-cms/core";
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { type PreviewOptions, useAdmin } from "./admin-context.js";
+import { type FrameClient, useFrame, useFrameUpdates } from "./frame/host.js";
+import type { RenderShow } from "./frame/protocol.js";
 import { type MediaPreviews, showMediaInPreview } from "./media-previews.js";
 import { useDarkMode } from "./theme.js";
 
@@ -110,30 +111,36 @@ export function usePreviewStyles(doc: Document | null | undefined, styles: Previ
 }
 
 const FRAME_WIDTH = 1280;
-const EMPTY_DOCUMENT =
-  '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>';
 
 /**
  * A scaled-down, read-only view of a page as it will look on a desktop screen,
- * rendered into an isolated iframe so the site's styles and the admin panel's don't mix.
+ * rendered by the site's code in a sandboxed frame of its own, so the site's
+ * styles and the admin panel's don't mix and its blocks can't reach the admin panel.
  */
 export function PreviewFrame({
   title,
-  styles,
+  show,
   media,
-  children,
 }: {
   title: string;
-  styles: PreviewStyles;
+  /** The page to show: the one at `path` in `content`. */
+  show: RenderShow | undefined;
   /** Where the preview's media comes from, if not the site as it is now. */
   media?: MediaPreviews;
-  children: ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const [doc, setDoc] = useState<Document | null>(null);
   const [scale, setScale] = useState(0.5);
   const [height, setHeight] = useState(800);
-  usePreviewStyles(doc, styles, media);
+  const latest = useRef(show);
+  latest.current = show;
+  const onConnect = useCallback(async (client: FrameClient) => {
+    if (latest.current) await client.call("render.show", latest.current);
+  }, []);
+  const { client, frameProps } = useFrame({ mode: "render", onConnect, ...(media && { media }) });
+  useFrameUpdates(client);
+  useEffect(() => {
+    if (client && show) void client.call("render.show", show).catch(() => {});
+  }, [client, show]);
 
   useEffect(() => {
     const element = container.current;
@@ -160,11 +167,9 @@ export function PreviewFrame({
     <div ref={container} className="gfa-preview">
       <iframe
         title={title}
-        srcDoc={EMPTY_DOCUMENT}
-        onLoad={(event) => setDoc(event.currentTarget.contentDocument)}
+        {...frameProps}
         style={{ width: FRAME_WIDTH, height: height / scale, transform: `scale(${scale})` }}
       />
-      {doc && createPortal(children, doc.body)}
     </div>
   );
 }

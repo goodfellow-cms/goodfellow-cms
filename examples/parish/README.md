@@ -127,7 +127,7 @@ Upload images and files, such as the weekly bulletin, on the admin panel's **Med
 
 ## Writing with AI
 
-The admin panel's **AI** tab can draft pages, rewrite blocks and fill in events and news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellow-cms.github.io/goodfellow-cms/docs/configuration).
+The editor's **AI** panel can draft pages, rewrite blocks and fill in events and news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellow-cms.github.io/goodfellow-cms/docs/configuration).
 
 ## Publishing
 

@@ -2,6 +2,7 @@ import {
   type FileChange,
   type RepositoryVisibility,
   type Schedule,
+  type ScheduledBuilds,
   type ScheduledBuildTiming,
   type SiteContent,
   scheduleProblem,
@@ -58,6 +59,14 @@ const infoCache = new WeakMap<object, Promise<ScheduleInfo>>();
 /** When scheduled changes go live on this site, and who can read the repository, once the backend has said. */
 export function useScheduleInfo(): ScheduleInfo {
   const { scheduledBuilds, repositoryVisibility } = useAdmin();
+  return useScheduleInfoOf(scheduledBuilds, repositoryVisibility);
+}
+
+/** `useScheduleInfo()` for a backend's own. */
+export function useScheduleInfoOf(
+  scheduledBuilds: Pick<ScheduledBuilds, "timing"> | undefined,
+  repositoryVisibility: (() => Promise<RepositoryVisibility>) | undefined,
+): ScheduleInfo {
   const [info, setInfo] = useState<ScheduleInfo>({});
   useEffect(() => {
     if (!scheduledBuilds && !repositoryVisibility) return;

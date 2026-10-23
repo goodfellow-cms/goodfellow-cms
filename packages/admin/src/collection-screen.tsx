@@ -211,7 +211,7 @@ function MoveEntryDialog({
   onClose: () => void;
 }) {
   const t = useStrings();
-  const { config, publish } = useAdmin();
+  const { blocks, publish } = useAdmin();
   const { content } = useSiteContent();
   const [slug, setSlug] = useState(entry.slug);
   const [submitted, setSubmitted] = useState(false);
@@ -238,7 +238,7 @@ function MoveEntryDialog({
     if (check.slug === entry.slug) return onClose();
     setBusy(true);
     const result = await publish(
-      moveEntryChanges(content, collection, entry, check.slug, check.path, config.blocks),
+      moveEntryChanges(content, collection, entry, check.slug, check.path, blocks),
       t("moveEntry.message", {
         entry: inSentence(collection.settings.entryName),
         title,

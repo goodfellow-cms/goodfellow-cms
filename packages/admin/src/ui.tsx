@@ -131,3 +131,13 @@ export function PublishedNotice({ onHide }: { onHide: () => void }) {
     </p>
   );
 }
+
+/** `value`, once it's stayed the same for `ms`: for work too slow to do on every keystroke, such as previews. */
+export function useDebounced<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return settled;
+}

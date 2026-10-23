@@ -95,7 +95,7 @@ function NewPageDialog({ onClose }: { onClose: () => void }) {
 
 function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) {
   const t = useStrings();
-  const { config, publish } = useAdmin();
+  const { blocks, publish } = useAdmin();
   const { content } = useSiteContent();
   const owner = useCanChangeSettings();
   const [address, setAddress] = useState(page.path);
@@ -118,7 +118,7 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
     if (check.path === page.path) return onClose();
     setBusy(true);
     const result = await publish(
-      movePageChanges(content, page, check.path, { blocks: config.blocks, redirect }),
+      movePageChanges(content, page, check.path, { blocks, redirect }),
       t("movePage.message", { title, from: page.path, to: check.path }),
     );
     setBusy(false);

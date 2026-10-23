@@ -137,7 +137,7 @@ function publishMessage(t: Translate, pending: Pending[]): string {
  */
 export function BlocksScreen() {
   const t = useStrings();
-  const { config, registries, readFile, publish, demo } = useAdmin();
+  const { blocks, registries, readFile, publish, demo } = useAdmin();
   const { content, revision } = useSiteContent();
   const [record, setRecord] = useState<InstalledRecord>();
   const [available, setAvailable] = useState<AvailableBlock[]>();
@@ -206,7 +206,7 @@ export function BlocksScreen() {
         fetchJson,
         readFile,
         record,
-        blocks: Object.keys(config.blocks),
+        blocks: Object.keys(blocks),
         content,
       });
       const result = await publish(plan.changes, publishMessage(t, pending));

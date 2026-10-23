@@ -5,6 +5,7 @@
  * Builds write it to `SITE_DESCRIPTION_PATH`; `describeSite()` in
  * `@goodfellow-cms/react` makes it from the site's config.
  */
+import type { Config } from "@puckeditor/core";
 import { z } from "zod";
 import { type ContentKind, CURRENT_VERSION } from "./migrations/index.js";
 
@@ -38,6 +39,31 @@ export interface SiteDescription {
   blocks: Record<string, BlockDescription>;
   /** What the site's config lets Claude do (`GoodfellowConfig.claude`), when it's less than everything. */
   claude?: { publish?: boolean };
+}
+
+/**
+ * Puck's config as far as a description tells, for code that needs blocks'
+ * fields but not their code, such as finding links: the blocks for pages, the
+ * header and footer (`layout`, without page settings), or collections' templates.
+ * Blocks render nothing.
+ */
+export function describedConfig(description: SiteDescription, kind: "page" | "layout" | "template"): Config {
+  return {
+    components: Object.fromEntries(
+      Object.entries(description.blocks)
+        .filter(([, block]) => kind === "template" || !block.templateOnly)
+        .map(([name, block]) => [
+          name,
+          {
+            ...(block.label && { label: block.label }),
+            fields: block.fields,
+            ...(block.defaultProps && { defaultProps: block.defaultProps }),
+            render: () => null,
+          },
+        ]),
+    ),
+    root: { fields: kind === "layout" ? {} : description.root.fields },
+  } as unknown as Config;
 }
 
 const record = z.record(z.string(), z.unknown());

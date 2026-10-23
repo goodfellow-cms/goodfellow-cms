@@ -33,6 +33,7 @@ export {
   type RenderOptions,
 } from "./prepare.js";
 export {
+  adminSite,
   classNameField,
   createPuckConfig,
   describeSite,

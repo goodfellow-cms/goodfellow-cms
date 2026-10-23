@@ -1,4 +1,10 @@
-import { CURRENT_VERSION, GOODFELLOW_VERSION, type GoodfellowConfig, type SiteDescription } from "@goodfellow-cms/core";
+import {
+  type AdminSite,
+  CURRENT_VERSION,
+  GOODFELLOW_VERSION,
+  type GoodfellowConfig,
+  type SiteDescription,
+} from "@goodfellow-cms/core";
 import type { ComponentConfig, Config, Fields, TextField } from "@puckeditor/core";
 import type { ReactNode } from "react";
 
@@ -154,5 +160,21 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
       }),
     ),
     ...(config.claude?.publish === false && { claude: { publish: false } }),
+  };
+}
+
+/**
+ * What the admin panel's own page needs to know about the site, which never
+ * loads its config: its blocks' fields, and how to make its git host again.
+ * Made wherever the config is loaded anyway, such as `goodfellow build` or a
+ * Next.js server component.
+ */
+export function adminSite(config: GoodfellowConfig): AdminSite {
+  return {
+    description: describeSite(config),
+    ...(config.backend?.source && { backend: config.backend.source }),
+    ...(config.demo && { demo: true }),
+    ...(config.ai !== undefined && { ai: config.ai }),
+    ...(config.registries && { registries: config.registries }),
   };
 }

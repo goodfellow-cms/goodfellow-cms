@@ -26,7 +26,8 @@ The News page and its stories are an example of a collection: a group of similar
 | `app/(site)/layout.tsx` | The site's header and footer, shown once around every page, so they stay as they are when moving between pages |
 | `app/(site)/[[...path]]/page.tsx` | Every page in `content/`, rendered as Server Components. Links between pages use `next/link`, and images `next/image`. |
 | `app/not-found.tsx` | The site's "Page not found" page, `content/pages/404.json` |
-| `app/admin/page.tsx` | The admin panel |
+| `app/admin/page.tsx` | The admin panel, which knows the site's blocks only by their fields |
+| `app/admin/editor/page.tsx` | The editor, where Puck and the site's blocks run, sandboxed in a frame of the admin panel |
 | `app/admin/demo-content.json/route.ts` | For a [demo](https://goodfellow-cms.github.io/goodfellow-cms/docs/demo-mode) (`demo: true` in the config), the copy of the content its admin panel starts from |
 | `app/site.css` | The site's styles: Tailwind, the theme, and the custom CSS from the admin panel |
 | `app/layout.tsx`, `app/sitemap.ts`, `app/robots.ts` | The page around everything, and files for search engines |
@@ -126,7 +127,7 @@ Upload images and files on the admin panel's **Media** screen, or with the **Cho
 
 ## Writing with AI
 
-The admin panel's **AI** tab can draft pages, rewrite blocks and fill in news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellow-cms.github.io/goodfellow-cms/docs/configuration).
+The editor's **AI** panel can draft pages, rewrite blocks and fill in news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellow-cms.github.io/goodfellow-cms/docs/configuration).
 
 ## Publishing
 

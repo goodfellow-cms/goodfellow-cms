@@ -1,153 +1,24 @@
-import {
-  allPages,
-  type Collection,
-  contentInLanguage,
-  type FileChange,
-  hasLanguages,
-  languageHome,
-  languageLinks,
-  mainLanguage,
-  type PageFile,
-  type PageView,
-  pageView,
-  pathLanguage,
-  serializeContent,
-  todayIn,
-} from "@goodfellow-cms/core";
-import {
-  type AdminLinkProps,
-  type AdminPlace,
-  cx,
-  mediaFieldKind,
-  type SiteContextValue,
-  SiteProvider,
-  siteMetadata,
-} from "@goodfellow-cms/react";
-import {
-  type Config,
-  type Data,
-  type FieldProps,
-  migrate,
-  type Plugin,
-  Puck,
-  Render,
-  registerOverlayPortal,
-  type UiState,
-} from "@puckeditor/core";
+/**
+ * The page, header, footer, template and item editors, in the admin panel's
+ * page. Puck and the site's blocks run in a sandboxed frame (`frame/editor.tsx`);
+ * this draws the editor's header around it, with Publish, which only this page
+ * can do, and the AI assistant, which keeps editors' keys out of the frame.
+ */
+import { type Collection, type FileChange, serializeContent } from "@goodfellow-cms/core";
+import { cx } from "@goodfellow-cms/react";
+import type { Config, Data, UiState } from "@puckeditor/core";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAdmin, useSiteContent } from "./admin-context.js";
-import { aiPlugin } from "./ai-panel.js";
+import { useAdmin } from "./admin-context.js";
+import { AiPanel } from "./ai-panel.js";
 import { storedData } from "./changes.js";
-import { MediaChooser } from "./media-library.js";
-import { usePreviewStyles } from "./preview.js";
-import { navigate, SETTINGS_SECTIONS, useUnsavedChanges } from "./router.js";
-import { SharePreview } from "./share-preview.js";
+import { type FrameClient, useFrame, useFrameUpdates } from "./frame/host.js";
+import type { EditorChange, EditorOpen, EditorState } from "./frame/protocol.js";
+import { useUnsavedChanges } from "./router.js";
 import { useStrings } from "./strings.js";
 import { Button, ErrorMessage, PublishedNotice } from "./ui.js";
 
-/** Pages and templates are shown between the header and footer; entries supply their own `config`. */
-export type EditorKind = "page" | "header" | "footer" | "template" | "entry";
-
-function Iframe({ children, document, site }: { children: ReactNode; document?: Document; site: SiteContextValue }) {
-  const { content } = useSiteContent();
-  const styles = useMemo(
-    () => ({ theme: site.settings.theme, customCss: content.customCss }),
-    [site, content.customCss],
-  );
-  usePreviewStyles(document, styles);
-  return <>{children}</>;
-}
-
-/** The site's header and footer, read-only, around a page's content, the way the live site shows them. */
-export function SiteFrame({
-  layoutConfig,
-  header,
-  footer,
-  site,
-  className,
-  children,
-}: {
-  layoutConfig: Config;
-  header: Data;
-  footer: Data;
-  site: SiteContextValue;
-  className?: string;
-  children: ReactNode;
-}) {
-  const metadata = siteMetadata(site);
-  return (
-    <>
-      {header.content.length > 0 && (
-        <header className="gf-header" inert>
-          <Render config={layoutConfig} data={header} metadata={metadata} />
-        </header>
-      )}
-      <main className={cx("gf-main", className)}>{children}</main>
-      {footer.content.length > 0 && (
-        <footer className="gf-footer" inert>
-          <Render config={layoutConfig} data={footer} metadata={metadata} />
-        </footer>
-      )}
-    </>
-  );
-}
-
-/**
- * Wraps the editor's canvas the way the live site wraps it, so custom CSS
- * targeting `.gf-header`, `.gf-main` or `.gf-footer` previews correctly. Pages
- * also show the site's header and footer, read-only, for context.
- */
-function editorConfig(
-  kind: EditorKind,
-  config: Config,
-  layoutConfig: Config,
-  header: Data,
-  footer: Data,
-  site: SiteContextValue,
-): Config {
-  const render =
-    kind === "page" || kind === "template"
-      ? ({ children, className }: { children?: ReactNode; className?: string }) => (
-          <SiteFrame layoutConfig={layoutConfig} header={header} footer={footer} site={site} className={className}>
-            {children}
-          </SiteFrame>
-        )
-      : ({ children }: { children?: ReactNode }) =>
-          kind === "header" ? (
-            <header className="gf-header">{children}</header>
-          ) : (
-            <footer className="gf-footer">{children}</footer>
-          );
-
-  return { ...config, root: { ...config.root, render } } as Config;
-}
-
-/** Puck's text field, with the media library's chooser below it for fields that hold a media address. */
-function TextFieldWithMedia({
-  field,
-  value,
-  onChange,
-  readOnly,
-  children,
-}: FieldProps<{ type: string; metadata?: unknown }> & { children: ReactNode }) {
-  const kind = mediaFieldKind(field);
-  if (!kind || readOnly) return <>{children}</>;
-  return (
-    <div className="gfa-media-puck-field">
-      {children}
-      <MediaChooser value={typeof value === "string" ? value : ""} kind={kind} onChange={(url) => onChange(url)} />
-    </div>
-  );
-}
-
-/** Where in the admin panel blocks' notes link to. */
-const ADMIN_PLACES: Record<AdminPlace, string> = {
-  settings: "#/settings/general",
-  "contact-settings": `#/settings/general?section=${SETTINGS_SECTIONS.contact}`,
-  "forms-settings": `#/settings/general?section=${SETTINGS_SECTIONS.forms}`,
-  "theme-settings": "#/settings/theme",
-  "language-settings": "#/settings/languages",
-};
+/** Pages and templates are shown between the header and footer; items show their page. */
+export type EditorKind = EditorOpen["kind"];
 
 export interface PuckEditorProps {
   kind: EditorKind;
@@ -157,8 +28,8 @@ export interface PuckEditorProps {
   data: Data;
   /** The collection whose template or entry is being edited. */
   collection?: Collection;
-  /** Replaces the Puck config `kind` would choose. */
-  config?: Config;
+  /** The item being edited, by its name, with `kind: "entry"`. */
+  entry?: string;
   /** Returns why `data` can't be published yet, as text to show, or `undefined` if it can. */
   validate?: (data: Data) => string | undefined;
   /** The changes that publish `data`, and the save's description. */
@@ -166,187 +37,132 @@ export interface PuckEditorProps {
   actions?: ReactNode;
   /** Shown above the editor, such as help for the screen. */
   notice?: ReactNode;
-  ui?: Partial<UiState>;
-  plugins?: Plugin[];
-  /**
-   * Gives the right sidebar its own width, remembered under `key`, instead of
-   * the width Puck shares between every editor.
-   */
-  rightSideBar?: { key: string; width: number };
   /** The language of the item being edited, on a site in several languages; pages' come from their address. */
   language?: string;
 }
 
-/** Where Puck remembers the sidebars' widths for every editor. */
-const PUCK_WIDTHS = "puck-sidebar-widths";
+/** Where the editors' sidebars' widths are remembered: items' fields have a wider one of their own. */
+const WIDTHS_KEY = "goodfellow-editor-sidebar-widths";
+const ENTRY_WIDTHS_KEY = "goodfellow-entry-sidebar-widths";
 
-function readStorage(key: string): string | null {
+type Widths = Pick<UiState, "leftSideBarWidth" | "rightSideBarWidth">;
+
+function readWidths(key: string): Partial<Widths> {
   try {
-    return localStorage.getItem(key);
+    const saved = JSON.parse(localStorage.getItem(key) ?? "{}") as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(saved).filter(
+        ([name, value]) =>
+          (name === "leftSideBarWidth" || name === "rightSideBarWidth") && typeof value === "number" && value > 0,
+      ),
+    );
   } catch {
-    return null;
+    return {};
   }
 }
 
-function writeStorage(key: string, value: string | null) {
+function writeWidths(key: string, widths: Partial<Widths>) {
   try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
+    localStorage.setItem(key, JSON.stringify(widths));
   } catch {
     // Without storage, widths just aren't remembered.
   }
 }
 
-/**
- * A right sidebar width of this editor's own: the one it was left at, or `width`.
- * Puck saves every resize as the width for all editors, so the shared setting is
- * put back afterwards.
- */
-function useOwnRightSideBar(own: PuckEditorProps["rightSideBar"]) {
-  const [initial] = useState(() => {
-    if (!own) return undefined;
-    const saved = Number(readStorage(own.key));
-    return Number.isFinite(saved) && saved > 0 ? saved : own.width;
-  });
-  const shared = useRef(readStorage(PUCK_WIDTHS));
-  const onAction = useCallback(
-    (action: { type: string; ui?: unknown }) => {
-      if (!own || action.type !== "setUi" || typeof action.ui !== "object" || action.ui === null) return;
-      const width = (action.ui as Partial<UiState>).rightSideBarWidth;
-      if (typeof width !== "number") return;
-      writeStorage(own.key, String(Math.round(width)));
-      // Puck saves the width right after this action; then the shared one goes back to what it was.
-      setTimeout(() => {
-        const saved = readStorage(PUCK_WIDTHS);
-        let widths: Record<string, unknown> = {};
-        try {
-          widths = saved ? JSON.parse(saved) : {};
-        } catch {}
-        let before: Record<string, unknown> = {};
-        try {
-          before = shared.current ? JSON.parse(shared.current) : {};
-        } catch {}
-        const { right: _ours, ...rest } = widths;
-        const restored = before.right === undefined ? rest : { ...rest, right: before.right };
-        writeStorage(PUCK_WIDTHS, Object.keys(restored).length > 0 ? JSON.stringify(restored) : null);
-      }, 0);
-    },
-    [own],
-  );
-  return { width: initial, onAction: own ? onAction : undefined };
-}
+/** The widths the editor previews pages at: the editor's own, a tablet's and a phone's. */
+const VIEWPORTS = [
+  { width: null, label: "editor.viewport.full" },
+  { width: 768, label: "editor.viewport.tablet" },
+  { width: 360, label: "editor.viewport.phone" },
+] as const;
 
-/** Puck, set up for one page, header, footer, template or entry: site context, live preview styles and publishing. */
+/** Puck in the site's frame, set up for one page, header, footer, template or item, with publishing. */
 export function PuckEditor({
   kind,
   path,
   title,
   data,
   collection,
-  config: customConfig,
+  entry,
   validate,
   toChanges,
   actions,
   notice,
-  ui,
-  plugins,
-  rightSideBar,
-  language: givenLanguage,
+  language,
 }: PuckEditorProps) {
   const t = useStrings();
-  const { config: siteConfig, pageConfig, layoutConfig, templateConfig, publish, reload } = useAdmin();
-  const { content: loaded } = useSiteContent();
-  // The site as the page's language shows it: its settings, menus, header, footer and items.
-  const language =
-    givenLanguage ?? (kind === "page" ? pathLanguage(loaded.settings, path) : mainLanguage(loaded.settings));
-  const content = useMemo(() => contentInLanguage(loaded, language), [loaded, language]);
-  // On a site in several languages, where the page's language switch goes.
-  const languages = useMemo(() => {
-    if (!hasLanguages(loaded.settings)) return undefined;
-    const page = kind === "page" ? allPages(loaded).find((candidate) => candidate.path === path) : undefined;
-    const home = loaded.pages.find((candidate) => candidate.path === "/");
-    const shown = page ?? home;
-    return shown ? languageLinks(loaded, shown) : undefined;
-  }, [loaded, kind, path]);
+  const { site, publish, reload } = useAdmin();
   const [status, setStatus] = useState<
     | { type: "idle" | "publishing" | "done" }
     | { type: "invalid"; message: string }
     | { type: "failed"; reason: "conflict" | "error"; error: unknown }
   >({ type: "idle" });
 
-  // Puck works with current data; files saved by older versions of Puck are upgraded first.
-  const initialData = useMemo(() => migrate(data), [data]);
+  // What's published, as the editor's frame opened it: files saved by older versions of Puck are upgraded there.
+  const published = useRef<string>(undefined);
+  const [state, setState] = useState<EditorState>();
+  const [config, setConfig] = useState<Config>();
+  const [viewport, setViewport] = useState<number | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const widthsKey = kind === "entry" ? ENTRY_WIDTHS_KEY : WIDTHS_KEY;
 
-  // Which block the page's added pages are for, as builds work it out, so the editor shows what the site will:
-  // only that block links to its other pages. It's worked out again as the page changes.
-  const viewOf = useCallback(
-    (next: Data): PageView | undefined =>
-      kind === "page" && path
-        ? pageView(
-            { path, file: "", content: { version: 1, data: storedData(next) } as PageFile },
-            content,
-            todayIn(content.settings.timeZone),
-            siteConfig.blocks,
-          )
-        : undefined,
-    [kind, path, content, siteConfig.blocks],
-  );
-  const [view, setView] = useState(() => viewOf(initialData));
-  const updateView = (next: Data) => {
-    const found = viewOf(next);
-    setView((current) => (current?.block === found?.block ? current : found));
-  };
-
-  // Blocks' notes link to where they're fixed. Their links are in the canvas, so they take clicks through
-  // Puck's overlay, and leave the editor the usual way, asking first about unpublished changes.
-  const confirmLeave = t("unsaved.confirm");
-  const adminLink = useCallback(
-    (place: AdminPlace): AdminLinkProps => {
-      const href = ADMIN_PLACES[place];
-      return {
-        href,
-        ref: (element) => registerOverlayPortal(element, { disableDrag: true }),
-        onClick: (event) => {
-          event.preventDefault();
-          navigate(href, () => window.confirm(confirmLeave));
-        },
-      };
-    },
-    [confirmLeave],
-  );
-
-  const site = useMemo<SiteContextValue>(
+  // What the frame opens with, and opens again with if it starts again, such as when the dev server reloads it.
+  const latest = useRef({ data, viewport });
+  latest.current.viewport = viewport;
+  const open = useMemo<EditorOpen>(
     () => ({
-      settings: content.settings,
-      menus: content.menus,
+      kind,
       path,
-      collections: content.collections,
-      collection,
-      ...(view && { view }),
-      ...(languages && { languages, home: languageHome(loaded, language) }),
-      adminLink,
+      title,
+      data,
+      ...(collection && { collection: collection.id }),
+      ...(entry && { entry }),
+      ...(language && { language }),
     }),
-    [content, loaded, language, path, collection, view, languages, adminLink],
+    [kind, path, title, data, collection, entry, language],
   );
-  const config = useMemo(
-    () =>
-      customConfig ??
-      editorConfig(
-        kind,
-        kind === "page" ? pageConfig : kind === "template" ? templateConfig : layoutConfig,
-        layoutConfig,
-        content.header.data as Data,
-        content.footer.data as Data,
-        site,
-      ),
-    [customConfig, kind, pageConfig, templateConfig, layoutConfig, content, site],
+  const onConnect = useCallback(
+    async (client: FrameClient) => {
+      client.on("editor.state", (next) => {
+        setState(next);
+        latest.current.data = next.data;
+        const { leftSideBarWidth, rightSideBarWidth } = next;
+        const widths = readWidths(widthsKey);
+        const changed =
+          (leftSideBarWidth && leftSideBarWidth !== widths.leftSideBarWidth) ||
+          (rightSideBarWidth && rightSideBarWidth !== widths.rightSideBarWidth);
+        if (changed) {
+          writeWidths(widthsKey, {
+            ...widths,
+            ...(leftSideBarWidth && { leftSideBarWidth: Math.round(leftSideBarWidth) }),
+            ...(rightSideBarWidth && { rightSideBarWidth: Math.round(rightSideBarWidth) }),
+          });
+        }
+      });
+      const opened = await client.call("editor.open", {
+        ...open,
+        data: latest.current.data,
+        ui: readWidths(widthsKey),
+      });
+      setConfig(opened.config);
+      published.current ??= serializeContent(storedData(opened.data));
+      if (latest.current.viewport) await client.call("editor.viewport", latest.current.viewport);
+    },
+    [open, widthsKey],
   );
+  const { client, failed, frameProps } = useFrame({ mode: "editor", onConnect });
+  useFrameUpdates(client);
 
-  const published = useRef(serializeContent(storedData(initialData)));
-  const [dirty, setDirty] = useState(false);
+  const dirty =
+    state !== undefined &&
+    published.current !== undefined &&
+    serializeContent(storedData(state.data)) !== published.current;
   useUnsavedChanges(dirty);
 
-  const onPublish = async (next: Data) => {
+  const onPublish = async () => {
+    if (!state || !client) return;
+    // As it is when Publish is pressed, even if the frame hasn't said so yet.
+    const next = await client.call("editor.data").catch(() => state.data);
     const problem = validate?.(next);
     if (problem) {
       setStatus({ type: "invalid", message: problem });
@@ -357,7 +173,6 @@ export function PuckEditor({
     const result = await publish(changes, message);
     if (result.ok) {
       published.current = serializeContent(storedData(next));
-      setDirty(false);
       setStatus({ type: "done" });
     } else if (result.reason === "checks") {
       setStatus({ type: "idle" });
@@ -374,55 +189,90 @@ export function PuckEditor({
   useEffect(() => {
     if (dirty) hidePublished();
   }, [dirty, hidePublished]);
-  const justPublished = status.type === "done";
 
-  const ownSideBar = useOwnRightSideBar(rightSideBar);
-  const puckUi = useMemo(
-    () => (ownSideBar.width ? { ...ui, rightSideBarWidth: ownSideBar.width } : ui),
-    [ui, ownSideBar.width],
+  const showViewport = (width: number | null) => {
+    setViewport(width);
+    void client?.call("editor.viewport", width);
+  };
+  const apply = useCallback(
+    async (change: EditorChange) => {
+      if (!client) throw new Error("The editor isn't ready.");
+      await client.call("editor.apply", change);
+    },
+    [client],
   );
-
-  const aiLabel = t("ai.label");
-  const allPlugins = useMemo(
-    () => [
-      ...(plugins ?? []),
-      ...(siteConfig.ai === false ? [] : [aiPlugin({ kind, path, title, collection, language }, aiLabel)]),
-    ],
-    [plugins, siteConfig.ai, kind, path, title, collection, language, aiLabel],
-  );
-
-  const overrides = useMemo(
-    () => ({
-      iframe: ({ children, document }: { children: ReactNode; document?: Document }) => (
-        <Iframe document={document} site={site}>
-          {children}
-        </Iframe>
-      ),
-      headerActions: ({ children }: { children: ReactNode }) => (
-        <div className="gfa-header-actions">
-          {actions}
-          {children}
-          {justPublished && <PublishedNotice onHide={hidePublished} />}
-        </div>
-      ),
-      fieldTypes: { text: TextFieldWithMedia },
-      // A page's own settings end with how links to it look when shared.
-      ...(kind === "page" &&
-        path && {
-          fields: ({ children, itemSelector }: { children: ReactNode; itemSelector?: unknown }) => (
-            <>
-              {children}
-              {!itemSelector && <SharePreview path={path} />}
-            </>
-          ),
-        }),
-    }),
-    [site, actions, justPublished, hidePublished, kind, path],
-  );
+  const aiOffered = site.ai !== false;
 
   return (
-    <div className={cx("gfa-editor", `gfa-editor-${kind}`, siteConfig.ai !== false && "gfa-editor-ai")}>
+    <div className={cx("gfa-editor", `gfa-editor-for-${kind}`)}>
       {notice && <div className="gfa-editor-notice">{notice}</div>}
+      <div className="gfa-editor-header">
+        <div className="gfa-editor-tools">
+          <Button
+            variant="ghost"
+            className="gfa-icon-button"
+            aria-pressed={state?.leftSideBarVisible ?? false}
+            title={t("editor.leftSidebar")}
+            aria-label={t("editor.leftSidebar")}
+            disabled={!state}
+            onClick={() => void client?.call("editor.ui", { leftSideBarVisible: !state?.leftSideBarVisible })}
+          >
+            <PanelIcon side="left" />
+          </Button>
+          <Button
+            variant="ghost"
+            className="gfa-icon-button"
+            aria-pressed={state?.rightSideBarVisible ?? false}
+            title={t("editor.rightSidebar")}
+            aria-label={t("editor.rightSidebar")}
+            disabled={!state}
+            onClick={() => void client?.call("editor.ui", { rightSideBarVisible: !state?.rightSideBarVisible })}
+          >
+            <PanelIcon side="right" />
+          </Button>
+        </div>
+        <h2 className="gfa-editor-title">
+          {title}
+          {(kind === "page" || kind === "entry") && path && (
+            <>
+              {" "}
+              <code>{path}</code>
+            </>
+          )}
+        </h2>
+        <fieldset className="gfa-editor-tools gfa-editor-viewports" aria-label={t("editor.viewport")}>
+          {VIEWPORTS.map((option) => (
+            <Button
+              key={option.label}
+              variant="ghost"
+              aria-pressed={viewport === option.width}
+              onClick={() => showViewport(option.width)}
+            >
+              {t(option.label)}
+            </Button>
+          ))}
+        </fieldset>
+        <div className="gfa-editor-tools">
+          <Button variant="ghost" disabled={!state?.past} onClick={() => void client?.call("editor.undo")}>
+            {t("action.undo")}
+          </Button>
+          <Button variant="ghost" disabled={!state?.future} onClick={() => void client?.call("editor.redo")}>
+            {t("action.redo")}
+          </Button>
+        </div>
+        <div className="gfa-header-actions">
+          {actions}
+          {aiOffered && (
+            <Button aria-pressed={aiOpen} onClick={() => setAiOpen(!aiOpen)}>
+              {t("ai.label")}
+            </Button>
+          )}
+          <Button variant="primary" disabled={!state || status.type === "publishing"} onClick={() => void onPublish()}>
+            {t("publish.button")}
+          </Button>
+          {status.type === "done" && <PublishedNotice onHide={hidePublished} />}
+        </div>
+      </div>
       {status.type !== "idle" && status.type !== "done" && (
         <div className="gfa-editor-status">
           {status.type === "publishing" && <p className="gfa-notice">{t("publish.publishing")}</p>}
@@ -447,28 +297,44 @@ export function PuckEditor({
           )}
         </div>
       )}
-      <div className="gfa-editor-puck">
-        <SiteProvider value={site}>
-          <Puck
-            config={config}
-            data={initialData}
-            metadata={siteMetadata(site)}
-            headerTitle={title}
-            headerPath={kind === "page" || kind === "entry" ? path : undefined}
-            height="100%"
-            iframe={{ syncHostStyles: false }}
-            ui={puckUi}
-            plugins={allPlugins}
-            onAction={ownSideBar.onAction}
-            overrides={overrides}
-            onChange={(next) => {
-              setDirty(serializeContent(storedData(next)) !== published.current);
-              updateView(next);
-            }}
-            onPublish={onPublish}
-          />
-        </SiteProvider>
+      <div className="gfa-editor-body">
+        {aiOpen && aiOffered && (
+          <aside className="gfa-editor-ai-panel" aria-label={t("ai.title")}>
+            {state && config ? (
+              <AiPanel
+                context={{ kind, path, title, collection, language }}
+                editor={{ data: state.data, selected: state.selected, config, apply }}
+              />
+            ) : (
+              <p className="gfa-hint">{t("loading")}</p>
+            )}
+          </aside>
+        )}
+        <div className="gfa-editor-frame-wrap">
+          {failed ? (
+            <ErrorMessage message={t("editor.failed")} />
+          ) : (
+            <iframe className="gfa-editor-frame" title={t("editor.frame", { title })} {...frameProps} />
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+function PanelIcon({ side }: { side: "left" | "right" }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d={side === "left" ? "M9 4v16" : "M15 4v16"} />
+    </svg>
   );
 }

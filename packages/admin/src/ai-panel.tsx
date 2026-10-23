@@ -29,18 +29,27 @@ import {
   type SiteContent,
   siteLanguages,
 } from "@goodfellow-cms/core";
-import { type ComponentData, createUsePuck, type Fields, type Plugin, useGetPuck } from "@puckeditor/core";
+import type { ComponentData, Config, Data, Fields } from "@puckeditor/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { allowedProviders, useAiSettings, useStockPhotoChoice } from "./ai-settings.js";
 import { mediaFileChange, pageTitle } from "./changes.js";
 import { inSentence } from "./collection-screen.js";
+import type { EditorChange } from "./frame/protocol.js";
 import { fileName, siteImages } from "./media.js";
 import { findStockPhotos, stockPhotoChanges } from "./stock-photos.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, ErrorMessage, Field, TextField } from "./ui.js";
 
-const usePuck = createUsePuck();
+/** What's being edited, as the editor's frame reports it, and a way to change it there. */
+export interface AiEditor {
+  data: Data;
+  selected: ComponentData | null;
+  /** Puck's config as JSON: the blocks' and settings' fields. */
+  config: Config;
+  /** Makes a change in the editor, where Undo can take it back. */
+  apply(change: EditorChange): Promise<void>;
+}
 
 /** Which editor the panel is in, which decides what it can do. */
 export interface AiContext {
@@ -271,20 +280,23 @@ function serviceName(id: ProviderId, t: ReturnType<typeof useStrings>): string {
   return PROVIDERS[id].name;
 }
 
-/** The AI panel: describe what to write, and it's added to the page, replaces the selected block, or fills in the fields. */
-function AiPanel({ context }: { context: AiContext }) {
+/**
+ * The AI panel: describe what to write, and it's added to the page, replaces
+ * the selected block, or fills in the fields. It's in the admin panel's own
+ * page, beside the editor's frame, so the site's blocks never see the editor's keys.
+ */
+export function AiPanel({ context, editor }: { context: AiContext; editor: AiEditor }) {
   const t = useStrings();
-  const { config, publish, mediaPreviews, account } = useAdmin();
+  const { site, publish, mediaPreviews, account } = useAdmin();
   const { content, media } = useSiteContent();
-  const getPuck = useGetPuck();
-  const selected = usePuck((state) => state.selectedItem);
+  const selected = editor.selected;
   const siteAi = account?.ai;
   const providers = useMemo(() => {
-    const allowed = allowedProviders(config.ai ? config.ai.providers : undefined);
+    const allowed = allowedProviders(site.ai ? site.ai.providers : undefined);
     // The services the site pays for come first, so editors start with one that needs no key.
     const paid = allowed.filter((id) => siteAi?.services.includes(id));
     return [...paid, ...allowed.filter((id) => !paid.includes(id))];
-  }, [config.ai, siteAi]);
+  }, [site.ai, siteAi]);
   const [chosen, updateSettings] = useAiSettings(providers);
   // Asked through the site's server, with its key, where it has one; otherwise with the editor's own.
   const settings = useMemo(
@@ -295,7 +307,7 @@ function AiPanel({ context }: { context: AiContext }) {
     [chosen, siteAi],
   );
   const [photosChosen, choosePhotos] = useStockPhotoChoice();
-  const photosOffered = !(config.ai && config.ai.stockPhotos === false);
+  const photosOffered = !(site.ai && site.ai.stockPhotos === false);
   const photosAllowed = photosOffered && photosChosen;
   const [instruction, setInstruction] = useState("");
   const [reply, setReply] = useState("");
@@ -306,7 +318,7 @@ function AiPanel({ context }: { context: AiContext }) {
   const mode: Mode = context.kind === "entry" ? "fill" : selected ? "edit" : "add";
   const service = serviceName(settings.provider, t);
   const blockName = (block: ComponentData | null) =>
-    block ? (getPuck().config.components[block.type]?.label ?? block.type) : "";
+    block ? (editor.config.components[block.type]?.label ?? block.type) : "";
   const itemName = inSentence(context.collection?.settings.entryName ?? "");
   const ready =
     settings.provider === "manual" ||
@@ -319,7 +331,8 @@ function AiPanel({ context }: { context: AiContext }) {
   useEffect(() => () => controller.current?.abort(), []);
 
   const taskFor = (text: string): AiTask => {
-    const { appState, config: puckConfig, selectedItem } = getPuck();
+    const { data, config: puckConfig, selected: selectedItem } = editor;
+    const appState = { data };
     if (mode === "fill") {
       return {
         kind: "fill",
@@ -346,43 +359,25 @@ function AiPanel({ context }: { context: AiContext }) {
   };
 
   /** Puts the AI's answer into the editor, where Undo can take it back. */
-  const apply = (task: AiTask, answer: unknown) => {
-    const { appState, config: puckConfig, dispatch, getSelectorForId } = getPuck();
+  const apply = async (task: AiTask, answer: unknown) => {
     if (task.kind === "fill") {
-      const values = toValues(answer, task.fields, task.values);
-      dispatch({ type: "replaceRoot", root: { ...appState.data.root, props: values } });
+      await editor.apply({ type: "root", props: toValues(answer, task.fields, task.values) });
       return;
     }
-    const blocks = toContent(answer, puckConfig, newId);
+    const blocks = toContent(answer, editor.config, newId);
     const [first] = blocks;
     if (!first) throw new AiError("answer", "The answer didn't contain any blocks that could be used.");
     if (task.kind === "translate") {
       const root = answer && typeof answer === "object" ? (answer as { root?: unknown }).root : undefined;
       const props = toValues({ values: root }, task.rootFields, task.root);
-      dispatch({
-        type: "setData",
-        data: (previous) => ({
-          ...previous,
-          root: { ...previous.root, props: { ...previous.root.props, ...props } },
-          content: blocks,
-        }),
-      });
+      await editor.apply({ type: "translate", props, content: blocks });
       return;
     }
     if (task.kind === "edit") {
-      const selector = getSelectorForId(task.block.props.id);
-      if (!selector) throw new AiError("answer", "The block being changed is no longer on the page.");
-      dispatch({
-        type: "replace",
-        destinationIndex: selector.index,
-        destinationZone: selector.zone,
-        // Puck replaces a block only if it keeps its id.
-        data: { ...first, props: { ...first.props, id: task.block.props.id } },
-        ui: { itemSelector: selector },
-      });
+      await editor.apply({ type: "replace", id: String(task.block.props.id), block: first });
       return;
     }
-    dispatch({ type: "setData", data: (previous) => ({ ...previous, content: [...previous.content, ...blocks] }) });
+    await editor.apply({ type: "append", blocks });
   };
 
   /**
@@ -431,7 +426,8 @@ function AiPanel({ context }: { context: AiContext }) {
   /** Translates the whole page, or every field of the item, into the page's language. */
   const translationTask = (): AiTask | undefined => {
     if (!translating) return undefined;
-    const { appState, config: puckConfig } = getPuck();
+    const { data, config: puckConfig } = editor;
+    const appState = { data };
     const named = `${translating.name} (${translating.code})`;
     if (context.kind === "entry") {
       return {
@@ -470,11 +466,7 @@ function AiPanel({ context }: { context: AiContext }) {
   };
 
   const runTask = async (task: AiTask) => {
-    const request: AiRequest = buildRequest(
-      task,
-      getPuck().config,
-      siteSummary(content, media, photosAllowed, language),
-    );
+    const request: AiRequest = buildRequest(task, editor.config, siteSummary(content, media, photosAllowed, language));
     if (settings.provider === "manual") {
       setReply("");
       setCopied(false);
@@ -493,7 +485,7 @@ function AiPanel({ context }: { context: AiContext }) {
       if (current.signal.aborted) return;
       const filled = await addPhotos(answer, current.signal);
       if (current.signal.aborted) return;
-      apply(task, filled.answer);
+      await apply(task, filled.answer);
       setStatus({ type: "done", photos: filled.photos });
     } catch (error) {
       if (current.signal.aborted) setStatus({ type: "idle" });
@@ -510,7 +502,7 @@ function AiPanel({ context }: { context: AiContext }) {
     try {
       const filled = await addPhotos(parseAnswer(reply), current.signal);
       if (current.signal.aborted) return;
-      apply(task, filled.answer);
+      await apply(task, filled.answer);
       setStatus({ type: "done", photos: filled.photos });
     } catch (error) {
       if (current.signal.aborted) setStatus({ type: "idle" });
@@ -673,31 +665,4 @@ function PhotoProblems({ report }: { report: PhotoReport }) {
   if (report.missing > 0)
     return <p className="gfa-notice">{t("ai.photos.missing", { count: String(report.missing) })}</p>;
   return null;
-}
-
-function SparkleIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      aria-hidden="true"
-    >
-      <path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z" strokeLinejoin="round" />
-      <path d="M19 15v4M17 17h4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/** The AI panel as a Puck plugin, shown in the editor's left-hand rail. */
-export function aiPlugin(context: AiContext, label: string): Plugin {
-  return {
-    name: "ai",
-    label,
-    icon: <SparkleIcon />,
-    render: () => <AiPanel context={context} />,
-  };
 }

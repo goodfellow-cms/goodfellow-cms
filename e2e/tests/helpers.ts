@@ -50,22 +50,29 @@ export function readJson(path: string): Record<string, unknown> {
   return JSON.parse(readSiteFile(path));
 }
 
-/** The editor's canvas: the page being edited, inside Puck's iframe. */
-export function canvas(page: Page) {
-  return page.frameLocator("iframe#preview-frame");
+/** The editor: Puck, the site's config and its blocks, in the frame sandboxed away from the admin panel's page. */
+export function editor(page: Page) {
+  return page.frameLocator("iframe.gfa-editor-frame");
 }
 
-/** Opens the editor for a page and waits for its canvas to show it. */
+/** The editor's canvas: the page being edited, which Puck draws in the editor's frame. */
+export function canvas(page: Page) {
+  return editor(page).locator(".gf-canvas").first();
+}
+
+/**
+ * Opens the editor for a page and waits for its canvas to show it. The frame
+ * starts Puck and the site's code in a page of its own, which a development
+ * server still starting other sites can take longer than the usual wait to serve.
+ */
 export async function openPageEditor(page: Page, path: string, heading: string) {
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent(path)}`);
-  await expect(canvas(page).getByRole("heading", { name: heading })).toBeVisible();
+  await expect(canvas(page).getByRole("heading", { name: heading })).toBeVisible({ timeout: 20_000 });
 }
 
 /** A field in Puck's right-hand panel. Puck renders hidden copies of fields, so only visible ones count. */
 export function field(page: Page, name: string) {
-  return page
-    .locator(`.gfa-editor input[name="${name}"]:visible, .gfa-editor textarea[name="${name}"]:visible`)
-    .first();
+  return editor(page).locator(`input[name="${name}"]:visible, textarea[name="${name}"]:visible`).first();
 }
 
 export async function publishInEditor(page: Page) {

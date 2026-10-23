@@ -1,5 +1,5 @@
 import { type FileChange, MEDIA_DIR, type PhotoCredit } from "@goodfellow-cms/core";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { withoutCredits } from "./changes.js";
 import { extensionOf, fileName, mediaKind, mediaPath, mediaUrl, mediaUsage, uploadName } from "./media.js";
@@ -459,6 +459,14 @@ export function MediaPickerDialog({
   );
 }
 
+/**
+ * Where choosing a file happens, where it isn't here: in the site's frames,
+ * the media library opens in the admin panel's own page, which can upload.
+ */
+export const MediaChoiceContext = createContext<
+  ((kind: MediaFieldKind, value: string) => Promise<string | null>) | undefined
+>(undefined);
+
 /** The picture of the chosen file and a button to choose another, shown with a field that holds a media address. */
 export function MediaChooser({
   value,
@@ -471,11 +479,16 @@ export function MediaChooser({
 }) {
   const t = useStrings();
   const [open, setOpen] = useState(false);
+  const chooseElsewhere = useContext(MediaChoiceContext);
+  const choose = () => {
+    if (!chooseElsewhere) setOpen(true);
+    else void chooseElsewhere(kind, value).then((url) => url !== null && onChange(url));
+  };
   return (
     <div className="gfa-media-chooser">
       {value && <MediaThumb key={value} url={value} className="gfa-media-chosen" />}
       <div className="gfa-media-chooser-actions">
-        <Button onClick={() => setOpen(true)}>{t(CHOOSE_LABELS[kind])}</Button>
+        <Button onClick={choose}>{t(CHOOSE_LABELS[kind])}</Button>
         {value && (
           <Button variant="ghost" onClick={() => onChange("")}>
             {t("media.clear")}

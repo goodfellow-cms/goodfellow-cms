@@ -1,6 +1,7 @@
 import { type ContentSource, type GoodfellowConfig, loadSiteContent } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
+import { localSiteCode } from "./frame/local-code.js";
 import { checkPublish, describeProblem } from "./site-checks.js";
 import { defaultStrings, type StringKey } from "./strings.js";
 
@@ -41,7 +42,7 @@ describe("checkPublish", () => {
         { path: "content/pages/about.json", delete: true },
         { path: "public/media/photo.jpg", delete: true },
       ],
-      config,
+      { blocks: config.blocks, code: localSiteCode(config) },
     );
     expect(checks.blocking.map((problem) => describeProblem(t, checks.content, problem))).toEqual([
       'The page "Home" links to /about, which isn\'t a page on the site.',
@@ -62,7 +63,7 @@ describe("checkPublish", () => {
         { path: "public/media/new.jpg", bytes: new Uint8Array([1]) },
         { path: "content/pages/old.json", content: page("Older", [button("Button-1", "/gone")]) },
       ],
-      config,
+      { blocks: config.blocks, code: localSiteCode(config) },
     );
     expect(checks.blocking).toEqual([]);
     // The old page's link was already broken, so it's only a warning.

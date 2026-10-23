@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { site } from "../scripts/site.mjs";
-import { canvas, expect, openPageEditor, publishInEditor, readSiteFile, test } from "./helpers.js";
+import { canvas, editor, expect, openPageEditor, publishInEditor, readSiteFile, test } from "./helpers.js";
 
 /** Draws an image in the browser, so tests have real photos to upload. */
 async function makeImage(page: Page, width: number, height: number, type = "image/jpeg"): Promise<Buffer> {
@@ -78,7 +78,7 @@ test("removes anything that could run code from SVG images", async ({ page }) =>
 test("chooses an image for a block, uploading a new one from the editor", async ({ page }) => {
   await openPageEditor(page, "/about", "About us");
   await canvas(page).locator('[data-puck-component="Image-about"]').click();
-  await page.locator(".gfa-editor").getByRole("button", { name: "Choose image" }).click();
+  await editor(page).getByRole("button", { name: "Choose image" }).click();
   const dialog = page.getByRole("dialog", { name: "Choose an image" });
   await expect(dialog.getByRole("button", { name: /logo\.svg/ })).toBeVisible();
 
@@ -87,7 +87,7 @@ test("chooses an image for a block, uploading a new one from the editor", async 
     .locator('input[type="file"]')
     .setInputFiles({ name: "Our Church.png", mimeType: "image/png", buffer: photo });
   await expect(dialog).toBeHidden();
-  await expect(page.locator('.gfa-editor input[name="src"]:visible').first()).toHaveValue("/media/our-church.png");
+  await expect(editor(page).locator('input[name="src"]:visible').first()).toHaveValue("/media/our-church.png");
   // Shown from memory straight away, before the site has the file.
   const shown = canvas(page).locator('img[data-gf-src="/media/our-church.png"]');
   await expect(shown).toHaveAttribute("src", /^blob:/);

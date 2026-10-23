@@ -117,6 +117,12 @@ export interface GitHost {
    */
   readonly redirectAddressesListed?: boolean;
   /**
+   * How to make this host again where the site's config isn't loaded, such as
+   * the admin panel's own page, which keeps the site's code in a frame of its
+   * own: the package and function that made it, and its options as JSON.
+   */
+  readonly source?: HostSource;
+  /**
    * Resumes a saved sign-in, or finishes a redirect sign-in when the page has
    * just come back from the host. Returns `null` when nobody is signed in.
    */
@@ -130,6 +136,24 @@ export interface GitHost {
    * token of the site's rather than an editor's, which never reaches a browser.
    */
   server?(options: ServerGitOptions): ServerGit;
+}
+
+/** The package and function that made a `GitHost`, and the options it was given that JSON can hold. */
+export interface HostSource {
+  /** Such as `@goodfellow-cms/github`. */
+  package: string;
+  /** The function the package exports, such as `github`. */
+  export: string;
+  options: Record<string, unknown>;
+}
+
+/**
+ * A host's `source`: its options without those `omit` names, which only tests
+ * give (a `fetch`, storage or a location), and anything else JSON can't hold.
+ */
+export function hostSource(pkg: string, exportName: string, options: object, omit: readonly string[]): HostSource {
+  const kept = Object.fromEntries(Object.entries(options).filter(([name]) => !omit.includes(name)));
+  return { package: pkg, export: exportName, options: JSON.parse(JSON.stringify(kept)) as Record<string, unknown> };
 }
 
 /** Who a commit names as its author. */

@@ -106,12 +106,12 @@ function download(text: string, name: string): void {
 /** Writes the site as a WordPress export file, downloaded to the editor's computer. */
 function ExportSection() {
   const t = useStrings();
-  const { config } = useAdmin();
+  const { blocks } = useAdmin();
   const { content, media } = useSiteContent();
   const [result, setResult] = useState<WordPressExport>();
   const [problem, setProblem] = useState<unknown>();
   const [busy, setBusy] = useState(false);
-  const blockName = (name: string) => config.blocks[name]?.label ?? name;
+  const blockName = (name: string) => blocks[name]?.label ?? name;
 
   const exportSite = async () => {
     setBusy(true);
@@ -234,7 +234,7 @@ async function copyMedia(url: string, path: string): Promise<Uint8Array | undefi
  */
 export function ImportScreen() {
   const t = useStrings();
-  const { config, publish, mediaPreviews } = useAdmin();
+  const { blocks, publish, mediaPreviews } = useAdmin();
   const { content, media } = useSiteContent();
   const [stage, setStage] = useState<Stage>({ kind: "choose" });
   const [address, setAddress] = useState("");
@@ -262,7 +262,7 @@ export function ImportScreen() {
   const plan = (wordpress: WordPressModule, site: WordPressSite, copied?: ReadonlySet<string>) =>
     wordpress.planWordPressImport(site, content, {
       mediaFiles: media,
-      blocks: Object.keys(config.blocks),
+      blocks: Object.keys(blocks),
       names,
       ...(copied && { copied }),
     });
