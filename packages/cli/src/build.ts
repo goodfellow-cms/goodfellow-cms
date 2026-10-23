@@ -9,6 +9,7 @@ import {
   cloudflareRedirects,
   DEMO_CONTENT_PATH,
   demoContent,
+  EDITOR_PRELUDE,
   feedFiles,
   loadSiteContent,
   MEDIA_DIR,
@@ -30,7 +31,7 @@ import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibil
 import { fileSystemSource } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { createServer, type InlineConfig, type Plugin, build as viteBuild } from "vite";
-import { ADMIN_ENTRY, adminEntryPlugin, adminHtml, EDITOR_ENTRY, EDITOR_PATH, EDITOR_PRELUDE } from "./admin-entry.js";
+import { ADMIN_ENTRY, adminEntryPlugin, adminHtml, builtEditorHtml, EDITOR_ENTRY, EDITOR_PATH } from "./admin-entry.js";
 import { type ClientModules, ISLANDS_ENTRY } from "./islands.js";
 import { baseViteConfig, findConfigFile, loadServerEntry, writeStylesEntries } from "./site.js";
 
@@ -131,13 +132,13 @@ export async function build(options: BuildOptions = {}): Promise<BuildResult> {
  * The editor's frames' bundle: the site's config, Puck and every block, as
  * one classic script, since the frames are sandboxed in pages of their own
  * origin, which can't load module scripts from the site without CORS headers.
- * Its first lines remove WebRTC. Returns the files the admin panel puts in each frame.
+ * Its first lines remove WebRTC. Writes the frames' page, and returns its address.
  */
 async function buildEditor(
   viteConfig: InlineConfig,
   entries: Plugin,
   { base, outDir }: { base: string; outDir: string },
-): Promise<{ scripts: string[]; stylesheets: string[] }> {
+): Promise<{ url: string }> {
   await viteBuild({
     ...viteConfig,
     plugins: [...(viteConfig.plugins ?? []), entries],
@@ -165,10 +166,13 @@ async function buildEditor(
   await rm(manifestPath);
   const editor = findEntry(manifest, "editor");
   if (!editor) throw new Error("The editor's bundle is missing from the build.");
-  return {
+  const html = builtEditorHtml({
     scripts: [`${base}${editor.file}`],
     stylesheets: cssFiles(manifest, "editor").map((file) => `${base}${file}`),
-  };
+  });
+  await mkdir(join(outDir, EDITOR_PATH), { recursive: true });
+  await writeFile(join(outDir, EDITOR_PATH, "index.html"), html);
+  return { url: `${base}${EDITOR_PATH}` };
 }
 
 async function buildSite(options: BuildOptions): Promise<BuildResult> {

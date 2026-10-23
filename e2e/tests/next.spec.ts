@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test as base, expect as baseExpect } from "@playwright/test";
 import { nextSite, resetNextContent } from "../scripts/site.mjs";
+import { editor } from "./helpers.js";
 
 // The Next.js template under `next dev`: see playwright.config.ts.
 const BASE = "http://localhost:4403";
@@ -114,10 +115,10 @@ test("publishes from the admin panel to the files on disk", async ({ page }) => 
 
 test("edits a page in Puck with the site's styles", async ({ page }) => {
   await page.goto(`${BASE}/admin/#/pages/edit?path=${encodeURIComponent("/about")}`);
-  const canvas = page.frameLocator("iframe#preview-frame");
+  const canvas = editor(page).locator(".gf-canvas").first();
   await expect(canvas.getByRole("heading", { name: "About us" })).toBeVisible();
   const heading = canvas.getByRole("heading", { name: "About us" });
-  await expect.poll(() => heading.evaluate((el) => getComputedStyle(el).fontWeight)).toBe("700");
+  await expect.poll(() => heading.evaluate((el: Element) => getComputedStyle(el).fontWeight)).toBe("700");
 });
 
 test("runs a block's Client Component in the browser, with the site's data and next/link", async ({ page }) => {

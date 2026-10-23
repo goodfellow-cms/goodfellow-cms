@@ -26,7 +26,8 @@ The News page and its stories are an example of a collection: a group of similar
 | `app/(site)/layout.tsx` | The site's header and footer, shown once around every page, so they stay as they are when moving between pages |
 | `app/(site)/[[...path]]/page.tsx` | Every page in `content/`, rendered as Server Components. Links between pages use `next/link`, and images `next/image`. |
 | `app/not-found.tsx` | The site's "Page not found" page, `content/pages/404.json` |
-| `app/admin/page.tsx` | The admin panel |
+| `app/admin/page.tsx` | The admin panel, which knows the site's blocks only by their fields |
+| `app/admin/editor/page.tsx` | The editor, where Puck and the site's blocks run, sandboxed in a frame of the admin panel |
 | `app/admin/demo-content.json/route.ts` | For a [demo](https://goodfellow-cms.github.io/goodfellow-cms/docs/demo-mode) (`demo: true` in the config), the copy of the content its admin panel starts from |
 | `app/site.css` | The site's styles: Tailwind, the theme, and the custom CSS from the admin panel |
 | `app/layout.tsx`, `app/sitemap.ts`, `app/robots.ts` | The page around everything, and files for search engines |

@@ -1,4 +1,4 @@
-import { expect, readJson, readSiteFile, test, writeSiteFile } from "./helpers.js";
+import { editor, expect, readJson, readSiteFile, test, writeSiteFile } from "./helpers.js";
 
 const KEY = "0b5c4f7e-1a2b-4c3d-8e9f-0123456789ab";
 
@@ -100,7 +100,10 @@ test("links a form's note in the editor to Site Settings' Forms", async ({ page:
     page("Contact us", [{ type: "Form", props: { id: "Form-contact", source: "fields", title: "Contact form" } }]),
   );
   await browser.goto(`/admin#/pages/edit?path=${encodeURIComponent("/contact-us")}`);
-  const note = browser.frameLocator("iframe#preview-frame").getByRole("link", { name: /add Web3Forms' access key/ });
+  const note = editor(browser)
+    .locator(".gf-canvas")
+    .first()
+    .getByRole("link", { name: /add Web3Forms' access key/ });
   await note.click();
 
   await expect(browser).toHaveURL(/#\/settings\/general\?section=forms$/);

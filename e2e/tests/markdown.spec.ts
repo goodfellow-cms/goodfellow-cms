@@ -2,12 +2,12 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { site } from "../scripts/site.mjs";
-import { canvas, expect, publishInEditor, readSiteFile, test } from "./helpers.js";
+import { canvas, editor, expect, publishInEditor, readSiteFile, test } from "./helpers.js";
 
 const exists = (path: string) => existsSync(join(site as string, path));
 
 /** The visible part of the item editor's sidebar, since Puck also renders hidden copies of its fields. */
-const sidebar = (page: Page) => page.locator(".gfa-editor");
+const sidebar = (page: Page) => editor(page);
 
 async function storeNewsAsMarkdown(page: Page) {
   await page.goto("/admin#/collections/news/settings");

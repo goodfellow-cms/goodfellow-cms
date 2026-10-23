@@ -49,7 +49,7 @@ import { useCanvasStyles } from "./canvas-styles.js";
 import type { Channel } from "./channel.js";
 import { entryConfig } from "./entry-fields.js";
 import { useAdminClient, useFrameCode } from "./frame-site.js";
-import type { EditorChange, EditorOpen, EditorState } from "./protocol.js";
+import type { EditorChange, EditorOpen, EditorOpened, EditorState } from "./protocol.js";
 import { SiteFrame } from "./site-frame.js";
 
 const usePuck = createUsePuck();
@@ -213,7 +213,7 @@ const ENTRY_UI: Partial<UiState> = { leftSideBarVisible: false, rightSideBarWidt
 const entryPlugins = [legacySideBarPlugin()];
 
 /** Puck, set up for one page, header, footer, template or item: site context, previews and the bridge. */
-export function FrameEditor({ open, onConfig }: { open: EditorOpen; onConfig: (config: Config) => void }) {
+export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (opened: EditorOpened) => void }) {
   const client = useAdminClient();
   const { config: siteConfig, pageConfig, layoutConfig, templateConfig } = useFrameCode();
   const { preview, mediaPreviews } = useAdmin();
@@ -326,8 +326,8 @@ export function FrameEditor({ open, onConfig }: { open: EditorOpen; onConfig: (c
   useEffect(() => {
     if (told.current === described) return;
     told.current = described;
-    onConfig(described);
-  }, [described, onConfig]);
+    onOpened({ config: described, data: initialData });
+  }, [described, initialData, onOpened]);
 
   const ui = useMemo(() => ({ ...(kind === "entry" ? ENTRY_UI : {}), ...open.ui }), [kind, open.ui]);
   const overrides = useMemo(

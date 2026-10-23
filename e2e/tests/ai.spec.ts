@@ -19,7 +19,7 @@ const KEY = "sk-ant-test-key";
 
 /** The AI panel in the editor's left-hand rail. */
 async function openAiPanel(page: Page) {
-  await page.locator(".gfa-editor").getByText("AI", { exact: true }).first().click();
+  await page.locator(".gfa-editor-header").getByRole("button", { name: "AI", exact: true }).first().click();
   const panel = page.locator(".gfa-ai");
   await expect(panel.getByRole("heading", { name: "Write with AI" })).toBeVisible();
   return panel;

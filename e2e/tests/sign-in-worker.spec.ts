@@ -2,6 +2,7 @@ import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { testSignIn } from "@goodfellow-cms/worker/testing";
 import { expect, type Page, test } from "@playwright/test";
 import { files, GITHUB_SITE, routeToFake } from "./backends.js";
+import { editor } from "./helpers.js";
 
 /** The sign-in worker the built GitHub site's config names (see `scripts/site.mjs`). */
 const SIGN_IN = "https://sign-in.parish.example";
@@ -137,9 +138,9 @@ test("editors sign in with GitHub through the sign-in worker, and publish as the
   expect(saved).not.toMatch(/gh[usr]_/);
 
   await page.getByRole("link", { name: "About us", exact: true }).click();
-  await page.frameLocator("iframe#preview-frame").getByRole("heading", { name: "About us" }).click();
-  await page.locator('.gfa-editor input[name="text"]:visible').fill("About our parish");
-  await page.locator(".gfa-editor").getByText("Publish", { exact: true }).click();
+  await editor(page).locator(".gf-canvas").first().getByRole("heading", { name: "About us" }).click();
+  await editor(page).locator('input[name="text"]:visible').fill("About our parish");
+  await page.locator(".gfa-editor-header").getByText("Publish", { exact: true }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   const head = fake.repo.head();
   expect(fake.repo.files(head).get("content/pages/about.json")).toContain("About our parish");

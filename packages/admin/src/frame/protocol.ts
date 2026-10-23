@@ -73,6 +73,8 @@ export interface EditorOpen {
 export interface EditorOpened {
   /** Puck's config as JSON, for the AI assistant: blocks' and settings' fields, without their code. */
   config: Config;
+  /** What's edited as Puck opened it, upgraded from older versions of Puck's data: what counts as unchanged. */
+  data: Data;
 }
 
 /** Puck's state as the admin panel's header shows it (`editor.state` events). */
@@ -130,6 +132,8 @@ export interface FrameRequests {
   /** The canvas's width, to preview a page on a phone or tablet; `null` fills the editor. */
   "editor.viewport"(width: number | null): void;
   "editor.apply"(change: EditorChange): void;
+  /** A media file to show from memory until the live site has it, such as one just uploaded. */
+  "media.remember"(file: { url: string; bytes: Uint8Array }): void;
   "render.show"(show: RenderShow): RenderShown;
   "code.sitePages"(params: { content: SiteContent; today: string }): Page[];
   "code.pageView"(params: { page: Page; content: SiteContent; today: string }): PageView | null;

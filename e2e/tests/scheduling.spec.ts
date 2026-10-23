@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { fakeGitLab } from "@goodfellow-cms/gitlab/testing";
 import { files, GITHUB_SITE, GITLAB_SITE, routeToFake } from "./backends.js";
-import { expect, publishInEditor, readJson, test, writeSiteFile } from "./helpers.js";
+import { editor, expect, publishInEditor, readJson, test, writeSiteFile } from "./helpers.js";
 
 /** A JSON file in a fake's repository. */
 const json = (fake: { repo: { files(): ReadonlyMap<string, unknown> } }, path: string) =>
@@ -83,10 +83,10 @@ test("hides an item on GitHub after a time, within the hour of the site's hourly
   await page.getByLabel("Access token").fill("test-token");
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  const editor = page.locator(".gfa-editor");
-  await editor.getByLabel("Hide after").filter({ visible: true }).fill("2099-01-01T00:00");
-  await expect(editor.getByText("so changes go live within an hour of their time").first()).toBeVisible();
-  await expect(editor.getByRole("note").first()).toContainText("since the site's files on GitHub are public");
+  const fields = editor(page);
+  await fields.getByLabel("Hide after").filter({ visible: true }).fill("2099-01-01T00:00");
+  await expect(fields.getByText("so changes go live within an hour of their time").first()).toBeVisible();
+  await expect(fields.getByRole("note").first()).toContainText("since the site's files on GitHub are public");
   await publishInEditor(page);
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   const item = json(fake, "content/collections/news/open-house.json");

@@ -40,11 +40,14 @@ export interface MediaPreviews {
   remember(url: string, bytes: Uint8Array): void;
   /** A file's bytes, from memory or the repository, for a frame to show it from: frames can't read the repository. */
   bytes(url: string): Promise<Uint8Array | undefined>;
+  /** Calls `listener` with each file shown from memory, those already remembered first, so frames can show them too. */
+  onRemember(listener: (url: string, bytes: Uint8Array) => void): () => void;
 }
 
 export function createMediaPreviews(store: Pick<ContentStore, "readBytes">, siteUrl: string): MediaPreviews {
   const local = new Map<string, string>();
   const remembered = new Map<string, Uint8Array>();
+  const listeners = new Set<(url: string, bytes: Uint8Array) => void>();
   const loading = new Map<string, Promise<string | undefined>>();
   const base = trimChars(siteUrl, "/", { start: false });
 
@@ -52,6 +55,7 @@ export function createMediaPreviews(store: Pick<ContentStore, "readBytes">, site
     const previous = local.get(url);
     if (previous) URL.revokeObjectURL(previous);
     remembered.set(url, bytes);
+    for (const listener of listeners) listener(url, bytes);
     local.set(url, URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mediaType(url) })));
   };
 
@@ -61,6 +65,11 @@ export function createMediaPreviews(store: Pick<ContentStore, "readBytes">, site
       return local.get(url) ?? `${base}${url}`;
     },
     remember,
+    onRemember(listener) {
+      for (const [url, bytes] of remembered) listener(url, bytes);
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     async bytes(url) {
       const known = remembered.get(url);
       if (known) return known;

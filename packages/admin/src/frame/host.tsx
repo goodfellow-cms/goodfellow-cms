@@ -12,7 +12,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -23,17 +22,18 @@ import { type Channel, CONNECT_MESSAGE, createChannel } from "./channel.js";
 import type { AdminRequests, FrameEvents, FrameInit, FrameMode, FrameRequests } from "./protocol.js";
 import { READY_MESSAGE } from "./protocol.js";
 
-/** Where the admin panel loads the frames that run the site's code from. */
-export type FrameSource =
-  /**
-   * A page served for the frames, such as the Next.js starter's
-   * `/admin/editor/` or the development servers' own. `sameOrigin` keeps it on
-   * the admin panel's address, for development servers, which hold no tokens
-   * and whose scripts are modules, which a sandboxed page can't load.
-   */
-  | { url: string; sameOrigin?: boolean }
-  /** The editor's own scripts and stylesheets, which `goodfellow build` writes, put in each frame's page. */
-  | { scripts: string[]; stylesheets: string[] };
+/**
+ * Where the admin panel loads the frames that run the site's code from: a
+ * page of their own, such as `goodfellow build`'s `admin/editor/` or the
+ * Next.js starter's `app/admin/editor/`, whose Content Security Policy
+ * (`editorPolicy()`) runs only the site's scripts. `sameOrigin` keeps it on
+ * the admin panel's address, for development servers, which hold no tokens
+ * and whose scripts are modules, which a sandboxed page can't load.
+ */
+export interface FrameSource {
+  url: string;
+  sameOrigin?: boolean;
+}
 
 /** A connected frame's requests, typed. */
 export interface FrameClient {
@@ -53,43 +53,6 @@ export function frameClient(channel: Channel): FrameClient {
 
 /** How many times a frame may start again, such as after the development server reloads it, before it's given up on. */
 const MAX_CONNECTIONS = 5;
-
-function escapeAttribute(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-}
-
-/**
- * The page written into a frame for `goodfellow build`'s editor scripts. Its
- * Content Security Policy runs only those scripts (and Tailwind's, for classes
- * typed in the editor), and lets the frame fetch nothing: it can show pictures,
- * styles, fonts and players, but never read an answer from anywhere.
- */
-export function framePage(source: { scripts: string[]; stylesheets: string[] }, tailwindBrowserUrl?: string): string {
-  const absolute = (url: string) => new URL(url, document.baseURI).href;
-  const origin = location.origin;
-  const scripts = [...source.scripts, ...(tailwindBrowserUrl ? [tailwindBrowserUrl] : [])].map(absolute);
-  const policy = [
-    "default-src 'none'",
-    `script-src ${scripts.join(" ")}`,
-    `style-src 'unsafe-inline' ${origin} https://fonts.googleapis.com`,
-    `font-src ${origin} https://fonts.gstatic.com data:`,
-    `img-src ${origin} https: data: blob:`,
-    `media-src ${origin} https: blob:`,
-    "frame-src https:",
-    "base-uri 'none'",
-    "form-action 'none'",
-  ].join("; ");
-  return [
-    "<!DOCTYPE html>",
-    '<html><head><meta charset="utf-8">',
-    `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(policy)}">`,
-    '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    ...source.stylesheets.map((href) => `<link rel="stylesheet" href="${escapeAttribute(absolute(href))}">`),
-    "</head><body>",
-    ...source.scripts.map((src) => `<script src="${escapeAttribute(absolute(src))}"></script>`),
-    "</body></html>",
-  ].join("");
-}
 
 /** What the admin panel tells every frame it makes, and answers for them. */
 export interface FrameServices {
@@ -140,8 +103,7 @@ export interface FrameConnection {
   frameProps: {
     ref: (element: HTMLIFrameElement | null) => void;
     sandbox: string;
-    src?: string;
-    srcDoc?: string;
+    src: string;
   };
 }
 
@@ -157,6 +119,7 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
 
   useEffect(() => {
     let current: Channel | undefined;
+    let stopRemembering: (() => void) | undefined;
     let connections = 0;
     let stopped = false;
     const handlers: { [K in keyof AdminRequests]: (params: Parameters<AdminRequests[K]>[0]) => unknown } = {
@@ -194,6 +157,12 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
           const { services } = latest.current;
           const siteCss = mode === "editor" ? await services.siteCss() : undefined;
           await next.call("init", { ...services.init, mode, ...(siteCss && { siteCss }) });
+          // Files shown from memory, such as uploads the live site doesn't have yet, show in the frame too.
+          const previews = latest.current.media ?? services.mediaPreviews;
+          stopRemembering?.();
+          stopRemembering = previews.onRemember((url, bytes) => {
+            void next.call("media.remember", { url, bytes }).catch(() => {});
+          });
           await latest.current.onConnect?.(next);
           if (!stopped && current === channel) setClient(next);
         } catch {
@@ -205,13 +174,12 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
     return () => {
       stopped = true;
       window.removeEventListener("message", onMessage);
+      stopRemembering?.();
       current?.close();
     };
   }, [mode]);
 
   const { source } = services;
-  const tailwind = services.init.preview.tailwindBrowserUrl;
-  const srcDoc = useMemo(() => ("scripts" in source ? framePage(source, tailwind) : undefined), [source, tailwind]);
   const ref = useCallback((frame: HTMLIFrameElement | null) => {
     element.current = frame;
   }, []);
@@ -220,8 +188,8 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
     failed,
     frameProps: {
       ref,
-      sandbox: "url" in source && source.sameOrigin ? "allow-scripts allow-same-origin" : "allow-scripts",
-      ...("url" in source ? { src: source.url } : { srcDoc }),
+      sandbox: source.sameOrigin ? "allow-scripts allow-same-origin" : "allow-scripts",
+      src: source.url,
     },
   };
 }

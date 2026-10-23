@@ -2,6 +2,7 @@ import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { fakeGitLab } from "@goodfellow-cms/gitlab/testing";
 import { expect, type Page, test } from "@playwright/test";
 import { files, GITHUB_SITE, GITLAB_SITE, routeToFake } from "./backends.js";
+import { canvas } from "./helpers.js";
 
 /** The starter with a second language, Spanish. */
 function spanishFiles(): Record<string, string> {
@@ -62,7 +63,6 @@ const hosts: Host[] = [
 
 /** The editor's language menu, beside Publish. */
 const language = (page: Page) => page.locator(".gfa-header-actions").getByLabel("Language");
-const canvas = (page: Page) => page.frameLocator("iframe#preview-frame");
 
 for (const host of hosts) {
   test(`translates a page from its editor, and gives Spanish a footer of its own, on ${host.name}`, async ({

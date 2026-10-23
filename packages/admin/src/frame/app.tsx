@@ -13,7 +13,7 @@ import { installSiteCss } from "./canvas-styles.js";
 import { type Channel, CONNECT_MESSAGE, createChannel } from "./channel.js";
 import { FrameEditor } from "./editor.js";
 import { adminClient, FrameProviders, useFrameCode } from "./frame-site.js";
-import { type EditorOpen, type FrameInit, type FrameSite, READY_MESSAGE } from "./protocol.js";
+import { type EditorOpen, type EditorOpened, type FrameInit, type FrameSite, READY_MESSAGE } from "./protocol.js";
 import { FrameRender } from "./render.js";
 
 /** Answers for the site's code, for the admin panel's screens. */
@@ -49,19 +49,19 @@ function editorKey(open: EditorOpen): string {
 
 /** Opens an editor when the admin panel's page asks, and tells it Puck's config once it's open. */
 function EditorService({ channel }: { channel: Channel }) {
-  const [opened, setOpened] = useState<{ open: EditorOpen; told: (config: Config) => void }>();
+  const [opened, setOpened] = useState<{ open: EditorOpen; told: (opened: EditorOpened) => void }>();
   useEffect(
     () =>
       channel.handle(
         "editor.open",
         (open: EditorOpen) =>
-          new Promise<{ config: Config }>((resolve) => {
-            setOpened({ open, told: (config) => resolve({ config }) });
+          new Promise<EditorOpened>((resolve) => {
+            setOpened({ open, told: resolve });
           }),
       ),
     [channel],
   );
-  const onConfig = useCallback((config: Config) => opened?.told(config), [opened]);
+  const onOpened = useCallback((editor: EditorOpened) => opened?.told(editor), [opened]);
   // The canvas's width, for previewing a page on a phone or tablet.
   useEffect(
     () =>
@@ -72,7 +72,7 @@ function EditorService({ channel }: { channel: Channel }) {
       }),
     [channel],
   );
-  return opened ? <FrameEditor key={editorKey(opened.open)} open={opened.open} onConfig={onConfig} /> : null;
+  return opened ? <FrameEditor key={editorKey(opened.open)} open={opened.open} onOpened={onOpened} /> : null;
 }
 
 function FrameApp({
@@ -114,7 +114,16 @@ function FrameApp({
  * ready, and waits for its port. Only the page that made the frame can answer,
  * since a sandboxed frame's parent is the only window that can reach it.
  */
-export function mountEditorFrame(config: GoodfellowConfig, element?: Element): void {
+export interface EditorFrameOptions {
+  /**
+   * Where the frame loads `@tailwindcss/browser` from, where the admin
+   * panel's own address for it can't be loaded from the frame, such as a
+   * `blob:` address only the admin panel's page can read.
+   */
+  tailwindBrowserUrl?: string;
+}
+
+export function mountEditorFrame(config: GoodfellowConfig, element?: Element, options: EditorFrameOptions = {}): void {
   document.documentElement.classList.add("gfa-frame");
   let container = element;
   if (!container) {
@@ -133,8 +142,11 @@ export function mountEditorFrame(config: GoodfellowConfig, element?: Element): v
     const channel = createChannel(port);
     channel.handle(
       "init",
-      (init: FrameInit) =>
+      (given: FrameInit) =>
         new Promise<void>((resolve) => {
+          const init = options.tailwindBrowserUrl
+            ? { ...given, preview: { ...given.preview, tailwindBrowserUrl: options.tailwindBrowserUrl } }
+            : given;
           setThemeChoice(init.theme);
           document.documentElement.classList.add(`gfa-frame-${init.mode}`);
           if (init.siteCss) installSiteCss(init.siteCss);

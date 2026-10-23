@@ -7,14 +7,15 @@
 import { type GoodfellowConfig, MEDIA_DIR } from "@goodfellow-cms/core";
 import { adminSite, createPuckConfig } from "@goodfellow-cms/react";
 import type { ComponentConfig, Config } from "@puckeditor/core";
-import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useMemo } from "react";
 import { AdminContext, type AdminContextValue } from "../admin-context.js";
 import { mediaUrl } from "../media.js";
 import { MediaChoiceContext } from "../media-library.js";
 import { createMediaPreviews, type MediaPreviews } from "../media-previews.js";
-import { localSiteCode, type SiteCodeService } from "../site-code.js";
+import type { SiteCodeService } from "../site-code.js";
 import { StringsProvider } from "../strings.js";
 import type { Channel } from "./channel.js";
+import { localSiteCode } from "./local-code.js";
 import type { AdminRequests, FrameInit, FrameSite } from "./protocol.js";
 
 /** The site's config, as each kind of editor uses it. */
@@ -103,6 +104,14 @@ export function FrameProviders({
   );
   const described = useMemo(() => adminSite(config), [config]);
   const mediaPreviews = useMemo(() => frameMediaPreviews(client, init.siteUrl), [client, init.siteUrl]);
+  useEffect(
+    () =>
+      client.channel.handle("media.remember", (file: { url: string; bytes: Uint8Array }) => {
+        if (typeof file?.url === "string" && file.bytes instanceof Uint8Array)
+          mediaPreviews.remember(file.url, file.bytes);
+      }),
+    [client, mediaPreviews],
+  );
   const { timing, visibility, syncProblem } = site.schedule;
   const admin = useMemo<AdminContextValue>(
     () => ({

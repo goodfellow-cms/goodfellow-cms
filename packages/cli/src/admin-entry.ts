@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import type { AdminSite } from "@goodfellow-cms/core";
+import { type AdminSite, EDITOR_PRELUDE, editorPolicy } from "@goodfellow-cms/core";
 import { DEV_API_PREFIX } from "@goodfellow-cms/core/node";
 import type { Plugin } from "vite";
 
@@ -21,19 +21,14 @@ export interface BuiltAdminSettings {
   siteUrl: string;
   /** What the admin panel knows about the site, without its code. */
   site: AdminSite;
-  /** The editor's scripts and stylesheets, for its frames. */
-  frames: { scripts: string[]; stylesheets: string[] };
+  /** The editor's frames' page. */
+  frames: { url: string };
 }
 
-export type AdminEntryMode =
-  /** `site()` is asked each time the page loads, since the config can change while the server runs. */
-  { mode: "dev"; previewStylesheet: string; site: () => Promise<AdminSite> } | { mode: "build"; site: AdminSite };
+/** Where `goodfellow dev` serves what the admin panel knows about the site, read afresh each time, as the config changes. */
+export const DEV_ADMIN_SITE_PATH = `${DEV_API_PREFIX}/admin-site`;
 
-/**
- * Removes WebRTC from the editor's frames before anything else runs, since a
- * Content Security Policy can't stop it reaching other computers.
- */
-export const EDITOR_PRELUDE = `(()=>{for(const name of Object.getOwnPropertyNames(globalThis))if(/^(webkit|moz)?RTC/.test(name))try{delete globalThis[name]}catch{}})();`;
+export type AdminEntryMode = { mode: "dev"; previewStylesheet: string } | { mode: "build"; site: AdminSite };
 
 /**
  * The admin panel's entry module: the admin panel, told about the site's
@@ -52,13 +47,13 @@ export function adminEntryPlugin(configFile: string, entry: AdminEntryMode): Plu
     `import tailwindBrowserUrl from ${JSON.stringify(`${tailwindBrowser}?url`)};`,
     `const element = document.getElementById("gf-admin");`,
   ];
-  const mount = async () => {
+  const mount = () => {
     if (entry.mode === "dev") {
       return [
         `import { localStore } from "@goodfellow-cms/admin/dev";`,
         ...common,
         "mountAdmin(element, {",
-        `  site: ${JSON.stringify(await entry.site())},`,
+        `  site: await fetch(${JSON.stringify(DEV_ADMIN_SITE_PATH)}).then((response) => response.json()),`,
         `  frames: { url: ${JSON.stringify(`/${EDITOR_PATH}`)}, sameOrigin: true },`,
         "  store: localStore(),",
         // The block registry the site's packages include, which the development server serves.
@@ -103,7 +98,7 @@ export function adminEntryPlugin(configFile: string, entry: AdminEntryMode): Plu
             ? id
             : undefined,
     load: async (id) => {
-      if (id === RESOLVED_ADMIN_ENTRY) return (await mount()).join("\n");
+      if (id === RESOLVED_ADMIN_ENTRY) return mount().join("\n");
       if (id === RESOLVED_EDITOR_ENTRY) return editor.join("\n");
       if (id === `${RESOLVED_EDITOR_ENTRY}-prelude`) return EDITOR_PRELUDE;
       return undefined;
@@ -146,6 +141,32 @@ export function adminHtml(options: {
     "  <body>",
     '    <div id="gf-admin"></div>',
     ...scripts,
+    "  </body>",
+    "</html>",
+    "",
+  ].join("\n");
+}
+
+/**
+ * The page `goodfellow build` writes for the editor's frames, whose Content
+ * Security Policy runs only the site's own scripts and fetches nothing. Its
+ * script is classic, since the frames are sandboxed, and a sandboxed page
+ * can't load module scripts from the site without CORS headers.
+ */
+export function builtEditorHtml(options: { scripts: string[]; stylesheets: string[] }): string {
+  return [
+    "<!DOCTYPE html>",
+    '<html lang="en">',
+    "  <head>",
+    // First, so it applies to everything after it.
+    `    <meta http-equiv="Content-Security-Policy" content="${escapeHtml(editorPolicy())}" />`,
+    '    <meta charset="utf-8" />',
+    '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
+    '    <meta name="robots" content="noindex" />',
+    ...options.stylesheets.map((href) => `    <link rel="stylesheet" href="${escapeHtml(href)}" />`),
+    "  </head>",
+    "  <body>",
+    ...options.scripts.map((src) => `    <script src="${escapeHtml(src)}"></script>`),
     "  </body>",
     "</html>",
     "",

@@ -1,8 +1,8 @@
 import { type ContentSource, type GoodfellowConfig, loadSiteContent } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
+import { localSiteCode } from "./frame/local-code.js";
 import { checkPublish, describeProblem } from "./site-checks.js";
-import { localSiteCode } from "./site-code.js";
 import { defaultStrings, type StringKey } from "./strings.js";
 
 const page = (title: string, content: unknown[] = []) =>

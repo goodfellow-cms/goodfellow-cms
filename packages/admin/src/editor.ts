@@ -3,4 +3,4 @@
  * run in frames sandboxed away from the admin panel's own page. Builds and the
  * Next.js starter give it the site's config in a page of its own.
  */
-export { mountEditorFrame } from "./frame/app.js";
+export { type EditorFrameOptions, mountEditorFrame } from "./frame/app.js";

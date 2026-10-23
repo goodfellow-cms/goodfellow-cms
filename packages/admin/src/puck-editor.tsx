@@ -6,7 +6,7 @@
  */
 import { type Collection, type FileChange, serializeContent } from "@goodfellow-cms/core";
 import { cx } from "@goodfellow-cms/react";
-import { type Config, type Data, migrate, type UiState } from "@puckeditor/core";
+import type { Config, Data, UiState } from "@puckeditor/core";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin } from "./admin-context.js";
 import { AiPanel } from "./ai-panel.js";
@@ -98,9 +98,8 @@ export function PuckEditor({
     | { type: "failed"; reason: "conflict" | "error"; error: unknown }
   >({ type: "idle" });
 
-  // Puck works with current data; files saved by older versions of Puck are upgraded first.
-  const initialData = useMemo(() => migrate(data), [data]);
-  const published = useRef(serializeContent(storedData(initialData)));
+  // What's published, as the editor's frame opened it: files saved by older versions of Puck are upgraded there.
+  const published = useRef<string>(undefined);
   const [state, setState] = useState<EditorState>();
   const [config, setConfig] = useState<Config>();
   const [viewport, setViewport] = useState<number | null>(null);
@@ -108,19 +107,19 @@ export function PuckEditor({
   const widthsKey = kind === "entry" ? ENTRY_WIDTHS_KEY : WIDTHS_KEY;
 
   // What the frame opens with, and opens again with if it starts again, such as when the dev server reloads it.
-  const latest = useRef({ data: initialData, viewport });
+  const latest = useRef({ data, viewport });
   latest.current.viewport = viewport;
   const open = useMemo<EditorOpen>(
     () => ({
       kind,
       path,
       title,
-      data: initialData,
+      data,
       ...(collection && { collection: collection.id }),
       ...(entry && { entry }),
       ...(language && { language }),
     }),
-    [kind, path, title, initialData, collection, entry, language],
+    [kind, path, title, data, collection, entry, language],
   );
   const onConnect = useCallback(
     async (client: FrameClient) => {
@@ -146,6 +145,7 @@ export function PuckEditor({
         ui: readWidths(widthsKey),
       });
       setConfig(opened.config);
+      published.current ??= serializeContent(storedData(opened.data));
       if (latest.current.viewport) await client.call("editor.viewport", latest.current.viewport);
     },
     [open, widthsKey],
@@ -153,7 +153,10 @@ export function PuckEditor({
   const { client, failed, frameProps } = useFrame({ mode: "editor", onConnect });
   useFrameUpdates(client);
 
-  const dirty = state ? serializeContent(storedData(state.data)) !== published.current : false;
+  const dirty =
+    state !== undefined &&
+    published.current !== undefined &&
+    serializeContent(storedData(state.data)) !== published.current;
   useUnsavedChanges(dirty);
 
   const onPublish = async () => {

@@ -1,4 +1,5 @@
 import {
+  editor,
   expect,
   field,
   openPageEditor,
@@ -11,14 +12,14 @@ import {
 
 test("hides a page from search engines, and shows how links to it look when shared", async ({ page }) => {
   await openPageEditor(page, "/about", "About us");
-  const preview = page.getByRole("region", { name: "When a link to this page is shared" });
+  const preview = editor(page).getByRole("region", { name: "When a link to this page is shared" });
   await expect(preview).toContainText("About us");
   // Link previews need the site's address for the image.
   await expect(preview).toContainText("once the site's address is set");
 
   await field(page, "description").fill("Who we are, and how to find us.");
   await expect(preview).toContainText("Who we are, and how to find us.");
-  await page.locator(".gfa-editor").getByRole("radio", { name: "Hide from search results" }).check({ force: true });
+  await editor(page).getByRole("radio", { name: "Hide from search results" }).check({ force: true });
   await expect(preview).toContainText("This page is hidden from search engines");
   await publishInEditor(page);
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();

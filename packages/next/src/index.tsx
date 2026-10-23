@@ -1,4 +1,5 @@
 import {
+  type AdminSite,
   absoluteUrl,
   colorSchemeMeta,
   colorSchemeScript,
@@ -26,6 +27,7 @@ import {
 } from "@goodfellow-cms/core";
 import { fileSystemSource, fontStandIns, readMediaSizes, readStylesheet } from "@goodfellow-cms/core/node";
 import {
+  adminSite,
   applyPageEntry,
   BodyCode,
   createPuckConfigs,
@@ -201,6 +203,15 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       const content = await site();
       const page = findPage(content, config.blocks, pathOf((await params).path));
       return page ? pageMetadata(content, applyPageEntry(configs, content, page), basePath()) : {};
+    },
+
+    /**
+     * For `app/admin/page.tsx`: what the admin panel's page knows about the
+     * site, which never loads its config. The site's blocks run in the
+     * editor's frames, at `app/admin/editor/page.tsx`.
+     */
+    admin(): AdminSite {
+      return adminSite(config);
     },
 
     /** For `app/admin/layout.tsx`: the admin panel's title, kept out of search engines, with the site's icon. */

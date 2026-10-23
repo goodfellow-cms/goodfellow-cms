@@ -1,9 +1,9 @@
 import type { Page } from "@playwright/test";
-import { expect, publishInEditor, readJson, test, writeSiteFile } from "./helpers.js";
+import { editor, expect, publishInEditor, readJson, test, writeSiteFile } from "./helpers.js";
 
 /** A visible control in the item editor's sidebar; Puck renders hidden copies of its fields. */
 function sidebar(page: Page, label: string) {
-  return page.locator(".gfa-editor").getByLabel(label, { exact: true }).filter({ visible: true }).first();
+  return editor(page).getByLabel(label, { exact: true }).filter({ visible: true }).first();
 }
 
 /** The news page, with a list two stories to a page that gives each topic a page. */
@@ -132,7 +132,7 @@ test("shows blocks designed in the editor once for each item", async ({ page, re
 
   // The editor shows the design once, with its placeholders.
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/news")}`);
-  const canvas = page.frameLocator("iframe#preview-frame");
+  const canvas = editor(page).locator(".gf-canvas").first();
   await expect(canvas.getByText("Story: {title}")).toBeVisible();
   await expect(canvas.getByText("Shown once for each item in News.")).toBeVisible();
   await expect(canvas.getByText("Story: Open house")).toHaveCount(0);
@@ -154,7 +154,7 @@ test("shows only the first list on a page with pages of its own, in the editor a
   expect(html.match(/aria-label="Pages"/g)).toHaveLength(1);
 
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/news")}`);
-  const canvas = page.frameLocator("iframe#preview-frame");
+  const canvas = editor(page).locator(".gf-canvas").first();
   await expect(canvas.getByText("A block higher on this page already has pages of its own")).toBeVisible();
   await expect(canvas.getByRole("navigation", { name: "Pages" })).toHaveCount(1);
 });

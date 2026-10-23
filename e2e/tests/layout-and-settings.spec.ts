@@ -1,11 +1,11 @@
-import { canvas, expect, publishInEditor, readJson, readSiteFile, test, writeSiteFile } from "./helpers.js";
+import { canvas, editor, expect, publishInEditor, readJson, readSiteFile, test, writeSiteFile } from "./helpers.js";
 
 test("edits and publishes the header", async ({ page }) => {
   await page.goto("/admin#/layout/header");
   await expect(canvas(page).getByRole("link", { name: "My site" })).toBeVisible();
   // Puck covers each block with a draggable handle; clicking it selects the block.
   await canvas(page).locator('[data-puck-component="SiteBrand-header"]').click();
-  await page.locator(".gfa-editor").getByRole("radio", { name: "Name only" }).check({ force: true });
+  await editor(page).getByRole("radio", { name: "Name only" }).check({ force: true });
   await publishInEditor(page);
 
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
@@ -237,7 +237,7 @@ test("shows the admin panel light or dark, following the computer unless an edit
   // Puck's own colors follow.
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/about")}`);
   await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible();
-  const sidebar = page.locator('[class*="_Sidebar--right_"]');
+  const sidebar = editor(page).locator('[class*="_Sidebar--right_"]');
   await expect.poll(() => sidebar.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(17, 24, 39)");
 
   // Remembered in this browser.

@@ -50,9 +50,14 @@ export function readJson(path: string): Record<string, unknown> {
   return JSON.parse(readSiteFile(path));
 }
 
-/** The editor's canvas: the page being edited, inside Puck's iframe. */
+/** The editor: Puck, the site's config and its blocks, in the frame sandboxed away from the admin panel's page. */
+export function editor(page: Page) {
+  return page.frameLocator("iframe.gfa-editor-frame");
+}
+
+/** The editor's canvas: the page being edited, which Puck draws in the editor's frame. */
 export function canvas(page: Page) {
-  return page.frameLocator("iframe#preview-frame");
+  return editor(page).locator(".gf-canvas").first();
 }
 
 /** Opens the editor for a page and waits for its canvas to show it. */
@@ -63,9 +68,7 @@ export async function openPageEditor(page: Page, path: string, heading: string) 
 
 /** A field in Puck's right-hand panel. Puck renders hidden copies of fields, so only visible ones count. */
 export function field(page: Page, name: string) {
-  return page
-    .locator(`.gfa-editor input[name="${name}"]:visible, .gfa-editor textarea[name="${name}"]:visible`)
-    .first();
+  return editor(page).locator(`input[name="${name}"]:visible, textarea[name="${name}"]:visible`).first();
 }
 
 export async function publishInEditor(page: Page) {

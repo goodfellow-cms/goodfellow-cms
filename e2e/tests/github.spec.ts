@@ -1,6 +1,7 @@
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { expect, type Page, test } from "@playwright/test";
 import { files, GITHUB_SITE, routeToFake } from "./backends.js";
+import { canvas, editor } from "./helpers.js";
 
 function setup(page: Page, options: Partial<Parameters<typeof fakeGitHub>[0]> = {}) {
   const fake = fakeGitHub({
@@ -52,10 +53,10 @@ test("publishes to GitHub and follows the live site's update", async ({ page }) 
   const fake = await setup(page);
   await signIn(page);
   await page.getByRole("link", { name: "About us", exact: true }).click();
-  const heading = page.frameLocator("iframe#preview-frame").getByRole("heading", { name: "About us" });
+  const heading = editor(page).locator(".gf-canvas").first().getByRole("heading", { name: "About us" });
   await heading.click();
-  await page.locator('.gfa-editor input[name="text"]:visible').fill("About our parish");
-  await page.locator(".gfa-editor").getByText("Publish", { exact: true }).click();
+  await editor(page).locator('input[name="text"]:visible').fill("About our parish");
+  await page.locator(".gfa-editor-header").getByText("Publish", { exact: true }).click();
 
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   expect(fake.repo.files().get("content/pages/about.json")).toContain('"text": "About our parish"');
@@ -68,13 +69,13 @@ test("publishes over someone else's change to a different page, but not to the s
   const fake = await setup(page);
   await signIn(page);
   await page.getByRole("link", { name: "About us", exact: true }).click();
-  await page.frameLocator("iframe#preview-frame").getByRole("heading", { name: "About us" }).click();
-  await page.locator('.gfa-editor input[name="text"]:visible').fill("Mine");
+  await editor(page).locator(".gf-canvas").first().getByRole("heading", { name: "About us" }).click();
+  await editor(page).locator('input[name="text"]:visible').fill("Mine");
 
   // Someone else edits the home page, then publishing still works.
   const home = String(fake.repo.files().get("content/pages/index.json") ?? "");
   fake.commit([{ path: "content/pages/index.json", content: home.replace("Welcome to my site", "Theirs") }], "Theirs");
-  await page.locator(".gfa-editor").getByText("Publish", { exact: true }).click();
+  await page.locator(".gfa-editor-header").getByText("Publish", { exact: true }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   expect(fake.repo.files().get("content/pages/index.json")).toContain("Theirs");
   expect(fake.repo.files().get("content/pages/about.json")).toContain('"text": "Mine"');
@@ -85,8 +86,8 @@ test("publishes over someone else's change to a different page, but not to the s
     [{ path: "content/pages/about.json", content: about.replace('"text": "Mine"', '"text": "Theirs too"') }],
     "Theirs",
   );
-  await page.locator('.gfa-editor input[name="text"]:visible').fill("Mine again");
-  await page.locator(".gfa-editor").getByText("Publish", { exact: true }).click();
+  await editor(page).locator('input[name="text"]:visible').fill("Mine again");
+  await page.locator(".gfa-editor-header").getByText("Publish", { exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Someone else changed the site");
   expect(fake.repo.files().get("content/pages/about.json")).toContain('"text": "Theirs too"');
 });
@@ -158,4 +159,45 @@ test("uploads an image and shows it before the live site has it", async ({ page 
   const reloaded = page.locator(".gfa-media-card", { hasText: "dot.png" }).locator("img");
   await expect(reloaded).toHaveAttribute("src", /^blob:/);
   await expect.poll(() => reloaded.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(2);
+});
+
+test("runs the site's blocks in a sandbox that can't reach the sign-in, storage, the network or WebRTC", async ({
+  page,
+}) => {
+  await setup(page);
+  await signIn(page, "good-token", true);
+  await page.getByRole("link", { name: "About us", exact: true }).click();
+  await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible();
+  await expect(page.locator("iframe.gfa-editor-frame")).toHaveAttribute("sandbox", "allow-scripts");
+
+  // What a block's code could try, from inside the editor's frame.
+  const tried = await canvas(page).evaluate(async () => {
+    const attempt = async (run: () => unknown) => {
+      try {
+        await run();
+        return "allowed";
+      } catch {
+        return "refused";
+      }
+    };
+    return {
+      parent: await attempt(() => window.parent.document.title),
+      storage: await attempt(() => window.localStorage.length),
+      cookie: await attempt(() => document.cookie),
+      fetch: await attempt(() => fetch("/admin/")),
+      webrtc: typeof (window as { RTCPeerConnection?: unknown }).RTCPeerConnection,
+    };
+  });
+  expect(tried).toEqual({
+    parent: "refused",
+    storage: "refused",
+    cookie: "refused",
+    fetch: "refused",
+    webrtc: "undefined",
+  });
+
+  // The admin panel's page still has the sign-in it kept, which the frame can't see.
+  expect(await page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("goodfellow:github")))).toBe(
+    true,
+  );
 });

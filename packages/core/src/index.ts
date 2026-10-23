@@ -1,4 +1,5 @@
 export type { AdminSite } from "./admin-site.js";
+export { EDITOR_PRELUDE, editorPolicy } from "./editor-policy.js";
 export {
   APP_API_HEADER,
   type AppEditor,
