@@ -44,7 +44,7 @@ The service keeps no counts of its own, since every request it gets counts towar
 
 ## Running your own
 
-A site's owner, or an organization for all its sites, can run the service, with GitHub Apps of its own. The service is `packages/worker` in Goodfellow's repository, and runs on Cloudflare's free plan. You need a Cloudflare account, a GitHub account and Node 22 or later.
+A site's owner, or an organization for all its sites, can run the service, with GitHub Apps of its own. The service is `packages/worker` in Goodfellow's repository, and runs on Cloudflare's free plan. You need a Cloudflare account, a GitHub account and Node.js 22.23.4 or later, 24.22.1 or later, or 26.12.1 or later, which fix a security problem in earlier versions.
 
 1. In a copy of Goodfellow's repository, run `pnpm install`.
 2. In `packages/worker`, run `pnpm run setup`. It:

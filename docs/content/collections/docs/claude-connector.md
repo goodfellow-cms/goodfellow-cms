@@ -38,7 +38,7 @@ The connector runs on Cloudflare Workers' free plan:
 
 ## Running your own
 
-An organization can run it, with its own GitHub App. The connector is `packages/connector` in Goodfellow's repository, and runs on Cloudflare's free plan. You need a Cloudflare account, a GitHub account and Node 22 or later.
+An organization can run it, with its own GitHub App. The connector is `packages/connector` in Goodfellow's repository, and runs on Cloudflare's free plan. You need a Cloudflare account, a GitHub account and Node.js 22.23.4 or later, 24.22.1 or later, or 26.12.1 or later, which fix a security problem in earlier versions.
 
 1. In a copy of Goodfellow's repository, run `pnpm install`.
 2. In `packages/connector`, run `pnpm run setup`. It:
