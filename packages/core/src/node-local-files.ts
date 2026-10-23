@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { ConflictError, type ContentStore, EDITABLE_FOLDERS, type FileChange, isEditablePath } from "./index.js";
 import { fileSystemSource } from "./node-fs-source.js";
@@ -13,6 +13,30 @@ function assertEditable(path: string): void {
     throw new InvalidPathError(
       `${path} can't be edited from the admin panel. Only files in content/ and public/media/ can.`,
     );
+  }
+}
+
+/** Where files are written before they're moved into place: inside the site, but outside what anything watches. */
+const WRITING_DIR = "node_modules/.goodfellow/writing";
+
+/**
+ * Writes a file whole: to a temporary file, then moved into place, so the
+ * development servers' watchers, and Tailwind scanning the site for class
+ * names, see the old file or the new one, never part of one. Tailwind keeps
+ * every class name it has seen until it restarts, so one half-written file
+ * would break the site's CSS until then.
+ */
+async function writeWhole(root: string, file: string, data: string | Uint8Array): Promise<void> {
+  const dir = join(root, WRITING_DIR);
+  await mkdir(dir, { recursive: true });
+  const temporary = join(dir, randomUUID());
+  await writeFile(temporary, data);
+  try {
+    await rename(temporary, file);
+  } catch {
+    // Another drive, such as a linked content repository: written in place.
+    await rm(temporary, { force: true });
+    await writeFile(file, data);
   }
 }
 
@@ -46,7 +70,7 @@ export function localFileStore(root: string): ContentStore {
         await rm(file, { force: true });
       } else {
         await mkdir(dirname(file), { recursive: true });
-        await writeFile(file, "bytes" in change ? change.bytes : change.content);
+        await writeWhole(root, file, "bytes" in change ? change.bytes : change.content);
       }
     }
     return { revision: await revision() };
