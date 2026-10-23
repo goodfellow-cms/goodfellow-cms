@@ -369,6 +369,11 @@ pages:
     - ${setup.next ? "npm run build" : "npx goodfellow build"}
   pages:
     publish: site/${output}
+  # A newer publish cancels this build while it runs ("Auto-cancel redundant
+  # pipelines" under Settings → CI/CD → General pipelines, on by default) and
+  # builds the site with both, so publishes in quick succession mostly cost one
+  # build. A nightly update it cancels runs again the next night.
+  interruptible: true
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 `;

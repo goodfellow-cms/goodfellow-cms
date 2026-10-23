@@ -272,8 +272,11 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     return added;
   }
 
-  /** Failed jobs, by commit, which tests add with `failBuild()`. */
-  const failures = new Map<string, { job: string; failureReason: string; trace: string }>();
+  /** Failed jobs, by commit, which tests add with `failBuild()` and `cancelBuild()`. */
+  const failures = new Map<
+    string,
+    { job: string; status: "failed" | "canceled"; failureReason: string; trace: string }
+  >();
 
   /**
    * Simulates the pipeline for a commit failing: its `pages` job (or another,
@@ -283,9 +286,16 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     if (!pipelines.has(sha)) pipelines.set(sha, { checks: 0 });
     failures.set(sha, {
       job: failure.job ?? "pages",
+      status: "failed",
       failureReason: failure.failureReason ?? "script_failure",
       trace: failure.trace ?? "",
     });
+  }
+
+  /** Simulates a commit's `pages` job being cancelled, as a newer pipeline on the branch cancels an interruptible one. */
+  function cancelBuild(sha: string): void {
+    if (!pipelines.has(sha)) pipelines.set(sha, { checks: 0 });
+    failures.set(sha, { job: "pages", status: "canceled", failureReason: "", trace: "" });
   }
 
   const pipelineId = (sha: string) => [...pipelines.keys()].indexOf(sha) + 1;
@@ -807,7 +817,9 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       const failure = failures.get(statuses[1] ?? "");
       if (failure) {
         const id = pipelineId(statuses[1] ?? "");
-        return json([{ name: failure.job, status: "failed", target_url: `${webUrl}/${options.project}/-/jobs/${id}` }]);
+        return json([
+          { name: failure.job, status: failure.status, target_url: `${webUrl}/${options.project}/-/jobs/${id}` },
+        ]);
       }
       pipeline.checks += 1;
       const done = pipeline.checks > (options.deployAfterChecks ?? 0);
@@ -920,7 +932,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       const failure = failures.get(sha);
       return json([
         failure
-          ? { id, name: failure.job, status: "failed", failure_reason: failure.failureReason }
+          ? { id, name: failure.job, status: failure.status, failure_reason: failure.failureReason }
           : { id, name: "pages", status: "success" },
       ]);
     }
@@ -945,6 +957,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     invitations,
     protectedBranches,
     failBuild,
+    cancelBuild,
     /** The project's update settings, and the pipelines the update ran in, which tests add with `addUpdateRun()`. */
     updateSettings,
     updateRuns,

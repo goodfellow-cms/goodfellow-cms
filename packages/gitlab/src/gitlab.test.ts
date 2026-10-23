@@ -336,6 +336,23 @@ describe("failed rebuilds", () => {
     });
   });
 
+  it("follows the newer publish's build where it cancelled this one's, and reports a cancelled build otherwise", async () => {
+    const { fake, host } = setup({ deployAfterChecks: 0 });
+    const backend = await host.signInWithToken("test-token", false);
+    const { revision } = await backend.write([{ path: "content/site.json", content: "{}" }], {
+      message: "Publish",
+      expectedRevision: await backend.revision(),
+    });
+    fake.cancelBuild(revision);
+    expect(await backend.deployStatus(revision)).toMatchObject({ state: "failed" });
+    const { revision: newer } = await backend.write([{ path: "content/pages/index.json", content: "{}" }], {
+      message: "Another publish",
+      expectedRevision: await backend.revision(),
+    });
+    expect(await backend.deployStatus(revision)).toMatchObject({ state: "live" });
+    expect(await backend.deployStatus(newer)).toMatchObject({ state: "live" });
+  });
+
   it("tells installing packages, GitLab's own problems and used-up minutes apart", async () => {
     expect((await published({ trace: "$ npm ci --cache .npm\nnpm ERR! code ERESOLVE\n" })).problem?.step).toBe(
       "install",

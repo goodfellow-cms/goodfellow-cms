@@ -250,6 +250,15 @@ describe("deploy status", () => {
     });
   });
 
+  it("follows the newer publish's build where it replaced this one's, and reports a cancelled build otherwise", async () => {
+    const { backend, revision, fake } = await published(0);
+    fake.cancelBuild(revision);
+    expect(await backend.deployStatus(revision)).toMatchObject({ state: "failed" });
+    const newer = fake.commit([{ path: "content/pages/index.json", content: "{}" }], "Someone else's publish");
+    expect(await backend.deployStatus(revision)).toMatchObject({ state: "live" });
+    expect(await backend.deployStatus(newer)).toMatchObject({ state: "live" });
+  });
+
   it.each([
     ["Run npm ci", "build", "install"],
     ["Run actions/configure-pages@v5", "build", "pages"],

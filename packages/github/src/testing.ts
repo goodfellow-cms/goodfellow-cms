@@ -361,6 +361,20 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     return run;
   }
 
+  /**
+   * Simulates the deploy workflow's run for a commit being cancelled, as a
+   * newer run in its concurrency group replaces one still waiting: it never
+   * deploys.
+   */
+  function cancelBuild(sha: string): FakeRun {
+    for (const [index, deployment] of [...deployments.entries()].reverse()) {
+      if (deployment.sha === sha) deployments.splice(index, 1);
+    }
+    const run: FakeRun = { id: runs.length + 1, sha, status: "completed", conclusion: "cancelled", jobs: [] };
+    runs.push(run);
+    return run;
+  }
+
   /** Simulates an invited person accepting the invitation. */
   function accept(login: string): void {
     const index = invitations.findIndex((invitation) => invitation.login === login);
@@ -1307,9 +1321,10 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     /** Cloudflare Pages' builds, by commit, with `cloudflare`; `failCloudflare()` makes one fail. */
     cloudflareBuilds,
     failCloudflare,
-    /** GitHub Actions workflow runs, which tests add with `failBuild()`. */
+    /** GitHub Actions workflow runs, which tests add with `failBuild()` and `cancelBuild()`. */
     runs,
     failBuild,
+    cancelBuild,
     /** Every request received, for checking what the backend sent. */
     requests,
     /** Simulates someone else publishing. */
