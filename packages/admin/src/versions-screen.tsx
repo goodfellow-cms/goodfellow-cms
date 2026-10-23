@@ -1,7 +1,7 @@
-import { ContentError, type FileVersion, pageView, type SiteContent, todayIn } from "@goodfellow-cms/core";
-import { PageBody, type PreparedPage, preparePage } from "@goodfellow-cms/react";
+import { ContentError, describedConfig, type FileVersion, type SiteContent } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
+import type { RenderShow } from "./frame/protocol.js";
 import { PreviewFrame } from "./preview.js";
 import { entryEditorHref, pageEditorHref } from "./router.js";
 import { type StringKey, useStrings } from "./strings.js";
@@ -176,7 +176,7 @@ function VersionList({
 type Loaded =
   | { status: "loading" }
   | { status: "failed"; message: StringKey; error?: unknown }
-  | { status: "ready"; content: SiteContent; subject: VersionSubject; prepared?: PreparedPage; missing: string[] };
+  | { status: "ready"; content: SiteContent; subject: VersionSubject; show?: RenderShow; missing: string[] };
 
 function VersionDetail({
   subject,
@@ -192,15 +192,15 @@ function VersionDetail({
   onRestored: (date: string) => void;
 }) {
   const t = useStrings();
-  const { config, versions, readFile, listFiles, pageConfig, layoutConfig, templateConfig, publish } = useAdmin();
+  const { site, versions, readFile, listFiles, publish } = useAdmin();
   const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [failure, setFailure] = useState<{ reason: "conflict" | "error" | "checks"; error: unknown }>();
   const date = formatDate(version.date);
   const configs = useMemo(
-    () => ({ page: pageConfig, layout: layoutConfig, template: templateConfig }),
-    [pageConfig, layoutConfig, templateConfig],
+    () => ({ page: describedConfig(site.description, "page"), layout: describedConfig(site.description, "layout") }),
+    [site.description],
   );
 
   useEffect(() => {
@@ -225,13 +225,10 @@ function VersionDetail({
       const then = versionSubject(content, subject.file);
       if (!then) return { status: "failed", message: "versions.unfit" };
       const data = subjectData(content, then);
-      const missing = data ? unknownBlocks(data, then.kind === "page" ? pageConfig : layoutConfig) : [];
-      const shown = previewPage(content, then);
-      // As builds show it, with its added pages' links on the block they're for.
-      const view = shown && pageView(shown, content, todayIn(content.settings.timeZone), config.blocks);
-      const page = shown && view ? { ...shown, view } : shown;
-      const prepared = page && missing.length === 0 ? await preparePage(configs, content, page) : undefined;
-      return { status: "ready", content, subject: then, prepared, missing };
+      const missing = data ? unknownBlocks(data, then.kind === "page" ? configs.page : configs.layout) : [];
+      const page = previewPage(content, then);
+      const show = page && missing.length === 0 ? { content, path: page.path } : undefined;
+      return { status: "ready", content, subject: then, ...(show && { show }), missing };
     })().then(
       (next) => !cancelled && setLoaded(next),
       (error) => !cancelled && setLoaded({ status: "failed", message: "versions.readError", error }),
@@ -239,7 +236,7 @@ function VersionDetail({
     return () => {
       cancelled = true;
     };
-  }, [versions, subject.file, version.revision, readFile, listFiles, configs, pageConfig, layoutConfig, config.blocks]);
+  }, [versions, subject.file, version.revision, readFile, listFiles, configs]);
 
   const restore = useCallback(async () => {
     if (loaded.status !== "ready") return;
@@ -278,21 +275,9 @@ function VersionDetail({
               error={failure.error}
             />
           )}
-          {loaded.prepared ? (
+          {loaded.show ? (
             <div className="gfa-version-preview">
-              <PreviewFrame
-                title={t("versions.preview", { date })}
-                styles={{ theme: loaded.content.settings.theme, customCss: loaded.content.customCss }}
-              >
-                <PageBody
-                  site={loaded.prepared.site}
-                  pageConfig={loaded.prepared.pageConfig}
-                  layoutConfig={loaded.prepared.layoutConfig}
-                  page={loaded.prepared.data}
-                  header={loaded.prepared.header}
-                  footer={loaded.prepared.footer}
-                />
-              </PreviewFrame>
+              <PreviewFrame title={t("versions.preview", { date })} show={loaded.show} />
             </div>
           ) : (
             loaded.missing.length === 0 && <p className="gfa-hint">{t("versions.noPreview")}</p>

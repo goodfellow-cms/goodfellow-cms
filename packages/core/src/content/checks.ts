@@ -107,6 +107,11 @@ export interface SiteCheckOptions {
   blocks?: Record<string, ComponentConfig>;
   /** Today, as `YYYY-MM-DD`, for pages blocks add, such as a calendar's months. */
   today?: string;
+  /**
+   * Every page the site has, as `sitePages()` gives them, where they were
+   * worked out elsewhere, such as by the frame the admin panel runs the site's code in.
+   */
+  pages?: readonly Page[];
 }
 
 /** Text and the backgrounds it's shown on, as the theme's names pair them. */
@@ -245,7 +250,9 @@ function translationProblems(content: SiteContent): SiteProblem[] {
 
 /** Every problem the site has, errors first, in the order its files are listed. */
 export function checkSite(content: SiteContent, options: SiteCheckOptions): SiteProblem[] {
-  const pages = options.blocks && options.today ? sitePages(content, options.today, options.blocks) : allPages(content);
+  const pages =
+    options.pages ??
+    (options.blocks && options.today ? sitePages(content, options.today, options.blocks) : allPages(content));
   const addresses = new Set(pages.map((page) => page.path));
   for (const redirect of content.redirects ?? []) addresses.add(redirect.from);
   const media = new Set(options.media);

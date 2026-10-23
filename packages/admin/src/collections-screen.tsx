@@ -15,7 +15,7 @@ import { Button, Dialog, TextField } from "./ui.js";
 
 function NewCollectionDialog({ onClose }: { onClose: () => void }) {
   const t = useStrings();
-  const { config, publish } = useAdmin();
+  const { blocks, publish } = useAdmin();
   const { content } = useSiteContent();
   const [kind, setKind] = useState<"blank" | "events">("blank");
   const [name, setName] = useState("");
@@ -62,9 +62,9 @@ function NewCollectionDialog({ onClose }: { onClose: () => void }) {
       name: name.trim(),
       entryName: entryName.trim(),
       path: withPages ? pattern : undefined,
-      withEntryFields: "EntryField" in config.blocks,
+      withEntryFields: "EntryField" in blocks,
       kind,
-      blocks: Object.keys(config.blocks),
+      blocks: Object.keys(blocks),
     });
     // Events need a time zone; a site without one gets this computer's, in the same publish.
     const changes = [collectionFileChange(id, settings)];

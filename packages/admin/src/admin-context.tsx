@@ -1,14 +1,15 @@
 import {
+  type AdminSite,
   type AppRole,
   ConflictError,
   type ContentStore,
   type DemoStore,
   type DeployStatus,
+  describedConfig,
   type FileChange,
   type GitBackend,
   type GitUser,
   GOODFELLOW_REGISTRY,
-  type GoodfellowConfig,
   goodfellowRegistryUrl,
   isDemoStore,
   loadSiteContent,
@@ -26,15 +27,29 @@ import {
   upcomingChanges,
   writeChanges,
 } from "@goodfellow-cms/core";
-import { createPuckConfig } from "@goodfellow-cms/react";
-import type { Config } from "@puckeditor/core";
+import type { MediaFieldKind } from "@goodfellow-cms/react";
+import type { ComponentConfig } from "@puckeditor/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ChecksDialog } from "./checks-dialog.js";
+import {
+  type FrameClient,
+  type FrameServices,
+  FrameServicesProvider,
+  type FrameSource,
+  frameSiteCode,
+  SiteCodeFrame,
+} from "./frame/host.js";
 import { mediaUrl } from "./media.js";
+import { MediaPickerDialog } from "./media-library.js";
 import { createMediaPreviews, type MediaPreviews } from "./media-previews.js";
 import { REGISTRY_VERSION } from "./registry-version.js";
+import { navigate } from "./router.js";
+import { useScheduleInfoOf } from "./schedule.js";
 import { checkPublish, type PublishChecks } from "./site-checks.js";
+import type { SiteCodeService } from "./site-code.js";
 import { showSiteIcon } from "./site-icon.js";
+import { useStrings, useStringTable } from "./strings.js";
+import { useThemeChoice } from "./theme.js";
 
 /** How previews load the site's styles. Provided by the dev server or build that serves the admin panel. */
 export interface PreviewOptions {
@@ -78,11 +93,13 @@ export interface Account {
   ai?: { server: string; services: string[] };
 }
 
-interface AdminContextValue {
-  config: GoodfellowConfig;
-  pageConfig: Config;
-  layoutConfig: Config;
-  templateConfig: Config;
+export interface AdminContextValue {
+  /** What the admin panel knows about the site without its code. */
+  site: AdminSite;
+  /** The site's blocks as far as their fields go, for finding links in content. */
+  blocks: Record<string, ComponentConfig>;
+  /** The site's own code, run in a frame of its own, for the pages blocks add and the checks that render pages. */
+  code: SiteCodeService;
   preview: PreviewOptions;
   siteUrl: string;
   state: LoadState;
@@ -129,7 +146,11 @@ interface AdminContextValue {
   scheduleSyncProblem?: "not-allowed";
 }
 
-const AdminContext = createContext<AdminContextValue | null>(null);
+/** Provided by `AdminProvider`, and in the site's frames by a stand-in with only what their components use. */
+export const AdminContext = createContext<AdminContextValue | null>(null);
+
+/** How long a publish waits for the frame running the site's code before checking without it. */
+const CODE_TIMEOUT = 20_000;
 
 const DEPLOY_CHECK_INTERVAL = 5_000;
 const DEPLOY_CHECK_LIMIT = 20 * 60_000;
@@ -150,7 +171,8 @@ function isGitBackend(store: ContentStore): store is GitBackend {
 }
 
 export function AdminProvider({
-  config,
+  site,
+  frames,
   store,
   account,
   preview,
@@ -159,7 +181,9 @@ export function AdminProvider({
   onSignInError,
   children,
 }: {
-  config: GoodfellowConfig;
+  site: AdminSite;
+  /** Where the frames that run the site's code are loaded from. */
+  frames: FrameSource;
   store: ContentStore;
   account?: Account;
   preview: PreviewOptions;
@@ -178,13 +202,32 @@ export function AdminProvider({
     content: SiteContent;
     decide: (publish: boolean) => void;
   }>();
-  const pageConfig = useMemo(() => createPuckConfig(config, "page"), [config]);
-  const layoutConfig = useMemo(() => createPuckConfig(config, "layout"), [config]);
-  const templateConfig = useMemo(() => createPuckConfig(config, "template"), [config]);
+  const blocks = useMemo(
+    () => describedConfig(site.description, "template").components as Record<string, ComponentConfig>,
+    [site.description],
+  );
   const mediaPreviews = useMemo(() => createMediaPreviews(store, siteUrl), [store, siteUrl]);
   const registries = useMemo(
-    () => ({ [GOODFELLOW_REGISTRY]: registry ?? goodfellowRegistryUrl(REGISTRY_VERSION), ...config.registries }),
-    [registry, config.registries],
+    () => ({ [GOODFELLOW_REGISTRY]: registry ?? goodfellowRegistryUrl(REGISTRY_VERSION), ...site.registries }),
+    [registry, site.registries],
+  );
+  // The hidden frame that runs the site's code, which publishes wait for, for a while.
+  const codeFrame = useRef<{ client?: FrameClient; waiting: Array<(client: FrameClient) => void> }>({ waiting: [] });
+  const onCodeClient = useCallback((client: FrameClient | undefined) => {
+    codeFrame.current.client = client;
+    if (client) for (const resolve of codeFrame.current.waiting.splice(0)) resolve(client);
+  }, []);
+  const code = useMemo(
+    () =>
+      frameSiteCode(() => {
+        const { client, waiting } = codeFrame.current;
+        if (client) return Promise.resolve(client);
+        return new Promise<FrameClient>((resolve, reject) => {
+          waiting.push(resolve);
+          setTimeout(() => reject(new Error("The site's code didn't start.")), CODE_TIMEOUT);
+        });
+      }),
+    [],
   );
   const favicon = state.status === "ready" ? state.content.settings.favicon : undefined;
   useEffect(() => (favicon ? showSiteIcon(document, favicon, mediaPreviews) : undefined), [favicon, mediaPreviews]);
@@ -260,7 +303,8 @@ export function AdminProvider({
   const publish = useCallback(
     async (changes: FileChange[], message: string, options?: { checks?: boolean }): Promise<PublishResult> => {
       if (state.status !== "ready") return { ok: false, reason: "error", error: new Error("The site isn't loaded.") };
-      const checks = options?.checks === false ? undefined : await checkPublish(store, state, changes, config);
+      const checks =
+        options?.checks === false ? undefined : await checkPublish(store, state, changes, { blocks, code });
       if (checks && (checks.blocking.length > 0 || checks.warnings.length > 0)) {
         const go = await new Promise<boolean>((decide) => setChecking({ checks, content: checks.content, decide }));
         setChecking(undefined);
@@ -277,7 +321,7 @@ export function AdminProvider({
       setState(await loadAndHandle());
       return { ok: true };
     },
-    [store, state, config, loadAndHandle, onSignInError],
+    [store, state, blocks, code, loadAndHandle, onSignInError],
   );
 
   // Where the host builds the site at each scheduled time (GitLab's pipeline schedules), keeps its builds in step
@@ -325,10 +369,9 @@ export function AdminProvider({
 
   const value = useMemo(
     () => ({
-      config,
-      pageConfig,
-      layoutConfig,
-      templateConfig,
+      site,
+      blocks,
+      code,
       preview,
       siteUrl,
       state,
@@ -353,10 +396,9 @@ export function AdminProvider({
       scheduleSyncProblem,
     }),
     [
-      config,
-      pageConfig,
-      layoutConfig,
-      templateConfig,
+      site,
+      blocks,
+      code,
       preview,
       siteUrl,
       state,
@@ -384,9 +426,115 @@ export function AdminProvider({
 
   return (
     <AdminContext.Provider value={value}>
-      {children}
+      {state.status === "ready" ? (
+        <SiteFrames frames={frames} state={state} onCodeClient={onCodeClient}>
+          {children}
+        </SiteFrames>
+      ) : (
+        children
+      )}
       {checking && <ChecksDialog checks={checking.checks} content={checking.content} onDecide={checking.decide} />}
     </AdminContext.Provider>
+  );
+}
+
+/** The site's compiled CSS as text, read once, for the editor's frame, which can't read anything itself. */
+function useSiteCss(stylesheets: string[]): () => Promise<string[]> {
+  const key = stylesheets.join("\n");
+  return useMemo(() => {
+    let found: Promise<string[]> | undefined;
+    return () => {
+      found ??= Promise.all(
+        key
+          .split("\n")
+          .filter(Boolean)
+          .map((href) =>
+            fetch(href)
+              .then((response) => (response.ok ? response.text() : ""))
+              .catch(() => ""),
+          ),
+      );
+      return found;
+    };
+  }, [key]);
+}
+
+/**
+ * What the site's frames are told and can ask for, once the site has loaded,
+ * and the hidden frame that runs the site's code for the screens.
+ */
+function SiteFrames({
+  frames,
+  state,
+  onCodeClient,
+  children,
+}: {
+  frames: FrameSource;
+  state: Extract<LoadState, { status: "ready" }>;
+  onCodeClient: (client: FrameClient | undefined) => void;
+  children: ReactNode;
+}) {
+  const t = useStrings();
+  const strings = useStringTable();
+  const theme = useThemeChoice();
+  const { preview, siteUrl, mediaPreviews, account, scheduledBuilds, repositoryVisibility, scheduleSyncProblem } =
+    useAdmin();
+  const { timing, visibility } = useScheduleInfoOf(scheduledBuilds, repositoryVisibility);
+  const schedule = useMemo(
+    () => ({
+      ...(timing && { timing }),
+      ...(visibility && { visibility }),
+      ...(scheduleSyncProblem && { syncProblem: scheduleSyncProblem }),
+    }),
+    [timing, visibility, scheduleSyncProblem],
+  );
+  const siteCss = useSiteCss(preview.stylesheets);
+  const [choosing, setChoosing] = useState<{ kind: MediaFieldKind; resolve: (url: string | null) => void }>();
+  const confirmLeave = t("unsaved.confirm");
+  const services = useMemo<FrameServices>(
+    () => ({
+      source: frames,
+      init: {
+        content: state.content,
+        media: state.media,
+        schedule,
+        siteUrl,
+        preview,
+        strings,
+        theme,
+        hostName: account?.hostName ?? "",
+      },
+      siteCss,
+      mediaPreviews,
+      chooseMedia: (kind) =>
+        new Promise((resolve) => {
+          setChoosing((current) => {
+            current?.resolve(null);
+            return { kind, resolve };
+          });
+        }),
+      navigate: (href) => navigate(href, () => window.confirm(confirmLeave)),
+    }),
+    [frames, state, schedule, siteUrl, preview, strings, theme, account, siteCss, mediaPreviews, confirmLeave],
+  );
+  return (
+    <FrameServicesProvider value={services}>
+      {children}
+      <SiteCodeFrame onClient={onCodeClient} />
+      {choosing && (
+        <MediaPickerDialog
+          kind={choosing.kind}
+          onSelect={(url) => {
+            choosing.resolve(url);
+            setChoosing(undefined);
+          }}
+          onClose={() => {
+            choosing.resolve(null);
+            setChoosing(undefined);
+          }}
+        />
+      )}
+    </FrameServicesProvider>
   );
 }
 

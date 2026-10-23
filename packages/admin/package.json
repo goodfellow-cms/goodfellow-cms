@@ -31,6 +31,10 @@
       "types": "./dist/dev.d.ts",
       "import": "./dist/dev.js"
     },
+    "./editor": {
+      "types": "./dist/editor.d.ts",
+      "import": "./dist/editor.js"
+    },
     "./styles.css": "./styles.css",
     "./package.json": "./package.json"
   },

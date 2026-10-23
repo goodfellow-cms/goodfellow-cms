@@ -23,7 +23,7 @@ import {
 } from "@goodfellow-cms/core/node";
 import react from "@vitejs/plugin-react";
 import { createServer, type Plugin, type ViteDevServer } from "vite";
-import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
+import { ADMIN_ENTRY, adminEntryPlugin, adminHtml, EDITOR_PATH, editorHtml } from "./admin-entry.js";
 import { type ClientModules, ISLANDS_DEV_URL } from "./islands.js";
 import {
   baseViteConfig,
@@ -193,6 +193,11 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
             res.end(await server.transformIndexHtml("/admin", html));
             return;
           }
+          // The editor's frames, which run the site's config, Puck and every block.
+          if (url.pathname === `/${EDITOR_PATH}`) {
+            res.end(await server.transformIndexHtml(url.pathname, editorHtml()));
+            return;
+          }
           if (url.pathname === `/${SITE_DESCRIPTION_PATH}`) {
             const { describe } = await loadServerEntry(server);
             res.setHeader("Content-Type", "application/json");
@@ -296,6 +301,7 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
         get previewStylesheet() {
           return `${devUrl(root, getStyles().preview)}?direct`;
         },
+        site: async () => (await loadServerEntry(server)).admin(),
       }),
       devPlugin(root, getStyles),
     ],

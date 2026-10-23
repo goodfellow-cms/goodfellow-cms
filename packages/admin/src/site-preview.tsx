@@ -6,19 +6,13 @@
  * would. Only code already running in the page can call it, so no link and no
  * other site can put content here.
  */
-import {
-  type ContentSource,
-  findSitePage,
-  type GoodfellowConfig,
-  loadSiteContent,
-  type SiteContent,
-  todayIn,
-} from "@goodfellow-cms/core";
-import { createPuckConfigs, PageBody, type PreparedPage, preparePage } from "@goodfellow-cms/react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { type ContentSource, loadSiteContent, type SiteContent } from "@goodfellow-cms/core";
+import { useEffect, useMemo, useState } from "react";
 import type { PreviewOptions } from "./admin-context.js";
-import { installPreviewStyles } from "./preview.js";
+import { type FrameServices, FrameServicesProvider, type FrameSource, useFrame } from "./frame/host.js";
+import { createMediaPreviews } from "./media-previews.js";
+import { useStringTable } from "./strings.js";
+import { useThemeChoice } from "./theme.js";
 
 /** The admin panel's address for the preview page. */
 export const PREVIEW_ROUTE = "#/preview";
@@ -55,28 +49,53 @@ function filesSource(files: Record<string, string>): ContentSource {
   };
 }
 
-const EMPTY_DOCUMENT =
-  '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>';
-
-interface Shown {
-  content: SiteContent;
-  prepared: PreparedPage;
-  dark: boolean;
+/**
+ * Shows a page from content handed to `window.goodfellowPreview()`, full
+ * width, in a frame as tall as the page, which runs the site's code sandboxed
+ * as the editor does, so a full-page screenshot shows all of it.
+ */
+export function SitePreview({
+  frames,
+  preview,
+  siteUrl,
+}: {
+  frames: FrameSource;
+  preview: PreviewOptions;
+  siteUrl: string;
+}) {
+  const strings = useStringTable();
+  const theme = useThemeChoice();
+  const [empty, setEmpty] = useState<SiteContent>();
+  useEffect(() => {
+    void loadSiteContent(filesSource({})).then(setEmpty);
+  }, []);
+  const services = useMemo<FrameServices | undefined>(
+    () =>
+      empty && {
+        source: frames,
+        init: { content: empty, media: [], schedule: {}, siteUrl, preview, strings, theme, hostName: "" },
+        siteCss: async () => [],
+        // Media comes from the live site; there's no repository to read the rest from.
+        mediaPreviews: createMediaPreviews({ readBytes: async () => undefined }, siteUrl),
+        chooseMedia: async () => null,
+        navigate: () => {},
+      },
+    [empty, frames, siteUrl, preview, strings, theme],
+  );
+  return services ? (
+    <FrameServicesProvider value={services}>
+      <PreviewPage />
+    </FrameServicesProvider>
+  ) : null;
 }
 
-/**
- * Shows a page from content handed to `window.goodfellowPreview()`, full width,
- * in an iframe as tall as the page, so the site's styles and the admin panel's
- * don't mix and a full-page screenshot shows all of it.
- */
-export function SitePreview({ config, preview }: { config: GoodfellowConfig; preview: PreviewOptions }) {
-  const configs = useMemo(() => createPuckConfigs(config), [config]);
-  const [doc, setDoc] = useState<Document | null>(null);
-  const [shown, setShown] = useState<Shown>();
+function PreviewPage() {
+  const { client, frameProps } = useFrame({ mode: "render" });
   const [height, setHeight] = useState(800);
-  const rendered = useRef<() => void>(undefined);
 
   useEffect(() => {
+    if (!client) return;
+    const stop = client.on("render.height", (next) => setHeight(Math.max(next, 200)));
     window.goodfellowPreview = async ({ files, path, dark }) => {
       let content: SiteContent;
       try {
@@ -84,58 +103,18 @@ export function SitePreview({ config, preview }: { config: GoodfellowConfig; pre
       } catch (error) {
         return { ok: false, problem: (error as Error).message };
       }
-      const match = findSitePage(content, todayIn(content.settings.timeZone), config.blocks, path);
-      if (!match) return { ok: false, problem: `The site has no page at ${path}.` };
-      const prepared = await preparePage(configs, content, match.page);
-      await new Promise<void>((done) => {
-        rendered.current = done;
-        setShown({ content, prepared, dark: dark === true });
-      });
-      return { ok: true, status: match.status };
+      const shown = await client.call("render.show", { content, path, scheme: dark === true ? "dark" : "light" });
+      if (!shown.ok) return shown;
+      setHeight(Math.max(shown.height, 200));
+      // Once the frame is as tall as the page, two frames later so it's been laid out too.
+      await new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())));
+      return { ok: true, status: shown.status };
     };
     return () => {
+      stop();
       delete window.goodfellowPreview;
     };
-  }, [config.blocks, configs]);
+  }, [client]);
 
-  useEffect(() => {
-    if (!doc || !shown) return;
-    installPreviewStyles(doc, preview, {
-      theme: shown.content.settings.theme,
-      customCss: shown.content.customCss,
-      scheme: shown.dark ? "dark" : "light",
-    });
-    // Once React has put the page in, two frames later so it's been laid out too.
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        setHeight(Math.max(doc.documentElement.scrollHeight, 200));
-        rendered.current?.();
-        rendered.current = undefined;
-      }),
-    );
-  }, [doc, shown, preview]);
-
-  return (
-    <>
-      <iframe
-        title="Preview"
-        srcDoc={EMPTY_DOCUMENT}
-        onLoad={(event) => setDoc(event.currentTarget.contentDocument)}
-        style={{ display: "block", width: "100%", height, border: 0 }}
-      />
-      {doc &&
-        shown &&
-        createPortal(
-          <PageBody
-            site={shown.prepared.site}
-            pageConfig={shown.prepared.pageConfig}
-            layoutConfig={shown.prepared.layoutConfig}
-            page={shown.prepared.data}
-            header={shown.prepared.header}
-            footer={shown.prepared.footer}
-          />,
-          doc.body,
-        )}
-    </>
-  );
+  return <iframe title="Preview" {...frameProps} style={{ display: "block", width: "100%", height, border: 0 }} />;
 }

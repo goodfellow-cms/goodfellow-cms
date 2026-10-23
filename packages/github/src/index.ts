@@ -3,6 +3,7 @@ import {
   credentialStorage,
   GitApiError,
   type GitHost,
+  hostSource,
   type RedirectOptions,
   type ServerGit,
   type ServerGitOptions,
@@ -351,6 +352,7 @@ export function github(options: GitHubOptions): GitHost {
 
   return {
     name: "GitHub",
+    source: hostSource("@goodfellow-cms/github", "github", options, ["fetch", "storage", "location"]),
     canRedirect: service !== undefined,
     tokenLinks: [
       { url: links.fineGrained, label: "signIn.token.create" },

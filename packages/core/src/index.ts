@@ -1,3 +1,4 @@
+export type { AdminSite } from "./admin-site.js";
 export {
   APP_API_HEADER,
   type AppEditor,
@@ -488,6 +489,8 @@ export {
   type GitHost,
   type GitUser,
   type HistoryOptions,
+  type HostSource,
+  hostSource,
   type RedirectOptions,
   type RevisionFiles,
   type ServerGit,
@@ -574,6 +577,7 @@ export {
 } from "./setup-host.js";
 export {
   type BlockDescription,
+  describedConfig,
   GOODFELLOW_VERSION,
   parseSiteDescription,
   SITE_DESCRIPTION_PATH,

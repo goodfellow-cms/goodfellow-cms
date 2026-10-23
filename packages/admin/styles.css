@@ -4,8 +4,11 @@
  */
 /* Each color is light-dark(light, dark): light-dark() picks by color-scheme, which follows
  * the computer's setting unless the admin panel's color menu chose (data-gfa-theme). */
-:root {
+:root:not(.gfa-frame-render) {
   color-scheme: light dark;
+}
+
+:root {
   --gfa-bg: light-dark(#f8fafc, #0b1120);
   --gfa-surface: light-dark(#ffffff, #111827);
   --gfa-text: light-dark(#0f172a, #e2e8f0);
@@ -814,6 +817,98 @@ body,
 .gfa-editor-puck {
   flex: 1;
   min-height: 0;
+}
+
+/* The editor's header, outside the frame that runs the site's code. */
+.gfa-editor-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 16px;
+  background: var(--gfa-surface);
+  border-bottom: 1px solid var(--gfa-border);
+}
+
+.gfa-editor-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gfa-editor-title code {
+  color: var(--gfa-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.gfa-editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gfa-editor-tools .gfa-button[aria-pressed="true"],
+.gfa-header-actions .gfa-button[aria-pressed="true"] {
+  background: var(--gfa-current-bg);
+}
+
+.gfa-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+}
+
+.gfa-editor-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.gfa-editor-ai-panel {
+  flex: none;
+  width: min(360px, 40vw);
+  overflow-y: auto;
+  background: var(--gfa-surface);
+  border-right: 1px solid var(--gfa-border);
+}
+
+.gfa-editor-frame-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.gfa-editor-frame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--gfa-bg);
+}
+
+/* The frames that run the site's code: the editor fills its page, and its canvas can be a phone's width. */
+:root.gfa-frame,
+.gfa-frame body {
+  height: 100%;
+  margin: 0;
+}
+
+.gfa-frame-editor #goodfellow-frame,
+.gfa-frame-editor .gfa-editor-puck {
+  height: 100%;
+}
+
+.gfa-frame-editor .gf-canvas {
+  width: var(--gf-canvas-width, auto);
+  max-width: 100%;
+  min-height: 100%;
+  margin-inline: auto;
 }
 
 .gfa-editor-notice {
@@ -1711,4 +1806,10 @@ body,
   gap: 8px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--gfa-border);
+}
+
+.gfa-editor-viewports {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }

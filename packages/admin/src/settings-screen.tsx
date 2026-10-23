@@ -10,23 +10,19 @@ import {
   HeadCodeError,
   type Menus,
   menusFileSchema,
-  pageView,
   parseHeadCode,
   type Redirect,
   redirectProblems,
   type SiteCode,
+  type SiteContent,
   type SiteProblem,
   type SiteSettings,
   serializeContent,
-  sitePages,
   siteSettingsSchema,
   storedRedirects,
   THEME_COLORS,
   type ThemeColor,
-  todayIn,
 } from "@goodfellow-cms/core";
-import { PageBody, type SiteContextValue, siteMetadata } from "@goodfellow-cms/react";
-import { type Data, resolveAllData } from "@puckeditor/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import {
@@ -49,8 +45,9 @@ import { type SettingsSection, useUnsavedChanges } from "./router.js";
 import { describeContrast } from "./site-checks.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { useDarkMode } from "./theme.js";
-import { Button, ErrorMessage, Field, PublishedNotice, TextField } from "./ui.js";
+import { Button, ErrorMessage, Field, PublishedNotice, TextField, useDebounced } from "./ui.js";
 import { AppLink } from "./use-link.js";
+import { useSitePages } from "./use-site-pages.js";
 
 export type SettingsTab = "general" | "languages" | "theme" | "menus" | "redirects" | "css" | "code";
 export const SETTINGS_TABS: SettingsTab[] = ["general", "languages", "theme", "menus", "redirects", "css", "code"];
@@ -707,7 +704,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     heading?.focus({ preventScroll: true });
   }, [tab, section]);
   const t = useStrings();
-  const { config, pageConfig, layoutConfig, publish, reload } = useAdmin();
+  const { publish, reload } = useAdmin();
   const { content } = useSiteContent();
   // One history for every tab, so undo takes back the last change wherever it was made.
   const history = useHistory<{
@@ -755,10 +752,8 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
   const savedRedirects = useMemo(() => storedRedirects(filledRedirects(redirects)), [redirects]);
   const redirectsInvalid = useMemo(() => redirectProblems(savedRedirects).some(Boolean), [savedRedirects]);
   // Addresses with pages, as builds have them, which win over redirects.
-  const taken = useMemo(
-    () => sitePages(content, todayIn(content.settings.timeZone), config.blocks).map((page) => page.path),
-    [content, config.blocks],
-  );
+  const pages = useSitePages(content);
+  const taken = useMemo(() => pages.map((page) => page.path), [pages]);
   const changes = useMemo(() => {
     const result: FileChange[] = [];
     if (validation.settings && serializeContent(validation.settings) !== serializeContent(content.settings)) {
@@ -816,44 +811,19 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
   // The preview shows unpublished changes as they're made.
   const previewSettings = validation.settings ?? content.settings;
   const home = content.pages.find((page) => page.path === "/");
-  // The home page as builds show it, with its added pages' links on the block they're for.
-  const homeView = useMemo(
-    () => home && pageView(home, content, todayIn(content.settings.timeZone), config.blocks),
-    [home, content, config.blocks],
-  );
-  const previewSite = useMemo<SiteContextValue>(
-    () => ({
-      settings: previewSettings,
-      menus,
-      path: "/",
-      collections: content.collections,
-      ...(homeView && { view: homeView }),
-    }),
-    [previewSettings, menus, content.collections, homeView],
-  );
-  // Blocks whose look depends on the settings, such as code's colors, are prepared again as they change.
-  const [resolvedHome, setResolvedHome] = useState<Data>();
-  useEffect(() => {
-    if (!home) return;
-    let current = true;
-    const timer = setTimeout(() => {
-      resolveAllData(home.content.data as Data, pageConfig, siteMetadata(previewSite)).then(
-        (data) => current && setResolvedHome(data),
-        () => {},
-      );
-    }, 300);
-    return () => {
-      current = false;
-      clearTimeout(timer);
-    };
-  }, [home, pageConfig, previewSite]);
   // Light or dark, as chosen on the Theme tab, or like the admin panel until then.
   const adminDark = useDarkMode();
   const [chosenScheme, setChosenScheme] = useState<PreviewScheme>();
   const previewScheme: PreviewScheme = chosenScheme ?? (adminDark ? "dark" : "light");
-  const previewStyles = useMemo(
-    () => ({ theme: previewSettings.theme, customCss: css, scheme: previewScheme }),
-    [previewSettings, css, previewScheme],
+  // The home page as the changes would leave it, a moment after each change.
+  const previewContent = useMemo<SiteContent>(
+    () => ({ ...content, settings: previewSettings, menus, languageMenus, customCss: css }),
+    [content, previewSettings, menus, languageMenus, css],
+  );
+  const shownContent = useDebounced(previewContent, 300);
+  const previewShow = useMemo(
+    () => ({ content: shownContent, path: "/", scheme: previewScheme }),
+    [shownContent, previewScheme],
   );
   const errors = showErrors ? validation.errors : {};
 
@@ -940,16 +910,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
       <section className="gfa-split-preview" aria-label={t("settings.preview")}>
         <h2 className="gfa-visually-hidden">{t("settings.preview")}</h2>
         {home ? (
-          <PreviewFrame title={t("settings.preview")} styles={previewStyles}>
-            <PageBody
-              site={previewSite}
-              pageConfig={pageConfig}
-              layoutConfig={layoutConfig}
-              page={resolvedHome ?? (home.content.data as Data)}
-              header={content.header.data as Data}
-              footer={content.footer.data as Data}
-            />
-          </PreviewFrame>
+          <PreviewFrame title={t("settings.preview")} show={previewShow} />
         ) : (
           <p className="gfa-hint">{t("settings.previewEmpty")}</p>
         )}

@@ -29,8 +29,8 @@ import {
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
-import { createServer, build as viteBuild } from "vite";
-import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
+import { createServer, type InlineConfig, type Plugin, build as viteBuild } from "vite";
+import { ADMIN_ENTRY, adminEntryPlugin, adminHtml, EDITOR_ENTRY, EDITOR_PATH, EDITOR_PRELUDE } from "./admin-entry.js";
 import { type ClientModules, ISLANDS_ENTRY } from "./islands.js";
 import { baseViteConfig, findConfigFile, loadServerEntry, writeStylesEntries } from "./site.js";
 
@@ -127,6 +127,50 @@ export async function build(options: BuildOptions = {}): Promise<BuildResult> {
   }
 }
 
+/**
+ * The editor's frames' bundle: the site's config, Puck and every block, as
+ * one classic script, since the frames are sandboxed in pages of their own
+ * origin, which can't load module scripts from the site without CORS headers.
+ * Its first lines remove WebRTC. Returns the files the admin panel puts in each frame.
+ */
+async function buildEditor(
+  viteConfig: InlineConfig,
+  entries: Plugin,
+  { base, outDir }: { base: string; outDir: string },
+): Promise<{ scripts: string[]; stylesheets: string[] }> {
+  await viteBuild({
+    ...viteConfig,
+    plugins: [...(viteConfig.plugins ?? []), entries],
+    base,
+    build: {
+      outDir,
+      emptyOutDir: false,
+      copyPublicDir: false,
+      assetsDir: EDITOR_PATH.slice(0, -1),
+      manifest: "editor-manifest.json",
+      chunkSizeWarningLimit: 16384,
+      cssCodeSplit: false,
+      rolldownOptions: {
+        input: { editor: EDITOR_ENTRY },
+        output: { format: "iife", inlineDynamicImports: true, banner: EDITOR_PRELUDE },
+        onLog(level, log, handler) {
+          if (log.code === "MODULE_LEVEL_DIRECTIVE") return;
+          handler(level, log);
+        },
+      },
+    },
+  });
+  const manifestPath = join(outDir, "editor-manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest;
+  await rm(manifestPath);
+  const editor = findEntry(manifest, "editor");
+  if (!editor) throw new Error("The editor's bundle is missing from the build.");
+  return {
+    scripts: [`${base}${editor.file}`],
+    stylesheets: cssFiles(manifest, "editor").map((file) => `${base}${file}`),
+  };
+}
+
 async function buildSite(options: BuildOptions): Promise<BuildResult> {
   const root = resolve(options.root ?? ".");
   const outDir = resolve(root, options.outDir ?? "dist");
@@ -142,7 +186,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
   });
 
   try {
-    const { config, renderPage, describe } = await loadServerEntry(server);
+    const { config, renderPage, describe, admin: adminSite } = await loadServerEntry(server);
     const base = normalizeBase(options.base ?? config.base);
     // The site as visitors see it now: pages and items scheduled for later, or hidden again, are left out.
     const now = new Date();
@@ -157,9 +201,11 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     if (withAdmin) Object.assign(input, { preview: styles.preview, admin: ADMIN_ENTRY });
     if (modules.size > 0) input.islands = ISLANDS_ENTRY;
     const viteConfig = baseViteConfig(root, configFile, modules);
+    const site = adminSite();
+    const entries = adminEntryPlugin(configFile, { mode: "build", site });
     await viteBuild({
       ...viteConfig,
-      plugins: [...(viteConfig.plugins ?? []), adminEntryPlugin(configFile, { mode: "build" })],
+      plugins: [...(viteConfig.plugins ?? []), entries],
       base,
       build: {
         outDir,
@@ -193,10 +239,16 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     if (withAdmin) {
       const admin = findEntry(manifest, "admin");
       if (!admin) throw new Error("The admin panel's bundle is missing from the build.");
+      const frames = await buildEditor(viteConfig, entries, { base, outDir });
       const html = adminHtml({
         scripts: [`${base}${admin.file}`],
         stylesheets: cssFiles(manifest, "admin").map((file) => `${base}${file}`),
-        settings: { previewStylesheets: cssFiles(manifest, "preview").map((file) => `${base}${file}`), siteUrl: base },
+        settings: {
+          previewStylesheets: cssFiles(manifest, "preview").map((file) => `${base}${file}`),
+          siteUrl: base,
+          site,
+          frames,
+        },
         ...(content.settings.favicon && { icon: withBase(content.settings.favicon, base) }),
       });
       await mkdir(join(outDir, "admin"), { recursive: true });

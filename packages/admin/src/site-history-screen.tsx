@@ -2,21 +2,19 @@ import {
   allPages,
   type ChangedFile,
   ContentError,
+  describedConfig,
   describeSiteChanges,
   entryTitle,
   type FileVersion,
   loadSiteContent,
   type Page,
-  pageView,
   type RevisionFiles,
   type SiteChange,
   type SiteContent,
   siteChangesSince,
   siteHistory,
   siteRestoreChanges,
-  todayIn,
 } from "@goodfellow-cms/core";
-import { PageBody, type PreparedPage, preparePage } from "@goodfellow-cms/react";
 import type { Config } from "@puckeditor/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
@@ -192,30 +190,21 @@ const SINCE: Record<SiteChange["since"], StringKey> = {
 
 function PublishDetail({ version, onRestored }: { version: FileVersion; onRestored: (date: string) => void }) {
   const t = useStrings();
-  const {
-    config,
-    versions,
-    readFile,
-    listFiles,
-    changedPaths,
-    pageConfig,
-    layoutConfig,
-    templateConfig,
-    publish,
-    siteUrl,
-    mediaPreviews,
-  } = useAdmin();
+  const { site, versions, readFile, listFiles, changedPaths, publish, siteUrl, mediaPreviews } = useAdmin();
   const { content: now, revision } = useSiteContent();
   const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
   const [shown, setShown] = useState("/");
-  const [prepared, setPrepared] = useState<PreparedPage>();
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [failure, setFailure] = useState<{ reason: "conflict" | "error" | "checks"; error: unknown }>();
   const date = formatDate(version.date);
   const configs = useMemo(
-    () => ({ page: pageConfig, layout: layoutConfig, template: templateConfig }),
-    [pageConfig, layoutConfig, templateConfig],
+    () => ({
+      page: describedConfig(site.description, "page"),
+      layout: describedConfig(site.description, "layout"),
+      template: describedConfig(site.description, "template"),
+    }),
+    [site.description],
   );
 
   useEffect(() => {
@@ -253,20 +242,14 @@ function PublishDetail({ version, onRestored }: { version: FileVersion; onRestor
   const pages = useMemo(() => (loaded.status === "ready" ? allPages(loaded.content) : []), [loaded]);
   const page: Page | undefined = pages.find((candidate) => candidate.path === shown) ?? pages[0];
 
-  // The chosen page as builds showed it then, with its added pages' links on the block they're for.
-  useEffect(() => {
-    setPrepared(undefined);
-    if (loaded.status !== "ready" || !page || loaded.missing.length > 0) return;
-    let cancelled = false;
-    const view = pageView(page, loaded.content, todayIn(loaded.content.settings.timeZone), config.blocks);
-    preparePage(configs, loaded.content, view ? { ...page, view } : page).then(
-      (next) => !cancelled && setPrepared(next),
-      () => {},
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [loaded, page, configs, config.blocks]);
+  // The chosen page as builds showed it then.
+  const show = useMemo(
+    () =>
+      loaded.status === "ready" && page && loaded.missing.length === 0
+        ? { content: loaded.content, path: page.path }
+        : undefined,
+    [loaded, page],
+  );
 
   const media = useMemo(
     () => (loaded.status === "ready" ? createMediaPreviews(loaded.then, siteUrl) : undefined),
@@ -343,22 +326,9 @@ function PublishDetail({ version, onRestored }: { version: FileVersion; onRestor
               )}
             </Field>
           )}
-          {prepared ? (
+          {show ? (
             <div className="gfa-version-preview">
-              <PreviewFrame
-                title={t("siteHistory.preview", { date })}
-                styles={{ theme: loaded.content.settings.theme, customCss: loaded.content.customCss }}
-                media={media}
-              >
-                <PageBody
-                  site={prepared.site}
-                  pageConfig={prepared.pageConfig}
-                  layoutConfig={prepared.layoutConfig}
-                  page={prepared.data}
-                  header={prepared.header}
-                  footer={prepared.footer}
-                />
-              </PreviewFrame>
+              <PreviewFrame title={t("siteHistory.preview", { date })} show={show} {...(media && { media })} />
             </div>
           ) : (
             loaded.missing.length === 0 && page && <p role="status">{t("siteHistory.loadingVersion")}</p>

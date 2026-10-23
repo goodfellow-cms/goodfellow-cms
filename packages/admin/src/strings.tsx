@@ -108,6 +108,14 @@ export const defaultStrings = {
   "details.show": "Details",
 
   "publish.button": "Publish",
+  "editor.leftSidebar": "Show or hide blocks and outline",
+  "editor.rightSidebar": "Show or hide settings",
+  "editor.viewport": "Preview width",
+  "editor.viewport.full": "Full width",
+  "editor.viewport.tablet": "Tablet",
+  "editor.viewport.phone": "Phone",
+  "editor.failed": "The editor stopped working. Reload the page to start it again.",
+  "editor.frame": "Editing {title}",
   "publish.publishing": "Publishing…",
   "publish.done": "Published.",
   "publish.conflict":
@@ -1167,6 +1175,11 @@ const StringsContext = createContext<Strings>(defaultStrings);
 export function StringsProvider({ strings, children }: { strings?: Partial<Strings>; children: ReactNode }) {
   const value = useMemo(() => ({ ...defaultStrings, ...strings }), [strings]);
   return <StringsContext.Provider value={value}>{children}</StringsContext.Provider>;
+}
+
+/** The whole table, with any strings the admin panel was given, for frames, which show some of the admin panel's text. */
+export function useStringTable(): Strings {
+  return useContext(StringsContext);
 }
 
 export type Translate = (key: StringKey, values?: Record<string, string>) => string;
