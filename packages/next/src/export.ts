@@ -24,6 +24,8 @@ import {
 import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
 
+export { NEXT_SITE_FILES } from "./site-files.js";
+
 /**
  * Writes the calendar files of the site's collections of events into the
  * export, as `goodfellow build` does: Next.js has no route for them. Returns

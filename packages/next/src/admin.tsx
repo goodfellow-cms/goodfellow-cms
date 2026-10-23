@@ -1,12 +1,18 @@
 "use client";
 
-import { Admin, type FrameSource, type Strings } from "@goodfellow-cms/admin";
-import type { AdminSite, ContentStore, GitHost, GoodfellowConfig, HostSource } from "@goodfellow-cms/core";
-import { adminSite } from "@goodfellow-cms/react";
+import { Admin, OutdatedAdminPage, type Strings } from "@goodfellow-cms/admin";
+import {
+  type AdminSite,
+  type ContentStore,
+  DEV_EDITOR_PREFIX,
+  type GitHost,
+  type GoodfellowConfig,
+  type HostSource,
+} from "@goodfellow-cms/core";
 import { useEffect, useState } from "react";
 import "@goodfellow-cms/admin/styles.css";
-import { GoodfellowEditor } from "./editor.js";
 import themeCss from "./generated/theme-css.js";
+import { ADMIN_PAGE, EDITOR_PAGE } from "./site-files.js";
 
 export interface GoodfellowAdminProps {
   /**
@@ -16,9 +22,10 @@ export interface GoodfellowAdminProps {
    */
   site?: AdminSite;
   /**
-   * The site's `goodfellow.config.tsx`, for an `app/admin/page.tsx` made
-   * before the editor's frames, which is a Client Component. The admin panel
-   * then works as it did, without keeping blocks' code away from the editor's sign-in.
+   * The site's `goodfellow.config.tsx`, which an `app/admin/page.tsx` from
+   * before the editor's frames passes. That page loads every block's code
+   * itself, so the admin panel only says how to update it, and never signs in
+   * there: `goodfellow-next update` replaces it where it's still the starter's.
    */
   config?: GoodfellowConfig;
   /** The live site's address, for "View" links. Defaults to the site's base path, such as `/` or `/my-site/`. */
@@ -62,11 +69,34 @@ async function siteStylesheets(siteUrl: string): Promise<string[]> {
 /** Set by `withGoodfellow()` from Next.js's `basePath`, such as `/my-site`, or empty. */
 const BASE_PATH = process.env.GOODFELLOW_BASE_PATH ?? "";
 
-/** Where the editor's frames are: `app/admin/editor/`. */
-const EDITOR_URL = `${BASE_PATH}/admin/editor/`;
+/**
+ * Where the editor's frames are: `app/admin/editor/`, or in `next dev` the
+ * bundle the local backend serves, since Next.js refuses its development
+ * files to sandboxed frames.
+ */
+const EDITOR_URL =
+  process.env.NODE_ENV === "development" ? `${BASE_PATH}${DEV_EDITOR_PREFIX}` : `${BASE_PATH}/admin/editor/`;
 
-/** The query an `app/admin/page.tsx` made before the editor's frames shows the editor at, in place of the admin panel. */
-const LEGACY_EDITOR = "goodfellow-editor";
+/** In `next dev`, reloads the admin panel once the editor's frames are rebuilt, so they show the site's new code. */
+function useEditorRebuilds() {
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    let first: number | undefined;
+    const check = async () => {
+      try {
+        const response = await fetch(`${EDITOR_URL}version.json`, { cache: "no-store" });
+        const { version } = (await response.json()) as { version: number };
+        if (first === undefined) first = version;
+        else if (version !== first) location.reload();
+      } catch {
+        // The dev server is restarting.
+      }
+    };
+    void check();
+    const timer = setInterval(check, 1500);
+    return () => clearInterval(timer);
+  }, []);
+}
 
 /**
  * Goodfellow's git hosts, which a site's config names as `site.backend`. A
@@ -85,7 +115,7 @@ async function hostFrom(source: HostSource): Promise<GitHost> {
   return (make as (options: Record<string, unknown>) => GitHost)(source.options);
 }
 
-async function setUp(siteUrl: string, backend: HostSource | undefined, legacyHost?: GitHost): Promise<Setup> {
+async function setUp(siteUrl: string, backend: HostSource | undefined): Promise<Setup> {
   const [stylesheets, tailwindBrowser, store, host] = await Promise.all([
     siteStylesheets(siteUrl),
     // Tailwind for the browser is large, so it's only loaded with the admin panel.
@@ -94,7 +124,7 @@ async function setUp(siteUrl: string, backend: HostSource | undefined, legacyHos
     process.env.NODE_ENV === "development"
       ? import("@goodfellow-cms/admin/dev").then((module) => module.localStore(`${BASE_PATH}/__goodfellow/api`))
       : undefined,
-    legacyHost ?? (backend ? hostFrom(backend) : undefined),
+    backend ? hostFrom(backend) : undefined,
   ]);
   const tailwindBrowserUrl = URL.createObjectURL(new Blob([tailwindBrowser], { type: "text/javascript" }));
   return { stylesheets, tailwindBrowserUrl, ...(store && { store }), ...(host && { host }) };
@@ -106,19 +136,31 @@ async function setUp(siteUrl: string, backend: HostSource | undefined, legacyHos
  * live site, editors sign in to the config's git backend, or on a full-stack
  * site (`server`), with the site's own sign-in.
  */
-export function GoodfellowAdmin({ site, config, siteUrl = `${BASE_PATH}/`, strings, server }: GoodfellowAdminProps) {
+export function GoodfellowAdmin({ site, config, strings, ...props }: GoodfellowAdminProps) {
+  if (site) return <SiteAdmin site={site} {...(strings && { strings })} {...props} />;
+  if (config) {
+    const files = [
+      { path: "app/admin/page.tsx", content: ADMIN_PAGE },
+      { path: "app/admin/editor/page.tsx", content: EDITOR_PAGE },
+    ];
+    return <OutdatedAdminPage files={files} {...(strings && { strings })} />;
+  }
+  throw new Error("GoodfellowAdmin needs `site`, from `site.admin()` in app/admin/page.tsx.");
+}
+
+function SiteAdmin({
+  site,
+  siteUrl = `${BASE_PATH}/`,
+  strings,
+  server,
+}: Omit<GoodfellowAdminProps, "site" | "config"> & { site: AdminSite }) {
   const [setup, setSetup] = useState<Setup | null>(null);
-  const [legacyEditor] = useState(
-    () => config !== undefined && typeof location !== "undefined" && location.search.includes(LEGACY_EDITOR),
-  );
-  const [described] = useState(() => site ?? (config ? adminSite(config) : undefined));
-  if (!described) throw new Error("GoodfellowAdmin needs `site`, from `site.admin()` in app/admin/page.tsx.");
+  useEditorRebuilds();
 
   useEffect(() => {
-    if (legacyEditor) return;
     let current = true;
     let url: string | undefined;
-    void setUp(siteUrl, described.backend, config?.backend).then((result) => {
+    void setUp(siteUrl, site.backend).then((result) => {
       url = result.tailwindBrowserUrl;
       if (current) setSetup(result);
       else URL.revokeObjectURL(url);
@@ -127,18 +169,13 @@ export function GoodfellowAdmin({ site, config, siteUrl = `${BASE_PATH}/`, strin
       current = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [siteUrl, described, config, legacyEditor]);
+  }, [siteUrl, site]);
 
-  // A page made before the editor's frames shows the editor too, in its own frame on the same address.
-  if (legacyEditor && config) return <GoodfellowEditor config={config} />;
   if (!setup) return null;
-  const frames: FrameSource = config
-    ? { url: `${location.pathname}?${LEGACY_EDITOR}`, sameOrigin: true }
-    : { url: EDITOR_URL, sameOrigin: process.env.NODE_ENV === "development" };
   return (
     <Admin
-      site={described}
-      frames={frames}
+      site={site}
+      frames={{ url: EDITOR_URL }}
       {...(setup.host && { host: setup.host })}
       {...(setup.store && { store: setup.store, registry: `${BASE_PATH}/__goodfellow/api/registry/{name}.json` })}
       {...(server && { server: `${BASE_PATH}${server}` })}

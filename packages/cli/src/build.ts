@@ -9,7 +9,6 @@ import {
   cloudflareRedirects,
   DEMO_CONTENT_PATH,
   demoContent,
-  EDITOR_PRELUDE,
   feedFiles,
   loadSiteContent,
   MEDIA_DIR,
@@ -30,9 +29,11 @@ import {
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
-import { createServer, type InlineConfig, type Plugin, build as viteBuild } from "vite";
-import { ADMIN_ENTRY, adminEntryPlugin, adminHtml, builtEditorHtml, EDITOR_ENTRY, EDITOR_PATH } from "./admin-entry.js";
+import { createServer, build as viteBuild } from "vite";
+import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
+import { buildEditor } from "./editor-bundle.js";
 import { type ClientModules, ISLANDS_ENTRY } from "./islands.js";
+import { cssFiles, findEntry, type Manifest } from "./manifest.js";
 import { baseViteConfig, findConfigFile, loadServerEntry, writeStylesEntries } from "./site.js";
 
 export interface BuildOptions {
@@ -66,29 +67,6 @@ async function exists(path: string): Promise<boolean> {
     () => true,
     () => false,
   );
-}
-
-interface ManifestChunk {
-  file: string;
-  name?: string;
-  src?: string;
-  isEntry?: boolean;
-  css?: string[];
-  imports?: string[];
-}
-
-type Manifest = Record<string, ManifestChunk>;
-
-/** Finds a build input in Vite's manifest by the name it was given in `input`. */
-function findEntry(manifest: Manifest, name: string): ManifestChunk | undefined {
-  return Object.values(manifest).find((chunk) => chunk.isEntry && chunk.name === name);
-}
-
-/** The CSS files a build input produced: the file itself for CSS inputs, or the CSS its JavaScript imports. */
-function cssFiles(manifest: Manifest, name: string): string[] {
-  const entry = findEntry(manifest, name);
-  if (!entry) return [];
-  return entry.file.endsWith(".css") ? [entry.file] : (entry.css ?? []);
 }
 
 function escapeXml(text: string): string {
@@ -126,53 +104,6 @@ export async function build(options: BuildOptions = {}): Promise<BuildResult> {
     if (nodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = nodeEnv;
   }
-}
-
-/**
- * The editor's frames' bundle: the site's config, Puck and every block, as
- * one classic script, since the frames are sandboxed in pages of their own
- * origin, which can't load module scripts from the site without CORS headers.
- * Its first lines remove WebRTC. Writes the frames' page, and returns its address.
- */
-async function buildEditor(
-  viteConfig: InlineConfig,
-  entries: Plugin,
-  { base, outDir }: { base: string; outDir: string },
-): Promise<{ url: string }> {
-  await viteBuild({
-    ...viteConfig,
-    plugins: [...(viteConfig.plugins ?? []), entries],
-    base,
-    build: {
-      outDir,
-      emptyOutDir: false,
-      copyPublicDir: false,
-      assetsDir: EDITOR_PATH.slice(0, -1),
-      manifest: "editor-manifest.json",
-      chunkSizeWarningLimit: 16384,
-      cssCodeSplit: false,
-      rolldownOptions: {
-        input: { editor: EDITOR_ENTRY },
-        output: { format: "iife", inlineDynamicImports: true, banner: EDITOR_PRELUDE },
-        onLog(level, log, handler) {
-          if (log.code === "MODULE_LEVEL_DIRECTIVE") return;
-          handler(level, log);
-        },
-      },
-    },
-  });
-  const manifestPath = join(outDir, "editor-manifest.json");
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest;
-  await rm(manifestPath);
-  const editor = findEntry(manifest, "editor");
-  if (!editor) throw new Error("The editor's bundle is missing from the build.");
-  const html = builtEditorHtml({
-    scripts: [`${base}${editor.file}`],
-    stylesheets: cssFiles(manifest, "editor").map((file) => `${base}${file}`),
-  });
-  await mkdir(join(outDir, EDITOR_PATH), { recursive: true });
-  await writeFile(join(outDir, EDITOR_PATH, "index.html"), html);
-  return { url: `${base}${EDITOR_PATH}` };
 }
 
 async function buildSite(options: BuildOptions): Promise<BuildResult> {
@@ -243,7 +174,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     if (withAdmin) {
       const admin = findEntry(manifest, "admin");
       if (!admin) throw new Error("The admin panel's bundle is missing from the build.");
-      const frames = await buildEditor(viteConfig, entries, { base, outDir });
+      const { url } = await buildEditor(viteConfig, entries, { base, outDir });
       const html = adminHtml({
         scripts: [`${base}${admin.file}`],
         stylesheets: cssFiles(manifest, "admin").map((file) => `${base}${file}`),
@@ -251,7 +182,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
           previewStylesheets: cssFiles(manifest, "preview").map((file) => `${base}${file}`),
           siteUrl: base,
           site,
-          frames,
+          frames: { url },
         },
         ...(content.settings.favicon && { icon: withBase(content.settings.favicon, base) }),
       });

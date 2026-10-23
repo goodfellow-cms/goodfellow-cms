@@ -450,7 +450,7 @@ export {
   newDraftName,
   type SiteDrafts,
 } from "./drafts.js";
-export { EDITOR_PRELUDE, editorPolicy } from "./editor-policy.js";
+export { DEV_EDITOR_PREFIX, EDITOR_PRELUDE, editorPage, editorPolicy } from "./editor-policy.js";
 export {
   type EditorList,
   type EditorRole,

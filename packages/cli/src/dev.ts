@@ -29,8 +29,9 @@ import {
   adminHtml,
   DEV_ADMIN_SITE_PATH,
   EDITOR_PATH,
-  editorHtml,
+  EDITOR_REBUILT_EVENT,
 } from "./admin-entry.js";
+import { buildEditor } from "./editor-bundle.js";
 import { type ClientModules, ISLANDS_DEV_URL } from "./islands.js";
 import {
   baseViteConfig,
@@ -172,8 +173,59 @@ function serveMedia(root: string) {
   };
 }
 
+/** The editor's frames' bundle, which `goodfellow dev` rebuilds as the site's code changes. */
+interface DevEditor {
+  outDir: string;
+  /** Settles once the first build has finished, whether or not it worked. */
+  ready: Promise<void>;
+}
+
+const EDITOR_TYPES: Record<string, string> = {
+  html: "text/html; charset=utf-8",
+  js: "text/javascript; charset=utf-8",
+  css: "text/css; charset=utf-8",
+  map: "application/json",
+  svg: "image/svg+xml",
+  png: "image/png",
+  woff: "font/woff",
+  woff2: "font/woff2",
+};
+
+/**
+ * Serves the editor's frames from their bundle, as `goodfellow build` writes
+ * it: a classic script, which a frame sandboxed with `allow-scripts` alone can
+ * load without the server letting other websites' sandboxed frames read it.
+ */
+function serveEditor(editor: DevEditor) {
+  const prefix = `/${EDITOR_PATH}`;
+  return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+    if (!pathname.startsWith(prefix)) return next();
+    await editor.ready;
+    let file: string;
+    try {
+      file = resolve(
+        editor.outDir,
+        decodeURIComponent(pathname === prefix ? `${prefix}index.html` : pathname).slice(1),
+      );
+    } catch {
+      return next();
+    }
+    if (!file.startsWith(`${editor.outDir}${sep}`)) return next();
+    try {
+      const data = await readFile(file);
+      res.setHeader("Content-Type", EDITOR_TYPES[file.slice(file.lastIndexOf(".") + 1)] ?? "application/octet-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.end(req.method === "HEAD" ? undefined : data);
+    } catch {
+      next();
+    }
+  };
+}
+
 /** Serves the local backend's API, the admin panel at /admin, and pages rendered on request from the files on disk. */
-function devPlugin(root: string, styles: () => StylesEntries): Plugin {
+function devPlugin(root: string, styles: () => StylesEntries, editor: DevEditor): Plugin {
   const store = localFileStore(root);
   const registryDir = localRegistryDir(root);
   return {
@@ -181,6 +233,7 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
     configureServer(server: ViteDevServer) {
       watchContent(server, root, styles);
       server.middlewares.use(serveMedia(root));
+      server.middlewares.use(serveEditor(editor));
 
       // Runs after Vite's own middleware, so modules, assets and public/ files are served first.
       return () => {
@@ -205,11 +258,6 @@ function devPlugin(root: string, styles: () => StylesEntries): Plugin {
             );
             const html = adminHtml({ scripts: [`/@id/__x00__${ADMIN_ENTRY}`], ...(icon && { icon }) });
             res.end(await server.transformIndexHtml("/admin", html));
-            return;
-          }
-          // The editor's frames, which run the site's config, Puck and every block.
-          if (url.pathname === `/${EDITOR_PATH}`) {
-            res.end(await server.transformIndexHtml(url.pathname, editorHtml()));
             return;
           }
           if (url.pathname === `/${SITE_DESCRIPTION_PATH}`) {
@@ -289,7 +337,31 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
 
   const modules: ClientModules = new Map();
   const base = baseViteConfig(root, configFile, modules);
-  const server = await createServer({
+
+  // The editor's frames are bundled as builds bundle them, and rebuilt as the site's code changes.
+  let server: ViteDevServer | undefined;
+  let built: () => void = () => {};
+  let builds = 0;
+  const editor: DevEditor = {
+    outDir: join(root, "node_modules/.goodfellow/editor"),
+    ready: new Promise<void>((resolve) => {
+      built = resolve;
+    }),
+  };
+  const bundle = await buildEditor(base, adminEntryPlugin(configFile, { mode: "dev", previewStylesheet: "" }), {
+    base: "/",
+    outDir: editor.outDir,
+    watch: {
+      onBuilt(error) {
+        builds += 1;
+        built();
+        if (error) server?.config.logger.error(`The editor's frames couldn't be built: ${error.message}`);
+        else if (builds > 1) server?.ws.send({ type: "custom", event: EDITOR_REBUILT_EVENT });
+      },
+    },
+  });
+
+  server = await createServer({
     ...base,
     appType: "custom",
     logLevel: "info",
@@ -316,9 +388,14 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
           return `${devUrl(root, getStyles().preview)}?direct`;
         },
       }),
-      devPlugin(root, getStyles),
+      devPlugin(root, getStyles, editor),
     ],
   });
+  const closeServer = server.close.bind(server);
+  server.close = async () => {
+    await bundle.close();
+    await closeServer();
+  };
 
   const { config } = await loadServerEntry(server);
   styles = await writeStylesEntries(root, config);

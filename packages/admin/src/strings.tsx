@@ -95,6 +95,11 @@ export const defaultStrings = {
   "build.unknown": "{host} didn't say why the rebuild failed. Its details may help a developer.",
   "build.hostDetails": "See the details on {host}",
   "loadError.title": "The admin panel couldn't open this site",
+  "outdatedAdminPage.title": "This site's admin page needs updating",
+  "outdatedAdminPage.message":
+    "This site's admin page is from before the editor kept blocks away from your sign-in, so the admin panel doesn't open on it. Goodfellow's next update changes it, unless someone has changed the page. Whoever looks after the site's code can also change it now: the details say how.",
+  "outdatedAdminPage.details":
+    "Run npx goodfellow-next update, or replace these files with the Next.js starter's, as they are below. The site's blocks then run in the editor's sandboxed frames, at /admin/editor/.",
   "loadError.contentProblems": "Some of the site's files have problems, so they can't be edited until they're fixed.",
   "loadError.other": "Something went wrong while loading the site. Check your connection and try again.",
   "action.tryAgain": "Try again",

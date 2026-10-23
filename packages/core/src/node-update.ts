@@ -27,6 +27,46 @@ import {
   VERSION_PACKAGE,
 } from "./updates.js";
 
+/**
+ * A file sites start with that a release changes, such as a Next.js site's
+ * admin pages. Updates bring it up to date where it's still exactly as an
+ * earlier release wrote it, leave it where someone has changed it, and put
+ * the earlier one back when going back to a release before `since`.
+ */
+export interface SiteFile {
+  path: string;
+  /** The first release with `content`. */
+  since: string;
+  content: string;
+  /** What earlier releases wrote, oldest first; empty where they had no such file. */
+  earlier: readonly string[];
+}
+
+/** The changes that bring site files to `release`, and the ones someone changed, which stay as they are. */
+export async function siteFileChanges(
+  files: readonly SiteFile[],
+  release: string,
+  read: (path: string) => Promise<string | undefined>,
+): Promise<{ changes: FileChange[]; kept: string[] }> {
+  const changes: FileChange[] = [];
+  const kept: string[] = [];
+  for (const file of files) {
+    const text = (await read(file.path))?.replace(/\r\n/g, "\n");
+    if (compareReleases(release, file.since) >= 0) {
+      if (text === file.content) continue;
+      const known = text === undefined ? file.earlier.length === 0 : file.earlier.includes(text);
+      if (known) changes.push({ path: file.path, content: file.content });
+      else if (text !== undefined) kept.push(file.path);
+      continue;
+    }
+    // Going back to a release before the file changed puts back what that release wrote.
+    if (text !== file.content) continue;
+    const earlier = file.earlier.at(-1);
+    changes.push(earlier === undefined ? { path: file.path, delete: true } : { path: file.path, content: earlier });
+  }
+  return { changes, kept };
+}
+
 /** Runs a command in the site's folder, and says how it went and what it printed. */
 export type RunCommand = (command: string, args: string[], cwd: string) => Promise<{ code: number; output: string }>;
 
@@ -46,6 +86,8 @@ export interface UpdateOptions {
   branch?: string;
   /** Goodfellow's block registry, as `https://…/{name}.json`. Defaults to the release being installed. */
   registry?: string;
+  /** Files of the site's own that releases change, such as `goodfellow-next`'s admin pages. */
+  siteFiles?: readonly SiteFile[];
   /** For tests. */
   fetchJson?: FetchJson;
   run?: RunCommand;
@@ -115,12 +157,21 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     target === "automatic" ? "fixes" : target,
     settings.skip,
   );
-  if (!to) {
+  const siteFiles = options.siteFiles ?? [];
+  const current = to ? undefined : await siteFileChanges(siteFiles, from, read);
+  if (!to && current?.changes.length === 0) {
     log(`Goodfellow ${from} is up to date.`);
-    return { state: "up-to-date", from };
+    if (current.kept.length > 0) log(keptMessage(current.kept));
+    return { state: "up-to-date", from, ...(current.kept.length > 0 && { kept: current.kept }) };
   }
-  const rollback = compareReleases(to, from) < 0;
-  log(rollback ? `Going back from Goodfellow ${from} to ${to}…` : `Updating Goodfellow from ${from} to ${to}…`);
+  const rollback = to !== undefined && compareReleases(to, from) < 0;
+  log(
+    !to
+      ? `Goodfellow ${from} is up to date. Bringing the site's own files up to date for it…`
+      : rollback
+        ? `Going back from Goodfellow ${from} to ${to}…`
+        : `Updating Goodfellow from ${from} to ${to}…`,
+  );
 
   // Every file the update writes, as it was, to put back if the update doesn't work.
   const originals = new Map<string, string | undefined>();
@@ -147,9 +198,28 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   };
   const failed = async (result: Omit<UpdateResult, "state" | "from" | "to">): Promise<UpdateResult> => {
     await restore();
-    log(`The update to ${to} didn't work, so nothing changed.`);
-    return { state: "failed", from, to, ...(rollback && { rollback }), ...result };
+    log(`The update to ${to ?? from} didn't work, so nothing changed.`);
+    return { state: "failed", from, ...(to && { to }), ...(rollback && { rollback }), ...result };
   };
+
+  // Goodfellow is up to date, but files of the site's own aren't yet: they're all this run changes.
+  if (!to && current) {
+    for (const change of current.changes) await apply(change);
+    const files = current.changes.map((change) => change.path);
+    log("Building the site with them…");
+    const built = await run("npm", ["run", "build"], root);
+    if (built.code !== 0) {
+      const cause = findBuildCause(built.output);
+      return failed({ step: "build", ...(cause && { cause }), files });
+    }
+    if (options.publish && !(await publish(`Update the site's files for Goodfellow ${from}`))) {
+      return failed({ step: "publish", files });
+    }
+    log(`Brought these files up to date for Goodfellow ${from}:\n  ${files.join("\n  ")}`);
+    if (current.kept.length > 0) log(keptMessage(current.kept));
+    return { state: "up-to-date", from, files, ...(current.kept.length > 0 && { kept: current.kept }) };
+  }
+  if (!to) return { state: "up-to-date", from };
 
   // Every Goodfellow package to the same release, and Puck to the version that release uses.
   const site = JSON.parse(packageText) as Record<string, unknown> & {
@@ -213,6 +283,12 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     }
   }
 
+  // Files of the site's own, as the release being installed writes them.
+  const own = await siteFileChanges(siteFiles, to, read);
+  for (const change of own.changes) await apply(change);
+  kept.push(...own.kept);
+  const files = own.changes.map((change) => change.path);
+
   log("Installing packages…");
   if ((await run("npm", ["install", "--no-audit", "--no-fund"], root)).code !== 0) return failed({ step: "install" });
   log("Building the site with the update…");
@@ -222,25 +298,8 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     return failed({ step: "build", ...(cause && { cause }) });
   }
 
-  if (options.publish) {
-    const branch = options.branch ?? env.GITHUB_REF_NAME ?? env.CI_DEFAULT_BRANCH ?? "main";
-    const head = (await run("git", ["rev-parse", "HEAD"], root)).output.trim();
-    const paths = [...originals.keys()];
-    const steps: string[][] = [
-      ["add", "--all", "--", ...paths],
-      [...AUTHOR, "commit", "--message", rollback ? `Go back to Goodfellow ${to}` : `Update Goodfellow to ${to}`],
-      ["push", "origin", `HEAD:refs/heads/${branch}`],
-    ];
-    for (const args of steps) {
-      if ((await run("git", args, root)).code === 0) continue;
-      // Someone may have published meanwhile: nothing is lost, and the next run tries again.
-      if (head) await run("git", ["reset", "--hard", head], root);
-      return failed({ step: "publish" });
-    }
-    if (env.GITHUB_OUTPUT) {
-      const sha = (await run("git", ["rev-parse", "HEAD"], root)).output.trim();
-      await appendFile(env.GITHUB_OUTPUT, `sha=${sha}\n`);
-    }
+  if (options.publish && !(await publish(rollback ? `Go back to Goodfellow ${to}` : `Update Goodfellow to ${to}`))) {
+    return failed({ step: "publish" });
   }
 
   log(
@@ -248,6 +307,34 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
       ? `Went back from Goodfellow ${from} to ${to}. Updates won't install ${from} again.`
       : `Updated Goodfellow from ${from} to ${to}.`,
   );
-  if (kept.length > 0) log(`Kept these block files as they were, since someone changed them:\n  ${kept.join("\n  ")}`);
-  return { state: "updated", from, to, kept, ...(rollback && { rollback }) };
+  if (files.length > 0) log(`Brought these files up to date for it:\n  ${files.join("\n  ")}`);
+  if (kept.length > 0) log(keptMessage(kept));
+  return { state: "updated", from, to, kept, ...(files.length > 0 && { files }), ...(rollback && { rollback }) };
+
+  /** Commits what the update wrote and pushes it, saying whether that worked. */
+  async function publish(message: string): Promise<boolean> {
+    const branch = options.branch ?? env.GITHUB_REF_NAME ?? env.CI_DEFAULT_BRANCH ?? "main";
+    const head = (await run("git", ["rev-parse", "HEAD"], root)).output.trim();
+    const paths = [...originals.keys()];
+    const steps: string[][] = [
+      ["add", "--all", "--", ...paths],
+      [...AUTHOR, "commit", "--message", message],
+      ["push", "origin", `HEAD:refs/heads/${branch}`],
+    ];
+    for (const args of steps) {
+      if ((await run("git", args, root)).code === 0) continue;
+      // Someone may have published meanwhile: nothing is lost, and the next run tries again.
+      if (head) await run("git", ["reset", "--hard", head], root);
+      return false;
+    }
+    if (env.GITHUB_OUTPUT) {
+      const sha = (await run("git", ["rev-parse", "HEAD"], root)).output.trim();
+      await appendFile(env.GITHUB_OUTPUT, `sha=${sha}\n`);
+    }
+    return true;
+  }
+}
+
+function keptMessage(kept: readonly string[]): string {
+  return `Kept these files as they were, since someone changed them:\n  ${kept.join("\n  ")}`;
 }

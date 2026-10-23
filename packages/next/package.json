@@ -70,7 +70,8 @@
   "dependencies": {
     "@goodfellow-cms/ai": "workspace:*",
     "@goodfellow-cms/core": "workspace:*",
-    "@goodfellow-cms/react": "workspace:*"
+    "@goodfellow-cms/react": "workspace:*",
+    "rolldown": "1.2.12"
   },
   "peerDependencies": {
     "@goodfellow-cms/admin": "workspace:*",

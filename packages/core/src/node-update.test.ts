@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { formatBuildCause } from "./build-problems.js";
 import { serializeContent } from "./content/serialize.js";
-import { type RunCommand, update } from "./node-update.js";
+import { type RunCommand, type SiteFile, update } from "./node-update.js";
 import { hashText } from "./registry.js";
 import { parseUpdateSettings, updateSettingsFile } from "./updates.js";
 
@@ -217,5 +217,69 @@ describe("goodfellow update", () => {
     expect(result).toMatchObject({ state: "failed", step: "publish" });
     expect(ran).toContain("git reset --hard abc123");
     expect(JSON.parse(await read("package.json")).dependencies["@goodfellow-cms/react"]).toBe("0.4.1");
+  });
+
+  describe("the site's own files", () => {
+    const OLD = "export default function Admin() { return old; }\n";
+    const NEW = "export default function Admin() { return sandboxed; }\n";
+    const EDITOR = "export default function Editor() {}\n";
+    const files: SiteFile[] = [
+      { path: "app/admin/page.tsx", since: "0.4.2", content: NEW, earlier: [OLD] },
+      { path: "app/admin/editor/page.tsx", since: "0.4.2", content: EDITOR, earlier: [] },
+    ];
+    const options = () => ({ root, fetchJson, run: commands().run, registry: REGISTRY, log: () => {}, env: {} });
+
+    it("brings them up to date with the release, where nobody changed them", async () => {
+      await site();
+      await mkdir(join(root, "app/admin"), { recursive: true });
+      await writeFile(join(root, "app/admin/page.tsx"), OLD);
+      const result = await update({ ...options(), siteFiles: files });
+      expect(result).toMatchObject({ state: "updated", to: "0.4.2" });
+      expect(result.files).toEqual(["app/admin/page.tsx", "app/admin/editor/page.tsx"]);
+      expect(await read("app/admin/page.tsx")).toBe(NEW);
+      expect(await read("app/admin/editor/page.tsx")).toBe(EDITOR);
+    });
+
+    it("brings them up to date even when Goodfellow already is, and publishes them", async () => {
+      await site();
+      await mkdir(join(root, "app/admin"), { recursive: true });
+      await writeFile(join(root, "app/admin/page.tsx"), OLD.replace(/\n/g, "\r\n"));
+      const { ran, run } = commands();
+      const result = await update({ ...options(), run, to: "0.4.1", siteFiles: files, publish: true });
+      expect(result).toEqual({ state: "up-to-date", from: "0.4.1" });
+      expect(await read("app/admin/page.tsx")).toBe(OLD.replace(/\n/g, "\r\n"));
+
+      const now = { ...files[0], since: "0.4.1" } as SiteFile;
+      const updated = await update({ ...options(), run, to: "0.4.1", siteFiles: [now], publish: true });
+      expect(updated).toEqual({ state: "up-to-date", from: "0.4.1", files: ["app/admin/page.tsx"] });
+      expect(await read("app/admin/page.tsx")).toBe(NEW);
+      expect(ran).toContain("npm run build");
+      expect(ran).toContain("git add --all -- app/admin/page.tsx");
+      expect(ran.some((line) => line.endsWith("commit --message Update the site's files for Goodfellow 0.4.1"))).toBe(
+        true,
+      );
+    });
+
+    it("leaves files someone changed, and says so", async () => {
+      await site();
+      await mkdir(join(root, "app/admin"), { recursive: true });
+      await writeFile(join(root, "app/admin/page.tsx"), "export default function Mine() {}\n");
+      const result = await update({ ...options(), siteFiles: files });
+      expect(result.kept).toContain("app/admin/page.tsx");
+      expect(await read("app/admin/page.tsx")).toBe("export default function Mine() {}\n");
+    });
+
+    it("puts the earlier files back when going back to a release before them", async () => {
+      await site();
+      await update({ ...options(), to: "0.4.2", siteFiles: files });
+      expect(await read("app/admin/page.tsx").catch(() => undefined)).toBeUndefined();
+      expect(await read("app/admin/editor/page.tsx")).toBe(EDITOR);
+      await mkdir(join(root, "app/admin"), { recursive: true });
+      await writeFile(join(root, "app/admin/page.tsx"), NEW);
+      const result = await update({ ...options(), to: "0.4.1", siteFiles: files });
+      expect(result).toMatchObject({ state: "updated", rollback: true });
+      expect(await read("app/admin/page.tsx")).toBe(OLD);
+      expect(await read("app/admin/editor/page.tsx").catch(() => undefined)).toBeUndefined();
+    });
   });
 });

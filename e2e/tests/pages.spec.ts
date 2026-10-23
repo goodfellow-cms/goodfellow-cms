@@ -1,6 +1,7 @@
 import {
   canvas,
   expect,
+  expectSandboxed,
   field,
   openPageEditor,
   publishInEditor,
@@ -144,4 +145,9 @@ test("asks before leaving a page with unpublished changes", async ({ page }) => 
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("link", { name: "Site settings" }).click();
   await expect(page).toHaveURL(/#\/settings\/general$/);
+});
+
+test("runs the site's blocks in a sandbox in goodfellow dev too, away from the files on disk", async ({ page }) => {
+  await openPageEditor(page, "/about", "About us");
+  await expectSandboxed(page);
 });

@@ -553,6 +553,9 @@ importers:
       '@goodfellow-cms/react':
         specifier: workspace:*
         version: link:../react
+      rolldown:
+        specifier: 1.2.12
+        version: 1.2.12
     devDependencies:
       '@goodfellow-cms/admin':
         specifier: workspace:*
