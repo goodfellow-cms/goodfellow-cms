@@ -7,7 +7,7 @@
 
 A git-based website builder built on the [Puck](https://puckeditor.com) visual editor.
 
-Goodfellow gives non-technical site owners a drag-and-drop editor at `/admin` with no server, database or monthly hosting bill. Pages are stored as files in the site's own GitHub or GitLab repository. Every save is a commit, and a free static host (GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel) rebuilds the site.
+Goodfellow gives non-technical site owners a drag-and-drop editor at `/admin` with no server, database or monthly hosting bill. Pages are stored as files in the site's own GitHub or GitLab repository. Every save is a commit, and a free static host (GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel) rebuilds the site. It started with small organizations run by volunteers, and is built to suit larger ones too, where a marketing team runs the content and developers own the code, its blocks and its reviews.
 
 > **Status: early development.** The packages are on npm, released together with one version number, and the [roadmap](#roadmap) shows what's done and what's next. The [documentation](https://goodfellow-cms.github.io/goodfellow-cms/), built with Goodfellow, describes the latest release: what Goodfellow does, how to [create a site](https://goodfellow-cms.github.io/goodfellow-cms/docs/create-a-site), and how to write blocks. [The demo](https://goodfellow-cms.github.io/goodfellow-demo/admin/) lets anyone try the admin panel.
 
