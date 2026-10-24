@@ -5,8 +5,11 @@
  * warnings are worked out here, so both steps say the same.
  */
 import {
+  allowsAdminAddress,
   BLOCK_CHOICES,
   type BlockChoice,
+  type BrokerHost,
+  brokerHostsFor,
   CONTENT_BUILDS,
   type ContentBuild,
   contentBuildsFor,
@@ -21,6 +24,7 @@ export type Purpose = "personal" | "group" | "business";
 export type GitHostName = "github" | "gitlab";
 export type Visibility = "public" | "private";
 export type ContentPlace = "together" | "separate";
+export type SignInPlace = "admin-panel" | "admin-address" | "broker";
 
 export interface Choices {
   purpose: Purpose;
@@ -33,6 +37,14 @@ export interface Choices {
   content: ContentPlace;
   /** With the content kept apart, which repository the host builds the site from. */
   build: ContentBuild;
+  /** Where editors sign in: the admin panel itself, an admin address of its own, or a token broker. */
+  signIn: SignInPlace;
+  /** With an admin address, the address, such as `https://admin.example.org`. */
+  admin: string;
+  /** With a token broker, where it's put online. */
+  brokerHost: BrokerHost;
+  /** With a token broker, its own domain, which GitHub Pages needs. */
+  brokerDomain: string;
 }
 
 /** The two steps' addresses on the docs site. */
@@ -88,6 +100,56 @@ export const CONTENT_PLACES: Record<ContentPlace, { label: string; description: 
 /** The content repository's name, beside the code's. */
 export const contentName = (name: string) => `${name}-content`;
 
+/** The token broker's repository's name, beside the site's. */
+export const brokerName = (name: string) => `${name}-signin`;
+
+export const SIGN_IN_PLACES: Record<SignInPlace, { label: string; description: string }> = {
+  "admin-panel": {
+    label: "In the admin panel, at the site's address",
+    description:
+      "The simplest. Editors' sign-in is kept in their browser where the site's own pages could reach it, so blocks from other registries and plugins can't be added in the admin panel.",
+  },
+  "admin-address": {
+    label: "At an admin address of its own",
+    description:
+      "Such as admin.example.org, on a domain you have: the site's pages can't reach editors' sign-in there. The usual choice where you have a domain.",
+  },
+  broker: {
+    label: "At a sign-in page of its own",
+    description:
+      "A token broker: a second repository, put online at an address that serves nothing else, where editors sign in. Nothing on the site can reach their sign-in or AI keys. No domain needed on GitLab.",
+  },
+};
+
+export const BROKER_HOSTS: Record<BrokerHost, { label: string; description: string }> = {
+  "github-pages": {
+    label: "GitHub Pages, at a domain of yours",
+    description: "GitHub Pages' own addresses are shared by every site in the same account, so it needs a domain.",
+  },
+  "gitlab-pages": {
+    label: "GitLab Pages, at an address GitLab gives it",
+    description: "GitLab gives the project an address of its own, which nothing else shares.",
+  },
+  "cloudflare-pages": {
+    label: "Cloudflare Pages",
+    description: "Free, with an address of its own. You connect the repository to Cloudflare Pages once it's created.",
+  },
+  vercel: {
+    label: "Vercel",
+    description: "Free for non-commercial sites. You import the repository into Vercel once it's created.",
+  },
+};
+
+/** An admin address the setup can use: https:// and a domain, nothing after it. */
+export function validAdmin(address: string): boolean {
+  return /^https:\/\/([a-z0-9-]+\.)+[a-z]{2,}$/i.test(address);
+}
+
+/** A domain of the owner's for the broker alone. */
+export function validBrokerDomain(domain: string): boolean {
+  return /^([a-z0-9-]+\.)+[a-z]{2,}$/i.test(domain) && !/(^|\.)(github|gitlab)\.io$/i.test(domain);
+}
+
 /**
  * Where to keep a site's files: GitLab, whatever the site is for. Editors sign
  * in with GitLab without a sign-in service, GitLab Pages publishes business and
@@ -118,6 +180,14 @@ export function withDefaults(chosen: Partial<Choices> & { purpose: Purpose }): C
         ? recommended
         : (usable[0] ?? "github-pages");
   const build = chosen.build && contentBuildsFor(host).includes(chosen.build) ? chosen.build : "content";
+  const content = chosen.content ?? "together";
+  const signIn =
+    chosen.signIn === "admin-address" && (!allowsAdminAddress(host) || content === "separate")
+      ? "admin-panel"
+      : (chosen.signIn ?? "admin-panel");
+  const brokerHosts = brokerHostsFor(git);
+  const brokerHost =
+    chosen.brokerHost && brokerHosts.includes(chosen.brokerHost) ? chosen.brokerHost : (brokerHosts[0] ?? "vercel");
   return {
     purpose: chosen.purpose,
     template: chosen.template ?? "starter",
@@ -125,9 +195,28 @@ export function withDefaults(chosen: Partial<Choices> & { purpose: Purpose }): C
     git,
     host,
     visibility,
-    content: chosen.content ?? "together",
+    content,
     build,
+    signIn,
+    admin: chosen.admin ?? "",
+    brokerHost,
+    brokerDomain: chosen.brokerDomain ?? "",
   };
+}
+
+/** Why the sign-in choice can't be used yet, such as an address still to type, or `undefined`. */
+export function signInProblem(choices: Choices): string | undefined {
+  if (choices.signIn === "admin-address" && !validAdmin(choices.admin)) {
+    return "Type the admin address as https:// and a domain of yours, such as https://admin.example.org.";
+  }
+  if (
+    choices.signIn === "broker" &&
+    choices.brokerHost === "github-pages" &&
+    !validBrokerDomain(choices.brokerDomain)
+  ) {
+    return "Type the sign-in page's own domain, such as signin.example.org. github.io addresses are shared with other sites.";
+  }
+  return undefined;
 }
 
 /** Why a host's free plan may not allow this site, or `undefined` if it does. */
@@ -175,7 +264,13 @@ export function advancedSummary(choices: Choices): string {
     choices.content === "separate" && contentBuildsFor(choices.host).length > 1
       ? `, built from ${lowerFirst(CONTENT_BUILDS[choices.build].label)}`
       : "";
-  return `${files}, published with ${HOSTS[choices.host].label}, with ${blocks}, and the content kept ${content}${build}.`;
+  const signIn =
+    choices.signIn === "admin-address"
+      ? ` Editors sign in at ${choices.admin || "an admin address of its own"}.`
+      : choices.signIn === "broker"
+        ? ` Editors sign in at a sign-in page of its own, on ${BROKER_HOSTS[choices.brokerHost].label.split(",")[0]}.`
+        : "";
+  return `${files}, published with ${HOSTS[choices.host].label}, with ${blocks}, and the content kept ${content}${build}.${signIn}`;
 }
 
 /** The choices as the create step's query, so its address says what it creates. */
@@ -189,6 +284,10 @@ export function choicesQuery(choices: Choices): string {
     visibility: choices.visibility,
     content: choices.content,
     ...(choices.content === "separate" && { build: choices.build }),
+    ...(choices.signIn !== "admin-panel" && { signIn: choices.signIn }),
+    ...(choices.signIn === "admin-address" && { admin: choices.admin }),
+    ...(choices.signIn === "broker" && { brokerHost: choices.brokerHost }),
+    ...(choices.signIn === "broker" && choices.brokerDomain && { brokerDomain: choices.brokerDomain }),
   }).toString();
 }
 
@@ -214,13 +313,29 @@ export function parseChoices(search: string): Choices | undefined {
     visibility: oneOf(params.get("visibility"), Object.keys(VISIBILITIES) as Visibility[]),
     content: oneOf(params.get("content"), Object.keys(CONTENT_PLACES) as ContentPlace[]),
     build: oneOf(params.get("build"), Object.keys(CONTENT_BUILDS) as ContentBuild[]),
+    signIn: oneOf(params.get("signIn"), Object.keys(SIGN_IN_PLACES) as SignInPlace[]),
+    admin: params.get("admin") ?? undefined,
+    brokerHost: oneOf(params.get("brokerHost"), Object.keys(BROKER_HOSTS) as BrokerHost[]),
+    brokerDomain: params.get("brokerDomain") ?? undefined,
   });
 }
 
 /** Which of the choices someone made in the query, so changing another doesn't override them. */
 export function chosenKeys(search: string): Array<keyof Choices> {
   const params = new URLSearchParams(search);
-  return (["template", "blocks", "git", "host", "visibility", "content", "build"] as const).filter((key) =>
-    params.has(key),
-  );
+  return (
+    [
+      "template",
+      "blocks",
+      "git",
+      "host",
+      "visibility",
+      "content",
+      "build",
+      "signIn",
+      "admin",
+      "brokerHost",
+      "brokerDomain",
+    ] as const
+  ).filter((key) => params.has(key));
 }

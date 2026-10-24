@@ -127,6 +127,18 @@ function setupAccount(creator: Creator): SetupAccount {
     }
   }
 
+  /** Gives the repository's Pages a domain of its own, saying whether GitHub took it. */
+  async function setDomain(api: ApiOptions, repo: GitHubRepo, domain: string): Promise<boolean> {
+    try {
+      await githubRequest(api, `/repos/${repoPath(repo.full_name)}/pages`, { method: "PUT", body: { cname: domain } });
+      return true;
+    } catch (error) {
+      // Another site has it, or it isn't a domain GitHub accepts.
+      if (error instanceof GitApiError && [400, 403, 404, 409, 422].includes(error.status)) return false;
+      throw error;
+    }
+  }
+
   /** Writes every file in one commit, which replaces the starting README rather than following it. */
   async function writeFiles(api: ApiOptions, repo: GitHubRepo, site: NewSiteRepository): Promise<void> {
     const base = `/repos/${repoPath(repo.full_name)}`;
@@ -240,6 +252,10 @@ function setupAccount(creator: Creator): SetupAccount {
         onStep?.("pages");
         siteUrl = await turnOnPages(api, repo);
         if (!siteUrl) warnings.push("pages-unavailable");
+        else if (site.domain) {
+          if (await setDomain(api, repo, site.domain)) siteUrl = `https://${site.domain}/`;
+          else warnings.push("domain-unavailable");
+        }
       }
       createdApis.set(repo.full_name.toLowerCase(), api);
       if (site.link && !(await connect(site.link))) warnings.push("connect-unavailable");

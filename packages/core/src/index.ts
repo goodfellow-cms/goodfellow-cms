@@ -52,6 +52,20 @@ export {
   withBrokerConfig,
 } from "./broker.js";
 export {
+  BROKER_FILES_LIST,
+  BROKER_SITE_DIR,
+  type BrokerFetch,
+  type BrokerHost,
+  type BrokerPlan,
+  type BrokerRelease,
+  brokerHostsFor,
+  brokerReleaseUrl,
+  fetchBrokerRelease,
+  newSiteSource,
+  planBroker,
+  plannedBrokerAddress,
+} from "./broker-setup.js";
+export {
   BUILD_CAUSE_MARKER,
   type BuildCause,
   type BuildProblem,
@@ -641,6 +655,7 @@ export {
   siteVersionProblem,
 } from "./site-description.js";
 export {
+  allowsAdminAddress,
   type Backend,
   BLOCK_CHOICES,
   type BlockChoice,

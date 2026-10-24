@@ -28,6 +28,12 @@ export interface NewSiteRepository {
   description?: string;
   /** Turns on the host's own Pages (GitHub Pages or GitLab Pages) to publish the site. */
   pages: boolean;
+  /**
+   * A domain of its own for those Pages, such as a token broker's
+   * `signin.example.org`, which GitHub Pages needs for an address no other
+   * site shares. The person points it at the host as its settings say.
+   */
+  domain?: string;
   /** The site's files, all in the repository's first commit. */
   files: FileChange[];
   message: string;
@@ -62,6 +68,8 @@ export type SetupStep = "repository" | "pages" | "files" | "protection" | "conne
 export type SetupWarning =
   /** Pages couldn't be turned on, such as for a private repository on GitHub's free plan. */
   | "pages-unavailable"
+  /** The Pages' own domain couldn't be set, such as one another site already has: set it in the host's settings. */
+  | "domain-unavailable"
   /** The main branch's history couldn't be protected, such as on a plan without rules for private repositories. */
   | "protection-unavailable"
   /** Editors can't sign in with the sign-in service until its app is installed on the repository (`signInInstallUrl`). */

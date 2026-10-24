@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  allowsAdminAddress,
   BLOCK_CHOICES,
   type BlockChoice,
+  brokerHostsFor,
   CONTENT_BUILDS,
   contentBuildsFor,
   HOSTS,
@@ -14,6 +16,7 @@ import { SiteLink } from "@goodfellow-cms/react";
 import { useEffect, useId, useState } from "react";
 import {
   advancedSummary,
+  BROKER_HOSTS,
   type Choices,
   CONTENT_PLACES,
   type ContentPlace,
@@ -29,11 +32,14 @@ import {
   parseChoices,
   RECOMMENDED_GIT,
   recommendedHost,
+  SIGN_IN_PLACES,
+  type SignInPlace,
+  signInProblem,
   VISIBILITIES,
   type Visibility,
   withDefaults,
 } from "./site-setup-choices";
-import { button, Choice, LockfileWarning, link, Note, Question } from "./site-setup-ui";
+import { button, Choice, input, LockfileWarning, link, Note, Question } from "./site-setup-ui";
 
 /**
  * The setup page's first step: what kind of site, where its files are kept,
@@ -102,6 +108,10 @@ function Choose({
   const problem = hostProblem(choices);
   const note = gitNote(choices);
   const separate = choices.content === "separate";
+  const signInPlaces = (Object.keys(SIGN_IN_PLACES) as SignInPlace[]).filter(
+    (place) => place !== "admin-address" || (allowsAdminAddress(choices.host) && !separate),
+  );
+  const unfinished = signInProblem(choices);
 
   return (
     <>
@@ -247,12 +257,77 @@ function Choose({
               </Note>
             )}
           </Question>
+
+          <Question title="Where editors sign in">
+            {signInPlaces.map((value) => (
+              <Choice
+                key={value}
+                name={`${id}-sign-in`}
+                value={value}
+                current={choices.signIn}
+                {...SIGN_IN_PLACES[value]}
+                onChange={(signIn) => choose({ signIn })}
+              />
+            ))}
+            {choices.signIn === "admin-address" && (
+              <label className="grid gap-1 pl-6">
+                <span className="font-medium">The admin address</span>
+                <input
+                  className={`${input} max-w-sm`}
+                  placeholder="https://admin.example.org"
+                  value={choices.admin}
+                  onChange={(event) => choose({ admin: event.target.value.trim() })}
+                />
+                <span className="text-sm text-muted-foreground">
+                  The Domain screen connects it once the site is online, and checks it before editors sign in there.
+                </span>
+              </label>
+            )}
+            {choices.signIn === "broker" && (
+              <fieldset className="grid gap-2 pl-6">
+                <legend className="mb-1 font-medium">Where the sign-in page is put online</legend>
+                {brokerHostsFor(choices.git).map((value) => (
+                  <Choice
+                    key={value}
+                    name={`${id}-broker-host`}
+                    value={value}
+                    current={choices.brokerHost}
+                    {...BROKER_HOSTS[value]}
+                    onChange={(brokerHost) => choose({ brokerHost })}
+                  />
+                ))}
+                {choices.brokerHost === "github-pages" && (
+                  <label className="grid gap-1">
+                    <span className="font-medium">Its domain</span>
+                    <input
+                      className={`${input} max-w-sm`}
+                      placeholder="signin.example.org"
+                      value={choices.brokerDomain}
+                      onChange={(event) => choose({ brokerDomain: event.target.value.trim().toLowerCase() })}
+                    />
+                  </label>
+                )}
+              </fieldset>
+            )}
+            {unfinished && <Note tone="warning">{unfinished}</Note>}
+            <Note>
+              Read{" "}
+              <SiteLink className={link} href="/docs/security">
+                Security
+              </SiteLink>{" "}
+              for what each keeps safe.
+            </Note>
+          </Question>
         </div>
       )}
 
-      <SiteLink className={`${button} justify-self-start`} href={`${CREATE_PATH}?${choicesQuery(choices)}`}>
-        Continue
-      </SiteLink>
+      {unfinished ? (
+        <p className="text-sm">{unfinished}</p>
+      ) : (
+        <SiteLink className={`${button} justify-self-start`} href={`${CREATE_PATH}?${choicesQuery(choices)}`}>
+          Continue
+        </SiteLink>
+      )}
     </>
   );
 }

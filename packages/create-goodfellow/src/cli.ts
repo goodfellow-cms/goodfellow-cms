@@ -7,9 +7,12 @@ import { parseArgs } from "node:util";
 import { formatWordPressImport, importWordPress } from "@goodfellow-cms/core/node";
 import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import {
+  allowsAdminAddress,
   type Backend,
   BLOCK_CHOICES,
   type BlockChoice,
+  type BrokerHost,
+  brokerHostsFor,
   CONTENT_BUILDS,
   CONTENT_REPOSITORY_DIR,
   type CommitResult,
@@ -27,6 +30,7 @@ import {
   ScaffoldError,
   type SeparateContent,
   scaffold,
+  scaffoldBroker,
   TEMPLATES,
   type TemplateName,
 } from "./scaffold.js";
@@ -47,6 +51,11 @@ Options:
   --build <where>     With --content on Vercel: content (the default) or code, the
                       repository Vercel builds the site from
   --blocks <choice>   recommended (the default) to add the recommended blocks, or built-in for Goodfellow's own only
+  --admin <address>   An admin address of its own for editors, such as https://admin.example.org,
+                      where the host serves a site at more than one address (not GitHub Pages)
+  --broker <host>     Also writes a sign-in page of its own, a token broker, into a folder beside
+                      the site, for github-pages, gitlab-pages, cloudflare-pages or vercel
+  --broker-domain <d> The sign-in page's own domain, such as signin.example.org (needed on GitHub Pages)
   --wordpress <from>  Brings a WordPress site's pages, posts, menus and media into the new site,
                       from its export file (Tools → Export) or its address
   --no-install        Don't run npm install
@@ -135,6 +144,9 @@ async function main(): Promise<void> {
       content: { type: "string" },
       build: { type: "string" },
       wordpress: { type: "string" },
+      admin: { type: "string" },
+      broker: { type: "string" },
+      "broker-domain": { type: "string" },
       "no-git": { type: "boolean" },
       "no-install": { type: "boolean" },
       yes: { type: "boolean", short: "y" },
@@ -165,6 +177,9 @@ async function main(): Promise<void> {
     throw new ScaffoldError(`--build takes ${Object.keys(CONTENT_BUILDS).join(" or ")}.`);
   }
   let contentRepo = values.content;
+  let admin = values.admin;
+  let broker: string | undefined = values.broker;
+  let brokerDomain = values["broker-domain"];
 
   if (stdin.isTTY && !values.yes) {
     if (!folder) folder = (await ask("Folder for the new site (my-site): ")).trim() || "my-site";
@@ -209,6 +224,17 @@ async function main(): Promise<void> {
           .map((value) => ({ value, label: CONTENT_BUILDS[value].label, note: CONTENT_BUILDS[value].description })),
       );
     }
+    if (backend && admin === undefined && broker === undefined) {
+      const signIn = await chooseSignIn(backend, host as Host | undefined, contentRepo !== undefined);
+      if (signIn === "admin") admin = await askAddress("The admin address, such as https://admin.example.org: ");
+      if (signIn === "broker") {
+        broker = await choose(
+          "Where should the sign-in page be put online?",
+          brokerHostsFor(backend.host).map((value) => ({ value, label: BROKER_HOSTS[value] })),
+        );
+        if (broker === "github-pages") brokerDomain = await askDomain();
+      }
+    }
     blocks ??= await choose(
       "Which blocks should the editor offer to start with?",
       Object.entries(BLOCK_CHOICES).map(([value, { label, description }]) => ({
@@ -227,6 +253,19 @@ async function main(): Promise<void> {
   }
 
   const content = contentRepo === undefined ? undefined : separateContent(contentRepo, build, backend, host);
+  if (admin !== undefined && (!allowsAdminAddress(host as Host | undefined) || content)) {
+    throw new ScaffoldError(
+      "An admin address needs a host that serves a site at more than one address (--host gitlab-pages, cloudflare-pages or vercel), with the content kept with the code.",
+    );
+  }
+  if (broker !== undefined) {
+    if (!backend) throw new ScaffoldError("A sign-in page needs the site's repository (--github or --gitlab).");
+    if (!brokerHostsFor(backend.host).includes(broker as BrokerHost)) {
+      throw new ScaffoldError(
+        `--broker takes ${brokerHostsFor(backend.host).join(", ")} for a site on ${HOST_NAMES[backend.host]}.`,
+      );
+    }
+  }
 
   const target = resolve(folder);
   const versions = JSON.parse(readFileSync(join(templatesDir, "versions.json"), "utf8")) as Record<string, string>;
@@ -238,7 +277,18 @@ async function main(): Promise<void> {
     ...(host && { host: host as Host }),
     ...((blocks ?? "recommended") === "recommended" && { registryDir: join(templatesDir, "registry") }),
     ...(content && { content }),
+    ...(admin && { admin }),
   });
+  const brokerTarget = broker && backend ? `${target}-signin` : undefined;
+  if (brokerTarget && backend) {
+    await scaffoldBroker({
+      release: join(templatesDir, "broker"),
+      target: brokerTarget,
+      backend,
+      host: broker as BrokerHost,
+      ...(brokerDomain && { domain: brokerDomain }),
+    });
+  }
 
   // The content repository first: inside the code's repository, git would count it as part of it.
   const contentDir = contentRepositoryDir(target);
@@ -260,6 +310,8 @@ async function main(): Promise<void> {
       ? initGitRepository(contentDir, { host: backend.host, repo: content.repo })
       : undefined;
   const contentCommit = contentGit?.created ? commitAll(contentDir, "Create the site's content") : undefined;
+  const brokerGit = brokerTarget && !values["no-git"] ? initGitRepository(brokerTarget) : undefined;
+  const brokerCommit = brokerGit?.created && brokerTarget ? commitAll(brokerTarget, "Add the sign-in page") : undefined;
   const git = values["no-git"] ? undefined : initGitRepository(target, backend);
   let installed = false;
   if (!values["no-install"]) {
@@ -277,6 +329,12 @@ async function main(): Promise<void> {
     `Created a new site in ${where}.`,
     ...(git ? gitLines(git, commit, installed) : []),
     ...(content ? contentLines(content, contentGit, contentCommit) : []),
+    ...(admin ? [`Editors will sign in at ${admin} once the Domain screen has checked it: see README.md.`] : []),
+    ...(brokerTarget
+      ? [
+          `Its sign-in page is in ${relative(process.cwd(), brokerTarget)}${brokerCommit === "committed" ? ", a git repository with everything in its first commit" : ""}. Push it to a repository of its own and put it online as its README says, then set its address on Site Settings → Security.`,
+        ]
+      : []),
     ...(imported.length > 0 ? ["", ...imported] : []),
     ...(!installed && !values["no-install"]
       ? ["npm install didn't finish, so run it again in the site's folder."]
@@ -385,6 +443,61 @@ function gitLines(git: GitResult, commit: CommitResult | undefined, installed: b
     ];
   }
   return [`${repository}. Nothing is committed yet: commit everything once npm install has run.`, ...origin];
+}
+
+const BROKER_HOSTS: Record<BrokerHost, string> = {
+  "github-pages": "GitHub Pages, at a domain of yours",
+  "gitlab-pages": "GitLab Pages, at an address GitLab gives it",
+  "cloudflare-pages": "Cloudflare Pages",
+  vercel: "Vercel",
+};
+
+/** Where editors will sign in: the admin panel itself, an admin address, or a token broker. */
+async function chooseSignIn(
+  backend: Backend,
+  host: Host | undefined,
+  separate: boolean,
+): Promise<"site" | "admin" | "broker"> {
+  const admin = allowsAdminAddress(host) && !separate;
+  return choose<"site" | "admin" | "broker">("Where will editors sign in?", [
+    {
+      value: "site",
+      label: "In the admin panel, at the site's address",
+      note: "The simplest. Their sign-in is kept where the site's own pages could reach it.",
+    },
+    ...(admin
+      ? [
+          {
+            value: "admin" as const,
+            label: "At an admin address of its own",
+            note: "Such as admin.example.org, on a domain you have. The usual choice where you have one.",
+          },
+        ]
+      : []),
+    {
+      value: "broker",
+      label: "At a sign-in page of its own (a token broker)",
+      note: `A second repository, put online at an address of its own${backend.host === "gitlab" ? ", which GitLab Pages gives it" : ""}. Keeps sign-ins where nothing on the site can reach them.`,
+    },
+  ]);
+}
+
+async function askAddress(question: string): Promise<string> {
+  for (;;) {
+    const answer = (await ask(`\n${question}`)).trim().replace(/\/+$/, "");
+    if (/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}$/i.test(answer)) return answer;
+    stdout.write("Type it as https:// and the domain, with nothing after it.\n");
+  }
+}
+
+async function askDomain(): Promise<string> {
+  for (;;) {
+    const answer = (await ask("\nThe sign-in page's own domain, such as signin.example.org: ")).trim().toLowerCase();
+    if (/^([a-z0-9-]+\.)+[a-z]{2,}$/.test(answer) && !/(^|\.)(github|gitlab)\.io$/.test(answer)) return answer;
+    stdout.write(
+      "Type a domain of yours, such as signin.example.org. github.io addresses are shared with other sites.\n",
+    );
+  }
 }
 
 async function chooseHost(storage: Backend["host"] | undefined): Promise<Host | undefined> {

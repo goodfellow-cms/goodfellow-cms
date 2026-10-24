@@ -1,6 +1,13 @@
 export { type GuardOptions, guardBuiltSite } from "./node-admin-domain.js";
 export { type AppApiOptions, appApi } from "./node-app-api.js";
 export {
+  type AddBrokerOptions,
+  type AddedBroker,
+  addBroker,
+  BrokerSetupError,
+  setBrokerAddress,
+} from "./node-broker.js";
+export {
   ContentRepositoryError,
   type ContentRepositoryOptions,
   contentRepositoryProblem,

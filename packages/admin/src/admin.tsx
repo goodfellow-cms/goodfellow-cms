@@ -431,6 +431,7 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
             user: backend.user,
             hostName: host.name,
             redirectAddressesListed: host.canRedirect && host.redirectAddressesListed === true,
+            ...(host.setup && { setup: host.setup }),
             signOut: () => {
               // Signing out also forgets AI keys, so the next person on this computer can't use them.
               forgetAiKeys();

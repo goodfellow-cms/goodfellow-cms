@@ -11,6 +11,8 @@ import {
   type FileChange,
   GOODFELLOW_REGISTRY,
   HOSTS,
+  newSiteSource,
+  planBroker,
   planSite,
   type SetupAccount,
   SetupError,
@@ -29,6 +31,8 @@ import { gitlabSetup } from "@goodfellow-cms/gitlab";
 import { SiteLink, useSite } from "@goodfellow-cms/react";
 import { useEffect, useId, useMemo, useState } from "react";
 import {
+  BROKER_HOSTS,
+  brokerName,
   CHOOSE_PATH,
   type Choices,
   CONTENT_PLACES,
@@ -40,6 +44,7 @@ import {
   hostProblem,
   PURPOSES,
   parseChoices,
+  SIGN_IN_PLACES,
   VISIBILITIES,
 } from "./site-setup-choices";
 import { button, fetchJson, input, LockfileWarning, link, Note, Question, type Starter } from "./site-setup-ui";
@@ -85,6 +90,7 @@ async function siteFiles(
     backend: { host: choices.git, repo },
     host: choices.host,
     ...(content && { content: { repo: content, build: choices.build } }),
+    ...(choices.signIn === "admin-address" && { admin: choices.admin }),
     registry:
       choices.blocks === "recommended"
         ? { registries: { [GOODFELLOW_REGISTRY]: registryUrl.replace("%7Bname%7D", "{name}") }, fetchJson }
@@ -98,6 +104,29 @@ async function siteFiles(
     files.set("package-lock.json", `${JSON.stringify(lockfile, null, 2)}\n`);
   }
   return files;
+}
+
+/** The token broker's repository's files: Goodfellow's released page, packed with the starters, and broker.json naming the site. */
+async function brokerFiles(
+  base: string | undefined,
+  choices: Choices,
+  site: { repo: string; code?: string },
+  name: string,
+): Promise<FileChange[]> {
+  const packed = (await fetchJson(withBase("/starters/broker.json", base))) as Starter;
+  const release = new Map(
+    Object.entries(packed.files).map(([path, file]) => [
+      path,
+      typeof file === "string" ? new TextEncoder().encode(file) : decodeBase64(file.base64),
+    ]),
+  );
+  return planBroker({
+    release,
+    site: newSiteSource({ host: choices.git, repo: site.repo }, site.code ? { code: site.code } : undefined),
+    host: choices.brokerHost,
+    ...(choices.brokerHost === "github-pages" && { domain: choices.brokerDomain }),
+    name,
+  });
 }
 
 /** One repository's files as the changes that write them: the content's are in its folder in the code's, `content-repository/`. */
@@ -221,6 +250,14 @@ function Summary({ choices }: { choices: Choices }) {
         ? `${CONTENT_PLACES[choices.content].label}, built from ${CONTENT_BUILDS[choices.build].label.toLowerCase()}`
         : CONTENT_PLACES[choices.content].label,
     ],
+    [
+      "Editors sign in",
+      choices.signIn === "admin-address"
+        ? `At ${choices.admin}`
+        : choices.signIn === "broker"
+          ? `At a sign-in page of its own, on ${BROKER_HOSTS[choices.brokerHost].label}`
+          : SIGN_IN_PLACES["admin-panel"].label,
+    ],
   ];
   return (
     <section aria-label="Your choices" className="grid gap-3 rounded-lg border border-border p-4">
@@ -275,6 +312,8 @@ function CreateSite({
   );
   const [step, setStep] = useState<SetupStep>();
   const [created, setCreated] = useState<CreatedSiteRepository>();
+  /** The token broker's repository, made after the site's, or why it couldn't be. */
+  const [broker, setBroker] = useState<{ created?: CreatedSiteRepository; error?: string }>();
 
   const host = useMemo(() => setupHost(choices.git, gitlabClientId), [choices.git, gitlabClientId]);
   // The token form is for when signing in by redirect isn't available, or didn't work for a reason a token gets around.
@@ -358,8 +397,37 @@ function CreateSite({
       };
       // GitHub Pages and GitLab Pages publish the repository that builds the site: the content's, where it has one.
       const pages = choices.host === "github-pages" || choices.host === "gitlab-pages";
+      const withBroker = choices.signIn === "broker";
+      // The sign-in page's repository, after the site's: a failure there leaves the site made, saying what's left.
+      const addBroker = async (signsIn: { repo: string; code?: string }) => {
+        if (!withBroker) return;
+        try {
+          const brokerHost = choices.brokerHost;
+          const brokerCreated = await account.createSite(
+            {
+              owner: chosenOwner,
+              name: brokerName(name),
+              private: false,
+              description: "The sign-in page of a website made with Goodfellow",
+              pages: brokerHost === "github-pages" || brokerHost === "gitlab-pages",
+              ...(brokerHost === "github-pages" && { domain: choices.brokerDomain }),
+              files: await brokerFiles(base, choices, signsIn, name),
+              message: "Add the sign-in page",
+            },
+            setStep,
+          );
+          setBroker({ created: brokerCreated });
+        } catch (caught) {
+          setBroker({ error: createMessage(caught) });
+        }
+      };
       if (!content) {
-        setCreated(await account.createSite({ ...site, name, pages, files: fileChanges(files, "code") }, setStep));
+        const result = await account.createSite(
+          { ...site, name, pages, files: fileChanges(files, "code"), ...(withBroker && { more: true }) },
+          setStep,
+        );
+        await addBroker({ repo });
+        setCreated(result);
         return;
       }
       setCreating("code");
@@ -380,6 +448,7 @@ function CreateSite({
           description: "The content of a website made with Goodfellow",
           pages,
           files: fileChanges(files, "content"),
+          ...(withBroker && { more: true }),
           link: {
             code: code.repo,
             content,
@@ -389,6 +458,7 @@ function CreateSite({
         },
         setStep,
       );
+      await addBroker({ repo: content, code: code.repo });
       setCreated(result);
     } catch (caught) {
       setError(createMessage(caught));
@@ -399,7 +469,9 @@ function CreateSite({
     }
   }
 
-  if (created) return <Created created={created} code={createdCode} choices={choices} withToken={withToken} />;
+  if (created) {
+    return <Created created={created} code={createdCode} broker={broker} choices={choices} withToken={withToken} />;
+  }
 
   const gitName = GIT_HOSTS[choices.git].label;
 
@@ -694,11 +766,13 @@ function CloudflareSteps({
 function Created({
   created,
   code,
+  broker,
   choices,
   withToken,
 }: {
   created: CreatedSiteRepository;
   code?: CreatedSiteRepository;
+  broker?: { created?: CreatedSiteRepository; error?: string };
   choices: Choices;
   withToken: boolean;
 }) {
@@ -718,6 +792,30 @@ function Created({
         <p>
           Its files are in <RepoLink repo={created} />.
         </p>
+      )}
+      {choices.signIn === "admin-address" && (
+        <Note>
+          Once the site is online, open its admin panel and connect {choices.admin} on Site Settings → Domain, which
+          checks it before editors sign in there.
+        </Note>
+      )}
+      {broker?.created && (
+        <Note>
+          Editors' sign-in page is in <RepoLink repo={broker.created} />.{" "}
+          {choices.brokerHost === "github-pages"
+            ? `GitHub Pages puts it online at ${choices.brokerDomain} once you point the domain at GitHub Pages, as the repository's Settings → Pages says.`
+            : choices.brokerHost === "gitlab-pages"
+              ? "GitLab Pages puts it online at an address of its own, shown under Deploy → Pages in its project once it's built."
+              : `Put it online with ${BROKER_HOSTS[choices.brokerHost].label}, as its README says.`}{" "}
+          Once it's online, and the site too, open the site's admin panel and set its address on Site Settings →
+          Security. Editors sign in there from then on.
+        </Note>
+      )}
+      {broker?.error && (
+        <Note tone="warning">
+          The site was made, but its sign-in page wasn't: {broker.error} Add one later on the site's Site Settings →
+          Security.
+        </Note>
       )}
       {created.warnings.includes("connect-unavailable") && (
         <Note tone="warning">

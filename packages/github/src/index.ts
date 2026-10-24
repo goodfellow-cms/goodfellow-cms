@@ -12,6 +12,7 @@ import {
 } from "@goodfellow-cms/core";
 import { type ApiOptions, githubJson, githubRequest, repoPath } from "./api.js";
 import { GitHubBackend } from "./backend.js";
+import { githubSetup } from "./setup.js";
 import {
   type BrowserLocation,
   browserLocation,
@@ -354,6 +355,16 @@ export function github(options: GitHubOptions): GitHost {
     name: "GitHub",
     source: hostSource("@goodfellow-cms/github", "github", options, ["fetch", "storage", "location"]),
     canRedirect: service !== undefined,
+    // With a token only: the sign-in worker sends setup sign-ins back to the setup page alone.
+    setup: () =>
+      githubSetup({
+        ...(options.apiUrl && { apiUrl: options.apiUrl }),
+        ...(options.webUrl && { webUrl: options.webUrl }),
+        ...(options.fetch && { fetch: options.fetch }),
+        ...(options.storage && { storage: options.storage }),
+        ...(options.location && { location: options.location }),
+        signIn: false,
+      }),
     tokenLinks: [
       { url: links.fineGrained, label: "signIn.token.create" },
       { url: links.classic, label: "signIn.token.createBroad", hint: "signIn.token.createBroadHint" },

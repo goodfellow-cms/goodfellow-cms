@@ -273,3 +273,55 @@ test("creates a site's code and content projects on GitLab, letting each pipelin
   );
   expect(text(content.repo.files().get(".gitlab-ci.yml"))).toContain("/st-joseph/website.git");
 });
+
+test("creates a site on GitLab with a sign-in page of its own, on the project's unique domain", async ({ page }) => {
+  const gitlab = fakeGitLab({ project: "someone/existing", tokens: { "gl-token": { username: "someone" } } });
+  await routeToFake(page, "https://gitlab.com", gitlab.handle);
+  await page.goto(SETUP, { waitUntil: "networkidle" });
+  await radio(page, "A church, charity, school or club").check();
+  await openAdvanced(page);
+  await radio(page, "At a sign-in page of its own").check();
+  await expect(radio(page, "GitLab Pages, at an address GitLab gives it")).toBeChecked();
+  await expect(page.getByText(/Editors sign in at a sign-in page of its own, on GitLab Pages/)).toBeVisible();
+  await continueToCreate(page);
+  await expect(page.getByRole("region", { name: "Your choices" })).toContainText("At a sign-in page of its own");
+
+  await page.getByRole("button", { name: "paste a token" }).click();
+  await signIn(page, "gl-token");
+  await page.getByLabel("Name", { exact: true }).fill("parish");
+  await page.getByRole("button", { name: "Create the site" }).click();
+  await expect(page.getByRole("heading", { name: "Your site has been created" })).toBeVisible();
+  await expect(page.getByText("Editors' sign-in page is in")).toBeVisible();
+
+  // The broker's own project, from the released page, naming the site it signs in to.
+  const broker = gitlab.created.get("someone/parish-signin");
+  expect(broker?.visibility).toBe("public");
+  const files = broker?.repo.files() ?? new Map();
+  expect(files.has("site/index.html")).toBe(true);
+  expect(JSON.parse(text(files.get("site/broker.json")))).toEqual({
+    sites: [{ package: "@goodfellow-cms/gitlab", export: "gitlab", options: { project: "someone/parish" } }],
+  });
+  expect(text(files.get(".gitlab-ci.yml"))).toContain("publish: site");
+  // The site doesn't sign in there until its address is set, once both are online.
+  const site = gitlab.created.get("someone/parish")?.repo.files() ?? new Map();
+  expect(text(site.get("goodfellow.config.tsx"))).not.toContain("broker:");
+});
+
+test("names an admin address of its own in a new site's config", async ({ page }) => {
+  const gitlab = fakeGitLab({ project: "someone/existing", tokens: { "gl-token": { username: "someone" } } });
+  await routeToFake(page, "https://gitlab.com", gitlab.handle);
+  await page.goto(SETUP, { waitUntil: "networkidle" });
+  await radio(page, "A church, charity, school or club").check();
+  await openAdvanced(page);
+  await radio(page, "At an admin address of its own").check();
+  await expect(page.getByRole("link", { name: "Continue" })).toBeHidden();
+  await page.getByPlaceholder("https://admin.example.org").fill("https://admin.parish.example.org");
+  await continueToCreate(page);
+  await page.getByRole("button", { name: "paste a token" }).click();
+  await signIn(page, "gl-token");
+  await page.getByLabel("Name", { exact: true }).fill("parish");
+  await page.getByRole("button", { name: "Create the site" }).click();
+  await expect(page.getByRole("heading", { name: "Your site has been created" })).toBeVisible();
+  const site = gitlab.created.get("someone/parish")?.repo.files() ?? new Map();
+  expect(text(site.get("goodfellow.config.tsx"))).toContain('  admin: { url: "https://admin.parish.example.org" },');
+});

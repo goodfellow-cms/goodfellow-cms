@@ -486,6 +486,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@goodfellow-cms/broker':
+        specifier: workspace:*
+        version: link:../broker
       '@goodfellow-cms/example-parish':
         specifier: workspace:*
         version: link:../../examples/parish

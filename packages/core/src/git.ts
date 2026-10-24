@@ -5,6 +5,7 @@ import type { PagesDomains } from "./domains.js";
 import type { SiteDrafts } from "./drafts.js";
 import type { OwnerAccess, SiteEditors } from "./editors.js";
 import type { RepositoryVisibility, ScheduledBuilds } from "./scheduled-builds.js";
+import type { SetupHost } from "./setup-host.js";
 import type { SiteUpdates } from "./updates.js";
 
 /** The person signed in to the admin panel. */
@@ -136,6 +137,12 @@ export interface GitHost {
    * token of the site's rather than an editor's, which never reaches a browser.
    */
   server?(options: ServerGitOptions): ServerGit;
+  /**
+   * Creates another repository on the same host, such as the site's token
+   * broker's, with a token the person pastes, since the site's own sign-in
+   * reaches only the site's repository. Kept in memory only.
+   */
+  setup?(): SetupHost;
 }
 
 /** The package and function that made a `GitHost`, and the options it was given that JSON can hold. */
