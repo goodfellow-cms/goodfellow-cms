@@ -17,6 +17,8 @@ test("hides a page from search engines, and shows how links to it look when shar
   // Link previews need the site's address for the image.
   await expect(preview).toContainText("once the site's address is set");
 
+  // Pages are in search results unless they say otherwise, and their settings show it.
+  await expect(editor(page).getByRole("radio", { name: "Show in search results" })).toBeChecked();
   await field(page, "description").fill("Who we are, and how to find us.");
   await expect(preview).toContainText("Who we are, and how to find us.");
   await editor(page).getByRole("radio", { name: "Hide from search results" }).check({ force: true });
@@ -27,6 +29,14 @@ test("hides a page from search engines, and shows how links to it look when shar
     data: { root: { props: { noIndex: true, description: "Who we are, and how to find us." } } },
   });
   expect(await (await page.request.get("/about")).text()).toContain('<meta name="robots" content="noindex"/>');
+});
+
+test("shows Page not found as hidden from search engines, which it always is", async ({ page }) => {
+  await openPageEditor(page, "/404", "Page not found");
+  const hidden = editor(page).getByRole("radio", { name: "Hide from search results" });
+  await expect(hidden).toBeChecked();
+  await expect(hidden).toBeDisabled();
+  await expect(editor(page).getByRole("radio", { name: "Show in search results" })).toBeDisabled();
 });
 
 test("gives a site with an address feeds of its news, and tells search engines about its items", async ({ page }) => {

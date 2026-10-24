@@ -501,7 +501,15 @@ export {
   type StorageLike,
   type TokenLink,
 } from "./git.js";
-export { absoluteUrl, getPageHead, type PageHead, pageHead, type SitemapPage, sitemapPages } from "./head.js";
+export {
+  absoluteUrl,
+  getPageHead,
+  neverIndexed,
+  type PageHead,
+  pageHead,
+  type SitemapPage,
+  sitemapPages,
+} from "./head.js";
 export {
   type CalendarEvent,
   type CalendarFileOptions,
