@@ -3,6 +3,10 @@
 // Vercel also sends the redirects from Site Settings → Redirects (content/redirects.json) itself,
 // so visitors go straight to the new address. Like the pages the build writes at old addresses
 // for other hosts, a redirect from an address a page has is left out: pages always win.
+//
+// For a site with an admin address (goodfellow.config.tsx's `admin` line, which Site Settings'
+// Domain screen writes), every page at that address but the admin panel's own is sandboxed, so a
+// site page served there can't read what the admin panel keeps.
 // This file uses only Node's own modules, since Vercel may read it before installing packages.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -13,6 +17,7 @@ export const config = {
   buildCommand: "npx goodfellow build",
   outputDirectory: "dist",
   redirects: redirects(),
+  headers: adminHeaders(),
 };
 
 interface Redirect {
@@ -79,4 +84,31 @@ function redirects() {
     // With and without a trailing slash, as the other hosts serve the page there.
     return [path, `${path}/`].map((address) => ({ source: source(address), destination: to, permanent: true }));
   });
+}
+
+/** The admin address's header rules, as `vercelAdminHeaders()` in @goodfellow-cms/core writes them. */
+function adminHeaders() {
+  const config = existsSync("goodfellow.config.tsx") ? readFileSync("goodfellow.config.tsx", "utf8") : "";
+  const line = /^[ \t]*admin:[ \t]*\{[^\n]*\},?[ \t]*$/m.exec(config)?.[0];
+  const url = line && /url:\s*"([^"\\]+)"/.exec(line)?.[1];
+  if (!url) return [];
+  const has = [{ type: "host", value: new URL(url).host }];
+  const list = (headers: Record<string, string>) => Object.entries(headers).map(([key, value]) => ({ key, value }));
+  return [
+    { source: "/((?!admin/|admin$).*)", has, headers: list({ "Content-Security-Policy": "sandbox" }) },
+    {
+      source: "/admin/((?!editor/|editor$).*)",
+      has,
+      headers: list({
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Content-Security-Policy": "frame-ancestors 'none'",
+        "Origin-Agent-Cluster": "?1",
+      }),
+    },
+    {
+      source: "/admin/editor/:path*",
+      has,
+      headers: list({ "Content-Security-Policy": "frame-ancestors 'self'", "Origin-Agent-Cluster": "?1" }),
+    },
+  ];
 }

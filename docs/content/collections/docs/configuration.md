@@ -33,6 +33,7 @@ export default defineConfig({
 | `styles` | The site's stylesheet. Defaults to `src/styles.css`. |
 | `ai` | The AI assistant: `false` removes it, `{ providers: ["anthropic", "manual"] }` limits the services offered, and `{ stockPhotos: false }` stops it finding photos on Openverse. |
 | `registries` | Block registries the Blocks screen offers blocks from, besides Goodfellow's: `{ "@acme": "https://acme.example/r/{name}.json" }`. List only registries you trust; see [Block registries](/docs/block-registries). |
+| `admin` | The admin panel's own address, `{ url: "https://admin.example.org", checked: true }`, which the Domain screen writes (see [An admin address](/docs/custom-domains#an-admin-address)). With `url`, builds start every page with a script that sends it to the Site address when it's opened at the admin address, and fail if a page can't start with it, such as one with a script or an event handler before it; with `checked`, the admin panel opens only there. Not for full-stack Next.js sites. |
 | `claude` | What Claude can do through the Claude connector: `{ publish: false }` stops it publishing, so it can only submit its changes for review. It takes effect once the site has been rebuilt. See [Work with Claude](/docs/claude#turning-off-publishing). |
 | `demo` | `true` makes the admin panel a [demo](/docs/demo-mode) anyone can try. |
 

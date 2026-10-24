@@ -476,6 +476,8 @@ export const defaultStrings = {
   "blocks.title": "Blocks",
   "blocks.intro":
     "Add blocks to the editor, or remove ones you don't use. A change shows in the editor once the site has been updated, usually within a few minutes.",
+  "blocks.otherRegistries":
+    "Blocks from other registries can be added once the admin panel has an address of its own, where the site's pages can't reach it (Site Settings → Domain).",
   "blocks.installed": "Added to this site",
   "blocks.noneInstalled": "No blocks have been added yet. The editor offers the built-in ones.",
   "blocks.loading": "Loading the blocks you can add…",
@@ -657,6 +659,44 @@ export const defaultStrings = {
   "domain.signIn":
     "Editors sign in by going to {host} and coming back here. Add {address} to the redirect URIs of the application they sign in with on {host}, or signing in will stop working once the site moves.",
   "domain.local": "Domains are connected in the published site's admin panel, where you sign in with GitHub or GitLab.",
+  "domain.admin.title": "Admin address",
+  "domain.admin.intro":
+    "An address of its own for the admin panel, such as admin.example.org, keeps the site's pages from reaching what the admin panel keeps, such as editors' sign-in. Editors then sign in there. Blocks from registries other than Goodfellow's can be added only once the admin panel has one.",
+  "domain.admin.unsupported":
+    "{host} serves each site at one address, so the admin panel can't have one of its own here.",
+  "domain.admin.contentOnly":
+    "The admin panel's address is set in the site's code, which is kept apart from its content, so a developer sets it there.",
+  "domain.admin.noConfig":
+    "The admin panel's address goes in the site's {file}, which doesn't have the usual defineConfig({ for it, so a developer sets it there.",
+  "domain.admin.noSiteAddress": "Connect the site's own domain first: the admin address goes beside it.",
+  "domain.admin.field": "Admin address",
+  "domain.admin.fieldHint": "An address of the site's domain that nothing else uses, such as admin.example.org.",
+  "domain.admin.connect": "Give the admin panel this address",
+  "domain.admin.elsewhere":
+    "Add this address to the site's project on {host} too, under its custom domains, so it serves the site there as well. The site's build writes {host}'s rules for it.",
+  "domain.admin.message": "Give the admin panel its own address, {domain}",
+  "domain.admin.connected": "The admin panel's address is {domain}",
+  "domain.admin.ready": "The site answers at {address}. Open the admin panel there to start using it.",
+  "domain.admin.pending":
+    "Once the site has been rebuilt and works at {address}, open the admin panel there: it checks the address, then you can start using it.",
+  "domain.admin.open": "Open the admin panel at {address}",
+  "domain.admin.signInAgain": "You'll sign in again there: it's a different address, so it keeps its own sign-in.",
+  "domain.admin.checking": "Checking {address}…",
+  "domain.admin.check.ok":
+    "The site's pages at this address leave it for the site's own address before running anything.",
+  "domain.admin.check.no-guard":
+    "The site's pages at this address don't start with the script that sends them away yet. Wait for the site to be rebuilt, then check again.",
+  "domain.admin.check.no-sandbox":
+    "{host} doesn't sandbox the site's pages at this address yet. Wait for the site to be rebuilt, then check again.",
+  "domain.admin.check.failed": "The admin panel couldn't check this address. Try again in a moment.",
+  "domain.admin.use": "Start using {address}",
+  "domain.admin.useMessage": "Open the admin panel only at {domain}",
+  "domain.admin.using":
+    "The admin panel's address is {address}. Once the site has been rebuilt, the admin panel opens only there.",
+  "domain.admin.stop": "Stop using the admin address",
+  "domain.admin.stopMessage": "Stop using {domain} for the admin panel",
+  "domain.admin.stopBody":
+    "The admin panel goes back to the site's own address once the site has been rebuilt, and blocks from registries other than Goodfellow's can't be added there.",
   "domain.demo": "Domains can't be connected in a demo.",
   "domain.loading": "Finding where the site is published…",
   "domain.elsewhere": "This site isn't published with {host} Pages, so its domain is connected where it is published.",

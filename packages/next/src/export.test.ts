@@ -2,8 +2,9 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { startsWithGuard } from "@goodfellow-cms/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkPages, exportedPages, fixSegmentFiles, writeRedirectFiles } from "./export.js";
+import { checkPages, exportedPages, fixSegmentFiles, guardExport, writeRedirectFiles } from "./export.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -100,4 +101,39 @@ describe("checkPages", () => {
       ["no-alt", "content/pages/news.json", "/news/page/2"],
     ]);
   }, 30_000);
+});
+
+describe("guardExport", () => {
+  it("starts every page of a site with an admin address with its guard, with the export's base path", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-export-"));
+    await write(
+      "site/content/site.json",
+      '{ "version": 1, "title": "St. Joseph", "url": "https://example.org/site" }\n',
+    );
+    await write("site/.next/routes-manifest.json", JSON.stringify({ basePath: "/site" }));
+    const description = { version: 1, goodfellow: "1.0.0", content: {}, root: { fields: {} }, blocks: {} };
+    await write(
+      "out/goodfellow-site.json",
+      JSON.stringify({ ...description, admin: { url: "https://admin.example.org", checked: true } }),
+    );
+    await write("out/index.html", '<!DOCTYPE html><html lang="en"><head><meta charSet="utf-8"/></head></html>');
+    await write("out/admin/index.html", '<!DOCTYPE html><html lang="en"><head></head></html>');
+    const editor = '<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="x"/></head></html>';
+    await write("out/admin/editor.html", editor);
+
+    expect(await guardExport(join(out, "out"), join(out, "site"))).toBe(2);
+    expect(startsWithGuard(await readFile(join(out, "out/index.html"), "utf8"), "html")).toBe(true);
+    expect(await readFile(join(out, "out/admin/index.html"), "utf8")).toContain(
+      'location.origin!=="https://admin.example.org"',
+    );
+    expect(await readFile(join(out, "out/admin/editor.html"), "utf8")).toBe(editor);
+    expect(await readFile(join(out, "out/_headers"), "utf8")).toContain("https://admin.example.org/site/admin/*");
+  });
+
+  it("leaves an export without an admin address as it is", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-export-"));
+    await write("out/index.html", "<html><head></head></html>");
+    expect(await guardExport(join(out, "out"), out)).toBeUndefined();
+    expect(await readFile(join(out, "out/index.html"), "utf8")).toBe("<html><head></head></html>");
+  });
 });

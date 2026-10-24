@@ -163,3 +163,38 @@ test("asks for an owner token when signing in can't change GitHub Pages settings
   await expect(page.getByRole("heading", { name: "1. Add these records at your registrar" })).toBeVisible();
   expect(fake.pages.current?.cname).toBe("parish.example");
 });
+
+test("gives the admin panel an address of its own on GitLab Pages", async ({ page }) => {
+  const settings = JSON.parse(files()["content/site.json"] ?? "{}");
+  const fake = fakeGitLab({
+    project: "parish/site",
+    files: {
+      ...files(),
+      "content/site.json": `${JSON.stringify({ ...settings, url: "https://parish.example" }, null, 2)}\n`,
+      "goodfellow.config.tsx": "export default defineConfig({\n  blocks,\n});\n",
+    },
+    tokens: { "glpat-test": { username: "maria" } },
+    pages: {},
+  });
+  await routeToFake(page, "https://gitlab.com/api", fake.handle);
+  await fakeDns(page, "parish.example", {});
+
+  await page.goto(`${GITLAB_SITE}/admin/#/settings/domain`);
+  await page.getByText("Or sign in with an access token").click();
+  await page.getByLabel("Access token").fill("glpat-test");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  const section = page.getByRole("region", { name: "Admin address" });
+  await section.getByLabel("Admin address").fill("admin.parish.example");
+  await section.getByRole("button", { name: "Give the admin panel this address" }).click();
+
+  // GitLab serves the site there too, and the config names it, so the next build guards every page against it.
+  await expect(section.locator(".gfa-records tbody tr").first()).toContainText("parish.gitlab.io");
+  await expect(section.getByText("open the admin panel there")).toBeVisible();
+  expect(fake.pages?.domains.has("admin.parish.example")).toBe(true);
+  expect(fake.repo.files().get("goodfellow.config.tsx")).toBe(
+    'export default defineConfig({\n  admin: { url: "https://admin.parish.example" },\n  blocks,\n});\n',
+  );
+  await expect(
+    section.getByRole("link", { name: "Open the admin panel at https://admin.parish.example" }),
+  ).toHaveAttribute("href", "https://admin.parish.example/admin/#/settings/domain");
+});

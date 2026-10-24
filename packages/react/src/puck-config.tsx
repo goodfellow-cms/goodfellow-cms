@@ -159,6 +159,9 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
         ];
       }),
     ),
+    ...(config.admin && {
+      admin: { url: config.admin.url, ...(config.admin.checked === true && { checked: true }) },
+    }),
     ...(config.claude?.publish === false && { claude: { publish: false } }),
   };
 }
@@ -173,6 +176,7 @@ export function adminSite(config: GoodfellowConfig): AdminSite {
   return {
     description: describeSite(config),
     ...(config.backend?.source && { backend: config.backend.source }),
+    ...(config.admin && { admin: config.admin }),
     ...(config.demo && { demo: true }),
     ...(config.ai !== undefined && { ai: config.ai }),
     ...(config.registries && { registries: config.registries }),

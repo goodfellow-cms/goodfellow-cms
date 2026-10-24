@@ -66,6 +66,8 @@ export function githubPages(api: () => ApiOptions, repo: string): PagesDomains {
   }
 
   return {
+    // GitHub Pages serves a site on one domain, and its www., so it can't have an admin address.
+    severalDomains: false,
     async site() {
       const found = await pages();
       return found && { url: found.html_url, domain: found.cname ?? undefined };

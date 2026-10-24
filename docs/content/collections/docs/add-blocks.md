@@ -37,4 +37,4 @@ A block can't be removed while a page, a collection's page design, the header or
 
 ## Other registries
 
-Developers can publish registries of Goodfellow blocks built with other component libraries; see [Block registries](/docs/block-registries). A site only offers blocks from Goodfellow's registry and the registries its developer lists, because a block's code runs in the admin panel.
+Developers can publish registries of Goodfellow blocks built with other component libraries; see [Block registries](/docs/block-registries). A site offers blocks from the registries its developer lists only where the admin panel has [an address of its own](/docs/custom-domains#an-admin-address), because a block's code runs in the admin panel, which at the site's own address shares it with scripts on the site's pages. Elsewhere the Blocks screen offers only Goodfellow's registry. On a developer's computer, in `goodfellow dev` or `next dev`, where the admin panel holds no tokens, it offers them all, and adding a block there writes its code into the site's files, to commit like any other change.

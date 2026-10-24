@@ -74,6 +74,24 @@ describe("GitLab Pages domains", () => {
     expect(await pages.site()).toMatchObject({ domain: undefined });
   });
 
+  it("serves the site on a second domain, an admin address, without making it the primary one", async () => {
+    const { fake, pages } = await signIn();
+    expect(pages.severalDomains).toBe(true);
+    await pages.connect("example.org", { apex: true });
+    await pages.connect("admin.example.org", { apex: false });
+    for (const name of ["example.org", "admin.example.org"]) {
+      fake.pages?.dnsReady.add(name);
+      await pages.status(name);
+      const domain = fake.pages?.domains.get(name);
+      if (domain) domain.certificate = true;
+    }
+    await pages.secure("example.org");
+    await pages.secure("admin.example.org", { primary: false });
+    expect(fake.pages?.primaryDomain).toBe("example.org");
+    expect(await pages.site()).toMatchObject({ domain: "example.org" });
+    expect((await pages.status("admin.example.org")).primary).toBe(false);
+  });
+
   it("says that connecting a domain needs the Maintainer role", async () => {
     const { pages } = await signIn({ tokens: { "test-token": { username: "dev", accessLevel: 30 } } });
     await expect(pages.connect("example.org", { apex: true })).rejects.toMatchObject({ problem: "not-allowed" });

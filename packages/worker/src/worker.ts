@@ -350,22 +350,51 @@ export function createWorker(options: WorkerOptions = {}) {
       }
     }
 
-    /** The address in the site's settings (`content/site.json`), read with an installation token. */
-    async function siteAddress(repo: string, token: string): Promise<string | undefined> {
+    /**
+     * The addresses tokens may go to: the Site address in the site's settings
+     * (`content/site.json`), read with an installation token, and the admin
+     * address the site's build names there, if it has one. Empty without a Site address.
+     */
+    async function siteAddresses(repo: string, token: string): Promise<string[]> {
+      let url: string | undefined;
       try {
         const response = await github(config, `/repos/${repoPath(repo)}/contents/content/site.json`, {
           auth: { bearer: token },
           accept: "application/vnd.github.raw+json",
         });
         const settings = JSON.parse(await response.text()) as { url?: unknown };
-        return typeof settings.url === "string" ? new URL(settings.url).origin : undefined;
+        url = typeof settings.url === "string" ? settings.url : undefined;
       } catch (error) {
         if (error instanceof GitHubError && error.status !== 404) throw error;
+      }
+      const site = url && originOf(url);
+      if (!url || !site) return [];
+      const admin = await adminAddress(url);
+      return admin ? [site, admin] : [site];
+    }
+
+    /**
+     * The admin address in the site's description (`goodfellow-site.json`,
+     * which builds write from the site's config) at the Site address, where
+     * the admin panel signs in when the site has one. Tokens already go to the
+     * Site address, so what it serves names no address editors couldn't.
+     */
+    async function adminAddress(siteUrl: string): Promise<string | undefined> {
+      try {
+        const response = await config.fetch(new URL("goodfellow-site.json", siteUrl.replace(/\/?$/, "/")).href, {
+          redirect: "error",
+        });
+        if (!response.ok) return undefined;
+        const description = JSON.parse(await response.text()) as { admin?: { url?: unknown } };
+        const url = description.admin?.url;
+        const origin = typeof url === "string" ? originOf(url) : undefined;
+        return origin && !isLocalAddress(origin) ? origin : undefined;
+      } catch {
         return undefined;
       }
     }
 
-    /** Checks that the app is installed on the repository and that `origin` is the site's own address. */
+    /** Checks that the app is installed on the repository and that `origin` is the site's own address, or its admin address. */
     async function checkSite(purpose: Purpose, repo: string, origin: string | undefined): Promise<number> {
       if (!origin || !originOf(origin) || isLocalAddress(origin)) throw new Problem("local-address", 403);
       const app = appFor(purpose);
@@ -375,10 +404,10 @@ export function createWorker(options: WorkerOptions = {}) {
         contents: "read",
         metadata: "read",
       });
-      const address = await siteAddress(repo, reader.token);
+      const addresses = await siteAddresses(repo, reader.token);
       await revoke(reader.token);
-      if (!address) throw new Problem("no-address", 409);
-      if (address !== origin) throw new Problem("wrong-address", 403);
+      if (addresses.length === 0) throw new Problem("no-address", 409);
+      if (!addresses.includes(origin)) throw new Problem("wrong-address", 403);
       return installation;
     }
 
@@ -486,7 +515,9 @@ export function createWorker(options: WorkerOptions = {}) {
       try {
         await checkStillAllowed(session, repo, issued.token);
         // Checked every time, since the site's address can change, and its old address shouldn't keep getting tokens.
-        if ((await siteAddress(repo, issued.token)) !== session.origin) throw new Problem("wrong-address", 403);
+        if (!(await siteAddresses(repo, issued.token)).includes(session.origin)) {
+          throw new Problem("wrong-address", 403);
+        }
       } catch (error) {
         await revoke(issued.token);
         throw error;

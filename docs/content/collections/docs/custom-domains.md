@@ -75,6 +75,27 @@ Either way, the Site address is `https://www.example.org`.
 
 A site published with Vercel connects its domain in Vercel: open the site's project, go to **Settings → Domains** and add the domain, and Vercel shows the records to add at your registrar. Once the site opens at its new address, put the address in **Site Settings → General → Site address** and publish.
 
+## An admin address
+
+The admin panel can have an address of its own beside the site's, such as `admin.example.org` beside `example.org`. Browsers keep what one address stores away from the other, so scripts on the site's pages, such as code pasted into Site Settings or a block's, can't reach what the admin panel keeps there, such as an editor's sign-in. It also lets admins add blocks from [registries other than Goodfellow's](/docs/add-blocks#other-registries).
+
+It works on GitLab Pages, Cloudflare Pages and Vercel, which serve a site at more than one address. GitHub Pages serves each site at one address (and its `www`), so it can't have one there.
+
+1. Connect the site's own domain first, as above.
+2. In **Site Settings → Domain**, under **Admin address**, type the address, such as `admin.example.org`, and choose **Give the admin panel this address**.
+   - **GitLab Pages:** Goodfellow connects it on GitLab Pages too and lists its records, which you add at your registrar as for the site's domain. The Domain screen follows them until GitLab has set up HTTPS for it.
+   - **Cloudflare Pages and Vercel:** add the address to the site's project yourself, as for the site's own domain.
+3. Goodfellow publishes the address in the site's `goodfellow.config.tsx`. When the site rebuilds, every page starts with a script that sends it to the site's own address when it's opened at the admin address, before anything else on it runs. On Cloudflare Pages and Vercel, the host also runs every page there but the admin panel's in a sealed-off sandbox.
+4. Once the site has rebuilt, open the admin panel at the new address, with the link the Domain screen gives, and sign in again: it's a different address, so it keeps its own sign-in. It checks that the site's pages leave the address, then offers **Start using https://admin.example.org**.
+5. That publishes the address as checked. Once the site has rebuilt again, the admin panel opens only there: `example.org/admin/` sends people to `admin.example.org/admin/`, and the admin panel refuses to be shown inside another page.
+
+A few things to know:
+
+- **Sign in with GitLab:** add the admin panel's new address, such as `https://admin.example.org/admin/`, to the GitLab application's redirect URIs too.
+- **Signing in with GitHub** through a [sign-in service](/docs/sign-in-service) gives tokens to the admin address as well as the Site address, once the site has been rebuilt with it.
+- **The site's code:** the address is in `goodfellow.config.tsx`, so the Domain screen can't set it on a site whose [content is in a repository of its own](/docs/content-repository); a developer adds it there (see [Configuration](/docs/configuration)).
+- **Stopping:** **Stop using the admin address** removes it from the config, and on GitLab Pages from the site's domains. The admin panel goes back to the site's own address once the site has rebuilt.
+
 ## If it doesn't work
 
 - **"Something else is there":** another record with the same name points elsewhere, such as the registrar's own page. Delete it.

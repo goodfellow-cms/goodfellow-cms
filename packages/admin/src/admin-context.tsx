@@ -1,6 +1,7 @@
 import {
   type AdminSite,
   type AppRole,
+  adminOrigin,
   ConflictError,
   type ContentStore,
   type DemoStore,
@@ -20,6 +21,8 @@ import {
   type RepositoryVisibility,
   type ScheduledBuilds,
   ScheduledBuildsError,
+  SHADCN_NAMESPACE,
+  SHADCN_REGISTRY,
   SignInError,
   type SiteContent,
   type SiteEditors,
@@ -120,8 +123,18 @@ export interface AdminContextValue {
   readFile(path: string): Promise<string | undefined>;
   /** Lists the site's files under a folder at the loaded revision. */
   listFiles(dir: string): Promise<string[]>;
-  /** The block registries the Blocks screen offers blocks from: Goodfellow's, and those the config lists. */
+  /**
+   * The block registries the Blocks screen offers blocks from: Goodfellow's,
+   * and, where installed code can't reach editors' tokens (`outOfReach`),
+   * shadcn/ui's and those the config lists.
+   */
   registries: RegistrySources;
+  /**
+   * Whether the site's own pages can't reach what the admin panel keeps: it
+   * runs at the site's checked admin address, or on a development server,
+   * which holds no tokens. Only then is code other than Goodfellow's installed.
+   */
+  outOfReach: boolean;
   /** In a demo, the store keeping the visitor's changes in their browser. */
   demo?: DemoStore;
   /** The git host's own Pages, for connecting a domain, when the backend can. */
@@ -144,6 +157,11 @@ export interface AdminContextValue {
   repositoryVisibility?: () => Promise<RepositoryVisibility>;
   /** Why the host wouldn't build the site at scheduled times, when the sign-in can't have it do so. */
   scheduleSyncProblem?: "not-allowed";
+}
+
+/** Whether the admin panel runs at the site's admin address, once it's checked (`AdminAddress.checked`). */
+export function atAdminAddress(admin: AdminSite["admin"]): boolean {
+  return admin?.checked === true && typeof location !== "undefined" && location.origin === adminOrigin(admin);
 }
 
 /** Provided by `AdminProvider`, and in the site's frames by a stand-in with only what their components use. */
@@ -207,9 +225,14 @@ export function AdminProvider({
     [site.description],
   );
   const mediaPreviews = useMemo(() => createMediaPreviews(store, siteUrl), [store, siteUrl]);
+  // The development servers give their own registry; their admin panel holds no tokens.
+  const outOfReach = registry !== undefined || atAdminAddress(site.admin);
   const registries = useMemo(
-    () => ({ [GOODFELLOW_REGISTRY]: registry ?? goodfellowRegistryUrl(REGISTRY_VERSION), ...site.registries }),
-    [registry, site.registries],
+    () => ({
+      [GOODFELLOW_REGISTRY]: registry ?? goodfellowRegistryUrl(REGISTRY_VERSION),
+      ...(outOfReach && { [SHADCN_NAMESPACE]: SHADCN_REGISTRY, ...site.registries }),
+    }),
+    [registry, site.registries, outOfReach],
   );
   // The hidden frame that runs the site's code, which publishes wait for, for a while.
   const codeFrame = useRef<{ client?: FrameClient; waiting: Array<(client: FrameClient) => void> }>({ waiting: [] });
@@ -383,6 +406,7 @@ export function AdminProvider({
       readFile,
       listFiles,
       registries,
+      outOfReach,
       demo,
       pages,
       versions,
@@ -410,6 +434,7 @@ export function AdminProvider({
       readFile,
       listFiles,
       registries,
+      outOfReach,
       demo,
       pages,
       versions,

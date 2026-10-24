@@ -357,6 +357,18 @@ export class GitLabBackend implements GitBackend {
     return file.last_commit_id;
   }
 
+  /** Whether a file exists at a commit: from the cached tree in the editable folders, and from GitLab elsewhere, such as the config. */
+  private async existsAt(tree: Map<string, string>, path: string, ref: string): Promise<boolean> {
+    if (EDITABLE_FOLDERS.some((folder) => path.startsWith(`${folder}/`))) return tree.has(path);
+    return this.lastCommitFor(path, ref).then(
+      () => true,
+      (error: unknown) => {
+        if (error instanceof GitApiError && error.status === 404) return false;
+        throw error;
+      },
+    );
+  }
+
   async write(changes: FileChange[], { message, expectedRevision }: WriteOptions): Promise<{ revision: string }> {
     if (this.contentOnly) assertContentChanges(changes);
     // GitLab has no "only if the branch hasn't moved" option, so check first. The
@@ -366,7 +378,7 @@ export class GitLabBackend implements GitBackend {
     const existing = await this.tree(expectedRevision);
     const actions = await Promise.all(
       changes.map(async (change) => {
-        const exists = existing.has(change.path);
+        const exists = await this.existsAt(existing, change.path, expectedRevision);
         if ("delete" in change) {
           return exists
             ? {

@@ -17,6 +17,7 @@ import {
   planUpdate,
   RegistryError,
   type RegistryProblem,
+  SHADCN_NAMESPACE,
   SHADCN_REGISTRY,
 } from "./registry.js";
 
@@ -149,13 +150,17 @@ const install = (site: ReturnType<typeof siteFiles>, ref: string, record: Instal
   planInstall({ ref, registries, fetchJson, readFile: site.readFile, record, blocks: ["Heading"] });
 
 describe("itemUrl", () => {
-  it("finds items in the site's registries and shadcn's, and nowhere else", () => {
+  it("finds items in the registries it's given, shadcn's only where it's listed, and nowhere else", () => {
     expect(itemUrl("@goodfellow/shadcn-faq", registries)).toBe("https://registry.example/r/shadcn-faq.json");
-    expect(itemUrl("button", registries)).toBe(SHADCN_REGISTRY.replace("{name}", "button"));
     expect(itemUrl("https://registry.example/r/x.json", registries)).toBe("https://registry.example/r/x.json");
-    for (const ref of ["@other/x", "https://evil.example/r/x.json", "../x"]) {
+    for (const ref of ["@other/x", "https://evil.example/r/x.json", "../x", "button"]) {
       expect(() => itemUrl(ref, registries), ref).toThrow(RegistryError);
     }
+    const withShadcn = { ...registries, [SHADCN_NAMESPACE]: SHADCN_REGISTRY };
+    expect(itemUrl("button", withShadcn)).toBe(SHADCN_REGISTRY.replace("{name}", "button"));
+    expect(itemUrl(SHADCN_REGISTRY.replace("{name}", "card"), withShadcn)).toBe(
+      SHADCN_REGISTRY.replace("{name}", "card"),
+    );
   });
 });
 

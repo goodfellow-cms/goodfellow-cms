@@ -35,7 +35,7 @@ A block is a `registry:block` item with `meta.goodfellow`:
 - **`title`** and **`description`** are what admins see on the Blocks screen; write them for people who aren't developers.
 - **`meta.goodfellow`**: `category` is the group the block is listed under, `recommended` marks blocks new sites start with, `image` is a picture of the block (relative to the item's address), and `version` is recorded in the site when the block is added.
 - **Files:** exactly one `registry:block` file, which default-exports the block's Puck `ComponentConfig`. The item's other files go in the block's folder too, `blocks/installed/<name>/`, so import them with relative paths. Items without `meta.goodfellow`, such as shared components, go in `components/ui/`, `components/`, `lib/` or `hooks/`, imported as `@/components/ui/dialog` and so on.
-- **`registryDependencies`** name items as `@namespace/name`, or as a plain name for shadcn/ui's own components (`"button"`).
+- **`registryDependencies`** name items as `@namespace/name`, or as a plain name for shadcn/ui's own components (`"button"`), which sites trust only where they trust other registries.
 - **`registry.json`**, beside the items, lists them for the Blocks screen.
 
 ## Packages
@@ -56,6 +56,8 @@ export default defineConfig({
   registries: { "@acme": "https://acme.example/r/{name}.json" },
 });
 ```
+
+The Blocks screen offers them only where the admin panel has [an address of its own](/docs/custom-domains#an-admin-address), and in `goodfellow dev` and `next dev`; see [Other registries](/docs/add-blocks#other-registries).
 
 ## Making it easy to find
 

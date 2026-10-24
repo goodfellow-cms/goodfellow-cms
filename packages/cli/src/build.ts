@@ -27,7 +27,7 @@ import {
   withBase,
 } from "@goodfellow-cms/core";
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
-import { fileSystemSource } from "@goodfellow-cms/core/node";
+import { fileSystemSource, guardBuiltSite } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { createServer, build as viteBuild } from "vite";
 import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
@@ -255,6 +255,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
 
     // Last, once every page is written: the index is made from the finished HTML.
     const searchIndexed = await writeSearchIndex(outDir);
+    // Then, for a site with an admin address, every page starts with the script that keeps site pages off it.
+    if (config.admin) await guardBuiltSite(outDir, { admin: config.admin, siteUrl: content.settings.url, base });
     const media = (await fileSystemSource(root).list(MEDIA_DIR)).map(
       (path) => `/media/${path.slice(MEDIA_DIR.length + 1)}`,
     );
