@@ -429,6 +429,7 @@ describe("parish example", () => {
       ".gitlab-ci.yml",
       "vercel.ts",
       ".gitignore",
+      ".npmrc",
       "src/styles.css",
       "components.json",
       "tsconfig.json",

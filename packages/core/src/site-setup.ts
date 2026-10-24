@@ -101,6 +101,15 @@ export type BlockChoice = keyof typeof BLOCK_CHOICES;
  */
 export const BUNDLED_GITIGNORE = "_gitignore";
 
+/** npm leaves `.npmrc` files out of published packages too, so templates are bundled with `_npmrc`. */
+export const BUNDLED_NPMRC = "_npmrc";
+
+/** Files templates are bundled with under another name, by the name they're bundled with. */
+export const BUNDLED_NAMES: Readonly<Record<string, string>> = {
+  [BUNDLED_GITIGNORE]: ".gitignore",
+  [BUNDLED_NPMRC]: ".npmrc",
+};
+
 /** A valid npm package name from a site's name, such as `My Parish` → `my-parish`. */
 export function sitePackageName(name: string): string {
   const dashed = name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
@@ -229,7 +238,7 @@ export async function installRecommendedBlocks(files: SiteFiles, { registries, f
 }
 
 export interface SitePlan {
-  /** The template's files, with `_gitignore` for `.gitignore` as bundled templates have them. */
+  /** The template's files, with `_gitignore` for `.gitignore` and `_npmrc` for `.npmrc` as bundled templates have them. */
   template: SiteFiles;
   /** The new site's npm package name. */
   name: string;
@@ -264,7 +273,8 @@ export async function planSite({
   const files: SiteFiles = new Map();
   for (const [path, file] of template) {
     const parts = path.split("/");
-    if (parts.at(-1) === BUNDLED_GITIGNORE) parts[parts.length - 1] = ".gitignore";
+    const name = BUNDLED_NAMES[parts.at(-1) ?? ""];
+    if (name) parts[parts.length - 1] = name;
     files.set(parts.join("/"), file);
   }
 

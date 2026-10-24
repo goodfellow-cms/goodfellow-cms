@@ -15,6 +15,8 @@ import { type ApiOptions, githubJson, githubRequest, repoPath } from "./api.js";
 const WORKFLOW = "deploy.yml";
 /** The code repository's workflow, where a site keeps its content in a repository of its own. */
 const CODE_WORKFLOW = "update.yml";
+/** The job that publishes the update, which the job that builds the site with it can't. */
+const PUBLISH_JOB = "publish-update";
 
 interface Run {
   id: number;
@@ -55,7 +57,7 @@ export function githubUpdates(
   return {
     async setup() {
       const text = await files.read(workflowFile);
-      return text?.includes("update --publish") ? "ready" : "missing";
+      return text && /update --(publish|commit)\b/.test(text) ? "ready" : "missing";
     },
 
     async lastRun(): Promise<UpdateRun | undefined> {
@@ -72,6 +74,11 @@ export function githubUpdates(
         // A run dispatched only to build, which didn't update.
         if (!job || job.conclusion === "skipped") continue;
         if (job.conclusion !== "success") return { state: "failed", ...base };
+        // The job that publishes what the update job built, where the workflow keeps them apart.
+        const publish = jobs.find((candidate) => candidate.name === PUBLISH_JOB);
+        if (publish && publish.conclusion !== "success" && publish.conclusion !== "skipped") {
+          return { state: "failed", ...base };
+        }
         // Fine-grained tokens can't read the job's log, so compare the site's version before and after.
         const before = siteVersion((await files.readAt("package.json", run.head_sha)) ?? "");
         const now = siteVersion((await files.read("package.json")) ?? "");

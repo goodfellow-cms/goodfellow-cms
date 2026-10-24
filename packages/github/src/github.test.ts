@@ -409,6 +409,7 @@ describe("updates", () => {
 
   it("says whether the site's workflow updates Goodfellow", async () => {
     expect(await (await site()).updates.setup()).toBe("ready");
+    expect(await (await site("run: npx goodfellow update --commit")).updates.setup()).toBe("ready");
     expect(await (await site("run: npx goodfellow build")).updates.setup()).toBe("missing");
   });
 
@@ -446,6 +447,19 @@ describe("updates", () => {
 
     fake.runs.push(run("failure"));
     expect(await updates.lastRun()).toMatchObject({ state: "failed" });
+
+    // An update the site built with, which the job that publishes it couldn't publish.
+    fake.runs.push({
+      ...run("success"),
+      jobs: [...run("success").jobs, { name: "publish-update", conclusion: "failure", steps: [] }],
+    });
+    expect(await updates.lastRun()).toMatchObject({ state: "failed" });
+    // One that had nothing to publish.
+    fake.runs.push({
+      ...run("success"),
+      jobs: [...run("success").jobs, { name: "publish-update", conclusion: "skipped", steps: [] }],
+    });
+    expect(await updates.lastRun()).toMatchObject({ state: "up-to-date" });
   });
 });
 

@@ -4,6 +4,8 @@
 # newest fixes, and publishes them only if the site still builds with them,
 # unless content/updates.json turns automatic updates off. scheduled.yml also
 # starts it when a page or item scheduled to be shown or hidden comes due.
+# Each job gets only the permissions it needs: the jobs that run the site's
+# code can only read the repository, and the jobs that publish run none of it.
 # In the repository's Settings → Pages, set "Source" to "GitHub Actions".
 # See README.md.
 name: Deploy to GitHub Pages
@@ -20,10 +22,7 @@ on:
         required: false
         default: ""
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: pages
@@ -31,15 +30,18 @@ concurrency:
 
 jobs:
   update:
-    # Each night, and when the admin panel's Updates screen asks.
+    # Each night, and when the admin panel's Updates screen asks. It installs
+    # the update and builds the site with it, but can't publish it: publish-update does.
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.update != '')
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     outputs:
-      sha: ${{ steps.update.outputs.sha }}
+      commit: ${{ steps.update.outputs.commit }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -49,18 +51,51 @@ jobs:
       - id: update
         env:
           TO: ${{ inputs.update || 'automatic' }}
-        run: npx goodfellow-next update --publish --to "$TO"
+        run: npx goodfellow-next update --commit --to "$TO"
+      - if: steps.update.outputs.commit == 'true'
+        run: git format-patch --binary --stdout "$GITHUB_SHA" > update.patch
+      - if: steps.update.outputs.commit == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: update
+          path: update.patch
+          retention-days: 1
+
+  publish-update:
+    # Publishes the update the site built with, without running any of its code.
+    needs: update
+    if: needs.update.outputs.commit == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.publish.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: update
+          path: ${{ runner.temp }}
+      - id: publish
+        run: |
+          git -c user.name="Goodfellow updates" -c user.email=updates@goodfellow.invalid am "$RUNNER_TEMP/update.patch"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: update
+    needs: [update, publish-update]
     # Also when there was no update to run, or it didn't work: the site is built either way.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
     steps:
       - uses: actions/checkout@v5
         with:
           # The update's commit, when it published one.
-          ref: ${{ needs.update.outputs.sha || github.sha }}
+          ref: ${{ needs.publish-update.outputs.sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -81,6 +116,9 @@ jobs:
     needs: build
     if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

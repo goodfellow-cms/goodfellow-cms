@@ -80,11 +80,11 @@ if (command === "finish" && dir === "--server") {
 if (command === "update") {
   const { values } = parseArgs({
     args: process.argv.slice(3),
-    options: { to: { type: "string" }, publish: { type: "boolean" } },
+    options: { to: { type: "string" }, publish: { type: "boolean" }, commit: { type: "boolean" } },
   });
   // The starter's admin pages, kept up to date where nobody has changed them, on sites with an admin panel.
   const siteFiles = existsSync("app/admin/page.tsx") ? NEXT_SITE_FILES : [];
-  const result = await update({ to: values.to, publish: values.publish, siteFiles });
+  const result = await update({ to: values.to, publish: values.publish, commit: values.commit, siteFiles });
   // For the admin panel, which reads it in the host's log.
   console.log(formatUpdateResult(result));
   process.exit(result.state === "failed" ? 1 : 0);
@@ -155,7 +155,7 @@ if (command !== "finish" && command !== "index") {
       "Usage: goodfellow-next finish [folder]",
       "       goodfellow-next finish --server",
       "       goodfellow-next index [folder]",
-      "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish]",
+      "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish | --commit]",
       "       goodfellow-next due [--since <time>]",
       "       goodfellow-next content link|copy [folder]",
       "       goodfellow-next import wordpress <file or address> [--dry-run]",
@@ -170,6 +170,8 @@ if (command !== "finish" && command !== "index") {
       "        next build rendered, with the index in public/pagefind, instead.",
       "index   Only indexes the exported site for its search block.",
       "update  Updates Goodfellow, and blocks from its registry, if the site still builds.",
+      "        --publish pushes it to the main branch; --commit only commits it, for a job",
+      "        that runs none of the site's code to publish.",
       "due     Says whether a scheduled change has come due since --since (default: the last",
       "        hour), so the site needs building again, and sets the step's due output on",
       "        GitHub Actions.",

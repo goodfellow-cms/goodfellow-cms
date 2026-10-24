@@ -82,6 +82,12 @@ export interface UpdateOptions {
   to?: string;
   /** Publishes the update, once the site has built with it, as a commit pushed to `branch`. */
   publish?: boolean;
+  /**
+   * Commits the update, once the site has built with it, without pushing it,
+   * so a job that runs none of the site's code can publish it. In GitHub
+   * Actions it says `commit=true` in the step's outputs when it made one.
+   */
+  commit?: boolean;
   /** The branch to publish to. Defaults to CI's branch, or `main`. */
   branch?: string;
   /** Goodfellow's block registry, as `https://…/{name}.json`. Defaults to the release being installed. */
@@ -212,7 +218,7 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
       const cause = findBuildCause(built.output);
       return failed({ step: "build", ...(cause && { cause }), files });
     }
-    if (options.publish && !(await publish(`Update the site's files for Goodfellow ${from}`))) {
+    if ((options.publish || options.commit) && !(await publish(`Update the site's files for Goodfellow ${from}`))) {
       return failed({ step: "publish", files });
     }
     log(`Brought these files up to date for Goodfellow ${from}:\n  ${files.join("\n  ")}`);
@@ -298,7 +304,10 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     return failed({ step: "build", ...(cause && { cause }) });
   }
 
-  if (options.publish && !(await publish(rollback ? `Go back to Goodfellow ${to}` : `Update Goodfellow to ${to}`))) {
+  if (
+    (options.publish || options.commit) &&
+    !(await publish(rollback ? `Go back to Goodfellow ${to}` : `Update Goodfellow to ${to}`))
+  ) {
     return failed({ step: "publish" });
   }
 
@@ -311,15 +320,16 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   if (kept.length > 0) log(keptMessage(kept));
   return { state: "updated", from, to, kept, ...(files.length > 0 && { files }), ...(rollback && { rollback }) };
 
-  /** Commits what the update wrote and pushes it, saying whether that worked. */
+  /** Commits what the update wrote and pushes it, unless only committing, saying whether that worked. */
   async function publish(message: string): Promise<boolean> {
     const branch = options.branch ?? env.GITHUB_REF_NAME ?? env.CI_DEFAULT_BRANCH ?? "main";
     const head = (await run("git", ["rev-parse", "HEAD"], root)).output.trim();
     const paths = [...originals.keys()];
+    const push = options.publish === true;
     const steps: string[][] = [
       ["add", "--all", "--", ...paths],
       [...AUTHOR, "commit", "--message", message],
-      ["push", "origin", `HEAD:refs/heads/${branch}`],
+      ...(push ? [["push", "origin", `HEAD:refs/heads/${branch}`]] : []),
     ];
     for (const args of steps) {
       if ((await run("git", args, root)).code === 0) continue;
@@ -327,7 +337,8 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
       if (head) await run("git", ["reset", "--hard", head], root);
       return false;
     }
-    if (env.GITHUB_OUTPUT) {
+    if (env.GITHUB_OUTPUT && !push) await appendFile(env.GITHUB_OUTPUT, "commit=true\n");
+    else if (env.GITHUB_OUTPUT) {
       const sha = (await run("git", ["rev-parse", "HEAD"], root)).output.trim();
       await appendFile(env.GITHUB_OUTPUT, `sha=${sha}\n`);
     }

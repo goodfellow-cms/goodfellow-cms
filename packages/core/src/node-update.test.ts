@@ -109,6 +109,20 @@ describe("goodfellow update", () => {
     ]);
   });
 
+  it("only commits the update, for a job that runs none of the site's code to publish", async () => {
+    await site();
+    const { ran, run } = commands();
+    const output = join(root, "github-output");
+    const env = { GITHUB_OUTPUT: output };
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, commit: true, log: () => {}, env });
+    expect(result).toMatchObject({ state: "updated", to: "0.4.2" });
+    expect(ran.filter((line) => line.startsWith("git ") && !line.startsWith("git rev-parse"))).toEqual([
+      expect.stringMatching(/^git add --all -- /),
+      "git -c user.name=Goodfellow updates -c user.email=updates@goodfellow.invalid commit --message Update Goodfellow to 0.4.2",
+    ]);
+    expect(await readFile(output, "utf8")).toBe("commit=true\n");
+  });
+
   it("leaves block files someone changed", async () => {
     await site("export default { mine: true };\n");
     const { run } = commands();

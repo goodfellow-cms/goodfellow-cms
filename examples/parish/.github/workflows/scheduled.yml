@@ -11,9 +11,7 @@ on:
     - cron: "47 * * * *"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: write
+permissions: {}
 
 concurrency:
   group: scheduled-changes
@@ -22,8 +20,15 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      due: ${{ steps.due.outputs.due }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -31,13 +36,23 @@ jobs:
           cache: npm
       - run: npm ci
       # Since the last check that worked.
-      - id: due
+      - id: since
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          since="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scheduled.yml --status success --limit 1 --json startedAt --jq '.[0].startedAt' || true)"
-          npx goodfellow due --since "$since"
-      - if: steps.due.outputs.due == 'true'
+        run: echo "since=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scheduled.yml --status success --limit 1 --json startedAt --jq '.[0].startedAt' || true)" >> "$GITHUB_OUTPUT"
+      - id: due
         env:
+          SINCE: ${{ steps.since.outputs.since }}
+        run: npx goodfellow due --since "$SINCE"
+
+  start:
+    # Starts the build, without running any of the site's code.
+    needs: check
+    if: needs.check.outputs.due == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"

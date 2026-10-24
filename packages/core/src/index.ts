@@ -495,7 +495,7 @@ export {
   newDraftName,
   type SiteDrafts,
 } from "./drafts.js";
-export { DEV_EDITOR_PREFIX, EDITOR_PRELUDE, editorPage, editorPolicy } from "./editor-policy.js";
+export { ADMIN_POLICY, DEV_EDITOR_PREFIX, EDITOR_PRELUDE, editorPage, editorPolicy } from "./editor-policy.js";
 export {
   type EditorList,
   type EditorRole,
@@ -645,6 +645,8 @@ export {
   BLOCK_CHOICES,
   type BlockChoice,
   BUNDLED_GITIGNORE,
+  BUNDLED_NAMES,
+  BUNDLED_NPMRC,
   configureBackend,
   HOSTS,
   type Host,

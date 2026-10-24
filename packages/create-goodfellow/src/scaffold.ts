@@ -3,7 +3,7 @@ import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promise
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import {
   type Backend,
-  BUNDLED_GITIGNORE,
+  BUNDLED_NAMES,
   CONTENT_REPOSITORY_DIR,
   GOODFELLOW_REGISTRY,
   type Host,
@@ -20,6 +20,7 @@ export {
   BLOCK_CHOICES,
   type BlockChoice,
   BUNDLED_GITIGNORE,
+  BUNDLED_NPMRC,
   CONTENT_BUILDS,
   CONTENT_REPOSITORY_DIR,
   type ContentBuild,
@@ -49,7 +50,7 @@ const SKIPPED_AT_ROOT = new Set(["dist", "out", ".next", "next-env.d.ts", "turbo
 
 /**
  * Copies a template's files, leaving out installed packages and build output.
- * `bundling` renames `.gitignore` files for publishing; otherwise they're renamed back.
+ * `bundling` renames `.gitignore` and `.npmrc` files for publishing; otherwise they're renamed back.
  */
 export async function copyTemplate(from: string, to: string, { bundling = false } = {}): Promise<void> {
   await cp(from, to, {
@@ -59,9 +60,12 @@ export async function copyTemplate(from: string, to: string, { bundling = false 
       return !path.some((part) => SKIPPED.has(part)) && !SKIPPED_AT_ROOT.has(path[0] ?? "");
     },
   });
-  const [find, replace] = bundling ? [".gitignore", BUNDLED_GITIGNORE] : [BUNDLED_GITIGNORE, ".gitignore"];
+  const names = new Map(
+    Object.entries(BUNDLED_NAMES).map(([bundled, name]) => (bundling ? [name, bundled] : [bundled, name])),
+  );
   for (const file of await readdir(to, { recursive: true })) {
-    if (basename(file) === find) await rename(join(to, file), join(to, file.slice(0, -find.length) + replace));
+    const replace = names.get(basename(file));
+    if (replace) await rename(join(to, file), join(dirname(join(to, file)), replace));
   }
 }
 

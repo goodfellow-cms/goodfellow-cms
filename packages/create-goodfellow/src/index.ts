@@ -3,6 +3,7 @@ export {
   BLOCK_CHOICES,
   type BlockChoice,
   BUNDLED_GITIGNORE,
+  BUNDLED_NPMRC,
   configureBackend,
   copyTemplate,
   HOSTS,

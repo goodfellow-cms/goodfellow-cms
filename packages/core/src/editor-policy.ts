@@ -35,6 +35,15 @@ export function editorPolicy(options: { scriptHashes?: readonly string[]; blobSc
 }
 
 /**
+ * The Content Security Policy of the admin panel's own page, which holds the
+ * sign-in: its frames load only its own address's pages, the editor's, so a
+ * frame of the site's code can't leave for another address while it's shown
+ * there. It limits nothing else, since the admin panel talks to git hosts and
+ * AI services a site chooses.
+ */
+export const ADMIN_POLICY = "frame-src 'self'; object-src 'none'; base-uri 'none'";
+
+/**
  * The first thing the editor's frames run. Anywhere but a frame sandboxed
  * without `allow-same-origin`, whose origin is `null`, it stops the page, so
  * blocks' code never runs with an address's storage, such as when someone
