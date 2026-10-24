@@ -81,10 +81,11 @@ test("an owner chooses when a GitHub site rebuilds overnight, and rebuilds it no
   await expect(page.getByLabel("Only when something changed (recommended)")).toBeChecked();
   await page.getByLabel("Never").check();
   await expect(page.getByText("Without rebuilding overnight", { exact: false })).toBeVisible();
-  expect(fake.variables.get("GOODFELLOW_NIGHTLY")).toBe("off");
+  // The screen shows the choice at once, before GitHub has it.
+  await expect.poll(() => fake.variables.get("GOODFELLOW_NIGHTLY")).toBe("off");
   await page.getByLabel("Every night").check();
   await expect(page.getByLabel("Every night")).toBeChecked();
-  expect(fake.variables.get("GOODFELLOW_NIGHTLY")).toBe("always");
+  await expect.poll(() => fake.variables.get("GOODFELLOW_NIGHTLY")).toBe("always");
 
   // Rebuilding runs the workflow without an update.
   await page.getByRole("button", { name: "Rebuild now" }).click();
