@@ -16,7 +16,9 @@ import {
   pageOutputFile,
   type Redirect,
   redirectFiles,
+  rootRobotsUrl,
   type ScheduledChange,
+  type SelfHostedResult,
   SITE_DESCRIPTION_PATH,
   type SiteProblem,
   shownContent,
@@ -27,7 +29,7 @@ import {
   withBase,
 } from "@goodfellow-cms/core";
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
-import { fileSystemSource, guardBuiltSite } from "@goodfellow-cms/core/node";
+import { fileSystemSource, guardBuiltSite, selfHostFonts } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { createServer, build as viteBuild } from "vite";
 import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
@@ -60,6 +62,12 @@ export interface BuildResult {
    * limit of 2,000 lines, and are left to their pages.
    */
   redirectsLeft?: number;
+  /** Whether the site's Google Fonts were copied into it (`selfHostFonts()`), or left to Google since it couldn't be reached. */
+  fonts?: SelfHostedResult;
+  /** Where search engines look for `robots.txt`, for a site in a subfolder, where the one the build writes isn't read. */
+  robotsElsewhere?: string;
+  /** The sitemap's address, for a site with its address set. */
+  sitemap?: string;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -253,6 +261,10 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       );
     }
 
+    // The site's own copy of its fonts, once every page is written, so visitors' browsers don't ask Google for them.
+    const fonts = await selfHostFonts(outDir, content.settings.theme, { base });
+    const robotsElsewhere = rootRobotsUrl(url);
+
     // Last, once every page is written: the index is made from the finished HTML.
     const searchIndexed = await writeSearchIndex(outDir);
     // Then, for a site with an admin address, every page starts with the script that keeps site pages off it.
@@ -273,6 +285,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       problems,
       ...(nextChange && { nextChange }),
       ...(cloudflare.left > 0 && { redirectsLeft: cloudflare.left }),
+      ...(fonts && { fonts }),
+      ...(robotsElsewhere && { robotsElsewhere }),
+      ...(url && { sitemap: absoluteUrl(url, "/sitemap.xml") }),
     };
   } finally {
     await server.close();

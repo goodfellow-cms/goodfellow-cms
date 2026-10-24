@@ -31,6 +31,14 @@ Other pages, and pages hidden from search engines, have none. There's nothing to
 
 On a site in [several languages](/docs/languages), each page also links to its translations with `hreflang`, and the sitemap lists them with each page, so search engines show people the page in their own language. Each language's home page describes the site in that language.
 
+## Sites in a subfolder
+
+Builds write `sitemap.xml`, the list of the site's pages, and a `robots.txt` that names it. Search engines read `robots.txt` only at the root of a domain, though, so for a site in a subfolder, such as `https://your-name.github.io/your-site`, they never read the one the build wrote, and `goodfellow build` says so. To have them find the sitemap, do one of these:
+
+- **Give the site a domain of its own** (see [Custom domains](/docs/custom-domains)), which puts it at the root.
+- **Name the sitemap yourself**, such as `https://your-name.github.io/your-site/sitemap.xml`, in [Google Search Console](https://search.google.com/search-console) and [Bing Webmaster Tools](https://www.bing.com/webmasters).
+- **On GitHub Pages,** make a repository named `your-name.github.io`, whose site is the domain's root, with a `robots.txt` in it that names the sitemap: `Sitemap: https://your-name.github.io/your-site/sitemap.xml`.
+
 ## Feeds
 
 Each collection whose items have pages and a date field, such as news, has a feed, which feed readers and other sites follow to see new items as they're published: an RSS feed at `/feeds/<collection>.rss` and an Atom feed at `/feeds/<collection>.atom`, such as `/feeds/news.rss`. They list the newest 50 items, each with its title, date, summary (or the start of its text) and link. Every page names the RSS feeds, so feed readers find them from the site's address alone.

@@ -1,6 +1,6 @@
 import { relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { CLOUDFLARE_REDIRECTS_LIMIT, ContentError, formatUpdateResult } from "@goodfellow-cms/core";
+import { buildNotes, CLOUDFLARE_REDIRECTS_LIMIT, ContentError, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   AdminSetupError,
@@ -154,6 +154,7 @@ async function main(): Promise<void> {
           `Cloudflare Pages reads only the first ${CLOUDFLARE_REDIRECTS_LIMIT.toLocaleString("en")} lines of _redirects, so ${result.redirectsLeft} old address${result.redirectsLeft === 1 ? " is" : "es are"} left to the pages that send visitors on.`,
         );
       }
+      for (const line of buildNotes(result)) console.log(line);
       for (const line of reportSiteProblems(result.problems)) console.log(line);
       if (values.strict && result.problems.some((problem) => problem.severity === "error")) {
         console.log("The build failed because of the site checks' errors (--strict).");

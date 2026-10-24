@@ -35,7 +35,7 @@ export default defineConfig({
 
 Builds include the admin panel at `/admin` only once a backend is set. If the live site is built from a branch other than the repository's default branch, add `branch: "name"`.
 
-Then set the site's address under **Site Settings → General → Site address**, including any subfolder, such as `https://your-name.github.io/your-site`. It's used for the sitemap, link previews, feeds and what search engines are told about the site (see [Search engines and feeds](/docs/search-engines)).
+Then set the site's address under **Site Settings → General → Site address**, including any subfolder, such as `https://your-name.github.io/your-site`. It's used for the sitemap, link previews, feeds and what search engines are told about the site (see [Search engines and feeds](/docs/search-engines)); a site in a subfolder needs [its sitemap named](/docs/search-engines#sites-in-a-subfolder) where search engines look.
 
 ## 3. Choose a host
 

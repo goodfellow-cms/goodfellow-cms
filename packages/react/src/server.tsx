@@ -110,8 +110,6 @@ export function createPageRenderer(config: GoodfellowConfig) {
           ))}
           {fontsUrl && (
             <>
-              <link rel="preconnect" href="https://fonts.googleapis.com" />
-              <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
               {fontFiles.map((href) => (
                 <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="" />
               ))}
