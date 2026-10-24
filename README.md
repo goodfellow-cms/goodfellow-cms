@@ -106,6 +106,8 @@ flowchart TB
     - **Structured data** (schema.org JSON-LD), so search engines show events with their dates and places, and news as articles.
     - **For each page:** hiding it from search engines, and a preview of how it looks when shared.
     - **Feeds:** RSS and Atom feeds of collections whose items are dated, such as news, which feed readers and other sites can follow.
+    - **Sites in a subfolder** (done): search engines read `robots.txt` only at a domain's root, so builds of a site such as `your-name.github.io/your-site/` say how to have them find its sitemap.
+    - **Fonts from the site itself** (done): builds copy the site's Google Fonts into it, so pages load them without connecting to Google, sooner and without telling Google who visits. Full-stack Next.js sites, whose pages Next.js serves as it renders them, still load them from Google.
 29. **Moving from and to WordPress** (done).
     - **Importing:** a WordPress site's pages, posts, categories, tags, menus and media, from its export file or its address, in the admin panel or from the command line, with WordPress's blocks turned into Goodfellow's and old addresses kept or redirected.
     - **Exporting:** a Goodfellow site as a WordPress export file, in the admin panel or from the command line, with its blocks turned into WordPress's.

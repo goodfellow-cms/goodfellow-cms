@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // After `next build`: `goodfellow-next finish out` fixes the export's prefetch files on Windows,
 // writes the calendar files of collections of events, collections' feeds, the pages at redirects' old addresses and Cloudflare Pages' _redirects, and the search index for sites with a search block,
-// starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
+// copies the site's Google Fonts into the export, starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
 // `goodfellow-next due [--since <time>]` says whether a scheduled change has come due, as `goodfellow due` does.
 // `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { relative } from "node:path";
 import { parseArgs } from "node:util";
-import { CLOUDFLARE_REDIRECTS_LIMIT, configAdmin, formatUpdateResult } from "@goodfellow-cms/core";
+import { buildNotes, CLOUDFLARE_REDIRECTS_LIMIT, configAdmin, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   AdminSetupError,
@@ -47,6 +47,7 @@ import {
   writeCalendarFiles,
   writeEditorPolicy,
   writeFeedFiles,
+  writeFontFiles,
   writePageLanguages,
   writeRedirectFiles,
 } from "@goodfellow-cms/next/export";
@@ -250,6 +251,7 @@ if (command === "finish") {
       `Cloudflare Pages reads only the first ${CLOUDFLARE_REDIRECTS_LIMIT.toLocaleString("en")} lines of _redirects, so ${redirects.cloudflareLeft} old address${redirects.cloudflareLeft === 1 ? " is" : "es are"} left to the pages that send visitors on.`,
     );
   }
+  for (const line of buildNotes(await writeFontFiles(dir))) console.log(line);
 }
 const indexed = await writeSearchIndex(dir);
 console.log(

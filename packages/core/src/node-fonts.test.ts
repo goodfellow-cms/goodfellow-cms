@@ -1,6 +1,9 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { siteSettingsSchema } from "./content/schemas.js";
-import { fontStandIns } from "./node-fonts.js";
+import { fontStandIns, selfHostFonts } from "./node-fonts.js";
 import { themeToCss } from "./theme.js";
 
 const theme = (fonts: object) => siteSettingsSchema.parse({ version: 1, theme: { fonts } }).theme;
@@ -48,5 +51,48 @@ describe("fontStandIns", () => {
   it("gives none for fonts it has no measurements for, or no fonts", async () => {
     expect(await fontStandIns(theme({ heading: "No Such Font" }))).toEqual({ css: "" });
     expect(await fontStandIns(theme({}))).toEqual({ css: "" });
+  });
+});
+
+describe("selfHostFonts", () => {
+  const css = `/* latin */
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  src: url(https://fonts.gstatic.com/s/lora/v1/a.woff2) format('woff2');
+}`;
+  const site = theme({ body: "Lora" });
+
+  it("writes the fonts into the build and points every page and payload at them", async () => {
+    const out = await mkdtemp(join(tmpdir(), "goodfellow-fonts-"));
+    try {
+      await mkdir(join(out, "about"), { recursive: true });
+      const link = `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&amp;display=swap"/>`;
+      await writeFile(join(out, "about/index.html"), `<head>${link}</head>`);
+      await writeFile(join(out, "about.txt"), "https://fonts.gstatic.com/s/lora/v1/a.woff2");
+      const result = await selfHostFonts(out, site, {
+        base: "/site/",
+        read: async () => css,
+        readFont: async () => new Uint8Array([1, 2, 3]),
+      });
+      expect(result).toEqual({ hosted: 1 });
+      expect(new Uint8Array(await readFile(join(out, "fonts/google/s/lora/v1/a.woff2")))).toEqual(
+        new Uint8Array([1, 2, 3]),
+      );
+      const html = await readFile(join(out, "about/index.html"), "utf8");
+      const stylesheet = /href="\/site\/(fonts\/google\/[0-9a-f]+\.css)"/.exec(html)?.[1];
+      expect(stylesheet).toBeDefined();
+      expect(await readFile(join(out, stylesheet ?? ""), "utf8")).toContain("url(s/lora/v1/a.woff2)");
+      expect(await readFile(join(out, "about.txt"), "utf8")).toBe("/site/fonts/google/s/lora/v1/a.woff2");
+
+      // Without Google, pages are left as they were.
+      await writeFile(join(out, "about/index.html"), `<head>${link}</head>`);
+      expect(await selfHostFonts(out, site, { read: async () => undefined })).toEqual({ unavailable: true });
+      expect(await readFile(join(out, "about/index.html"), "utf8")).toBe(`<head>${link}</head>`);
+      expect(await selfHostFonts(out, theme({}))).toBeUndefined();
+    } finally {
+      await rm(out, { recursive: true, force: true });
+    }
   });
 });

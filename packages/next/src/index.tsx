@@ -180,13 +180,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
         <style href="goodfellow-theme" precedence="default">
           {themeToCss(content.settings.theme, standIns)}
         </style>
-        {fontsUrl && (
-          <>
-            <link rel="preconnect" href="https://fonts.googleapis.com" />
-            <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-            <link rel="stylesheet" href={fontsUrl} precedence="default" />
-          </>
-        )}
+        {fontsUrl && <link rel="stylesheet" href={fontsUrl} precedence="default" />}
       </>
     );
   }

@@ -392,6 +392,8 @@ describe("documentation site", () => {
           const [path = "", hash] = (href ?? "").split("#");
           const target = path.replace(/\/$/, "") || "/";
           if (target.startsWith("/assets/") || target.startsWith("/media/")) continue;
+          // Files the build wrote, such as the site's copy of its fonts.
+          if (files.includes(target.slice(1))) continue;
           const page = pages.get(target);
           if (!page) broken.push(`${from} → ${href}`);
           else if (hash && !page.includes(`id="${hash}"`)) broken.push(`${from} → ${href} (no such heading)`);

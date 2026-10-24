@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import {
+  absoluteUrl,
   allPages,
   CALENDARS_DIR,
   CLOUDFLARE_REDIRECTS_PATH,
@@ -18,13 +19,15 @@ import {
   pathLanguage,
   type Redirect,
   redirectFiles,
+  rootRobotsUrl,
+  type SelfHostedResult,
   SITE_DESCRIPTION_PATH,
   type SiteProblem,
   shownContent,
   siteLanguages,
 } from "@goodfellow-cms/core";
 import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
-import { fileSystemSource, guardBuiltSite } from "@goodfellow-cms/core/node";
+import { fileSystemSource, guardBuiltSite, selfHostFonts } from "@goodfellow-cms/core/node";
 
 export { NEXT_SITE_FILES } from "./site-files.js";
 
@@ -86,6 +89,30 @@ async function exists(path: string): Promise<boolean> {
     () => true,
     () => false,
   );
+}
+
+/** What `writeFontFiles()` did, for `buildNotes()`. */
+export interface FontsWritten {
+  fonts?: SelfHostedResult;
+  robotsElsewhere?: string;
+  sitemap?: string;
+}
+
+/**
+ * Copies the site's Google Fonts into the export and points its pages at
+ * them, as `goodfellow build` does (`selfHostFonts()`), with the export's base
+ * path, and says where search engines read `robots.txt` for a site in a
+ * subfolder (`rootRobotsUrl()`).
+ */
+export async function writeFontFiles(outDir: string, root = process.cwd()): Promise<FontsWritten> {
+  const { settings } = await loadSiteContent(fileSystemSource(resolve(root)));
+  const fonts = await selfHostFonts(outDir, settings.theme, { base: await exportBasePath(root) });
+  const robotsElsewhere = rootRobotsUrl(settings.url);
+  return {
+    ...(fonts && { fonts }),
+    ...(robotsElsewhere && { robotsElsewhere }),
+    ...(settings.url && { sitemap: absoluteUrl(settings.url, "/sitemap.xml") }),
+  };
 }
 
 /** What `writeRedirectFiles()` wrote. */

@@ -102,5 +102,6 @@ To keep the server's token away from the site's code, the content can be kept in
 ## What's different
 
 - **Search** finds the pages Next.js renders while building, which is all of the site's pages. A page made later is found once the site is rebuilt, which publishing does anyway.
+- **Fonts** load from Google Fonts, as in `next dev`: `goodfellow-next finish --server` can't change the pages Next.js serves, so it doesn't copy them into the site as exports do.
 - **Uploads** go through the server. Some hosts limit what a request can send, such as Vercel's functions, at 4.5 MB, so larger uploads fail there.
 - **Screens for the git host:** the Editors, Domain and Updates screens aren't shown, since the app manages its own people and its host its own domain. A full-stack site can't have an [admin address](/docs/custom-domains#an-admin-address): its admin panel signs in with the app's own sign-in, and `withGoodfellow()` and `goodfellow-next finish --server` refuse a config that names one. `goodfellow-next update` still updates the site from a computer.

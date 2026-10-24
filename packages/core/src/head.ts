@@ -41,6 +41,19 @@ export function absoluteUrl(siteUrl: string, path: string): string {
   return `${trimChars(siteUrl, "/", { start: false })}${path === "/" ? "/" : path}`;
 }
 
+/**
+ * Where search engines look for the site's `robots.txt`, if it isn't where
+ * builds write it: the root of the Site address's domain, for a site in a
+ * subfolder such as `https://name.github.io/site/`. Search engines read only
+ * the domain's own, so they don't find the sitemap the site's own names.
+ */
+export function rootRobotsUrl(siteUrl: string | undefined): string | undefined {
+  const match = siteUrl && /^(https?:\/\/[^/?#]+)(\/[^?#]*)?/i.exec(siteUrl.trim());
+  if (!match) return undefined;
+  const path = trimChars(match[2] ?? "", "/");
+  return path ? `${match[1]}/robots.txt` : undefined;
+}
+
 export function getPageHead(settings: SiteSettings, page: Page): PageHead {
   const props = page.content.data.root.props;
   const ownTitle = readString(props, "title");

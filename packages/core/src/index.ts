@@ -524,7 +524,18 @@ export {
   type SiteEditors,
 } from "./editors.js";
 export { isExternalLink, type LinkTargetOptions, NEW_TAB, setLinkTargets } from "./external-links.js";
-export { fontFilesFor, fontPreloads, type ReadStylesheet } from "./fonts.js";
+export {
+  buildNotes,
+  FONTS_DIR,
+  fontFilesFor,
+  fontPreloads,
+  type ReadFontFile,
+  type ReadStylesheet,
+  type SelfHostedFonts,
+  type SelfHostedResult,
+  selfHostedFonts,
+  withSelfHostedFonts,
+} from "./fonts.js";
 export {
   type FormDetails,
   type FormProblem,
@@ -570,6 +581,7 @@ export {
   neverIndexed,
   type PageHead,
   pageHead,
+  rootRobotsUrl,
   type SitemapPage,
   sitemapPages,
 } from "./head.js";
