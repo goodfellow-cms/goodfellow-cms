@@ -20,6 +20,19 @@ export default defineConfig({
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
       : {},
   },
+  projects: [
+    { name: "chromium", use: {} },
+    // The admin address's guards, in every browser engine, since each loads pages its own way.
+    ...(["firefox", "webkit"] as const).map((name) => ({
+      name,
+      testMatch: "admin-domain.spec.ts",
+      use: {
+        ...devices[name === "firefox" ? "Desktop Firefox" : "Desktop Safari"],
+        viewport: { width: 1440, height: 900 },
+        launchOptions: {},
+      },
+    })),
+  ],
   webServer: [
     {
       command: `node scripts/start-site.mjs ${PORT}`,
@@ -57,7 +70,7 @@ export default defineConfig({
     },
     // Production builds of the starter with each git backend, as a demo, and with its content in a repository
     // of its own, served like a static host.
-    ...(["github", "gitlab", "demo", "content"] as const).map((name) => ({
+    ...(["github", "gitlab", "demo", "content", "admin"] as const).map((name) => ({
       command: `node scripts/start-built-site.mjs ${name}`,
       url: `http://localhost:${builtSites[name].port}/admin/`,
       reuseExistingServer: false,

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">
+  <title>Picture</title>
+  <script>localStorage.setItem("ran-svg", "1")</script>
+  <image href="/attack/missing.png" width="1" height="1" onerror="localStorage.setItem('ran-svg-onerror', '1')"/>
+  <rect width="10" height="10" fill="#1e3a8a"/>
+</svg>

@@ -12,6 +12,7 @@ import {
   registrarName,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useState } from "react";
+import { AdminAddressSection } from "./admin-address.js";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { siteSettingsFileChange } from "./changes.js";
 import { OwnerTokenActive, OwnerTokenForm } from "./owner-token.js";
@@ -128,13 +129,14 @@ export function DomainScreen() {
         <p>{t("domain.intro")}</p>
         <OwnerTokenActive onForget={loadSite} />
         {body}
+        {!demo && (pages || outside) && <AdminAddressSection outside={outside} />}
       </div>
     </div>
   );
 }
 
 /** Explains a problem with the domain; where an owner token would let it work, asks for one, then calls `onRetry`. */
-function DomainProblem({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+export function DomainProblem({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const t = useStrings();
   const { ownerAccess, account } = useAdmin();
   const host = account?.hostName ?? "";
@@ -203,7 +205,20 @@ function ConnectForm({ current, onConnected }: { current?: string; onConnected: 
   );
 }
 
-function ConnectedDomain({ domain, onRemoved }: { domain: string; onRemoved: () => Promise<void> }) {
+/**
+ * A connected domain's records, what the host says about it, and whether the
+ * site answers there, until it works. An `admin` domain is the admin panel's
+ * address: it gets HTTPS but never takes visitors from the site's own address.
+ */
+export function ConnectedDomain({
+  domain,
+  onRemoved,
+  admin = false,
+}: {
+  domain: string;
+  onRemoved: () => Promise<void>;
+  admin?: boolean;
+}) {
   const t = useStrings();
   const { pages, account } = useAdmin();
   const host = account?.hostName ?? "";
@@ -241,7 +256,7 @@ function ConnectedDomain({ domain, onRemoved }: { domain: string; onRemoved: () 
     recordsInPlace(progress.checks) &&
     progress.host?.certificate === "ready" &&
     progress.reachable === true;
-  const done = working && progress?.host?.httpsOnly === true && progress.host.primary;
+  const done = working && progress?.host?.httpsOnly === true && (admin || progress.host.primary);
 
   useEffect(() => {
     void check();
@@ -257,7 +272,7 @@ function ConnectedDomain({ domain, onRemoved }: { domain: string; onRemoved: () 
     if (!pages) return;
     setError(undefined);
     try {
-      await pages.secure(domain);
+      await pages.secure(domain, { primary: !admin });
       await check();
     } catch (caught) {
       setError(caught);
@@ -286,14 +301,14 @@ function ConnectedDomain({ domain, onRemoved }: { domain: string; onRemoved: () 
   return (
     <div className="gfa-form">
       <p>
-        <strong>{t("domain.connected", { domain })}</strong>
+        <strong>{t(admin ? "domain.admin.connected" : "domain.connected", { domain })}</strong>
       </p>
       {account?.redirectAddressesListed && (
         <p className="gfa-notice">{t("domain.signIn", { host, address: `${address}/admin/` })}</p>
       )}
       {done && (
         <p className="gfa-notice gfa-notice-success" role="status">
-          {t("domain.done", { address })}
+          {t(admin ? "domain.admin.ready" : "domain.done", { address })}
         </p>
       )}
       {error !== undefined && (
@@ -373,7 +388,7 @@ function ConnectedDomain({ domain, onRemoved }: { domain: string; onRemoved: () 
           <Button variant="primary" onClick={() => void secure()}>
             {t("domain.secure", { address })}
           </Button>
-          <p className="gfa-hint">{t("domain.secureHint")}</p>
+          {!admin && <p className="gfa-hint">{t("domain.secureHint")}</p>}
         </div>
       )}
       <div className="gfa-header-actions">

@@ -37,6 +37,11 @@ export interface SiteDescription {
   root: { fields: Record<string, unknown> };
   /** The site's blocks, by the name content refers to them by. */
   blocks: Record<string, BlockDescription>;
+  /**
+   * The config's admin address, where the sign-in worker gives tokens as well
+   * as the Site address (`GoodfellowConfig.admin`).
+   */
+  admin?: { url: string; checked?: boolean };
   /** What the site's config lets Claude do (`GoodfellowConfig.claude`), when it's less than everything. */
   claude?: { publish?: boolean };
 }
@@ -82,6 +87,7 @@ const descriptionSchema = z.object({
       templateOnly: z.boolean().optional(),
     }),
   ),
+  admin: z.object({ url: z.string(), checked: z.boolean().optional() }).optional(),
   claude: z.object({ publish: z.boolean().optional() }).optional(),
 });
 

@@ -27,6 +27,8 @@ export function setup(
     withoutSecrets?: boolean;
     /** The everyday app as it was before it asked for the Checks and Commit statuses permissions. */
     withoutChecks?: boolean;
+    /** The admin address the site's build names, in the `goodfellow-site.json` the Site address serves. */
+    admin?: string;
   } = {},
 ) {
   const repositories = ["parish/site", ...(options.repositories ?? [])];
@@ -64,7 +66,16 @@ export function setup(
     apps: [editApp, ownerApp],
   });
   let clock = Date.now();
-  const worker = createWorker({ fetch: fake.fetch, now: () => clock });
+  // The site itself, at its address, serves its description, naming its admin address if it has one.
+  const fetch: typeof globalThis.fetch = async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url === `${SITE}/goodfellow-site.json`) {
+      if (!options.admin) return new Response("Not found", { status: 404 });
+      return Response.json({ version: 1, admin: { url: options.admin } });
+    }
+    return fake.fetch(input, init);
+  };
+  const worker = createWorker({ fetch, now: () => clock });
   const env = { ...baseEnv, ...options.env };
   const call = (path: string, init: RequestInit & { origin?: string } = {}) =>
     worker.fetch(

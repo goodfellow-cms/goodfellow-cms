@@ -137,7 +137,7 @@ function publishMessage(t: Translate, pending: Pending[]): string {
  */
 export function BlocksScreen() {
   const t = useStrings();
-  const { blocks, registries, readFile, publish, demo } = useAdmin();
+  const { blocks, registries, outOfReach, site, readFile, publish, demo } = useAdmin();
   const { content, revision } = useSiteContent();
   const [record, setRecord] = useState<InstalledRecord>();
   const [available, setAvailable] = useState<AvailableBlock[]>();
@@ -245,6 +245,10 @@ export function BlocksScreen() {
         <h1>{t("blocks.title")}</h1>
       </div>
       <p className="gfa-hint">{t("blocks.intro")}</p>
+      {/* Code other than Goodfellow's runs in the admin panel, so it's installed only where the site's pages can't reach it. */}
+      {!outOfReach && Object.keys(site.registries ?? {}).length > 0 && (
+        <p className="gfa-hint">{t("blocks.otherRegistries")}</p>
+      )}
       {demo && (
         <p className="gfa-notice" role="note">
           {t("blocks.demo")}

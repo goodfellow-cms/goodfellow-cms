@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scripts</title>
+<script>localStorage.setItem("ran-inline", "1")</script>
+<script async src="/attack/async.js"></script>
+<script defer src="/attack/defer.js"></script>
+<script type="module" src="/attack/module.js"></script>
+<script type="module">localStorage.setItem("ran-module-inline", "1")</script>
+</head>
+<body onload="localStorage.setItem('ran-body-onload', '1')">
+<h1>Scripts</h1>
+<img src="/attack/missing.png" alt="" onerror="localStorage.setItem('ran-onerror', '1')">
+<iframe title="Inline frame" srcdoc="<script>localStorage.setItem('ran-srcdoc', '1')</script>"></iframe>
+<iframe title="Frame" src="/attack/framed.html"></iframe>
+<object title="Picture" data="/attack/picture.svg" type="image/svg+xml"></object>
+<script>localStorage.setItem("ran-body-inline", "1")</script>
+</body>
+</html>

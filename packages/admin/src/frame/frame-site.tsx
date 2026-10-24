@@ -128,6 +128,7 @@ export function FrameProviders({
       readFile: async () => refused(),
       listFiles: async () => refused(),
       registries: {},
+      outOfReach: false,
       contentOnly: false,
       ...(timing && { scheduledBuilds: { timing: async () => timing, sync: undefined } }),
       ...(visibility && { repositoryVisibility: async () => visibility }),

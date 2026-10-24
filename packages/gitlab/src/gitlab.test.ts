@@ -171,6 +171,15 @@ describe("publishing", () => {
     expect(await backend.read("lib/utils.ts")).toBe("export {};\n");
   });
 
+  it("changes the site's config, which isn't in the folders it reads", async () => {
+    const { fake, backend } = await signedIn({ files: { ...FILES, "goodfellow.config.tsx": "export default {};\n" } });
+    await backend.write([{ path: "goodfellow.config.tsx", content: "export default { admin: {} };\n" }], {
+      message: "Give the admin panel its own address",
+      expectedRevision: await backend.revision(),
+    });
+    expect(fake.repo.files().get("goodfellow.config.tsx")).toBe("export default { admin: {} };\n");
+  });
+
   it("uploads files that aren't text, such as images, and reads them back", async () => {
     const { fake, backend } = await signedIn();
     const image = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0x00, 0x80]);

@@ -68,6 +68,28 @@ describe("signing in", () => {
     expect(isLocalAddress("https://parish.example")).toBe(false);
   });
 
+  it("gives tokens to the site's admin address too, which its build names", async () => {
+    const admin = "https://admin.parish.example";
+    const { call, post, redirect } = setup({ admin });
+    expect(await (await call("/github/check?repo=parish/site", { origin: admin })).json()).toEqual({ ok: true });
+    expect(await (await call("/github/check?repo=parish/site", { origin: "https://evil.example" })).json()).toEqual({
+      problem: "wrong-address",
+    });
+
+    const { back, verifier } = await redirect("maria", "edit", `${admin}/admin/`);
+    expect(back.origin).toBe(admin);
+    const grant = back.searchParams.get("goodfellow_sign_in");
+    const response = await post("/github/session", { grant, verifier }, admin);
+    expect(response.status).toBe(200);
+    const { session } = (await response.json()) as { session: string };
+    expect((await post("/github/token", { session }, admin)).status).toBe(200);
+
+    // Without an admin address, it's only the Site address.
+    expect(await (await setup().call("/github/check?repo=parish/site", { origin: admin })).json()).toEqual({
+      problem: "wrong-address",
+    });
+  });
+
   it("says when the app isn't installed, or the site has no address yet", async () => {
     const notInstalled = setup({ installed: false });
     const response = await notInstalled.call("/github/check?repo=parish/site", { origin: SITE });

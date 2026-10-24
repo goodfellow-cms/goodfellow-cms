@@ -1,15 +1,19 @@
+import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import {
+  type AdminAddress,
   allPages,
   CALENDARS_DIR,
+  configAdmin,
   FEEDS_DIR,
   loadSiteContent,
   normalizeBase,
   redirectFrom,
   redirectProblems,
   shownContent,
+  vercelAdminHeaders,
 } from "@goodfellow-cms/core";
 import {
   contentRepositoryProblem,
@@ -36,6 +40,25 @@ export interface GoodfellowNextOptions {
 
 type Rewrites = Awaited<ReturnType<NonNullable<NextConfig["rewrites"]>>>;
 type Redirects = Awaited<ReturnType<NonNullable<NextConfig["redirects"]>>>;
+type Headers = Awaited<ReturnType<NonNullable<NextConfig["headers"]>>>;
+
+const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
+
+/** The config's admin address, from its line of its own, since Next.js's config can't load the site's. */
+function siteAdmin(root: string): AdminAddress | undefined {
+  const file = CONFIG_FILES.map((name) => join(root, name)).find((path) => existsSync(path));
+  return file ? configAdmin(readFileSync(file, "utf8")) : undefined;
+}
+
+/**
+ * The admin address's header rules, for hosts that read them from the build,
+ * such as Vercel: every page there sandboxed but the admin panel's own, as
+ * `goodfellow build`'s `_headers` does on Cloudflare Pages. Next.js adds the base path itself.
+ */
+function adminHeaders(root: string): Headers {
+  const admin = siteAdmin(root);
+  return admin ? vercelAdminHeaders(admin) : [];
+}
 type Rewrite = Extract<Rewrites, unknown[]>[number];
 
 /** `PHASE_DEVELOPMENT_SERVER` from `next/constants`, which Node can't import by that name. */
@@ -134,6 +157,8 @@ async function siteRedirects(root: string): Promise<Redirects> {
  * - Serves images as they are unless the site sets an image loader, since static files can't be optimized on request.
  * - Adds the site's redirects (Site Settings → Redirects) ahead of the site's own, for hosts that
  *   send them, such as Vercel. Others get the pages `goodfellow-next finish` writes at old addresses.
+ * - For a site with an admin address, adds header rules that sandbox every page there but the
+ *   admin panel's own, for hosts that send headers, such as Vercel.
  * - With `{ server: true }`, builds a full-stack site for a server instead of as static
  *   files: see `goodfellowApi()` in `@goodfellow-cms/next/server`.
  * - In `next dev`, runs the admin panel's local backend, so publishing saves to
@@ -160,6 +185,11 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
     };
     // A server of its own: Next.js serves the redirects itself, and can optimize images.
     if (phase !== PHASE_DEVELOPMENT_SERVER && options.server) {
+      if (siteAdmin(root)) {
+        throw new Error(
+          "A full-stack site can't have an admin address: its admin panel signs in with the site's own sign-in.",
+        );
+      }
       return {
         ...config,
         images: nextConfig.images,
@@ -176,6 +206,9 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
         output: "export",
         ...config,
         redirects: async () => [...(await siteRedirects(root)), ...((await nextConfig.redirects?.()) ?? [])],
+        ...(siteAdmin(root) && {
+          headers: async () => [...adminHeaders(root), ...((await nextConfig.headers?.()) ?? [])],
+        }),
       };
     }
 

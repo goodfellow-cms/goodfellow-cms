@@ -53,6 +53,12 @@ export interface ConnectDomainOptions {
  * connect their domain there.
  */
 export interface PagesDomains {
+  /**
+   * Whether the host serves a site on more than one domain, such as an admin
+   * address beside the site's own (GitLab Pages). GitHub Pages serves one,
+   * and its `www.`.
+   */
+  severalDomains: boolean;
   /** Where Pages publishes the site, or `undefined` if Pages doesn't publish it. */
   site(): Promise<PagesSite | undefined>;
   /** Connects the domain to the site on the host, and returns the records to add at the registrar. */
@@ -61,8 +67,12 @@ export interface PagesDomains {
   records(domain: string, options: ConnectDomainOptions): Promise<DnsRecord[]>;
   /** Asks the host how the domain is doing, asking it to check the records again first where it needs to. */
   status(domain: string): Promise<PagesDomainStatus>;
-  /** Once the certificate is ready: sends visitors to `https://`, and to this domain from the host's own address. */
-  secure(domain: string): Promise<void>;
+  /**
+   * Once the certificate is ready: sends visitors to `https://`, and, unless
+   * `primary` is `false`, as for an admin address, to this domain from the
+   * site's other addresses, the host's own included.
+   */
+  secure(domain: string, options?: { primary?: boolean }): Promise<void>;
   /** Stops serving the site on the domain. */
   disconnect(domain: string): Promise<void>;
 }

@@ -14,15 +14,17 @@ import {
   hasLanguages,
   loadSiteContent,
   type Page,
+  parseSiteDescription,
   pathLanguage,
   type Redirect,
   redirectFiles,
+  SITE_DESCRIPTION_PATH,
   type SiteProblem,
   shownContent,
   siteLanguages,
 } from "@goodfellow-cms/core";
 import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
-import { fileSystemSource } from "@goodfellow-cms/core/node";
+import { fileSystemSource, guardBuiltSite } from "@goodfellow-cms/core/node";
 
 export { NEXT_SITE_FILES } from "./site-files.js";
 
@@ -120,6 +122,27 @@ export async function writeRedirectFiles(outDir: string, root = process.cwd()): 
   // A site's own public/_redirects stays as it is.
   if (cloudflare.file && !(await exists(redirects))) await writeFile(redirects, cloudflare.file.content);
   return { pages: written.length, cloudflareLeft: cloudflare.left };
+}
+
+/**
+ * For a site with an admin address (its config's `admin`, which the exported
+ * `goodfellow-site.json` carries), puts the guard first in every page of the
+ * export and adds Cloudflare Pages' header rules, as `goodfellow build` does.
+ * Run it last, once every page is written. Returns how many pages it guarded,
+ * or `undefined` for a site without an admin address.
+ */
+export async function guardExport(outDir: string, root = process.cwd()): Promise<number | undefined> {
+  const text = await readFile(join(outDir, SITE_DESCRIPTION_PATH), "utf8").catch(() => undefined);
+  const parsed = text === undefined ? undefined : parseSiteDescription(text);
+  const admin = parsed?.ok ? parsed.description.admin : undefined;
+  if (!admin) return undefined;
+  const dir = resolve(root);
+  const content = await loadSiteContent(fileSystemSource(dir));
+  return guardBuiltSite(outDir, {
+    admin,
+    siteUrl: content.settings.url,
+    base: `${await exportBasePath(dir)}/`,
+  });
 }
 
 /**

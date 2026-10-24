@@ -1,4 +1,5 @@
 import type { ComponentConfig, Config } from "@puckeditor/core";
+import type { AdminAddress } from "./admin-domain.js";
 import type { GitHost } from "./git.js";
 
 /**
@@ -23,6 +24,15 @@ export interface GoodfellowConfig {
    * Builds include the admin panel at `/admin` only when this or `demo` is set.
    */
   backend?: GitHost;
+  /**
+   * Where the admin panel starts and editors sign in, an address of its own
+   * such as `{ url: "https://admin.example.com" }`, serving the same build,
+   * so the site's pages can't reach the admin panel's storage. Site Settings'
+   * Domain screen sets it, on a line of its own: first the address, then,
+   * once it has checked a site page there, `checked: true`. Not for GitHub
+   * Pages, which serves one domain for each site.
+   */
+  admin?: AdminAddress;
   /**
    * Turns the admin panel into a demo anyone can try without signing in. It
    * starts from the site's content as last built, and keeps each visitor's

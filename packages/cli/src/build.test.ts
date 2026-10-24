@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { copyFile, cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { startsWithGuard, vercelAdminHeaders, withAdminConfig } from "@goodfellow-cms/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { build } from "./build.js";
 
@@ -318,6 +319,53 @@ describe("the starter's vercel.ts", () => {
         },
       );
       expect(JSON.parse(empty).redirects).toEqual([]);
+      expect(JSON.parse(empty).headers).toEqual([]);
+
+      // A site with an admin address sandboxes every page there but the admin panel's own, as core says.
+      await writeFile(
+        join(site, "goodfellow.config.tsx"),
+        withAdminConfig("export default defineConfig({\n  blocks,\n});\n", { url: "https://admin.example.org" }) ?? "",
+      );
+      const headers = execFileSync(
+        process.execPath,
+        ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
+        { cwd: site, encoding: "utf8" },
+      );
+      expect(JSON.parse(headers).headers).toEqual(vercelAdminHeaders({ url: "https://admin.example.org" }));
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a site with an admin address", () => {
+  it("starts every page with the guard that keeps site pages off it, and writes Cloudflare Pages' header rules", async () => {
+    // Inside the package, so the site's imports find its packages.
+    const site = await mkdtemp(join(import.meta.dirname, "../test/.admin-"));
+    const out = join(site, "dist");
+    try {
+      await cp(fixture, site, { recursive: true, filter: (path) => !path.includes("node_modules") });
+      const configFile = join(site, "goodfellow.config.tsx");
+      const config = withAdminConfig(await readFile(configFile, "utf8"), { url: "https://admin.example.org" });
+      await writeFile(configFile, config ?? "");
+      await writeFile(join(site, "public/media/logo.svg"), '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
+      await build({ root: site, outDir: out });
+
+      for (const [path, kind] of [
+        ["index.html", "html"],
+        ["404.html", "html"],
+        ["media/logo.svg", "svg"],
+        ["sitemap.xml", "xml"],
+      ] as const) {
+        expect(startsWithGuard(await readFile(join(out, path), "utf8"), kind), path).toBe(true);
+      }
+      expect(await readFile(join(out, "index.html"), "utf8")).toContain('location.replace("https://example.org"');
+      expect(await readFile(join(out, "_headers"), "utf8")).toContain(
+        "https://admin.example.org/from-config/admin/*\n  ! Content-Security-Policy",
+      );
+      expect(JSON.parse(await readFile(join(out, "goodfellow-site.json"), "utf8")).admin).toEqual({
+        url: "https://admin.example.org",
+      });
     } finally {
       await rm(site, { recursive: true, force: true });
     }

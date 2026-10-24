@@ -1,3 +1,23 @@
+export {
+  ADMIN_PAGE_HEADERS,
+  type AdminAddress,
+  type AdminAddressProblem,
+  adminAddressProblem,
+  adminGuard,
+  adminOrigin,
+  CLOUDFLARE_HEADERS_PATH,
+  cloudflareAdminHeaders,
+  configAdmin,
+  GUARD_ATTRIBUTE,
+  type HostHeaderRule,
+  type PageFileKind,
+  pageFileKind,
+  siteGuard,
+  startsWithGuard,
+  vercelAdminHeaders,
+  withAdminConfig,
+  withGuard,
+} from "./admin-domain.js";
 export type { AdminSite } from "./admin-site.js";
 export {
   APP_API_HEADER,
@@ -562,6 +582,7 @@ export {
   type RemoveOptions,
   registryIndexSchema,
   registryItemSchema,
+  SHADCN_NAMESPACE,
   SHADCN_REGISTRY,
   type UpdateOptions,
   type UpdatePlan,

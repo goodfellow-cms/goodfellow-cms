@@ -35,11 +35,14 @@ export function editorPolicy(options: { scriptHashes?: readonly string[]; blobSc
 }
 
 /**
- * The first thing the editor's frames run: it removes WebRTC, which a
- * Content Security Policy can't stop reaching other computers.
+ * The first thing the editor's frames run. Anywhere but a frame sandboxed
+ * without `allow-same-origin`, whose origin is `null`, it stops the page, so
+ * blocks' code never runs with an address's storage, such as when someone
+ * opens the frames' page on its own. Then it removes WebRTC, which a Content
+ * Security Policy can't stop reaching other computers.
  */
 export const EDITOR_PRELUDE =
-  "(()=>{for(const name of Object.getOwnPropertyNames(globalThis))if(/^(webkit|moz)?RTC/.test(name))try{delete globalThis[name]}catch{}})();";
+  '(()=>{if(self.origin!=="null"){try{document.write("\\x3cplaintext hidden>")}catch{}try{stop()}catch{}throw new Error("The editor runs only in the admin panel\'s frames.")}for(const name of Object.getOwnPropertyNames(globalThis))if(/^(webkit|moz)?RTC/.test(name))try{delete globalThis[name]}catch{}})();';
 
 function escapeAttribute(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

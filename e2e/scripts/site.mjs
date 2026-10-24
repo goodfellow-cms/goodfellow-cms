@@ -74,7 +74,7 @@ export function resetContent() {
 const testBlocks = join(here, "../fixtures/blocks");
 
 /** A test site's config: the starter's blocks, the test blocks, and optionally a backend. */
-function testConfig({ from = "./blocks", importLine = "", backend = "", demo = false } = {}) {
+function testConfig({ from = "./blocks", importLine = "", backend = "", demo = false, admin = "" } = {}) {
   return [
     'import { blocks, categories } from "@goodfellow-cms/blocks";',
     'import { defineConfig } from "@goodfellow-cms/core";',
@@ -83,6 +83,7 @@ function testConfig({ from = "./blocks", importLine = "", backend = "", demo = f
     `import { installedBlocks, installedCategories } from ${JSON.stringify(`${from}/installed`)};`,
     "",
     "export default defineConfig({",
+    ...(admin ? [`  admin: { url: ${JSON.stringify(admin)}, checked: true },`] : []),
     "  blocks: { ...blocks, ...installedBlocks, Counter, Disclosure },",
     "  categories: { ...categories, ...installedCategories },",
     ...(backend ? [`  backend: ${backend},`] : []),
@@ -137,11 +138,24 @@ export const builtSites = {
     backend: 'github({ repo: "parish/site-content", contentOnly: true, code: "parish/site" })',
     separate: true,
   },
+  // An admin address of its own, with test pages that try every way of running a script there before the guard.
+  admin: {
+    port: 4411,
+    importLine: 'import { github } from "@goodfellow-cms/github";',
+    backend: 'github({ repo: "parish/site" })',
+    admin: true,
+  },
 };
+
+/**
+ * The admin address test site's two addresses: the admin panel's, and the Site address. Both are this computer,
+ * served by one server, but browsers keep them apart, as they would two domains.
+ */
+export const ADMIN_ADDRESSES = { admin: "http://localhost:4411", site: "http://127.0.0.1:4411" };
 
 /** Creates a copy of the starter configured with a git backend or as a demo, ready for `goodfellow build`. */
 export function createBuiltSite(name) {
-  const { importLine, backend, demo, separate } = builtSites[name];
+  const { importLine, backend, demo, separate, admin } = builtSites[name];
   const dir = join(here, `../.site-${name}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -155,7 +169,16 @@ export function createBuiltSite(name) {
   }
   cpSync(testBlocks, join(dir, "blocks"), { recursive: true });
   writeFileSync(join(content, "content/pages/islands.json"), `${JSON.stringify(islandsPage, null, 2)}\n`);
-  writeFileSync(join(dir, "goodfellow.config.tsx"), testConfig({ importLine, backend, demo }));
+  if (admin) {
+    const settingsFile = join(content, "content/site.json");
+    const settings = JSON.parse(readFileSync(settingsFile, "utf8"));
+    writeFileSync(settingsFile, `${JSON.stringify({ ...settings, url: `${ADMIN_ADDRESSES.site}/` }, null, 2)}\n`);
+    cpSync(join(here, "../fixtures/admin-domain"), join(dir, "public/attack"), { recursive: true });
+  }
+  writeFileSync(
+    join(dir, "goodfellow.config.tsx"),
+    testConfig({ importLine, backend, demo, admin: admin ? ADMIN_ADDRESSES.admin : "" }),
+  );
   return dir;
 }
 

@@ -25,6 +25,13 @@ const ITEM_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** Where plain `registryDependencies` such as `"button"` come from, as with the shadcn CLI. */
 export const SHADCN_REGISTRY = "https://ui.shadcn.com/r/styles/new-york-v4/{name}.json";
 
+/**
+ * The namespace shadcn's own registry goes under in `RegistrySources` where
+ * plain names may come from it. It's trusted only where it's listed, as the
+ * admin panel lists it only where installed code can't reach editors' tokens.
+ */
+export const SHADCN_NAMESPACE = "@shadcn";
+
 /** The namespace of Goodfellow's own registry. */
 export const GOODFELLOW_REGISTRY = "@goodfellow";
 
@@ -177,10 +184,10 @@ function prefixOf(template: string): string {
 /**
  * The address of a registry item, from a reference as `registryDependencies`
  * write them: a full address, `@namespace/name`, or a plain name, which means
- * shadcn's own registry. Only the site's registries and shadcn's are trusted.
+ * shadcn's own registry (`SHADCN_NAMESPACE`). Only the registries given are trusted.
  */
 export function itemUrl(ref: string, registries: RegistrySources): string {
-  const templates = [...Object.values(registries), SHADCN_REGISTRY];
+  const templates = Object.values(registries);
   if (/^https?:\/\//.test(ref)) {
     if (!templates.some((template) => ref.startsWith(prefixOf(template)))) {
       throw new RegistryError({ code: "untrusted", ref });
@@ -194,7 +201,8 @@ export function itemUrl(ref: string, registries: RegistrySources): string {
     if (!template) throw new RegistryError({ code: "untrusted", ref });
     return fill(template, name);
   }
-  if (ITEM_NAME.test(ref)) return fill(SHADCN_REGISTRY, ref);
+  const shadcn = registries[SHADCN_NAMESPACE];
+  if (ITEM_NAME.test(ref) && shadcn) return fill(shadcn, ref);
   throw new RegistryError({ code: "untrusted", ref });
 }
 
@@ -213,32 +221,35 @@ async function fetchItem(url: string, fetchJson: FetchJson): Promise<RegistryIte
 /** The blocks each registry offers, in the registries' order. */
 export async function availableBlocks(registries: RegistrySources, fetchJson: FetchJson): Promise<AvailableBlock[]> {
   const lists = await Promise.all(
-    Object.entries(registries).map(async ([namespace, template]) => {
-      const url = fill(template, "registry");
-      let data: unknown;
-      try {
-        data = await fetchJson(url);
-      } catch {
-        throw new RegistryError({ code: "unreachable", url });
-      }
-      const parsed = registryIndexSchema.safeParse(data);
-      if (!parsed.success) throw new RegistryError({ code: "invalid", url });
-      return parsed.data.items.flatMap((item): AvailableBlock[] => {
-        const meta = item.meta?.goodfellow;
-        if (!meta) return [];
-        return [
-          {
-            ref: `${namespace}/${item.name}`,
-            name: item.name,
-            title: item.title ?? item.name,
-            ...(item.description && { description: item.description }),
-            category: meta.category,
-            recommended: meta.recommended ?? false,
-            ...(meta.image && { image: new URL(meta.image, fill(template, item.name)).href }),
-          },
-        ];
-      });
-    }),
+    // shadcn's own registry has components, not blocks.
+    Object.entries(registries)
+      .filter(([namespace]) => namespace !== SHADCN_NAMESPACE)
+      .map(async ([namespace, template]) => {
+        const url = fill(template, "registry");
+        let data: unknown;
+        try {
+          data = await fetchJson(url);
+        } catch {
+          throw new RegistryError({ code: "unreachable", url });
+        }
+        const parsed = registryIndexSchema.safeParse(data);
+        if (!parsed.success) throw new RegistryError({ code: "invalid", url });
+        return parsed.data.items.flatMap((item): AvailableBlock[] => {
+          const meta = item.meta?.goodfellow;
+          if (!meta) return [];
+          return [
+            {
+              ref: `${namespace}/${item.name}`,
+              name: item.name,
+              title: item.title ?? item.name,
+              ...(item.description && { description: item.description }),
+              category: meta.category,
+              recommended: meta.recommended ?? false,
+              ...(meta.image && { image: new URL(meta.image, fill(template, item.name)).href }),
+            },
+          ];
+        });
+      }),
   );
   return lists.flat();
 }

@@ -111,6 +111,7 @@ export function gitlabPages(api: ApiOptions, project: string): PagesDomains {
   }
 
   return {
+    severalDomains: true,
     async site() {
       const found = await pages();
       if (!found) return undefined;
@@ -167,10 +168,15 @@ export function gitlabPages(api: ApiOptions, project: string): PagesDomains {
         primary: settings?.primary_domain === undefined || settings.primary_domain === domain,
       };
     },
-    async secure(domain) {
+    async secure(domain, { primary = true } = {}) {
       const found = await gitlabJson<DomainResponse>(api, domainPath(domain)).catch(notAllowed);
       if (!found.verified || !found.certificate) {
         throw new DomainError("not-ready", "The domain's certificate isn't ready yet.");
+      }
+      // An admin address serves the admin panel, and never takes visitors from the site's own.
+      if (!primary) {
+        await gitlabRequest(api, pagesPath, { method: "PATCH", body: { pages_https_only: true } }).catch(notAllowed);
+        return;
       }
       // The primary domain is where GitLab sends visitors to every other address of the site, gitlab.io's included.
       try {

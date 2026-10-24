@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 // After `next build`: `goodfellow-next finish out` fixes the export's prefetch files on Windows,
 // writes the calendar files of collections of events, collections' feeds, the pages at redirects' old addresses and Cloudflare Pages' _redirects, and the search index for sites with a search block,
-// and reports what automated checks find on the exported pages. `index` only writes the index.
+// starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
 // `goodfellow-next due [--since <time>]` says whether a scheduled change has come due, as `goodfellow due` does.
 // `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
 // content is kept in a repository of its own.
 // `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
 // `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, as `goodfellow export` does.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { relative } from "node:path";
 import { parseArgs } from "node:util";
-import { CLOUDFLARE_REDIRECTS_LIMIT, formatUpdateResult } from "@goodfellow-cms/core";
+import { CLOUDFLARE_REDIRECTS_LIMIT, configAdmin, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   ContentRepositoryError,
@@ -34,6 +34,7 @@ import {
   checkPages,
   exportedPages,
   fixSegmentFiles,
+  guardExport,
   NEXT_SITE_FILES,
   writeCalendarFiles,
   writeEditorPolicy,
@@ -43,10 +44,19 @@ import {
 } from "@goodfellow-cms/next/export";
 
 const [command, dir = "out"] = process.argv.slice(2);
+const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
 // A full-stack site (withGoodfellow(config, { server: true })): Next.js serves its pages and sends redirects
 // itself, so the calendar files, feeds and the search index are written into public/, which `next start` and hosts
 // serve as static files, as they are for an export.
 if (command === "finish" && dir === "--server") {
+  // Next.js renders a full-stack site's pages as it serves them, so nothing can put a guard first in each.
+  const config = CONFIG_FILES.find((file) => existsSync(file));
+  if (config && configAdmin(readFileSync(config, "utf8"))) {
+    console.error(
+      "A full-stack site can't have an admin address: its admin panel signs in with the site's own sign-in.",
+    );
+    process.exit(1);
+  }
   for (const folder of await buildFileFolders()) await rm(`public/${folder}`, { recursive: true, force: true });
   // The editor's frames' page, which next start serves as it was rendered.
   await writeEditorPolicy(".next/server/app");
@@ -203,4 +213,8 @@ console.log(
     ? `No page in ${dir} has a search block, so there's nothing to index`
     : `Indexed ${indexed} pages for search`,
 );
+if (command === "finish") {
+  const guarded = await guardExport(dir);
+  if (guarded !== undefined) console.log(`Started ${guarded} pages with the admin address's guard`);
+}
 for (const line of reportSiteProblems(problems)) console.log(line);
