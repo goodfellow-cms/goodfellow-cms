@@ -34,7 +34,9 @@ Goodfellow started with small organizations, but nothing in it limits a site to 
 - **Several languages,** with each translation linked to the page it translates, and the ones that have fallen behind it flagged ([Several languages](/docs/languages)).
 - **Services you run yourselves.** An organization can run the [sign-in service](/docs/sign-in-service), which gives editors hour-long tokens for one repository, and the [Claude connector](/docs/claude-connector) for all its sites.
 
-Some of what larger teams ask for is still on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap): publishing several pages at once and submitting them for review from the admin panel, limiting what each editor may change, and keeping editors' tokens away from third-party code, so that plugins can be installed safely.
+- **Sign-in kept away from the site's code.** Blocks and previews run in a sandbox that can't reach editors' sign-in, and an admin address or a [token broker](/docs/token-broker) keeps it away from the site's pages too. See [Security](/docs/security).
+
+Some of what larger teams ask for is still on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap): publishing several pages at once and submitting them for review from the admin panel, limiting what each editor may change, and plugins, which owners will install only on sites with an admin address or a token broker.
 
 ## How Goodfellow compares
 

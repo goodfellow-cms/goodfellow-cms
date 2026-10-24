@@ -53,6 +53,22 @@ describe("planSite", () => {
     expect(files.get("public/media/logo.png")).toEqual(new Uint8Array([137, 80, 78, 71]));
   });
 
+  it("names an admin address of its own in the config, where the host serves a site at more than one", async () => {
+    const plan = (host: "gitlab-pages" | "github-pages", admin: string) =>
+      planSite({
+        template: template(),
+        name: "my-parish",
+        versions: { "@goodfellow-cms/core": "1.2.3" },
+        backend: { host: "gitlab", repo: "someone/my-parish" },
+        host,
+        admin,
+      });
+    const files = await plan("gitlab-pages", "https://admin.example.org/");
+    expect(files.get("goodfellow.config.tsx")).toContain('  admin: { url: "https://admin.example.org" },');
+    await expect(plan("github-pages", "https://admin.example.org")).rejects.toThrow("admin address");
+    await expect(plan("gitlab-pages", "http://admin.example.org")).rejects.toThrow("admin address");
+  });
+
   it("gives a site on Cloudflare Pages a nightly update and rebuild, in place of the other hosts' setups", async () => {
     const github = await planSite({
       template: template(),

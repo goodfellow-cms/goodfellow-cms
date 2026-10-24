@@ -776,7 +776,65 @@ export const defaultStrings = {
     "The sign-in page is set in the site's code, which is kept apart from its content, so a developer sets it there.",
   "security.broker.title": "Sign-in page",
   "security.broker.intro":
-    "A sign-in page of its own, called a token broker, keeps editors' sign-in and AI keys at an address that holds nothing else, and shows the admin panel from there, so nothing on the site's pages can reach them. It asks the editor before publishing the site's code. It needs an address of its own, such as broker.example.org; see the token broker page in Goodfellow's documentation for putting one online.",
+    "A sign-in page of its own, called a token broker, keeps editors' sign-in and AI keys at an address that holds nothing else, and shows the admin panel from there, so nothing on the site's pages can reach them. It asks the editor before publishing the site's code. It needs an address of its own, such as signin.example.org, that serves nothing else.",
+  "security.broker.useTitle": "Sign in at a sign-in page that's online",
+  "security.add.title": "Add a token broker",
+  "security.add.intro":
+    "Makes a project on {host} for the sign-in page, from Goodfellow's released files and a file naming this site, and puts it online where you choose. It needs a token that can create projects, used only now and kept only until you leave this screen.",
+  "security.add.place": "Where to put it online",
+  "security.add.place.gitlab-pages": "GitLab Pages, at an address GitLab gives it",
+  "security.add.place.gitlab-domain": "GitLab Pages, at a domain of yours",
+  "security.add.place.github-domain": "GitHub Pages, at a domain of yours",
+  "security.add.place.cloudflare-pages": "Cloudflare Pages",
+  "security.add.place.vercel": "Vercel",
+  "security.add.placeHint.gitlab-pages":
+    "GitLab gives the project an address of its own, which nothing else shares. You'll find it under Deploy → Pages once it's online. No domain needed.",
+  "security.add.placeHint.gitlab-domain":
+    "A domain, or part of one, such as signin.example.org, that you point at GitLab Pages as its settings say.",
+  "security.add.placeHint.github-domain":
+    "GitHub Pages' own addresses are shared by every site in the same account, so the sign-in page needs a domain, or part of one, such as signin.example.org, which you point at GitHub Pages as its settings say.",
+  "security.add.placeHint.cloudflare-pages":
+    "Free, with an address of its own. Once the project is made, connect it to a Cloudflare Pages project, as its README says.",
+  "security.add.placeHint.vercel":
+    "Free for non-commercial sites, with an address of its own. Once the project is made, import it as a Vercel project, as its README says.",
+  "security.add.domain": "Its domain",
+  "security.add.domainHint": "Such as signin.example.org. It serves only the sign-in page.",
+  "security.add.problem.domain": "That doesn't look like a domain, such as signin.example.org.",
+  "security.add.problem.shared":
+    "github.io and gitlab.io addresses are shared with other sites, so the sign-in page needs a domain of yours.",
+  "security.add.problem.site": "That's the site's own address. The sign-in page needs one of its own.",
+  "security.add.name": "Its name on {host}",
+  "security.add.nameHint": "Made beside the site's on {host}, public, since it holds only Goodfellow's released files.",
+  "security.add.token": "A {host} token that can create projects",
+  "security.add.tokenHint": "Used only to make the project, and forgotten when you leave this screen.",
+  "security.add.create": "Make the sign-in page",
+  "security.add.creating": "Making the sign-in page…",
+  "security.add.description": "The sign-in page for {site}",
+  "security.add.message": "Add the sign-in page",
+  "security.add.error.token": "{host} didn't accept that token. Check it's whole, and that it can create projects.",
+  "security.add.error.owner": "That token can't create projects anywhere.",
+  "security.add.error.taken": "There's already a project with that name. Choose another.",
+  "security.add.error.release": "Goodfellow's sign-in page couldn't be downloaded. Try again in a moment.",
+  "security.add.error.name-taken": "There's already a project with that name. Choose another.",
+  "security.add.error.name-invalid": "{host} can't use that as a project's name.",
+  "security.add.error.not-allowed": "That token can't create projects, or write their build setup.",
+  "security.add.error.not-installed": "{host} needs the sign-in service's app installed there first.",
+  "security.add.error.other": "The sign-in page couldn't be made.",
+  "security.added.project": "The sign-in page's project is ready:",
+  "security.added.github-pages":
+    "GitHub Pages is putting it online. Point the domain at GitHub Pages as the project's Settings → Pages says, and wait for its certificate.",
+  "security.added.gitlab-pages":
+    "GitLab Pages is putting it online. Its address is under Deploy → Pages in the new project once the first build has finished.",
+  "security.added.cloudflare-pages":
+    "Now connect it to Cloudflare Pages: create a Pages project from the project, with no build command and site as the output directory.",
+  "security.added.vercel": "Now import it as a Vercel project, with site as its root directory and no build command.",
+  "security.added.domainUnavailable":
+    "The domain couldn't be set for it, perhaps because another site has it. Set it in the project's Pages settings.",
+  "security.added.pagesUnavailable": "Pages couldn't be turned on for it. Turn them on in the project's settings.",
+  "security.added.address":
+    "Once it opens at {address}, choose Sign in there from now on below. Editors sign in there once the site has rebuilt.",
+  "security.added.then":
+    "Once it's online, type its address below and choose Sign in there from now on. Editors sign in there once the site has rebuilt.",
   "security.broker.field": "The sign-in page's address",
   "security.broker.fieldHint": "An address that serves only the token broker, such as https://broker.example.org.",
   "security.broker.problem.invalid": "That needs to be an https:// address of its own, with nothing after the domain.",

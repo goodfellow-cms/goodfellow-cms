@@ -21,6 +21,7 @@ import {
   type RepositoryVisibility,
   type ScheduledBuilds,
   ScheduledBuildsError,
+  type SetupHost,
   SHADCN_NAMESPACE,
   SHADCN_REGISTRY,
   SignInError,
@@ -98,6 +99,8 @@ export interface Account {
    * through `fetch`, which sends the requests to the broker.
    */
   ai?: { server: string; services: string[]; fetch?: typeof fetch };
+  /** Creates another repository on the site's host, such as its token broker's, with a token the owner pastes. */
+  setup?: () => SetupHost;
 }
 
 export interface AdminContextValue {

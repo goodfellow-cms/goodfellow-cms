@@ -35,6 +35,8 @@ export interface FakeGitLabOptions {
   groups?: string[];
   /** Publishes the site with GitLab Pages. Off by default. */
   pages?: { uniqueDomain?: boolean };
+  /** Domains another GitLab Pages site already uses. */
+  takenDomains?: string[];
   /** Other GitLab accounts that exist, which can be added to the project. Every token's user exists and is a member. */
   accounts?: string[];
   /** Who can see the project. Private by default. */
@@ -95,6 +97,8 @@ export interface FakeCreatedProject {
   /** Whether its pipelines' job tokens may push to it. */
   jobTokenPush: boolean;
   schedules: Array<{ description: string; ref: string; cron: string; active: boolean }>;
+  /** Domains of its own its Pages were given. */
+  pagesDomains: string[];
 }
 
 function json(body: unknown, status = 200): Response {
@@ -425,6 +429,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         jobTokenAllowlist: [],
         jobTokenPush: false,
         schedules: [],
+        pagesDomains: [],
       };
       created.set(fullPath, project);
       return json({ id: project.id, path_with_namespace: fullPath, web_url: `${webUrl}/${fullPath}` }, 201);
@@ -458,6 +463,13 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         project.jobTokenAllowlist.push(body.target_project_id);
       }
       return json({ source_project_id: project.id, target_project_id: body.target_project_id }, 201);
+    }
+    if (rest === "/pages/domains" && request.method === "POST") {
+      const body = (await request.json()) as { domain: string };
+      if (options.takenDomains?.includes(body.domain))
+        return json({ message: { domain: ["has already been taken"] } }, 400);
+      project.pagesDomains.push(body.domain);
+      return json({ domain: body.domain, url: `https://${body.domain}` }, 201);
     }
     if (rest === "/pipeline_schedules" && request.method === "POST") {
       const body = (await request.json()) as { description: string; ref: string; cron: string; active?: boolean };

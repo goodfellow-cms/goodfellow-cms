@@ -57,6 +57,24 @@ describe("gitlabSetup", () => {
     ).rejects.toMatchObject({ problem: "name-taken" });
   });
 
+  it("gives a project's Pages a domain of its own, such as a token broker's, warning when GitLab won't take it", async () => {
+    const fake = fakeGitLab({
+      project: "someone/existing",
+      tokens: { t: { username: "someone" } },
+      takenDomains: ["taken.example.org"],
+    });
+    const account = await gitlabSetup({ fetch: fake.fetch }).signInWithToken("t");
+    const [owner] = await account.owners();
+    if (!owner) throw new Error("no owner");
+    const site = { owner, private: false, pages: true, files, message: "Add the sign-in page" };
+    const result = await account.createSite({ ...site, name: "signin", domain: "signin.example.org" });
+    expect(result.siteUrl).toBe("https://signin.example.org/");
+    expect(fake.created.get("someone/signin")?.pagesDomains).toEqual(["signin.example.org"]);
+    const taken = await account.createSite({ ...site, name: "other", domain: "taken.example.org" });
+    expect(taken.siteUrl).toBeUndefined();
+    expect(taken.warnings).toEqual(["domain-unavailable"]);
+  });
+
   it("connects a site's code and content projects: job token allowlists, pushes and a nightly schedule", async () => {
     const fake = fakeGitLab({
       project: "someone/existing",

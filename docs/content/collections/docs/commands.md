@@ -16,6 +16,8 @@ order: 5
 | `goodfellow due [--since <time>]` | Says whether a [scheduled](/docs/scheduling) page or item has been shown or hidden since `--since` (an ISO time; the last hour without one), so the site needs building again. On GitHub Actions it also sets the step's `due` output to `true` or `false`, which the starters' hourly check reads |
 | `goodfellow content link [folder]` | For a site whose [content is in a repository of its own](/docs/content-repository): links `content/` and `public/media/` to it, in `folder` (default: `content-repository`), so `goodfellow dev` reads and saves its files |
 | `goodfellow content copy [folder]` | Copies them from it instead, as builds do |
+| `goodfellow broker add [folder] --host <host>` | Writes the site's [token broker](/docs/token-broker)'s repository into `folder` (default: beside the site's, named after it with `-signin`), for `github-pages` (with `--domain`), `gitlab-pages`, `cloudflare-pages` or `vercel` |
+| `goodfellow broker use <address>` | Signs editors in at the token broker from then on, once the site has rebuilt; `goodfellow broker remove` stops it |
 | `goodfellow import wordpress <file or address>` | Brings a WordPress site's pages, posts, categories, tags, menus and media into the site, from its export file or its address (see [Move from WordPress](/docs/move-from-wordpress)). `--dry-run` says what would come across and changes nothing |
 | `goodfellow export wordpress [file]` | Writes the site as a WordPress export file, at `file` or in a file named after the site, which WordPress imports with **Tools → Import → WordPress** (see [Move from WordPress](/docs/move-from-wordpress#moving-to-wordpress)) |
 

@@ -15,6 +15,7 @@ import {
   remoteUrl,
   ScaffoldError,
   scaffold,
+  scaffoldBroker,
   sitePackageJson,
 } from "./scaffold.js";
 
@@ -256,6 +257,48 @@ describe("initGitRepository", () => {
 
   it("knows where GitLab projects are pushed to, subgroups included", () => {
     expect(remoteUrl({ host: "gitlab", repo: "parish/web/site" })).toBe("https://gitlab.com/parish/web/site.git");
+  });
+});
+
+describe("sign-in", () => {
+  it("names an admin address in the config, where the host allows one", async () => {
+    const target = join(dir, "site");
+    const backend = { host: "gitlab" as const, repo: "parish/site" };
+    await scaffold({
+      template: starter,
+      target,
+      versions,
+      backend,
+      host: "gitlab-pages",
+      admin: "https://admin.example.org",
+    });
+    expect(await readFile(join(target, "goodfellow.config.tsx"), "utf8")).toContain(
+      '  admin: { url: "https://admin.example.org" },',
+    );
+  });
+
+  it("writes a token broker's repository beside the site, from the released page", async () => {
+    const target = join(dir, "site-signin");
+    await scaffoldBroker({
+      release: join(repo, "packages/broker/site"),
+      target,
+      backend: { host: "github", repo: "parish/site" },
+      host: "github-pages",
+      domain: "signin.example.org",
+    });
+    expect(existsSync(join(target, "site/index.html"))).toBe(true);
+    expect(await readFile(join(target, "site/CNAME"), "utf8")).toBe("signin.example.org\n");
+    expect(JSON.parse(await readFile(join(target, "site/broker.json"), "utf8"))).toEqual({
+      sites: [{ package: "@goodfellow-cms/github", export: "github", options: { repo: "parish/site" } }],
+    });
+    await expect(
+      scaffoldBroker({
+        release: join(repo, "packages/broker/site"),
+        target: join(dir, "other"),
+        backend: { host: "github", repo: "parish/site" },
+        host: "github-pages",
+      }),
+    ).rejects.toBeInstanceOf(ScaffoldError);
   });
 });
 

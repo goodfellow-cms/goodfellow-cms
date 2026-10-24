@@ -4,6 +4,7 @@
  * same choices, worked out the same way, with no disk access.
  */
 
+import { adminOrigin, withAdminConfig } from "./admin-domain.js";
 import { cloudflareSetupFiles } from "./cloudflare-setup.js";
 import { CONTENT_REPOSITORY_DIR } from "./content/paths.js";
 import { CONTENT_FOLDERS } from "./content/store.js";
@@ -255,6 +256,17 @@ export interface SitePlan {
    * `content-repository/`, a folder the code ignores.
    */
   content?: SeparateContent;
+  /**
+   * An admin address of its own, such as `https://admin.example.org`, which the
+   * config names (`withAdminConfig()`) for the Domain screen to check once the
+   * site is online. Only for hosts that serve a site at more than one address.
+   */
+  admin?: string;
+}
+
+/** Hosts that serve a site at more than one address, which an admin address needs: not GitHub Pages. */
+export function allowsAdminAddress(host: Host | undefined): boolean {
+  return host === "gitlab-pages" || host === "cloudflare-pages" || host === "vercel";
 }
 
 /** Works out a new site's files from a template and the choices made for it. */
@@ -266,9 +278,16 @@ export async function planSite({
   host,
   registry,
   content,
+  admin,
 }: SitePlan): Promise<SiteFiles> {
   if (content && (!backend || !host)) {
     throw new Error("Keeping the content in a repository of its own needs both repositories and a host.");
+  }
+  const adminUrl = admin === undefined ? undefined : adminOrigin({ url: admin });
+  if (admin !== undefined && (!adminUrl || !allowsAdminAddress(host) || content)) {
+    throw new Error(
+      "An admin address needs an https:// address of its own, a host that serves a site at more than one address, and the content kept with the code.",
+    );
   }
   const files: SiteFiles = new Map();
   for (const [path, file] of template) {
@@ -297,6 +316,12 @@ export async function planSite({
           { contentOnly: true, code: backend.repo },
         )
       : configureBackend(siteFileText(config), backend);
+    files.set("goodfellow.config.tsx", edited);
+  }
+  if (adminUrl) {
+    const config = files.get("goodfellow.config.tsx");
+    const edited = config === undefined ? undefined : withAdminConfig(siteFileText(config), { url: adminUrl });
+    if (edited === undefined) throw new Error("The template's goodfellow.config.tsx has no defineConfig({.");
     files.set("goodfellow.config.tsx", edited);
   }
 
