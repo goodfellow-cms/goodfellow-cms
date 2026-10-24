@@ -288,7 +288,7 @@ Don't copy or adapt any code from `puckeditor/puck-configs` until that repositor
 - **Tokens:** never log tokens, include them in error messages or URLs, or send them anywhere except the git host's API. Store them only where the user chose (session or local storage), and clear them on sign-out.
 - **AI keys** follow the same rules: sent only to their own service, kept only where the editor chose, cleared on sign-out, and removed from error messages with `redact()`.
 - **Custom CSS:** when injecting admin-written CSS into a page, escape anything that could close the `<style>` element.
-- **Rich text and embeds:** sanitize rich text when rendering it. Embeds only render in sandboxed iframes or through an allowlisted provider. Custom HTML is sanitized with `sanitizeHtml()` unless its editor chooses to use it as written; then the editor shows it only in an iframe sandboxed without `allow-same-origin`, and the site's own code (`content/code/`) never renders in the admin panel at all.
+- **Rich text and embeds:** sanitize rich text when rendering it. Embeds only render in sandboxed iframes or through an allowlisted provider. Custom HTML is sanitized with `sanitizeHtml()` unless its editor chooses to use it as written; then the editor shows it only in an iframe sandboxed with nothing allowed, without running its scripts, and the site's own code (`content/code/`) never renders in the admin panel at all.
 - **Tests:** never call the real GitHub, GitLab or AI services' APIs in tests; use the fakes (`@goodfellow-cms/ai/testing` for AI services). Never commit real tokens or keys, even expired ones.
 
 ## Writing for non-technical users

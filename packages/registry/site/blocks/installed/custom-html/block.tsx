@@ -12,9 +12,10 @@ export interface CustomHtmlProps {
 /**
  * HTML written by hand, such as a widget's embed code. It's made safe by
  * default: scripts, styles, frames, forms and inline styles are left out. Used
- * as it's written, it runs on the site, but in the editor only inside a
- * sandboxed frame, where it can't reach the admin panel. Its scripts run
- * whenever its page is shown, also after moving to it on a Next.js site.
+ * as it's written, it runs on the site, but in the editor it's only shown,
+ * inside a sandboxed frame, where it can't reach the admin panel, and its
+ * scripts don't run. On the site they run whenever its page is shown, also
+ * after moving to it on a Next.js site.
  */
 const CustomHtml: ComponentConfig<CustomHtmlProps> = {
   label: "Custom HTML",

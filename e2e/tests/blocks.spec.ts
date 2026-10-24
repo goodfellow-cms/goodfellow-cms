@@ -90,7 +90,9 @@ test("adds a block from Goodfellow's registry, which the editor then offers and 
   }).toPass({ timeout: 30_000 });
 });
 
-test("runs custom HTML used as written on the site, but only in a sandboxed frame in the editor", async ({ page }) => {
+test("runs custom HTML used as written on the site, and only shows it in the editor, in a sandboxed frame", async ({
+  page,
+}) => {
   await page.goto("/admin#/blocks");
   await expect(page.getByRole("heading", { name: "Advanced" })).toBeVisible();
   await expect(page.getByRole("listitem").filter({ hasText: "Custom HTML" }).getByText("Recommended")).toBeHidden();
@@ -129,10 +131,11 @@ test("runs custom HTML used as written on the site, but only in a sandboxed fram
 
   await page.goto("/admin#/");
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/widget")}`);
+  // The editor runs only its own scripts, so the HTML is shown as it is, with nothing allowed.
   const frame = canvas(page).frameLocator('iframe[title="Custom HTML"]');
-  await expect(frame.locator("#widget")).toHaveText("Ran 1");
-  await expect(canvas(page).locator('iframe[title="Custom HTML"]')).toHaveAttribute("sandbox", "allow-scripts");
-  // Its script couldn't reach the editor.
+  await expect(frame.locator("#widget")).toHaveText("Widget");
+  await expect(canvas(page).locator('iframe[title="Custom HTML"]')).toHaveAttribute("sandbox", "");
+  await expect(canvas(page).getByText("Scripts don't run in the editor.")).toBeVisible();
   expect(await page.title()).not.toBe("Reached");
   expect(await canvas(page).evaluate((element: Element) => element.ownerDocument.title)).not.toBe("Reached");
 });
