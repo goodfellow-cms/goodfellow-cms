@@ -7,6 +7,7 @@
       "@goodfellow-cms/admin",
       "@goodfellow-cms/ai",
       "@goodfellow-cms/blocks",
+      "@goodfellow-cms/broker",
       "@goodfellow-cms/core",
       "@goodfellow-cms/github",
       "@goodfellow-cms/gitlab",

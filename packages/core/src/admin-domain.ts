@@ -82,10 +82,12 @@ export function siteGuard(admin: string, site: string | undefined): string {
  * putting it under someone's pointer; and once the address is checked, it
  * starts only there, going there from anywhere else.
  */
-export function adminGuard(admin: AdminAddress): string {
+export function adminGuard(admin: AdminAddress, broker?: string): string {
   const origin = JSON.stringify(adminOrigin(admin) ?? "");
   const checked = admin.checked === true;
-  return `(function(){var framed=true;try{framed=window.top!==window}catch(e){}var away=${checked ? `location.origin!==${origin}` : "false"};if(!(framed||away))return;try{document.write("\\x3cplaintext hidden>")}catch(e){}try{window.stop()}catch(e){}if(!framed)location.replace(${origin}+location.pathname+location.search+location.hash);})();`;
+  // With a token broker, the admin panel is shown in its frame, and waits for the broker before showing anything.
+  const framedCheck = broker ? "var framed=false;" : "var framed=true;try{framed=window.top!==window}catch(e){}";
+  return `(function(){${framedCheck}var away=${checked ? `location.origin!==${origin}` : "false"};if(!(framed||away))return;try{document.write("\\x3cplaintext hidden>")}catch(e){}try{window.stop()}catch(e){}if(!framed)location.replace(${origin}+location.pathname+location.search+location.hash);})();`;
 }
 
 /** The kinds of file a browser opens as a page, which can run scripts. */
@@ -179,6 +181,13 @@ export const ADMIN_PAGE_HEADERS: Readonly<Record<string, string>> = {
   "Origin-Agent-Cluster": "?1",
 };
 
+/** `ADMIN_PAGE_HEADERS`, letting the site's token broker, at `broker`, show the admin panel in its frame. */
+export function adminPageHeaders(broker?: string): Readonly<Record<string, string>> {
+  return broker
+    ? { ...ADMIN_PAGE_HEADERS, "Content-Security-Policy": `frame-ancestors ${broker}` }
+    : ADMIN_PAGE_HEADERS;
+}
+
 /** The editor's frames are the admin panel's own, so they may be framed by it, and only by it. */
 const EDITOR_FRAME_HEADERS: Readonly<Record<string, string>> = {
   "Content-Security-Policy": "frame-ancestors 'self'",
@@ -194,7 +203,7 @@ export const CLOUDFLARE_HEADERS_PATH = "_headers";
  * admin panel's own, which get `ADMIN_PAGE_HEADERS`. `base` is the site's base
  * path, such as `/` or `/my-site/`.
  */
-export function cloudflareAdminHeaders(admin: AdminAddress, base = "/"): string {
+export function cloudflareAdminHeaders(admin: AdminAddress, base = "/", broker?: string): string {
   const origin = adminOrigin(admin);
   if (!origin) return "";
   const adminPath = `${base.replace(/\/?$/, "/")}admin/`;
@@ -203,7 +212,7 @@ export function cloudflareAdminHeaders(admin: AdminAddress, base = "/"): string 
     Object.entries(record).map(([name, value]) => `${name}: ${value}`);
   return `${[
     block("/*", ["Content-Security-Policy: sandbox"]),
-    block(`${adminPath}*`, ["! Content-Security-Policy", ...headers(ADMIN_PAGE_HEADERS)]),
+    block(`${adminPath}*`, ["! Content-Security-Policy", ...headers(adminPageHeaders(broker))]),
     block(`${adminPath}editor/*`, ["! Content-Security-Policy", ...headers(EDITOR_FRAME_HEADERS)]),
   ].join("\n\n")}\n`;
 }
@@ -216,7 +225,7 @@ export interface HostHeaderRule {
 }
 
 /** Vercel's header rules for an admin address, the same as `cloudflareAdminHeaders()`'s. `base` is the site's base path. */
-export function vercelAdminHeaders(admin: AdminAddress, base = "/"): HostHeaderRule[] {
+export function vercelAdminHeaders(admin: AdminAddress, base = "/", broker?: string): HostHeaderRule[] {
   const origin = adminOrigin(admin);
   if (!origin) return [];
   const has = [{ type: "host" as const, value: origin.replace(/^https?:\/\//, "") }];
@@ -229,7 +238,7 @@ export function vercelAdminHeaders(admin: AdminAddress, base = "/"): HostHeaderR
       has,
       headers: [{ key: "Content-Security-Policy", value: "sandbox" }],
     },
-    { source: `${prefix}/admin/((?!editor/|editor$).*)`, has, headers: list(ADMIN_PAGE_HEADERS) },
+    { source: `${prefix}/admin/((?!editor/|editor$).*)`, has, headers: list(adminPageHeaders(broker)) },
     { source: `${prefix}/admin/editor/:path*`, has, headers: list(EDITOR_FRAME_HEADERS) },
   ];
 }

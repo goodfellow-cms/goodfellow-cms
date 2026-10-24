@@ -57,7 +57,7 @@ export default defineConfig({
 });
 ```
 
-The Blocks screen offers them only where the admin panel has [an address of its own](/docs/custom-domains#an-admin-address), and in `goodfellow dev` and `next dev`; see [Other registries](/docs/add-blocks#other-registries).
+The Blocks screen offers them only where the admin panel has [an address of its own](/docs/custom-domains#an-admin-address) or a [token broker](/docs/token-broker), and in `goodfellow dev` and `next dev`; see [Other registries](/docs/add-blocks#other-registries).
 
 ## Making it easy to find
 

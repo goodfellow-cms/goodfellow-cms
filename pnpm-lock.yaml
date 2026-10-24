@@ -87,6 +87,9 @@ importers:
       '@goodfellow-cms/blocks':
         specifier: workspace:*
         version: link:../packages/blocks
+      '@goodfellow-cms/broker':
+        specifier: workspace:*
+        version: link:../packages/broker
       '@goodfellow-cms/core':
         specifier: workspace:*
         version: link:../packages/core
@@ -335,6 +338,27 @@ importers:
       react-dom:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
+
+  packages/broker:
+    devDependencies:
+      '@goodfellow-cms/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@goodfellow-cms/core':
+        specifier: workspace:*
+        version: link:../core
+      '@goodfellow-cms/github':
+        specifier: workspace:*
+        version: link:../github
+      '@goodfellow-cms/gitlab':
+        specifier: workspace:*
+        version: link:../gitlab
+      happy-dom:
+        specifier: 20.14.5
+        version: 20.14.5
+      vite:
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@22.20.5)(jiti@2.7.0)(yaml@2.9.1)
 
   packages/cli:
     dependencies:

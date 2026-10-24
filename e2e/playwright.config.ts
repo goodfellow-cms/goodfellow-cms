@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { builtSites, NEXT_SERVER } from "./scripts/site.mjs";
+import { BROKER_ADDRESSES, builtSites, NEXT_SERVER } from "./scripts/site.mjs";
 
 const PORT = 4400;
 
@@ -70,7 +70,14 @@ export default defineConfig({
     },
     // Production builds of the starter with each git backend, as a demo, and with its content in a repository
     // of its own, served like a static host.
-    ...(["github", "gitlab", "demo", "content", "admin"] as const).map((name) => ({
+    // The token broker, which shows the broker site's admin panel in its frame.
+    {
+      command: "node scripts/start-broker.mjs",
+      url: `${BROKER_ADDRESSES.broker}/`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    ...(["github", "gitlab", "demo", "content", "admin", "broker"] as const).map((name) => ({
       command: `node scripts/start-built-site.mjs ${name}`,
       url: `http://localhost:${builtSites[name].port}/admin/`,
       reuseExistingServer: false,

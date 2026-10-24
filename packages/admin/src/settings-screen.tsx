@@ -657,7 +657,11 @@ function CodeTab({
  * unpublished changes, so it doesn't ask first; going to Domain, which has
  * nothing to publish, asks as leaving any screen does.
  */
-export function SettingsTabs({ tab }: { tab: SettingsTab | "domain" | "editors" | "updates" | "history" | "import" }) {
+export function SettingsTabs({
+  tab,
+}: {
+  tab: SettingsTab | "domain" | "editors" | "updates" | "history" | "import" | "security";
+}) {
   const t = useStrings();
   return (
     <nav className="gfa-tabs" aria-label={t("settings.title")}>
@@ -680,6 +684,9 @@ export function SettingsTabs({ tab }: { tab: SettingsTab | "domain" | "editors" 
       </AppLink>
       <AppLink href="#/settings/import" className="gfa-tab" aria-current={tab === "import" ? "page" : undefined}>
         {t("settings.tab.import")}
+      </AppLink>
+      <AppLink href="#/settings/security" className="gfa-tab" aria-current={tab === "security" ? "page" : undefined}>
+        {t("settings.tab.security")}
       </AppLink>
     </nav>
   );

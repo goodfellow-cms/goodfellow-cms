@@ -29,6 +29,8 @@ export function setup(
     withoutChecks?: boolean;
     /** The admin address the site's build names, in the `goodfellow-site.json` the Site address serves. */
     admin?: string;
+    /** The token broker the site's build names there. */
+    broker?: string;
   } = {},
 ) {
   const repositories = ["parish/site", ...(options.repositories ?? [])];
@@ -70,8 +72,12 @@ export function setup(
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
     if (url === `${SITE}/goodfellow-site.json`) {
-      if (!options.admin) return new Response("Not found", { status: 404 });
-      return Response.json({ version: 1, admin: { url: options.admin } });
+      if (!options.admin && !options.broker) return new Response("Not found", { status: 404 });
+      return Response.json({
+        version: 1,
+        ...(options.admin && { admin: { url: options.admin } }),
+        ...(options.broker && { broker: { url: options.broker } }),
+      });
     }
     return fake.fetch(input, init);
   };

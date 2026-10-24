@@ -42,6 +42,8 @@ export interface SiteDescription {
    * as the Site address (`GoodfellowConfig.admin`).
    */
   admin?: { url: string; checked?: boolean };
+  /** The config's token broker, where the sign-in worker gives tokens as well (`GoodfellowConfig.broker`). */
+  broker?: { url: string };
   /** What the site's config lets Claude do (`GoodfellowConfig.claude`), when it's less than everything. */
   claude?: { publish?: boolean };
 }
@@ -88,6 +90,7 @@ const descriptionSchema = z.object({
     }),
   ),
   admin: z.object({ url: z.string(), checked: z.boolean().optional() }).optional(),
+  broker: z.object({ url: z.string() }).optional(),
   claude: z.object({ publish: z.boolean().optional() }).optional(),
 });
 

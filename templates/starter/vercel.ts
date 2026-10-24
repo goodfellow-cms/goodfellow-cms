@@ -93,6 +93,9 @@ function adminHeaders() {
   const url = line && /url:\s*"([^"\\]+)"/.exec(line)?.[1];
   if (!url) return [];
   const has = [{ type: "host", value: new URL(url).host }];
+  // A token broker (the config's `broker` line) shows the admin panel in its frame.
+  const brokerLine = /^[ \t]*broker:[ \t]*\{[^\n]*\},?[ \t]*$/m.exec(config)?.[0];
+  const broker = brokerLine && /url:\s*"([^"\\]+)"/.exec(brokerLine)?.[1];
   const list = (headers: Record<string, string>) => Object.entries(headers).map(([key, value]) => ({ key, value }));
   return [
     { source: "/((?!admin/|admin$).*)", has, headers: list({ "Content-Security-Policy": "sandbox" }) },
@@ -101,7 +104,7 @@ function adminHeaders() {
       has,
       headers: list({
         "Cross-Origin-Opener-Policy": "same-origin",
-        "Content-Security-Policy": "frame-ancestors 'none'",
+        "Content-Security-Policy": `frame-ancestors ${broker ? new URL(broker).origin : "'none'"}`,
         "Origin-Agent-Cluster": "?1",
       }),
     },

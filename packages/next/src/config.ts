@@ -5,8 +5,10 @@ import { join, resolve } from "node:path";
 import {
   type AdminAddress,
   allPages,
+  brokerOrigin,
   CALENDARS_DIR,
   configAdmin,
+  configBroker,
   FEEDS_DIR,
   loadSiteContent,
   normalizeBase,
@@ -57,7 +59,9 @@ function siteAdmin(root: string): AdminAddress | undefined {
  */
 function adminHeaders(root: string): Headers {
   const admin = siteAdmin(root);
-  return admin ? vercelAdminHeaders(admin) : [];
+  const file = CONFIG_FILES.map((name) => join(root, name)).find((path) => existsSync(path));
+  const broker = brokerOrigin(file ? configBroker(readFileSync(file, "utf8")) : undefined);
+  return admin ? vercelAdminHeaders(admin, "/", broker) : [];
 }
 type Rewrite = Extract<Rewrites, unknown[]>[number];
 

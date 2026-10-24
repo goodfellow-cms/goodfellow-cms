@@ -768,6 +768,40 @@ export const defaultStrings = {
   "owner.token.create": "Create an owner token on {host}",
   "owner.token.chooseSite": "If {host} asks what the token can access, choose only this site.",
   "owner.token.paste": "Copy the token and paste it here:",
+  "settings.tab.security": "Security",
+  "security.demo": "A demo has no sign-in to keep safe.",
+  "security.local":
+    "The sign-in page is set in the published site's admin panel, where you sign in with GitHub or GitLab.",
+  "security.contentOnly":
+    "The sign-in page is set in the site's code, which is kept apart from its content, so a developer sets it there.",
+  "security.broker.title": "Sign-in page",
+  "security.broker.intro":
+    "A sign-in page of its own, called a token broker, keeps editors' sign-in and AI keys at an address that holds nothing else, and shows the admin panel from there, so nothing on the site's pages can reach them. It asks the editor before publishing the site's code. It needs an address of its own, such as broker.example.org; see the token broker page in Goodfellow's documentation for putting one online.",
+  "security.broker.field": "The sign-in page's address",
+  "security.broker.fieldHint": "An address that serves only the token broker, such as https://broker.example.org.",
+  "security.broker.problem.invalid": "That needs to be an https:// address of its own, with nothing after the domain.",
+  "security.broker.problem.shared":
+    "github.io addresses are shared with every site in the same account, so the sign-in page needs a domain of its own.",
+  "security.broker.problem.same-as-site": "That's the site's own address. The sign-in page needs one of its own.",
+  "security.broker.redirect":
+    "Editors sign in by going to {host} and coming back, so add the sign-in page's address to the redirect URIs of the application they sign in with on {host}.",
+  "security.broker.use": "Sign in there from now on",
+  "security.broker.message": "Sign in at {address}",
+  "security.broker.error": "The sign-in page's address couldn't be published.",
+  "security.broker.pending":
+    "Once the site has been rebuilt, editors sign in at {address}, and the admin panel opens only there.",
+  "security.broker.using": "Editors sign in at {address}, which keeps their sign-in and shows the admin panel.",
+  "security.broker.stop": "Stop using the sign-in page",
+  "security.broker.stopMessage": "Stop signing in at {address}",
+  "security.broker.stopBody":
+    "Once the site has been rebuilt, editors sign in in the admin panel itself again, which keeps their sign-in where the site's pages could reach it, and blocks from registries other than Goodfellow's can't be added there.",
+  "broker.elsewhere":
+    "Editors sign in to this site on its own sign-in page, which keeps your sign-in where the site's pages can't reach it, and shows the admin panel from there.",
+  "broker.open": "Go to the sign-in page",
+  "broker.invalid":
+    "The site's config names a sign-in page whose address isn't one of its own, so the admin panel can't open. Ask the site's developer to fix the broker address in goodfellow.config.tsx.",
+  "owner.token.pasteInBroker":
+    "Copy the token, choose Use this token, and paste it where the sign-in page around the admin panel asks for it. It keeps the token, so the admin panel never sees it.",
   "owner.token.label": "Owner token",
   "owner.token.use": "Use this token",
   "owner.token.checking": "Checking…",

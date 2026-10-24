@@ -34,7 +34,7 @@ Editors' tokens can't change workflows or the repository's settings. Commits mad
 
 ## Where it works
 
-The service gives tokens only to the address in the site's settings, and to the admin panel's [own address](/docs/custom-domains#an-admin-address) where the site's `goodfellow-site.json` names one, and never to this computer (`localhost`), where `goodfellow dev` and `next dev` need no sign-in. When the address changes, as connecting a domain does, sign-in follows the site there once the new address is published. Copies of the admin panel elsewhere, such as a preview on Vercel, sign in with a token.
+The service gives tokens only to the address in the site's settings, and to the admin panel's [own address](/docs/custom-domains#an-admin-address) where the site's `goodfellow-site.json` names one, or, where it names a [token broker](/docs/token-broker), only to the broker, and never to this computer (`localhost`), where `goodfellow dev` and `next dev` need no sign-in. When the address changes, as connecting a domain does, sign-in follows the site there once the new address is published. Copies of the admin panel elsewhere, such as a preview on Vercel, sign in with a token.
 
 ## Limits
 

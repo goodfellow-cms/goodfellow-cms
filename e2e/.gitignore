@@ -2,3 +2,4 @@
 .site-*/
 test-results/
 playwright-report/
+.broker/

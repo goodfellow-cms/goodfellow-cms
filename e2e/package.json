@@ -11,6 +11,7 @@
     "@goodfellow-cms/admin": "workspace:*",
     "@goodfellow-cms/ai": "workspace:*",
     "@goodfellow-cms/blocks": "workspace:*",
+    "@goodfellow-cms/broker": "workspace:*",
     "@goodfellow-cms/core": "workspace:*",
     "@goodfellow-cms/github": "workspace:*",
     "@goodfellow-cms/gitlab": "workspace:*",

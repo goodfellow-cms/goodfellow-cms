@@ -12,6 +12,7 @@ import {
   startsWithGuard,
   withGuard,
 } from "./admin-domain.js";
+import { brokerOrigin } from "./broker.js";
 
 export interface GuardOptions {
   admin: AdminAddress;
@@ -19,6 +20,8 @@ export interface GuardOptions {
   siteUrl: string | undefined;
   /** The site's base path, such as `/` or `/my-site/`. */
   base?: string;
+  /** The site's token broker (the config's `broker`), which may show the admin panel in its frame. */
+  broker?: { url: string };
 }
 
 /**
@@ -31,7 +34,10 @@ export interface GuardOptions {
  * any page can't start with its guard, since the admin address isn't safe
  * while one doesn't. Returns how many pages it guarded.
  */
-export async function guardBuiltSite(outDir: string, { admin, siteUrl, base = "/" }: GuardOptions): Promise<number> {
+export async function guardBuiltSite(
+  outDir: string,
+  { admin, siteUrl, base = "/", broker }: GuardOptions,
+): Promise<number> {
   const problem = adminAddressProblem(admin, siteUrl);
   const origin = adminOrigin(admin);
   if (problem || !origin) {
@@ -48,7 +54,8 @@ export async function guardBuiltSite(outDir: string, { admin, siteUrl, base = "/
     site = undefined;
   }
   const forSite = siteGuard(origin, site);
-  const forAdmin = adminGuard(admin);
+  const framer = brokerOrigin(broker);
+  const forAdmin = adminGuard(admin, framer);
   let guarded = 0;
   const unguarded: string[] = [];
   for (const entry of await readdir(outDir, { recursive: true, withFileTypes: true })) {
@@ -77,7 +84,7 @@ export async function guardBuiltSite(outDir: string, { admin, siteUrl, base = "/
   const own = await readFile(headersFile, "utf8").catch(() => "");
   if (!own.includes(`${origin}/*`)) {
     const separator = own === "" ? "" : own.endsWith("\n") ? "\n" : "\n\n";
-    await writeFile(headersFile, `${own}${separator}${cloudflareAdminHeaders(admin, base)}`);
+    await writeFile(headersFile, `${own}${separator}${cloudflareAdminHeaders(admin, base, framer)}`);
   }
   return guarded;
 }

@@ -92,8 +92,12 @@ export interface Account {
    * change Site Settings, blocks, or collections' settings and templates.
    */
   role?: AppRole;
-  /** On a full-stack site, the AI services its server asks with keys of its own, at `server`. */
-  ai?: { server: string; services: string[] };
+  /**
+   * On a full-stack site, the AI services its server asks with keys of its own,
+   * at `server`; with a token broker, those the broker keeps keys for, asked
+   * through `fetch`, which sends the requests to the broker.
+   */
+  ai?: { server: string; services: string[]; fetch?: typeof fetch };
 }
 
 export interface AdminContextValue {
@@ -226,7 +230,8 @@ export function AdminProvider({
   );
   const mediaPreviews = useMemo(() => createMediaPreviews(store, siteUrl), [store, siteUrl]);
   // The development servers give their own registry; their admin panel holds no tokens.
-  const outOfReach = registry !== undefined || atAdminAddress(site.admin);
+  // With a token broker, the admin panel holds no tokens, and the broker asks before publishing code.
+  const outOfReach = registry !== undefined || atAdminAddress(site.admin) || site.broker !== undefined;
   const registries = useMemo(
     () => ({
       [GOODFELLOW_REGISTRY]: registry ?? goodfellowRegistryUrl(REGISTRY_VERSION),

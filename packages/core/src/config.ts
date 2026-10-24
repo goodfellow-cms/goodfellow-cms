@@ -1,5 +1,6 @@
 import type { ComponentConfig, Config } from "@puckeditor/core";
 import type { AdminAddress } from "./admin-domain.js";
+import type { BrokerAddress } from "./broker.js";
 import type { GitHost } from "./git.js";
 
 /**
@@ -33,6 +34,14 @@ export interface GoodfellowConfig {
    * Pages, which serves one domain for each site.
    */
   admin?: AdminAddress;
+  /**
+   * The site's token broker, such as `{ url: "https://broker.example.org" }`:
+   * a page on an address of its own that keeps editors' tokens and AI keys and
+   * shows the admin panel in a frame, so nothing on the site's or the admin
+   * panel's address can read them. Editors sign in there. Set by Site
+   * Settings' Security tab, on a line of its own.
+   */
+  broker?: BrokerAddress;
   /**
    * Turns the admin panel into a demo anyone can try without signing in. It
    * starts from the site's content as last built, and keeps each visitor's

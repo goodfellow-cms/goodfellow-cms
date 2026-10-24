@@ -77,6 +77,12 @@ export interface OwnerAccess {
    * to the host and comes back to this screen. Throws `SignInError` if it can't start.
    */
   startRedirect?(options?: RedirectOptions): Promise<void>;
+  /**
+   * Asks for the owner token in the token broker's own page, which keeps it,
+   * in place of a field in the admin panel. Present only through a broker,
+   * which offers it instead of `applyToken()`.
+   */
+  requestToken?(): Promise<void>;
   /** Why the last owner sign-in didn't work, if it didn't, such as a `SignInError`. */
   readonly problem?: unknown;
 }

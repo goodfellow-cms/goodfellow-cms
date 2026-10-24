@@ -90,6 +90,15 @@ describe("signing in", () => {
     });
   });
 
+  it("gives tokens only to the site's token broker, where its build names one", async () => {
+    const broker = "https://broker.parish.example";
+    const { call } = setup({ broker });
+    expect(await (await call("/github/check?repo=parish/site", { origin: broker })).json()).toEqual({ ok: true });
+    expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).toEqual({
+      problem: "wrong-address",
+    });
+  });
+
   it("says when the app isn't installed, or the site has no address yet", async () => {
     const notInstalled = setup({ installed: false });
     const response = await notInstalled.call("/github/check?repo=parish/site", { origin: SITE });

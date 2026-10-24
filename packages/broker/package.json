@@ -1,0 +1,47 @@
+{
+  "name": "@goodfellow-cms/broker",
+  "version": "0.4.0",
+  "description": "Goodfellow's token broker: a page of its own that keeps editors' sign-in and AI keys, and shows the site's admin panel in a frame.",
+  "keywords": [
+    "goodfellow",
+    "cms",
+    "website-builder",
+    "puck",
+    "git-based-cms"
+  ],
+  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/token-broker",
+  "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goodfellow-cms/goodfellow-cms.git",
+    "directory": "packages/broker"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "site"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@goodfellow-cms/ai": "workspace:*",
+    "@goodfellow-cms/core": "workspace:*",
+    "@goodfellow-cms/github": "workspace:*",
+    "@goodfellow-cms/gitlab": "workspace:*",
+    "happy-dom": "20.14.5",
+    "vite": "8.3.4"
+  },
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -5,6 +5,7 @@ export {
   adminAddressProblem,
   adminGuard,
   adminOrigin,
+  adminPageHeaders,
   CLOUDFLARE_HEADERS_PATH,
   cloudflareAdminHeaders,
   configAdmin,
@@ -27,6 +28,29 @@ export {
   isSettingsPath,
 } from "./app-api.js";
 export { applyBasePath, normalizeBase, withBase } from "./base-path.js";
+export {
+  BROKER_AI_ADDRESS,
+  BROKER_CONNECT_MESSAGE,
+  BROKER_READY_MESSAGE,
+  type BrokerAccount,
+  type BrokerAddress,
+  type BrokerAddressProblem,
+  type BrokerChangeCheck,
+  type BrokerConfirmKind,
+  type BrokerPort,
+  BrokerRefusedError,
+  type BrokerServiceAnswer,
+  type BrokerServiceRequest,
+  brokerAddressProblem,
+  brokerChangeCheck,
+  brokerOrigin,
+  configBroker,
+  isWorkflowPath,
+  remoteBackend,
+  type ServeOptions,
+  serveBackend,
+  withBrokerConfig,
+} from "./broker.js";
 export {
   BUILD_CAUSE_MARKER,
   type BuildCause,

@@ -369,32 +369,42 @@ export function createWorker(options: WorkerOptions = {}) {
       }
       const site = url && originOf(url);
       if (!url || !site) return [];
-      const admin = await adminAddress(url);
+      const { admin, broker } = await describedAddresses(url);
+      // A site with a token broker signs in only there, so its tokens never reach the site's own pages.
+      if (broker) return [broker];
       return admin ? [site, admin] : [site];
     }
 
     /**
-     * The admin address in the site's description (`goodfellow-site.json`,
-     * which builds write from the site's config) at the Site address, where
-     * the admin panel signs in when the site has one. Tokens already go to the
-     * Site address, so what it serves names no address editors couldn't.
+     * The admin address and token broker in the site's description
+     * (`goodfellow-site.json`, which builds write from the site's config) at
+     * the Site address, where editors sign in when the site has them. Tokens
+     * already go to the Site address, so what it serves names no address
+     * editors couldn't.
      */
-    async function adminAddress(siteUrl: string): Promise<string | undefined> {
+    async function describedAddresses(siteUrl: string): Promise<{ admin?: string; broker?: string }> {
       try {
         const response = await config.fetch(new URL("goodfellow-site.json", siteUrl.replace(/\/?$/, "/")).href, {
           redirect: "error",
         });
-        if (!response.ok) return undefined;
-        const description = JSON.parse(await response.text()) as { admin?: { url?: unknown } };
-        const url = description.admin?.url;
-        const origin = typeof url === "string" ? originOf(url) : undefined;
-        return origin && !isLocalAddress(origin) ? origin : undefined;
+        if (!response.ok) return {};
+        const description = JSON.parse(await response.text()) as {
+          admin?: { url?: unknown };
+          broker?: { url?: unknown };
+        };
+        const address = (url: unknown) => {
+          const origin = typeof url === "string" ? originOf(url) : undefined;
+          return origin && !isLocalAddress(origin) ? origin : undefined;
+        };
+        const admin = address(description.admin?.url);
+        const broker = address(description.broker?.url);
+        return { ...(admin && { admin }), ...(broker && { broker }) };
       } catch {
-        return undefined;
+        return {};
       }
     }
 
-    /** Checks that the app is installed on the repository and that `origin` is the site's own address, or its admin address. */
+    /** Checks that the app is installed on the repository and that `origin` is the site's own address, its admin address, or its token broker's. */
     async function checkSite(purpose: Purpose, repo: string, origin: string | undefined): Promise<number> {
       if (!origin || !originOf(origin) || isLocalAddress(origin)) throw new Problem("local-address", 403);
       const app = appFor(purpose);
