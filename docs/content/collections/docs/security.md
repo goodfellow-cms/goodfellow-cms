@@ -31,7 +31,7 @@ Three setups, from the least to set up to the most secure. Each keeps code on th
 On GitLab, either:
 
 - **One project, with an admin address:** the site at your domain, such as `example.org`, and the admin panel at another, such as `admin.example.org`, both served by GitLab Pages from the site's project. See [An admin address](/docs/custom-domains#an-admin-address).
-- **The site's project and a token broker's, without a domain:** **Add a token broker** on the Security tab makes the broker's project, at its own address on GitLab. The broker keeps the sign-in out of the admin panel altogether and asks before anything but content is published, so it protects more than an admin address, for one more project.
+- **The site's project and a token broker's, with or without a domain:** **Add a token broker** on the Security tab makes the broker's project, at a domain of yours, such as `signin.example.org`, or at its own address on GitLab. The broker keeps the sign-in out of the admin panel altogether and asks before anything but content is published, so it protects more than an admin address, for one more project.
 
 On GitLab, a sign-in reaches every project the editor's account can, not only the site's, so editors should use an account, or a group, that's only for the site. And once automatic updates are on, any job in the site's pipeline can publish to it.
 
