@@ -53,14 +53,17 @@ test("the admin panel refuses to be shown in a frame", async ({ page }) => {
     frame.title = "Admin panel";
     document.body.append(frame);
   }, `${admin}/admin/`);
+  // The guard writes <plaintext>, after which the parser reads the rest of the page as text. Pages it stops
+  // never finish loading in WebKit, so this waits for that rather than for the page to load.
   await expect
     .poll(async () => {
       const frame = page.frames().find((candidate) => candidate.url().startsWith(`${admin}/admin/`));
-      return frame?.evaluate(() => document.readyState === "complete" && document.scripts.length);
+      return frame?.evaluate(() => document.querySelector("plaintext") !== null).catch(() => false);
     })
-    .toBe(1);
+    .toBe(true);
   const frame = page.frames().find((candidate) => candidate.url().startsWith(`${admin}/admin/`));
   // Only the guard was read as HTML: the rest of the page is hidden text, and nothing of the admin panel ran.
+  expect(await frame?.evaluate(() => document.scripts.length)).toBe(1);
   expect(await frame?.evaluate(() => document.querySelector("script[data-goodfellow-guard]") !== null)).toBe(true);
   expect(await frame?.evaluate(() => document.body.innerText.trim())).toBe("");
 });
