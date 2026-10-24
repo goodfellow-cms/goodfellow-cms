@@ -132,7 +132,7 @@ function ServiceSettings({
   settings: ReturnType<typeof useAiSettings>[0];
   onChange: ReturnType<typeof useAiSettings>[1];
   /** The services a full-stack site's server asks with keys of its own. */
-  siteAi?: { server: string; services: string[] };
+  siteAi?: { server: string; services: string[]; fetch?: typeof fetch };
 }) {
   const t = useStrings();
   const info = PROVIDERS[settings.provider];
@@ -144,13 +144,14 @@ function ServiceSettings({
   // Ask the service which models it has, once it can be asked.
   const { provider, apiKey, baseUrl } = settings;
   const server = sitePays ? siteAi?.server : undefined;
+  const serverFetch = sitePays ? siteAi?.fetch : undefined;
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
     setModels(PROVIDERS[provider].models ?? []);
     const timer = setTimeout(() => {
       const asked = server ? { provider, server, model: "" } : { provider, apiKey, baseUrl, model: "" };
-      listModels(asked, { signal: controller.signal })
+      listModels(asked, { signal: controller.signal, ...(serverFetch && { fetch: serverFetch }) })
         .then((found) => {
           if (!cancelled && found.length > 0) setModels(found);
         })
@@ -161,7 +162,7 @@ function ServiceSettings({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [provider, apiKey, baseUrl, server]);
+  }, [provider, apiKey, baseUrl, server, serverFetch]);
 
   return (
     <div className="gfa-form gfa-ai-settings">
@@ -480,6 +481,7 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
     try {
       const answer = await runRequest(settings, request, {
         signal: current.signal,
+        ...(settings.server && siteAi?.fetch && { fetch: siteAi.fetch }),
         onProgress: (characters) => setStatus({ type: "working", characters }),
       });
       if (current.signal.aborted) return;

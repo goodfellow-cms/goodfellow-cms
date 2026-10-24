@@ -74,7 +74,7 @@ export function resetContent() {
 const testBlocks = join(here, "../fixtures/blocks");
 
 /** A test site's config: the starter's blocks, the test blocks, and optionally a backend. */
-function testConfig({ from = "./blocks", importLine = "", backend = "", demo = false, admin = "" } = {}) {
+function testConfig({ from = "./blocks", importLine = "", backend = "", demo = false, admin = "", broker = "" } = {}) {
   return [
     'import { blocks, categories } from "@goodfellow-cms/blocks";',
     'import { defineConfig } from "@goodfellow-cms/core";',
@@ -84,6 +84,7 @@ function testConfig({ from = "./blocks", importLine = "", backend = "", demo = f
     "",
     "export default defineConfig({",
     ...(admin ? [`  admin: { url: ${JSON.stringify(admin)}, checked: true },`] : []),
+    ...(broker ? [`  broker: { url: ${JSON.stringify(broker)} },`] : []),
     "  blocks: { ...blocks, ...installedBlocks, Counter, Disclosure },",
     "  categories: { ...categories, ...installedCategories },",
     ...(backend ? [`  backend: ${backend},`] : []),
@@ -139,6 +140,13 @@ export const builtSites = {
     separate: true,
   },
   // An admin address of its own, with test pages that try every way of running a script there before the guard.
+  // Editors sign in at a token broker, which shows the admin panel in its frame.
+  broker: {
+    port: 4412,
+    importLine: 'import { github } from "@goodfellow-cms/github";',
+    backend: 'github({ repo: "parish/site" })',
+    broker: true,
+  },
   admin: {
     port: 4411,
     importLine: 'import { github } from "@goodfellow-cms/github";',
@@ -153,9 +161,15 @@ export const builtSites = {
  */
 export const ADMIN_ADDRESSES = { admin: "http://localhost:4411", site: "http://127.0.0.1:4411" };
 
+/**
+ * The token broker test site's addresses: the site, built with a config naming the broker, and the broker, served
+ * from the built @goodfellow-cms/broker with a broker.json naming the site's repository on the fake GitHub.
+ */
+export const BROKER_ADDRESSES = { site: "http://localhost:4412", broker: "http://127.0.0.1:4413" };
+
 /** Creates a copy of the starter configured with a git backend or as a demo, ready for `goodfellow build`. */
 export function createBuiltSite(name) {
-  const { importLine, backend, demo, separate, admin } = builtSites[name];
+  const { importLine, backend, demo, separate, admin, broker } = builtSites[name];
   const dir = join(here, `../.site-${name}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -177,7 +191,13 @@ export function createBuiltSite(name) {
   }
   writeFileSync(
     join(dir, "goodfellow.config.tsx"),
-    testConfig({ importLine, backend, demo, admin: admin ? ADMIN_ADDRESSES.admin : "" }),
+    testConfig({
+      importLine,
+      backend,
+      demo,
+      admin: admin ? ADMIN_ADDRESSES.admin : "",
+      broker: broker ? BROKER_ADDRESSES.broker : "",
+    }),
   );
   return dir;
 }

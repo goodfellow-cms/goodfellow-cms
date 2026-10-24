@@ -140,6 +140,7 @@ export async function guardExport(outDir: string, root = process.cwd()): Promise
   const content = await loadSiteContent(fileSystemSource(dir));
   return guardBuiltSite(outDir, {
     admin,
+    ...(parsed?.ok && parsed.description.broker && { broker: parsed.description.broker }),
     siteUrl: content.settings.url,
     base: `${await exportBasePath(dir)}/`,
   });

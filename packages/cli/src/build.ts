@@ -256,7 +256,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     // Last, once every page is written: the index is made from the finished HTML.
     const searchIndexed = await writeSearchIndex(outDir);
     // Then, for a site with an admin address, every page starts with the script that keeps site pages off it.
-    if (config.admin) await guardBuiltSite(outDir, { admin: config.admin, siteUrl: content.settings.url, base });
+    if (config.admin) {
+      await guardBuiltSite(outDir, { admin: config.admin, siteUrl: content.settings.url, base, broker: config.broker });
+    }
     const media = (await fileSystemSource(root).list(MEDIA_DIR)).map(
       (path) => `/media/${path.slice(MEDIA_DIR.length + 1)}`,
     );

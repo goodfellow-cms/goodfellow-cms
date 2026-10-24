@@ -5,6 +5,7 @@
  * a Next.js server component (`adminSite()` in `@goodfellow-cms/react`).
  */
 import type { AdminAddress } from "./admin-domain.js";
+import type { BrokerAddress } from "./broker.js";
 import type { AiConfig } from "./config.js";
 import type { HostSource } from "./git.js";
 import type { SiteDescription } from "./site-description.js";
@@ -16,6 +17,8 @@ export interface AdminSite {
   backend?: HostSource;
   /** The config's `admin`. */
   admin?: AdminAddress;
+  /** The config's `broker`. */
+  broker?: BrokerAddress;
   /** The config's `demo`. */
   demo?: boolean;
   /** The config's `ai`. */

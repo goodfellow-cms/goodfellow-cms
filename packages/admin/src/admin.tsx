@@ -1,5 +1,6 @@
 import {
   type AdminSite,
+  BROKER_AI_ADDRESS,
   COLLECTIONS_DIR,
   ContentError,
   type ContentStore,
@@ -13,6 +14,7 @@ import { AdminProvider, type PreviewOptions, useAdmin, useCanChangeSettings, use
 import { forgetAiKeys } from "./ai-settings.js";
 import { AppSignInGate } from "./app-sign-in.js";
 import { BlocksScreen } from "./blocks-screen.js";
+import { BrokerGate } from "./broker-gate.js";
 import { BuildProblemButton } from "./build-problem.js";
 import { EntriesScreen, TemplateScreen } from "./collection-screen.js";
 import { CollectionSettingsScreen } from "./collection-settings.js";
@@ -27,6 +29,7 @@ import { ImportScreen } from "./import-screen.js";
 import { MediaScreen } from "./media-library.js";
 import { PagesScreen } from "./pages-screen.js";
 import { SETTINGS_SECTIONS, useRoute } from "./router.js";
+import { SecurityScreen } from "./security-screen.js";
 import { SETTINGS_TABS, SettingsScreen, type SettingsTab } from "./settings-screen.js";
 import { SignInGate } from "./sign-in.js";
 import { SiteHistoryScreen } from "./site-history-screen.js";
@@ -159,6 +162,7 @@ function Screen() {
   if (section === "settings" && sub === "updates") return <UpdatesScreen />;
   if (section === "settings" && sub === "history") return <SiteHistoryScreen />;
   if (section === "settings" && sub === "import") return <ImportScreen />;
+  if (section === "settings" && sub === "security") return <SecurityScreen />;
   if (section === "versions") return <VersionsScreen file={params.get("file") ?? ""} />;
   if (section === "settings") {
     const tab = SETTINGS_TABS.includes(sub as SettingsTab) ? (sub as SettingsTab) : "general";
@@ -390,6 +394,32 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
         </AdminProvider>
       )}
     </AppSignInGate>
+  ) : site.broker ? (
+    <BrokerGate broker={site.broker} host={host}>
+      {(backend, account) => (
+        <AdminProvider
+          site={site}
+          frames={frames}
+          store={backend}
+          account={{
+            user: backend.user,
+            hostName: account.hostName,
+            redirectAddressesListed: account.redirectAddressesListed,
+            ...(account.aiServices.length > 0 && {
+              ai: { server: BROKER_AI_ADDRESS, services: account.aiServices, fetch: account.fetch },
+            }),
+            // The broker forgets the sign-in and its AI keys, and asks again.
+            signOut: () => backend.signOut(),
+          }}
+          preview={preview}
+          siteUrl={siteUrl}
+          registry={registry}
+          onSignInError={() => backend.signOut()}
+        >
+          <Shell />
+        </AdminProvider>
+      )}
+    </BrokerGate>
   ) : host ? (
     <SignInGate host={host}>
       {(backend, signOut) => (

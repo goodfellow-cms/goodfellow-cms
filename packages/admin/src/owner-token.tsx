@@ -64,7 +64,9 @@ function OwnerTokenFields({ onReady, heading = true }: { onReady: () => void; he
     setBusy(true);
     setError(undefined);
     try {
-      await ownerAccess.applyToken(token);
+      // With a token broker, the broker asks for it in its own part of the page, and keeps it.
+      if (ownerAccess.requestToken) await ownerAccess.requestToken();
+      else await ownerAccess.applyToken(token);
       setToken("");
       onReady();
     } catch (caught) {
@@ -86,20 +88,22 @@ function OwnerTokenFields({ onReady, heading = true }: { onReady: () => void; he
           </a>{" "}
           {t("owner.token.chooseSite", { host })}
         </li>
-        <li>{t("owner.token.paste")}</li>
+        <li>{t(ownerAccess.requestToken ? "owner.token.pasteInBroker" : "owner.token.paste")}</li>
       </ol>
-      <TextField
-        label={t("owner.token.label")}
-        type="password"
-        autoComplete="off"
-        value={token}
-        onChange={setToken}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter") return;
-          event.preventDefault();
-          if (token.trim()) void use();
-        }}
-      />
+      {!ownerAccess.requestToken && (
+        <TextField
+          label={t("owner.token.label")}
+          type="password"
+          autoComplete="off"
+          value={token}
+          onChange={setToken}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            if (token.trim()) void use();
+          }}
+        />
+      )}
       {error !== undefined && (
         <ErrorMessage
           message={t(error instanceof EditorsError ? "owner.token.error" : "editors.error.other")}
@@ -107,7 +111,11 @@ function OwnerTokenFields({ onReady, heading = true }: { onReady: () => void; he
         />
       )}
       <div>
-        <Button variant="primary" disabled={busy || !token.trim()} onClick={() => void use()}>
+        <Button
+          variant="primary"
+          disabled={busy || (!ownerAccess.requestToken && !token.trim())}
+          onClick={() => void use()}
+        >
           {busy ? t("owner.token.checking") : t("owner.token.use")}
         </Button>
       </div>

@@ -1,0 +1,142 @@
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#ffffff, #14161a);
+  --fg: light-dark(#1b1f24, #e8eaed);
+  --muted: light-dark(#5b6470, #a3aab4);
+  --line: light-dark(#d9dde3, #343a42);
+  --accent: light-dark(#1e3a8a, #93b4ff);
+  --accent-fg: light-dark(#ffffff, #0b1530);
+  --error: light-dark(#a3221b, #ff9a92);
+  font-family: system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+#broker {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.broker-note,
+.broker-sign-in {
+  max-width: 32rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+  line-height: 1.5;
+}
+
+.broker-sign-in {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.broker-sign-in h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.broker-sign-in h2 {
+  font-size: 1rem;
+  margin: 1rem 0 0;
+}
+
+input[type="password"] {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.375rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.375rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.broker-primary,
+button[type="submit"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+a {
+  color: var(--accent);
+}
+
+.broker-error {
+  color: var(--error);
+  min-height: 1lh;
+  margin: 0;
+}
+
+.broker-check {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.broker-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.broker-bar button {
+  padding: 0.15rem 0.6rem;
+}
+
+.broker-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+}
+
+.broker-dialog {
+  max-width: 34rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+}
+
+.broker-dialog::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.broker-dialog label {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.broker-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}

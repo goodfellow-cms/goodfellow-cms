@@ -1,0 +1,9 @@
+{
+  "sites": [
+    {
+      "package": "@goodfellow-cms/github",
+      "export": "github",
+      "options": { "repo": "your-name/your-site" }
+    }
+  ]
+}
