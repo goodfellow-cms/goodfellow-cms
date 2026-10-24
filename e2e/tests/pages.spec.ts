@@ -68,7 +68,10 @@ test("creates a page", async ({ page }) => {
 test("duplicates a page, so a similar one doesn't start from scratch", async ({ page }) => {
   const about = readJson("content/pages/about.json") as { data: { root: { props: object } } };
   await page.goto("/admin");
-  await page.getByRole("row", { name: /About us/ }).getByRole("button", { name: "Duplicate" }).click();
+  await page
+    .getByRole("row", { name: /About us/ })
+    .getByRole("button", { name: "Duplicate" })
+    .click();
   await expect(page.getByRole("dialog", { name: 'Duplicate "About us"' })).toBeVisible();
   await expect(page.getByLabel("Page title")).toHaveValue("About us (copy)");
   await expect(page.getByLabel("Address")).toHaveValue("/about-us-copy");
