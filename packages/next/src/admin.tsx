@@ -1,6 +1,6 @@
 "use client";
 
-import { Admin, OutdatedAdminPage, type Strings } from "@goodfellow-cms/admin";
+import { Admin, OutdatedAdminPage, reloadFrames, type Strings } from "@goodfellow-cms/admin";
 import {
   type AdminSite,
   type ContentStore,
@@ -77,17 +77,20 @@ const BASE_PATH = process.env.GOODFELLOW_BASE_PATH ?? "";
 const EDITOR_URL =
   process.env.NODE_ENV === "development" ? `${BASE_PATH}${DEV_EDITOR_PREFIX}` : `${BASE_PATH}/admin/editor/`;
 
-/** In `next dev`, reloads the admin panel once the editor's frames are rebuilt, so they show the site's new code. */
+/**
+ * In `next dev`, reloads the editor's frames once they're rebuilt, so they
+ * show the site's new code, leaving whatever is open on the admin panel's page as it is.
+ */
 function useEditorRebuilds() {
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
-    let first: number | undefined;
+    let shown: number | undefined;
     const check = async () => {
       try {
         const response = await fetch(`${EDITOR_URL}version.json`, { cache: "no-store" });
         const { version } = (await response.json()) as { version: number };
-        if (first === undefined) first = version;
-        else if (version !== first) location.reload();
+        if (shown !== undefined && version !== shown) reloadFrames();
+        shown = version;
       } catch {
         // The dev server is restarting.
       }

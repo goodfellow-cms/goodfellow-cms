@@ -173,6 +173,9 @@ function serveMedia(root: string) {
   };
 }
 
+/** How long the editor's frames stay as built before the admin panel reloads them. */
+const REBUILT_DELAY = 300;
+
 /** The editor's frames' bundle, which `goodfellow dev` rebuilds as the site's code changes. */
 interface DevEditor {
   outDir: string;
@@ -342,6 +345,7 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
   let server: ViteDevServer | undefined;
   let built: () => void = () => {};
   let builds = 0;
+  let reload: ReturnType<typeof setTimeout> | undefined;
   const editor: DevEditor = {
     outDir: join(root, "node_modules/.goodfellow/editor"),
     ready: new Promise<void>((resolve) => {
@@ -352,11 +356,18 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
     base: "/",
     outDir: editor.outDir,
     watch: {
+      onStart() {
+        clearTimeout(reload);
+      },
       onBuilt(error) {
         builds += 1;
         built();
         if (error) server?.config.logger.error(`The editor's frames couldn't be built: ${error.message}`);
-        else if (builds > 1) server?.ws.send({ type: "custom", event: EDITOR_REBUILT_EVENT });
+        // A change such as adding a block writes several files, which can take several builds: the frames
+        // reload once, after the last.
+        else if (builds > 1) {
+          reload = setTimeout(() => server?.ws.send({ type: "custom", event: EDITOR_REBUILT_EVENT }), REBUILT_DELAY);
+        }
       },
     },
   });

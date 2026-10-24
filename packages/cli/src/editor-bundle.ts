@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { EDITOR_PRELUDE, editorPage } from "@goodfellow-cms/core";
 import { type InlineConfig, type Plugin, type Rolldown, build as viteBuild } from "vite";
 import { EDITOR_ENTRY, EDITOR_PATH } from "./admin-entry.js";
-import { cssFiles, findEntry, type Manifest } from "./manifest.js";
+import { findEntry, type Manifest } from "./manifest.js";
 
 const MANIFEST = "editor-manifest.json";
 
@@ -12,9 +12,9 @@ export interface EditorBundleOptions {
   outDir: string;
   /**
    * Rebuilds when the site's code changes, as `goodfellow dev` does, calling
-   * `onBuilt` after each build with what went wrong, if anything.
+   * `onStart` as each build starts and `onBuilt` after it, with what went wrong, if anything.
    */
-  watch?: { onBuilt: (error?: Error) => void };
+  watch?: { onBuilt: (error?: Error) => void; onStart?: () => void };
 }
 
 export interface EditorBundle {
@@ -42,9 +42,14 @@ export async function buildEditor(
     if (!watch) await rm(manifestPath);
     const editor = findEntry(manifest, "editor");
     if (!editor) throw new Error("The editor's bundle is missing from the build.");
+    // Without code splitting, Vite lists the CSS as a file of its own rather than the entry's, and every
+    // file in this build is the editor's.
+    const stylesheets = Object.values(manifest)
+      .map((chunk) => chunk.file)
+      .filter((file) => file.endsWith(".css"));
     const html = editorPage({
       scripts: [`${base}${editor.file}`],
-      stylesheets: cssFiles(manifest, "editor").map((file) => `${base}${file}`),
+      stylesheets: stylesheets.map((file) => `${base}${file}`),
     });
     await mkdir(join(outDir, EDITOR_PATH), { recursive: true });
     await writeFile(join(outDir, EDITOR_PATH, "index.html"), html);
@@ -86,7 +91,9 @@ export async function buildEditor(
   }
   const watcher = output as Rolldown.RolldownWatcher;
   watcher.on("event", (event) => {
-    if (event.code === "BUNDLE_END") {
+    if (event.code === "BUNDLE_START") {
+      watch.onStart?.();
+    } else if (event.code === "BUNDLE_END") {
       void event.result.close();
       writePage().then(
         () => watch.onBuilt(),

@@ -56,6 +56,19 @@ export function frameClient(channel: Channel): FrameClient {
 /** How many times a frame may start again, such as after the development server reloads it, before it's given up on. */
 const MAX_CONNECTIONS = 5;
 
+/** Each frame's way of loading its page again, for `reloadFrames()`. */
+const reloaders = new Set<() => void>();
+
+/**
+ * Loads every frame's page again, as development servers do once they've
+ * rebuilt the frames with the site's new code, leaving the admin panel's own
+ * page, and whatever is open on it, as it is. Frames reloaded this way
+ * don't count towards the times one may start again.
+ */
+export function reloadFrames(): void {
+  for (const reload of reloaders) reload();
+}
+
 /** What the admin panel tells every frame it makes, and answers for them. */
 export interface FrameServices {
   source: FrameSource;
@@ -172,9 +185,16 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
         }
       })();
     };
+    const reload = () => {
+      connections = 0;
+      setFailed(false);
+      if (element.current) element.current.src = latest.current.services.source.url;
+    };
+    reloaders.add(reload);
     window.addEventListener("message", onMessage);
     return () => {
       stopped = true;
+      reloaders.delete(reload);
       window.removeEventListener("message", onMessage);
       stopRemembering?.();
       current?.close();

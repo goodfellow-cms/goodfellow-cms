@@ -20,6 +20,8 @@ export interface DevEditor {
 const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
 const ENTRY = "\0goodfellow:next-editor";
 const TAILWIND_BROWSER = "tailwind-browser.js";
+/** How long the editor's frames stay as built before the admin panel reloads them. */
+const REBUILT_DELAY = 300;
 
 const TYPES: Record<string, string> = {
   html: "text/html; charset=utf-8",
@@ -49,12 +51,20 @@ export async function startDevEditor(root: string): Promise<DevEditor> {
     built = resolveReady;
   });
 
+  // A change such as adding a block writes several files, which can take several builds: the frames
+  // reload once, after the last.
+  let counting: ReturnType<typeof setTimeout> | undefined;
   const writePage = async () => {
     const css = await Promise.all([...stylesheets].map((file) => readFile(file, "utf8")));
     await writeFile(join(outDir, "editor.css"), css.join("\n"));
     await writeFile(join(outDir, "index.html"), editorPage({ scripts: ["editor.js"], stylesheets: ["editor.css"] }));
-    version += 1;
-    await writeFile(join(outDir, "version.json"), JSON.stringify({ version }));
+    counting = setTimeout(
+      () => {
+        version += 1;
+        void writeFile(join(outDir, "version.json"), JSON.stringify({ version }));
+      },
+      version === 0 ? 0 : REBUILT_DELAY,
+    );
   };
 
   const watcher = watch({
@@ -104,7 +114,9 @@ export async function startDevEditor(root: string): Promise<DevEditor> {
     },
   });
   watcher.on("event", (event) => {
-    if (event.code === "BUNDLE_END") {
+    if (event.code === "BUNDLE_START") {
+      clearTimeout(counting);
+    } else if (event.code === "BUNDLE_END") {
       void event.result.close();
       writePage().then(built, (error: Error) => {
         console.error(`The editor's frames couldn't be written: ${error.message}`);

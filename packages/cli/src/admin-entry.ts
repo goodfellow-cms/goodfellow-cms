@@ -54,6 +54,7 @@ export function adminEntryPlugin(configFile: string, entry: AdminEntryMode): Plu
     if (entry.mode === "dev") {
       return [
         `import { localStore } from "@goodfellow-cms/admin/dev";`,
+        `import { reloadFrames } from "@goodfellow-cms/admin";`,
         ...common,
         "mountAdmin(element, {",
         `  site: await fetch(${JSON.stringify(DEV_ADMIN_SITE_PATH)}).then((response) => response.json()),`,
@@ -64,8 +65,9 @@ export function adminEntryPlugin(configFile: string, entry: AdminEntryMode): Plu
         `  preview: { stylesheets: [${JSON.stringify(entry.previewStylesheet)}], themeCss, tailwindBrowserUrl },`,
         `  siteUrl: "/",`,
         "});",
-        // The editor's frames are rebuilt as the site's code changes; a reload shows the new blocks.
-        `import.meta.hot?.on(${JSON.stringify(EDITOR_REBUILT_EVENT)}, () => location.reload());`,
+        // The editor's frames are rebuilt as the site's code changes; reloading them shows the new blocks,
+        // and leaves whatever is open on the admin panel's page as it is.
+        `import.meta.hot?.on(${JSON.stringify(EDITOR_REBUILT_EVENT)}, () => reloadFrames());`,
       ];
     }
     const backend = entry.site.backend;
