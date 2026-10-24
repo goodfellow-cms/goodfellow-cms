@@ -8,6 +8,13 @@
  * page make the same ones.
  */
 
+import {
+  cloudflareRebuildSteps,
+  githubScheduledJobs,
+  githubUpdateJobs,
+  PUBLISH_UPDATE_JOB,
+} from "./github-workflows.js";
+
 /** The secret (GitHub) or variable (GitLab) that holds the Pages project's deploy hook. */
 export const CLOUDFLARE_DEPLOY_HOOK = "CLOUDFLARE_DEPLOY_HOOK";
 
@@ -68,49 +75,21 @@ on:
         required: false
         default: ""
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  update:
-    # Each night, and when the admin panel's Updates screen asks.
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.update != '')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      sha: \${{ steps.update.outputs.sha }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          check-latest: true
-          cache: npm
-      - run: npm ci
-      - id: update
-        env:
-          TO: \${{ inputs.update || 'automatic' }}
-        run: npx ${cli} update --publish --to "$TO"
-
+${githubUpdateJobs({ update: `npx ${cli} update` })}
   rebuild:
-    needs: update
+    needs: [update, ${PUBLISH_UPDATE_JOB}]
     # Cloudflare builds an update that was published by itself, so this is for when there wasn't one.
-    if: \${{ !cancelled() && needs.update.outputs.sha == '' }}
+    if: \${{ !cancelled() && needs.${PUBLISH_UPDATE_JOB}.outputs.sha == '' }}
     runs-on: ubuntu-latest
     steps:
-      - env:
-          HOOK: \${{ secrets.${CLOUDFLARE_DEPLOY_HOOK} }}
-        run: |
-          if [ -z "$HOOK" ]; then
-            echo "Add the Cloudflare Pages project's deploy hook as this repository's ${CLOUDFLARE_DEPLOY_HOOK} secret."
-            exit 1
-          fi
-          curl --fail --silent --show-error --request POST "$HOOK"
+${cloudflareRebuildSteps(CLOUDFLARE_DEPLOY_HOOK)}
 `;
 }
 
@@ -128,36 +107,22 @@ on:
     - cron: "47 * * * *"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: write
+permissions: {}
 
 concurrency:
   group: scheduled-changes
   cancel-in-progress: false
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
+${githubScheduledJobs({
+  due: `npx ${cli} due`,
+  start: `    permissions:
+      actions: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          check-latest: true
-          cache: npm
-      - run: npm ci
-      # Since the last check that worked.
-      - id: due
-        env:
+      - env:
           GH_TOKEN: \${{ github.token }}
-        run: |
-          since="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scheduled.yml --status success --limit 1 --json startedAt --jq '.[0].startedAt' || true)"
-          npx ${cli} due --since "$since"
-      - if: steps.due.outputs.due == 'true'
-        env:
-          GH_TOKEN: \${{ github.token }}
-        run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+        run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"`,
+})}
 `;
 }
 

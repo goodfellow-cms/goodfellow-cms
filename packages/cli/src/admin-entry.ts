@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import type { AdminSite } from "@goodfellow-cms/core";
+import { ADMIN_POLICY, type AdminSite } from "@goodfellow-cms/core";
 import { DEV_API_PREFIX } from "@goodfellow-cms/core/node";
 import type { Plugin } from "vite";
 
@@ -131,6 +131,7 @@ export function adminHtml(options: {
     "  <head>",
     '    <meta charset="utf-8" />',
     '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
+    `    <meta http-equiv="Content-Security-Policy" content="${ADMIN_POLICY}" />`,
     '    <meta name="robots" content="noindex" />',
     "    <title>Site admin</title>",
     ...(options.icon ? [`    <link rel="icon" href="${escapeHtml(options.icon)}" />`] : []),

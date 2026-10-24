@@ -260,14 +260,16 @@ describe("initGitRepository", () => {
 });
 
 describe("copyTemplate", () => {
-  it("renames .gitignore files for publishing, and back again", async () => {
+  it("renames .gitignore and .npmrc files for publishing, and back again", async () => {
     await copyTemplate(starter, join(dir, "bundled"), { bundling: true });
-    expect(existsSync(join(dir, "bundled/.gitignore"))).toBe(false);
-    expect(existsSync(join(dir, "bundled/_gitignore"))).toBe(true);
+    for (const name of ["gitignore", "npmrc"]) {
+      expect(existsSync(join(dir, `bundled/.${name}`))).toBe(false);
+      expect(existsSync(join(dir, `bundled/_${name}`))).toBe(true);
+    }
     await copyTemplate(join(dir, "bundled"), join(dir, "site"));
-    expect(await readFile(join(dir, "site/.gitignore"), "utf8")).toBe(
-      await readFile(join(starter, ".gitignore"), "utf8"),
-    );
+    for (const name of [".gitignore", ".npmrc"]) {
+      expect(await readFile(join(dir, "site", name), "utf8")).toBe(await readFile(join(starter, name), "utf8"));
+    }
   });
 });
 

@@ -2,6 +2,7 @@
 
 import { Admin, OutdatedAdminPage, reloadFrames, type Strings } from "@goodfellow-cms/admin";
 import {
+  ADMIN_POLICY,
   type AdminSite,
   type ContentStore,
   DEV_EDITOR_PREFIX,
@@ -174,17 +175,22 @@ function SiteAdmin({
     };
   }, [siteUrl, site]);
 
-  if (!setup) return null;
+  // React puts it in the page's head, where it keeps the frames on the editor's pages.
+  const policy = <meta httpEquiv="Content-Security-Policy" content={ADMIN_POLICY} />;
+  if (!setup) return policy;
   return (
-    <Admin
-      site={site}
-      frames={{ url: EDITOR_URL }}
-      {...(setup.host && { host: setup.host })}
-      {...(setup.store && { store: setup.store, registry: `${BASE_PATH}/__goodfellow/api/registry/{name}.json` })}
-      {...(server && { server: `${BASE_PATH}${server}` })}
-      preview={{ stylesheets: setup.stylesheets, themeCss, tailwindBrowserUrl: setup.tailwindBrowserUrl }}
-      siteUrl={siteUrl}
-      {...(strings && { strings })}
-    />
+    <>
+      {policy}
+      <Admin
+        site={site}
+        frames={{ url: EDITOR_URL }}
+        {...(setup.host && { host: setup.host })}
+        {...(setup.store && { store: setup.store, registry: `${BASE_PATH}/__goodfellow/api/registry/{name}.json` })}
+        {...(server && { server: `${BASE_PATH}${server}` })}
+        preview={{ stylesheets: setup.stylesheets, themeCss, tailwindBrowserUrl: setup.tailwindBrowserUrl }}
+        siteUrl={siteUrl}
+        {...(strings && { strings })}
+      />
+    </>
   );
 }

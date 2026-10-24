@@ -6,6 +6,13 @@
  */
 import { CLOUDFLARE_DEPLOY_HOOK } from "./cloudflare-setup.js";
 import { CONTENT_REPOSITORY_DIR } from "./content/paths.js";
+import {
+  cloudflareRebuildSteps,
+  GITHUB_INSTALL_STEPS,
+  githubScheduledJobs,
+  githubUpdateJobs,
+  PUBLISH_UPDATE_JOB,
+} from "./github-workflows.js";
 import type { Host } from "./site-setup.js";
 
 /** Which repository the host builds the site from. */
@@ -115,6 +122,24 @@ function cloneUrl(setup: SeparateSetup, repo: string, variable: string): string 
   return `https://\${${variable}:+${user}:$${variable}@}${host}/${repo}.git`;
 }
 
+/**
+ * The content repository's jobs that run the site's code check out the code,
+ * with this repository's content in its folder, as on a developer's computer,
+ * keeping no credentials.
+ */
+function CODE_CHECKOUT(setup: SeparateSetup): string {
+  return `      # The site's code, with this repository's content in ${CONTENT_REPOSITORY_DIR}/, as on a developer's computer.
+      - uses: actions/checkout@v5
+        with:
+          repository: ${setup.code}
+          ssh-key: \${{ secrets.GOODFELLOW_CODE_KEY }}
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          path: ${CONTENT_REPOSITORY_DIR}
+          persist-credentials: false`;
+}
+
 /** GitHub Pages, built from the content repository: its workflow checks out the code, then the content inside it. */
 function githubPagesContentWorkflow(setup: SeparateSetup): string {
   const { copy, output } = commands(setup);
@@ -137,10 +162,7 @@ on:
     - cron: "17 4 * * *"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: pages
@@ -149,23 +171,14 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
     steps:
-      # The site's code, with this repository's content in ${CONTENT_REPOSITORY_DIR}/, as on a developer's computer.
-      - uses: actions/checkout@v5
-        with:
-          repository: ${setup.code}
-          ssh-key: \${{ secrets.GOODFELLOW_CODE_KEY }}
-      - uses: actions/checkout@v5
-        with:
-          path: ${CONTENT_REPOSITORY_DIR}
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          check-latest: true
-          cache: npm
+${CODE_CHECKOUT(setup)}
+${GITHUB_INSTALL_STEPS}
       - id: pages
         uses: actions/configure-pages@v5
-      - run: npm ci
       - run: ${copy}
       # Project sites live in a subfolder (/repository-name/); user and organization sites don't.
 ${build}
@@ -176,6 +189,9 @@ ${build}
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: \${{ steps.deployment.outputs.page_url }}
@@ -197,17 +213,12 @@ function githubScheduledContentWorkflow(setup: SeparateSetup): string {
     ? `asks Cloudflare to rebuild the site through the Pages project's deploy hook, which can only start builds: add it here as the ${CLOUDFLARE_DEPLOY_HOOK} secret (Settings → Secrets and variables → Actions)`
     : `starts the "Deploy to GitHub Pages" workflow (deploy.yml)`;
   const start = cloudflare
-    ? `      - if: steps.due.outputs.due == 'true'
-        env:
-          HOOK: \${{ secrets.${CLOUDFLARE_DEPLOY_HOOK} }}
-        run: |
-          if [ -z "$HOOK" ]; then
-            echo "Add the Cloudflare Pages project's deploy hook as this repository's ${CLOUDFLARE_DEPLOY_HOOK} secret."
-            exit 1
-          fi
-          curl --fail --silent --show-error --request POST "$HOOK"`
-    : `      - if: steps.due.outputs.due == 'true'
-        env:
+    ? `    steps:
+${cloudflareRebuildSteps(CLOUDFLARE_DEPLOY_HOOK)}`
+    : `    permissions:
+      actions: write
+    steps:
+      - env:
           GH_TOKEN: \${{ github.token }}
         run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"`;
   return `${comment(
@@ -220,41 +231,14 @@ on:
     - cron: "47 * * * *"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: write
+permissions: {}
 
 concurrency:
   group: scheduled-changes
   cancel-in-progress: false
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      # The site's code, with this repository's content in ${CONTENT_REPOSITORY_DIR}/, as its build has them.
-      - uses: actions/checkout@v5
-        with:
-          repository: ${setup.code}
-          ssh-key: \${{ secrets.GOODFELLOW_CODE_KEY }}
-      - uses: actions/checkout@v5
-        with:
-          path: ${CONTENT_REPOSITORY_DIR}
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          check-latest: true
-          cache: npm
-      - run: npm ci
-      - run: ${copy}
-      # Since the last check that worked.
-      - id: due
-        env:
-          GH_TOKEN: \${{ github.token }}
-        run: |
-          since="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow scheduled.yml --status success --limit 1 --json startedAt --jq '.[0].startedAt' || true)"
-          ${due} --since "$since"
-${start}
+${githubScheduledJobs({ due, checkout: CODE_CHECKOUT(setup), prepare: `      - run: ${copy}`, start })}
 `;
 }
 
@@ -267,24 +251,17 @@ function githubUpdateWorkflow(setup: SeparateSetup): string {
     : `The site is built and published from ${setup.content}: after each change to the code here, including updates, this starts its build, if this repository has a GOODFELLOW_BUILD_TOKEN secret (a fine-grained token for ${setup.content} only, with Actions read and write). Without it, changes to the code go live with that repository's nightly build.`;
   const build = cloudflare
     ? `  ${REBUILD_JOB}:
-    needs: update
+    needs: [update, ${PUBLISH_UPDATE_JOB}]
     # Cloudflare builds the content repository, so it's asked after any change to the code, and each night.
     if: \${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
-      - env:
-          HOOK: \${{ secrets.${CLOUDFLARE_DEPLOY_HOOK} }}
-        run: |
-          if [ -z "$HOOK" ]; then
-            echo "Add the Cloudflare Pages project's deploy hook as this repository's ${CLOUDFLARE_DEPLOY_HOOK} secret."
-            exit 1
-          fi
-          curl --fail --silent --show-error --request POST "$HOOK"
+${cloudflareRebuildSteps(CLOUDFLARE_DEPLOY_HOOK)}
 `
     : `  build:
-    needs: update
+    needs: [update, ${PUBLISH_UPDATE_JOB}]
     # After a change to the code, or an update that was published.
-    if: \${{ !cancelled() && (github.event_name != 'schedule' || needs.update.outputs.sha != '') }}
+    if: \${{ !cancelled() && (github.event_name != 'schedule' || needs.${PUBLISH_UPDATE_JOB}.outputs.sha != '') }}
     runs-on: ubuntu-latest
     steps:
       - env:
@@ -314,37 +291,20 @@ on:
         required: false
         default: ""
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
-  update:
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.update != '')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      sha: \${{ steps.update.outputs.sha }}
-    steps:
-      - uses: actions/checkout@v5
-      # The site's content, which the update builds the site with to check it still works.
+${githubUpdateJobs({
+  update,
+  checkout: `      # The site's content, which the update builds the site with to check it still works.
       - uses: actions/checkout@v5
         with:
           repository: ${setup.content}
           path: ${CONTENT_REPOSITORY_DIR}
           ssh-key: \${{ secrets.GOODFELLOW_CONTENT_KEY }}
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          check-latest: true
-          cache: npm
-      - run: npm ci
-      - run: ${copy}
-      - id: update
-        env:
-          TO: \${{ inputs.update || 'automatic' }}
-        run: ${update} --publish --to "$TO"
-
+          persist-credentials: false`,
+  prepare: `      - run: ${copy}`,
+})}
 ${build}`;
 }
 

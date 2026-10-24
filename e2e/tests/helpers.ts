@@ -64,7 +64,8 @@ export function canvas(page: Page) {
  * Checks the editor's frame is sandboxed with `allow-scripts` alone, by what
  * a block's code could try from inside it: none of it reaches the admin
  * panel's page, storage, the network (the development servers' local backend
- * included) or WebRTC.
+ * included) or WebRTC. The admin panel's own policy keeps its frames on the
+ * editor's pages, so none can be shown from another address there.
  */
 export async function expectSandboxed(page: Page) {
   await expect(page.locator("iframe.gfa-editor-frame")).toHaveAttribute("sandbox", "allow-scripts");
@@ -96,6 +97,19 @@ export async function expectSandboxed(page: Page) {
     localBackend: "refused",
     webrtc: "undefined",
   });
+  const refused = await page.evaluate(
+    () =>
+      new Promise<string>((resolve) => {
+        document.addEventListener("securitypolicyviolation", (event) => resolve(event.effectiveDirective), {
+          once: true,
+        });
+        const frame = document.createElement("iframe");
+        frame.hidden = true;
+        frame.src = "https://elsewhere.invalid/";
+        document.body.append(frame);
+      }),
+  );
+  expect(refused).toBe("frame-src");
 }
 
 /**

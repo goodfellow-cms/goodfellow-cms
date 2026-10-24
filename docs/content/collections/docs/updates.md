@@ -18,6 +18,8 @@ Each night, the site's build on GitHub Pages or GitLab Pages first runs `goodfel
 4. It installs the packages and builds the site. If either fails, every file goes back as it was, and the site is built as it was before.
 5. If the site built, the update is published as one change, named "Update Goodfellow to …", which the site's version history shows.
 
+On GitHub, the job that installs the update and builds the site can only read the repository, so packages it installs can't publish anything. A second job, which runs none of the site's code, publishes the change the first one made. On GitLab, any job in the site's project can publish once updates are turned on, since GitLab gives every job the same permissions.
+
 The rest of the build then puts the site online as usual, with the update if it worked.
 
 Where the site's [content is kept in a repository of its own](/docs/content-repository), updates run in the code's repository instead, and the Updates screen follows them there, for people who can see it, when the config names the code repository.
@@ -40,7 +42,7 @@ On GitHub, installing an update or going back from the screen runs the site's wo
 - **GitHub Pages:** the starter's workflow, `.github/workflows/deploy.yml`, updates the site each night already.
 - **GitLab Pages:** GitLab needs two things first, which **Turn on automatic updates** on the Updates screen does: letting the site's build publish (**Allow Git push requests to the repository**, under **Settings → CI/CD → Job token permissions**, which GitLab offers from release 18.4), and a pipeline schedule that runs the build each night. It needs the Maintainer role in the site's project.
 - **Cloudflare Pages:** a site made with Cloudflare Pages as its host has the same nightly update in its own setup files: on GitHub, `.github/workflows/deploy.yml`, which asks Cloudflare to rebuild the site through its deploy hook when there's no update to publish; on GitLab, `.gitlab-ci.yml`, which **Turn on automatic updates** sets up as for GitLab Pages.
-- **Older sites, and sites on Vercel:** their build setup doesn't update Goodfellow, so the Updates screen says so. A developer can copy the `update` job from the starter's `deploy.yml`, or the update step from its `.gitlab-ci.yml`, or run `npx goodfellow update` and publish the result.
+- **Older sites, and sites on Vercel:** their build setup doesn't update Goodfellow, so the Updates screen says so. A developer can copy the `update` and `publish-update` jobs from the starter's `deploy.yml`, or the update step from its `.gitlab-ci.yml`, or run `npx goodfellow update` and publish the result.
 
 ## For developers
 
@@ -48,5 +50,5 @@ On GitHub, installing an update or going back from the screen runs the site's wo
 
 - `--to fixes`, the default, installs the newest fix for the site's release; `--to automatic` does the same unless `content/updates.json` turns automatic fixes off, which is what the nightly build runs; `--to latest` installs the newest release; `--to 0.5.0` a release itself. `fixes`, `automatic` and `latest` leave out the releases `content/updates.json` skips.
 - An older release, such as `--to 0.4.1` on a site with 0.4.3, goes back to it, and adds 0.4.3 to the releases `content/updates.json` skips, in the same change. Installing a skipped release by name stops skipping it.
-- `--publish` commits and pushes the update to the site's main branch once the site has built with it. Without it, the files are left changed for you to look at.
+- `--publish` commits and pushes the update to the site's main branch once the site has built with it. `--commit` only commits it, so a job that can't push can make it and another job, which runs none of the site's code, can push it, as the starter's workflow does; in GitHub Actions it sets the step's `commit` output to `true` when it made one. Without either, the files are left changed for you to look at.
 - It prints a line starting `goodfellow-update`, which the admin panel reads in GitLab's log, and exits with an error when the update didn't work.

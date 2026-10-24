@@ -78,7 +78,10 @@ my-site/
 │   └── styles/custom.css    # custom CSS from Site Settings
 ├── public/media/            # uploaded images and files
 ├── src/styles.css           # Tailwind and the site's theme
+├── .npmrc                   # installing packages runs none of their install scripts
 └── .github/workflows/deploy.yml, .gitlab-ci.yml, vercel.ts   # host setups
 ```
+
+None of a site's packages need an install script, the code a package can run when it's installed, so `.npmrc` turns them off, here and in every build. If a package you add needs one, run `npm rebuild <package>` after installing it, in the site's build too.
 
 Next, [put it online](/docs/put-it-online).

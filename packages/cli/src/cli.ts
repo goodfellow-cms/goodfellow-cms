@@ -52,6 +52,8 @@ Options:
                   content/updates.json turns them off), latest, or a release
                   such as 0.5.0; an older one goes back to it and skips this one
   --publish       For update: publish the update to the site's main branch once it builds
+  --commit        For update: commit the update once it builds, without publishing it,
+                  for a job that runs none of the site's code to publish
   --since <time>  For due: when the last check started, such as 2026-11-29T09:17:00Z
   --strict        For build: fail if the site checks find links to pages or media that don't exist
   --dry-run       For import: say what importing would bring across, and change nothing
@@ -74,6 +76,7 @@ async function main(): Promise<void> {
       port: { type: "string" },
       to: { type: "string" },
       publish: { type: "boolean" },
+      commit: { type: "boolean" },
       since: { type: "string" },
       strict: { type: "boolean" },
       "dry-run": { type: "boolean" },
@@ -141,7 +144,7 @@ async function main(): Promise<void> {
       return;
     }
     case "update": {
-      const result = await update({ root: values.root, to: values.to, publish: values.publish });
+      const result = await update({ root: values.root, to: values.to, publish: values.publish, commit: values.commit });
       // For the admin panel, which reads it in the host's log.
       console.log(formatUpdateResult(result));
       if (result.state === "failed") process.exitCode = 1;

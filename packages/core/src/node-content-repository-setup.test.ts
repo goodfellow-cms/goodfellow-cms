@@ -104,11 +104,21 @@ describe("planSite with the content in a repository of its own", () => {
 
     const deploy = parse(text(files, "content-repository/.github/workflows/deploy.yml"));
     const steps = deploy.jobs.build.steps as Array<Record<string, unknown>>;
+    // The jobs that run the site's code can only read, and keep no credentials.
+    expect(deploy.permissions).toEqual({});
+    expect(deploy.jobs.build.permissions).toEqual({ contents: "read", pages: "read" });
     expect(steps[0]).toEqual({
       uses: "actions/checkout@v5",
-      with: { repository: "parish/site", "ssh-key": `\${{ secrets.GOODFELLOW_CODE_KEY }}` },
+      with: {
+        repository: "parish/site",
+        "ssh-key": `\${{ secrets.GOODFELLOW_CODE_KEY }}`,
+        "persist-credentials": false,
+      },
     });
-    expect(steps[1]).toEqual({ uses: "actions/checkout@v5", with: { path: "content-repository" } });
+    expect(steps[1]).toEqual({
+      uses: "actions/checkout@v5",
+      with: { path: "content-repository", "persist-credentials": false },
+    });
     expect(steps.map((step) => step.run).filter(Boolean)).toEqual([
       "npm ci",
       "npx goodfellow content copy",
@@ -122,7 +132,12 @@ describe("planSite with the content in a repository of its own", () => {
     expect(check.map((step) => step.run).filter(Boolean)).toEqual([
       "npm ci",
       "npx goodfellow content copy",
-      expect.stringContaining('npx goodfellow due --since "$since"'),
+      expect.stringContaining("gh run list"),
+      'npx goodfellow due --since "$SINCE"',
+    ]);
+    // Starting the build runs none of the site's code.
+    expect(scheduled.jobs.start.permissions).toEqual({ actions: "write" });
+    expect(scheduled.jobs.start.steps.map((step: { run?: string }) => step.run)).toEqual([
       'gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"',
     ]);
 
@@ -131,7 +146,12 @@ describe("planSite with the content in a repository of its own", () => {
       repository: "parish/site-content",
       path: "content-repository",
       "ssh-key": `\${{ secrets.GOODFELLOW_CONTENT_KEY }}`,
+      "persist-credentials": false,
     });
+    // The update builds with a token that can only read; publishing it runs none of the site's code.
+    expect(update.jobs.update.permissions).toEqual({ contents: "read" });
+    expect(update.jobs["publish-update"].permissions).toEqual({ contents: "write" });
+    expect(update.jobs["publish-update"].steps.some((step: { run?: string }) => step.run?.includes("npm"))).toBe(false);
     expect(update.jobs.build.steps[0].run).toContain("gh workflow run deploy.yml --repo parish/site-content");
   });
 
@@ -183,7 +203,7 @@ describe("planSite with the content in a repository of its own", () => {
     expect(update.jobs.rebuild.if).toBe(`\${{ !cancelled() }}`);
     expect(update.jobs.rebuild.steps[0].env.HOOK).toBe(`\${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}`);
     const scheduled = parse(text(github, "content-repository/.github/workflows/scheduled.yml"));
-    expect(scheduled.jobs.check.steps.at(-1).env.HOOK).toBe(`\${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}`);
+    expect(scheduled.jobs.start.steps.at(-1).env.HOOK).toBe(`\${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}`);
     // The README says what to put in Cloudflare's settings.
     expect(text(github, "content-repository/README.md")).toContain(
       `the build command \`git clone --depth 1 "https://\${GOODFELLOW_CODE_TOKEN:+x-access-token:$GOODFELLOW_CODE_TOKEN@}github.com/parish/site.git" site && cd site && npm ci && npx goodfellow content copy .. && npx goodfellow build\` and the output directory \`site/dist\``,

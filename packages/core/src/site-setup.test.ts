@@ -21,6 +21,7 @@ function template(): SiteFiles {
     ],
     ["goodfellow.config.tsx", config],
     ["_gitignore", "node_modules\n"],
+    ["_npmrc", "ignore-scripts=true\n"],
     [".github/workflows/deploy.yml", "name: Deploy"],
     [".gitlab-ci.yml", "pages:"],
     ["vercel.ts", "{}"],
@@ -45,6 +46,7 @@ describe("planSite", () => {
     expect(files.get("goodfellow.config.tsx")).toContain('backend: github({ repo: "someone/my-parish" }),');
     expect(files.get(".gitignore")).toBe("node_modules\n");
     expect(files.has("_gitignore")).toBe(false);
+    expect(files.get(".npmrc")).toBe("ignore-scripts=true\n");
     expect([...files.keys()].filter((path) => /deploy|gitlab|vercel/.test(path))).toEqual([
       ".github/workflows/deploy.yml",
     ]);
@@ -66,12 +68,16 @@ describe("planSite", () => {
     const workflow = parse(siteFileText(github.get(".github/workflows/deploy.yml") ?? ""));
     // Cloudflare builds pushes itself, so the workflow only runs at night and when it's started.
     expect(Object.keys(workflow.on)).toEqual(["schedule", "workflow_dispatch"]);
-    expect(workflow.jobs.update.steps.at(-1).run).toBe('npx goodfellow update --publish --to "$TO"');
+    // The update is built with a token that can only read, and published by a job that runs none of the site's code.
+    const update = workflow.jobs.update.steps.find((step: { id?: string }) => step.id === "update");
+    expect(update.run).toBe('npx goodfellow update --commit --to "$TO"');
+    expect(workflow.jobs.update.permissions).toEqual({ contents: "read" });
+    expect(workflow.jobs["publish-update"].permissions).toEqual({ contents: "write" });
     // The rebuild is for when no update was published, which Cloudflare would build by itself.
-    expect(workflow.jobs.rebuild.if).toBe(`\${{ !cancelled() && needs.update.outputs.sha == '' }}`);
+    expect(workflow.jobs.rebuild.if).toBe(`\${{ !cancelled() && needs.publish-update.outputs.sha == '' }}`);
     expect(workflow.jobs.rebuild.steps[0].env.HOOK).toBe(`\${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}`);
     const scheduled = parse(siteFileText(github.get(".github/workflows/scheduled.yml") ?? ""));
-    expect(scheduled.jobs.check.steps.at(-1).run).toContain("gh workflow run deploy.yml");
+    expect(scheduled.jobs.start.steps.at(-1).run).toContain("gh workflow run deploy.yml");
 
     const gitlab = await planSite({
       template: template(),
