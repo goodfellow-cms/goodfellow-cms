@@ -4,8 +4,10 @@ import {
   type Collection,
   calendarFilePath,
   calendarMonths,
+  changesOn,
   datePart,
   datesInMonth,
+  dayAfter,
   type EventValue,
   entryTitle,
   eventFilePath,
@@ -129,6 +131,23 @@ function feedItems(feed: FeedOccurrence[] | undefined, from: string, to: string)
       ...(item.place && { place: item.place }),
       ...(item.description && { summary: item.description }),
     }));
+}
+
+/**
+ * When a list of the days from `from` to `to` would show something else as the
+ * days go by: once an event on it is over, or once the next of a collection's
+ * events comes within `days`.
+ */
+function listChanges(collection: Collection | undefined, items: CalendarItem[], to: string, days: number): void {
+  for (const item of items) changesOn(dayAfter(item));
+  const when = collection?.settings.calendar?.when;
+  if (!collection || !when) return;
+  for (const entry of collection.entries) {
+    const event = entry.content.fields[when];
+    if (!isEventLike(event)) continue;
+    const [next] = occurrences(event, { from: addDays(to, 1), to: "9999-12-31", limit: 1 });
+    if (next) changesOn(addDays(datePart(next.start), -days));
+  }
 }
 
 function sortItems(items: CalendarItem[]): CalendarItem[] {
@@ -448,6 +467,9 @@ function CalendarView({ isEditing, ...props }: CalendarProps & { id?: string; is
   const from = month ? `${month}-01` : today;
   const to = month ? lastDate(month) : addDays(today, Math.max(1, props.days));
   let items = sortItems([...collectionItems(collection, from, to), ...feedItems(props.feedEvents, from, to)]);
+  // A month marks today, so it's different every day; a list once something on it is over or comes within it.
+  if (month) changesOn(addDays(today, 1));
+  else listChanges(collection, items, to, Math.max(1, props.days));
   if (!month && props.limit > 0) items = items.slice(0, props.limit);
 
   return (
@@ -518,6 +540,8 @@ export async function readFeed(
   if (!props.feed.trim()) return undefined;
   try {
     const today = todayIn(settings.timeZone);
+    // Another calendar may change at any time, so the site is built again tomorrow at the latest.
+    changesOn(addDays(today, 1));
     return readCalendar(await fetchFeed(props.feed, fetcher), {
       timeZone: settings.timeZone,
       ...feedWindow(props, today),

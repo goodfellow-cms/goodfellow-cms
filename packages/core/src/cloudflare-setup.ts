@@ -12,6 +12,7 @@ import {
   cloudflareRebuildSteps,
   githubScheduledJobs,
   githubUpdateJobs,
+  nightlyBuildCondition,
   PUBLISH_UPDATE_JOB,
 } from "./github-workflows.js";
 
@@ -60,7 +61,7 @@ const HOOK_WHERE =
 function githubWorkflow({ next }: CloudflareSetup): string {
   const cli = next ? "goodfellow-next" : "goodfellow";
   return `${comment(
-    `Cloudflare Pages builds and publishes the site whenever the main branch changes (including every Publish in the admin panel). This workflow keeps it current: each night it installs Goodfellow's newest fixes, and publishes them only if the site still builds with them, unless content/updates.json turns automatic updates off. When there's nothing new to publish, it asks Cloudflare to rebuild the site instead, so date-based content stays current. scheduled.yml also starts it when a page or item scheduled to be shown or hidden comes due.
+    `Cloudflare Pages builds and publishes the site whenever the main branch changes (including every Publish in the admin panel). This workflow keeps it current. Each night it checks whether the site needs building: when Goodfellow has new fixes, which it installs and publishes only if the site still builds with them, unless content/updates.json turns automatic updates off; when something the site shows by today's date, such as an event, has changed; or when the live site isn't the newest build. When it needs building but there's no update to publish, it asks Cloudflare to rebuild the site. The repository variable GOODFELLOW_NIGHTLY, which the admin panel's Updates screen sets, can make it rebuild every night ("always") or not at all ("off"). scheduled.yml also starts it when a page or item scheduled to be shown or hidden comes due, and the Updates screen's Rebuild now when an owner asks.
 It asks Cloudflare through ${HOOK_WHERE}: add it here as the ${CLOUDFLARE_DEPLOY_HOOK} secret (Settings → Secrets and variables → Actions). See README.md.`,
   )}
 name: Update and rebuild on Cloudflare Pages
@@ -82,11 +83,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-${githubUpdateJobs({ update: `npx ${cli} update` })}
+${githubUpdateJobs({ update: `npx ${cli} update`, nightly: `npx ${cli} nightly` })}
   rebuild:
-    needs: [update, ${PUBLISH_UPDATE_JOB}]
+    needs: [check, update, ${PUBLISH_UPDATE_JOB}]
     # Cloudflare builds an update that was published by itself, so this is for when there wasn't one.
-    if: \${{ !cancelled() && needs.${PUBLISH_UPDATE_JOB}.outputs.sha == '' }}
+    if: ${nightlyBuildCondition(` && needs.${PUBLISH_UPDATE_JOB}.outputs.sha == ''`)}
     runs-on: ubuntu-latest
     steps:
 ${cloudflareRebuildSteps(CLOUDFLARE_DEPLOY_HOOK)}
@@ -130,8 +131,8 @@ ${githubScheduledJobs({
 function gitlabPipeline({ next }: CloudflareSetup): string {
   const cli = next ? "goodfellow-next" : "goodfellow";
   return `${comment(
-    `Cloudflare Pages builds and publishes the site whenever the default branch changes (including every Publish in the admin panel). This pipeline keeps it current. On scheduled pipelines, which the admin panel's Updates screen sets up to run each night, it first installs Goodfellow's newest fixes, unless content/updates.json turns automatic updates off (or the release GOODFELLOW_UPDATE names), and publishes them only if the site still builds with them. That needs "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, which the Updates screen turns on.
-When there's nothing new to publish, it asks Cloudflare to rebuild the site instead, so date-based content stays current. The admin panel also adds a pipeline schedule for each time a page or item is scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, which only rebuilds the site.
+    `Cloudflare Pages builds and publishes the site whenever the default branch changes (including every Publish in the admin panel). This pipeline keeps it current. On scheduled pipelines, which the admin panel's Updates screen sets up to run each night, it first checks whether the site needs building: when Goodfellow has new fixes, which it installs (or the release GOODFELLOW_UPDATE names) and publishes only if the site still builds with them, unless content/updates.json turns automatic updates off; when something the site shows by today's date, such as an event, has changed; or when the live site isn't the newest build. The schedule's GOODFELLOW_NIGHTLY variable "always" rebuilds it every night, and the Updates screen turns the schedule off for "never". Updating needs "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, which the Updates screen turns on.
+When it needs building but there's no update to publish, it asks Cloudflare to rebuild the site. The admin panel also adds a pipeline schedule for each time a page or item is scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, and starts a pipeline with GOODFELLOW_REBUILD set for the Updates screen's Rebuild now, both of which only rebuild the site.
 It asks Cloudflare through ${HOOK_WHERE}: add it here as the ${CLOUDFLARE_DEPLOY_HOOK} variable (Settings → CI/CD → Variables, masked). See README.md.`,
   )}
 update:
@@ -142,14 +143,26 @@ update:
     paths: [.npm/]
   script:
     - |
-      if [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ]; then
+      build=true
+      update=false
+      if [ -n "$GOODFELLOW_UPDATE" ]; then
+        update=true
+      elif [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ] && [ -z "$GOODFELLOW_REBUILD" ]; then
         npm ci --cache .npm --prefer-offline
+        # Sets build and update; where it can't tell, the site is updated and rebuilt as before.
+        npx ${cli} nightly --output nightly.env && . ./nightly.env || update=true
+      fi
+    - |
+      if [ "$update" = true ]; then
+        [ -d node_modules ] || npm ci --cache .npm --prefer-offline
         git remote set-url origin "https://gitlab-ci-token:\${CI_JOB_TOKEN}@\${CI_SERVER_FQDN:-$CI_SERVER_HOST}/\${CI_PROJECT_PATH}.git"
         npx ${cli} update --publish --to "\${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't published; rebuilding the site as it is."
       fi
     # Cloudflare builds an update that was published by itself, so this is for when there wasn't one.
     - |
-      if [ "$(git ls-remote origin "refs/heads/$CI_COMMIT_BRANCH" | cut -f1)" != "$CI_COMMIT_SHA" ]; then
+      if [ "$build" = false ] && [ "$update" = false ]; then
+        echo "Not rebuilding the site, since nothing has changed since it was built."
+      elif [ "$(git ls-remote origin "refs/heads/$CI_COMMIT_BRANCH" | cut -f1)" != "$CI_COMMIT_SHA" ]; then
         echo "Cloudflare builds the update that was published."
       elif [ -z "$${CLOUDFLARE_DEPLOY_HOOK}" ]; then
         echo "Add the Cloudflare Pages project's deploy hook as this project's ${CLOUDFLARE_DEPLOY_HOOK} variable."
@@ -158,7 +171,7 @@ update:
         curl --fail --silent --show-error --request POST "$${CLOUDFLARE_DEPLOY_HOOK}"
       fi
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE)
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE || $GOODFELLOW_REBUILD)
 `;
 }
 

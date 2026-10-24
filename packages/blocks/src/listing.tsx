@@ -5,9 +5,11 @@
  */
 
 import {
+  addDays,
   type BlockPagesContext,
   type Collection,
   type CollectionField,
+  changesOn,
   choiceSlug,
   type Entry,
   hasChoice,
@@ -107,6 +109,8 @@ export function selectedEntries(
       // An event that repeats is upcoming until its last time.
       if (isEventLike(date)) return show === "upcoming" ? isUpcoming(date, now) : !isUpcoming(date, now);
       if (!isDateValue(date)) return false;
+      // It moves from "Today and later" to "Before today" the day after its date.
+      if (date >= now) changesOn(addDays(date, 1));
       return show === "upcoming" ? date >= now : date < now;
     });
   }

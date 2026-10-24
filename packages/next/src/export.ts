@@ -27,7 +27,14 @@ import {
   siteLanguages,
 } from "@goodfellow-cms/core";
 import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
-import { fileSystemSource, guardBuiltSite, selfHostFonts } from "@goodfellow-cms/core/node";
+import {
+  BUILD_DATES_DIR,
+  fileSystemSource,
+  guardBuiltSite,
+  reportedDate,
+  selfHostFonts,
+  writeBuildRecord,
+} from "@goodfellow-cms/core/node";
 
 export { NEXT_SITE_FILES } from "./site-files.js";
 
@@ -113,6 +120,20 @@ export async function writeFontFiles(outDir: string, root = process.cwd()): Prom
     ...(robotsElsewhere && { robotsElsewhere }),
     ...(settings.url && { sitemap: absoluteUrl(settings.url, "/sitemap.xml") }),
   };
+}
+
+/**
+ * Writes the build record (`goodfellow-build.json`) into the export, as
+ * `goodfellow build` does, from the dates the processes that rendered its
+ * pages wrote into `.next/` (see `withGoodfellow()`). Returns when the site
+ * stops being current, if it does.
+ */
+export async function writeBuildRecordFile(outDir: string, root = process.cwd()): Promise<string | undefined> {
+  const dir = resolve(root);
+  const content = await loadSiteContent(fileSystemSource(dir));
+  const date = await reportedDate(join(dir, ".next", BUILD_DATES_DIR));
+  const record = await writeBuildRecord(outDir, { root: dir, content, now: new Date(), ...(date && { date }) });
+  return record.currentUntil;
 }
 
 /** What `writeRedirectFiles()` wrote. */

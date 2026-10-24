@@ -16,6 +16,7 @@ import {
   pageOutputFile,
   type Redirect,
   redirectFiles,
+  resetDateChanges,
   rootRobotsUrl,
   type ScheduledChange,
   type SelfHostedResult,
@@ -29,7 +30,7 @@ import {
   withBase,
 } from "@goodfellow-cms/core";
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
-import { fileSystemSource, guardBuiltSite, selfHostFonts } from "@goodfellow-cms/core/node";
+import { fileSystemSource, guardBuiltSite, selfHostFonts, writeBuildRecord } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { createServer, build as viteBuild } from "vite";
 import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
@@ -57,6 +58,11 @@ export interface BuildResult {
   problems: SiteProblem[];
   /** The next change the site's schedules make, which the site must be rebuilt for. */
   nextChange?: ScheduledChange;
+  /**
+   * When something the site shows by today's date, or a scheduled change, makes
+   * it different, as the build record (`goodfellow-build.json`) says.
+   */
+  currentUntil?: string;
   /**
    * How many redirects didn't fit in Cloudflare Pages' `_redirects`, past its
    * limit of 2,000 lines, and are left to their pages.
@@ -133,6 +139,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const base = normalizeBase(options.base ?? config.base);
     // The site as visitors see it now: pages and items scheduled for later, or hidden again, are left out.
     const now = new Date();
+    // Rendering pages reports when what they show by today's date changes, for the build record.
+    resetDateChanges();
     const loaded = await loadSiteContent(fileSystemSource(root));
     const content = shownContent(loaded, now);
     const styles = await writeStylesEntries(root, config);
@@ -265,6 +273,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const fonts = await selfHostFonts(outDir, content.settings.theme, { base });
     const robotsElsewhere = rootRobotsUrl(url);
 
+    // What the site was built from, and when it stops being current, for the nightly check.
+    const record = await writeBuildRecord(outDir, { root, content: loaded, now });
+
     // Last, once every page is written: the index is made from the finished HTML.
     const searchIndexed = await writeSearchIndex(outDir);
     // Then, for a site with an admin address, every page starts with the script that keeps site pages off it.
@@ -284,6 +295,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       ...(searchIndexed !== undefined && { searchIndexed }),
       problems,
       ...(nextChange && { nextChange }),
+      ...(record.currentUntil && { currentUntil: record.currentUntil }),
       ...(cloudflare.left > 0 && { redirectsLeft: cloudflare.left }),
       ...(fonts && { fonts }),
       ...(robotsElsewhere && { robotsElsewhere }),

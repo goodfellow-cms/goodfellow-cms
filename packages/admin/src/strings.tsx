@@ -1047,6 +1047,23 @@ export const defaultStrings = {
   "updates.skipped.body": "The site went back from these releases, so updates don't install them.",
   "updates.skipped.allow": "Allow {version} again",
   "updates.skipped.allowMessage": "Allow Goodfellow {version} again",
+  "updates.nightly.title": "Rebuilding overnight",
+  "updates.nightly.body":
+    "Each night, the site can check whether it needs rebuilding: for fixes to install, for something it shows by today's date, such as an event's next date, or for a change that didn't go live.",
+  "updates.nightly.changed": "Only when something changed (recommended)",
+  "updates.nightly.always": "Every night",
+  "updates.nightly.off": "Never",
+  "updates.nightly.offWarning":
+    "Without rebuilding overnight, what the site shows by today's date, such as lists of what's coming up, goes out of date, and fixes aren't installed on their own. The site is still rebuilt each time someone publishes.",
+  "updates.nightly.unknown": "Sign in as an owner to see or change this.",
+  "updates.nightly.onlyOwners": "Only the site's owners can change this.",
+  "updates.nightly.old":
+    "This site's build setup rebuilds it every night. A newer setup from Goodfellow's starter rebuilds it only when something changed.",
+  "updates.rebuild.title": "Rebuild the site",
+  "updates.rebuild.body":
+    "Rebuilds the site now without publishing anything, so the live site catches up, such as with another calendar's events or after a rebuild that didn't work.",
+  "updates.rebuild.button": "Rebuild now",
+  "updates.rebuild.started": "The site is rebuilding. It takes a few minutes.",
   "updates.started": "The update has started. It takes a few minutes, and this page shows how it went.",
   "updates.last.title": "Last update",
   "updates.last.none": "No update has run yet.",

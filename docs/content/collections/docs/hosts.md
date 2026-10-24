@@ -18,7 +18,7 @@ We recommend keeping the site on GitLab and publishing it with GitLab Pages, wha
 
 Its limits:
 
-- **400 build minutes a month,** shared by every project in the account or group. A publish or the nightly update takes a few minutes, and a publish made while the site is still building cancels that build, so that's enough for most sites, but a busy one, or several sites in one group, can run out, and then nothing is published until the next month. Such a site can keep its files on GitLab and be built by [Cloudflare Pages](#cloudflare-pages) instead.
+- **400 build minutes a month,** shared by every project in the account or group. A publish or an update takes a few minutes, the site is rebuilt overnight only when something changed, and a publish made while the site is still building cancels that build, so that's enough for most sites, but a busy one, or several sites in one group, can run out, and then nothing is published until the next month. Such a site can keep its files on GitLab and be built by [Cloudflare Pages](#cloudflare-pages) instead.
 - **Up to 5 people** in a private group or account.
 - **New accounts may be asked to verify** a phone number or card before GitLab runs their first build.
 - **Editors' sign-in reaches every project they can change,** where GitHub's sign-in service gives a token for the site's repository alone, so keep editors' GitLab accounts to the sites they edit.
@@ -36,12 +36,12 @@ GitHub suits a site whose editors already use GitHub, or one with a developer wh
 
 [Cloudflare Pages](https://pages.cloudflare.com) builds sites from repositories on GitHub and GitLab, public or private. Its free plan's limits ([Pages limits](https://developers.cloudflare.com/pages/platform/limits/)):
 
-- **500 builds a month**, one at a time, each up to 20 minutes. Each publish, nightly update and scheduled change that comes due is one build.
+- **500 builds a month**, one at a time, each up to 20 minutes. Each publish, overnight rebuild and scheduled change that comes due is one build; the site is rebuilt overnight only when something changed.
 - **20,000 files**, each up to 25 MiB.
 - **2,000 redirects** in the `_redirects` file the build writes, two for each old address, so about 1,000 old addresses; past that, the build says so, and the pages it writes at old addresses handle the rest.
 - **Domains:** a subdomain, such as `www.example.org`, can keep its DNS where it is, with a CNAME record; the domain itself, such as `example.org`, has to use Cloudflare's nameservers, or redirect to the subdomain through your registrar or a redirect service. See [Custom domains](/docs/custom-domains#sites-on-cloudflare-pages).
 
-Cloudflare can't build on a schedule, so the site's nightly update and its hourly check for scheduled changes run on GitHub Actions or GitLab CI, and ask Cloudflare to rebuild the site through its deploy hook. On a private GitHub repository, the hourly check uses about 720 of the free plan's 2,000 minutes a month; delete `.github/workflows/scheduled.yml` to have scheduled changes go live with the nightly rebuild instead.
+Cloudflare can't build on a schedule, so the site's nightly check, which installs updates and rebuilds it only when something changed, and its hourly check for scheduled changes run on GitHub Actions or GitLab CI, and ask Cloudflare to rebuild the site through its deploy hook. On a private GitHub repository, the hourly check uses about 720 of the free plan's 2,000 minutes a month; delete `.github/workflows/scheduled.yml` to have scheduled changes go live with the nightly rebuild instead.
 
 ## Business and commercial sites
 

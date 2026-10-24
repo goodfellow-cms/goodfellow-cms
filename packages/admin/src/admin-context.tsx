@@ -164,6 +164,8 @@ export interface AdminContextValue {
   repositoryVisibility?: () => Promise<RepositoryVisibility>;
   /** Why the host wouldn't build the site at scheduled times, when the sign-in can't have it do so. */
   scheduleSyncProblem?: "not-allowed";
+  /** Follows a build of the loaded revision that isn't a publish's, such as Rebuild now's, until it's live. */
+  followBuild?(): void;
 }
 
 /** Whether the admin panel runs at the site's admin address, once it's checked (`AdminAddress.checked`). */
@@ -398,6 +400,12 @@ export function AdminProvider({
     };
   }, [deploy, store]);
 
+  const followBuild = useCallback(() => {
+    if (state.status === "ready" && isGitBackend(store)) {
+      setDeploy({ revision: state.revision, previous: state.revision, state: "building" });
+    }
+  }, [state, store]);
+
   const value = useMemo(
     () => ({
       site,
@@ -426,6 +434,7 @@ export function AdminProvider({
       scheduledBuilds,
       repositoryVisibility,
       scheduleSyncProblem,
+      followBuild,
     }),
     [
       site,
@@ -454,6 +463,7 @@ export function AdminProvider({
       scheduledBuilds,
       repositoryVisibility,
       scheduleSyncProblem,
+      followBuild,
     ],
   );
 

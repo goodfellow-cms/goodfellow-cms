@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Commands
-description: goodfellow dev, build, preview, index, update, due, content and import, and serving a site from a subfolder.
+description: goodfellow dev, build, preview, index, update, due, nightly, content and import, and serving a site from a subfolder.
 section: developers
 order: 5
 ---
@@ -9,11 +9,12 @@ order: 5
 | Command | What it does |
 |---|---|
 | `goodfellow dev` | Serves the site, rendering each page from the files on disk, plus the admin panel at `/admin`, which saves to those files |
-| `goodfellow build` | Writes one HTML file per page that's shown at the time (see [Scheduled publishing](/docs/scheduling)) to `dist/`, builds the CSS and copies `public/`. Also writes `sitemap.xml` (without pages hidden from search engines), `robots.txt` and [feeds](/docs/search-engines#feeds) of dated collections if the site's address is set, the admin panel if the config has a `backend` or `demo`, the JavaScript for [Client Components](/docs/interactive-blocks), [calendar files and month pages](/docs/calendars) for collections of events, lists' [later pages and pages for each choice](/docs/showing-collections#pages-of-items), a page at each [redirect's](/docs/layout-and-settings#redirects) old address and `_redirects` for Cloudflare Pages, a copy of the site's Google Fonts in `fonts/google/`, which its pages load in place of Google's, and a [search index](/docs/search) if a page has a Search block. For a site in a subfolder, it says where search engines look for `robots.txt` (see [Sites in a subfolder](/docs/search-engines#sites-in-a-subfolder)) |
+| `goodfellow build` | Writes one HTML file per page that's shown at the time (see [Scheduled publishing](/docs/scheduling)) to `dist/`, builds the CSS and copies `public/`. Also writes `sitemap.xml` (without pages hidden from search engines), `robots.txt` and [feeds](/docs/search-engines#feeds) of dated collections if the site's address is set, the admin panel if the config has a `backend` or `demo`, the JavaScript for [Client Components](/docs/interactive-blocks), [calendar files and month pages](/docs/calendars) for collections of events, lists' [later pages and pages for each choice](/docs/showing-collections#pages-of-items), a page at each [redirect's](/docs/layout-and-settings#redirects) old address and `_redirects` for Cloudflare Pages, a copy of the site's Google Fonts in `fonts/google/`, which its pages load in place of Google's, a [search index](/docs/search) if a page has a Search block, and `goodfellow-build.json`, which says what the site was built from and when what it shows by today's date next changes, for the [nightly check](/docs/updates#rebuilding-overnight). For a site in a subfolder, it says where search engines look for `robots.txt` (see [Sites in a subfolder](/docs/search-engines#sites-in-a-subfolder)) |
 | `goodfellow preview` | Serves `dist/` the way a host would, including the "Page not found" page |
 | `goodfellow index` | Writes the search index for a site built another way |
 | `goodfellow update` | Updates Goodfellow, and blocks from its registry, if the site still builds with the update (see [Keeping a site up to date](/docs/updates)) |
-| `goodfellow due [--since <time>]` | Says whether a [scheduled](/docs/scheduling) page or item has been shown or hidden since `--since` (an ISO time; the last hour without one), so the site needs building again. On GitHub Actions it also sets the step's `due` output to `true` or `false`, which the starters' hourly check reads |
+| `goodfellow due [--since <time>]` | Says whether a [scheduled](/docs/scheduling) page or item has been shown or hidden since `--since` (an ISO time; the last hour without one), so the site needs building again. On GitHub Actions it also sets the step's `due` output to `true` or `false`, which the starters' hourly check reads. It's also due the first check after the live site's `goodfellow-build.json` says what it shows by today's date changes |
+| `goodfellow nightly [--mode <mode>] [--output <file>]` | Says whether tonight's build is needed: when the site has changed since the live site was built, something it shows by today's date has, or an update is available, reading the live site's `goodfellow-build.json`. `--mode` (or `GOODFELLOW_NIGHTLY`) is `changed`, the default, `always` or `off`. On GitHub Actions it sets the step's `build` and `update` outputs, or adds them to `--output`; see [Rebuilding overnight](/docs/updates#rebuilding-overnight) |
 | `goodfellow content link [folder]` | For a site whose [content is in a repository of its own](/docs/content-repository): links `content/` and `public/media/` to it, in `folder` (default: `content-repository`), so `goodfellow dev` reads and saves its files |
 | `goodfellow content copy [folder]` | Copies them from it instead, as builds do |
 | `goodfellow broker add [folder] --host <host>` | Writes the site's [token broker](/docs/token-broker)'s repository into `folder` (default: beside the site's, named after it with `-signin`), for `github-pages` (with `--domain`), `gitlab-pages`, `cloudflare-pages` or `vercel` |
@@ -23,7 +24,7 @@ order: 5
 | `goodfellow import wordpress <file or address>` | Brings a WordPress site's pages, posts, categories, tags, menus and media into the site, from its export file or its address (see [Move from WordPress](/docs/move-from-wordpress)). `--dry-run` says what would come across and changes nothing |
 | `goodfellow export wordpress [file]` | Writes the site as a WordPress export file, at `file` or in a file named after the site, which WordPress imports with **Tools → Import → WordPress** (see [Move from WordPress](/docs/move-from-wordpress#moving-to-wordpress)) |
 
-Next.js sites have the same `update`, `due`, `content`, `admin`, `import` and `export` commands as `goodfellow-next update`, `goodfellow-next due`, `goodfellow-next content`, `goodfellow-next admin`, `goodfellow-next import` and `goodfellow-next export`, and `goodfellow-next broker use` and `remove`.
+Next.js sites have the same `update`, `due`, `nightly`, `content`, `admin`, `import` and `export` commands as `goodfellow-next update`, `goodfellow-next due`, `goodfellow-next nightly`, `goodfellow-next content`, `goodfellow-next admin`, `goodfellow-next import` and `goodfellow-next export`, and `goodfellow-next broker use` and `remove`.
 
 Options: `--root <dir>`, `--out <dir>`, `--port <port>`, `--base <path>` and, for `import`, `--dry-run`.
 

@@ -55,6 +55,43 @@ test("an owner installs fixes on a GitHub site with an owner token", async ({ pa
   expect(fake.runs.at(-1)).toMatchObject({ event: "workflow_dispatch", inputs: { update: "fixes" } });
 });
 
+test("an owner chooses when a GitHub site rebuilds overnight, and rebuilds it now", async ({ page }) => {
+  const fake = fakeGitHub({
+    repo: "parish/site",
+    files: siteFiles(".github/workflows/deploy.yml"),
+    tokens: {
+      "test-token": { login: "maria", admin: true },
+      "owner-token": { login: "maria", admin: true, administration: true },
+    },
+  });
+  await routeToFake(page, "https://api.github.com", fake.handle);
+  await fakeNpm(page);
+
+  await page.goto(`${GITHUB_SITE}/admin/#/settings/updates`);
+  await page.getByLabel("Access token").fill("test-token");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Rebuilding overnight" })).toBeVisible();
+  // Signing in can't read the setting, which lives in a repository variable.
+  await expect(page.getByText("Sign in as an owner to see or change this.")).toBeVisible();
+
+  // Without it, changing the setting asks for the owner token.
+  await page.getByLabel("Never").click();
+  await page.getByLabel("Owner token").fill("owner-token");
+  await page.getByRole("button", { name: "Use this token" }).click();
+  await expect(page.getByLabel("Only when something changed (recommended)")).toBeChecked();
+  await page.getByLabel("Never").check();
+  await expect(page.getByText("Without rebuilding overnight", { exact: false })).toBeVisible();
+  expect(fake.variables.get("GOODFELLOW_NIGHTLY")).toBe("off");
+  await page.getByLabel("Every night").check();
+  await expect(page.getByLabel("Every night")).toBeChecked();
+  expect(fake.variables.get("GOODFELLOW_NIGHTLY")).toBe("always");
+
+  // Rebuilding runs the workflow without an update.
+  await page.getByRole("button", { name: "Rebuild now" }).click();
+  await expect(page.getByText("The site is rebuilding.", { exact: false })).toBeVisible();
+  expect(fake.runs.at(-1)).toMatchObject({ event: "workflow_dispatch", inputs: {} });
+});
+
 test("a GitLab site turns on automatic updates, and shows why the last one wasn't installed", async ({ page }) => {
   const fake = fakeGitLab({
     project: "parish/site",

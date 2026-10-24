@@ -107,7 +107,15 @@ export const PERMISSIONS: Record<Purpose, Permissions> = {
     checks: "read",
     statuses: "read",
   },
-  owner: { administration: "write", pages: "write", actions: "write", contents: "read", metadata: "read" },
+  owner: {
+    administration: "write",
+    pages: "write",
+    actions: "write",
+    // The nightly build setting, a repository variable the site's workflow reads.
+    variables: "write",
+    contents: "read",
+    metadata: "read",
+  },
   setup: {
     administration: "write",
     contents: "write",
@@ -125,6 +133,7 @@ export const PERMISSIONS: Record<Purpose, Permissions> = {
  */
 export const LATER_PERMISSIONS: Partial<Record<Purpose, string[]>> = {
   edit: ["checks", "statuses"],
+  owner: ["variables"],
   setup: ["secrets"],
 };
 

@@ -20,6 +20,11 @@ export const GITHUB_INSTALL_STEPS = `      - uses: actions/setup-node@v5
 export interface UpdateJobsOptions {
   /** The update command, such as `npx goodfellow update`. */
   update: string;
+  /**
+   * The nightly check, such as `npx goodfellow nightly`, which a `check` job
+   * runs first each night; without one, the update runs every night.
+   */
+  nightly?: string;
   /** Steps after the site's own checkout, such as checking out its content. */
   checkout?: string;
   /** Steps after installing its packages, such as copying its content in. */
@@ -32,11 +37,39 @@ export interface UpdateJobsOptions {
  * publishing it; then `publish-update` publishes that commit, running none of
  * the site's code, and gives its `sha`.
  */
-export function githubUpdateJobs({ update, checkout, prepare }: UpdateJobsOptions): string {
-  return `  update:
-    # Each night, and when the admin panel's Updates screen asks. It installs
+export function githubUpdateJobs({ update, nightly, checkout, prepare }: UpdateJobsOptions): string {
+  const checkJob = nightly
+    ? `  check:
+    # Each night, unless GOODFELLOW_NIGHTLY is "off": whether to build the site, and update Goodfellow first.
+    if: github.event_name == 'schedule' && vars.GOODFELLOW_NIGHTLY != 'off'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      build: \${{ steps.nightly.outputs.build }}
+      update: \${{ steps.nightly.outputs.update }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+${checkout ? `${checkout}\n` : ""}${GITHUB_INSTALL_STEPS}
+${prepare ? `${prepare}\n` : ""}      - id: nightly
+        env:
+          GOODFELLOW_NIGHTLY: \${{ vars.GOODFELLOW_NIGHTLY }}
+        run: ${nightly}
+
+`
+    : "";
+  const when = nightly
+    ? `    # When the nightly check finds one, and when the admin panel's Updates screen asks. It installs
     # the update and builds the site with it, but can't publish it: ${PUBLISH_UPDATE_JOB} does.
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.update != '')
+    needs: check
+    if: \${{ !cancelled() && ((github.event_name == 'schedule' && needs.check.outputs.update == 'true') || (github.event_name == 'workflow_dispatch' && inputs.update != '')) }}`
+    : `    # Each night, and when the admin panel's Updates screen asks. It installs
+    # the update and builds the site with it, but can't publish it: ${PUBLISH_UPDATE_JOB} does.
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.update != '')`;
+  return `${checkJob}  update:
+${when}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -137,4 +170,13 @@ ${options.prepare ? `${options.prepare}\n` : ""}      # Since the last check tha
     if: needs.check.outputs.due == 'true'
     runs-on: ubuntu-latest
 ${options.start}`;
+}
+
+/**
+ * The condition of a job that builds the site, or asks a host to, after the
+ * nightly check (`githubUpdateJobs({ nightly })`): at night only when the
+ * check says so or couldn't tell, and otherwise always. `also` adds to it.
+ */
+export function nightlyBuildCondition(also = ""): string {
+  return `\${{ !cancelled() && (github.event_name != 'schedule' || needs.check.outputs.build == 'true' || needs.check.result == 'failure')${also} }}`;
 }

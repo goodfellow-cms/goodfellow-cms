@@ -109,8 +109,10 @@ export function githubTokenLinks(repo: string, webUrl = "https://github.com") {
     expires_in: "1",
     administration: "write",
     pages: "write",
-    // Running the site's update now, from the Updates screen.
+    // Running the site's update or a rebuild now, from the Updates screen.
     actions: "write",
+    // When the site rebuilds overnight, which the site's workflow reads from a repository variable.
+    variables: "write",
   });
   return {
     fineGrained: `${webUrl}/settings/personal-access-tokens/new?${fineGrained}`,

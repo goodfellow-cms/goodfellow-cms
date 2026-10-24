@@ -6,7 +6,7 @@ section: editors
 order: 3.5
 ---
 
-A collection of events is a collection whose items have a date and time. The **Calendar** block shows them as a list of what's coming up or a month at a time, and visitors can add them to their own calendars or subscribe to all of them. Everything is worked out when the site is built, so visitors only get the page, and the nightly rebuild keeps "what's coming up" current.
+A collection of events is a collection whose items have a date and time. The **Calendar** block shows them as a list of what's coming up or a month at a time, and visitors can add them to their own calendars or subscribe to all of them. Everything is worked out when the site is built, so visitors only get the page, and the site is rebuilt overnight whenever "what's coming up" changes, so it stays current ([Keeping a site up to date](/docs/updates#rebuilding-overnight)).
 
 ## Make a collection of events
 
@@ -55,7 +55,7 @@ If the events are kept in another calendar, such as a public Google Calendar, a 
 
 To find a Google Calendar's address, open [Google Calendar](https://calendar.google.com) on a computer, go to the calendar's **Settings and sharing**, turn on **Make available to public** under **Access permissions for events**, and copy **Public address in iCal format** under **Integrate calendar**.
 
-The other calendar is read when the site is built, so changes show up on the next build: after the next publish, or the nightly rebuild. The editor doesn't show its events, only a note saying they're added when the site is built. If the calendar can't be read, the site is built without its events.
+The other calendar is read when the site is built, so changes show up on the next build: after the next publish, the next night's rebuild, which a calendar like this always has, or **Rebuild now** on the Updates screen. The editor doesn't show its events, only a note saying they're added when the site is built. If the calendar can't be read, the site is built without its events.
 
 ### Embedding a Google Calendar instead
 

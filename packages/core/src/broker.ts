@@ -227,8 +227,11 @@ const BACKEND: Shape = {
     editors: { methods: ["list", "invite", "setRole", "remove", "letEditorsPublish"] },
     ownerAccess: { data: ["tokenLink", "active", "problem"], methods: ["forget", "startRedirect", "requestToken"] },
     updates: {
-      methods: ["setup", "enable", "lastRun", "start"],
-      objects: { code: { data: ["repo", "webUrl"], methods: ["read", "history", "readAt"] } },
+      methods: ["setup", "enable", "lastRun", "start", "rebuild"],
+      objects: {
+        code: { data: ["repo", "webUrl"], methods: ["read", "history", "readAt"] },
+        nightly: { methods: ["supported", "get", "set"] },
+      },
     },
     drafts: { methods: ["create", "open"], returns: { create: DRAFT, open: DRAFT } },
     scheduledBuilds: { methods: ["timing", "sync"] },

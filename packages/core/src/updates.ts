@@ -226,6 +226,38 @@ export interface SiteUpdates {
   lastRun(): Promise<UpdateRun | undefined>;
   /** Runs the update job now: `fixes` for the newest fixes, or a release, such as a newer one an owner chose or an older one to go back to. */
   start(target: string): Promise<void>;
+  /** When the site rebuilds overnight, where its setup can say. */
+  nightly?: NightlyBuilds;
+  /**
+   * Builds the site again now, without publishing anything or updating, as
+   * an owner's Rebuild now does. Throws `UpdatesError` with `not-allowed`
+   * where the sign-in can't run the site's builds.
+   */
+  rebuild?(): Promise<void>;
+}
+
+/** The site's nightly build setting (`NightlyMode`), which the host keeps outside its files. */
+export interface NightlyBuilds {
+  /** Whether the site's setup files check before building at night, so the setting does anything. */
+  supported(): Promise<boolean>;
+  /** The setting, or `undefined` where the sign-in can't read it, or the nightly build isn't set up. */
+  get(): Promise<NightlyMode | undefined>;
+  /** Throws `UpdatesError` with `not-allowed` where the sign-in can't change it. */
+  set(mode: NightlyMode): Promise<void>;
+}
+
+/** When the site rebuilds overnight: only when something changed (the default), every night, or never. */
+export type NightlyMode = "changed" | "always" | "off";
+
+/** The repository variable (GitHub) or schedule variable (GitLab) that holds the site's `NightlyMode`. */
+export const NIGHTLY_VARIABLE = "GOODFELLOW_NIGHTLY";
+
+export const NIGHTLY_MODES: readonly NightlyMode[] = ["changed", "always", "off"];
+
+/** A mode from the variable's value: anything that isn't one is the default. */
+export function nightlyMode(value: string | undefined): NightlyMode {
+  const mode = value?.trim().toLowerCase();
+  return NIGHTLY_MODES.includes(mode as NightlyMode) ? (mode as NightlyMode) : "changed";
 }
 
 /** Why the update job couldn't be run or set up, in a form the admin panel turns into plain words. */

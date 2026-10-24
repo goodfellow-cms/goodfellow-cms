@@ -32,6 +32,8 @@ export interface FakeGitHubUser {
   actions?: boolean;
   /** Whether the token may run workflows, as owner tokens can. Defaults to the `administration` setting. */
   actionsWrite?: boolean;
+  /** Whether the token may read and change Actions variables, as owner tokens can. Defaults to the `administration` setting. */
+  variables?: boolean;
   /** Whether the token may set Actions secrets and add deploy keys. Defaults to true. */
   secrets?: boolean;
 }
@@ -234,6 +236,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
   const deployments: Deployment[] = [];
   const cloudflareBuilds = new Map<string, FakeCloudflareBuild>();
   const runs: FakeRun[] = [];
+  /** The repository's Actions variables, by name. */
+  const variables = new Map<string, string>();
   const requests: Request[] = [];
   let nextDeployment = 1;
   let graphqlReads = 0;
@@ -747,6 +751,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       workflow: app.permissions.workflows === "write",
       actions: app.permissions.actions !== undefined,
       actionsWrite: app.permissions.actions === "write",
+      variables: app.permissions.variables === "write",
     });
     refreshTokens.set(refresh, { app, login });
     issued.push({ token: access, kind: "user", app: app.slug, login, permissions: app.permissions });
@@ -866,6 +871,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         admin: permissions.administration === "write",
         actions: permissions.actions !== undefined,
         actionsWrite: permissions.actions === "write",
+        variables: permissions.variables === "write",
       });
       issued.push({ token, kind: "installation", app: app.slug, repositories, permissions });
       return json({ token, expires_at: new Date(Date.now() + 3_600_000).toISOString(), permissions }, 201);
@@ -1161,6 +1167,31 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       );
     }
 
+    const variable = rest.match(/^\/actions\/variables(?:\/([\w-]+))?$/);
+    if (variable) {
+      if (!(user.variables ?? user.administration)) {
+        return json({ message: "Resource not accessible by personal access token" }, 403);
+      }
+      const [, name] = variable;
+      if (!name && request.method === "POST") {
+        const body = (await request.json()) as { name: string; value: string };
+        if (variables.has(body.name)) return json({ message: "Already exists" }, 409);
+        variables.set(body.name, body.value);
+        return new Response(null, { status: 201 });
+      }
+      if (name && !variables.has(name)) return json({ message: "Not Found" }, 404);
+      if (name && request.method === "GET") return json({ name, value: variables.get(name) });
+      if (name && request.method === "PATCH") {
+        const body = (await request.json()) as { value: string };
+        variables.set(name, body.value);
+        return new Response(null, { status: 204 });
+      }
+      if (name && request.method === "DELETE") {
+        variables.delete(name);
+        return new Response(null, { status: 204 });
+      }
+    }
+
     const workflowFile = rest.match(/^\/actions\/workflows\/([\w.-]+)\/(?:dispatches|runs)$/)?.[1];
     const workflowPath = `.github/workflows/${workflowFile}`;
     const ofWorkflow = (run: FakeRun) => (run.path ?? ".github/workflows/deploy.yml") === workflowPath;
@@ -1331,6 +1362,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     failCloudflare,
     /** GitHub Actions workflow runs, which tests add with `failBuild()` and `cancelBuild()`. */
     runs,
+    /** The repository's Actions variables, such as `GOODFELLOW_NIGHTLY`. */
+    variables,
     failBuild,
     cancelBuild,
     /** Every request received, for checking what the backend sent. */

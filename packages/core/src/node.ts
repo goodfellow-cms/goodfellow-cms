@@ -17,6 +17,17 @@ export {
   setBrokerAddress,
 } from "./node-broker.js";
 export {
+  BUILD_DATES_DIR,
+  BUILD_DATES_ENV,
+  builtFrom,
+  currentUntil,
+  gitCommit,
+  reportDatesTo,
+  reportedDate,
+  type WriteBuildRecordOptions,
+  writeBuildRecord,
+} from "./node-build-record.js";
+export {
   ContentRepositoryError,
   type ContentRepositoryOptions,
   contentRepositoryProblem,
@@ -34,6 +45,13 @@ export { fontStandIns, readFontFile, readStylesheet, selfHostFonts } from "./nod
 export { fileSystemSource } from "./node-fs-source.js";
 export { InvalidPathError, localFileStore } from "./node-local-files.js";
 export { readMediaSizes } from "./node-media.js";
+export {
+  type NightlyOptions,
+  type NightlyReason,
+  type NightlyResult,
+  nightlyCheck,
+  reportNightly,
+} from "./node-nightly.js";
 export { localRegistryDir } from "./node-registry.js";
 export { type DueOptions, type DueResult, reportDue, scheduleDue } from "./node-schedule.js";
 export { type RunCommand, type SiteFile, siteFileChanges, type UpdateOptions, update } from "./node-update.js";

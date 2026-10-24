@@ -14,7 +14,9 @@ import {
   formatWordPressExport,
   formatWordPressImport,
   importWordPress,
+  nightlyCheck,
   reportDue,
+  reportNightly,
   scheduleDue,
   setAdminAddress,
   setBrokerAddress,
@@ -43,6 +45,11 @@ Commands:
   due       Say whether a scheduled change has come due since --since (default: the
             last hour), so the site needs building again; on GitHub Actions it also
             sets the step's due output to true or false
+  nightly   Say whether tonight's build is needed: when the site has changed since
+            the live site was built, what it shows by today's date has, or an update
+            is available (--mode, or GOODFELLOW_NIGHTLY: changed, the default,
+            always or off); on GitHub Actions it sets the step's build and update
+            outputs to true or false
   import    import wordpress <file or address>  brings a WordPress site's pages, posts,
                                    categories, tags, menus and media into this site,
                                    from its export file (Tools → Export) or its address
@@ -81,6 +88,8 @@ Options:
   --host <host>   For broker add: where the sign-in page is put online
   --domain <name> For broker add: the sign-in page's own domain, such as signin.example.org
   --since <time>  For due: when the last check started, such as 2026-11-29T09:17:00Z
+  --mode <mode>   For nightly: changed (build only when something changed), always or off
+  --output <file> For nightly: add build=… and update=… to file, as GitHub Actions' outputs
   --strict        For build: fail if the site checks find links to pages or media that don't exist
   --dry-run       For import: say what importing would bring across, and change nothing
   -h, --help      Show this help
@@ -104,6 +113,8 @@ async function main(): Promise<void> {
       publish: { type: "boolean" },
       commit: { type: "boolean" },
       since: { type: "string" },
+      mode: { type: "string" },
+      output: { type: "string" },
       host: { type: "string" },
       domain: { type: "string" },
       strict: { type: "boolean" },
@@ -149,6 +160,11 @@ async function main(): Promise<void> {
           `Next scheduled change: ${kind} "${title}"${path ? ` (${path})` : ""} at ${time}, which needs the site built again`,
         );
       }
+      if (result.currentUntil) {
+        console.log(
+          `What the site shows by today's date changes at ${result.currentUntil}, when it needs building again`,
+        );
+      }
       if (result.redirectsLeft) {
         console.log(
           `Cloudflare Pages reads only the first ${CLOUDFLARE_REDIRECTS_LIMIT.toLocaleString("en")} lines of _redirects, so ${result.redirectsLeft} old address${result.redirectsLeft === 1 ? " is" : "es are"} left to the pages that send visitors on.`,
@@ -182,6 +198,11 @@ async function main(): Promise<void> {
     case "due": {
       const result = await scheduleDue({ root: values.root, since: values.since });
       for (const line of await reportDue(result)) console.log(line);
+      return;
+    }
+    case "nightly": {
+      const result = await nightlyCheck({ root: values.root, ...(values.mode && { mode: values.mode }) });
+      for (const line of await reportNightly(result, values.output ?? process.env.GITHUB_OUTPUT)) console.log(line);
       return;
     }
     case "broker": {
