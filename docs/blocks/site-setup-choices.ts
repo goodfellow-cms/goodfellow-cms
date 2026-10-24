@@ -182,9 +182,7 @@ export function withDefaults(chosen: Partial<Choices> & { purpose: Purpose }): C
   const build = chosen.build && contentBuildsFor(host).includes(chosen.build) ? chosen.build : "content";
   const content = chosen.content ?? "together";
   const signIn =
-    chosen.signIn === "admin-address" && (!allowsAdminAddress(host) || content === "separate")
-      ? "admin-panel"
-      : (chosen.signIn ?? "admin-panel");
+    chosen.signIn === "admin-address" && !allowsAdminAddress(host) ? "admin-panel" : (chosen.signIn ?? "admin-panel");
   const brokerHosts = brokerHostsFor(git);
   const brokerHost =
     chosen.brokerHost && brokerHosts.includes(chosen.brokerHost) ? chosen.brokerHost : (brokerHosts[0] ?? "vercel");

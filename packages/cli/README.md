@@ -9,6 +9,7 @@ npx goodfellow preview   # serves dist/
 npx goodfellow import wordpress export.xml   # brings a WordPress site's pages, posts and media in
 npx goodfellow export wordpress              # writes the site as a WordPress export file
 npx goodfellow broker add --host gitlab-pages # writes the site's token broker beside it
+npx goodfellow admin check  # checks the admin address named with goodfellow admin add, then uses it
 ```
 
 [Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub or GitLab repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellow-cms.github.io/goodfellow-cms/) for everything else.

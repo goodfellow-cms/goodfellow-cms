@@ -174,6 +174,48 @@ export function startsWithGuard(text: string, kind: PageFileKind): boolean {
   return text.startsWith(`${opening}${marker}`, root.end);
 }
 
+/** What checking an admin address found. */
+export type AdminAddressCheck =
+  /** A site page there leaves before running anything, or the host sends it away. */
+  | "ok"
+  /** The site's home page there doesn't start with the guard: the site hasn't been rebuilt with the address yet. */
+  | "no-guard"
+  /** The host sends headers but didn't sandbox the page. */
+  | "no-sandbox"
+  /** The page couldn't be read. */
+  | "failed";
+
+/** The part of a `fetch()` answer `checkAdminAddress()` reads. */
+export interface AdminCheckResponse {
+  redirected: boolean;
+  url: string;
+  headers: { get(name: string): string | null };
+  text(): Promise<string>;
+}
+
+/**
+ * Checks an admin address by reading the site's home page there (`home`, at
+ * the admin address): it must start with the guard, and, where the host sends
+ * headers, be sandboxed, unless the host sends it to another address. The
+ * admin panel runs it from the admin address, the only page that can read
+ * there, and `goodfellow admin check` from a computer.
+ */
+export async function checkAdminAddress(
+  home: string,
+  options: { headers: boolean; fetch: (url: string) => Promise<AdminCheckResponse> },
+): Promise<AdminAddressCheck> {
+  try {
+    const response = await options.fetch(home);
+    if (response.redirected && new URL(response.url).origin !== new URL(home).origin) return "ok";
+    if (!startsWithGuard(await response.text(), "html")) return "no-guard";
+    const policy = response.headers.get("content-security-policy") ?? "";
+    if (options.headers && !/(^|[;,])\s*sandbox(\s|;|,|$)/i.test(policy)) return "no-sandbox";
+    return "ok";
+  } catch {
+    return "failed";
+  }
+}
+
 /** The headers the admin panel's own pages get where the host sends headers. */
 export const ADMIN_PAGE_HEADERS: Readonly<Record<string, string>> = {
   "Cross-Origin-Opener-Policy": "same-origin",
@@ -241,6 +283,20 @@ export function vercelAdminHeaders(admin: AdminAddress, base = "/", broker?: str
     { source: `${prefix}/admin/((?!editor/|editor$).*)`, has, headers: list(adminPageHeaders(broker)) },
     { source: `${prefix}/admin/editor/:path*`, has, headers: list(EDITOR_FRAME_HEADERS) },
   ];
+}
+
+/** The `headers` line of a content repository's `vercel.ts`: header rules written out, since Vercel reads it before the code is cloned. */
+const VERCEL_HEADERS_LINE = /^([ \t]*)headers: \[.*\],[ \t]*$/m;
+
+/**
+ * A content repository's `vercel.ts` with its `headers` line set to `rules`,
+ * as `planSite()`, `goodfellow admin` and `goodfellow broker` copy them from
+ * the code's config (`vercelAdminHeaders()`), or `undefined` if it has no such
+ * line, such as a `vercel.ts` that reads the config itself.
+ */
+export function withVercelHeaders(source: string, rules: HostHeaderRule[]): string | undefined {
+  if (!VERCEL_HEADERS_LINE.test(source)) return undefined;
+  return source.replace(VERCEL_HEADERS_LINE, (_, indent: string) => `${indent}headers: ${JSON.stringify(rules)},`);
 }
 
 const ADMIN_LINE = /^[ \t]*admin:[ \t]*\{[^\n]*\},?[ \t]*\n/m;

@@ -15,6 +15,7 @@ import { brokerAddressProblem, brokerOrigin, withBrokerConfig } from "./broker.j
 import { type BrokerFetch, type BrokerHost, brokerReleaseUrl, fetchBrokerRelease, planBroker } from "./broker-setup.js";
 import { SITE_FILE } from "./content/paths.js";
 import type { HostSource } from "./git.js";
+import { syncContentHeaders } from "./node-admin.js";
 import { GOODFELLOW_VERSION } from "./site-description.js";
 
 /** Why the broker couldn't be added or its address set, in words for the person at the command line. */
@@ -126,5 +127,7 @@ export async function setBrokerAddress(root: string, url: string | undefined): P
   const next = withBrokerConfig(config, address ? { url: address } : undefined);
   if (next === undefined) throw new BrokerSetupError(`${CONFIG_FILE} has no defineConfig({ to put the address in.`);
   await writeFile(file, next);
+  // A content repository's vercel.ts names the broker in the admin address's header rules.
+  await syncContentHeaders(root);
   return address;
 }

@@ -109,7 +109,7 @@ function Choose({
   const note = gitNote(choices);
   const separate = choices.content === "separate";
   const signInPlaces = (Object.keys(SIGN_IN_PLACES) as SignInPlace[]).filter(
-    (place) => place !== "admin-address" || (allowsAdminAddress(choices.host) && !separate),
+    (place) => place !== "admin-address" || allowsAdminAddress(choices.host),
   );
   const unfinished = signInProblem(choices);
 

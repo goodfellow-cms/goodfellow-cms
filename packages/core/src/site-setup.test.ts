@@ -65,6 +65,8 @@ describe("planSite", () => {
       });
     const files = await plan("gitlab-pages", "https://admin.example.org/");
     expect(files.get("goodfellow.config.tsx")).toContain('  admin: { url: "https://admin.example.org" },');
+    // The README says how to finish setting it up once the site is online.
+    expect(files.get("README.md")).toContain("## Admin address");
     await expect(plan("github-pages", "https://admin.example.org")).rejects.toThrow("admin address");
     await expect(plan("gitlab-pages", "http://admin.example.org")).rejects.toThrow("admin address");
   });

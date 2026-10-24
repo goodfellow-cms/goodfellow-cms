@@ -225,7 +225,7 @@ async function main(): Promise<void> {
       );
     }
     if (backend && admin === undefined && broker === undefined) {
-      const signIn = await chooseSignIn(backend, host as Host | undefined, contentRepo !== undefined);
+      const signIn = await chooseSignIn(backend, host as Host | undefined);
       if (signIn === "admin") admin = await askAddress("The admin address, such as https://admin.example.org: ");
       if (signIn === "broker") {
         broker = await choose(
@@ -253,9 +253,9 @@ async function main(): Promise<void> {
   }
 
   const content = contentRepo === undefined ? undefined : separateContent(contentRepo, build, backend, host);
-  if (admin !== undefined && (!allowsAdminAddress(host as Host | undefined) || content)) {
+  if (admin !== undefined && !allowsAdminAddress(host as Host | undefined)) {
     throw new ScaffoldError(
-      "An admin address needs a host that serves a site at more than one address (--host gitlab-pages, cloudflare-pages or vercel), with the content kept with the code.",
+      "An admin address needs a host that serves a site at more than one address (--host gitlab-pages, cloudflare-pages or vercel).",
     );
   }
   if (broker !== undefined) {
@@ -329,7 +329,13 @@ async function main(): Promise<void> {
     `Created a new site in ${where}.`,
     ...(git ? gitLines(git, commit, installed) : []),
     ...(content ? contentLines(content, contentGit, contentCommit) : []),
-    ...(admin ? [`Editors will sign in at ${admin} once the Domain screen has checked it: see README.md.`] : []),
+    ...(admin
+      ? [
+          content
+            ? `Editors will sign in at ${admin} once "npx ${template === "next" ? "goodfellow-next" : "goodfellow"} admin check" has checked it: see README.md.`
+            : `Editors will sign in at ${admin} once the Domain screen has checked it: see README.md.`,
+        ]
+      : []),
     ...(brokerTarget
       ? [
           `Its sign-in page is in ${relative(process.cwd(), brokerTarget)}${brokerCommit === "committed" ? ", a git repository with everything in its first commit" : ""}. Push it to a repository of its own and put it online as its README says, then set its address on Site Settings → Security.`,
@@ -453,12 +459,8 @@ const BROKER_HOSTS: Record<BrokerHost, string> = {
 };
 
 /** Where editors will sign in: the admin panel itself, an admin address, or a token broker. */
-async function chooseSignIn(
-  backend: Backend,
-  host: Host | undefined,
-  separate: boolean,
-): Promise<"site" | "admin" | "broker"> {
-  const admin = allowsAdminAddress(host) && !separate;
+async function chooseSignIn(backend: Backend, host: Host | undefined): Promise<"site" | "admin" | "broker"> {
+  const admin = allowsAdminAddress(host);
   return choose<"site" | "admin" | "broker">("Where will editors sign in?", [
     {
       value: "site",

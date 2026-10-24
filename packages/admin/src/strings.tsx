@@ -665,7 +665,13 @@ export const defaultStrings = {
   "domain.admin.unsupported":
     "{host} serves each site at one address, so the admin panel can't have one of its own here.",
   "domain.admin.contentOnly":
-    "The admin panel's address is set in the site's code, which is kept apart from its content, so a developer sets it there.",
+    "The admin panel's address is named in the site's code, which is kept apart from its content, so a developer finishes setting it up there.",
+  "domain.admin.code.unknown":
+    "This sign-in can't read the site's code, so this screen can't tell whether a developer has done that yet.",
+  "domain.admin.code.add": "A developer names the address in the site's code, then publishes the code:",
+  "domain.admin.code.check":
+    "Once the site has been rebuilt and works at {address}, the developer checks the address. From the next rebuild, the admin panel opens only there:",
+  "domain.admin.code.remove": "To stop using it, a developer removes it from the site's code:",
   "domain.admin.noConfig":
     "The admin panel's address goes in the site's {file}, which doesn't have the usual defineConfig({ for it, so a developer sets it there.",
   "domain.admin.noSiteAddress": "Connect the site's own domain first: the admin address goes beside it.",
