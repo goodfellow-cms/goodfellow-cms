@@ -18,10 +18,12 @@ order: 5
 | `goodfellow content copy [folder]` | Copies them from it instead, as builds do |
 | `goodfellow broker add [folder] --host <host>` | Writes the site's [token broker](/docs/token-broker)'s repository into `folder` (default: beside the site's, named after it with `-signin`), for `github-pages` (with `--domain`), `gitlab-pages`, `cloudflare-pages` or `vercel` |
 | `goodfellow broker use <address>` | Signs editors in at the token broker from then on, once the site has rebuilt; `goodfellow broker remove` stops it |
+| `goodfellow admin add <address>` | Names the admin panel's [address of its own](/docs/custom-domains#an-admin-address), such as `admin.example.org`, in `goodfellow.config.tsx`, for sites whose config the admin panel can't publish, such as those whose [content is in a repository of its own](/docs/custom-domains#with-a-content-repository) |
+| `goodfellow admin check` | Once the site has rebuilt with it, checks that the site's pages at the admin address leave it before running anything, then marks it checked, from which the admin panel opens only there; `goodfellow admin remove` stops using it |
 | `goodfellow import wordpress <file or address>` | Brings a WordPress site's pages, posts, categories, tags, menus and media into the site, from its export file or its address (see [Move from WordPress](/docs/move-from-wordpress)). `--dry-run` says what would come across and changes nothing |
 | `goodfellow export wordpress [file]` | Writes the site as a WordPress export file, at `file` or in a file named after the site, which WordPress imports with **Tools → Import → WordPress** (see [Move from WordPress](/docs/move-from-wordpress#moving-to-wordpress)) |
 
-Next.js sites have the same `update`, `due`, `content`, `import` and `export` commands as `goodfellow-next update`, `goodfellow-next due`, `goodfellow-next content`, `goodfellow-next import` and `goodfellow-next export`.
+Next.js sites have the same `update`, `due`, `content`, `admin`, `import` and `export` commands as `goodfellow-next update`, `goodfellow-next due`, `goodfellow-next content`, `goodfellow-next admin`, `goodfellow-next import` and `goodfellow-next export`, and `goodfellow-next broker use` and `remove`.
 
 Options: `--root <dir>`, `--out <dir>`, `--port <port>`, `--base <path>` and, for `import`, `--dry-run`.
 

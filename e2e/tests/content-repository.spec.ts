@@ -51,3 +51,48 @@ test("publishes to the content repository, and leaves blocks and updates to the 
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   expect(fake.repo.files().get("content/site.json")).toContain("St. Joseph's");
 });
+
+test("sets up an admin address in the code's config, with what a developer runs", async ({ page }) => {
+  const contentFiles = files();
+  const settings = JSON.parse(contentFiles["content/site.json"] ?? "{}");
+  contentFiles["content/site.json"] =
+    `${JSON.stringify({ ...settings, url: "https://parish.example.org" }, null, 2)}\n`;
+  // Vercel builds the site from the content repository.
+  contentFiles["vercel.ts"] = "export const config = {\n  framework: null,\n  headers: [],\n};\n";
+  const fake = fakeGitHub({
+    repo: "parish/site-content",
+    files: contentFiles,
+    tokens: { "good-token": { login: "maria", name: "Maria" } },
+  });
+  const config = "export default defineConfig({\n  blocks,\n});\n";
+  fake.addRepo("parish/site", { files: { "goodfellow.config.tsx": config, "package.json": "{}" } });
+  await routeToFake(page, "https://api.github.com", fake.handle);
+  await page.goto(`${SITE}/admin/`);
+  await page.getByLabel("Access token").fill("good-token");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("link", { name: "About us", exact: true })).toBeVisible();
+
+  await page.goto(`${SITE}/admin/#/settings/domain`);
+  const section = page.locator("section", { has: page.getByRole("heading", { name: "Admin address" }) });
+  await expect(section.getByText("so a developer finishes setting it up there")).toBeVisible();
+  await section.getByLabel("Admin address").fill("admin.example.org");
+  await section.getByRole("button", { name: "Give the admin panel this address" }).click();
+  // Nothing is published: the config is in the code's repository, which a developer changes.
+  await expect(section.getByText("npx goodfellow admin add admin.example.org")).toBeVisible();
+  await expect(section.getByText("npx goodfellow admin check")).toBeVisible();
+  expect(fake.repo.files().has("goodfellow.config.tsx")).toBe(false);
+
+  // Once a developer has run the commands and published the code, the screen reads it from there.
+  fake.addRepo("parish/site", {
+    files: {
+      "goodfellow.config.tsx": config.replace(
+        "defineConfig({\n",
+        'defineConfig({\n  admin: { url: "https://admin.example.org", checked: true },\n',
+      ),
+      "package.json": "{}",
+    },
+  });
+  await page.reload();
+  await expect(section.getByText("The admin panel's address is https://admin.example.org.")).toBeVisible();
+  await expect(section.getByText("npx goodfellow admin remove")).toBeVisible();
+});

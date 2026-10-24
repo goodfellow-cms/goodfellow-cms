@@ -93,8 +93,18 @@ A few things to know:
 
 - **Sign in with GitLab:** add the admin panel's new address, such as `https://admin.example.org/admin/`, to the GitLab application's redirect URIs too.
 - **Signing in with GitHub** through a [sign-in service](/docs/sign-in-service) gives tokens to the admin address as well as the Site address, once the site has been rebuilt with it.
-- **The site's code:** the address is in `goodfellow.config.tsx`, so the Domain screen can't set it on a site whose [content is in a repository of its own](/docs/content-repository); a developer adds it there (see [Configuration](/docs/configuration)).
+- **Content in a repository of its own:** the address is in the code's `goodfellow.config.tsx`, which the admin panel can't publish on a site whose [content is in a repository of its own](/docs/content-repository), so a developer finishes it there. See [With a content repository](#with-a-content-repository).
 - **Stopping:** **Stop using the admin address** removes it from the config, and on GitLab Pages from the site's domains. The admin panel goes back to the site's own address once the site has rebuilt.
+
+### With a content repository
+
+On a site whose content is in a repository of its own, the Domain screen connects the address but leaves the config to a developer, and shows what they run in the code's folder (`goodfellow-next` in place of `goodfellow` for a Next.js site):
+
+1. In **Site Settings → Domain**, type the address and choose **Give the admin panel this address**. On GitLab Pages, Goodfellow connects it there and lists its records, as above; on Cloudflare Pages and Vercel, add it to the site's project yourself.
+2. A developer runs `npx goodfellow admin add admin.example.org` and publishes the code. Where Vercel builds the site from the content repository, it also writes the address's header rules into the content repository's `vercel.ts`, since Vercel reads that file before the code is cloned: publish that too.
+3. Once the site has rebuilt, the developer runs `npx goodfellow admin check`, which reads the site's home page at the admin address, as the Domain screen does from there, checks that it leaves the address before running anything (and is sandboxed on Cloudflare Pages and Vercel), and marks the address checked in `goodfellow.config.tsx`. Once that's published and the site has rebuilt, the admin panel opens only at the admin address.
+
+`npx goodfellow admin remove` stops using it. The Domain screen shows how far it's got where the sign-in can read the code's repository.
 
 ## If it doesn't work
 

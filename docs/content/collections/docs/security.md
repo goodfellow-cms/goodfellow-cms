@@ -50,8 +50,7 @@ The setup in between, with the site's content in a [repository of its own](/docs
 - Protect the code's main branch, so that changes to it need a review.
 - Keep the people who can push to the code's repository and the broker's to the few who need to: whoever can change the code controls the site, and whoever can change the broker controls its sign-in.
 - Leave **Install fixes automatically each night** on, so security fixes arrive without waiting for anyone.
-
-An admin address doesn't work with a content repository yet. With a broker, the admin panel holds no sign-in, so what it would add is small: the site's pages couldn't reach the admin panel's preferences, or any window of it they were given.
+- On Cloudflare Pages or Vercel, give the admin panel an address of its own too, which a developer [finishes in the code](/docs/custom-domains#with-a-content-repository). With a broker, the admin panel holds no sign-in, so what it adds is small: the site's pages can't reach the admin panel's preferences, or any window of it they're given.
 
 ## Builds
 

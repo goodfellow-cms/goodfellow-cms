@@ -530,15 +530,38 @@ export const config = {
   installCommand: ${JSON.stringify(install)},
   buildCommand: ${JSON.stringify(build)},
   outputDirectory: ${JSON.stringify(`site/${output}`)},
+${VERCEL_HEADERS_NOTE}
+  headers: [],
 };
 `;
   }
   let config = setConfigValue(template, "installCommand", install);
   config = setConfigValue(config, "buildCommand", build);
   config = setConfigValue(config, "outputDirectory", `site/${output}`);
+  config = withCopiedHeaders(config);
   return `${note}
 //
 ${config}`;
+}
+
+/**
+ * Where Vercel builds from the content repository, it reads `vercel.ts` before
+ * the code is cloned, so the admin address's header rules are written out in
+ * it (`withVercelHeaders()`), which `goodfellow admin` and `goodfellow broker`
+ * keep in step with the code's config.
+ */
+const VERCEL_HEADERS_NOTE = comment(
+  "The admin address's header rules, from the code's goodfellow.config.tsx: goodfellow admin and goodfellow broker, run in the code's folder, copy them here, since Vercel reads this file before the code is cloned.",
+  "  // ",
+);
+
+/** The template's `vercel.ts`, with header rules written out in place of reading them from the config. */
+function withCopiedHeaders(source: string): string {
+  const call = /^([ \t]*)headers: adminHeaders\(\),$/m;
+  const reader = source.indexOf("/** The admin address's header rules");
+  if (!call.test(source) || reader === -1)
+    throw new Error("The template's vercel.ts has no adminHeaders() to replace.");
+  return `${source.slice(0, reader).trimEnd()}\n`.replace(call, `${VERCEL_HEADERS_NOTE}\n$1headers: [],`);
 }
 
 /**

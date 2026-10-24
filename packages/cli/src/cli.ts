@@ -3,16 +3,20 @@ import { parseArgs } from "node:util";
 import { CLOUDFLARE_REDIRECTS_LIMIT, ContentError, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
+  AdminSetupError,
   addBroker,
   BrokerSetupError,
   ContentRepositoryError,
+  checkSiteAdminAddress,
   contentRepositoryProblem,
   exportWordPress,
+  formatAdminResult,
   formatWordPressExport,
   formatWordPressImport,
   importWordPress,
   reportDue,
   scheduleDue,
+  setAdminAddress,
   setBrokerAddress,
   setUpContentRepository,
   update,
@@ -51,6 +55,13 @@ Commands:
                                    vercel), with --domain for one of its own
             broker use <address>   signs in there from now on, once it's online
             broker remove          stops using it
+  admin     The admin panel's address of its own, such as admin.example.org, for sites
+            whose config the admin panel can't publish, such as those whose content
+            is kept in a repository of its own:
+            admin add <address>    names it in goodfellow.config.tsx
+            admin check            checks it once the site has rebuilt with it, then
+                                   starts the admin panel only there
+            admin remove           stops using it
   content   For a site whose content is kept in a repository of its own:
             content link [folder]  links content/ and public/media/ to the content
                                    repository in folder (default: content-repository)
@@ -208,6 +219,23 @@ async function main(): Promise<void> {
       process.exitCode = 1;
       return;
     }
+    case "admin": {
+      const [, action, argument] = positionals;
+      const root = values.root ?? ".";
+      if (!(action === "add" && argument) && action !== "check" && action !== "remove") {
+        console.error(`Say "admin add <address>", "admin check" or "admin remove".\n\n${HELP}`);
+        process.exitCode = 1;
+        return;
+      }
+      const result =
+        action === "check"
+          ? await checkSiteAdminAddress(root)
+          : await setAdminAddress(root, argument && action === "add" ? argument : undefined);
+      const { lines, ok } = formatAdminResult(action, result);
+      for (const line of lines) (ok ? console.log : console.error)(line);
+      if (!ok) process.exitCode = 1;
+      return;
+    }
     case "content": {
       const [, action, from] = positionals;
       if (action !== "link" && action !== "copy") {
@@ -266,6 +294,7 @@ main().catch((error: unknown) => {
     error instanceof SiteSetupError ||
     error instanceof ContentRepositoryError ||
     error instanceof BrokerSetupError ||
+    error instanceof AdminSetupError ||
     error instanceof WordPressReadError
   ) {
     console.error(`\n${error.message}\n`);

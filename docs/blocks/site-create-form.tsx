@@ -795,8 +795,18 @@ function Created({
       )}
       {choices.signIn === "admin-address" && (
         <Note>
-          Once the site is online, open its admin panel and connect {choices.admin} on Site Settings → Domain, which
-          checks it before editors sign in there.
+          {choices.content === "separate" ? (
+            <>
+              Once the site is online, connect {choices.admin} on the admin panel's Site Settings → Domain, then run{" "}
+              <code>npx goodfellow admin check</code> in the code's folder, which checks it before editors sign in
+              there.
+            </>
+          ) : (
+            <>
+              Once the site is online, open its admin panel and connect {choices.admin} on Site Settings → Domain, which
+              checks it before editors sign in there.
+            </>
+          )}
         </Note>
       )}
       {broker?.created && (

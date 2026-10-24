@@ -1,12 +1,15 @@
 export {
   ADMIN_PAGE_HEADERS,
   type AdminAddress,
+  type AdminAddressCheck,
   type AdminAddressProblem,
+  type AdminCheckResponse,
   adminAddressProblem,
   adminGuard,
   adminOrigin,
   adminPageHeaders,
   CLOUDFLARE_HEADERS_PATH,
+  checkAdminAddress,
   cloudflareAdminHeaders,
   configAdmin,
   GUARD_ATTRIBUTE,
@@ -18,6 +21,7 @@ export {
   vercelAdminHeaders,
   withAdminConfig,
   withGuard,
+  withVercelHeaders,
 } from "./admin-domain.js";
 export type { AdminSite } from "./admin-site.js";
 export {

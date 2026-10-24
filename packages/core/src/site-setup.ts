@@ -4,7 +4,7 @@
  * same choices, worked out the same way, with no disk access.
  */
 
-import { adminOrigin, withAdminConfig } from "./admin-domain.js";
+import { adminOrigin, vercelAdminHeaders, withAdminConfig, withVercelHeaders } from "./admin-domain.js";
 import { cloudflareSetupFiles } from "./cloudflare-setup.js";
 import { CONTENT_REPOSITORY_DIR } from "./content/paths.js";
 import { CONTENT_FOLDERS } from "./content/store.js";
@@ -269,6 +269,18 @@ export function allowsAdminAddress(host: Host | undefined): boolean {
   return host === "gitlab-pages" || host === "cloudflare-pages" || host === "vercel";
 }
 
+/** The README's section on a new site's admin address, which the config names but nobody has checked yet. */
+function adminReadmeSection(admin: string, cli: string, separate: boolean): string {
+  const domain = admin.replace(/^https?:\/\//, "");
+  const check = separate
+    ? `Then, since the config is kept apart from the content the admin panel publishes, run \`npx ${cli} admin check\` here: it checks that the site's pages at ${domain} leave it before running anything, and marks the address checked in \`goodfellow.config.tsx\`. Publish that, and once the site has rebuilt, the admin panel opens only at ${admin}.`
+    : `Then open the admin panel at ${admin}/admin/: Site Settings → Domain checks the address from there, and starts using it.`;
+  return `## Admin address
+
+\`goodfellow.config.tsx\` names ${admin} as the admin panel's address of its own, so the site's pages can't reach editors' sign-in. Once the site is online, connect ${domain} to it at its host: Site Settings → Domain does this on GitLab Pages. ${check}
+`;
+}
+
 /** Works out a new site's files from a template and the choices made for it. */
 export async function planSite({
   template,
@@ -284,9 +296,9 @@ export async function planSite({
     throw new Error("Keeping the content in a repository of its own needs both repositories and a host.");
   }
   const adminUrl = admin === undefined ? undefined : adminOrigin({ url: admin });
-  if (admin !== undefined && (!adminUrl || !allowsAdminAddress(host) || content)) {
+  if (admin !== undefined && (!adminUrl || !allowsAdminAddress(host))) {
     throw new Error(
-      "An admin address needs an https:// address of its own, a host that serves a site at more than one address, and the content kept with the code.",
+      "An admin address needs an https:// address of its own, and a host that serves a site at more than one address.",
     );
   }
   const files: SiteFiles = new Map();
@@ -323,11 +335,22 @@ export async function planSite({
     const edited = config === undefined ? undefined : withAdminConfig(siteFileText(config), { url: adminUrl });
     if (edited === undefined) throw new Error("The template's goodfellow.config.tsx has no defineConfig({.");
     files.set("goodfellow.config.tsx", edited);
+    const readme = files.get("README.md");
+    if (readme !== undefined) {
+      const cli = files.has("next.config.ts") ? "goodfellow-next" : "goodfellow";
+      files.set("README.md", `${siteFileText(readme).trimEnd()}\n\n${adminReadmeSection(adminUrl, cli, !!content)}`);
+    }
   }
 
-  if (content && backend && host)
+  if (content && backend && host) {
     separateContent(files, name, { ...content, git: backend.host, code: backend.repo, host });
-  else if (host) {
+    // Vercel reads a content repository's vercel.ts before the code is cloned, so it gets the header rules written out.
+    const vercel = files.get(`${CONTENT_REPOSITORY_DIR}/vercel.ts`);
+    if (adminUrl && vercel !== undefined) {
+      const edited = withVercelHeaders(siteFileText(vercel), vercelAdminHeaders({ url: adminUrl }));
+      if (edited !== undefined) files.set(`${CONTENT_REPOSITORY_DIR}/vercel.ts`, edited);
+    }
+  } else if (host) {
     for (const [other, { files: setupFiles }] of Object.entries(HOSTS)) {
       if (other !== host) for (const file of setupFiles) files.delete(file);
     }

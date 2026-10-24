@@ -8,12 +8,13 @@
  */
 import {
   type AdminAddress,
+  type AdminAddressCheck,
   adminOrigin,
+  checkAdminAddress,
   configAdmin,
   type DnsFetch,
   domainZone,
   normalizeDomain,
-  startsWithGuard,
   withAdminConfig,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useState } from "react";
@@ -27,48 +28,52 @@ export const CONFIG_FILE = "goodfellow.config.tsx";
 
 const dnsFetch: DnsFetch = (url, init) => window.fetch(url, init);
 
-/** What checking the admin address found. */
-type AddressCheck = "ok" | "no-guard" | "no-sandbox" | "failed";
-
 /**
  * Checks the admin address from the admin address itself, the only place
- * that can read its pages: the site's home page must start with the guard,
- * and, where the host sends headers, be sandboxed or sent away.
+ * that can read its pages.
  */
-async function checkAddress(home: string, headers: boolean): Promise<AddressCheck> {
-  try {
-    const response = await window.fetch(home, { cache: "no-store" });
-    if (response.redirected && new URL(response.url).origin !== location.origin) return "ok";
-    if (!startsWithGuard(await response.text(), "html")) return "no-guard";
-    const policy = response.headers.get("content-security-policy") ?? "";
-    if (headers && !/(^|[;,])\s*sandbox(\s|;|,|$)/i.test(policy)) return "no-sandbox";
-    return "ok";
-  } catch {
-    return "failed";
-  }
-}
+const checkAddress = (home: string, headers: boolean) =>
+  checkAdminAddress(home, { headers, fetch: (url) => window.fetch(url, { cache: "no-store" }) });
 
 export function AdminAddressSection({ outside }: { outside: "cloudflare-pages" | "vercel" | null | undefined }) {
   const t = useStrings();
-  const { pages, versions, state, publish, contentOnly, siteUrl, account } = useAdmin();
+  const { pages, versions, state, publish, contentOnly, siteUrl, account, updates } = useAdmin();
   const { content } = useSiteContent();
   const host =
     outside === "cloudflare-pages" ? "Cloudflare Pages" : outside === "vercel" ? "Vercel" : (account?.hostName ?? "");
   const revision = state.status === "ready" ? state.revision : undefined;
   // The config as it is now, which a publish changes before the site is rebuilt with it.
   const [config, setConfig] = useState<string | null>();
+  // The command a developer runs where the config is in a code repository of its own: goodfellow-next for Next.js sites.
+  const [cli, setCli] = useState("goodfellow");
+  const code = contentOnly ? updates?.code : undefined;
 
   useEffect(() => {
     if (!versions || !revision) return;
     let current = true;
-    versions.readAt(CONFIG_FILE, revision).then(
-      (text) => current && setConfig(text ?? null),
-      () => current && setConfig(null),
-    );
+    if (contentOnly) {
+      // The config is in the code's repository, which the sign-in may be able to read.
+      if (!code) setConfig(null);
+      else {
+        code.read(CONFIG_FILE).then(
+          (text) => current && setConfig(text ?? null),
+          () => current && setConfig(null),
+        );
+        code.read("next.config.ts").then(
+          (text) => current && text !== undefined && setCli("goodfellow-next"),
+          () => undefined,
+        );
+      }
+    } else {
+      versions.readAt(CONFIG_FILE, revision).then(
+        (text) => current && setConfig(text ?? null),
+        () => current && setConfig(null),
+      );
+    }
     return () => {
       current = false;
     };
-  }, [versions, revision]);
+  }, [versions, revision, contentOnly, code]);
 
   const save = useCallback(
     async (admin: AdminAddress | undefined, message: string) => {
@@ -86,9 +91,14 @@ export function AdminAddressSection({ outside }: { outside: "cloudflare-pages" |
   const supported = outside === "cloudflare-pages" || outside === "vercel" || pages?.severalDomains === true;
   let body: React.ReactNode;
   if (!versions || outside === undefined || config === undefined) body = null;
-  else if (contentOnly) body = <p>{t("domain.admin.contentOnly")}</p>;
   else if (!supported) body = <p>{t("domain.admin.unsupported", { host })}</p>;
-  else if (config === null || withAdminConfig(config, { url: "https://admin.example.org" }) === undefined) {
+  else if (contentOnly) {
+    body = content.settings.url ? (
+      <CodeAdminAddress config={config} cli={cli} host={host} onGitHost={outside === null} />
+    ) : (
+      <p>{t("domain.admin.noSiteAddress")}</p>
+    );
+  } else if (config === null || withAdminConfig(config, { url: "https://admin.example.org" }) === undefined) {
     body = <p>{t("domain.admin.noConfig", { file: CONFIG_FILE })}</p>;
   } else if (!content.settings.url) body = <p>{t("domain.admin.noSiteAddress")}</p>;
   else {
@@ -209,7 +219,7 @@ function AdminAddressState({
   const origin = adminOrigin(admin) ?? admin.url;
   const domain = new URL(origin).host;
   const here = location.origin === origin;
-  const [check, setCheck] = useState<AddressCheck>();
+  const [check, setCheck] = useState<AdminAddressCheck>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [confirmStop, setConfirmStop] = useState(false);
@@ -318,6 +328,70 @@ function AdminAddressState({
             </Button>
           </div>
         </Dialog>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The admin address of a site whose config is in a code repository of its
+ * own, which the admin panel can't publish to: it connects the domain where
+ * the git host serves the site, and says what a developer runs to name and
+ * check it (`goodfellow admin`), reading the config where the sign-in can.
+ */
+function CodeAdminAddress({
+  config,
+  cli,
+  host,
+  onGitHost,
+}: {
+  /** The code's config, or `null` where the sign-in can't read it. */
+  config: string | null;
+  cli: string;
+  host: string;
+  onGitHost: boolean;
+}) {
+  const t = useStrings();
+  const admin = config === null ? undefined : configAdmin(config);
+  // The domain chosen here, until the config names one.
+  const [chosen, setChosen] = useState<string>();
+  const origin = admin ? (adminOrigin(admin) ?? admin.url) : chosen && `https://${chosen}`;
+  const domain = origin ? new URL(origin).host : undefined;
+
+  return (
+    <div className="gfa-form">
+      <p>{t("domain.admin.contentOnly")}</p>
+      {config === null && <p className="gfa-hint">{t("domain.admin.code.unknown")}</p>}
+      {admin?.checked && origin ? (
+        <>
+          <p className="gfa-notice gfa-notice-success" role="status">
+            {t("domain.admin.using", { address: origin })}
+          </p>
+          <p>{t("domain.admin.code.remove")}</p>
+          <pre>{`npx ${cli} admin remove`}</pre>
+        </>
+      ) : domain && origin ? (
+        <>
+          {!admin && (
+            <>
+              <p>{t("domain.admin.code.add")}</p>
+              <pre>{`npx ${cli} admin add ${domain}`}</pre>
+            </>
+          )}
+          <p>{t("domain.admin.code.check", { address: origin })}</p>
+          <pre>{`npx ${cli} admin check`}</pre>
+          {onGitHost ? (
+            <ConnectedDomain admin domain={domain} onRemoved={async () => setChosen(undefined)} />
+          ) : (
+            <p className="gfa-hint">{t("domain.admin.elsewhere", { host })}</p>
+          )}
+        </>
+      ) : (
+        <AdminAddressForm
+          host={host}
+          onGitHost={onGitHost}
+          save={async (address) => setChosen(address ? new URL(address.url).host : undefined)}
+        />
       )}
     </div>
   );

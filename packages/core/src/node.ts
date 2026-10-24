@@ -1,3 +1,12 @@
+export {
+  type AdminAddressResult,
+  AdminSetupError,
+  type CheckedAdminAddress,
+  checkSiteAdminAddress,
+  formatAdminResult,
+  setAdminAddress,
+  syncContentHeaders,
+} from "./node-admin.js";
 export { type GuardOptions, guardBuiltSite } from "./node-admin-domain.js";
 export { type AppApiOptions, appApi } from "./node-app-api.js";
 export {

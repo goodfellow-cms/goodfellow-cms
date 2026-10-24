@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { vercelAdminHeaders } from "./admin-domain.js";
 import {
   contentBuildsFor,
   type SeparateSetup,
@@ -191,6 +192,25 @@ describe("planSite with the content in a repository of its own", () => {
       outputDirectory: "site/dist",
     });
     expect(parse(text(files, ".github/workflows/rebuild.yml")).on.push).toEqual({ branches: ["main"] });
+    // Vercel reads it before the code is cloned, so the admin address's header rules are written out in it.
+    expect(vercel.headers).toEqual([]);
+  });
+
+  it("names an admin address in the code's config, with Vercel's header rules written out in the content's vercel.ts", async () => {
+    const files = await planSite({
+      template: template(),
+      name: "my-parish",
+      versions: { "@goodfellow-cms/core": "1.2.3" },
+      backend: { host: "github", repo: "parish/site" },
+      host: "vercel",
+      content: { repo: "parish/site-content", build: "content" },
+      admin: "https://admin.example.org",
+    });
+    expect(text(files, "goodfellow.config.tsx")).toContain('  admin: { url: "https://admin.example.org" },');
+    const vercel = await vercelConfig(text(files, "content-repository/vercel.ts"));
+    expect(vercel.headers).toEqual(vercelAdminHeaders({ url: "https://admin.example.org" }));
+    // The admin panel can't publish the code's config, so the README says to check it from a computer.
+    expect(text(files, "README.md")).toContain("run `npx goodfellow admin check` here");
   });
 
   it("builds on Cloudflare Pages from the content repository, which the code asks to rebuild", async () => {

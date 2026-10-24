@@ -8,6 +8,8 @@
 // content is kept in a repository of its own.
 // `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
 // `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, as `goodfellow export` does.
+// `goodfellow-next admin add <address>|check|remove` sets the admin address, and `goodfellow-next broker use <address>|remove`
+// the token broker, in goodfellow.config.tsx, as `goodfellow admin` and `goodfellow broker` do.
 import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { relative } from "node:path";
@@ -15,14 +17,20 @@ import { parseArgs } from "node:util";
 import { CLOUDFLARE_REDIRECTS_LIMIT, configAdmin, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
+  AdminSetupError,
+  BrokerSetupError,
   ContentRepositoryError,
+  checkSiteAdminAddress,
   contentRepositoryProblem,
   exportWordPress,
+  formatAdminResult,
   formatWordPressExport,
   formatWordPressImport,
   importWordPress,
   reportDue,
   scheduleDue,
+  setAdminAddress,
+  setBrokerAddress,
   setUpContentRepository,
   update,
 } from "@goodfellow-cms/core/node";
@@ -113,6 +121,33 @@ if (command === "content") {
     }
   }
 }
+if (command === "admin" || command === "broker") {
+  const [action, argument] = process.argv.slice(3);
+  try {
+    if (command === "admin" && ((action === "add" && argument) || action === "check" || action === "remove")) {
+      const result =
+        action === "check"
+          ? await checkSiteAdminAddress(".")
+          : await setAdminAddress(".", action === "add" ? argument : undefined);
+      const { lines, ok } = formatAdminResult(action, result, "goodfellow-next");
+      for (const line of lines) (ok ? console.log : console.error)(line);
+      process.exit(ok ? 0 : 1);
+    }
+    if (command === "broker" && ((action === "use" && argument) || action === "remove")) {
+      const address = await setBrokerAddress(".", action === "use" ? argument : undefined);
+      console.log(
+        address
+          ? `Editors sign in at ${address} once the site has rebuilt with goodfellow.config.tsx.`
+          : "Editors sign in in the admin panel itself once the site has rebuilt with goodfellow.config.tsx.",
+      );
+      process.exit(0);
+    }
+  } catch (error) {
+    if (!(error instanceof AdminSetupError || error instanceof BrokerSetupError)) throw error;
+    console.error(error.message);
+    process.exit(1);
+  }
+}
 if (command === "import") {
   const { positionals, values } = parseArgs({
     args: process.argv.slice(3),
@@ -160,6 +195,8 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next content link|copy [folder]",
       "       goodfellow-next import wordpress <file or address> [--dry-run]",
       "       goodfellow-next export wordpress [file]",
+      "       goodfellow-next admin add <address> | check | remove",
+      "       goodfellow-next broker use <address> | remove",
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
@@ -183,6 +220,11 @@ if (command !== "finish" && command !== "index") {
       "        says what it would bring across and changes nothing.",
       "export  Writes this site as a WordPress export file (default: named after the site),",
       "        which WordPress imports with Tools → Import → WordPress.",
+      "admin   The admin panel's address of its own, such as admin.example.org, in",
+      "        goodfellow.config.tsx: add names it; check checks it once the site has rebuilt with",
+      "        it, then starts the admin panel only there; remove stops using it.",
+      "broker  The site's token broker in goodfellow.config.tsx: use signs editors in there once",
+      "        it's online; remove stops using it.",
     ].join("\n"),
   );
   process.exit(1);
