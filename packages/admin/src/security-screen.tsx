@@ -13,6 +13,7 @@ import {
   withBrokerConfig,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useState } from "react";
+import { AddBroker, type AddedBroker, AddedBrokerSteps } from "./add-broker.js";
 import { CONFIG_FILE } from "./admin-address.js";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { SettingsTabs } from "./settings-screen.js";
@@ -26,6 +27,8 @@ export function SecurityScreen() {
   const revision = state.status === "ready" ? state.revision : undefined;
   // The config as it is now, which a publish changes before the site is rebuilt with it.
   const [config, setConfig] = useState<string | null>();
+  // A broker's repository made on this tab, until its address is published.
+  const [added, setAdded] = useState<AddedBroker>();
 
   useEffect(() => {
     if (!versions || !revision) return;
@@ -63,12 +66,31 @@ export function SecurityScreen() {
     body = broker ? (
       <BrokerState broker={broker} running={site.broker !== undefined} save={save} />
     ) : (
-      <BrokerForm
-        check={(url) => brokerAddressProblem({ url }, { siteUrl: content.settings.url, admin: configAdmin(config) })}
-        host={account?.hostName ?? ""}
-        listed={account?.redirectAddressesListed === true}
-        save={save}
-      />
+      <>
+        {added ? (
+          <AddedBrokerSteps added={added} />
+        ) : (
+          account?.setup &&
+          site.backend && (
+            <section className="gfa-form" aria-labelledby="gfa-add-broker">
+              <h3 className="gfa-section-title" id="gfa-add-broker">
+                {t("security.add.title")}
+              </h3>
+              <p>{t("security.add.intro", { host: account.hostName })}</p>
+              <AddBroker setup={account.setup} onAdded={setAdded} />
+            </section>
+          )
+        )}
+        <h3 className="gfa-section-title">{t("security.broker.useTitle")}</h3>
+        <BrokerForm
+          key={added?.address ?? ""}
+          initial={added?.address ?? ""}
+          check={(url) => brokerAddressProblem({ url }, { siteUrl: content.settings.url, admin: configAdmin(config) })}
+          host={account?.hostName ?? ""}
+          listed={account?.redirectAddressesListed === true}
+          save={save}
+        />
+      </>
     );
   }
 
@@ -90,11 +112,14 @@ export function SecurityScreen() {
 }
 
 function BrokerForm({
+  initial,
   check,
   host,
   listed,
   save,
 }: {
+  /** The address of a broker made on this tab, where it's known. */
+  initial: string;
   check: (url: string) => string | undefined;
   host: string;
   /** Whether the host's sign-in comes back only to listed addresses, which the broker's then needs to be. */
@@ -102,7 +127,7 @@ function BrokerForm({
   save: (broker: BrokerAddress | undefined, message: string) => Promise<void>;
 }) {
   const t = useStrings();
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initial);
   const [problem, setProblem] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();

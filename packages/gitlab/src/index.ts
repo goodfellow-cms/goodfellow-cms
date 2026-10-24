@@ -12,6 +12,7 @@ import {
 import { type ApiOptions, gitlabJson } from "./api.js";
 import { GitLabBackend } from "./backend.js";
 import { codeChallenge, type OAuthTokens, randomString, redirectUri, type TokenResponse, toTokens } from "./oauth.js";
+import { gitlabSetup } from "./setup.js";
 
 export { GitLabBackend } from "./backend.js";
 export { redirectUri } from "./oauth.js";
@@ -232,6 +233,14 @@ export function gitlab(options: GitLabOptions): GitHost {
     name: "GitLab",
     source: hostSource("@goodfellow-cms/gitlab", "gitlab", options, ["fetch", "storage", "location"]),
     canRedirect: Boolean(options.clientId),
+    // With a token only, so its sign-in never meets the admin panel's own coming back from GitLab.
+    setup: () =>
+      gitlabSetup({
+        ...(options.url && { url: options.url }),
+        ...(options.fetch && { fetch: options.fetch }),
+        ...(options.storage && { storage: options.storage }),
+        ...(options.location && { location: options.location }),
+      }),
     redirectAddressesListed: Boolean(options.clientId),
     tokenLinks: [
       {

@@ -3,10 +3,13 @@ import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promise
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import {
   type Backend,
+  type BrokerHost,
   BUNDLED_NAMES,
   CONTENT_REPOSITORY_DIR,
   GOODFELLOW_REGISTRY,
   type Host,
+  newSiteSource,
+  planBroker,
   planSite,
   type SeparateContent,
   type SetupRegistry,
@@ -16,11 +19,14 @@ import {
 import { setUpContentRepository } from "@goodfellow-cms/core/node";
 
 export {
+  allowsAdminAddress,
   type Backend,
   BLOCK_CHOICES,
   type BlockChoice,
+  type BrokerHost,
   BUNDLED_GITIGNORE,
   BUNDLED_NPMRC,
+  brokerHostsFor,
   CONTENT_BUILDS,
   CONTENT_REPOSITORY_DIR,
   type ContentBuild,
@@ -113,6 +119,8 @@ export interface ScaffoldOptions {
    * `backend` is then the code's repository.
    */
   content?: SeparateContent;
+  /** An admin address of its own, such as `https://admin.example.org`, which the config names. */
+  admin?: string;
 }
 
 async function isEmptyFolder(path: string): Promise<boolean> {
@@ -188,6 +196,7 @@ export async function scaffold({
   host,
   registryDir,
   content,
+  admin,
 }: ScaffoldOptions): Promise<void> {
   if (!(await isEmptyFolder(target))) {
     throw new ScaffoldError(`The folder ${target} already has files in it. Choose a new folder for the site.`);
@@ -200,6 +209,7 @@ export async function scaffold({
     host,
     registry: registryDir ? localRegistry(registryDir) : undefined,
     content,
+    ...(admin && { admin }),
   });
   await mkdir(target, { recursive: true });
   for (const [path, file] of files) {
@@ -208,6 +218,47 @@ export async function scaffold({
   }
   // So `npm run dev` reads and saves the content repository's own files.
   if (content) await setUpContentRepository(target);
+}
+
+export interface BrokerScaffoldOptions {
+  /** The broker's released page: create-goodfellow's bundled `templates/broker/`. */
+  release: string;
+  /** Its folder, beside the site's. It must be empty or not exist yet. */
+  target: string;
+  /** The site's repository, which the broker signs in to. */
+  backend: Backend;
+  host: BrokerHost;
+  /** Its own domain, which GitHub Pages needs. */
+  domain?: string;
+  /** The site's name, for its README. */
+  name?: string;
+}
+
+/** Writes a site's token broker's repository into a folder of its own, as the Security tab makes it. */
+export async function scaffoldBroker({ release, target, backend, host, domain, name }: BrokerScaffoldOptions) {
+  if (!(await isEmptyFolder(target))) {
+    throw new ScaffoldError(`The folder ${target} already has files in it. Choose a new folder for the sign-in page.`);
+  }
+  if (host === "github-pages" && !domain) {
+    throw new ScaffoldError("A sign-in page on GitHub Pages needs a domain of its own (--broker-domain).");
+  }
+  const files = planBroker({
+    release: new Map(
+      [...(await readTemplate(release))].map(([path, file]) => [
+        path,
+        typeof file === "string" ? new TextEncoder().encode(file) : file,
+      ]),
+    ),
+    site: newSiteSource(backend),
+    host,
+    ...(domain && { domain }),
+    ...(name && { name }),
+  });
+  for (const file of files) {
+    if ("delete" in file) continue;
+    await mkdir(dirname(join(target, file.path)), { recursive: true });
+    await writeFile(join(target, file.path), "content" in file ? file.content : file.bytes);
+  }
 }
 
 /** The content repository's folder, inside the site's. */

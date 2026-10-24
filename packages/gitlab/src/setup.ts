@@ -197,6 +197,20 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
           if (!(await connectProjects(site.link))) warnings.push("connect-unavailable");
         }
         // GitLab Pages needs no setting of its own: the site's .gitlab-ci.yml publishes it on every change.
+        let siteUrl: string | undefined;
+        if (site.pages && site.domain) {
+          onStep?.("pages");
+          try {
+            await gitlabRequest(api, `/projects/${project.id}/pages/domains`, {
+              method: "POST",
+              body: { domain: site.domain, auto_ssl_enabled: true },
+            });
+            siteUrl = `https://${site.domain}/`;
+          } catch (error) {
+            if (!(error instanceof GitApiError) || ![400, 403, 404, 409, 422].includes(error.status)) throw error;
+            warnings.push("domain-unavailable");
+          }
+        }
         onStep?.("files");
         await gitlabRequest(api, `/projects/${project.id}/repository/commits`, {
           method: "POST",
@@ -223,6 +237,7 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
         return {
           repo: project.path_with_namespace,
           webUrl: project.web_url,
+          ...(siteUrl && { siteUrl }),
           buildsUrl: `${project.web_url}/-/pipelines`,
           pagesUrl: site.pages ? `${project.web_url}/pages` : undefined,
           warnings,

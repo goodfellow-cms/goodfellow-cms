@@ -1,6 +1,6 @@
 // Packs the starters for the setup page (/new-site), which creates sites in the
 // browser: each template's files, the block registry for "Recommended" blocks,
-// and the versions of Goodfellow's packages, all from create-goodfellow's
+// the token broker's page, and the versions of Goodfellow's packages, all from create-goodfellow's
 // bundled copy, so the page makes the same sites as `npm create goodfellow`.
 //
 // With GOODFELLOW_STARTER_LOCKFILES=1, as .github/workflows/docs.yml sets, it
@@ -73,4 +73,14 @@ for (const name of ["starter", "parish", "next"]) {
   }
   writeFileSync(join(out, `${name}.json`), JSON.stringify(starter));
 }
+// The token broker's released page, for a site's sign-in page of its own.
+const broker = join(bundled, "broker");
+writeFileSync(
+  join(out, "broker.json"),
+  JSON.stringify({
+    files: Object.fromEntries(
+      filesIn(broker).map((file) => [relative(broker, file).split(sep).join("/"), encode(readFileSync(file))]),
+    ),
+  }),
+);
 console.log(`Packed the starters into public/starters${withLockfiles ? ", with their lockfiles" : ""}.`);

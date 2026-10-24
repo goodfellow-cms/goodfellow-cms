@@ -3,6 +3,8 @@ import { parseArgs } from "node:util";
 import { CLOUDFLARE_REDIRECTS_LIMIT, ContentError, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
+  addBroker,
+  BrokerSetupError,
   ContentRepositoryError,
   contentRepositoryProblem,
   exportWordPress,
@@ -11,16 +13,20 @@ import {
   importWordPress,
   reportDue,
   scheduleDue,
+  setBrokerAddress,
   setUpContentRepository,
   update,
 } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
+import { siteBackend } from "./broker.js";
 import { build } from "./build.js";
 import { dev } from "./dev.js";
 import { preview } from "./preview.js";
 import { buildCause, reportBuildCause } from "./problems.js";
 import { SiteSetupError } from "./site.js";
+
+const BROKER_HOSTS = ["github-pages", "gitlab-pages", "cloudflare-pages", "vercel"] as const;
 
 const HELP = `Usage: goodfellow <command> [options]
 
@@ -38,6 +44,13 @@ Commands:
                                    from its export file (Tools → Export) or its address
   export    export wordpress [file]  writes this site as a WordPress export file, which
                                    WordPress imports with Tools → Import → WordPress
+  broker    The site's token broker, a sign-in page on an address of its own:
+            broker add [folder]    writes its repository into folder (default: beside
+                                   the site, named after it with -signin), for --host
+                                   (github-pages, gitlab-pages, cloudflare-pages or
+                                   vercel), with --domain for one of its own
+            broker use <address>   signs in there from now on, once it's online
+            broker remove          stops using it
   content   For a site whose content is kept in a repository of its own:
             content link [folder]  links content/ and public/media/ to the content
                                    repository in folder (default: content-repository)
@@ -54,6 +67,8 @@ Options:
   --publish       For update: publish the update to the site's main branch once it builds
   --commit        For update: commit the update once it builds, without publishing it,
                   for a job that runs none of the site's code to publish
+  --host <host>   For broker add: where the sign-in page is put online
+  --domain <name> For broker add: the sign-in page's own domain, such as signin.example.org
   --since <time>  For due: when the last check started, such as 2026-11-29T09:17:00Z
   --strict        For build: fail if the site checks find links to pages or media that don't exist
   --dry-run       For import: say what importing would bring across, and change nothing
@@ -78,6 +93,8 @@ async function main(): Promise<void> {
       publish: { type: "boolean" },
       commit: { type: "boolean" },
       since: { type: "string" },
+      host: { type: "string" },
+      domain: { type: "string" },
       strict: { type: "boolean" },
       "dry-run": { type: "boolean" },
       help: { type: "boolean", short: "h" },
@@ -155,6 +172,42 @@ async function main(): Promise<void> {
       for (const line of await reportDue(result)) console.log(line);
       return;
     }
+    case "broker": {
+      const [, action, argument] = positionals;
+      const root = values.root ?? ".";
+      if (action === "add") {
+        const host = BROKER_HOSTS.find((candidate) => candidate === values.host);
+        if (!host) {
+          console.error(`Say where to put it online with --host: ${BROKER_HOSTS.join(", ")}.\n\n${HELP}`);
+          process.exitCode = 1;
+          return;
+        }
+        const added = await addBroker(root, {
+          source: await siteBackend(root),
+          host,
+          ...(values.domain && { domain: values.domain }),
+          ...(argument && { folder: argument }),
+        });
+        const shown = relative(process.cwd(), added.folder) || ".";
+        console.log(
+          `Wrote the sign-in page's repository to ${shown}${added.committed ? ", with everything in a first commit" : ""}. Push it to a repository of its own, put it online as its README says, then run "goodfellow broker use <its address>".`,
+        );
+        return;
+      }
+      if (action === "use" && argument) {
+        const address = await setBrokerAddress(root, argument);
+        console.log(`Editors sign in at ${address} once the site has rebuilt with goodfellow.config.tsx.`);
+        return;
+      }
+      if (action === "remove") {
+        await setBrokerAddress(root, undefined);
+        console.log("Editors sign in in the admin panel itself once the site has rebuilt with goodfellow.config.tsx.");
+        return;
+      }
+      console.error(`Say "broker add", "broker use <address>" or "broker remove".\n\n${HELP}`);
+      process.exitCode = 1;
+      return;
+    }
     case "content": {
       const [, action, from] = positionals;
       if (action !== "link" && action !== "copy") {
@@ -212,6 +265,7 @@ main().catch((error: unknown) => {
   } else if (
     error instanceof SiteSetupError ||
     error instanceof ContentRepositoryError ||
+    error instanceof BrokerSetupError ||
     error instanceof WordPressReadError
   ) {
     console.error(`\n${error.message}\n`);

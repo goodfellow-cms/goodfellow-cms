@@ -86,6 +86,24 @@ describe("githubSetup", () => {
     expect(result.warnings).toEqual(["pages-unavailable", "protection-unavailable"]);
   });
 
+  it("gives a repository's Pages a domain of its own, such as a token broker's, warning when GitHub won't take it", async () => {
+    const { fake, host } = setup({
+      repo: "someone/existing",
+      tokens: { t: { login: "someone" } },
+      takenDomains: ["taken.example.org"],
+    });
+    const account = await host.signInWithToken("t");
+    const owner = (await account.owners())[0];
+    if (!owner) throw new Error("no owner");
+    const site = { owner, private: false, pages: true, files, message: "Add the sign-in page" };
+    const result = await account.createSite({ ...site, name: "signin", domain: "signin.example.org" });
+    expect(result.siteUrl).toBe("https://signin.example.org/");
+    expect(fake.created.get("someone/signin")?.pages?.cname).toBe("signin.example.org");
+    const taken = await account.createSite({ ...site, name: "other", domain: "taken.example.org" });
+    expect(taken.siteUrl).toBe("https://someone.github.io/other/");
+    expect(taken.warnings).toContain("domain-unavailable");
+  });
+
   it("says when the name is taken, or the token can't write the build setup", async () => {
     const { host } = setup({
       repo: "someone/existing",

@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { expect, type Page, test } from "@playwright/test";
 import { files, GITHUB_SITE, routeToFake } from "./backends.js";
@@ -174,4 +177,48 @@ test("runs the site's blocks in a sandbox that can't reach the sign-in, storage,
   expect(await page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("goodfellow:github")))).toBe(
     true,
   );
+});
+
+test("adds a token broker: makes its repository from the released page, then publishes its address", async ({
+  page,
+}) => {
+  const fake = await setup(page, {
+    orgs: ["parish"],
+    files: { ...files(), "goodfellow.config.tsx": "export default defineConfig({\n  blocks,\n});\n" },
+    tokens: { "good-token": { login: "maria", name: "Maria" }, "maker-token": { login: "maria", name: "Maria" } },
+  });
+  // The released page, which the admin panel downloads from jsDelivr, served from the built broker.
+  const built = fileURLToPath(new URL("../../packages/broker/site/", import.meta.url));
+  await page.route(/^https:\/\/cdn\.jsdelivr\.net\/npm\/@goodfellow-cms\/broker@[^/]+\/site\//, async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^.*?\/site\//, "");
+    await route.fulfill({ body: readFileSync(join(built, path)) });
+  });
+  await signIn(page);
+  await page.goto(`${GITHUB_SITE}/admin/#/settings/security`);
+  await expect(page.getByRole("heading", { name: "Add a token broker" })).toBeVisible();
+
+  // GitHub Pages needs a domain of its own, never a github.io one.
+  await page.getByLabel("Its domain").fill("signin.parish.github.io");
+  await page.getByLabel("A GitHub token that can create projects").fill("maker-token");
+  await page.getByRole("button", { name: "Make the sign-in page" }).click();
+  await expect(page.getByText("shared with other sites")).toBeVisible();
+  await page.getByLabel("Its domain").fill("signin.example.org");
+  await page.getByRole("button", { name: "Make the sign-in page" }).click();
+  await expect(page.getByText("The sign-in page's project is ready")).toBeVisible({ timeout: 30_000 });
+
+  const created = fake.created.get("parish/site-signin");
+  expect(created?.pages?.cname).toBe("signin.example.org");
+  const repoFiles = created?.repo.files();
+  expect(repoFiles?.has("site/index.html")).toBe(true);
+  expect(JSON.parse(String(repoFiles?.get("site/broker.json")))).toMatchObject({
+    sites: [{ package: "@goodfellow-cms/github", export: "github", options: { repo: "parish/site" } }],
+  });
+  expect(String(repoFiles?.get(".github/workflows/deploy.yml"))).toContain("path: site");
+
+  // Its address is known already, so publishing it is one click.
+  await expect(page.getByLabel("The sign-in page's address")).toHaveValue("https://signin.example.org");
+  await page.getByRole("button", { name: "Sign in there from now on" }).click();
+  await expect
+    .poll(() => fake.repo.files().get("goodfellow.config.tsx"))
+    .toContain('broker: { url: "https://signin.example.org" },');
 });

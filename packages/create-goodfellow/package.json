@@ -47,6 +47,7 @@
     "@goodfellow-cms/core": "workspace:*"
   },
   "devDependencies": {
+    "@goodfellow-cms/broker": "workspace:*",
     "@goodfellow-cms/example-parish": "workspace:*",
     "@goodfellow-cms/registry": "workspace:*",
     "@goodfellow-cms/template-next": "workspace:*",

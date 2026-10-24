@@ -188,7 +188,7 @@ export interface FakeCreatedRepo {
   private: boolean;
   description?: string;
   repo: FakeRepo;
-  pages?: { build_type: string };
+  pages?: { build_type: string; cname?: string };
   rulesets: unknown[];
   /** Deploy keys added to it, by their public key. */
   deployKeys: Array<{ title: string; key: string; read_only: boolean }>;
@@ -519,6 +519,14 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       site.pages = (await request.json()) as { build_type: string };
       const [owner, name] = site.fullName.split("/");
       return json({ html_url: `https://${owner}.github.io/${name}/`, build_type: site.pages.build_type }, 201);
+    }
+    if (rest === "/pages" && method === "PUT" && site.pages) {
+      const body = (await request.json()) as { cname?: string };
+      if (body.cname && options.takenDomains?.includes(body.cname)) {
+        return json({ message: `The CNAME \`${body.cname}\` is already taken.` }, 422);
+      }
+      if (body.cname) site.pages.cname = body.cname;
+      return new Response(null, { status: 204 });
     }
     const notAllowed = (permission: string) =>
       principal.app ? principal.permissions?.[permission] !== "write" : principal.secrets === false;

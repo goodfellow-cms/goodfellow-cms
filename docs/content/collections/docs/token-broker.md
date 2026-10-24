@@ -24,7 +24,25 @@ With a broker, the Blocks screen also offers blocks from the [registries the con
 
 ## Putting one online
 
-The broker is released as `@goodfellow-cms/broker`, whose `site/` folder is the whole page. To run one:
+The quickest way is **Site Settings → Security → Add a token broker** in the site's admin panel. Choose where it goes online, and paste a token that can create repositories on GitHub or GitLab, which is used only then. It makes the broker's repository beside the site's, from Goodfellow's released page and a `broker.json` naming the site:
+
+- **GitLab Pages, at an address GitLab gives it:** the project's unique domain, which nothing else shares, so no domain is needed. Its address is under **Deploy → Pages** in the new project once its first build has finished.
+- **GitHub Pages or GitLab Pages, at a domain of yours,** such as `signin.example.org`, which you point at the host as its Pages settings say. GitHub Pages needs one, since its own addresses are shared by every site in the same account.
+- **Cloudflare Pages or Vercel:** the repository is made ready, and you connect it to a Cloudflare Pages or Vercel project, as its README says.
+
+Once it's online, type its address on the same tab and choose **Sign in there from now on**.
+
+From a computer, in the site's folder:
+
+```sh
+npx goodfellow broker add --host gitlab-pages          # or github-pages --domain signin.example.org, cloudflare-pages, vercel
+npx goodfellow broker use https://signin.example.org   # once it's online
+npx goodfellow broker remove                           # to stop using it
+```
+
+`broker add` writes the broker's repository into a folder beside the site's (or the one you name), as a git repository with everything in its first commit, for you to push to a repository of its own. New sites can start with a broker too: choose **At a sign-in page of its own** under **Where editors sign in** on the [setup page](/new-site/), or run `npm create goodfellow@latest -- --broker gitlab-pages`.
+
+To set one up by hand instead, the broker is released as `@goodfellow-cms/broker`, whose `site/` folder is the whole page:
 
 1. Make a repository for it, with nothing else in it, and copy in the `site/` folder of the release that matches your site's Goodfellow version, such as `https://cdn.jsdelivr.net/npm/@goodfellow-cms/broker@0.4.0/site/`.
 2. Add `broker.json` beside `index.html`, naming the site's repository as its config's `backend` does (copy `broker.example.json`):
@@ -43,8 +61,6 @@ The broker is released as `@goodfellow-cms/broker`, whose `site/` folder is the 
 5. In the admin panel, open **Site Settings → Security**, type the broker's address and choose **Sign in there from now on**. That publishes it in `goodfellow.config.tsx` (`broker: { url: "https://broker.example.org" }`). Once the site has rebuilt, the admin panel opens only inside the broker: opened at the site's address, it links to the broker instead of signing in, and forgets any sign-in it kept there.
 
 **Stop using the sign-in page** on the same tab removes the line; the broker asks first, since it's the site's code.
-
-Creating the broker's repository and putting it online from the Security tab, `create-goodfellow` and the setup page is still to come (see the roadmap).
 
 ## Where it stops
 
