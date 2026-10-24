@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Security
-description: What keeps a Goodfellow site and its editors' sign-in safe, what an admin address or a token broker adds, and where each protection stops.
+description: What keeps a Goodfellow site and its editors' sign-in safe, what an admin address or a token broker adds, which setup to choose, and where each protection stops.
 section: owners
 order: 2.5
 ---
@@ -21,6 +21,37 @@ Two things close that gap, and owners choose one on **Site Settings**:
 - **A token broker,** a sign-in page of its own: editors sign in there, it keeps their sign-in and AI keys, and shows the admin panel in a frame. Nothing on the site, the admin panel included, can read them, and it asks the editor before publishing the site's code. It works on any host, needs no domain on GitLab, and **Add a token broker** on the Security tab makes it. See [Token broker](/docs/token-broker).
 
 Either one lets the Blocks screen offer blocks from other registries too. The [setup page](/new-site/) and `create-goodfellow` offer both for new sites.
+
+## Recommendations
+
+Three setups, from the least to set up to the most secure. Each keeps code on the site's pages away from editors' sign-in; the further ones also narrow what a sign-in can reach and who can change the site's code.
+
+### Simplest
+
+On GitLab, either:
+
+- **One project, with an admin address:** the site at your domain, such as `example.org`, and the admin panel at another, such as `admin.example.org`, both served by GitLab Pages from the site's project. See [An admin address](/docs/custom-domains#an-admin-address).
+- **The site's project and a token broker's, without a domain:** **Add a token broker** on the Security tab makes the broker's project, at its own address on GitLab. The broker keeps the sign-in out of the admin panel altogether and asks before anything but content is published, so it protects more than an admin address, for one more project.
+
+On GitLab, a sign-in reaches every project the editor's account can, not only the site's, so editors should use an account, or a group, that's only for the site. And once automatic updates are on, any job in the site's pipeline can publish to it.
+
+### In between
+
+On GitHub, one repository, with the [sign-in service](/docs/sign-in-service) and a [token broker](/docs/token-broker):
+
+- **The sign-in service** gives the admin panel tokens for the site's repository alone, for an hour, with only the permissions it needs, and revokes the editor's own GitHub token as soon as it knows who they are. It's a Cloudflare Worker you run yourself; without it, fine-grained tokens limited to the site's repository are almost as narrow, but editors make and renew them themselves.
+- **The token broker** keeps those tokens away from the admin panel, and asks before anything but content is published. On GitHub Pages, it needs a domain of its own, such as `signin.example.org`.
+
+### Most secure
+
+The setup in between, with the site's content in a [repository of its own](/docs/content-repository): editors' sign-in can change content and media but never the site's code, and the sign-in service only lets them read the code's repository. Then, on GitHub:
+
+- Require two-factor authentication in the site's organization.
+- Protect the code's main branch, so that changes to it need a review.
+- Keep the people who can push to the code's repository and the broker's to the few who need to: whoever can change the code controls the site, and whoever can change the broker controls its sign-in.
+- Leave **Install fixes automatically each night** on, so security fixes arrive without waiting for anyone.
+
+An admin address doesn't work with a content repository yet. With a broker, the admin panel holds no sign-in, so what it would add is small: the site's pages couldn't reach the admin panel's preferences, or any window of it they were given.
 
 ## Builds
 
