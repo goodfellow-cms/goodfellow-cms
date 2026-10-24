@@ -81,6 +81,7 @@ export {
   collectionFileChange,
   customCssFileChange,
   deleteCollectionChanges,
+  duplicatePageData,
   type EntryNameProblem,
   entryFileChange,
   layoutFileChange,

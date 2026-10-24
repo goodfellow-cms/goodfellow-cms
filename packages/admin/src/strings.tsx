@@ -178,6 +178,7 @@ export const defaultStrings = {
   "pages.column.address": "Address",
   "pages.edit": "Edit",
   "pages.move": "Change address",
+  "pages.duplicate": "Duplicate",
   "pages.delete": "Delete",
   "pages.view": "View",
   "pages.homeCantDelete": "The home page can't be deleted.",
@@ -228,6 +229,10 @@ export const defaultStrings = {
   "newPage.addressHint": "The part of the web address after the site's name, such as /about or /events/picnic.",
   "newPage.create": "Create page",
   "newPage.message": 'Add page "{title}"',
+  "duplicatePage.title": 'Duplicate "{title}"',
+  "duplicatePage.pageTitle": "{title} (copy)",
+  "duplicatePage.create": "Duplicate page",
+  "duplicatePage.message": 'Add page "{title}", a copy of "{from}"',
 
   "movePage.title": "Change the address of {title}",
   "movePage.address": "New address",

@@ -1,10 +1,19 @@
-import { allPages, type Page, type Schedule, scheduleOf, scheduleProblem, withSchedule } from "@goodfellow-cms/core";
+import {
+  allPages,
+  isLanguageHome,
+  type Page,
+  type Schedule,
+  scheduleOf,
+  scheduleProblem,
+  withSchedule,
+} from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, useState } from "react";
 import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import {
   type AddressProblem,
   checkPageAddress,
+  duplicatePageData,
   movePageChanges,
   newPageData,
   pageFileChange,
@@ -24,12 +33,27 @@ const addressErrors: Record<AddressProblem, StringKey> = {
   taken: "address.taken",
 };
 
-function NewPageDialog({ onClose }: { onClose: () => void }) {
+/**
+ * Makes a page: an empty one, or, given `from`, a copy of that page's blocks
+ * and settings, in the same folder. A copy is a page of its own: shown at
+ * once, and not a translation, whatever the page it copies is.
+ */
+function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) {
   const t = useStrings();
   const { publish } = useAdmin();
   const { content } = useSiteContent();
-  const [title, setTitle] = useState("");
-  const [address, setAddress] = useState("/");
+  const fromTitle = from ? pageTitle(from) : "";
+  // A copy goes beside its page; a copy of a language's home page stays in that language.
+  const folder =
+    !from || from.path === "/"
+      ? ""
+      : isLanguageHome(content.settings, from.path)
+        ? from.path
+        : from.path.slice(0, from.path.lastIndexOf("/"));
+  const addressFor = (value: string) => `${folder}/${slugify(value)}`;
+  const initialTitle = from ? t("duplicatePage.pageTitle", { title: fromTitle }) : "";
+  const [title, setTitle] = useState(initialTitle);
+  const [address, setAddress] = useState(from ? addressFor(initialTitle) : "/");
   const [addressEdited, setAddressEdited] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -45,9 +69,12 @@ function NewPageDialog({ onClose }: { onClose: () => void }) {
     setSubmitted(true);
     if (!title.trim() || !check.ok) return;
     setBusy(true);
+    const data = from ? duplicatePageData(from.content.data as Data, title.trim()) : newPageData(title.trim());
     const result = await publish(
-      [pageFileChange(check.path, newPageData(title.trim()), undefined)],
-      t("newPage.message", { title: title.trim() }),
+      [pageFileChange(check.path, data, undefined)],
+      from
+        ? t("duplicatePage.message", { title: title.trim(), from: fromTitle })
+        : t("newPage.message", { title: title.trim() }),
     );
     setBusy(false);
     if (result.ok) {
@@ -59,7 +86,7 @@ function NewPageDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Dialog title={t("newPage.title")} onClose={onClose}>
+    <Dialog title={from ? t("duplicatePage.title", { title: fromTitle }) : t("newPage.title")} onClose={onClose}>
       <form onSubmit={onSubmit} className="gfa-form" noValidate>
         <TextField
           label={t("newPage.pageTitle")}
@@ -68,7 +95,7 @@ function NewPageDialog({ onClose }: { onClose: () => void }) {
           autoFocus
           onChange={(value) => {
             setTitle(value);
-            if (!addressEdited) setAddress(`/${slugify(value)}`);
+            if (!addressEdited) setAddress(addressFor(value));
           }}
         />
         <TextField
@@ -85,7 +112,7 @@ function NewPageDialog({ onClose }: { onClose: () => void }) {
         <div className="gfa-dialog-actions">
           <Button onClick={onClose}>{t("action.cancel")}</Button>
           <Button type="submit" variant="primary" disabled={busy}>
-            {busy ? t("publish.publishing") : t("newPage.create")}
+            {busy ? t("publish.publishing") : from ? t("duplicatePage.create") : t("newPage.create")}
           </Button>
         </div>
       </form>
@@ -230,6 +257,7 @@ function DeletePageDialog({ page, onClose }: { page: Page; onClose: () => void }
 type DialogState =
   | { type: "new" }
   | { type: "move"; page: Page }
+  | { type: "duplicate"; page: Page }
   | { type: "schedule"; page: Page }
   | { type: "delete"; page: Page }
   | null;
@@ -297,6 +325,9 @@ export function PagesScreen() {
                   >
                     {t("pages.move")}
                   </Button>
+                  <Button variant="ghost" onClick={() => setDialog({ type: "duplicate", page })}>
+                    {t("pages.duplicate")}
+                  </Button>
                   <Button
                     variant="ghost"
                     onClick={() => setDialog({ type: "schedule", page })}
@@ -320,6 +351,7 @@ export function PagesScreen() {
       )}
 
       {dialog?.type === "new" && <NewPageDialog onClose={close} />}
+      {dialog?.type === "duplicate" && <NewPageDialog from={dialog.page} onClose={close} />}
       {dialog?.type === "move" && <MovePageDialog page={dialog.page} onClose={close} />}
       {dialog?.type === "schedule" && <SchedulePageDialog page={dialog.page} onClose={close} />}
       {dialog?.type === "delete" && <DeletePageDialog page={dialog.page} onClose={close} />}

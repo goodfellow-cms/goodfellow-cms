@@ -65,6 +65,26 @@ test("creates a page", async ({ page }) => {
   });
 });
 
+test("duplicates a page, so a similar one doesn't start from scratch", async ({ page }) => {
+  const about = readJson("content/pages/about.json") as { data: { root: { props: object } } };
+  await page.goto("/admin");
+  await page.getByRole("row", { name: /About us/ }).getByRole("button", { name: "Duplicate" }).click();
+  await expect(page.getByRole("dialog", { name: 'Duplicate "About us"' })).toBeVisible();
+  await expect(page.getByLabel("Page title")).toHaveValue("About us (copy)");
+  await expect(page.getByLabel("Address")).toHaveValue("/about-us-copy");
+  await page.getByLabel("Page title").fill("Our history");
+  await expect(page.getByLabel("Address")).toHaveValue("/our-history");
+  await page.getByRole("button", { name: "Duplicate page" }).click();
+
+  await expect(page).toHaveURL(/#\/pages\/edit\?path=%2Four-history$/);
+  await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible({ timeout: 20_000 });
+  // The same blocks and settings, with the new title.
+  expect(readJson("content/pages/our-history.json")).toEqual({
+    ...about,
+    data: { ...about.data, root: { ...about.data.root, props: { ...about.data.root.props, title: "Our history" } } },
+  });
+});
+
 test("refuses addresses that can't be used", async ({ page }) => {
   await page.goto("/admin");
   await page.getByRole("button", { name: "New page" }).click();

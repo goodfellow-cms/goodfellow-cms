@@ -11,7 +11,7 @@ describe("shownSettings", () => {
     const shown = settings.show(original);
     expect(shown.root.props).toEqual({ title: "About", noIndex: false });
     expect(settings.keep(shown)).toEqual(original);
-    expect(settings.keep({ ...shown, root: { props: { title: "About", noIndex: true } } }).root.props).toEqual({
+    expect(settings.keep(page({ title: "About", noIndex: true })).root.props).toEqual({
       title: "About",
       noIndex: true,
     });
