@@ -15,7 +15,7 @@ Click outside every block in a page's editor to see its own settings:
 - **Page title**, shown in the browser's tab and in search results.
 - **Description for search engines**, shown under the title in search results and in link previews. Without one, the site's description from Site Settings is used.
 - **Image when shared**, shown in link previews. Without one, the image from Site Settings is used.
-- **Search engines:** **Hide from search results** asks search engines to leave the page out, and leaves it out of the sitemap. The page is still on the site, for anyone with its address, and in the site's own search; it isn't private.
+- **Search engines:** pages are in search results unless you choose **Hide from search results**, which asks search engines to leave the page out, and leaves it out of the sitemap. The page is still on the site, for anyone with its address, and in the site's own search; it isn't private. **Page not found** is always hidden from search results, so its setting can't be changed.
 
 Below them, **When a link to this page is shared** shows how a link to the page looks in a message or on social media, as you edit them: the image, the title as browser tabs show it, the description and the site's address. A collection's page design has the same settings, which its items' pages share.
 

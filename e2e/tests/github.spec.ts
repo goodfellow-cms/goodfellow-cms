@@ -1,7 +1,7 @@
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { expect, type Page, test } from "@playwright/test";
 import { files, GITHUB_SITE, routeToFake } from "./backends.js";
-import { canvas, editor } from "./helpers.js";
+import { canvas, editor, expectSandboxed } from "./helpers.js";
 
 function setup(page: Page, options: Partial<Parameters<typeof fakeGitHub>[0]> = {}) {
   const fake = fakeGitHub({
@@ -168,33 +168,7 @@ test("runs the site's blocks in a sandbox that can't reach the sign-in, storage,
   await signIn(page, "good-token", true);
   await page.getByRole("link", { name: "About us", exact: true }).click();
   await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible();
-  await expect(page.locator("iframe.gfa-editor-frame")).toHaveAttribute("sandbox", "allow-scripts");
-
-  // What a block's code could try, from inside the editor's frame.
-  const tried = await canvas(page).evaluate(async () => {
-    const attempt = async (run: () => unknown) => {
-      try {
-        await run();
-        return "allowed";
-      } catch {
-        return "refused";
-      }
-    };
-    return {
-      parent: await attempt(() => window.parent.document.title),
-      storage: await attempt(() => window.localStorage.length),
-      cookie: await attempt(() => document.cookie),
-      fetch: await attempt(() => fetch("/admin/")),
-      webrtc: typeof (window as { RTCPeerConnection?: unknown }).RTCPeerConnection,
-    };
-  });
-  expect(tried).toEqual({
-    parent: "refused",
-    storage: "refused",
-    cookie: "refused",
-    fetch: "refused",
-    webrtc: "undefined",
-  });
+  await expectSandboxed(page);
 
   // The admin panel's page still has the sign-in it kept, which the frame can't see.
   expect(await page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("goodfellow:github")))).toBe(

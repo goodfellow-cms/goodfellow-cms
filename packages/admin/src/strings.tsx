@@ -95,6 +95,11 @@ export const defaultStrings = {
   "build.unknown": "{host} didn't say why the rebuild failed. Its details may help a developer.",
   "build.hostDetails": "See the details on {host}",
   "loadError.title": "The admin panel couldn't open this site",
+  "outdatedAdminPage.title": "This site's admin page needs updating",
+  "outdatedAdminPage.message":
+    "This site's admin page is from before the editor kept blocks away from your sign-in, so the admin panel doesn't open on it. Goodfellow's next update changes it, unless someone has changed the page. Whoever looks after the site's code can also change it now: the details say how.",
+  "outdatedAdminPage.details":
+    "Run npx goodfellow-next update, or replace these files with the Next.js starter's, as they are below. The site's blocks then run in the editor's sandboxed frames, at /admin/editor/.",
   "loadError.contentProblems": "Some of the site's files have problems, so they can't be edited until they're fixed.",
   "loadError.other": "Something went wrong while loading the site. Check your connection and try again.",
   "action.tryAgain": "Try again",
@@ -173,6 +178,7 @@ export const defaultStrings = {
   "pages.column.address": "Address",
   "pages.edit": "Edit",
   "pages.move": "Change address",
+  "pages.duplicate": "Duplicate",
   "pages.delete": "Delete",
   "pages.view": "View",
   "pages.homeCantDelete": "The home page can't be deleted.",
@@ -223,6 +229,10 @@ export const defaultStrings = {
   "newPage.addressHint": "The part of the web address after the site's name, such as /about or /events/picnic.",
   "newPage.create": "Create page",
   "newPage.message": 'Add page "{title}"',
+  "duplicatePage.title": 'Duplicate "{title}"',
+  "duplicatePage.pageTitle": "{title} (copy)",
+  "duplicatePage.create": "Duplicate page",
+  "duplicatePage.message": 'Add page "{title}", a copy of "{from}"',
 
   "movePage.title": "Change the address of {title}",
   "movePage.address": "New address",

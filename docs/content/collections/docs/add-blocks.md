@@ -29,7 +29,7 @@ Sites whose [content is kept apart from their code](/docs/content-repository) ha
 
 FAQ, Tabs and Image carousel are interactive. The FAQ's answers and the tabs' content are in the page even when hidden, so search engines and search boxes find them.
 
-Custom HTML used exactly as written runs its scripts on the site, but in the editor it's shown in a sealed-off frame, where it can't reach the admin panel. Only use HTML you trust that way. Its scripts run whenever its page is shown, also when visitors move to it from another page of a Next.js site. A page with such scripts loads React, as pages with interactive blocks do.
+Custom HTML used exactly as written runs its scripts on the site. The editor only shows it, in a sealed-off frame where it can't reach the admin panel, without running its scripts, so a widget that a script builds shows on the published site but not in the editor. Only use HTML you trust that way. Its scripts run whenever its page is shown, also when visitors move to it from another page of a Next.js site. A page with such scripts loads React, as pages with interactive blocks do.
 
 ## Removing a block
 

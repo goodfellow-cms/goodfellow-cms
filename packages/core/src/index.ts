@@ -81,6 +81,7 @@ export {
   collectionFileChange,
   customCssFileChange,
   deleteCollectionChanges,
+  duplicatePageData,
   type EntryNameProblem,
   entryFileChange,
   layoutFileChange,
@@ -450,7 +451,7 @@ export {
   newDraftName,
   type SiteDrafts,
 } from "./drafts.js";
-export { EDITOR_PRELUDE, editorPolicy } from "./editor-policy.js";
+export { DEV_EDITOR_PREFIX, EDITOR_PRELUDE, editorPage, editorPolicy } from "./editor-policy.js";
 export {
   type EditorList,
   type EditorRole,
@@ -501,7 +502,15 @@ export {
   type StorageLike,
   type TokenLink,
 } from "./git.js";
-export { absoluteUrl, getPageHead, type PageHead, pageHead, type SitemapPage, sitemapPages } from "./head.js";
+export {
+  absoluteUrl,
+  getPageHead,
+  neverIndexed,
+  type PageHead,
+  pageHead,
+  type SitemapPage,
+  sitemapPages,
+} from "./head.js";
 export {
   type CalendarEvent,
   type CalendarFileOptions,

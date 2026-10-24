@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test as base, expect as baseExpect } from "@playwright/test";
 import { nextSite, resetNextContent } from "../scripts/site.mjs";
-import { editor } from "./helpers.js";
+import { editor, expectSandboxed } from "./helpers.js";
 
 // The Next.js template under `next dev`: see playwright.config.ts.
 const BASE = "http://localhost:4403";
@@ -119,6 +119,41 @@ test("edits a page in Puck with the site's styles", async ({ page }) => {
   await expect(canvas.getByRole("heading", { name: "About us" })).toBeVisible();
   const heading = canvas.getByRole("heading", { name: "About us" });
   await expect.poll(() => heading.evaluate((el: Element) => getComputedStyle(el).fontWeight)).toBe("700");
+});
+
+test("runs the site's blocks in a sandbox in next dev too, from a bundle of their own", async ({ page }) => {
+  await page.goto(`${BASE}/admin/#/pages/edit?path=${encodeURIComponent("/about")}`);
+  await expect(editor(page).locator(".gf-canvas").first().getByRole("heading", { name: "About us" })).toBeVisible();
+  await expect(page.locator("iframe.gfa-editor-frame")).toHaveAttribute("src", "/__goodfellow/api/editor/");
+  await expectSandboxed(page);
+});
+
+test("says how to update an admin page from before the editor's sandbox, and never signs in there", async ({
+  page,
+}) => {
+  const file = join(nextSite, "app/admin/page.tsx");
+  const current = readFileSync(file, "utf8");
+  const old = `"use client";
+
+import { GoodfellowAdmin } from "@goodfellow-cms/next/admin";
+import config from "@/goodfellow.config";
+
+export default function AdminPage() {
+  return <GoodfellowAdmin config={config} />;
+}
+`;
+  writeFileSync(file, old);
+  try {
+    await page.goto(`${BASE}/admin/`);
+    await expect(page.getByRole("heading", { name: "This site's admin page needs updating" })).toBeVisible();
+    await page.getByText("Details", { exact: true }).click();
+    await expect(page.getByText("npx goodfellow-next update")).toBeVisible();
+    await expect(page.locator("pre").first()).toContainText("site.admin()");
+    await expect(page.locator("iframe")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Publish" })).toHaveCount(0);
+  } finally {
+    writeFileSync(file, current);
+  }
 });
 
 test("runs a block's Client Component in the browser, with the site's data and next/link", async ({ page }) => {

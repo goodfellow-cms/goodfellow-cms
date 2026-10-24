@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { type AdminSite, EDITOR_PRELUDE, editorPolicy } from "@goodfellow-cms/core";
+import type { AdminSite } from "@goodfellow-cms/core";
 import { DEV_API_PREFIX } from "@goodfellow-cms/core/node";
 import type { Plugin } from "vite";
 
@@ -9,6 +9,9 @@ const RESOLVED_ADMIN_ENTRY = `\0${ADMIN_ENTRY}`;
 /** The editor's frames' entry: the site's config, Puck and every block, which the admin panel's page never loads. */
 export const EDITOR_ENTRY = "virtual:goodfellow/editor";
 const RESOLVED_EDITOR_ENTRY = `\0${EDITOR_ENTRY}`;
+
+/** What `goodfellow dev` tells the admin page once it has rebuilt the editor's frames. */
+export const EDITOR_REBUILT_EVENT = "goodfellow:editor-rebuilt";
 
 /** Where the editor's frames are served from by `goodfellow dev`, and their files by `goodfellow build`. */
 export const EDITOR_PATH = "admin/editor/";
@@ -51,16 +54,20 @@ export function adminEntryPlugin(configFile: string, entry: AdminEntryMode): Plu
     if (entry.mode === "dev") {
       return [
         `import { localStore } from "@goodfellow-cms/admin/dev";`,
+        `import { reloadFrames } from "@goodfellow-cms/admin";`,
         ...common,
         "mountAdmin(element, {",
         `  site: await fetch(${JSON.stringify(DEV_ADMIN_SITE_PATH)}).then((response) => response.json()),`,
-        `  frames: { url: ${JSON.stringify(`/${EDITOR_PATH}`)}, sameOrigin: true },`,
+        `  frames: { url: ${JSON.stringify(`/${EDITOR_PATH}`)} },`,
         "  store: localStore(),",
         // The block registry the site's packages include, which the development server serves.
         `  registry: ${JSON.stringify(`${DEV_API_PREFIX}/registry/{name}.json`)},`,
         `  preview: { stylesheets: [${JSON.stringify(entry.previewStylesheet)}], themeCss, tailwindBrowserUrl },`,
         `  siteUrl: "/",`,
         "});",
+        // The editor's frames are rebuilt as the site's code changes; reloading them shows the new blocks,
+        // and leaves whatever is open on the admin panel's page as it is.
+        `import.meta.hot?.on(${JSON.stringify(EDITOR_REBUILT_EVENT)}, () => reloadFrames());`,
       ];
     }
     const backend = entry.site.backend;
@@ -77,9 +84,8 @@ export function adminEntryPlugin(configFile: string, entry: AdminEntryMode): Plu
       "});",
     ];
   };
-  // In development the editor is a module like any other, with the prelude imported first so it runs first.
+  // Bundled as one classic script, in development too, with the prelude as its banner (see buildEditor()).
   const editor = [
-    ...(entry.mode === "dev" ? [`import ${JSON.stringify(`${RESOLVED_EDITOR_ENTRY}-prelude`)};`] : []),
     `import config from ${JSON.stringify(configFile)};`,
     `import { mountEditorFrame } from "@goodfellow-cms/admin/editor";`,
     `import "@puckeditor/core/puck.css";`,
@@ -90,17 +96,10 @@ export function adminEntryPlugin(configFile: string, entry: AdminEntryMode): Plu
   return {
     name: "goodfellow:admin-entry",
     resolveId: (id) =>
-      id === ADMIN_ENTRY
-        ? RESOLVED_ADMIN_ENTRY
-        : id === EDITOR_ENTRY
-          ? RESOLVED_EDITOR_ENTRY
-          : id === `${RESOLVED_EDITOR_ENTRY}-prelude`
-            ? id
-            : undefined,
+      id === ADMIN_ENTRY ? RESOLVED_ADMIN_ENTRY : id === EDITOR_ENTRY ? RESOLVED_EDITOR_ENTRY : undefined,
     load: async (id) => {
       if (id === RESOLVED_ADMIN_ENTRY) return mount().join("\n");
       if (id === RESOLVED_EDITOR_ENTRY) return editor.join("\n");
-      if (id === `${RESOLVED_EDITOR_ENTRY}-prelude`) return EDITOR_PRELUDE;
       return undefined;
     },
   };
@@ -141,50 +140,6 @@ export function adminHtml(options: {
     "  <body>",
     '    <div id="gf-admin"></div>',
     ...scripts,
-    "  </body>",
-    "</html>",
-    "",
-  ].join("\n");
-}
-
-/**
- * The page `goodfellow build` writes for the editor's frames, whose Content
- * Security Policy runs only the site's own scripts and fetches nothing. Its
- * script is classic, since the frames are sandboxed, and a sandboxed page
- * can't load module scripts from the site without CORS headers.
- */
-export function builtEditorHtml(options: { scripts: string[]; stylesheets: string[] }): string {
-  return [
-    "<!DOCTYPE html>",
-    '<html lang="en">',
-    "  <head>",
-    // First, so it applies to everything after it.
-    `    <meta http-equiv="Content-Security-Policy" content="${escapeHtml(editorPolicy())}" />`,
-    '    <meta charset="utf-8" />',
-    '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
-    '    <meta name="robots" content="noindex" />',
-    ...options.stylesheets.map((href) => `    <link rel="stylesheet" href="${escapeHtml(href)}" />`),
-    "  </head>",
-    "  <body>",
-    ...options.scripts.map((src) => `    <script src="${escapeHtml(src)}"></script>`),
-    "  </body>",
-    "</html>",
-    "",
-  ].join("\n");
-}
-
-/** The page `goodfellow dev` serves the editor's frames, whose scripts Vite adds. */
-export function editorHtml(): string {
-  return [
-    "<!DOCTYPE html>",
-    '<html lang="en">',
-    "  <head>",
-    '    <meta charset="utf-8" />',
-    '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
-    '    <meta name="robots" content="noindex" />',
-    "  </head>",
-    "  <body>",
-    `    <script type="module" src="/@id/__x00__${EDITOR_ENTRY}"></script>`,
     "  </body>",
     "</html>",
     "",

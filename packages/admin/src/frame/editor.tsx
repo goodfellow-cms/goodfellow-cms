@@ -49,6 +49,7 @@ import { useCanvasStyles } from "./canvas-styles.js";
 import type { Channel } from "./channel.js";
 import { entryConfig } from "./entry-fields.js";
 import { useAdminClient, useFrameCode } from "./frame-site.js";
+import { type ShownSettings, shownSettings } from "./page-settings.js";
 import type { EditorChange, EditorOpen, EditorOpened, EditorState } from "./protocol.js";
 import { SiteFrame } from "./site-frame.js";
 
@@ -136,7 +137,7 @@ function describeConfig(config: Config): Config {
  * asks: Undo, Redo, the sidebars, and the AI assistant's changes. Rendered in
  * place of Puck's header, so it's inside Puck.
  */
-function Bridge({ channel }: { channel: Channel }) {
+function Bridge({ channel, settings }: { channel: Channel; settings: ShownSettings }) {
   const getPuck = useGetPuck();
   const data = usePuck((state) => state.appState.data);
   const selected = usePuck((state) => state.selectedItem);
@@ -146,7 +147,7 @@ function Bridge({ channel }: { channel: Channel }) {
 
   useEffect(() => {
     const state: EditorState = {
-      data,
+      data: settings.keep(data),
       selected: selected ?? null,
       past,
       future,
@@ -156,11 +157,11 @@ function Bridge({ channel }: { channel: Channel }) {
       rightSideBarWidth: ui.rightSideBarWidth,
     };
     channel.emit("editor.state", state);
-  }, [channel, data, selected, past, future, ui]);
+  }, [channel, settings, data, selected, past, future, ui]);
 
   useEffect(() => {
     const stops = [
-      channel.handle("editor.data", () => getPuck().appState.data),
+      channel.handle("editor.data", () => settings.keep(getPuck().appState.data)),
       channel.handle("editor.undo", () => getPuck().history.back()),
       channel.handle("editor.redo", () => getPuck().history.forward()),
       channel.handle("editor.ui", (changes: Partial<UiState>) => {
@@ -172,15 +173,17 @@ function Bridge({ channel }: { channel: Channel }) {
       channel.handle("editor.apply", (change: EditorChange) => {
         const { appState, dispatch, getSelectorForId } = getPuck();
         if (change.type === "root") {
-          dispatch({ type: "replaceRoot", root: { ...appState.data.root, props: change.props } });
+          const { root } = settings.show({ ...appState.data, root: { ...appState.data.root, props: change.props } });
+          dispatch({ type: "replaceRoot", root });
         } else if (change.type === "translate") {
           dispatch({
             type: "setData",
-            data: (previous) => ({
-              ...previous,
-              root: { ...previous.root, props: { ...previous.root.props, ...change.props } },
-              content: change.content,
-            }),
+            data: (previous) =>
+              settings.show({
+                ...previous,
+                root: { ...previous.root, props: { ...previous.root.props, ...change.props } },
+                content: change.content,
+              }),
           });
         } else if (change.type === "replace") {
           const selector = getSelectorForId(change.id);
@@ -204,7 +207,7 @@ function Bridge({ channel }: { channel: Channel }) {
     return () => {
       for (const stop of stops) stop();
     };
-  }, [channel, getPuck]);
+  }, [channel, settings, getPuck]);
   return null;
 }
 
@@ -252,8 +255,17 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
     return () => document.removeEventListener("click", onClick);
   }, []);
 
-  // Puck works with current data; files saved by older versions of Puck are upgraded first.
-  const initialData = useMemo(() => migrate(data), [data]);
+  // Puck works with current data; files saved by older versions of Puck are upgraded first. Pages and
+  // templates show their settings' defaults where they haven't chosen, which files leave out.
+  const migrated = useMemo(() => migrate(data), [data]);
+  const settings = useMemo<ShownSettings>(
+    () =>
+      kind === "page" || kind === "template"
+        ? shownSettings(migrated, kind === "page" ? path : undefined)
+        : { show: (shown) => shown, keep: (kept) => kept },
+    [migrated, kind, path],
+  );
+  const initialData = useMemo(() => settings.show(migrated), [settings, migrated]);
 
   // Which block the page's added pages are for, as builds work it out, so the editor shows what the site will:
   // only that block links to its other pages. It's worked out again as the page changes.
@@ -326,13 +338,13 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
   useEffect(() => {
     if (told.current === described) return;
     told.current = described;
-    onOpened({ config: described, data: initialData });
-  }, [described, initialData, onOpened]);
+    onOpened({ config: described, data: migrated });
+  }, [described, migrated, onOpened]);
 
   const ui = useMemo(() => ({ ...(kind === "entry" ? ENTRY_UI : {}), ...open.ui }), [kind, open.ui]);
   const overrides = useMemo(
     () => ({
-      header: () => <Bridge channel={client.channel} />,
+      header: () => <Bridge channel={client.channel} settings={settings} />,
       fieldTypes: { text: TextFieldWithMedia },
       // A page's own settings end with how links to it look when shared.
       ...(kind === "page" &&
@@ -345,7 +357,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
           ),
         }),
     }),
-    [client, kind, path],
+    [client, settings, kind, path],
   );
 
   return (

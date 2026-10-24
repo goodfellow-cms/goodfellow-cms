@@ -146,8 +146,10 @@ export interface UpdateResult {
   step?: "install" | "build" | "blocks" | "publish";
   /** What the build said, when building the site with the update failed. */
   cause?: BuildCause;
-  /** Installed blocks' files someone changed, which the update left as they were. */
+  /** Installed blocks' files and site files someone changed, which the update left as they were. */
   kept?: string[];
+  /** Site files the update brought up to date (`SiteFile`), even where Goodfellow itself already was. */
+  files?: string[];
   /** For an automatic update that didn't run, because the site's settings turn them off. */
   paused?: boolean;
   /** When `to` is older: the site went back to it, and `from` is now skipped. */

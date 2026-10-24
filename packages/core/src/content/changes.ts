@@ -115,6 +115,11 @@ export function newPageData(title: string): Data {
   return { root: { props: { title } }, content: [] };
 }
 
+/** A copy of a page's blocks and settings, as a new page with its own title. */
+export function duplicatePageData(data: Data, title: string): Data {
+  return { ...data, root: { ...data.root, props: { ...data.root.props, title } } };
+}
+
 /** Writes the menus: the main language's, and every other language's, which pass through unless they're given. */
 export function menusFileChange({
   menus,

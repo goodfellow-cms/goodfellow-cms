@@ -1,6 +1,7 @@
 import {
   canvas,
   expect,
+  expectSandboxed,
   field,
   openPageEditor,
   publishInEditor,
@@ -61,6 +62,29 @@ test("creates a page", async ({ page }) => {
   expect(readJson("content/pages/mass-confession-times.json")).toEqual({
     version: 1,
     data: { root: { props: { title: "Mass & Confession Times" } }, content: [] },
+  });
+});
+
+test("duplicates a page, so a similar one doesn't start from scratch", async ({ page }) => {
+  const about = readJson("content/pages/about.json") as { data: { root: { props: object } } };
+  await page.goto("/admin");
+  await page
+    .getByRole("row", { name: /About us/ })
+    .getByRole("button", { name: "Duplicate" })
+    .click();
+  await expect(page.getByRole("dialog", { name: 'Duplicate "About us"' })).toBeVisible();
+  await expect(page.getByLabel("Page title")).toHaveValue("About us (copy)");
+  await expect(page.getByLabel("Address")).toHaveValue("/about-us-copy");
+  await page.getByLabel("Page title").fill("Our history");
+  await expect(page.getByLabel("Address")).toHaveValue("/our-history");
+  await page.getByRole("button", { name: "Duplicate page" }).click();
+
+  await expect(page).toHaveURL(/#\/pages\/edit\?path=%2Four-history$/);
+  await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible({ timeout: 20_000 });
+  // The same blocks and settings, with the new title.
+  expect(readJson("content/pages/our-history.json")).toEqual({
+    ...about,
+    data: { ...about.data, root: { ...about.data.root, props: { ...about.data.root.props, title: "Our history" } } },
   });
 });
 
@@ -144,4 +168,9 @@ test("asks before leaving a page with unpublished changes", async ({ page }) => 
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("link", { name: "Site settings" }).click();
   await expect(page).toHaveURL(/#\/settings\/general$/);
+});
+
+test("runs the site's blocks in a sandbox in goodfellow dev too, away from the files on disk", async ({ page }) => {
+  await openPageEditor(page, "/about", "About us");
+  await expectSandboxed(page);
 });

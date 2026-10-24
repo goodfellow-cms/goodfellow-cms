@@ -31,6 +31,11 @@ function readString(props: Record<string, unknown> | undefined, key: string): st
   return typeof value === "string" ? value.trim() : "";
 }
 
+/** Whether a page is left out of search engines whatever its settings say: "Page not found". */
+export function neverIndexed(path: string): boolean {
+  return path === "/404";
+}
+
 /** Joins a site address and a page path: `("https://example.org/", "/about")` → `https://example.org/about`. */
 export function absoluteUrl(siteUrl: string, path: string): string {
   return `${trimChars(siteUrl, "/", { start: false })}${path === "/" ? "/" : path}`;
@@ -51,7 +56,7 @@ export function getPageHead(settings: SiteSettings, page: Page): PageHead {
     canonicalUrl: settings.url ? absoluteUrl(settings.url, page.path) : undefined,
     favicon: settings.favicon,
     socialImage: readString(props, "image") || settings.socialImage,
-    noIndex: page.path === "/404" || props?.noIndex === true,
+    noIndex: neverIndexed(page.path) || props?.noIndex === true,
   };
 }
 

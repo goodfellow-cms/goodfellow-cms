@@ -35,16 +35,28 @@ async function publishBlocks(page: Page) {
   await page.getByRole("region", { name: "Changes to publish" }).getByRole("button", { name: "Publish" }).click();
 }
 
+/** Waits for the development server to have rebuilt the editor's frames with a block's code. */
+async function editorHas(page: Page, block: string) {
+  await expect
+    .poll(
+      async () => {
+        const html = await (await page.request.get("/admin/editor/")).text();
+        const script = /<script src="([^"]+)"/.exec(html)?.[1];
+        return script ? (await (await page.request.get(script)).text()).includes(JSON.stringify(block)) : false;
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+}
+
 async function addFaq(page: Page) {
   await page.goto("/admin#/blocks");
   await expect(page.getByRole("heading", { name: "Interactive" })).toBeVisible();
   await expect(page.getByRole("listitem").filter({ hasText: "FAQ" }).getByText("Recommended")).toBeVisible();
-  // The dev server reloads the admin panel once the block's code is on disk, which clears this.
-  await page.evaluate(() => Object.assign(window, { beforeAdding: true }));
   await page.getByRole("button", { name: "Add FAQ" }).click();
   await publishBlocks(page);
   await expect.poll(() => onDisk("blocks/installed/installed.json")).toBe(true);
-  await expect.poll(() => page.evaluate(() => "beforeAdding" in window).catch(() => true)).toBe(false);
+  await editorHas(page, "shadcn-faq");
 }
 
 test("adds a block from Goodfellow's registry, which the editor then offers and the site runs", async ({ page }) => {
@@ -78,15 +90,16 @@ test("adds a block from Goodfellow's registry, which the editor then offers and 
   }).toPass({ timeout: 30_000 });
 });
 
-test("runs custom HTML used as written on the site, but only in a sandboxed frame in the editor", async ({ page }) => {
+test("runs custom HTML used as written on the site, and only shows it in the editor, in a sandboxed frame", async ({
+  page,
+}) => {
   await page.goto("/admin#/blocks");
   await expect(page.getByRole("heading", { name: "Advanced" })).toBeVisible();
   await expect(page.getByRole("listitem").filter({ hasText: "Custom HTML" }).getByText("Recommended")).toBeHidden();
-  await page.evaluate(() => Object.assign(window, { beforeAdding: true }));
   await page.getByRole("button", { name: "Add Custom HTML" }).click();
   await publishBlocks(page);
   await expect.poll(() => onDisk("blocks/installed/custom-html/block.tsx")).toBe(true);
-  await expect.poll(() => page.evaluate(() => "beforeAdding" in window).catch(() => true)).toBe(false);
+  await editorHas(page, "custom-html");
 
   const html =
     '<p id="widget">Widget</p><script>window.runs = (window.runs || 0) + 1; document.getElementById("widget").textContent = "Ran " + window.runs; try { window.parent.document.title = "Reached"; } catch {}</script>';
@@ -118,10 +131,11 @@ test("runs custom HTML used as written on the site, but only in a sandboxed fram
 
   await page.goto("/admin#/");
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/widget")}`);
+  // The editor runs only its own scripts, so the HTML is shown as it is, with nothing allowed.
   const frame = canvas(page).frameLocator('iframe[title="Custom HTML"]');
-  await expect(frame.locator("#widget")).toHaveText("Ran 1");
-  await expect(canvas(page).locator('iframe[title="Custom HTML"]')).toHaveAttribute("sandbox", "allow-scripts");
-  // Its script couldn't reach the editor.
+  await expect(frame.locator("#widget")).toHaveText("Widget");
+  await expect(canvas(page).locator('iframe[title="Custom HTML"]')).toHaveAttribute("sandbox", "");
+  await expect(canvas(page).getByText("Scripts don't run in the editor.")).toBeVisible();
   expect(await page.title()).not.toBe("Reached");
   expect(await canvas(page).evaluate((element: Element) => element.ownerDocument.title)).not.toBe("Reached");
 });

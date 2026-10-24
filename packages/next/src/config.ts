@@ -53,7 +53,16 @@ function startDevApi(root: string): Promise<number> {
   globals[SERVER_KEY] ??= new Promise((resolvePort, reject) => {
     const store = localFileStore(root);
     const registryDir = localRegistryDir(root);
+    // The editor's frames, bundled here, since Next.js refuses its own files to sandboxed frames.
+    // If it can't start, the rest of the local backend still works, and says why the editor doesn't.
+    const editor = import("./dev-editor.js")
+      .then(({ startDevEditor }) => startDevEditor(root))
+      .catch((error: Error) => {
+        console.error(`The editor's frames can't be served: ${error.message}`);
+        return { serve: async () => false };
+      });
     const server = createServer(async (req, res) => {
+      if (await (await editor).serve(req, res)) return;
       // Requests come through Next.js's development server, so they're from its address rather than this one's.
       if (!(await handleDevApi(store, req, res, { trustOrigin: isLocalOrigin, registryDir }))) {
         res.writeHead(404).end();

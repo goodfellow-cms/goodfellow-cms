@@ -26,14 +26,16 @@ import { READY_MESSAGE } from "./protocol.js";
  * Where the admin panel loads the frames that run the site's code from: a
  * page of their own, such as `goodfellow build`'s `admin/editor/` or the
  * Next.js starter's `app/admin/editor/`, whose Content Security Policy
- * (`editorPolicy()`) runs only the site's scripts. `sameOrigin` keeps it on
- * the admin panel's address, for development servers, which hold no tokens
- * and whose scripts are modules, which a sandboxed page can't load.
+ * (`editorPolicy()`) runs only the site's scripts. Every frame is sandboxed
+ * with `allow-scripts` alone, development servers' too, so the site's code
+ * never shares the admin panel's origin.
  */
 export interface FrameSource {
   url: string;
-  sameOrigin?: boolean;
 }
+
+/** The only thing frames are allowed: no `allow-same-origin`, so they never reach the admin panel's page or storage. */
+export const FRAME_SANDBOX = "allow-scripts";
 
 /** A connected frame's requests, typed. */
 export interface FrameClient {
@@ -53,6 +55,19 @@ export function frameClient(channel: Channel): FrameClient {
 
 /** How many times a frame may start again, such as after the development server reloads it, before it's given up on. */
 const MAX_CONNECTIONS = 5;
+
+/** Each frame's way of loading its page again, for `reloadFrames()`. */
+const reloaders = new Set<() => void>();
+
+/**
+ * Loads every frame's page again, as development servers do once they've
+ * rebuilt the frames with the site's new code, leaving the admin panel's own
+ * page, and whatever is open on it, as it is. Frames reloaded this way
+ * don't count towards the times one may start again.
+ */
+export function reloadFrames(): void {
+  for (const reload of reloaders) reload();
+}
 
 /** What the admin panel tells every frame it makes, and answers for them. */
 export interface FrameServices {
@@ -170,9 +185,16 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
         }
       })();
     };
+    const reload = () => {
+      connections = 0;
+      setFailed(false);
+      if (element.current) element.current.src = latest.current.services.source.url;
+    };
+    reloaders.add(reload);
     window.addEventListener("message", onMessage);
     return () => {
       stopped = true;
+      reloaders.delete(reload);
       window.removeEventListener("message", onMessage);
       stopRemembering?.();
       current?.close();
@@ -188,7 +210,7 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
     failed,
     frameProps: {
       ref,
-      sandbox: source.sameOrigin ? "allow-scripts allow-same-origin" : "allow-scripts",
+      sandbox: FRAME_SANDBOX,
       src: source.url,
     },
   };

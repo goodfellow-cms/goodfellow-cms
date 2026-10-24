@@ -19,7 +19,7 @@ export { InvalidPathError, localFileStore } from "./node-local-files.js";
 export { readMediaSizes } from "./node-media.js";
 export { localRegistryDir } from "./node-registry.js";
 export { type DueOptions, type DueResult, reportDue, scheduleDue } from "./node-schedule.js";
-export { type RunCommand, type UpdateOptions, update } from "./node-update.js";
+export { type RunCommand, type SiteFile, siteFileChanges, type UpdateOptions, update } from "./node-update.js";
 export {
   type ExportWordPressResult,
   exportWordPress,

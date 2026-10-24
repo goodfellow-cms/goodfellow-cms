@@ -61,6 +61,44 @@ export function canvas(page: Page) {
 }
 
 /**
+ * Checks the editor's frame is sandboxed with `allow-scripts` alone, by what
+ * a block's code could try from inside it: none of it reaches the admin
+ * panel's page, storage, the network (the development servers' local backend
+ * included) or WebRTC.
+ */
+export async function expectSandboxed(page: Page) {
+  await expect(page.locator("iframe.gfa-editor-frame")).toHaveAttribute("sandbox", "allow-scripts");
+  const tried = await canvas(page).evaluate(async () => {
+    const attempt = async (run: () => unknown) => {
+      try {
+        await run();
+        return "allowed";
+      } catch {
+        return "refused";
+      }
+    };
+    return {
+      parent: await attempt(() => window.parent.document.title),
+      storage: await attempt(() => window.localStorage.length),
+      cookie: await attempt(() => document.cookie),
+      fetch: await attempt(() => fetch("/admin/")),
+      localBackend: await attempt(() =>
+        fetch("/__goodfellow/api/version", { headers: { "x-goodfellow-request": "1" } }),
+      ),
+      webrtc: typeof (window as { RTCPeerConnection?: unknown }).RTCPeerConnection,
+    };
+  });
+  expect(tried).toEqual({
+    parent: "refused",
+    storage: "refused",
+    cookie: "refused",
+    fetch: "refused",
+    localBackend: "refused",
+    webrtc: "undefined",
+  });
+}
+
+/**
  * Opens the editor for a page and waits for its canvas to show it. The frame
  * starts Puck and the site's code in a page of its own, which a development
  * server still starting other sites can take longer than the usual wait to serve.

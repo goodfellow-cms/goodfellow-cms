@@ -8,6 +8,7 @@
 // content is kept in a repository of its own.
 // `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
 // `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, as `goodfellow export` does.
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { relative } from "node:path";
 import { parseArgs } from "node:util";
@@ -33,6 +34,7 @@ import {
   checkPages,
   exportedPages,
   fixSegmentFiles,
+  NEXT_SITE_FILES,
   writeCalendarFiles,
   writeEditorPolicy,
   writeFeedFiles,
@@ -70,7 +72,9 @@ if (command === "update") {
     args: process.argv.slice(3),
     options: { to: { type: "string" }, publish: { type: "boolean" } },
   });
-  const result = await update({ to: values.to, publish: values.publish });
+  // The starter's admin pages, kept up to date where nobody has changed them, on sites with an admin panel.
+  const siteFiles = existsSync("app/admin/page.tsx") ? NEXT_SITE_FILES : [];
+  const result = await update({ to: values.to, publish: values.publish, siteFiles });
   // For the admin panel, which reads it in the host's log.
   console.log(formatUpdateResult(result));
   process.exit(result.state === "failed" ? 1 : 0);
