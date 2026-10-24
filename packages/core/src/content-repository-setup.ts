@@ -502,6 +502,7 @@ ${note}
 export const config = {
   framework: "nextjs",
   installCommand: ${JSON.stringify(install)},
+${VERCEL_DRAFTS}
 };
 `;
   }
@@ -532,6 +533,7 @@ export const config = {
   outputDirectory: ${JSON.stringify(`site/${output}`)},
 ${VERCEL_HEADERS_NOTE}
   headers: [],
+${VERCEL_DRAFTS}
 };
 `;
   }
@@ -543,6 +545,10 @@ ${VERCEL_HEADERS_NOTE}
 //
 ${config}`;
 }
+
+/** Drafts are kept on branches of their own, which Vercel would otherwise build previews of. */
+const VERCEL_DRAFTS = `${comment("Drafts, from the admin panel's Add to draft and from Claude, are kept on branches named goodfellow-draft-…, which visitors never see, so Vercel doesn't build previews of them.", "  // ")}
+  git: { deploymentEnabled: { "goodfellow-draft-*": false } },`;
 
 /**
  * Where Vercel builds from the content repository, it reads `vercel.ts` before

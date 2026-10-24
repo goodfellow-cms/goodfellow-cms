@@ -1045,6 +1045,15 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       repo.branches.set(branch, body.sha);
       return json({ ref: body.ref, object: { sha: body.sha } }, 201);
     }
+    const matching = rest.match(/^\/git\/matching-refs\/heads\/(.*)$/);
+    if (matching) {
+      const prefix = decodeURIComponent(matching[1] ?? "");
+      return json(
+        [...repo.branches]
+          .filter(([branch]) => branch.startsWith(prefix))
+          .map(([branch, sha]) => ({ ref: `refs/heads/${branch}`, object: { sha, type: "commit" } })),
+      );
+    }
     const branchRef = rest.match(/^\/git\/refs\/heads\/(.+)$/);
     if (branchRef && request.method === "DELETE") {
       if (user.push === false) return json({ message: "Resource not accessible by integration" }, 403);

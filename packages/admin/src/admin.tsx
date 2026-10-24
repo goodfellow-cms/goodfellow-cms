@@ -21,6 +21,7 @@ import { CollectionSettingsScreen } from "./collection-settings.js";
 import { CollectionsScreen } from "./collections-screen.js";
 import { createDemoStore } from "./demo.js";
 import { DomainScreen } from "./domain-screen.js";
+import { draftStarted } from "./drafts.js";
 import { LayoutEditorScreen, PageEditorScreen } from "./editor-screens.js";
 import { EditorsScreen } from "./editors-screen.js";
 import { EntryEditorScreen } from "./entry-editor.js";
@@ -28,13 +29,13 @@ import type { FrameSource } from "./frame/host.js";
 import { ImportScreen } from "./import-screen.js";
 import { MediaScreen } from "./media-library.js";
 import { PagesScreen } from "./pages-screen.js";
-import { SETTINGS_SECTIONS, useRoute } from "./router.js";
+import { hasUnsavedChanges, SETTINGS_SECTIONS, useRoute } from "./router.js";
 import { SecurityScreen } from "./security-screen.js";
 import { SETTINGS_TABS, SettingsScreen, type SettingsTab } from "./settings-screen.js";
 import { SignInGate } from "./sign-in.js";
 import { SiteHistoryScreen } from "./site-history-screen.js";
 import { isPreviewAddress, SitePreview } from "./site-preview.js";
-import { defaultStrings, type Strings, StringsProvider, useStrings } from "./strings.js";
+import { defaultStrings, type StringKey, type Strings, StringsProvider, useStrings } from "./strings.js";
 import { setThemeChoice, type ThemeChoice, useApplyThemeChoice, useThemeChoice } from "./theme.js";
 import { Button, Dialog, ErrorMessage } from "./ui.js";
 import { UpdatesScreen } from "./updates-screen.js";
@@ -192,12 +193,13 @@ function DeployIndicator() {
 /** Says the admin panel is a demo, and lets the visitor undo everything they've changed. */
 function DemoBanner() {
   const t = useStrings();
-  const { demo } = useAdmin();
+  const { demo, drafts } = useAdmin();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   if (!demo) return null;
   const startOver = async () => {
     setBusy(true);
+    await drafts.discard();
     await demo.reset();
     // Every screen starts again from the site's content, including forms that copied what they loaded.
     location.reload();
@@ -220,6 +222,152 @@ function DemoBanner() {
         </Dialog>
       )}
     </div>
+  );
+}
+
+/**
+ * The draft being worked in, on every screen, with what can be done with it;
+ * or, without one, the drafts waiting to be published, which can be opened.
+ */
+function DraftBanner() {
+  const t = useStrings();
+  const { drafts, state } = useAdmin();
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [chosen, setChosen] = useState<string>();
+  const [notice, setNotice] = useState<
+    | { type: "published" | "gone" }
+    | { type: "submitted"; url: string }
+    | { type: "error"; message: StringKey; error: unknown }
+  >();
+  const { current, names, kept } = drafts;
+  if (state.status === "error") return null;
+  if (!current && names.length === 0 && !notice) return null;
+
+  // Opening a draft, or going back to the live site, shows every screen again: changes not added would be lost.
+  const switchTo = async (name: string | undefined) => {
+    if (hasUnsavedChanges() && !window.confirm(t("unsaved.confirm"))) return;
+    setNotice(undefined);
+    setBusy(true);
+    const opened = await drafts.open(name).catch(() => false);
+    setBusy(false);
+    if (!opened) setNotice({ type: "gone" });
+  };
+  const run = async (action: () => Promise<void>) => {
+    setNotice(undefined);
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const publishAll = () =>
+    run(async () => {
+      if (hasUnsavedChanges() && !window.confirm(t("unsaved.confirm"))) return;
+      const result = await drafts.publishAll();
+      if (result.ok) setNotice({ type: "published" });
+      else if (result.reason !== "checks") {
+        const message = result.reason === "conflict" ? (kept ? "draft.conflictKept" : "draft.conflict") : "draft.error";
+        setNotice({ type: "error", message, error: result.error });
+      }
+    });
+  const submit = () =>
+    run(async () => {
+      const result = await drafts.submit();
+      setNotice(
+        result.ok
+          ? { type: "submitted", url: result.url }
+          : { type: "error", message: "draft.submitError", error: result.error },
+      );
+    });
+  const discard = () =>
+    run(async () => {
+      const result = await drafts.discard();
+      setConfirming(false);
+      if (!result.ok) setNotice({ type: "error", message: "draft.discardError", error: result.error });
+    });
+
+  const waiting = names.filter((name) => name !== current?.name);
+  const selected = chosen && waiting.includes(chosen) ? chosen : waiting[0];
+  return (
+    <section className="gfa-draft-banner" aria-label={t("draft.label")}>
+      {current ? (
+        <>
+          <span>{t(kept ? "draft.bannerKept" : "draft.banner", { date: draftStarted(current.name) })}</span>
+          {current.paths.length > 0 && (
+            <span className="gfa-draft-count">
+              {current.paths.length === 1
+                ? t("draft.oneChange")
+                : t("draft.changes", { count: String(current.paths.length) })}
+            </span>
+          )}
+          <Button variant="primary" disabled={busy} onClick={() => void publishAll()}>
+            {t("draft.publishAll")}
+          </Button>
+          {!kept && (
+            <Button disabled={busy} onClick={() => void submit()}>
+              {t("draft.submit")}
+            </Button>
+          )}
+          <Button variant="ghost" disabled={busy} onClick={() => setConfirming(true)}>
+            {t("draft.discard")}
+          </Button>
+          <Button variant="ghost" disabled={busy} onClick={() => void switchTo(undefined)}>
+            {t("draft.leave")}
+          </Button>
+        </>
+      ) : (
+        waiting.length > 0 && (
+          <>
+            <span>
+              {waiting.length === 1
+                ? t("draft.waiting", { date: draftStarted(waiting[0] ?? "") })
+                : t("draft.waitingMany", { count: String(waiting.length) })}
+            </span>
+            {waiting.length > 1 && (
+              <select
+                aria-label={t("draft.choose")}
+                value={selected}
+                onChange={(event) => setChosen(event.target.value)}
+              >
+                {waiting.map((name) => (
+                  <option key={name} value={name}>
+                    {t("draft.started", { date: draftStarted(name) })}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Button disabled={busy} onClick={() => void switchTo(selected)}>
+              {t("draft.open")}
+            </Button>
+          </>
+        )
+      )}
+      {busy && notice === undefined && current && <span role="status">{t("draft.publishing")}</span>}
+      {notice?.type === "published" && <span role="status">{t("draft.published")}</span>}
+      {notice?.type === "gone" && <span role="status">{t("draft.gone")}</span>}
+      {notice?.type === "submitted" && (
+        <span role="status">
+          {t("draft.submitted")}{" "}
+          <a href={notice.url} target="_blank" rel="noreferrer">
+            {t("draft.seeReview")}
+          </a>
+        </span>
+      )}
+      {notice?.type === "error" && <ErrorMessage message={t(notice.message)} error={notice.error} />}
+      {confirming && (
+        <Dialog title={t("draft.discardTitle")} onClose={() => setConfirming(false)}>
+          <p>{t("draft.discardBody")}</p>
+          <div className="gfa-dialog-actions">
+            <Button onClick={() => setConfirming(false)}>{t("action.cancel")}</Button>
+            <Button variant="danger" disabled={busy} onClick={() => void discard()}>
+              {t("draft.discard")}
+            </Button>
+          </div>
+        </Dialog>
+      )}
+    </section>
   );
 }
 
@@ -318,10 +466,12 @@ function Shell() {
         <AccountMenu />
       </header>
       <DemoBanner />
+      <DraftBanner />
       <main className="gfa-content">
         {state.status === "loading" && <p className="gfa-screen">{t("loading")}</p>}
         {state.status === "error" && <LoadError error={state.error} />}
-        {state.status === "ready" && <Screen />}
+        {/* Opening a draft, or leaving one, starts the screen again with what it has, including forms that copied it. */}
+        {state.status === "ready" && <Screen key={state.view} />}
       </main>
     </div>
   );

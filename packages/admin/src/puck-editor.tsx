@@ -91,7 +91,7 @@ export function PuckEditor({
   language,
 }: PuckEditorProps) {
   const t = useStrings();
-  const { site, publish, reload } = useAdmin();
+  const { site, publish, reload, drafts } = useAdmin();
   const [status, setStatus] = useState<
     | { type: "idle" | "publishing" | "done" }
     | { type: "invalid"; message: string }
@@ -159,7 +159,8 @@ export function PuckEditor({
     serializeContent(storedData(state.data)) !== published.current;
   useUnsavedChanges(dirty);
 
-  const onPublish = async () => {
+  /** Publishes, or with `draft`, starts a draft with the change instead, where none is open (with one, every publish goes into it). */
+  const onPublish = async (draft?: boolean) => {
     if (!state || !client) return;
     // As it is when Publish is pressed, even if the frame hasn't said so yet.
     const next = await client.call("editor.data").catch(() => state.data);
@@ -170,7 +171,7 @@ export function PuckEditor({
     }
     setStatus({ type: "publishing" });
     const { changes, message } = toChanges(next);
-    const result = await publish(changes, message);
+    const result = await publish(changes, message, { draft });
     if (result.ok) {
       published.current = serializeContent(storedData(next));
       setStatus({ type: "done" });
@@ -265,6 +266,15 @@ export function PuckEditor({
           {aiOffered && (
             <Button aria-pressed={aiOpen} onClick={() => setAiOpen(!aiOpen)}>
               {t("ai.label")}
+            </Button>
+          )}
+          {!drafts.current && (
+            <Button
+              title={t("draft.addHint")}
+              disabled={!state || status.type === "publishing"}
+              onClick={() => void onPublish(true)}
+            >
+              {t("draft.add")}
             </Button>
           )}
           <Button variant="primary" disabled={!state || status.type === "publishing"} onClick={() => void onPublish()}>

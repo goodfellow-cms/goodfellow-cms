@@ -40,7 +40,7 @@ On GitHub, Claude works on sites through the connector's GitHub App, **Goodfello
 
 ## Drafts
 
-Claude never changes the live site straight away. The first change it makes starts a **draft**, a copy of the site that only Claude and you see, and every later change goes into the same draft until you're happy with it. Then ask Claude to:
+Claude never changes the live site straight away. The first change it makes starts a **draft**, a copy of the site that visitors don't see, and every later change goes into the same draft until you're happy with it. The site's editors see it in the admin panel too, where it can be finished like a [draft started there](/docs/publishing#drafts). Then ask Claude to:
 
 - **Publish** it, which puts every change on the live site at once, as the admin panel's **Publish** does. The site is rebuilt and the changes go live in a minute or two.
 - **Submit it for review**, so someone else checks it first. On GitHub this opens a pull request, and on GitLab a merge request; whoever reviews it publishes it there.

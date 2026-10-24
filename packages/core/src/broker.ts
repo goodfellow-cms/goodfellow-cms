@@ -215,7 +215,7 @@ const FILES: Shape = { methods: FILES_METHODS };
 const DRAFT: Shape = {
   name: "draft",
   data: ["name"],
-  methods: ["changes", "publish", "submitForReview", "discard"],
+  methods: ["changes", "paths", "publish", "submitForReview", "discard"],
   objects: { store: { methods: STORE_METHODS } },
 };
 const BACKEND: Shape = {
@@ -233,7 +233,7 @@ const BACKEND: Shape = {
         nightly: { methods: ["supported", "get", "set"] },
       },
     },
-    drafts: { methods: ["create", "open"], returns: { create: DRAFT, open: DRAFT } },
+    drafts: { methods: ["create", "open", "list"], returns: { create: DRAFT, open: DRAFT } },
     scheduledBuilds: { methods: ["timing", "sync"] },
   },
 };

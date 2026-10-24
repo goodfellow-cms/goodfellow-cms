@@ -594,6 +594,18 @@ describe("drafts", () => {
     ]);
   });
 
+  it("lists the drafts there are, newest first, and the files each changed", async () => {
+    const { drafts, draft, fake } = await withDraft();
+    await drafts.create("20261015-def456");
+    fake.repo.branches.set("feature", fake.repo.head());
+    expect(await drafts.list()).toEqual(["20261015-def456", "20261014-abc123"]);
+    expect(await draft.paths()).toEqual([
+      "content/pages/about.json",
+      "content/pages/index.json",
+      "content/pages/new.json",
+    ]);
+  });
+
   it("opens a draft again by name, and refuses names it doesn't have", async () => {
     const { drafts } = await withDraft();
     const again = await drafts.open("20261014-abc123");
