@@ -422,6 +422,35 @@ describe("updates", () => {
     expect(await updates.lastRun()).toMatchObject({ state: "running" });
   });
 
+  it("rebuilds the site without updating, with an owner token", async () => {
+    const { fake, updates, owner } = await site();
+    await expect(updates.rebuild?.()).rejects.toMatchObject({ problem: "not-allowed" });
+    await owner.applyToken("owner");
+    await updates.rebuild?.();
+    expect(fake.runs.at(-1)).toMatchObject({ event: "workflow_dispatch", inputs: {} });
+  });
+
+  it("keeps when the site rebuilds overnight in the repository variable its workflow reads", async () => {
+    const { fake, updates, owner } = await site("run: npx goodfellow nightly\nvars.GOODFELLOW_NIGHTLY");
+    const nightly = updates.nightly;
+    if (!nightly) throw new Error("No nightly setting");
+    expect(await nightly.supported()).toBe(true);
+    expect(await (await site()).updates.nightly?.supported()).toBe(false);
+    // Signing in can't read or change Actions variables; the owner's sign-in can.
+    expect(await nightly.get()).toBeUndefined();
+    await expect(nightly.set("off")).rejects.toMatchObject({ problem: "not-allowed" });
+    await owner.applyToken("owner");
+    expect(await nightly.get()).toBe("changed");
+    await nightly.set("off");
+    expect(fake.variables.get("GOODFELLOW_NIGHTLY")).toBe("off");
+    await nightly.set("always");
+    expect(await nightly.get()).toBe("always");
+    // The workflow's default needs no variable.
+    await nightly.set("changed");
+    expect(fake.variables.has("GOODFELLOW_NIGHTLY")).toBe(false);
+    expect(await nightly.get()).toBe("changed");
+  });
+
   it("tells an update that published a new version from one with nothing to do, and a failed one", async () => {
     const { fake, backend, updates } = await site();
     const run = (conclusion: string) => ({

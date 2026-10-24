@@ -3,6 +3,8 @@ import {
   availableUpdates,
   compareReleases,
   type GitBackend,
+  NIGHTLY_MODES,
+  type NightlyMode,
   NPM_REGISTRY,
   parseUpdateSettings,
   releaseVersions,
@@ -28,6 +30,12 @@ const RELEASES_URL = "https://github.com/goodfellow-cms/goodfellow-cms/releases"
 const CHECK_INTERVAL = 15_000;
 /** How many versions of `package.json` to look through for the release before this one. */
 const HISTORY_DEPTH = 30;
+
+const NIGHTLY_TEXT: Record<NightlyMode, StringKey> = {
+  changed: "updates.nightly.changed",
+  always: "updates.nightly.always",
+  off: "updates.nightly.off",
+};
 
 const STEP_TEXT: Record<string, StringKey> = {
   build: "updates.failed.build",
@@ -100,17 +108,20 @@ interface Loaded {
   setup: UpdatesSetup;
   last?: UpdateRun;
   owner: boolean;
+  /** When the site rebuilds overnight, where its setup can say: `mode` is unknown where the sign-in can't read it. */
+  nightly?: { supported: boolean; mode?: NightlyMode };
 }
 
 function UpdatesPanel() {
   const t = useStrings();
-  const { updates, versions, editors, ownerAccess, account, readFile, publish } = useAdmin();
+  const { updates, versions, editors, ownerAccess, account, readFile, publish, followBuild } = useAdmin();
   const { revision } = useSiteContent();
   const host = account?.hostName ?? "";
   const [loaded, setLoaded] = useState<Loaded>();
   const [error, setError] = useState<unknown>();
   const [problem, setProblem] = useState<unknown>();
   const [started, setStarted] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -118,7 +129,7 @@ function UpdatesPanel() {
     try {
       // Where the code is kept apart from the content, its package.json says which release the site uses.
       const code = updates.code;
-      const [packageJson, settingsText, metadata, setup, last, people] = await Promise.all([
+      const [packageJson, settingsText, metadata, setup, last, people, nightly] = await Promise.all([
         code ? code.read("package.json").catch(() => undefined) : versions?.readAt("package.json", revision),
         readFile(UPDATES_FILE),
         window
@@ -128,6 +139,11 @@ function UpdatesPanel() {
         updates.setup(),
         updates.lastRun(),
         editors?.list().catch(() => undefined),
+        updates.nightly
+          ? Promise.all([updates.nightly.supported(), updates.nightly.get().catch(() => undefined)]).then(
+              ([supported, mode]) => ({ supported, ...(mode && { mode }) }),
+            )
+          : undefined,
       ]);
       const current = packageJson ? siteVersion(packageJson) : undefined;
       const settings = parseUpdateSettings(settingsText);
@@ -142,6 +158,7 @@ function UpdatesPanel() {
         last,
         // Without a list of editors, the host decides who may update when asked.
         owner: people ? people.editors.some((editor) => editor.self && editor.role === "owner") : true,
+        ...(nightly && { nightly }),
       });
       setError(undefined);
     } catch (caught) {
@@ -200,6 +217,19 @@ function UpdatesPanel() {
       },
       () => setStarted(true),
     );
+  const rebuild = () =>
+    act(
+      () => updates?.rebuild?.() ?? Promise.resolve(),
+      () => {
+        setRebuilding(true);
+        followBuild?.();
+      },
+    );
+  const setNightly = (mode: NightlyMode) => {
+    // Shown at once; reading it back afterwards puts it right if it couldn't be changed.
+    setLoaded((shown) => (shown?.nightly ? { ...shown, nightly: { ...shown.nightly, mode } } : shown));
+    return act(() => updates?.nightly?.set(mode) ?? Promise.resolve());
+  };
   // The settings are content, published like any other change; publishing reloads the site, and so this screen.
   const saveSettings = (settings: Pick<UpdateSettings, "automatic" | "skip">, message: string) =>
     act(async () => {
@@ -210,7 +240,7 @@ function UpdatesPanel() {
   if (!updates) return null;
   if (error) return <ErrorMessage message={t("updates.error.load")} error={error} />;
   if (!loaded) return <p role="status">{t("updates.loading")}</p>;
-  const { current, previous, settings, available, setup, last, owner } = loaded;
+  const { current, previous, settings, available, setup, last, owner, nightly } = loaded;
   const needsToken = problem instanceof UpdatesError && problem.problem === "not-allowed" && ownerAccess;
 
   return (
@@ -347,7 +377,61 @@ function UpdatesPanel() {
         </>
       )}
 
-      {needsToken && <OwnerTokenForm onReady={() => setProblem(undefined)} />}
+      {nightly && setup !== "missing" && setup !== "no-access" && (
+        <>
+          <h2 className="gfa-section-title">{t("updates.nightly.title")}</h2>
+          {nightly.supported ? (
+            <>
+              <fieldset className="gfa-choice-group">
+                <legend className="gfa-label">{t("updates.nightly.body")}</legend>
+                {NIGHTLY_MODES.map((mode) => (
+                  <label key={mode} className="gfa-checkbox">
+                    <input
+                      type="radio"
+                      name="nightly"
+                      checked={nightly.mode === mode}
+                      disabled={busy || !owner}
+                      onChange={() => void setNightly(mode)}
+                    />
+                    {t(NIGHTLY_TEXT[mode])}
+                  </label>
+                ))}
+              </fieldset>
+              {nightly.mode === "off" && <p className="gfa-notice">{t("updates.nightly.offWarning")}</p>}
+              {!owner ? (
+                <p className="gfa-hint">{t("updates.nightly.onlyOwners")}</p>
+              ) : (
+                !nightly.mode && ownerAccess && <p className="gfa-hint">{t("updates.nightly.unknown")}</p>
+              )}
+            </>
+          ) : (
+            <p>{t("updates.nightly.old")}</p>
+          )}
+        </>
+      )}
+
+      {updates.rebuild && owner && setup !== "no-access" && (
+        <>
+          <h2 className="gfa-section-title">{t("updates.rebuild.title")}</h2>
+          <p>{t("updates.rebuild.body")}</p>
+          <div>
+            <Button disabled={busy || running} onClick={() => void rebuild()}>
+              {t("updates.rebuild.button")}
+            </Button>
+          </div>
+          {rebuilding && <p role="status">{t("updates.rebuild.started")}</p>}
+        </>
+      )}
+
+      {needsToken && (
+        <OwnerTokenForm
+          onReady={() => {
+            setProblem(undefined);
+            // What the owner's sign-in can read that this one couldn't, such as when the site rebuilds overnight.
+            void load();
+          }}
+        />
+      )}
       {problem !== undefined && !needsToken && (
         <ErrorMessage
           message={t(

@@ -32,7 +32,7 @@ Visitors see the site as it was last built, so a scheduled change goes live when
 | Site stored on | Scheduled changes go live |
 |---|---|
 | GitLab | At their time. The admin panel adds a pipeline schedule for each time, which builds the site then, and removes it once it's no longer needed. |
-| GitHub | Within the hour after their time. The site's `.github/workflows/scheduled.yml` checks each hour whether anything has come due, and builds the site only then. |
+| GitHub | Within the hour after their time. The site's `.github/workflows/scheduled.yml` checks each hour whether anything has come due, and builds the site only then. It also builds it the first hour after what the site shows by today's date changes, such as an event's next date. |
 
 Sites built by Cloudflare Pages work the same way: the schedule or the hourly check asks Cloudflare to rebuild the site through the Pages project's deploy hook, which the site's setup files need as `CLOUDFLARE_DEPLOY_HOOK` (see [Put it online](/docs/put-it-online#3-choose-a-host)).
 

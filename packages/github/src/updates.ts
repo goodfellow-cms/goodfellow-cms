@@ -3,6 +3,10 @@ import {
   compareReleases,
   GitApiError,
   type GitBackend,
+  NIGHTLY_VARIABLE,
+  type NightlyBuilds,
+  type NightlyMode,
+  nightlyMode,
   SignInError,
   type SiteUpdates,
   siteVersion,
@@ -93,22 +97,80 @@ export function githubUpdates(
       return undefined;
     },
 
+    nightly: githubNightly(read, manage, repo, () => files.read(workflowFile)),
+
+    async rebuild() {
+      // Dispatched without an update, the workflow only builds the site.
+      await dispatch({});
+    },
+
     async start(target) {
-      try {
-        await githubRequest(manage() ?? read, `${path}/dispatches`, {
-          method: "POST",
-          body: { ref: branch, inputs: { update: target } },
-        });
-      } catch (error) {
-        if (error instanceof GitApiError && (error.status === 403 || error.status === 401)) {
-          throw new UpdatesError("not-allowed", "Running the update needs a token that can run the site's workflows.");
-        }
-        // No such workflow, or an older one that takes no inputs.
-        if (error instanceof GitApiError && (error.status === 404 || error.status === 422)) {
-          throw new UpdatesError("missing", "The site's GitHub Pages workflow doesn't update Goodfellow.");
-        }
-        throw error;
+      await dispatch({ update: target });
+    },
+  };
+
+  /** Runs the workflow, with an update to install, or none to only build the site. */
+  async function dispatch(inputs: Record<string, string>) {
+    try {
+      await githubRequest(manage() ?? read, `${path}/dispatches`, {
+        method: "POST",
+        body: { ref: branch, inputs },
+      });
+    } catch (error) {
+      if (error instanceof GitApiError && (error.status === 403 || error.status === 401)) {
+        throw new UpdatesError("not-allowed", "Running the site's build needs a token that can run its workflows.");
       }
+      // No such workflow, or an older one that takes no inputs.
+      if (error instanceof GitApiError && (error.status === 404 || error.status === 422)) {
+        throw new UpdatesError("missing", "The site's GitHub Pages workflow doesn't update Goodfellow.");
+      }
+      throw error;
+    }
+  }
+}
+
+/**
+ * The nightly build setting, kept in the repository variable the workflow's
+ * jobs read in their conditions (`GOODFELLOW_NIGHTLY`), which needs GitHub's
+ * Variables permission: the owner's sign-in, or a token that has it.
+ */
+function githubNightly(
+  read: ApiOptions,
+  manage: () => ApiOptions | undefined,
+  repo: string,
+  workflow: () => Promise<string | undefined>,
+): NightlyBuilds {
+  const path = `/repos/${repo}/actions/variables`;
+  const notAllowed = (error: unknown): never => {
+    if (error instanceof GitApiError && (error.status === 401 || error.status === 403)) {
+      throw new UpdatesError("not-allowed", "Changing when the site rebuilds needs GitHub's Variables permission.");
+    }
+    throw error;
+  };
+  return {
+    async supported() {
+      return (await workflow())?.includes(NIGHTLY_VARIABLE) ?? false;
+    },
+    async get() {
+      const response = await githubRequest(manage() ?? read, `${path}/${NIGHTLY_VARIABLE}`, { allow: [403, 404] });
+      if (response.status === 404) return "changed";
+      if (!response.ok) return undefined;
+      return nightlyMode(((await response.json()) as { value?: string }).value);
+    },
+    async set(mode: NightlyMode) {
+      const api = manage() ?? read;
+      if (mode === "changed") {
+        // The workflow's default, so the variable isn't needed.
+        await githubRequest(api, `${path}/${NIGHTLY_VARIABLE}`, { method: "DELETE", allow: [404] }).catch(notAllowed);
+        return;
+      }
+      const body = { name: NIGHTLY_VARIABLE, value: mode };
+      const updated = await githubRequest(api, `${path}/${NIGHTLY_VARIABLE}`, {
+        method: "PATCH",
+        body,
+        allow: [404],
+      }).catch(notAllowed);
+      if (updated.status === 404) await githubRequest(api, path, { method: "POST", body }).catch(notAllowed);
     },
   };
 }
@@ -201,6 +263,9 @@ export function githubCodeUpdates(options: CodeUpdatesOptions): SiteUpdates {
     },
     async start(target) {
       await (await updates()).start(target);
+    },
+    async rebuild() {
+      await (await updates()).rebuild?.();
     },
   };
 }

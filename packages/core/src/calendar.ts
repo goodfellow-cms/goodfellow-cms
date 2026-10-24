@@ -13,6 +13,7 @@
  */
 
 import ICAL from "ical.js";
+import { changesOn } from "./build-record.js";
 
 export const WEEKDAYS = ["mo", "tu", "we", "th", "fr", "sa", "su"] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
@@ -378,12 +379,22 @@ export function occurrences(event: EventValue, options: OccurrenceOptions): Occu
 export function shownOccurrence(event: EventValue, today: string): Occurrence | undefined {
   const first = occurrences(event, { from: "1000-01-01", to: "9999-12-31", limit: 1 })[0];
   if (!event.repeat) return first;
-  return occurrences(event, { from: today, to: "9999-12-31", limit: 1 })[0] ?? first;
+  const next = occurrences(event, { from: today, to: "9999-12-31", limit: 1 })[0];
+  // The one after shows once this one is over.
+  if (next) changesOn(dayAfter(next));
+  return next ?? first;
 }
 
 /** Whether an event happens, or is still going on, on or after a date. */
 export function isUpcoming(event: EventValue, today: string): boolean {
-  return occurrences(event, { from: today, to: "9999-12-31", limit: 1 }).length > 0;
+  const [next] = occurrences(event, { from: today, to: "9999-12-31", limit: 1 });
+  if (next) changesOn(dayAfter(next));
+  return next !== undefined;
+}
+
+/** The first date an occurrence is over on. */
+export function dayAfter(occurrence: Occurrence): string {
+  return addDays(datePart(occurrence.end ?? occurrence.start), 1);
 }
 
 // Writing dates and times -----------------------------------------------------
@@ -454,6 +465,7 @@ export function isMonth(text: string): boolean {
 /** The months from `before` months before a date's month to `after` months after it, oldest first. */
 export function monthsAround(today: string, before: number, after: number): string[] {
   const current = monthOf(today);
+  changesOn(`${addMonths(current, 1)}-01`);
   const months: string[] = [];
   for (let offset = -Math.max(0, before); offset <= Math.max(0, after); offset++) {
     months.push(addMonths(current, offset));

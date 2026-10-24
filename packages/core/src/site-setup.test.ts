@@ -91,8 +91,17 @@ describe("planSite", () => {
     expect(update.run).toBe('npx goodfellow update --commit --to "$TO"');
     expect(workflow.jobs.update.permissions).toEqual({ contents: "read" });
     expect(workflow.jobs["publish-update"].permissions).toEqual({ contents: "write" });
-    // The rebuild is for when no update was published, which Cloudflare would build by itself.
-    expect(workflow.jobs.rebuild.if).toBe(`\${{ !cancelled() && needs.publish-update.outputs.sha == '' }}`);
+    // Each night a check decides whether to rebuild, and update first, unless GOODFELLOW_NIGHTLY turns it off.
+    expect(workflow.jobs.check.if).toBe("github.event_name == 'schedule' && vars.GOODFELLOW_NIGHTLY != 'off'");
+    expect(workflow.jobs.check.permissions).toEqual({ contents: "read" });
+    expect(workflow.jobs.check.steps.at(-1).run).toBe("npx goodfellow nightly");
+    expect(workflow.jobs.update.if).toContain("needs.check.outputs.update == 'true'");
+    // The rebuild is for when no update was published, which Cloudflare would build by itself, and at night only
+    // when the check says so.
+    expect(workflow.jobs.rebuild.needs).toEqual(["check", "update", "publish-update"]);
+    expect(workflow.jobs.rebuild.if).toBe(
+      `\${{ !cancelled() && (github.event_name != 'schedule' || needs.check.outputs.build == 'true' || needs.check.result == 'failure') && needs.publish-update.outputs.sha == '' }}`,
+    );
     expect(workflow.jobs.rebuild.steps[0].env.HOOK).toBe(`\${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}`);
     const scheduled = parse(siteFileText(github.get(".github/workflows/scheduled.yml") ?? ""));
     expect(scheduled.jobs.start.steps.at(-1).run).toContain("gh workflow run deploy.yml");
@@ -108,12 +117,20 @@ describe("planSite", () => {
     const pipeline = parse(siteFileText(gitlab.get(".gitlab-ci.yml") ?? ""));
     // Not "pages", which GitLab would take for a GitLab Pages job.
     expect(Object.keys(pipeline)).toEqual(["update"]);
-    expect(pipeline.update.script[0]).toContain('if [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ]');
-    expect(pipeline.update.script[1]).toContain(
+    // Scheduled changes and Rebuild now only rebuild; the nightly schedule checks first.
+    expect(pipeline.update.script[0]).toContain(
+      'elif [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ] && [ -z "$GOODFELLOW_REBUILD" ]',
+    );
+    expect(pipeline.update.script[0]).toContain("npx goodfellow nightly --output nightly.env");
+    expect(pipeline.update.script[1]).toContain('if [ "$update" = true ]');
+    expect(pipeline.update.script[2]).toContain('if [ "$build" = false ] && [ "$update" = false ]');
+    expect(pipeline.update.script[2]).toContain(
       'curl --fail --silent --show-error --request POST "$CLOUDFLARE_DEPLOY_HOOK"',
     );
     expect(pipeline.update.rules).toEqual([
-      { if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE)' },
+      {
+        if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE || $GOODFELLOW_REBUILD)',
+      },
     ]);
   });
 

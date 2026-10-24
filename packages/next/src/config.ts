@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join, resolve } from "node:path";
@@ -18,6 +19,8 @@ import {
   vercelAdminHeaders,
 } from "@goodfellow-cms/core";
 import {
+  BUILD_DATES_DIR,
+  BUILD_DATES_ENV,
   contentRepositoryProblem,
   DEV_API_PREFIX,
   fileSystemSource,
@@ -67,6 +70,7 @@ type Rewrite = Extract<Rewrites, unknown[]>[number];
 
 /** `PHASE_DEVELOPMENT_SERVER` from `next/constants`, which Node can't import by that name. */
 const PHASE_DEVELOPMENT_SERVER = "phase-development-server";
+const PHASE_PRODUCTION_BUILD = "phase-production-build";
 
 const SERVER_KEY = Symbol.for("goodfellow.next.devApi");
 
@@ -187,6 +191,13 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       // Tells the site's pages and the admin panel where the site is served from.
       env: { ...nextConfig.env, GOODFELLOW_BASE_PATH: basePath },
     };
+    // Pages are rendered in several processes, which each write the dates what they show changes on for
+    // `goodfellow-next finish`'s build record.
+    if (phase === PHASE_PRODUCTION_BUILD) {
+      const dates = join(root, nextConfig.distDir ?? ".next", BUILD_DATES_DIR);
+      await rm(dates, { recursive: true, force: true });
+      process.env[BUILD_DATES_ENV] = dates;
+    }
     // A server of its own: Next.js serves the redirects itself, and can optimize images.
     if (phase !== PHASE_DEVELOPMENT_SERVER && options.server) {
       if (siteAdmin(root)) {

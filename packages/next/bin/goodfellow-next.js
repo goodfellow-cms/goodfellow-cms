@@ -4,6 +4,7 @@
 // copies the site's Google Fonts into the export, starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
 // `goodfellow-next due [--since <time>]` says whether a scheduled change has come due, as `goodfellow due` does.
+// `goodfellow-next nightly [--mode <mode>]` says whether tonight's build is needed, as `goodfellow nightly` does.
 // `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
 // content is kept in a repository of its own.
 // `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
@@ -27,7 +28,9 @@ import {
   formatWordPressExport,
   formatWordPressImport,
   importWordPress,
+  nightlyCheck,
   reportDue,
+  reportNightly,
   scheduleDue,
   setAdminAddress,
   setBrokerAddress,
@@ -44,6 +47,7 @@ import {
   fixSegmentFiles,
   guardExport,
   NEXT_SITE_FILES,
+  writeBuildRecordFile,
   writeCalendarFiles,
   writeEditorPolicy,
   writeFeedFiles,
@@ -101,6 +105,16 @@ if (command === "update") {
 if (command === "due") {
   const { values } = parseArgs({ args: process.argv.slice(3), options: { since: { type: "string" } } });
   for (const line of await reportDue(await scheduleDue({ since: values.since }))) console.log(line);
+  process.exit(0);
+}
+if (command === "nightly") {
+  const { values } = parseArgs({
+    args: process.argv.slice(3),
+    options: { mode: { type: "string" }, output: { type: "string" } },
+  });
+  const siteFiles = existsSync("app/admin/page.tsx") ? NEXT_SITE_FILES : [];
+  const result = await nightlyCheck({ siteFiles, ...(values.mode && { mode: values.mode }) });
+  for (const line of await reportNightly(result, values.output ?? process.env.GITHUB_OUTPUT)) console.log(line);
   process.exit(0);
 }
 if (command === "content") {
@@ -193,6 +207,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next index [folder]",
       "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish | --commit]",
       "       goodfellow-next due [--since <time>]",
+      "       goodfellow-next nightly [--mode changed|always|off] [--output <file>]",
       "       goodfellow-next content link|copy [folder]",
       "       goodfellow-next import wordpress <file or address> [--dry-run]",
       "       goodfellow-next export wordpress [file]",
@@ -213,6 +228,10 @@ if (command !== "finish" && command !== "index") {
       "due     Says whether a scheduled change has come due since --since (default: the last",
       "        hour), so the site needs building again, and sets the step's due output on",
       "        GitHub Actions.",
+      "nightly Says whether tonight's build is needed: when the site has changed since the live",
+      "        site was built, what it shows by today's date has, or an update is available",
+      "        (--mode, or GOODFELLOW_NIGHTLY: changed, the default, always or off), and sets the",
+      "        step's build and update outputs on GitHub Actions, or adds them to --output.",
       "content For a site whose content is kept in a repository of its own: links content/ and",
       "        public/media/ to the content repository in folder (default: content-repository),",
       "        or copies them from it, as builds do.",
@@ -252,6 +271,11 @@ if (command === "finish") {
     );
   }
   for (const line of buildNotes(await writeFontFiles(dir))) console.log(line);
+  // What the site was built from, and when it stops being current, for the nightly check.
+  const currentUntil = await writeBuildRecordFile(dir);
+  if (currentUntil) {
+    console.log(`What the site shows by today's date changes at ${currentUntil}, when it needs building again`);
+  }
 }
 const indexed = await writeSearchIndex(dir);
 console.log(

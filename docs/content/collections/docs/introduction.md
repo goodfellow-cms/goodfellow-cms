@@ -35,7 +35,7 @@ Because the admin panel talks to GitHub or GitLab directly, nothing else needs t
 - **Several languages**, with translations linked together, a language switch, and help translating with AI. See [Several languages](/docs/languages).
 - **Running the site** without a developer: inviting editors, version history for each page and for the whole site, a custom domain, plain-language explanations when a rebuild fails, and Goodfellow's fixes installed each night.
 - **Blocks of your own**, for developers: any React component can be a block, and parts that respond to visitors run in the browser, with or without Next.js. Pages without them load no JavaScript.
-- **Free hosting** on GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel, with the setup for each included and a nightly rebuild for date-based content.
+- **Free hosting** on GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel, with the setup for each included, and overnight rebuilds for date-based content only when something changed, so free plans' build minutes go further.
 
 ## Where to start
 

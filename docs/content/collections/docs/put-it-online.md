@@ -44,27 +44,27 @@ Each host's free plan has its own rules about business use; read [Hosts and busi
 **GitHub Pages**, free for public repositories:
 
 1. In the repository on GitHub, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
-2. Push. `.github/workflows/deploy.yml` builds and publishes the site on every change and once a night, and `.github/workflows/scheduled.yml` starts it when a [scheduled](/docs/scheduling) page or item comes due. If your main branch isn't called `main`, change it in `deploy.yml`.
+2. Push. `.github/workflows/deploy.yml` builds and publishes the site on every change, and each night when something has changed or there are [fixes](/docs/updates) to install, and `.github/workflows/scheduled.yml` starts it when a [scheduled](/docs/scheduling) page or item comes due. If your main branch isn't called `main`, change it in `deploy.yml`.
 3. If a run fails with "Branch … is not allowed to deploy to github-pages due to environment protection rules", GitHub Pages expects another branch. Under **Settings → Environments → github-pages → Deployment branches and tags**, add the branch the site is built from, then run **Deploy to GitHub Pages** again under **Actions**.
 
 **GitLab Pages**, free for public and private projects:
 
 1. Push. `.gitlab-ci.yml` builds and publishes the site on every change to the default branch.
-2. For nightly rebuilds, add a schedule under **Build → Pipeline schedules**.
+2. For updates and overnight rebuilds, turn on updates on the admin panel's **Updates** screen, which adds a nightly schedule under **Build → Pipeline schedules**.
 3. The site's address is under **Deploy → Pages**.
 
 **Cloudflare Pages**, which works with GitHub and GitLab, including private repositories, and has no rule against business sites that we know of:
 
 1. Make the site with Cloudflare Pages as its host: `npm create goodfellow@latest -- --host cloudflare-pages`, or choose it on the [setup page](/new-site). That gives it Cloudflare's setup files in place of the other hosts': on GitHub, `.github/workflows/deploy.yml` and `scheduled.yml`; on GitLab, `.gitlab-ci.yml`.
 2. In [Cloudflare's dashboard](https://dash.cloudflare.com/), go to **Workers & Pages** and create a Pages project with **Import an existing Git repository**. Connect your GitHub or GitLab account, choose the repository, and set no framework preset, the build command `npm run build` and the build output directory `dist` (`out` for the Next.js starter). Cloudflare builds and publishes the site on every change, including every Publish in the admin panel, and sends the site's [redirects](/docs/layout-and-settings#redirects) itself.
-3. Cloudflare can't build on a schedule, so the setup files do it: each night they install Goodfellow's [updates](/docs/updates), and they check for [scheduled changes](/docs/scheduling), asking Cloudflare to rebuild the site when there's nothing new for it to build. They ask through the project's deploy hook: under the project's **Settings → Builds**, add one for the main branch, and add its address to the repository as the `CLOUDFLARE_DEPLOY_HOOK` secret (GitHub: **Settings → Secrets and variables → Actions**) or masked variable (GitLab: **Settings → CI/CD → Variables**). On GitLab, turn on updates on the admin panel's **Updates** screen too, which adds the nightly schedule.
+3. Cloudflare can't build on a schedule, so the setup files do it: each night they install Goodfellow's [updates](/docs/updates) and check whether the site needs rebuilding, and they check for [scheduled changes](/docs/scheduling), asking Cloudflare to rebuild the site when it needs it and there's nothing new for it to build. They ask through the project's deploy hook: under the project's **Settings → Builds**, add one for the main branch, and add its address to the repository as the `CLOUDFLARE_DEPLOY_HOOK` secret (GitHub: **Settings → Secrets and variables → Actions**) or masked variable (GitLab: **Settings → CI/CD → Variables**). On GitLab, turn on updates on the admin panel's **Updates** screen too, which adds the nightly schedule.
 
 **Vercel**, which works with GitHub and GitLab:
 
 1. Import the repository in Vercel. `vercel.ts` already has the right settings, and has Vercel send the site's redirects itself.
 2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule.
 
-Delete the setup files of the hosts you don't use. Nightly rebuilds keep pages that depend on the date, such as a list of upcoming events, current.
+Delete the setup files of the hosts you don't use. Overnight rebuilds keep pages that depend on the date, such as a list of upcoming events, current; the starters' setups rebuild only when something changed ([Rebuilding overnight](/docs/updates#rebuilding-overnight)).
 
 If the host serves the site from a subfolder, such as `/your-site/` on GitHub Pages, the setup files pass it to the build; see [Commands](/docs/commands) for the base path.
 

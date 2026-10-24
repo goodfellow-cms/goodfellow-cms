@@ -27,7 +27,7 @@ The tokens it gives are GitHub App installation tokens:
 | Sign-in | GitHub App | What its tokens can do |
 |---|---|---|
 | Editors | The everyday app | Read and change the site's files, and see its builds, deployments and GitHub Pages, and what Cloudflare Pages says of its builds |
-| Owners, on the Editors, Domain and Updates screens | The owners' app | Change who edits the site, its GitHub Pages settings and run its workflows |
+| Owners, on the Editors, Domain and Updates screens | The owners' app | Change who edits the site, its GitHub Pages settings and when it rebuilds overnight, and run its workflows |
 | The setup page | The owners' app | Create the repository, write its first files and workflows, and turn on GitHub Pages and protect its history |
 
 Editors' tokens can't change workflows or the repository's settings. Commits made with them name the editor as their author, with GitHub's private email address for them, so they show on the editor's GitHub account.
@@ -72,7 +72,7 @@ If the script can't run, the same steps by hand are:
 
    Give them these repository permissions:
    - the everyday app: **Contents** read and write; **Actions**, **Checks**, **Commit statuses**, **Deployments**, **Metadata** and **Pages** read-only. **Checks** and **Commit statuses** show when [Cloudflare Pages](/docs/put-it-online#3-choose-a-host) has built the site; an app made before it asked for them still signs editors in, without showing that, until every installation has accepted them;
-   - the owners' app: **Administration**, **Actions**, **Contents**, **Pages**, **Secrets** and **Workflows** read and write; **Metadata** read-only. The setup page uses **Secrets** to connect a site's code and content repositories, where its [content is kept in a repository of its own](/docs/content-repository); an app made before it asked for Secrets still creates sites, and the setup page explains what to add instead. Adding it to an existing app asks every installation to accept it.
+   - the owners' app: **Administration**, **Actions**, **Contents**, **Pages**, **Secrets**, **Variables** and **Workflows** read and write; **Metadata** read-only. The Updates screen uses **Variables** for when the site rebuilds overnight; an app made before it asked for Variables still signs owners in, and changing that setting asks for an owner token instead. The setup page uses **Secrets** to connect a site's code and content repositories, where its [content is kept in a repository of its own](/docs/content-repository); an app made before it asked for Secrets still creates sites, and the setup page explains what to add instead. Adding either to an existing app asks every installation to accept it.
 
    For each, note its **App ID**, its **Client ID** and the last part of its address (its slug), generate a client secret, and generate a private key, which downloads a `.pem` file.
 3. **Set up the service** for your apps. In `wrangler.jsonc`, put your apps' slugs, and your setup page's address if you have one. Set its secrets with `npx wrangler@4 secret put EDIT_APP_ID`, then `EDIT_CLIENT_ID`, `EDIT_CLIENT_SECRET` and `EDIT_PRIVATE_KEY` (the `.pem` file's contents), the same four for `OWNER_`, and `SESSION_KEY`, from `openssl rand -base64 32`. Then run `pnpm run deploy` again. Changing `SESSION_KEY` later signs everyone out.

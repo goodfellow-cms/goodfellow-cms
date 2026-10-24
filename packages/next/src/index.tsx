@@ -25,7 +25,14 @@ import {
   todayIn,
   withBase,
 } from "@goodfellow-cms/core";
-import { fileSystemSource, fontStandIns, readMediaSizes, readStylesheet } from "@goodfellow-cms/core/node";
+import {
+  BUILD_DATES_ENV,
+  fileSystemSource,
+  fontStandIns,
+  readMediaSizes,
+  readStylesheet,
+  reportDatesTo,
+} from "@goodfellow-cms/core/node";
 import {
   adminSite,
   applyPageEntry,
@@ -56,6 +63,11 @@ export interface GoodfellowPagesOptions {
    */
   basePath?: string;
 }
+
+// In `next build`, which renders pages in several processes, each writes the dates what its pages show by today's
+// date changes on, for the build record `goodfellow-next finish` writes (see `withGoodfellow()`).
+const buildDates = process.env[BUILD_DATES_ENV];
+if (buildDates) reportDatesTo(buildDates);
 
 /** Next.js's own link and image components, for blocks' `<SiteLink>` and `<SiteImage>`. */
 const components: SiteComponents = { Link: NextLink, Image: NextImage };

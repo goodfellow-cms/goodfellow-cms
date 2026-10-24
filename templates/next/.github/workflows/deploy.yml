@@ -1,9 +1,14 @@
 # Builds the site and publishes it with GitHub Pages whenever the main branch
-# changes (including every Publish in the admin panel), and once a night so
-# date-based content stays current. Each night it first installs Goodfellow's
-# newest fixes, and publishes them only if the site still builds with them,
-# unless content/updates.json turns automatic updates off. scheduled.yml also
-# starts it when a page or item scheduled to be shown or hidden comes due.
+# changes (including every Publish in the admin panel). Each night it checks
+# whether the site needs building: when Goodfellow has new fixes, which it
+# installs and publishes only if the site still builds with them, unless
+# content/updates.json turns automatic updates off; when something the site
+# shows by today's date, such as an event, has changed; or when the live site
+# isn't the newest build. The repository variable GOODFELLOW_NIGHTLY, which the
+# admin panel's Updates screen sets, can make it build every night ("always")
+# or not at all ("off"). scheduled.yml also starts it when a page or item
+# scheduled to be shown or hidden comes due, and the Updates screen's Rebuild
+# now when an owner asks.
 # Each job gets only the permissions it needs: the jobs that run the site's
 # code can only read the repository, and the jobs that publish run none of it.
 # In the repository's Settings → Pages, set "Source" to "GitHub Actions".
@@ -29,10 +34,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    # Each night, unless GOODFELLOW_NIGHTLY is "off": whether to build the site, and update Goodfellow first.
+    if: github.event_name == 'schedule' && vars.GOODFELLOW_NIGHTLY != 'off'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.nightly.outputs.build }}
+      update: ${{ steps.nightly.outputs.update }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          check-latest: true
+          cache: npm
+      - run: npm ci
+      - id: nightly
+        env:
+          GOODFELLOW_NIGHTLY: ${{ vars.GOODFELLOW_NIGHTLY }}
+        run: npx goodfellow-next nightly
+
   update:
-    # Each night, and when the admin panel's Updates screen asks. It installs
+    # When the nightly check finds one, and when the admin panel's Updates screen asks. It installs
     # the update and builds the site with it, but can't publish it: publish-update does.
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.update != '')
+    needs: check
+    if: ${{ !cancelled() && ((github.event_name == 'schedule' && needs.check.outputs.update == 'true') || (github.event_name == 'workflow_dispatch' && inputs.update != '')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -83,9 +113,10 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: [update, publish-update]
-    # Also when there was no update to run, or it didn't work: the site is built either way.
-    if: ${{ !cancelled() }}
+    needs: [check, update, publish-update]
+    # At night only when the check says so, or couldn't tell; otherwise always, even when there was
+    # no update to run, or it didn't work.
+    if: ${{ !cancelled() && (github.event_name != 'schedule' || needs.check.outputs.build == 'true' || needs.check.result == 'failure') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

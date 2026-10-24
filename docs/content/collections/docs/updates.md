@@ -1,16 +1,38 @@
 ---
 version: 1
 title: Keeping a site up to date
-description: How sites install Goodfellow's fixes each night, how owners choose newer releases, and how to go back if an update breaks something.
+description: How sites install Goodfellow's fixes and rebuild overnight only when something changed, how owners choose newer releases and rebuild now, and how to go back if an update breaks something.
 section: owners
 order: 5
 ---
 
-Goodfellow gets fixes and new releases. Sites made from a starter install fixes on their own each night, and only once they've checked that the site still builds with them. **Site Settings → Updates** in the admin panel shows the site's release, what it can update to, and how the last update went.
+Goodfellow gets fixes and new releases. Sites made from a starter install fixes on their own overnight, and only once they've checked that the site still builds with them. **Site Settings → Updates** in the admin panel shows the site's release, what it can update to, how the last update went, and when the site rebuilds overnight.
+
+## Rebuilding overnight
+
+Free plans count build minutes and builds, so each night the site is rebuilt only when visitors would see something new. A short check, `goodfellow nightly`, rebuilds it when:
+
+- Goodfellow has fixes the site's settings allow, which it installs first, as below;
+- something the site shows by today's date has changed since it was built: an event's next date, a calendar's upcoming events or today on a month at a time, a list of what's coming up, or a page scheduled to be shown or hidden. A calendar that shows [another calendar's events](/docs/calendars#calendars-kept-elsewhere) counts as changed every night, since its changes can't be known ahead;
+- the live site isn't the newest build, such as after one that didn't work, or the check can't tell, because the live site can't be read.
+
+Every build writes `goodfellow-build.json` beside the site, saying what it was built from and when what it shows next changes, which is how the check knows. On GitHub, the [hourly check for scheduled changes](/docs/scheduling) also rebuilds the site the first hour after that time, so dates go current within the hour.
+
+**Rebuilding overnight** on the Updates screen lets owners choose:
+
+- **Only when something changed**, the default.
+- **Every night**, as sites did before.
+- **Never**, which saves the most, but what the site shows by today's date goes out of date, and fixes aren't installed on their own. Publishing still rebuilds the site, and so does **Rebuild now**.
+
+On GitHub the choice is kept in a repository variable, `GOODFELLOW_NIGHTLY`, which the workflow's jobs read before they start, so a night that's off uses no minutes; changing it needs an owner's sign-in or owner token, which the screen asks for. On GitLab, **Never** turns the nightly pipeline schedule off, and **Every night** gives it the `GOODFELLOW_NIGHTLY` variable. GitLab Pages needs a pages job to publish something, so on nights with nothing new the job publishes the live site's files again rather than building it.
+
+## Rebuild now
+
+Owners can rebuild the site from the Updates screen without publishing anything, with **Rebuild now**: for a site that doesn't rebuild overnight, to catch up with another calendar's events, or after a rebuild that didn't work. The admin panel follows it as it follows a publish. On GitHub it runs the site's workflow, which needs an owner's sign-in or owner token; on GitLab it starts a pipeline with `GOODFELLOW_REBUILD` set, which only builds the site. Sites on Cloudflare Pages rebuild through their deploy hook, from the same workflow or pipeline.
 
 ## How updates work
 
-Each night, the site's build on GitHub Pages or GitLab Pages first runs `goodfellow update`:
+When there are fixes to install, the site's build first runs `goodfellow update`:
 
 1. It finds the newest fix for the site's release on npm: for a site on 0.4.1, the newest 0.4 release. Releases that can change how things work, such as 0.5, are only installed when an owner chooses one. Nothing is installed if automatic fixes are turned off, and releases the site went back from are left out.
 2. It updates every Goodfellow package to it, and the version of Puck that release uses.
@@ -39,10 +61,11 @@ On GitHub, installing an update or going back from the screen runs the site's wo
 
 ## Turning it on
 
-- **GitHub Pages:** the starter's workflow, `.github/workflows/deploy.yml`, updates the site each night already.
-- **GitLab Pages:** GitLab needs two things first, which **Turn on automatic updates** on the Updates screen does: letting the site's build publish (**Allow Git push requests to the repository**, under **Settings → CI/CD → Job token permissions**, which GitLab offers from release 18.4), and a pipeline schedule that runs the build each night. It needs the Maintainer role in the site's project.
-- **Cloudflare Pages:** a site made with Cloudflare Pages as its host has the same nightly update in its own setup files: on GitHub, `.github/workflows/deploy.yml`, which asks Cloudflare to rebuild the site through its deploy hook when there's no update to publish; on GitLab, `.gitlab-ci.yml`, which **Turn on automatic updates** sets up as for GitLab Pages.
-- **Older sites, and sites on Vercel:** their build setup doesn't update Goodfellow, so the Updates screen says so. A developer can copy the `update` and `publish-update` jobs from the starter's `deploy.yml`, or the update step from its `.gitlab-ci.yml`, or run `npx goodfellow update` and publish the result.
+- **GitHub Pages:** the starter's workflow, `.github/workflows/deploy.yml`, checks each night already.
+- **GitLab Pages:** GitLab needs two things first, which **Turn on automatic updates** on the Updates screen does: letting the site's build publish (**Allow Git push requests to the repository**, under **Settings → CI/CD → Job token permissions**, which GitLab offers from release 18.4), and a pipeline schedule that runs the check each night. It needs the Maintainer role in the site's project.
+- **Cloudflare Pages:** a site made with Cloudflare Pages as its host has the same nightly check in its own setup files: on GitHub, `.github/workflows/deploy.yml`, which asks Cloudflare to rebuild the site through its deploy hook when it needs rebuilding and there's no update to publish; on GitLab, `.gitlab-ci.yml`, which **Turn on automatic updates** sets up as for GitLab Pages.
+- **Sites made before the nightly check:** their setup files rebuild the site every night, and keep working; the Updates screen says so, in place of the choice. A developer can copy the starter's `deploy.yml` or `.gitlab-ci.yml` over theirs, since updates can't change a site's workflows. Sites whose [content is kept in a repository of its own](/docs/content-repository) rebuild every night for now.
+- **Older sites, and sites on Vercel:** their build setup doesn't update Goodfellow, so the Updates screen says so. A developer can copy the `check`, `update` and `publish-update` jobs from the starter's `deploy.yml`, or its `.gitlab-ci.yml`, or run `npx goodfellow update` and publish the result.
 
 ## For developers
 
@@ -52,3 +75,5 @@ On GitHub, installing an update or going back from the screen runs the site's wo
 - An older release, such as `--to 0.4.1` on a site with 0.4.3, goes back to it, and adds 0.4.3 to the releases `content/updates.json` skips, in the same change. Installing a skipped release by name stops skipping it.
 - `--publish` commits and pushes the update to the site's main branch once the site has built with it. `--commit` only commits it, so a job that can't push can make it and another job, which runs none of the site's code, can push it, as the starter's workflow does; in GitHub Actions it sets the step's `commit` output to `true` when it made one. Without either, the files are left changed for you to look at.
 - It prints a line starting `goodfellow-update`, which the admin panel reads in GitLab's log, and exits with an error when the update didn't work.
+
+`goodfellow nightly` (or `goodfellow-next nightly`) says whether tonight's build is needed, and why, reading the live site's `goodfellow-build.json` from the Site address. `--mode`, or the `GOODFELLOW_NIGHTLY` variable, is `changed` (the default), `always` or `off`. In GitHub Actions it sets the step's `build` and `update` outputs to `true` or `false`; `--output <file>` adds them to a file instead, which the GitLab setup reads in its shell.

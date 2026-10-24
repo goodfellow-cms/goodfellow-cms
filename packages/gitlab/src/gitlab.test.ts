@@ -398,6 +398,45 @@ describe("updates", () => {
     });
   });
 
+  it("rebuilds the site in a pipeline that only builds it", async () => {
+    const { fake, updates } = await site();
+    await updates.rebuild?.();
+    expect(fake.updateRuns[0]?.variables).toEqual([
+      { key: "GOODFELLOW_REBUILD", variable_type: "env_var", value: "true" },
+    ]);
+  });
+
+  it("keeps when the site rebuilds overnight in its nightly schedule", async () => {
+    const { fake, updates } = await site(
+      "pages:\n  script:\n    - npx goodfellow nightly --output nightly.env\n    - npx goodfellow update --publish\n",
+    );
+    const nightly = updates.nightly;
+    if (!nightly) throw new Error("No nightly setting");
+    expect(await nightly.supported()).toBe(true);
+    expect(await (await site()).updates.nightly?.supported()).toBe(false);
+    // Not set up yet.
+    expect(await nightly.get()).toBeUndefined();
+    await expect(nightly.set("off")).rejects.toMatchObject({ problem: "missing" });
+    await updates.enable?.();
+    expect(await nightly.get()).toBe("changed");
+
+    // Never turns the schedule off, which still counts as set up.
+    await nightly.set("off");
+    expect(fake.updateSettings.schedules[0]).toMatchObject({ active: false });
+    expect(await nightly.get()).toBe("off");
+    expect(await updates.setup()).toBe("ready");
+    // Every night gives it the variable the pages job reads.
+    await nightly.set("always");
+    expect(fake.updateSettings.schedules[0]).toMatchObject({
+      active: true,
+      variables: { GOODFELLOW_NIGHTLY: "always" },
+    });
+    expect(await nightly.get()).toBe("always");
+    await nightly.set("changed");
+    expect(fake.updateSettings.schedules[0]?.variables).toEqual({});
+    expect(await nightly.get()).toBe("changed");
+  });
+
   it("runs the update with the release asked for, and reads what it did from the log", async () => {
     const { fake, updates } = await site();
     await updates.start("0.5.0");

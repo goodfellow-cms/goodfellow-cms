@@ -1,14 +1,20 @@
 # Builds the site and publishes it with GitLab Pages whenever the default
 # branch changes (including every Publish in the admin panel). On scheduled
 # pipelines, which the admin panel's Updates screen sets up to run each night,
-# it first installs Goodfellow's newest fixes, unless content/updates.json turns
-# automatic updates off (or the release GOODFELLOW_UPDATE names), and publishes
-# them only if the site still builds with them. That
-# needs "Allow Git push requests to the repository" under Settings → CI/CD →
-# Job token permissions, which the Updates screen turns on.
+# it first checks whether the site needs building: when Goodfellow has new
+# fixes, which it installs and publishes only if the site still builds with
+# them, unless content/updates.json turns automatic updates off; when something
+# the site shows by today's date, such as an event, has changed; or when the
+# live site isn't the newest build. When it doesn't, it publishes the live
+# site's files again, which GitLab Pages needs of a pages job, rather than
+# building it. The schedule's GOODFELLOW_NIGHTLY variable "always" builds it
+# every night, and the Updates screen turns the schedule off for "never".
+# Updating needs "Allow Git push requests to the repository" under Settings →
+# CI/CD → Job token permissions, which the Updates screen turns on.
 # The admin panel also adds a pipeline schedule for each time a page or item is
-# scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, which
-# only builds the site. See README.md.
+# scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, and
+# starts a pipeline for the Updates screen's Rebuild now, both of which only
+# build the site. See README.md.
 pages:
   image: node:22
   cache:
@@ -18,13 +24,27 @@ pages:
   script:
     - npm ci --cache .npm --prefer-offline
     - |
-      if { [ "$CI_PIPELINE_SOURCE" = "schedule" ] && [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ]; } || [ -n "$GOODFELLOW_UPDATE" ]; then
+      build=true
+      update=false
+      if [ -n "$GOODFELLOW_UPDATE" ]; then
+        update=true
+      elif [ "$CI_PIPELINE_SOURCE" = "schedule" ] && [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ]; then
+        # Sets build and update; where it can't tell, the site is updated and built as before.
+        npx goodfellow-next nightly --output nightly.env && . ./nightly.env || update=true
+      fi
+    - |
+      if [ "$update" = true ]; then
         git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_FQDN:-$CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
         npx goodfellow-next update --publish --to "${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't published; building the site as it is."
       fi
-    # Pages may serve the site from a subfolder, such as https://group.gitlab.io/site/.
-    - export GOODFELLOW_BASE="$(node -e 'console.log(new URL(process.env.CI_PAGES_URL).pathname)')"
-    - npm run build
+    - |
+      if [ "$build" = false ] && curl --fail --silent --show-error --location --header "JOB-TOKEN: $CI_JOB_TOKEN" --output live.zip "$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/$CI_DEFAULT_BRANCH/download?job=pages" && unzip -q -o live.zip; then
+        echo "Publishing the live site's files again, since nothing has changed since they were built."
+      else
+        # Pages may serve the site from a subfolder, such as https://group.gitlab.io/site/.
+        export GOODFELLOW_BASE="$(node -e 'console.log(new URL(process.env.CI_PAGES_URL).pathname)')"
+        npm run build
+      fi
   pages:
     publish: out
   # A newer publish cancels this build while it runs ("Auto-cancel redundant

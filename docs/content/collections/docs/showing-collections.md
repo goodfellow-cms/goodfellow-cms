@@ -6,7 +6,7 @@ section: editors
 order: 3.2
 ---
 
-Two blocks show a collection's items on other pages: **Collection list**, ready to use, and **Collection loop**, for designs of your own. Both are worked out when the site is built, so visitors only get the page, and the nightly rebuild keeps lists such as "coming up" current.
+Two blocks show a collection's items on other pages: **Collection list**, ready to use, and **Collection loop**, for designs of your own. Both are worked out when the site is built, so visitors only get the page, and the site is rebuilt overnight whenever a list such as "coming up" changes, so it stays current.
 
 ## Collection list
 

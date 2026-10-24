@@ -3,15 +3,27 @@ import {
   findUpdateResult,
   GitApiError,
   type GitBackend,
+  NIGHTLY_VARIABLE,
+  type NightlyBuilds,
+  type NightlyMode,
   type SiteUpdates,
   type UpdateRun,
   UpdatesError,
 } from "@goodfellow-cms/core";
 import { type ApiOptions, gitlabJson, gitlabRequest } from "./api.js";
+import { SCHEDULED_BUILD_DESCRIPTION } from "./scheduled-builds.js";
 
 const CI_FILE = ".gitlab-ci.yml";
 /** When the nightly schedule the Updates screen adds runs, in UTC, as the GitHub Pages workflow's does. */
 export const NIGHTLY = "17 4 * * *";
+
+interface Schedule {
+  id: number;
+  ref: string;
+  active: boolean;
+  description?: string;
+  variables?: Array<{ key: string; value: string }>;
+}
 
 interface Pipeline {
   id: number;
@@ -45,8 +57,62 @@ export function gitlabUpdates(
   const base = `/projects/${encodeURIComponent(project)}`;
 
   async function schedules() {
-    return gitlabJson<Array<{ id: number; ref: string; active: boolean }>>(api, `${base}/pipeline_schedules`);
+    return gitlabJson<Schedule[]>(api, `${base}/pipeline_schedules`);
   }
+  /** The nightly schedule: the branch's, other than those the admin panel adds for scheduled changes. */
+  async function nightlySchedule(): Promise<Schedule | undefined> {
+    return (await schedules()).find(
+      (schedule) =>
+        (schedule.ref === branch || schedule.ref === `refs/heads/${branch}`) &&
+        !schedule.description?.startsWith(SCHEDULED_BUILD_DESCRIPTION),
+    );
+  }
+
+  /**
+   * The nightly build setting: "never" turns the nightly schedule off, and
+   * "every night" gives it `GOODFELLOW_NIGHTLY`, which the pages job reads.
+   */
+  const nightly: NightlyBuilds = {
+    async supported() {
+      return (await readAt(CI_FILE))?.includes("nightly") ?? false;
+    },
+    async get() {
+      try {
+        const found = await nightlySchedule();
+        if (!found) return undefined;
+        if (!found.active) return "off";
+        // The list leaves schedules' variables out.
+        const schedule = await gitlabJson<Schedule>(api, `${base}/pipeline_schedules/${found.id}`);
+        const value = schedule.variables?.find((variable) => variable.key === NIGHTLY_VARIABLE)?.value;
+        return value === "always" ? "always" : "changed";
+      } catch (error) {
+        if (error instanceof GitApiError && error.status === 403) return undefined;
+        throw error;
+      }
+    },
+    async set(mode: NightlyMode) {
+      const found = await nightlySchedule().catch(notAllowed);
+      if (!found) throw new UpdatesError("missing", "The site has no nightly schedule yet: turn on updates first.");
+      const path = `${base}/pipeline_schedules/${found.id}`;
+      await gitlabRequest(api, path, { method: "PUT", body: { active: mode !== "off" } }).catch(notAllowed);
+      if (mode === "always") {
+        const body = { key: NIGHTLY_VARIABLE, value: "always" };
+        const updated = await gitlabRequest(api, `${path}/variables/${NIGHTLY_VARIABLE}`, {
+          method: "PUT",
+          body,
+          allow: [404],
+        }).catch(notAllowed);
+        if (updated.status === 404) {
+          await gitlabRequest(api, `${path}/variables`, { method: "POST", body }).catch(notAllowed);
+        }
+      } else if (mode === "changed") {
+        await gitlabRequest(api, `${path}/variables/${NIGHTLY_VARIABLE}`, {
+          method: "DELETE",
+          allow: [404],
+        }).catch(notAllowed);
+      }
+    },
+  };
 
   return {
     async setup() {
@@ -57,8 +123,11 @@ export function gitlabUpdates(
           gitlabJson<{ ci_push_repository_for_job_token_allowed?: boolean }>(api, base),
           schedules(),
         ]);
+        // The nightly schedule, even where it's been turned off, which the nightly build setting does.
         const scheduled = found.some(
-          (schedule) => schedule.active && (schedule.ref === branch || schedule.ref === `refs/heads/${branch}`),
+          (schedule) =>
+            (schedule.ref === branch || schedule.ref === `refs/heads/${branch}`) &&
+            (schedule.active || !schedule.description?.startsWith(SCHEDULED_BUILD_DESCRIPTION)),
         );
         return settings.ci_push_repository_for_job_token_allowed && scheduled ? "ready" : "needs-setup";
       } catch (error) {
@@ -73,8 +142,7 @@ export function gitlabUpdates(
         method: "PUT",
         body: { ci_push_repository_for_job_token_allowed: true },
       }).catch(notAllowed);
-      const found = await schedules().catch(notAllowed);
-      if (!found.some((schedule) => schedule.active && schedule.ref.endsWith(branch))) {
+      if (!(await nightlySchedule().catch(notAllowed))) {
         await gitlabRequest(api, `${base}/pipeline_schedules`, {
           method: "POST",
           body: {
@@ -119,6 +187,16 @@ export function gitlabUpdates(
       await gitlabRequest(api, `${base}/pipeline`, {
         method: "POST",
         body: { ref: branch, variables: [{ key: "GOODFELLOW_UPDATE", variable_type: "env_var", value: target }] },
+      }).catch(notAllowed);
+    },
+
+    nightly,
+
+    async rebuild() {
+      // A pipeline that isn't scheduled and has no update to install only builds the site.
+      await gitlabRequest(api, `${base}/pipeline`, {
+        method: "POST",
+        body: { ref: branch, variables: [{ key: "GOODFELLOW_REBUILD", variable_type: "env_var", value: "true" }] },
       }).catch(notAllowed);
     },
   };
@@ -192,6 +270,9 @@ export function gitlabCodeUpdates(options: CodeUpdatesOptions): SiteUpdates {
     },
     async start(target) {
       await (await updates()).start(target);
+    },
+    async rebuild() {
+      await (await updates()).rebuild?.();
     },
   };
 }

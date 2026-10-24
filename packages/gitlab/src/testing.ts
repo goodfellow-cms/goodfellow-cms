@@ -888,18 +888,45 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       }
       return json(updateSettings.schedules);
     }
-    const scheduleMatch = rest.match(/^\/pipeline_schedules\/(\d+)(\/variables)?$/);
+    const scheduleMatch = rest.match(/^\/pipeline_schedules\/(\d+)(\/variables)?(?:\/([\w-]+))?$/);
     if (scheduleMatch) {
       const schedule = updateSettings.schedules.find((candidate) => candidate.id === Number(scheduleMatch[1]));
       if (!schedule) return json({ message: "404 Not found" }, 404);
+      const variables = () =>
+        Object.entries(schedule.variables ?? {}).map(([key, value]) => ({ key, value, variable_type: "env_var" }));
+      if (request.method === "GET" && !scheduleMatch[2]) {
+        if (accessLevel < 30) return json({ message: "403 Forbidden" }, 403);
+        return json({ ...schedule, variables: variables() });
+      }
       // Only a schedule's owner or a Maintainer can change it.
       if (accessLevel < 30 || (accessLevel < 40 && schedule.owner !== user.username)) {
         return json({ message: "403 Forbidden" }, 403);
       }
-      if (scheduleMatch[2] && request.method === "POST") {
+      const key = scheduleMatch[3];
+      if (scheduleMatch[2] && !key && request.method === "POST") {
         const body = (await request.json()) as { key: string; value: string };
         schedule.variables = { ...schedule.variables, [body.key]: body.value };
         return json(body, 201);
+      }
+      if (scheduleMatch[2] && key) {
+        if (!(key in (schedule.variables ?? {}))) return json({ message: "404 Variable Not Found" }, 404);
+        if (request.method === "PUT") {
+          const body = (await request.json()) as { value: string };
+          schedule.variables = { ...schedule.variables, [key]: body.value };
+          return json({ key, value: body.value });
+        }
+        if (request.method === "DELETE") {
+          const { [key]: _removed, ...rest } = schedule.variables ?? {};
+          schedule.variables = rest;
+          return json({ key });
+        }
+      }
+      if (!scheduleMatch[2] && request.method === "PUT") {
+        const body = (await request.json()) as { active?: boolean; cron?: string; description?: string };
+        if (body.active !== undefined) schedule.active = body.active;
+        if (body.cron !== undefined) schedule.cron = body.cron;
+        if (body.description !== undefined) schedule.description = body.description;
+        return json({ ...schedule, variables: variables() });
       }
       if (!scheduleMatch[2] && request.method === "DELETE") {
         updateSettings.schedules = updateSettings.schedules.filter((candidate) => candidate !== schedule);

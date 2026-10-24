@@ -2,7 +2,9 @@ import {
   blockPages,
   type Collection,
   collectionFileSchema,
+  nextDateChange,
   type Page,
+  resetDateChanges,
   type SiteContent,
   siteSettingsSchema,
 } from "@goodfellow-cms/core";
@@ -134,6 +136,18 @@ describe("Calendar", () => {
     // Subscribing needs the site's address.
     expect(html).toContain("webcal://parish.example.org/calendars/events.ics");
     expect(html).toContain('href="/calendars/events.ics" download=""');
+  });
+
+  it("says when what it shows changes, for the nightly check", async () => {
+    // A list of the next 30 days changes once Sunday's Mass is over, and the fall fair, after it, comes within it.
+    resetDateChanges();
+    await render([calendar({ days: 30 })]);
+    expect(nextDateChange()).toBe("2026-10-12");
+    // A month marks today, so it changes every day.
+    resetDateChanges();
+    await render([calendar({ view: "month" })]);
+    expect(nextDateChange()).toBe("2026-10-11");
+    resetDateChanges();
   });
 
   it("shows a month at a time, with links to the months around it", async () => {
