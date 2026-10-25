@@ -37,7 +37,10 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-describe("addBroker", () => {
+/** Tests that run git, which can take seconds to start on Windows while many tests run at once. */
+const GIT_TIMEOUT = 60_000;
+
+describe("addBroker", { timeout: GIT_TIMEOUT }, () => {
   it("writes the broker's repository beside the site, with broker.json naming it", async () => {
     const added = await addBroker(site, { source, host: "gitlab-pages", fetch: fakeFetch });
     expect(added.folder).toBe(join(dir, "parish-signin"));
