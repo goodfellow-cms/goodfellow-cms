@@ -212,11 +212,15 @@ export class FakeRepo {
 }
 
 export {
+  type FakePlugin,
+  type FakePluginsOptions,
   type FakeTheme,
   type FakeThemeRelease,
   type FakeThemesOptions,
   type FakeThemesResponse,
+  fakePlugins,
   fakeThemes,
+  samplePluginFiles,
   sampleThemeFiles,
 } from "./themes-testing.js";
 export {

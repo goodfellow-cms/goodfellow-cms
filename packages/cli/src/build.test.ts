@@ -504,6 +504,16 @@ describe.each([
       'import { installedBlocks, installedCategories } from "./blocks/installed";',
     );
   });
+
+  it("lists the plugins installed from the admin panel", async () => {
+    const { configUsesInstalledPlugins, installedPluginsIndex, NO_INSTALLED_PLUGINS } = await import(
+      "@goodfellow-cms/core"
+    );
+    expect(await readFile(join(root, "plugins/installed/index.ts"), "utf8")).toBe(
+      installedPluginsIndex(NO_INSTALLED_PLUGINS),
+    );
+    expect(configUsesInstalledPlugins(await readFile(join(root, "goodfellow.config.tsx"), "utf8"))).toBe(true);
+  });
 });
 
 describe("parish example", () => {
@@ -519,6 +529,7 @@ describe("parish example", () => {
       "components.json",
       "tsconfig.json",
       "blocks/installed/index.ts",
+      "plugins/installed/index.ts",
     ]) {
       expect(await readFile(join(parish, file), "utf8"), file).toBe(await readFile(join(starter, file), "utf8"));
     }

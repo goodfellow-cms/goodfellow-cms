@@ -1,9 +1,11 @@
 /**
- * A fake of npm's registry and jsDelivr for themes, so tests never call the
- * real services, and a made-up theme to install. Never shipped: import it from
- * `@goodfellow-cms/core/testing` in tests only.
+ * A fake of npm's registry and jsDelivr for themes and plugins, so tests never
+ * call the real services, and a made-up theme and plugin to install. Never
+ * shipped: import it from `@goodfellow-cms/core/testing` in tests only.
  */
 import { serializeContent } from "./content/serialize.js";
+import { PLUGIN_MANIFEST } from "./plugin-packages.js";
+import { PLUGIN_KEYWORD } from "./plugins.js";
 import { THEME_KEYWORD, THEME_MANIFEST } from "./themes.js";
 
 export interface FakeThemeRelease {
@@ -15,6 +17,10 @@ export interface FakeThemeRelease {
   provenance?: boolean;
   repository?: string;
   deprecated?: string;
+  /** The packages it needs, with their ranges. */
+  dependencies?: Record<string, string>;
+  /** Its `package.json`'s scripts, such as `postinstall`. */
+  scripts?: Record<string, string>;
   /** Its package's files by path, such as `goodfellow-theme.json` and `theme.css`. */
   files: Record<string, string>;
 }
@@ -40,12 +46,40 @@ export interface FakeThemesOptions {
   now?: Date;
 }
 
+/** A plugin, or a package plugins need, on the fake npm: its keywords are `goodfellow-plugin` if left out. */
+export type FakePlugin = FakeTheme;
+
+export interface FakePluginsOptions {
+  plugins: FakePlugin[];
+  /** Other packages, such as the ones plugins need, with no keywords unless given. */
+  packages?: FakePlugin[];
+  now?: Date;
+}
+
 /**
- * Fake answers for npm's registry (`registry.npmjs.org`) and jsDelivr's npm
- * files (`cdn.jsdelivr.net`): `handle()` for end-to-end tests' routes, `fetch`
- * for unit tests.
+ * Fake answers for npm's registry (`registry.npmjs.org`) and jsDelivr
+ * (`cdn.jsdelivr.net`, and `data.jsdelivr.com`'s lists of files) for themes:
+ * `handle()` for end-to-end tests' routes, `fetch` for unit tests.
  */
 export function fakeThemes(options: FakeThemesOptions) {
+  return fakeNpm({
+    packages: options.themes.map((theme) => ({ ...theme, keywords: theme.keywords ?? [THEME_KEYWORD] })),
+    ...(options.now && { now: options.now }),
+  });
+}
+
+/** The same fake for plugins and the packages they need. */
+export function fakePlugins(options: FakePluginsOptions) {
+  return fakeNpm({
+    packages: [
+      ...options.plugins.map((plugin) => ({ ...plugin, keywords: plugin.keywords ?? [PLUGIN_KEYWORD] })),
+      ...(options.packages ?? []).map((other) => ({ ...other, keywords: other.keywords ?? [] })),
+    ],
+    ...(options.now && { now: options.now }),
+  });
+}
+
+function fakeNpm(options: { packages: (FakeTheme & { keywords: string[] })[]; now?: Date }) {
   const requests: string[] = [];
   const now = (options.now ?? new Date()).getTime();
   const cors = { "access-control-allow-origin": "*" };
@@ -58,9 +92,9 @@ export function fakeThemes(options: FakeThemesOptions) {
 
   function search(url: URL): FakeThemesResponse {
     const words = (url.searchParams.get("text") ?? "").split(/\s+/).filter(Boolean);
-    const objects = options.themes
+    const objects = options.packages
       .filter((theme) => {
-        const keywords = theme.keywords ?? [THEME_KEYWORD];
+        const keywords = theme.keywords;
         return words.every((word) => {
           if (word.startsWith("keywords:")) return keywords.includes(word.slice("keywords:".length));
           return `${theme.name} ${theme.description ?? ""}`.toLowerCase().includes(word.toLowerCase());
@@ -73,7 +107,7 @@ export function fakeThemes(options: FakeThemesOptions) {
             name: theme.name,
             version: latest?.version,
             description: theme.description ?? "",
-            keywords: theme.keywords ?? [THEME_KEYWORD],
+            keywords: theme.keywords,
             date: latest && published(latest),
             publisher: { username: theme.publisher ?? "someone" },
           },
@@ -91,8 +125,10 @@ export function fakeThemes(options: FakeThemesOptions) {
         name: theme.name,
         version: release.version,
         description: theme.description ?? "",
-        keywords: theme.keywords ?? [THEME_KEYWORD],
+        keywords: theme.keywords,
         ...(goodfellow !== null && { peerDependencies: { "@goodfellow-cms/core": goodfellow } }),
+        ...(release.dependencies && { dependencies: release.dependencies }),
+        ...(release.scripts && { scripts: release.scripts }),
         ...(release.repository && { repository: { type: "git", url: `git+${release.repository}.git` } }),
         ...(release.deprecated && { deprecated: release.deprecated }),
         dist: {
@@ -116,16 +152,34 @@ export function fakeThemes(options: FakeThemesOptions) {
     if (url.hostname === "registry.npmjs.org") {
       if (url.pathname === "/-/v1/search") return search(url);
       const name = decodeURIComponent(url.pathname.slice(1));
-      const theme = options.themes.find((candidate) => candidate.name === name);
+      const theme = options.packages.find((candidate) => candidate.name === name);
       return theme ? metadata(theme) : json({ error: "Not found" }, 404);
+    }
+    if (url.hostname === "data.jsdelivr.com") {
+      const match = /^\/v1\/packages\/npm\/((?:@[^/]+\/)?[^/@]+)@([^/]+)$/.exec(decodeURIComponent(url.pathname));
+      const found = options.packages.find((candidate) => candidate.name === match?.[1]);
+      const release = found?.releases.find((candidate) => candidate.version === match?.[2]);
+      if (!release) return json({ status: 404, message: "Couldn't find the requested release." }, 404);
+      const files = Object.entries(release.files).map(([name, text]) => ({
+        type: "file",
+        name: `/${name}`,
+        hash: "",
+        size: new TextEncoder().encode(text).length,
+      }));
+      return json({ type: "npm", name: found?.name, version: release.version, files });
     }
     if (url.hostname === "cdn.jsdelivr.net") {
       const match = /^\/npm\/((?:@[^/]+\/)?[^/@]+)@([^/]+)\/(.+)$/.exec(decodeURIComponent(url.pathname));
-      const theme = options.themes.find((candidate) => candidate.name === match?.[1]);
+      const theme = options.packages.find((candidate) => candidate.name === match?.[1]);
       const release = theme?.releases.find((candidate) => candidate.version === match?.[2]);
       const file = match?.[3] && release?.files[match[3]];
       if (file !== undefined && file !== "") {
-        const type = match?.[3]?.endsWith(".css") ? "text/css" : "application/json";
+        const path = match?.[3] ?? "";
+        const type = path.endsWith(".css")
+          ? "text/css"
+          : /\.[cm]?[jt]sx?$/.test(path)
+            ? "application/javascript"
+            : "application/json";
         return { status: 200, headers: { ...cors, "content-type": `${type}; charset=utf-8` }, body: file };
       }
       return { status: 404, headers: cors, body: "Couldn't find the requested file." };
@@ -205,4 +259,33 @@ export function sampleThemeFiles(
     });
   }
   return files;
+}
+
+/**
+ * A made-up plugin's files: its `goodfellow-plugin.json`, asking to reach one
+ * service and to publish one content file, and code that requests it.
+ */
+export function samplePluginFiles(
+  overrides: { title?: string; connect?: string[]; code?: string; manifest?: Record<string, unknown> } = {},
+): Record<string, string> {
+  return {
+    [PLUGIN_MANIFEST]: serializeContent({
+      version: 1,
+      title: overrides.title ?? "Guestbook",
+      description: "Lets visitors sign a guestbook, kept in a content file.",
+      permissions: {
+        connect: overrides.connect ?? ["https://guestbook.example.com"],
+        files: ["content/guestbook.json"],
+      },
+      admin: true,
+      screens: [{ id: "entries", title: "Guestbook" }],
+      ...overrides.manifest,
+    }),
+    "package.json": JSON.stringify({ name: "goodfellow-plugin-guestbook", type: "module", main: "index.js" }),
+    "index.js": "export default { name: 'goodfellow-plugin-guestbook', title: 'Guestbook' };\n",
+    "admin.js":
+      overrides.code ??
+      "export default { screens: { entries(element) { fetch('https://guestbook.example.com/entries'); } } };\n",
+    "index.d.ts": "declare const plugin: unknown;\nexport default plugin;\n",
+  };
 }

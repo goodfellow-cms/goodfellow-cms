@@ -24,6 +24,39 @@ describe("what the broker asks before making a call", () => {
     });
   });
 
+  it("says which plugins a publish installs, and what they ask to do", async () => {
+    const entry = (release: string) => ({
+      release,
+      installed: "2026-10-25",
+      manifest: { version: 1, title: "Guestbook", permissions: { connect: ["https://guestbook.example.com"] } },
+    });
+    const record = (plugins: Record<string, unknown>) => JSON.stringify({ version: 1, plugins });
+    const target = {
+      read: async (path: string) =>
+        path === "plugins/installed/installed.json"
+          ? record({ "goodfellow-plugin-guestbook": entry("1.0.0"), "goodfellow-plugin-old": entry("2.0.0") })
+          : undefined,
+    };
+    const changes = [
+      { path: "package.json", content: "{}" },
+      {
+        path: "plugins/installed/installed.json",
+        content: record({ "goodfellow-plugin-guestbook": entry("1.1.0") }),
+      },
+    ];
+    expect(await decide({ path: "write", args: [changes], target }, SITE)).toEqual({
+      action: "ask",
+      questions: [
+        {
+          kind: "plugins",
+          installed: [{ name: "goodfellow-plugin-guestbook", ...entry("1.1.0") }],
+          removed: ["goodfellow-plugin-old"],
+        },
+        { kind: "code", paths: ["package.json", "plugins/installed/installed.json"] },
+      ],
+    });
+  });
+
   it("refuses workflows, even beside content", async () => {
     const changes = [
       { path: "content/pages/about.json", content: "{}" },

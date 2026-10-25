@@ -237,7 +237,8 @@ export interface PluginProblem {
     | "bad-screen"
     | "bad-step"
     | "no-admin"
-    | "block-clash";
+    | "block-clash"
+    | "not-approved";
   /** What's wrong, for the developer. */
   message: string;
 }

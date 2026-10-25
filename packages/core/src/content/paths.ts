@@ -28,6 +28,10 @@ export const COLLECTIONS_DIR = "content/collections";
 export const INSTALLED_BLOCKS_DIR = "blocks/installed";
 export const INSTALLED_RECORD_FILE = "blocks/installed/installed.json";
 export const INSTALLED_INDEX_FILE = "blocks/installed/index.ts";
+/** Where the record of plugins installed from the admin panel's Plugins screen is kept, with the list the config imports. */
+export const INSTALLED_PLUGINS_DIR = "plugins/installed";
+export const INSTALLED_PLUGINS_FILE = "plugins/installed/installed.json";
+export const INSTALLED_PLUGINS_INDEX = "plugins/installed/index.ts";
 /** Folders blocks' shared code is installed into, as the shadcn CLI's defaults put it. */
 export const COMPONENTS_DIR = "components";
 export const LIB_DIR = "lib";

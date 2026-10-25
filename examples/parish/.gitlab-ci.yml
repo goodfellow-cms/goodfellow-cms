@@ -14,7 +14,13 @@
 # The admin panel also adds a pipeline schedule for each time a page or item is
 # scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, and
 # starts a pipeline for the Updates screen's Rebuild now, both of which only
-# build the site. See README.md.
+# build the site. When package.json names packages package-lock.json doesn't
+# have, such as a plugin installed from the admin panel, it writes
+# package-lock.json first, installing nothing and running none of their code,
+# and publishes it, which also needs that job token permission. See README.md.
+variables:
+  LOCKFILE_CHECK: 'const fs = require("fs"); const read = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; } }; const site = read("package.json") || {}; const root = ((read("package-lock.json") || {}).packages || {})[""]; const same = (a, b) => JSON.stringify(Object.entries(a || {}).sort()) === JSON.stringify(Object.entries(b || {}).sort()); process.exit(root && ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].every((key) => same(site[key], root[key])) ? 0 : 1);'
+
 pages:
   image: node:22
   cache:
@@ -22,6 +28,16 @@ pages:
       files: [package-lock.json]
     paths: [.npm/]
   script:
+    # When package.json names packages package-lock.json doesn't have, such as a plugin installed from the
+    # admin panel: writes package-lock.json, installing nothing and running none of the packages' code, with
+    # releases at least 3 days old for what it adds, and publishes it.
+    - |
+      if ! node -e "$LOCKFILE_CHECK"; then
+        npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+        git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_FQDN:-$CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+        git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names" package-lock.json
+        git push -o ci.skip origin "HEAD:$CI_COMMIT_BRANCH" || echo "package-lock.json wasn't published: turn on \"Allow Git push requests to the repository\" under Settings → CI/CD → Job token permissions."
+      fi
     - npm ci --cache .npm --prefer-offline
     - |
       build=true

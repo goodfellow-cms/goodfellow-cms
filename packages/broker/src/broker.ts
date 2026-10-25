@@ -18,6 +18,7 @@ import {
   type GitBackend,
   type GitHost,
   type HostSource,
+  type PluginManifest,
   serveBackend,
 } from "@goodfellow-cms/core";
 import { type BrokerQuestion, decide } from "./policy.js";
@@ -343,12 +344,41 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
     });
   }
 
+  /** What a plugin asks to do, a line each, as the broker says it. */
+  function pluginLines(manifest: PluginManifest): string[] {
+    const { permissions } = manifest;
+    const list = (values: string[] | undefined, key: StringKey) =>
+      values?.length ? [t(key, { list: values.join(", ") })] : [];
+    const lines = [
+      ...list(permissions.connect, "pluginConnect"),
+      ...list(permissions.files, "pluginFiles"),
+      ...list(permissions.secrets, "pluginSecrets"),
+      ...list(permissions.read, "pluginRead"),
+      ...list(permissions.write, "pluginWrite"),
+      ...list(manifest.blocks, "pluginBlocks"),
+      ...(manifest.admin ? [t("pluginAdmin")] : []),
+      ...(manifest.build?.length ? [t("pluginBuild")] : []),
+      ...(manifest.server ? [t("pluginServer")] : []),
+    ];
+    return lines.length > 0 ? lines : [t("pluginNothing")];
+  }
+
   function confirm(questions: BrokerQuestion[]): Promise<boolean> {
     const body: (Node | string)[] = [element("p", {}, t("confirmIntro"))];
     let publishes = false;
     for (const question of questions) {
       if (question.kind === "update") body.push(element("p", {}, t("confirmUpdate", { release: question.release })));
-      else if (question.kind === "editors") {
+      else if (question.kind === "plugins") {
+        publishes = true;
+        for (const plugin of question.installed) {
+          const { manifest } = plugin;
+          body.push(
+            element("p", {}, t("confirmPlugin", { title: manifest.title, name: plugin.name, release: plugin.release })),
+            element("ul", {}, ...pluginLines(manifest).map((line) => element("li", {}, line))),
+          );
+        }
+        for (const name of question.removed) body.push(element("p", {}, t("confirmPluginRemove", { name })));
+      } else if (question.kind === "editors") {
         body.push(
           element(
             "p",

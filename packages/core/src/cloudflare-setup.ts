@@ -15,6 +15,13 @@ import {
   nightlyBuildCondition,
   PUBLISH_UPDATE_JOB,
 } from "./github-workflows.js";
+import {
+  GITLAB_LOCKFILE_VARIABLES,
+  githubLockfileJobs,
+  gitlabLockfileScript,
+  LOCKFILE_JOB,
+  PUBLISH_LOCKFILE_JOB,
+} from "./lockfile-setup.js";
 
 /** The secret (GitHub) or variable (GitLab) that holds the Pages project's deploy hook. */
 export const CLOUDFLARE_DEPLOY_HOOK = "CLOUDFLARE_DEPLOY_HOOK";
@@ -62,11 +69,16 @@ function githubWorkflow({ next }: CloudflareSetup): string {
   const cli = next ? "goodfellow-next" : "goodfellow";
   return `${comment(
     `Cloudflare Pages builds and publishes the site whenever the main branch changes (including every Publish in the admin panel). This workflow keeps it current. Each night it checks whether the site needs building: when Goodfellow has new fixes, which it installs and publishes only if the site still builds with them, unless content/updates.json turns automatic updates off; when something the site shows by today's date, such as an event, has changed; or when the live site isn't the newest build. When it needs building but there's no update to publish, it asks Cloudflare to rebuild the site. The repository variable GOODFELLOW_NIGHTLY, which the admin panel's Updates screen sets, can make it rebuild every night ("always") or not at all ("off"). scheduled.yml also starts it when a page or item scheduled to be shown or hidden comes due, and the Updates screen's Rebuild now when an owner asks.
+When package.json names packages package-lock.json doesn't have, such as a plugin installed from the admin panel, it writes package-lock.json, installing nothing and running none of their code, and publishes it, which Cloudflare then builds.
 It asks Cloudflare through ${HOOK_WHERE}: add it here as the ${CLOUDFLARE_DEPLOY_HOOK} secret (Settings → Secrets and variables → Actions). See README.md.`,
   )}
 name: Update and rebuild on Cloudflare Pages
 
 on:
+  # For the lockfile, when package.json changes, such as when a plugin is installed from the admin panel.
+  push:
+    branches: [main]
+    paths: [package.json]
   schedule:
     - cron: "17 4 * * *"
   workflow_dispatch:
@@ -83,11 +95,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-${githubUpdateJobs({ update: `npx ${cli} update`, nightly: `npx ${cli} nightly` })}
+${githubLockfileJobs()}
+${githubUpdateJobs({ update: `npx ${cli} update`, nightly: `npx ${cli} nightly`, lockfile: true })}
   rebuild:
-    needs: [check, update, ${PUBLISH_UPDATE_JOB}]
-    # Cloudflare builds an update that was published by itself, so this is for when there wasn't one.
-    if: ${nightlyBuildCondition(` && needs.${PUBLISH_UPDATE_JOB}.outputs.sha == ''`)}
+    needs: [check, update, ${PUBLISH_UPDATE_JOB}, ${LOCKFILE_JOB}, ${PUBLISH_LOCKFILE_JOB}]
+    # Cloudflare builds an update or lockfile that was published by itself, and every push, so this is for
+    # when there wasn't one.
+    if: ${nightlyBuildCondition(
+      ` && github.event_name != 'push' && needs.${PUBLISH_UPDATE_JOB}.outputs.sha == '' && needs.${PUBLISH_LOCKFILE_JOB}.outputs.sha == ''`,
+    )}
     runs-on: ubuntu-latest
     steps:
 ${cloudflareRebuildSteps(CLOUDFLARE_DEPLOY_HOOK)}
@@ -133,8 +149,17 @@ function gitlabPipeline({ next }: CloudflareSetup): string {
   return `${comment(
     `Cloudflare Pages builds and publishes the site whenever the default branch changes (including every Publish in the admin panel). This pipeline keeps it current. On scheduled pipelines, which the admin panel's Updates screen sets up to run each night, it first checks whether the site needs building: when Goodfellow has new fixes, which it installs (or the release GOODFELLOW_UPDATE names) and publishes only if the site still builds with them, unless content/updates.json turns automatic updates off; when something the site shows by today's date, such as an event, has changed; or when the live site isn't the newest build. The schedule's GOODFELLOW_NIGHTLY variable "always" rebuilds it every night, and the Updates screen turns the schedule off for "never". Updating needs "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, which the Updates screen turns on.
 When it needs building but there's no update to publish, it asks Cloudflare to rebuild the site. The admin panel also adds a pipeline schedule for each time a page or item is scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, and starts a pipeline with GOODFELLOW_REBUILD set for the Updates screen's Rebuild now, both of which only rebuild the site.
+When package.json names packages package-lock.json doesn't have, such as a plugin installed from the admin panel, the lockfile job writes package-lock.json, installing nothing and running none of their code, and publishes it, which Cloudflare then builds; publishing needs the same job token permission.
 It asks Cloudflare through ${HOOK_WHERE}: add it here as the ${CLOUDFLARE_DEPLOY_HOOK} variable (Settings → CI/CD → Variables, masked). See README.md.`,
   )}
+${GITLAB_LOCKFILE_VARIABLES}
+${LOCKFILE_JOB}:
+  image: node:22
+  script:
+${gitlabLockfileScript({ skipPipeline: false })}  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"
+      changes: [package.json]
+
 update:
   image: node:22
   cache:

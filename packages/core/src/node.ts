@@ -8,7 +8,7 @@ export {
   syncContentHeaders,
 } from "./node-admin.js";
 export { type GuardOptions, guardBuiltSite } from "./node-admin-domain.js";
-export { type AppApiOptions, appApi } from "./node-app-api.js";
+export { type AppApiOptions, appApi, isPluginInstallPath } from "./node-app-api.js";
 export {
   type AddBrokerOptions,
   type AddedBroker,
