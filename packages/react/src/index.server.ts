@@ -24,6 +24,8 @@ export {
   type PageHeaderProps,
   siteMetadata,
 } from "./page-body.server.js";
+export { useParts } from "./parts.server.js";
+export { type ClassValue, type PartClasses, partClasses } from "./parts-shared.js";
 export {
   applyPageEntry,
   createPuckConfigs,
