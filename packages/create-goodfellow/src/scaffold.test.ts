@@ -40,7 +40,10 @@ beforeEach(async () => {
 });
 afterEach(() => rm(dir, { recursive: true, force: true }));
 
-describe("scaffold", () => {
+/** Tests that run git, which can take seconds to start on Windows while many tests run at once. */
+const GIT_TIMEOUT = 60_000;
+
+describe("scaffold", { timeout: GIT_TIMEOUT }, () => {
   it("copies the starter, with published versions instead of workspace links", async () => {
     const target = join(dir, "My Site");
     await scaffold({ template: starter, target, versions });
@@ -205,7 +208,7 @@ describe("scaffold", () => {
   });
 });
 
-describe("initGitRepository", () => {
+describe("initGitRepository", { timeout: GIT_TIMEOUT }, () => {
   const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 
   it("makes the site a repository on main, with origin set to the site's repository", () => {
@@ -260,7 +263,7 @@ describe("initGitRepository", () => {
   });
 });
 
-describe("sign-in", () => {
+describe("sign-in", { timeout: GIT_TIMEOUT }, () => {
   it("names an admin address in the config, where the host allows one", async () => {
     const target = join(dir, "site");
     const backend = { host: "gitlab" as const, repo: "parish/site" };

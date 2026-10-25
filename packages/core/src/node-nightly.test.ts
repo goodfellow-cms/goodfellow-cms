@@ -42,7 +42,10 @@ const releases =
 
 const now = new Date("2026-11-02T04:17:00Z");
 
-describe("nightlyCheck", () => {
+/** Tests that run git, which can take seconds to start on Windows while many tests run at once. */
+const GIT_TIMEOUT = 60_000;
+
+describe("nightlyCheck", { timeout: GIT_TIMEOUT }, () => {
   it("builds only when something has changed since the live site was built", async () => {
     const { dir, commit } = await site();
     const built = { version: 1 as const, goodfellow: "1.2.3", commit, builtAt: "2026-11-01T04:17:00Z" };
