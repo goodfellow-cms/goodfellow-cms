@@ -11,6 +11,7 @@ import {
   type SiteContent,
   siteSettingsSchema,
 } from "@goodfellow-cms/core";
+import { blockParts } from "@goodfellow-cms/react";
 import { createPageRenderer } from "@goodfellow-cms/react/server";
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
@@ -94,6 +95,13 @@ describe("blocks", () => {
     expect(html).not.toContain("<!--$!-->");
   });
 
+  it.each(blockNames)("names %s's parts after the block, so they can't clash with others'", async (name) => {
+    const block = (await import(`../site/blocks/installed/${name}/block.tsx`)).default as ComponentConfig;
+    const parts = Object.keys(blockParts(block) ?? {});
+    expect(parts.length).toBeGreaterThan(0);
+    for (const part of parts) expect(part === `gf-${name}` || part.startsWith(`gf-${name}-`), part).toBe(true);
+  });
+
   it("keeps every answer and tab in the page, hidden until shown", async () => {
     const render = async (name: string, props: Record<string, unknown>) => {
       const block = (await import(`../site/blocks/installed/${name}/block.tsx`)).default as ComponentConfig;
@@ -131,9 +139,9 @@ describe("blocks", () => {
       });
     const html = '<p class="note" onclick="steal()">Hi</p><script>window.ran = true;</script>';
     const safe = await render({ html, className: "my-html" });
-    expect(safe).toContain('<div class="my-html"><p class="note">Hi</p></div>');
+    expect(safe).toContain('<div class="gf-custom-html my-html"><p class="note">Hi</p></div>');
     expect(safe).not.toContain("window.ran");
     const asWritten = await render({ html, sanitize: false });
-    expect(asWritten).toContain(`<div>${html}</div>`);
+    expect(asWritten).toContain(`<div class="gf-custom-html">${html}</div>`);
   });
 });

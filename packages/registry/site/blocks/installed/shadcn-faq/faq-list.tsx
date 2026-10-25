@@ -3,8 +3,17 @@
 import type { ReactNode } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
-/** The questions, one open at a time. Closed answers stay in the page, hidden, rather than being left out. */
-export function FaqList({ questions }: { questions: Array<{ question: string; answer: ReactNode }> }) {
+/**
+ * The questions, one open at a time, with their parts' classes from the block.
+ * Closed answers stay in the page, hidden, rather than being left out.
+ */
+export function FaqList({
+  questions,
+  classes,
+}: {
+  questions: Array<{ question: string; answer: ReactNode }>;
+  classes: { question: string; trigger: string; answer: string };
+}) {
   return (
     <Accordion type="single" collapsible className="w-full">
       {questions.map((item, index) => (
@@ -12,11 +21,11 @@ export function FaqList({ questions }: { questions: Array<{ question: string; an
           // biome-ignore lint/suspicious/noArrayIndexKey: questions have no ids of their own
           key={index}
           value={`question-${index}`}
-          className="[&>[data-slot=accordion-content][data-state=closed]]:hidden"
+          className={classes.question}
         >
-          <AccordionTrigger className="text-base">{item.question}</AccordionTrigger>
+          <AccordionTrigger className={classes.trigger}>{item.question}</AccordionTrigger>
           <AccordionContent forceMount>
-            <div className="gf-prose">{item.answer}</div>
+            <div className={classes.answer}>{item.answer}</div>
           </AccordionContent>
         </AccordionItem>
       ))}
