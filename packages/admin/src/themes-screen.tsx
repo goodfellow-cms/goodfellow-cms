@@ -23,9 +23,9 @@ import {
   type ThemePackage,
   type ThemePlan,
   type ThemeRecord,
-  themeCssLoads,
   themeFileUrl,
   themeLabel,
+  themeLoads,
   themeReleases,
   themeUnknownBlocks,
 } from "@goodfellow-cms/core";
@@ -372,7 +372,7 @@ function ThemeDetails({
     };
   }, [theme, content, record, useLayout]);
 
-  const loads = useMemo(() => (theme?.css ? themeCssLoads(theme.css) : []), [theme]);
+  const loads = useMemo(() => (theme ? themeLoads(theme) : []), [theme]);
   const show = useMemo(
     () =>
       plan && {

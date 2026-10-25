@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { LayoutFile } from "./content/schemas.js";
+import type { ThemePackage } from "./content/themes.js";
 import { fakeThemes } from "./testing.js";
 import {
   chooseThemeRelease,
@@ -7,6 +9,7 @@ import {
   searchThemes,
   type ThemeRelease,
   themeLabel,
+  themeLoads,
   themeReleases,
   themeUnknownBlocks,
 } from "./themes.js";
@@ -146,5 +149,47 @@ describe("reading themes from npm", () => {
     await expect(
       fetchTheme({ name: "goodfellow-theme-empty", ...(first as ThemeRelease) }, { fetch: fake.fetch }),
     ).rejects.toMatchObject({ code: "not-a-theme" });
+  });
+});
+
+describe("what a theme's header and footer may do", () => {
+  const withLayout = (content: LayoutFile["data"]["content"], parts: Record<string, string> = {}): ThemePackage => ({
+    name: "goodfellow-theme-test",
+    release: "1.0.0",
+    manifest: {
+      version: 1 as const,
+      title: "Test",
+      theme: { colors: {}, fonts: {}, parts },
+    },
+    header: { version: 1 as const, data: { root: { props: {} }, content } },
+  });
+
+  it("uses only built-in blocks that load and run nothing, even where the site has others", () => {
+    const theme = withLayout([
+      { type: "Section", props: { id: "a", content: [{ type: "custom-html", props: { id: "b", html: "<script>" } }] } },
+      { type: "Image", props: { id: "c", src: "" } },
+    ]);
+    expect(themeUnknownBlocks(theme, ["Section", "Image", "custom-html"])).toEqual(["Image", "custom-html"]);
+  });
+
+  it("lists what its classes and pictures would load", () => {
+    const theme = withLayout(
+      [{ type: "Section", props: { id: "a", backgroundImage: "https://images.example/sea.jpg", className: "" } }],
+      { "gf-card": "bg-[url(https://tracker.example/pixel.gif)]" },
+    );
+    expect(themeLoads(theme)).toEqual(["https://images.example/sea.jpg", "https://tracker.example/pixel.gif"]);
+  });
+
+  it("refuses a theme whose header holds an address that would run code", async () => {
+    const files = sampleThemeFiles({ header: true });
+    files["header.json"] = (files["header.json"] ?? "").replace('"menu": "main"', '"menu": "javascript:alert(1)"');
+    const fake = fakeThemes({
+      now: NOW,
+      themes: [{ name: "goodfellow-theme-bad", releases: [{ version: "1.0.0", files }] }],
+    });
+    const [first] = await themeReleases("goodfellow-theme-bad", { fetch: fake.fetch });
+    await expect(
+      fetchTheme({ name: "goodfellow-theme-bad", ...(first as ThemeRelease) }, { fetch: fake.fetch }),
+    ).rejects.toMatchObject({ code: "bad-file" });
   });
 });

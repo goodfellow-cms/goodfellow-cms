@@ -947,11 +947,11 @@ export const defaultStrings = {
   "themes.notCompatible": "No version of this theme says it works with Goodfellow {version}.",
   "themes.imageAlt": "A site with the {title} theme",
   "themes.loads":
-    "This theme's CSS asks visitors' browsers for these files from other sites, which can tell those sites who visits yours:",
+    "This theme asks visitors' browsers for these files from other sites, which can tell those sites who visits yours:",
   "themes.useLayout":
     "Use the theme's header and footer in place of yours. Your menus, logo and contact details stay as they are.",
   "themes.layoutUnknown":
-    "The theme's header and footer use blocks your site doesn't have ({blocks}), so they can't be used.",
+    "The theme's header and footer use blocks a theme can't add, or that your site doesn't have ({blocks}), so they can't be used.",
   "themes.kept": "You changed these since the version before, so they stay as you set them: {list}.",
   "themes.replaced": "You changed these, and installing this theme replaces your changes: {list}.",
   "themes.changed.css": "the theme's CSS",
