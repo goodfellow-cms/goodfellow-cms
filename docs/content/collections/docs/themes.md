@@ -8,6 +8,8 @@ order: 4.5
 
 A theme changes how a site looks: its colors, fonts and rounded corners, the classes it gives [blocks' parts](/docs/layout-and-settings#blocks-parts), some CSS, and sometimes a header and footer design. A theme is only settings and styles, with no code, so installing one runs nobody else's code on your site or in the admin panel.
 
+Goodfellow has a theme of its own, [Harbor](https://github.com/goodfellow-cms/goodfellow-theme-harbor): deep harbor blue on warm sand, with a serif for headings, rounded cards and pill-shaped buttons, in light and dark. Search for it on the Themes screen.
+
 ## Install a theme
 
 **Site Settings → Themes** lists the themes published on npm. Search them by name or description, then choose **Show** to see one:
@@ -42,16 +44,18 @@ The [Updates](/docs/updates) screen also says when a newer release of Goodfellow
 
 A theme is an npm package. Keep each in a repository of its own, called `goodfellow-theme-<name>` with the `goodfellow-theme` topic on GitHub or GitLab, so people looking for themes find it.
 
+The easiest start is a copy of [Harbor's repository](https://github.com/goodfellow-cms/goodfellow-theme-harbor), whose README goes through each of its files. It has everything below, a test that checks a theme as installing it would, and a workflow that publishes releases with provenance.
+
 `package.json` names it and says which Goodfellow releases it works with, as a `peerDependencies` range on `@goodfellow-cms/core`. The admin panel offers a version only on releases in that range, and never offers a version without one.
 
 ```json
 {
   "name": "goodfellow-theme-harbor",
   "version": "1.0.0",
-  "description": "Navy and cream, with rounded cards.",
+  "description": "Deep harbor blue on warm sand, with rounded cards and pill-shaped buttons.",
   "keywords": ["goodfellow-theme"],
-  "repository": { "type": "git", "url": "git+https://github.com/harbor-studio/goodfellow-theme-harbor.git" },
-  "peerDependencies": { "@goodfellow-cms/core": ">=0.31.0 <1.0.0" },
+  "repository": { "type": "git", "url": "git+https://github.com/goodfellow-cms/goodfellow-theme-harbor.git" },
+  "peerDependencies": { "@goodfellow-cms/core": ">=0.6.0 <1.0.0" },
   "files": ["goodfellow-theme.json", "theme.css", "header.json", "footer.json", "preview.png"]
 }
 ```
@@ -62,11 +66,12 @@ A theme is an npm package. Keep each in a repository of its own, called `goodfel
 {
   "version": 1,
   "title": "Harbor",
-  "description": "Navy and cream, with rounded cards.",
+  "description": "Deep harbor blue on warm sand, with rounded cards and pill-shaped buttons.",
   "theme": {
-    "colors": { "primary": "#1e3a5f", "primaryForeground": "#ffffff", "background": "#fbfaf7" },
-    "fonts": { "heading": "Merriweather", "headingCategory": "serif", "body": "Source Sans 3" },
-    "radius": "0.75rem",
+    "colors": { "primary": "#1f4e6b", "primaryForeground": "#ffffff", "background": "#fbf8f3" },
+    "darkColors": { "primary": "#86b8d6", "primaryForeground": "#0f1a24", "background": "#0f1a24" },
+    "fonts": { "heading": "Newsreader", "headingCategory": "serif", "body": "Source Sans 3" },
+    "radius": "0.625rem",
     "parts": { "gf-card": "rounded-xl shadow-sm", "gf-button": "rounded-full" }
   },
   "css": "theme.css",
