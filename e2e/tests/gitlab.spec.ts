@@ -19,7 +19,7 @@ test("signs in with GitLab without a token, and publishes", async ({ page }) => 
   await page.getByRole("button", { name: "Sign in with GitLab" }).click();
 
   // Back on the screen sign-in started from, with the code removed from the address.
-  await expect(page.getByRole("heading", { name: "Site settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "General", level: 1 })).toBeVisible();
   expect(page.url()).toBe(`${GITLAB_SITE}/admin/#/settings/general`);
   await expect(page.locator(".gfa-account")).toContainText("Maria");
 

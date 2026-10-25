@@ -11,7 +11,6 @@ import { useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { fileName, mediaUrl } from "./media.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
-import { SettingsTabs } from "./settings-screen.js";
 import { type StringKey, type Translate, useStrings } from "./strings.js";
 import { Button, ErrorMessage, Field } from "./ui.js";
 import { prepareUpload } from "./upload.js";
@@ -344,9 +343,8 @@ export function ImportScreen() {
   return (
     <div className="gfa-screen">
       <div className="gfa-screen-header">
-        <h1>{t("settings.title")}</h1>
+        <h1>{t("settings.tab.import")}</h1>
       </div>
-      <SettingsTabs tab="import" />
       <div className="gfa-form">
         {stage.kind === "choose" || stage.kind === "reading" ? (
           <>

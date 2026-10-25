@@ -16,7 +16,7 @@ import {
   Signpost,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { type StringKey, useStrings } from "./strings.js";
 import { AppLink } from "./use-link.js";
 
@@ -65,6 +65,23 @@ const SCREEN_ITEMS: SidebarItem[] = [
 
 const COLLAPSED_KEY = "goodfellow.settingsSidebar";
 
+/** Narrower than this, the sidebar shows only its icons, leaving the room to the tab. */
+const NARROW = "(max-width: 720px)";
+
+function subscribeNarrow(onChange: () => void): () => void {
+  const query = window.matchMedia(NARROW);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function useNarrow(): boolean {
+  return useSyncExternalStore(
+    subscribeNarrow,
+    () => window.matchMedia(NARROW).matches,
+    () => false,
+  );
+}
+
 function readCollapsed(): boolean {
   try {
     return localStorage.getItem(COLLAPSED_KEY) === "collapsed";
@@ -88,10 +105,12 @@ function writeCollapsed(collapsed: boolean): void {
  */
 export function SettingsSidebar({ current }: { current: SettingsPlace }) {
   const t = useStrings();
-  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [chosen, setChosen] = useState(readCollapsed);
+  const narrow = useNarrow();
+  const collapsed = chosen || narrow;
   const toggle = () => {
-    writeCollapsed(!collapsed);
-    setCollapsed(!collapsed);
+    writeCollapsed(!chosen);
+    setChosen(!chosen);
   };
   const item = ({ place, label, icon: Icon }: SidebarItem, form: boolean) => {
     const props = {
@@ -112,16 +131,24 @@ export function SettingsSidebar({ current }: { current: SettingsPlace }) {
       <ul className="gfa-sidebar-list">{FORM_ITEMS.map((entry) => item(entry, true))}</ul>
       <hr className="gfa-sidebar-divider" />
       <ul className="gfa-sidebar-list">{SCREEN_ITEMS.map((entry) => item(entry, false))}</ul>
-      <button type="button" className="gfa-sidebar-item gfa-sidebar-toggle" aria-expanded={!collapsed} onClick={toggle}>
-        {collapsed ? (
-          <PanelLeftOpen className="gfa-sidebar-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
-        ) : (
-          <PanelLeftClose className="gfa-sidebar-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
-        )}
-        <span className="gfa-sidebar-label">
-          {t(collapsed ? "settings.sidebar.expand" : "settings.sidebar.collapse")}
-        </span>
-      </button>
+      {/* In a narrow window there's no room for the names. */}
+      {!narrow && (
+        <button
+          type="button"
+          className="gfa-sidebar-item gfa-sidebar-toggle"
+          aria-expanded={!collapsed}
+          onClick={toggle}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="gfa-sidebar-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
+          ) : (
+            <PanelLeftClose className="gfa-sidebar-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
+          )}
+          <span className="gfa-sidebar-label">
+            {t(collapsed ? "settings.sidebar.expand" : "settings.sidebar.collapse")}
+          </span>
+        </button>
+      )}
     </nav>
   );
 }

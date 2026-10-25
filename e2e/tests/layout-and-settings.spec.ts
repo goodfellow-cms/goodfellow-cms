@@ -59,7 +59,7 @@ test("undoes and redoes changes on every tab, with typing undone as one step", a
   await page.getByRole("link", { name: "Colors & fonts" }).click();
   await expect(color).toHaveValue("#7c2d12");
   // Outside text fields, the keyboard works too.
-  await page.getByRole("heading", { name: "Site settings" }).click();
+  await page.getByRole("heading", { name: "Colors & fonts" }).click();
   await page.keyboard.press("ControlOrMeta+z");
   await expect(color).toHaveValue(colorBefore);
   await expect(undo).toBeDisabled();
@@ -70,6 +70,35 @@ test("undoes and redoes changes on every tab, with typing undone as one step", a
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   expect(readJson("content/site.json")).toMatchObject({ theme: { colors: { primary: "#7c2d12" } } });
   expect(readSiteFile("content/styles/custom.css")).not.toContain("color: red");
+});
+
+test("moves between Site Settings' tabs in a sidebar, which can show only its icons", async ({ page }) => {
+  await page.goto("/admin#/settings/general");
+  const sidebar = page.getByRole("navigation", { name: "Site Settings" });
+  await expect(page.getByRole("heading", { name: "General", level: 1 })).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "General" })).toHaveAttribute("aria-current", "page");
+  await sidebar.getByRole("link", { name: "Domain" }).click();
+  await expect(page.getByRole("heading", { name: "Domain", level: 1 })).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "Domain" })).toHaveAttribute("aria-current", "page");
+
+  // Collapsed, each name shows in a tooltip beside its icon, and it stays collapsed when the admin panel opens again.
+  const colors = sidebar.getByRole("link", { name: "Colors & fonts" });
+  const tooltip = colors.locator(".gfa-sidebar-label");
+  await expect(tooltip).toHaveCSS("opacity", "1");
+  await sidebar.getByRole("button", { name: "Hide names" }).click();
+  await expect(sidebar).toHaveAttribute("data-collapsed", "true");
+  await expect(tooltip).toHaveCSS("opacity", "0");
+  await colors.hover();
+  await expect(tooltip).toHaveCSS("opacity", "1");
+  await page.reload();
+  await expect(sidebar).toHaveAttribute("data-collapsed", "true");
+  await sidebar.getByRole("button", { name: "Show names" }).click();
+  await expect(sidebar).not.toHaveAttribute("data-collapsed");
+
+  // A narrow window shows only the icons.
+  await page.setViewportSize({ width: 600, height: 800 });
+  await expect(sidebar).toHaveAttribute("data-collapsed", "true");
+  await expect(sidebar.getByRole("button", { name: "Hide names" })).toHaveCount(0);
 });
 
 test("chooses fonts from a searchable list of Google Fonts", async ({ page }) => {

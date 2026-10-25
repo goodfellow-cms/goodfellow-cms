@@ -2,7 +2,6 @@ import { type EditorList, type EditorRole, EditorsError, type SiteEditor } from 
 import { useCallback, useEffect, useState } from "react";
 import { useAdmin } from "./admin-context.js";
 import { OwnerTokenActive, OwnerTokenForm } from "./owner-token.js";
-import { SettingsTabs } from "./settings-screen.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, Field, TextField } from "./ui.js";
 
@@ -27,9 +26,8 @@ export function EditorsScreen() {
   return (
     <div className="gfa-screen">
       <div className="gfa-screen-header">
-        <h1>{t("settings.title")}</h1>
+        <h1>{t("settings.tab.editors")}</h1>
       </div>
-      <SettingsTabs tab="editors" />
       <div className="gfa-form">
         <p>{t("editors.intro")}</p>
         {demo ? <p>{t("editors.demo")}</p> : editors ? <EditorsPanel /> : <p>{t("editors.local")}</p>}

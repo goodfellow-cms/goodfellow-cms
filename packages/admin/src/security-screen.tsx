@@ -16,7 +16,6 @@ import { useCallback, useEffect, useState } from "react";
 import { AddBroker, type AddedBroker, AddedBrokerSteps } from "./add-broker.js";
 import { CONFIG_FILE } from "./admin-address.js";
 import { useAdmin, useSiteContent } from "./admin-context.js";
-import { SettingsTabs } from "./settings-screen.js";
 import { useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
 
@@ -97,9 +96,8 @@ export function SecurityScreen() {
   return (
     <div className="gfa-screen">
       <div className="gfa-screen-header">
-        <h1>{t("settings.title")}</h1>
+        <h1>{t("settings.tab.security")}</h1>
       </div>
-      <SettingsTabs tab="security" />
       <section className="gfa-form" aria-labelledby="gfa-broker">
         <h2 className="gfa-section-title" id="gfa-broker">
           {t("security.broker.title")}
