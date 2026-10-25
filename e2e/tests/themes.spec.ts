@@ -74,6 +74,9 @@ test("installs a theme, updates it keeping what the owner changed, and removes i
   await expect(preview.locator("main section").first()).toHaveCSS("background-color", "rgb(30, 58, 95)");
   await details.getByRole("checkbox", { name: "Use the theme's header and footer", exact: false }).check();
   await expect(preview.locator("header section").first()).toHaveCSS("background-color", "rgb(238, 241, 244)");
+  // Any of the site's pages can be looked at with it.
+  await details.getByLabel("Page to look at").selectOption("/about");
+  await expect(preview.getByRole("heading", { name: "About us", level: 1 })).toBeVisible();
 
   await publishPast(page, "Install and publish", /^Harbor is installed\./);
   const settings = readJson("content/site.json") as { theme: Record<string, Record<string, string>> };
@@ -90,10 +93,13 @@ test("installs a theme, updates it keeping what the owner changed, and removes i
   const newer = theme.releases[1];
   if (newer) newer.age = 10;
   await page.reload();
-  await page.getByRole("button", { name: "Update to 1.1.0" }).click();
+  // Seeing the newer version publishes nothing: it shows the site as the update would leave it.
+  await page.getByRole("button", { name: "See version 1.1.0" }).click();
   await expect(
     details.getByText("You changed these since the version before, so they stay as you set them: Colors."),
   ).toBeVisible();
+  await expect(preview.locator("main section").first()).toHaveCSS("background-color", "rgb(124, 45, 18)");
+  expect(readJson("content/styles/theme.json")).toMatchObject({ release: "1.0.0" });
   await publishPast(page, "Update to 1.1.0", /^Harbor is updated to version 1\.1\.0\./);
   expect((readJson("content/site.json") as typeof settings).theme.colors?.primary).toBe("#7c2d12");
   expect(readJson("content/styles/theme.json")).toMatchObject({ release: "1.1.0" });

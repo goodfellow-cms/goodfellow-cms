@@ -6,10 +6,12 @@
  * (`planTheme()`), where owners change them like any setting.
  */
 import {
+  allPages,
   chooseThemeRelease,
   compareReleases,
   fetchTheme,
   GOODFELLOW_VERSION,
+  pageTitle,
   parseThemeRecord,
   planTheme,
   searchThemes,
@@ -33,7 +35,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { PreviewFrame } from "./preview.js";
 import { type StringKey, useStrings } from "./strings.js";
-import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
+import { Button, Dialog, ErrorMessage, Field, TextField } from "./ui.js";
 
 const themeFetch: ThemeFetch = (url) => window.fetch(url);
 
@@ -286,7 +288,7 @@ function InstalledTheme({
       <span className="gfa-dialog-actions">
         {!open && (
           <Button variant={newer ? "primary" : "ghost"} onClick={onOpen}>
-            {newer ? t("themes.updateTo", { version: newer.version }) : t("themes.show")}
+            {newer ? t("themes.seeVersion", { version: newer.version }) : t("themes.show")}
           </Button>
         )}
         <Button variant="ghost" onClick={() => void askRemove()}>
@@ -334,6 +336,8 @@ function ThemeDetails({
   const [plan, setPlan] = useState<ThemePlan>();
   const [busy, setBusy] = useState(false);
   const [publishError, setPublishError] = useState<unknown>();
+  // The page the preview shows: the home page until another is chosen.
+  const [shown, setShown] = useState("/");
   const update = record?.name === name;
   const release = choice?.release;
 
@@ -373,6 +377,8 @@ function ThemeDetails({
   }, [theme, content, record, useLayout]);
 
   const loads = useMemo(() => (theme ? themeLoads(theme) : []), [theme]);
+  const pages = useMemo(() => allPages(content), [content]);
+  const previewPath = (pages.find((candidate) => candidate.path === shown) ?? pages[0])?.path ?? "/";
   const show = useMemo(
     () =>
       plan && {
@@ -383,9 +389,9 @@ function ThemeDetails({
           header: plan.header,
           footer: plan.footer,
         },
-        path: "/",
+        path: previewPath,
       },
-    [plan, content],
+    [plan, content, previewPath],
   );
   const title = theme?.manifest.title ?? themeLabel(name);
   const sameRelease = update && release?.version === record?.release;
@@ -498,6 +504,24 @@ function ThemeDetails({
             <p className="gfa-notice" role="note">
               {t("themes.replaced", { list: changedList(t, plan.replaced).join(", ") })}
             </p>
+          )}
+          {pages.length > 1 && (
+            <Field label={t("themes.previewPage")}>
+              {(props) => (
+                <select
+                  {...props}
+                  className="gfa-input"
+                  value={previewPath}
+                  onChange={(event) => setShown(event.target.value)}
+                >
+                  {pages.map((candidate) => (
+                    <option key={candidate.path} value={candidate.path}>
+                      {pageTitle(candidate)} ({candidate.path})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
           )}
           {show && (
             <div className="gfa-theme-preview">

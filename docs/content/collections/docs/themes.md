@@ -16,7 +16,7 @@ A theme changes how a site looks: its colors, fonts and rounded corners, the cla
 - **Where it came from:** a version built by GitHub Actions or GitLab CI with npm's provenance says which repository it was built from, which npm checked when it was published. A version without it may not come from its publisher's own code.
 - **What it loads:** if the theme asks visitors' browsers for files from other sites, such as pictures or fonts in its CSS or its classes, they're listed before you install it, since those sites then learn who visits yours. Google Fonts and your own media library aren't listed.
 - **Header and footer:** a theme with its own header and footer offers **Use the theme's header and footer**. They replace yours, but your menus, logo and contact details stay as they are, since the header's blocks read them from Site Settings. A theme's header and footer can only use built-in blocks that show text or your site's own settings, so they can't run anything on your site.
-- **Preview:** your home page as the theme would leave it, before anything is published.
+- **Preview:** your site as the theme would leave it, before anything is published. It starts on the home page, and **Page to look at** shows any other page, items' pages included.
 
 **Install and publish** publishes the theme in one go, and the site shows it once it's rebuilt. The theme's colors, fonts and other settings go into **Colors & fonts**, its CSS goes at the start of **Custom CSS**, between two comments that mark it, and its header and footer, if you chose them, into **Header & Footer**. Change any of them afterwards like any other setting. Settings the theme doesn't give stay as they were.
 
@@ -30,7 +30,7 @@ A theme replaces the theme before it: settings the old theme gave and nobody cha
 
 ## Updates
 
-When a newer version of the installed theme can be installed, **Installed theme** offers **Update to** it, with the same preview. An update replaces only what nobody has changed since the version before: if you changed the main color, it stays yours while the theme's other colors update, and if you changed the theme's CSS, or its header or footer, they stay as you left them. The Themes screen lists what it keeps.
+Themes never update by themselves, since a new version can change how your site looks. When a newer version of the installed theme can be installed, **Installed theme** says so and offers **See version …**, which shows the same preview of your site as the update would leave it, with nothing published until you choose **Update to …**. An update replaces only what nobody has changed since the version before: if you changed the main color, it stays yours while the theme's other colors update, and if you changed the theme's CSS, or its header or footer, they stay as you left them. The Themes screen lists what it keeps.
 
 The [Updates](/docs/updates) screen also says when a newer release of Goodfellow is outside the releases your theme says it works with, so you can check for a newer version of the theme first.
 
