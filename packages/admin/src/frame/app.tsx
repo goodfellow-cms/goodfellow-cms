@@ -4,7 +4,6 @@
  * it's ready, gets a port back, and from then on only answers on that port.
  */
 import type { GoodfellowConfig, Page, SiteContent } from "@goodfellow-cms/core";
-import type { Config } from "@puckeditor/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { RenderTarget } from "../site-code.js";

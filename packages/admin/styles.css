@@ -196,11 +196,6 @@ body,
   overflow: auto;
 }
 
-.gfa-settings-content > .gfa-screen {
-  margin: 0;
-  padding: 24px;
-}
-
 .gfa-sidebar {
   display: flex;
   flex-direction: column;
@@ -335,6 +330,12 @@ body,
   max-width: 960px;
   margin: 0 auto;
   padding: 24px 16px;
+}
+
+/* Site Settings' tabs sit beside the sidebar, left-aligned. */
+.gfa-settings-content > .gfa-screen {
+  margin: 0;
+  padding: 24px;
 }
 
 .gfa-screen-header {

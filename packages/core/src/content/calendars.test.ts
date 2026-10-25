@@ -13,11 +13,6 @@ function memorySource(files: Record<string, unknown>): ContentSource {
   };
 }
 
-const page = (title: string, content: unknown[] = []) => ({
-  version: 1,
-  data: { root: { props: { title } }, content },
-});
-
 const events = {
   version: 1,
   name: "Events",
