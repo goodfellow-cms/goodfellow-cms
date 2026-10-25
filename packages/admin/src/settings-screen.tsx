@@ -663,6 +663,7 @@ export function SettingsTabs({
   tab: SettingsTab | "domain" | "editors" | "updates" | "history" | "import" | "security";
 }) {
   const t = useStrings();
+  if (tab) return null;
   return (
     <nav className="gfa-tabs" aria-label={t("settings.title")}>
       {SETTINGS_TABS.map((name) => (

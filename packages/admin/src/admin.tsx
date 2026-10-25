@@ -32,6 +32,7 @@ import { PagesScreen } from "./pages-screen.js";
 import { hasUnsavedChanges, SETTINGS_SECTIONS, useRoute } from "./router.js";
 import { SecurityScreen } from "./security-screen.js";
 import { SETTINGS_TABS, SettingsScreen, type SettingsTab } from "./settings-screen.js";
+import { type SettingsPlace, SettingsSidebar } from "./settings-sidebar.js";
 import { SignInGate } from "./sign-in.js";
 import { SiteHistoryScreen } from "./site-history-screen.js";
 import { isPreviewAddress, SitePreview } from "./site-preview.js";
@@ -136,6 +137,29 @@ function CollectionRoute({ id, sub, slug }: { id: string; sub?: string; slug: st
   return <EntriesScreen collection={collection} />;
 }
 
+/** Site Settings: its sidebar, and the tab chosen, beside it. */
+function SettingsLayout({ sub, params }: { sub?: string; params: URLSearchParams }) {
+  const tab = SETTINGS_TABS.includes(sub as SettingsTab) ? (sub as SettingsTab) : undefined;
+  const screens = {
+    domain: DomainScreen,
+    editors: EditorsScreen,
+    updates: UpdatesScreen,
+    history: SiteHistoryScreen,
+    import: ImportScreen,
+    security: SecurityScreen,
+  } as const;
+  const Own = sub && sub in screens ? screens[sub as keyof typeof screens] : undefined;
+  const section = Object.values(SETTINGS_SECTIONS).find((name) => name === params.get("section"));
+  return (
+    <div className="gfa-settings">
+      <SettingsSidebar current={(Own ? sub : (tab ?? "general")) as SettingsPlace} />
+      <div className="gfa-settings-content">
+        {Own ? <Own /> : <SettingsScreen tab={tab ?? "general"} section={section} />}
+      </div>
+    </div>
+  );
+}
+
 function Screen() {
   const { segments, params } = useRoute();
   const [section, sub, tab] = segments;
@@ -158,18 +182,8 @@ function Screen() {
       />
     );
   }
-  if (section === "settings" && sub === "domain") return <DomainScreen />;
-  if (section === "settings" && sub === "editors") return <EditorsScreen />;
-  if (section === "settings" && sub === "updates") return <UpdatesScreen />;
-  if (section === "settings" && sub === "history") return <SiteHistoryScreen />;
-  if (section === "settings" && sub === "import") return <ImportScreen />;
-  if (section === "settings" && sub === "security") return <SecurityScreen />;
   if (section === "versions") return <VersionsScreen file={params.get("file") ?? ""} />;
-  if (section === "settings") {
-    const tab = SETTINGS_TABS.includes(sub as SettingsTab) ? (sub as SettingsTab) : "general";
-    const section = Object.values(SETTINGS_SECTIONS).find((name) => name === params.get("section"));
-    return <SettingsScreen tab={tab} section={section} />;
-  }
+  if (section === "settings") return <SettingsLayout sub={sub} params={params} />;
   return <PagesScreen />;
 }
 
