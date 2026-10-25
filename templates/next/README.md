@@ -5,7 +5,7 @@ A website built with [Goodfellow](https://github.com/goodfellow-cms/goodfellow-c
 ## Working on the site
 
 <!-- goodfellow-repository -->
-> **In the Goodfellow repository**, this folder is part of a pnpm workspace, so `npm install` doesn't work here. From the repository's root, run `pnpm install` and `pnpm build` (get pnpm with `corepack enable`, or `npm install -g pnpm`), then `pnpm dev` in this folder. The `npm` commands below are for a site of your own, created with `npm create goodfellow`, which leaves this note out.
+> **In the Goodfellow repository**, this folder is part of a pnpm workspace, so `npm install` doesn't work here. From the repository's root, run `pnpm install` and `pnpm build` (get pnpm with `npm install -g pnpm@12`), then `pnpm dev` in this folder. The `npm` commands below are for a site of your own, created with `npm create goodfellow`, which leaves this note out.
 <!-- /goodfellow-repository -->
 
 ```sh

@@ -46,7 +46,7 @@ npm create goodfellow@latest my-site -- --template parish --github your-name/you
 
 `--admin https://admin.example.org` gives editors an admin address of its own, `--broker gitlab-pages` (or `github-pages` with `--broker-domain signin.example.org`, `cloudflare-pages` or `vercel`) writes a token broker beside the site, `--content your-name/your-site-content` keeps the content in a repository of its own, and `--wordpress wordpress-export.xml` (or a WordPress site's address) starts the site with a WordPress site's pages, posts, menus and media; see [Move from WordPress](/docs/move-from-wordpress). Run it with `--help` for every option.
 
-> To try changes that haven't been released yet, use the sites in [the repository](https://github.com/goodfellow-cms/goodfellow-cms) instead: install [pnpm](https://pnpm.io), run `pnpm install` and `pnpm build` at the root, then `pnpm dev` in `templates/starter`.
+> To try changes that haven't been released yet, use the sites in [the repository](https://github.com/goodfellow-cms/goodfellow-cms) instead: install [pnpm](https://pnpm.io) 12, run `pnpm install` and `pnpm build` at the root, then `pnpm dev` in `templates/starter`.
 
 ## Try it on your computer
 
