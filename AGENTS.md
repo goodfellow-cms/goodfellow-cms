@@ -361,7 +361,7 @@ What a site's own files are is described in the docs' Create a site and Content 
 
 | Purpose | Tool |
 |---|---|
-| Package manager | pnpm (workspaces) |
+| Package manager | pnpm 12 (workspaces), the version in `package.json`'s `packageManager` |
 | Task runner | Turborepo |
 | Language | TypeScript, strict mode, ESM only |
 | Library builds | tsdown |
@@ -372,7 +372,7 @@ What a site's own files are is described in the docs' Create a site and Content 
 | Releases | `pnpm release:version`, then the Release workflow and `pnpm release:approve` (`scripts/release.mjs`); see RELEASING.md |
 | Node | 22.23.4, 24.22.1 or 26.12.1 or later in its line (`engines`), since earlier versions decompress Brotli unsafely (CVE-2026-111497); CI's `setup-node` steps use `check-latest: true` so they never take a runner's older copy |
 
-Get pnpm with `corepack enable` (or `npm install -g pnpm`). The starters and examples use the workspace's own packages (`workspace:*`), so run `pnpm install` from the repo root; `npm install` inside them fails.
+Get pnpm with `npm install -g pnpm@12`. Any pnpm from 11 on switches to the version `packageManager` names by itself, downloading it first; Corepack can't run pnpm 12, so turn its shim off (`corepack disable pnpm`) if it's on. The starters and examples use the workspace's own packages (`workspace:*`), so run `pnpm install` from the repo root; `npm install` inside them fails.
 
 Run these from the repo root before every commit. CI runs the same steps.
 

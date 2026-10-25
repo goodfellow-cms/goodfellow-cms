@@ -48,7 +48,7 @@ jobs:
           fi
           git checkout --detach "$REF" 2>/dev/null || git checkout --detach "origin/$REF"
           echo "Building the docs from $REF ($(git rev-parse --short HEAD))."
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6.1.0
       - uses: actions/setup-node@v5
         with:
           node-version: 22
