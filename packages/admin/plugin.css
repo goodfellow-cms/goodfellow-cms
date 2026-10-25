@@ -1,0 +1,140 @@
+/*
+ * The base look of a plugin's admin frame: the admin panel's colors, as
+ * `--gfa-*` custom properties that follow its light or dark choice, its
+ * font, and plain buttons, fields and headings. A plugin's screens can use
+ * the properties in styles of their own.
+ */
+:root {
+  color-scheme: light dark;
+}
+
+:root {
+  --gfa-bg: light-dark(#f8fafc, #0b1120);
+  --gfa-surface: light-dark(#ffffff, #111827);
+  --gfa-text: light-dark(#0f172a, #e2e8f0);
+  --gfa-muted: light-dark(#64748b, #94a3b8);
+  --gfa-border: light-dark(#e2e8f0, #1f2937);
+  --gfa-input-border: light-dark(#cbd5e1, #475569);
+  --gfa-accent: light-dark(#2563eb, #60a5fa);
+  --gfa-accent-text: light-dark(#ffffff, #0b1120);
+  --gfa-current-bg: light-dark(#eff6ff, #172554);
+  --gfa-danger: light-dark(#dc2626, #f87171);
+  --gfa-danger-border: light-dark(#fecaca, #7f1d1d);
+  --gfa-success-bg: light-dark(#ecfdf5, #052e1c);
+  --gfa-success-text: light-dark(#065f46, #6ee7b7);
+  --gfa-success-border: light-dark(#a7f3d0, #065f46);
+  --gfa-published-bg: light-dark(#047857, #34d399);
+  --gfa-published-text: light-dark(#ffffff, #022c22);
+  --gfa-error-bg: light-dark(#fef2f2, #3b0d0d);
+  --gfa-error-text: light-dark(#991b1b, #fca5a5);
+  --gfa-warning-bg: light-dark(#fef3c7, #451a03);
+  --gfa-warning-text: light-dark(#92400e, #fde68a);
+  --gfa-demo-bg: light-dark(#fef9c3, #422006);
+  --gfa-demo-border: light-dark(#fde68a, #854d0e);
+  --gfa-demo-text: light-dark(#713f12, #fde68a);
+  --gfa-draft-bg: light-dark(#eff6ff, #172554);
+  --gfa-draft-border: light-dark(#bfdbfe, #1e40af);
+  --gfa-draft-text: light-dark(#1e3a8a, #dbeafe);
+  --gfa-checker: light-dark(#f1f5f9, #1e293b);
+  --gfa-checker-alt: light-dark(#ffffff, #0f172a);
+  --gfa-tooltip-bg: light-dark(#0f172a, #e2e8f0);
+  --gfa-tooltip-text: light-dark(#f8fafc, #0b1120);
+  --gfa-radius: 6px;
+  --gfa-topbar-height: 52px;
+  --gfa-code-active-line: light-dark(rgb(37 99 235 / 0.06), rgb(96 165 250 / 0.08));
+  --gfa-code-selection: light-dark(rgb(37 99 235 / 0.2), rgb(96 165 250 / 0.3));
+}
+
+:root[data-gfa-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-gfa-theme="dark"] {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--gfa-bg);
+  color: var(--gfa-text);
+  font:
+    15px / 1.5 ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+body {
+  padding: 1.5rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  margin: 0 0 0.75rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+}
+
+a {
+  color: var(--gfa-accent);
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--gfa-surface);
+  border: 1px solid var(--gfa-input-border);
+  border-radius: var(--gfa-radius);
+  padding: 0.4rem 0.6rem;
+  width: 100%;
+  max-width: 32rem;
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--gfa-accent-text);
+  background: var(--gfa-accent);
+  border: 1px solid var(--gfa-accent);
+  border-radius: var(--gfa-radius);
+  padding: 0.4rem 0.9rem;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gfa-accent);
+  outline-offset: 2px;
+}

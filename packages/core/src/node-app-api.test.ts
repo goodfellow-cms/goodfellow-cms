@@ -357,3 +357,40 @@ describe("isSettingsPath", () => {
     }
   });
 });
+
+describe("plugins' server modules", () => {
+  function pluginApi(editor: AppEditor | null) {
+    const seen: { path: string; editor: string | null }[] = [];
+    const api = appApi({
+      git: fakeServerGit(new FakeRepo(FILES)).git,
+      authorize: () => editor,
+      signIn: "/sign-in",
+      plugins: {
+        "goodfellow-plugin-storage": (_request, context) => {
+          seen.push({ path: context.path, editor: context.editor?.login ?? null });
+          return new Response("signed");
+        },
+      },
+    });
+    return { api, seen };
+  }
+
+  it("answer their own addresses, told who's signed in only for the site's own pages", async () => {
+    const { api, seen } = pluginApi(ALICE);
+    const own = new Request("https://example.org/api/goodfellow/plugins/goodfellow-plugin-storage/sign", {
+      headers: { [APP_API_HEADER]: "1", "sec-fetch-site": "same-origin" },
+    });
+    expect(await (await api(own, "plugins/goodfellow-plugin-storage/sign")).text()).toBe("signed");
+    const webhook = new Request("https://example.org/api/goodfellow/plugins/goodfellow-plugin-storage/hook", {
+      method: "POST",
+      headers: { "sec-fetch-site": "cross-site" },
+    });
+    expect((await api(webhook, "plugins/goodfellow-plugin-storage/hook")).status).toBe(200);
+    expect(seen).toEqual([
+      { path: "sign", editor: "alice" },
+      { path: "hook", editor: null },
+    ]);
+    const other = new Request("https://example.org/api/goodfellow/plugins/goodfellow-plugin-other/x");
+    expect((await api(other, "plugins/goodfellow-plugin-other/x")).status).toBe(404);
+  });
+});

@@ -29,6 +29,7 @@ import type { FrameSource } from "./frame/host.js";
 import { ImportScreen } from "./import-screen.js";
 import { MediaScreen } from "./media-library.js";
 import { PagesScreen } from "./pages-screen.js";
+import { PluginScreenFrame } from "./plugin-frames.js";
 import { hasUnsavedChanges, SETTINGS_SECTIONS, useRoute } from "./router.js";
 import { SecurityScreen } from "./security-screen.js";
 import { SETTINGS_TABS, SettingsScreen, type SettingsTab } from "./settings-screen.js";
@@ -138,8 +139,34 @@ function CollectionRoute({ id, sub, slug }: { id: string; sub?: string; slug: st
   return <EntriesScreen collection={collection} />;
 }
 
+/** One of a plugin's screens, which its admin module draws in a frame of its own. */
+function PluginScreen({ id, screen }: { id?: string; screen?: string }) {
+  const t = useStrings();
+  const { site } = useAdmin();
+  const plugin = site.description.plugins?.find((candidate) => candidate.id === id);
+  const found = plugin?.screens?.find((candidate) => candidate.id === screen);
+  if (!plugin || !found) {
+    return (
+      <div className="gfa-screen">
+        <p>{t("plugins.notFound")}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="gfa-screen gfa-plugin-screen-wrap">
+      <h1>{found.title}</h1>
+      <PluginScreenFrame
+        key={`${plugin.id}/${found.id}`}
+        plugin={plugin}
+        screen={found}
+        failedText={t("plugins.failed", { plugin: plugin.title })}
+      />
+    </div>
+  );
+}
+
 /** Site Settings: its sidebar, and the tab chosen, beside it. */
-function SettingsLayout({ sub, params }: { sub?: string; params: URLSearchParams }) {
+function SettingsLayout({ sub, rest, params }: { sub?: string; rest: string[]; params: URLSearchParams }) {
   const tab = SETTINGS_TABS.includes(sub as SettingsTab) ? (sub as SettingsTab) : undefined;
   const screens = {
     domain: DomainScreen,
@@ -152,6 +179,17 @@ function SettingsLayout({ sub, params }: { sub?: string; params: URLSearchParams
   } as const;
   const Own = sub && sub in screens ? screens[sub as keyof typeof screens] : undefined;
   const section = Object.values(SETTINGS_SECTIONS).find((name) => name === params.get("section"));
+  if (sub === "plugin") {
+    const [id, screen] = rest;
+    return (
+      <div className="gfa-settings">
+        <SettingsSidebar current={`plugin/${id}/${screen}`} />
+        <div className="gfa-settings-content">
+          <PluginScreen id={id} screen={screen} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="gfa-settings">
       <SettingsSidebar current={(Own ? sub : (tab ?? "general")) as SettingsPlace} />
@@ -185,7 +223,7 @@ function Screen() {
     );
   }
   if (section === "versions") return <VersionsScreen file={params.get("file") ?? ""} />;
-  if (section === "settings") return <SettingsLayout sub={sub} params={params} />;
+  if (section === "settings") return <SettingsLayout sub={sub} rest={segments.slice(2)} params={params} />;
   return <PagesScreen />;
 }
 
@@ -544,6 +582,7 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
             ...(session.ai.length > 0 && {
               ai: { server: new URL(`${server.replace(/\/+$/, "")}/ai`, location.href).href, services: session.ai },
             }),
+            plugins: new URL(`${server.replace(/\/+$/, "")}/plugins`, location.href).href,
             ...(session.signOut && {
               signOut: () => {
                 forgetAiKeys();

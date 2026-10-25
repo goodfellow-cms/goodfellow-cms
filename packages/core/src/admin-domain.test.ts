@@ -113,6 +113,11 @@ describe("host rules", () => {
         "  Content-Security-Policy: frame-ancestors 'self'",
         "  Origin-Agent-Cluster: ?1",
         "",
+        "https://admin.example.org/admin/plugins/*",
+        "  ! Content-Security-Policy",
+        "  Content-Security-Policy: frame-ancestors 'self'",
+        "  Origin-Agent-Cluster: ?1",
+        "",
       ].join("\n"),
     );
   });
@@ -121,8 +126,9 @@ describe("host rules", () => {
     const rules = vercelAdminHeaders(admin, "/site/");
     expect(rules.map((rule) => rule.source)).toEqual([
       "/site/((?!admin/|admin$).*)",
-      "/site/admin/((?!editor/|editor$).*)",
+      "/site/admin/((?!editor/|editor$|plugins/).*)",
       "/site/admin/editor/:path*",
+      "/site/admin/plugins/:path*",
     ]);
     expect(rules.every((rule) => rule.has[0]?.value === "admin.example.org")).toBe(true);
     expect(rules[0]?.headers).toEqual([{ key: "Content-Security-Policy", value: "sandbox" }]);

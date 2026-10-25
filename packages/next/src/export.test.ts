@@ -4,7 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startsWithGuard } from "@goodfellow-cms/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkPages, exportedPages, fixSegmentFiles, guardExport, writeRedirectFiles } from "./export.js";
+import {
+  checkPages,
+  exportedPages,
+  fixSegmentFiles,
+  guardExport,
+  writePluginFiles,
+  writeRedirectFiles,
+} from "./export.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -135,5 +142,55 @@ describe("guardExport", () => {
     await write("out/index.html", "<html><head></head></html>");
     expect(await guardExport(join(out, "out"), out)).toBeUndefined();
     expect(await readFile(join(out, "out/index.html"), "utf8")).toBe("<html><head></head></html>");
+  });
+});
+
+describe("writePluginFiles", () => {
+  it("builds plugins' admin frames and runs their build steps, from the site's config", async () => {
+    // Inside the package, so the site's imports find its packages.
+    const site = await mkdtemp(join(import.meta.dirname, "../.plugin-site-"));
+    out = join(site, "out");
+    try {
+      await mkdir(join(site, "plugins/hello"), { recursive: true });
+      await mkdir(out, { recursive: true });
+      await writeFile(join(site, "package.json"), '{ "name": "plugin-site", "type": "module" }');
+      await writeFile(
+        join(site, "goodfellow.config.tsx"),
+        [
+          'import { defineConfig, definePlugin } from "@goodfellow-cms/core";',
+          "const hello = definePlugin({",
+          '  name: "goodfellow-plugin-hello",',
+          '  title: "Hello",',
+          '  permissions: { connect: ["https://api.example.com"], write: ["hello/"] },',
+          '  admin: "./plugins/hello/admin.ts",',
+          '  build: [{ id: "greet", module: "./plugins/hello/build.mjs", title: "Say hello" }],',
+          "});",
+          "export default defineConfig({ blocks: {}, plugins: [hello] });",
+          "",
+        ].join("\n"),
+      );
+      await writeFile(join(site, "plugins/hello/admin.ts"), 'export default { services: { greet: () => "Hello" } };\n');
+      await writeFile(
+        join(site, "plugins/hello/build.mjs"),
+        "import { writeFileSync } from 'node:fs';\nexport default (context) => writeFileSync(context.outDir + '/hello/done.txt', context.base);\n",
+      );
+
+      const written = await writePluginFiles("out", site);
+      expect(written).toEqual({ frames: ["goodfellow-plugin-hello"], steps: ["goodfellow-plugin-hello: Say hello"] });
+      const page = await readFile(join(out, "admin/plugins/goodfellow-plugin-hello/index.html"), "utf8");
+      expect(page).toContain("connect-src https://api.example.com;");
+      expect(page).toContain('<script src="plugin.js"></script>');
+      const code = await readFile(join(out, "admin/plugins/goodfellow-plugin-hello/plugin.js"), "utf8");
+      expect(code).toContain("self.origin");
+      expect(await readFile(join(out, "hello/done.txt"), "utf8")).toBe("/");
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves sites without plugins alone, without loading their config", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-export-"));
+    await writeFile(join(out, "goodfellow.config.tsx"), "throw new Error('loaded');\n");
+    expect(await writePluginFiles("out", out)).toEqual({ frames: [], steps: [] });
   });
 });

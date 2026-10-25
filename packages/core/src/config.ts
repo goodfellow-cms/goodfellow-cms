@@ -2,6 +2,7 @@ import type { ComponentConfig, Config } from "@puckeditor/core";
 import type { AdminAddress } from "./admin-domain.js";
 import type { BrokerAddress } from "./broker.js";
 import type { GitHost } from "./git.js";
+import { type GoodfellowPlugin, withPlugins } from "./plugins.js";
 
 /**
  * A site's `goodfellow.config.tsx`. The site build and its `/admin` page both
@@ -69,6 +70,14 @@ export interface GoodfellowConfig {
    * once the site has been rebuilt.
    */
   claude?: ClaudeConfig;
+  /**
+   * Plugins, such as `s3({ … })` from `goodfellow-plugin-s3`, which add what
+   * blocks can't: code and screens in the admin panel, steps in the build and
+   * routes on full-stack sites' servers, as well as blocks of their own,
+   * which `defineConfig()` adds to `blocks`. Each gets only the permissions it
+   * declares, where Goodfellow can enforce them.
+   */
+  plugins?: GoodfellowPlugin[];
 }
 
 export interface ClaudeConfig {
@@ -90,7 +99,11 @@ export interface AiConfig {
   stockPhotos?: boolean;
 }
 
-/** Declares a site config with full type checking. Returns it unchanged. */
+/**
+ * Declares a site config with full type checking. Returns it with its
+ * plugins' blocks and categories added to its own, and throws a
+ * `PluginError` if a plugin is named wrongly or two blocks share a name.
+ */
 export function defineConfig<const T extends GoodfellowConfig>(config: T): T {
-  return config;
+  return withPlugins(config);
 }

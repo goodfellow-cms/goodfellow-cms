@@ -230,7 +230,7 @@ export function adminPageHeaders(broker?: string): Readonly<Record<string, strin
     : ADMIN_PAGE_HEADERS;
 }
 
-/** The editor's frames are the admin panel's own, so they may be framed by it, and only by it. */
+/** The editor's frames, and plugins', are the admin panel's own, so they may be framed by it, and only by it. */
 const EDITOR_FRAME_HEADERS: Readonly<Record<string, string>> = {
   "Content-Security-Policy": "frame-ancestors 'self'",
   "Origin-Agent-Cluster": "?1",
@@ -256,6 +256,7 @@ export function cloudflareAdminHeaders(admin: AdminAddress, base = "/", broker?:
     block("/*", ["Content-Security-Policy: sandbox"]),
     block(`${adminPath}*`, ["! Content-Security-Policy", ...headers(adminPageHeaders(broker))]),
     block(`${adminPath}editor/*`, ["! Content-Security-Policy", ...headers(EDITOR_FRAME_HEADERS)]),
+    block(`${adminPath}plugins/*`, ["! Content-Security-Policy", ...headers(EDITOR_FRAME_HEADERS)]),
   ].join("\n\n")}\n`;
 }
 
@@ -280,8 +281,9 @@ export function vercelAdminHeaders(admin: AdminAddress, base = "/", broker?: str
       has,
       headers: [{ key: "Content-Security-Policy", value: "sandbox" }],
     },
-    { source: `${prefix}/admin/((?!editor/|editor$).*)`, has, headers: list(adminPageHeaders(broker)) },
+    { source: `${prefix}/admin/((?!editor/|editor$|plugins/).*)`, has, headers: list(adminPageHeaders(broker)) },
     { source: `${prefix}/admin/editor/:path*`, has, headers: list(EDITOR_FRAME_HEADERS) },
+    { source: `${prefix}/admin/plugins/:path*`, has, headers: list(EDITOR_FRAME_HEADERS) },
   ];
 }
 

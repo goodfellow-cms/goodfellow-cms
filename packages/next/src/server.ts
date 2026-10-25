@@ -32,6 +32,13 @@ export interface GoodfellowApiOptions {
   ai?: ServerKeys;
   /** Told about failures editors only hear about as "something went wrong". Defaults to `console.error`. */
   onError?: (error: unknown) => void;
+  /**
+   * The server modules of the config's plugins, by plugin name, imported in
+   * the route's file, such as `{ "goodfellow-plugin-s3": s3Server }` from
+   * `import s3Server from "goodfellow-plugin-s3/server"`. Each answers
+   * `plugins/<id>/…`, and runs with everything the server has.
+   */
+  plugins?: AppApiOptions["plugins"];
 }
 
 /** The route parameters of a catch-all route named `[...path]`. */
@@ -75,6 +82,7 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
       ...(options.signOut && { signOut: options.signOut }),
       ...(ai && ai.services.length > 0 && { ai }),
       ...(options.onError && { onError: options.onError }),
+      ...(options.plugins && { plugins: options.plugins }),
     });
     return api;
   }

@@ -1,6 +1,7 @@
 import {
   type AdminSite,
   CURRENT_VERSION,
+  describePlugin,
   GOODFELLOW_VERSION,
   type GoodfellowConfig,
   type SiteDescription,
@@ -184,6 +185,7 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
     }),
     ...(config.broker && { broker: { url: config.broker.url } }),
     ...(config.claude?.publish === false && { claude: { publish: false } }),
+    ...(config.plugins?.length && { plugins: config.plugins.map(describePlugin) }),
   };
 }
 

@@ -79,6 +79,7 @@ export function SitePreview({
         mediaPreviews: createMediaPreviews({ readBytes: async () => undefined }, siteUrl),
         chooseMedia: async () => null,
         navigate: () => {},
+        callPlugin: async () => null,
       },
     [empty, frames, siteUrl, preview, strings, theme],
   );

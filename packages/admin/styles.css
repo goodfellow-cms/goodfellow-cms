@@ -231,6 +231,17 @@ body,
   border-top: 1px solid var(--gfa-border);
 }
 
+/* A plugin's screen, drawn by the plugin in a frame of its own, filling the rest of the window. */
+.gfa-plugin-screen {
+  display: block;
+  width: 100%;
+  height: calc(100vh - var(--gfa-topbar-height) - 140px);
+  min-height: 320px;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-bg);
+}
+
 .gfa-sidebar-item {
   position: relative;
   display: flex;

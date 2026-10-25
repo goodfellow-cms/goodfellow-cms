@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // After `next build`: `goodfellow-next finish out` fixes the export's prefetch files on Windows,
 // writes the calendar files of collections of events, collections' feeds, the pages at redirects' old addresses and Cloudflare Pages' _redirects, and the search index for sites with a search block,
-// copies the site's Google Fonts into the export, starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
+// copies the site's Google Fonts into the export, builds plugins' admin frames and runs their build steps, starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
 // `goodfellow-next due [--since <time>]` says whether a scheduled change has come due, as `goodfellow due` does.
 // `goodfellow-next nightly [--mode <mode>]` says whether tonight's build is needed, as `goodfellow nightly` does.
@@ -53,6 +53,7 @@ import {
   writeFeedFiles,
   writeFontFiles,
   writePageLanguages,
+  writePluginFiles,
   writeRedirectFiles,
 } from "@goodfellow-cms/next/export";
 
@@ -80,6 +81,10 @@ if (command === "finish" && dir === "--server") {
   // Before the pages are read, so the search index and the checks see each page's language.
   const languages = await writePageLanguages(undefined);
   if (languages > 0) console.log(`Marked ${languages} pages with their language`);
+  // Plugins' admin frames and build steps, into public/, which next start serves.
+  const plugins = await writePluginFiles("public");
+  if (plugins.frames.length > 0)
+    console.log(`Wrote the admin frames of ${plugins.frames.join(", ")}, in public/admin/plugins`);
   const pages = await builtPages();
   const indexed = await writePagesSearchIndex(pages, "public/pagefind");
   console.log(
@@ -217,7 +222,8 @@ if (command !== "finish" && command !== "index") {
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
       "        for collections of events, collections' feeds and pages that send visitors on from",
-      "        old addresses, indexes it for search, and lists what automated accessibility checks",
+      "        old addresses, builds plugins' admin frames and runs their build steps, indexes it",
+      "        for search, and lists what automated accessibility checks",
       "        find on its pages. With --server, for a full-stack site, writes the calendar files",
       "        and feeds into public/calendars and public/feeds and indexes and checks the pages",
       "        next build rendered, with the index in public/pagefind, instead.",
@@ -271,6 +277,9 @@ if (command === "finish") {
     );
   }
   for (const line of buildNotes(await writeFontFiles(dir))) console.log(line);
+  // Plugins' admin frames and build steps, once Goodfellow has written the rest, before the index and the guards.
+  const plugins = await writePluginFiles(dir);
+  if (plugins.frames.length > 0) console.log(`Wrote the admin frames of ${plugins.frames.join(", ")}`);
   // What the site was built from, and when it stops being current, for the nightly check.
   const currentUntil = await writeBuildRecordFile(dir);
   if (currentUntil) {

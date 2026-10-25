@@ -9,6 +9,7 @@ import {
   findSitePage,
   loadSiteContent,
   MEDIA_DIR,
+  PLUGINS_PATH,
   redirectPage,
   SITE_DESCRIPTION_PATH,
   shownContent,
@@ -33,6 +34,7 @@ import {
 } from "./admin-entry.js";
 import { buildEditor } from "./editor-bundle.js";
 import { type ClientModules, ISLANDS_DEV_URL } from "./islands.js";
+import { devPluginFrames } from "./plugin-frames.js";
 import {
   baseViteConfig,
   devUrl,
@@ -227,8 +229,46 @@ function serveEditor(editor: DevEditor) {
   };
 }
 
+/**
+ * Serves plugins' admin frames from their bundles, each built the first time
+ * it's asked for (`devPluginFrames()`), as classic scripts like the editor's.
+ */
+function servePluginFrames(frames: DevPluginFrames) {
+  const prefix = `/${PLUGINS_PATH}`;
+  return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+    if (!pathname.startsWith(prefix)) return next();
+    let file: string;
+    let id: string;
+    try {
+      const rest = decodeURIComponent(pathname.slice(prefix.length));
+      id = rest.split("/")[0] ?? "";
+      file = resolve(frames.outDir, `${PLUGINS_PATH}${rest.endsWith("/") || rest === id ? `${id}/index.html` : rest}`);
+    } catch {
+      return next();
+    }
+    if (!file.startsWith(`${frames.outDir}${sep}`) || !(await frames.ensure(id))) return next();
+    try {
+      const data = await readFile(file);
+      res.setHeader("Content-Type", EDITOR_TYPES[file.slice(file.lastIndexOf(".") + 1)] ?? "application/octet-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.end(req.method === "HEAD" ? undefined : data);
+    } catch {
+      next();
+    }
+  };
+}
+
+type DevPluginFrames = ReturnType<typeof devPluginFrames> & { outDir: string };
+
 /** Serves the local backend's API, the admin panel at /admin, and pages rendered on request from the files on disk. */
-function devPlugin(root: string, styles: () => StylesEntries, editor: DevEditor): Plugin {
+function devPlugin(
+  root: string,
+  styles: () => StylesEntries,
+  editor: DevEditor,
+  pluginFrames: DevPluginFrames,
+): Plugin {
   const store = localFileStore(root);
   const registryDir = localRegistryDir(root);
   return {
@@ -237,6 +277,7 @@ function devPlugin(root: string, styles: () => StylesEntries, editor: DevEditor)
       watchContent(server, root, styles);
       server.middlewares.use(serveMedia(root));
       server.middlewares.use(serveEditor(editor));
+      server.middlewares.use(servePluginFrames(pluginFrames));
 
       // Runs after Vite's own middleware, so modules, assets and public/ files are served first.
       return () => {
@@ -372,6 +413,18 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
     },
   });
 
+  // Plugins' admin frames, each bundled the first time it's asked for, from the config as it is then.
+  const pluginOutDir = join(root, "node_modules/.goodfellow/plugins");
+  const pluginFrames: DevPluginFrames = {
+    ...devPluginFrames({
+      root,
+      outDir: pluginOutDir,
+      plugins: async () => (server ? ((await loadServerEntry(server)).config.plugins ?? []) : []),
+      onError: (message) => server?.config.logger.error(message),
+    }),
+    outDir: pluginOutDir,
+  };
+
   server = await createServer({
     ...base,
     appType: "custom",
@@ -399,12 +452,13 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
           return `${devUrl(root, getStyles().preview)}?direct`;
         },
       }),
-      devPlugin(root, getStyles, editor),
+      devPlugin(root, getStyles, editor, pluginFrames),
     ],
   });
   const closeServer = server.close.bind(server);
   server.close = async () => {
     await bundle.close();
+    await pluginFrames.close();
     await closeServer();
   };
 

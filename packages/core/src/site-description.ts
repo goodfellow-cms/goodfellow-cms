@@ -8,6 +8,7 @@
 import type { Config } from "@puckeditor/core";
 import { z } from "zod";
 import { type ContentKind, CURRENT_VERSION } from "./migrations/index.js";
+import type { PluginDescription } from "./plugins.js";
 
 declare const __GOODFELLOW_VERSION__: string | undefined;
 
@@ -48,6 +49,8 @@ export interface SiteDescription {
   broker?: { url: string };
   /** What the site's config lets Claude do (`GoodfellowConfig.claude`), when it's less than everything. */
   claude?: { publish?: boolean };
+  /** The config's plugins, without their code (`describePlugin()`). */
+  plugins?: PluginDescription[];
 }
 
 /**
@@ -95,6 +98,28 @@ const descriptionSchema = z.object({
   admin: z.object({ url: z.string(), checked: z.boolean().optional() }).optional(),
   broker: z.object({ url: z.string() }).optional(),
   claude: z.object({ publish: z.boolean().optional() }).optional(),
+  plugins: z
+    .array(
+      z.object({
+        name: z.string(),
+        title: z.string(),
+        version: z.string().optional(),
+        description: z.string().optional(),
+        permissions: z.object({
+          connect: z.array(z.string()).optional(),
+          files: z.array(z.string()).optional(),
+          secrets: z.array(z.string()).optional(),
+          read: z.array(z.string()).optional(),
+          write: z.array(z.string()).optional(),
+        }),
+        id: z.string(),
+        admin: z.boolean().optional(),
+        screens: z.array(z.object({ id: z.string(), title: z.string() })).optional(),
+        build: z.array(z.object({ id: z.string(), title: z.string().optional() })).optional(),
+        server: z.boolean().optional(),
+      }),
+    )
+    .optional(),
 });
 
 /** Reads a description, or says why it isn't one. */

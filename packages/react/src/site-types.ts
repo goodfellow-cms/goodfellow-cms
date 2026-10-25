@@ -89,6 +89,13 @@ export interface SiteContextValue {
   credits?: PageCredit[];
   /** In the admin panel's editor only: links to its screens, so a block's note can say where to fix something. */
   adminLink?: (place: AdminPlace) => AdminLinkProps;
+  /**
+   * In the admin panel's editor only: asks one of a plugin's services, by the
+   * plugin's name, which its admin module answers in a frame of its own. A
+   * plugin's blocks use it to reach what only its frame may, such as its own
+   * service's addresses.
+   */
+  callPlugin?: (plugin: string, method: string, ...args: unknown[]) => Promise<unknown>;
 }
 
 /** The Puck metadata every block receives, mirroring `useSite()`. */
