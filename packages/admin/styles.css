@@ -32,6 +32,9 @@
   --gfa-demo-bg: light-dark(#fef9c3, #422006);
   --gfa-demo-border: light-dark(#fde68a, #854d0e);
   --gfa-demo-text: light-dark(#713f12, #fde68a);
+  --gfa-draft-bg: light-dark(#eff6ff, #172554);
+  --gfa-draft-border: light-dark(#bfdbfe, #1e40af);
+  --gfa-draft-text: light-dark(#1e3a8a, #dbeafe);
   --gfa-checker: light-dark(#f1f5f9, #1e293b);
   --gfa-checker-alt: light-dark(#ffffff, #0f172a);
   --gfa-radius: 6px;
@@ -101,6 +104,28 @@ body,
   border-bottom: 1px solid var(--gfa-demo-border);
   color: var(--gfa-demo-text);
   font-size: 14px;
+}
+
+.gfa-draft-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  flex-shrink: 0;
+  padding: 6px 16px;
+  background: var(--gfa-draft-bg);
+  border-bottom: 1px solid var(--gfa-draft-border);
+  color: var(--gfa-draft-text);
+  font-size: 14px;
+}
+
+.gfa-draft-banner .gfa-draft-count {
+  font-weight: 600;
+}
+
+.gfa-draft-banner a {
+  color: inherit;
 }
 
 .gfa-brand {

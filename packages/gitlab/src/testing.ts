@@ -630,6 +630,15 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       });
     }
 
+    if (rest === "/repository/branches" && request.method === "GET") {
+      // GitLab's search takes ^ for "starts with".
+      const search = url.searchParams.get("search") ?? "";
+      const matches = (name: string) =>
+        search.startsWith("^") ? name.startsWith(search.slice(1)) : name.includes(search);
+      return json(
+        [...repo.branches].filter(([name]) => matches(name)).map(([name, sha]) => ({ name, commit: { id: sha } })),
+      );
+    }
     if (rest === "/repository/branches" && request.method === "POST") {
       if (accessLevel < 30) return json({ message: "403 Forbidden" }, 403);
       const name = url.searchParams.get("branch") ?? "";

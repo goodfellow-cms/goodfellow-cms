@@ -228,6 +228,13 @@ export class GitHubBackend implements GitBackend {
         const comparison = (await response.json()) as { merge_base_commit: { sha: string } };
         return comparison.merge_base_commit.sha;
       },
+      listBranches: async (prefix) => {
+        const refs = await githubJson<Array<{ ref: string }>>(
+          this.api,
+          `${base}/git/matching-refs/heads/${encodeURIComponent(prefix)}`,
+        );
+        return refs.map((found) => found.ref.replace(/^refs\/heads\//, ""));
+      },
       openReview: async ({ branch, title, description }) => {
         const response = await githubRequest(this.api, `${base}/pulls`, {
           method: "POST",

@@ -168,6 +168,11 @@ export class GitLabBackend implements GitBackend {
         if (!response.ok) throw new DraftError("not-found", `There's no draft ${branch}.`);
         return ((await response.json()) as { id: string }).id;
       },
+      listBranches: async (prefix) => {
+        const query = new URLSearchParams({ search: `^${prefix}`, per_page: "100" });
+        const branches = await gitlabJson<Array<{ name: string }>>(this.api, this.repo(`/branches?${query}`));
+        return branches.map((found) => found.name).filter((name) => name.startsWith(prefix));
+      },
       openReview: async ({ branch, title, description }) => {
         const response = await gitlabRequest(this.api, `${project}/merge_requests`, {
           method: "POST",

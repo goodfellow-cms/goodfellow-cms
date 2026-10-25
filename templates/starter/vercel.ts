@@ -18,6 +18,9 @@ export const config = {
   outputDirectory: "dist",
   redirects: redirects(),
   headers: adminHeaders(),
+  // Drafts, from the admin panel's Add to draft and from Claude, are kept on branches named
+  // goodfellow-draft-…, which visitors never see, so Vercel doesn't build previews of them.
+  git: { deploymentEnabled: { "goodfellow-draft-*": false } },
 };
 
 interface Redirect {

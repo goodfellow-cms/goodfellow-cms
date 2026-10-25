@@ -94,12 +94,12 @@ Each host's free plan has its own rules about business use. If the site is for a
 **Cloudflare Pages** (works with GitHub and GitLab, including private repositories; no rule against business sites that we know of)
 
 1. Create the site with Cloudflare Pages as its host (`npm create goodfellow@latest -- --host cloudflare-pages`, or on the setup page). That writes its setup files in place of the other hosts': a nightly update and rebuild, when something has changed, in `.github/workflows/deploy.yml` and `scheduled.yml`, or in `.gitlab-ci.yml`.
-2. In Cloudflare's dashboard, under **Workers & Pages**, create a Pages project from the repository, with no framework preset, the build command `npm run build` and the build output directory `dist`. Cloudflare then builds and publishes the site on every change, and sends its redirects itself.
+2. In Cloudflare's dashboard, under **Workers & Pages**, create a Pages project from the repository, with no framework preset, the build command `npm run build` and the build output directory `dist`. Cloudflare then builds and publishes the site on every change, and sends its redirects itself. Under the project's **Settings → Builds → Branch control**, set preview branches to **None**: drafts made in the admin panel are kept on branches of their own, which Cloudflare would otherwise build too.
 3. Under the project's **Settings → Builds**, add a deploy hook for the main branch, and add it to the repository as the `CLOUDFLARE_DEPLOY_HOOK` secret on GitHub, or masked variable on GitLab, for the nightly rebuild and scheduled changes. On GitLab, also turn on updates on the admin panel's **Updates** screen, which adds the nightly schedule.
 
 **Vercel** (works with GitHub and GitLab; the free plan is for non-commercial sites only)
 
-1. Import the repository in Vercel. `vercel.ts` already has the right settings, and has Vercel send the site's redirects itself.
+1. Import the repository in Vercel. `vercel.ts` already has the right settings: it has Vercel send the site's redirects itself, and not build previews of drafts, which are kept on branches of their own.
 2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule.
 
 Delete the setup files for the hosts you don't use.

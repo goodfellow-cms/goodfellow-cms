@@ -6,6 +6,8 @@ import {
   type ContentStore,
   type DemoStore,
   type DeployStatus,
+  type Draft,
+  DraftError,
   describedConfig,
   type FileChange,
   type GitBackend,
@@ -13,8 +15,10 @@ import {
   GOODFELLOW_REGISTRY,
   goodfellowRegistryUrl,
   isDemoStore,
+  keptDrafts,
   loadSiteContent,
   MEDIA_DIR,
+  newDraftName,
   type OwnerAccess,
   type PagesDomains,
   type RegistrySources,
@@ -26,6 +30,7 @@ import {
   SHADCN_REGISTRY,
   SignInError,
   type SiteContent,
+  type SiteDrafts,
   type SiteEditors,
   type SiteUpdates,
   upcomingChanges,
@@ -35,6 +40,7 @@ import type { MediaFieldKind } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ChecksDialog } from "./checks-dialog.js";
+import { browserDraftKeeper, rememberDraft, rememberedDraft } from "./drafts.js";
 import {
   type FrameClient,
   type FrameServices,
@@ -52,7 +58,7 @@ import { useScheduleInfoOf } from "./schedule.js";
 import { checkPublish, type PublishChecks } from "./site-checks.js";
 import type { SiteCodeService } from "./site-code.js";
 import { showSiteIcon } from "./site-icon.js";
-import { useStrings, useStringTable } from "./strings.js";
+import { StringsProvider, useStrings, useStringTable } from "./strings.js";
 import { useThemeChoice } from "./theme.js";
 
 /** How previews load the site's styles. Provided by the dev server or build that serves the admin panel. */
@@ -68,7 +74,17 @@ export interface PreviewOptions {
 export type LoadState =
   | { status: "loading" }
   | { status: "error"; error: unknown }
-  | { status: "ready"; content: SiteContent; revision: string; media: string[] };
+  | {
+      status: "ready";
+      content: SiteContent;
+      revision: string;
+      media: string[];
+      /**
+       * Counts the times the admin panel has opened a draft or gone back to the
+       * live site, so screens start again from what's loaded after each.
+       */
+      view?: number;
+    };
 
 /**
  * How a publish went. `checks` means the site checks stopped it, or the editor
@@ -79,6 +95,28 @@ export type PublishResult = { ok: true } | { ok: false; reason: "conflict" | "er
 
 /** Whether the latest publish has reached the live site. `previous` is the revision before it. */
 export type DeployProgress = { revision: string; previous?: string } & DeployStatus;
+
+/** Unpublished changes kept to publish together, which every screen shows. */
+export interface DraftsValue {
+  /**
+   * Whether drafts are kept in this browser, where the backend has none of its
+   * own (full-stack sites, demos, the development servers): other editors
+   * don't see them, and they can't be submitted for review.
+   */
+  kept: boolean;
+  /** The drafts there are, newest first: other editors' and Claude's too. */
+  names: string[];
+  /** The draft being worked in, which every publish goes into, with the files it has changed. */
+  current?: { name: string; paths: string[] };
+  /** Works in a draft, or on the live site again without one. Returns `false` where the draft has gone. */
+  open(name: string | undefined): Promise<boolean>;
+  /** Runs the publish checks over every file in the draft, then publishes it in one save. */
+  publishAll(): Promise<PublishResult>;
+  /** Opens a pull or merge request for the draft. */
+  submit(): Promise<{ ok: true; url: string } | { ok: false; error: unknown }>;
+  /** Throws the draft away, leaving the live site as it is. */
+  discard(): Promise<{ ok: true } | { ok: false; error: unknown }>;
+}
 
 /** The signed-in person, when the admin panel is connected to a git host. */
 export interface Account {
@@ -123,9 +161,16 @@ export interface AdminContextValue {
    * checks run first, unless `checks` is `false`: for publishes that can't
    * break a link and that the editor didn't write, such as the site's
    * address or uploads, where warnings about the rest of the file would only
-   * be in the way.
+   * be in the way. With a draft open, the changes go into it; `draft` starts
+   * one for them where none is.
    */
-  publish(changes: FileChange[], message: string, options?: { checks?: boolean }): Promise<PublishResult>;
+  publish(
+    changes: FileChange[],
+    message: string,
+    options?: { checks?: boolean; draft?: boolean },
+  ): Promise<PublishResult>;
+  /** Unpublished changes kept to publish together. */
+  drafts: DraftsValue;
   /** Reads one of the site's files at the loaded revision, or `undefined` if it doesn't exist. */
   readFile(path: string): Promise<string | undefined>;
   /** Lists the site's files under a folder at the loaded revision. */
@@ -197,6 +242,11 @@ function isGitBackend(store: ContentStore): store is GitBackend {
   return "deployStatus" in store && typeof store.deployStatus === "function";
 }
 
+/** Tells apart sites served from the same address, for what this browser keeps about each. */
+function siteKey(siteUrl: string): string {
+  return typeof location === "undefined" ? siteUrl : new URL(siteUrl, location.href).href;
+}
+
 export function AdminProvider({
   site,
   frames,
@@ -221,8 +271,23 @@ export function AdminProvider({
   onSignInError?: (error: SignInError) => void;
   children: ReactNode;
 }) {
+  const t = useStrings();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [deploy, setDeploy] = useState<DeployProgress>();
+  // Drafts: the backend's own, on branches other editors see, or one kept in this browser.
+  const key = siteKey(siteUrl);
+  const backendDrafts = isGitBackend(store) ? store.drafts : undefined;
+  const siteDrafts = useMemo<SiteDrafts>(
+    () => backendDrafts ?? keptDrafts(store, browserDraftKeeper(key)),
+    [backendDrafts, store, key],
+  );
+  const [draft, setDraft] = useState<Draft>();
+  // Whether the draft this browser last worked in has been looked for, which loading the site waits for.
+  const [draftFound, setDraftFound] = useState(false);
+  const [draftNames, setDraftNames] = useState<string[]>([]);
+  const [draftPaths, setDraftPaths] = useState<string[]>([]);
+  // What screens read and publish to: the draft being worked in, or the live site.
+  const content = draft?.store ?? store;
   // What the site checks found in the publish waiting for the editor's answer.
   const [checking, setChecking] = useState<{
     checks: PublishChecks;
@@ -233,7 +298,7 @@ export function AdminProvider({
     () => describedConfig(site.description, "template").components as Record<string, ComponentConfig>,
     [site.description],
   );
-  const mediaPreviews = useMemo(() => createMediaPreviews(store, siteUrl), [store, siteUrl]);
+  const mediaPreviews = useMemo(() => createMediaPreviews(content, siteUrl), [content, siteUrl]);
   // The development servers give their own registry; their admin panel holds no tokens.
   // With a token broker, the admin panel holds no tokens, and the broker asks before publishing code.
   const outOfReach = registry !== undefined || atAdminAddress(site.admin) || site.broker !== undefined;
@@ -264,8 +329,8 @@ export function AdminProvider({
   );
   const favicon = state.status === "ready" ? state.content.settings.favicon : undefined;
   useEffect(() => (favicon ? showSiteIcon(document, favicon, mediaPreviews) : undefined), [favicon, mediaPreviews]);
-  const readFile = useCallback((path: string) => store.read(path), [store]);
-  const listFiles = useCallback((dir: string) => store.list(dir), [store]);
+  const readFile = useCallback((path: string) => content.read(path), [content]);
+  const listFiles = useCallback((dir: string) => content.list(dir), [content]);
   const demo = isDemoStore(store) ? store : undefined;
   const pages = isGitBackend(store) ? store.pages : undefined;
   const versions = isGitBackend(store) ? store : undefined;
@@ -319,42 +384,205 @@ export function AdminProvider({
     });
   }, [demo, mediaPreviews]);
 
-  const loadAndHandle = useCallback(async () => {
-    const next = await load(store);
-    if (next.status === "error" && next.error instanceof SignInError) onSignInError?.(next.error);
-    return next;
-  }, [store, onSignInError]);
+  // The store the shown site was last loaded from, so switching drafts loads it once, and a slower earlier load is ignored.
+  const loadedFrom = useRef<ContentStore>(undefined);
+  // Opening a draft or leaving one: screens start again once its content has loaded.
+  const views = useRef(0);
+  const loadFrom = useCallback(
+    async (from: ContentStore) => {
+      loadedFrom.current = from;
+      const view = views.current;
+      const next = await load(from);
+      if (next.status === "error" && next.error instanceof SignInError) onSignInError?.(next.error);
+      if (loadedFrom.current === from) setState(next.status === "ready" ? { ...next, view } : next);
+    },
+    [onSignInError],
+  );
 
-  const reload = useCallback(async () => {
-    setState(await loadAndHandle());
-  }, [loadAndHandle]);
+  const reload = useCallback(() => loadFrom(content), [loadFrom, content]);
+
+  // The draft this browser was working in opens again, if it's still there.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const names = await siteDrafts.list().catch((): string[] => []);
+      const remembered = rememberedDraft(key);
+      const opened =
+        remembered && names.includes(remembered) ? await siteDrafts.open(remembered).catch(() => undefined) : undefined;
+      if (!opened) rememberDraft(key, undefined);
+      if (cancelled) return;
+      setDraftNames(names);
+      setDraft(opened);
+      setDraftFound(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [siteDrafts, key]);
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    if (draftFound && loadedFrom.current !== content) void reload();
+  }, [draftFound, content, reload]);
+
+  const refreshDrafts = useCallback(
+    async (current: Draft | undefined) => {
+      const [names, paths] = await Promise.all([
+        siteDrafts.list().catch((): string[] => []),
+        current ? current.paths().catch((): string[] => []) : [],
+      ]);
+      setDraftNames(names);
+      setDraftPaths(paths);
+    },
+    [siteDrafts],
+  );
+  useEffect(() => {
+    if (draftFound) void refreshDrafts(draft);
+  }, [draftFound, draft, refreshDrafts]);
+
+  /** Shows the site checks' dialog where they found anything, and says whether to go ahead. */
+  const confirmChecks = useCallback(async (checks: PublishChecks | undefined) => {
+    if (!checks || (checks.blocking.length === 0 && checks.warnings.length === 0)) return true;
+    const go = await new Promise<boolean>((decide) => setChecking({ checks, content: checks.content, decide }));
+    setChecking(undefined);
+    return go;
+  }, []);
 
   const publish = useCallback(
-    async (changes: FileChange[], message: string, options?: { checks?: boolean }): Promise<PublishResult> => {
+    async (
+      changes: FileChange[],
+      message: string,
+      options?: { checks?: boolean; draft?: boolean },
+    ): Promise<PublishResult> => {
       if (state.status !== "ready") return { ok: false, reason: "error", error: new Error("The site isn't loaded.") };
       const checks =
-        options?.checks === false ? undefined : await checkPublish(store, state, changes, { blocks, code });
-      if (checks && (checks.blocking.length > 0 || checks.warnings.length > 0)) {
-        const go = await new Promise<boolean>((decide) => setChecking({ checks, content: checks.content, decide }));
-        setChecking(undefined);
-        if (!go) return { ok: false, reason: "checks", error: undefined };
-      }
+        options?.checks === false ? undefined : await checkPublish(content, state, changes, { blocks, code });
+      if (!(await confirmChecks(checks))) return { ok: false, reason: "checks", error: undefined };
+      let target = draft;
+      let started: Draft | undefined;
       let revision: string;
       try {
-        ({ revision } = await writeChanges(store, changes, { message, expectedRevision: state.revision }));
+        let expectedRevision = state.revision;
+        if (!target && options?.draft) {
+          // From the revision the editor loaded, so publishing it fails where someone has changed the same files since.
+          target = started = await siteDrafts.create(newDraftName(), { from: state.revision });
+          expectedRevision = await started.store.revision();
+        }
+        ({ revision } = await writeChanges(target?.store ?? store, changes, { message, expectedRevision }));
       } catch (error) {
+        if (started) await started.discard().catch(() => undefined);
         if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
         return { ok: false, reason: error instanceof ConflictError ? "conflict" : "error", error };
       }
-      if (isGitBackend(store)) setDeploy({ revision, previous: state.revision, state: "building" });
-      setState(await loadAndHandle());
+      if (started) {
+        rememberDraft(key, started.name);
+        setDraft(started);
+      } else if (target) void refreshDrafts(target);
+      // A draft isn't built, so there's nothing to follow.
+      else if (isGitBackend(store)) setDeploy({ revision, previous: state.revision, state: "building" });
+      await loadFrom(target?.store ?? store);
       return { ok: true };
     },
-    [store, state, blocks, code, loadAndHandle, onSignInError],
+    [
+      store,
+      content,
+      draft,
+      siteDrafts,
+      key,
+      state,
+      blocks,
+      code,
+      confirmChecks,
+      refreshDrafts,
+      loadFrom,
+      onSignInError,
+    ],
+  );
+
+  const openDraft = useCallback(
+    async (name: string | undefined) => {
+      if (name === draft?.name) return true;
+      let next: Draft | undefined;
+      try {
+        next = name ? await siteDrafts.open(name) : undefined;
+      } catch (error) {
+        if (!(error instanceof DraftError)) throw error;
+        void refreshDrafts(draft);
+        return false;
+      }
+      rememberDraft(key, name);
+      views.current++;
+      setDraft(next);
+      return true;
+    },
+    [draft, siteDrafts, key, refreshDrafts],
+  );
+
+  const publishAll = useCallback(async (): Promise<PublishResult> => {
+    if (!draft) return { ok: false, reason: "error", error: new Error("There's no draft open.") };
+    let changes: FileChange[];
+    let live: LoadState;
+    try {
+      [changes, live] = await Promise.all([draft.changes(), load(store)]);
+    } catch (error) {
+      return { ok: false, reason: "error", error };
+    }
+    if (live.status !== "ready") return { ok: false, reason: "error", error: live.status === "error" && live.error };
+    // Every file in the draft, against the live site as it is now.
+    if (!(await confirmChecks(await checkPublish(store, live, changes, { blocks, code })))) {
+      return { ok: false, reason: "checks", error: undefined };
+    }
+    let revision: string;
+    try {
+      ({ revision } = await draft.publish(t("draft.message", { name: draft.name })));
+    } catch (error) {
+      if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
+      return { ok: false, reason: error instanceof ConflictError ? "conflict" : "error", error };
+    }
+    rememberDraft(key, undefined);
+    if (isGitBackend(store)) setDeploy({ revision, previous: live.revision, state: "building" });
+    views.current++;
+    setDraft(undefined);
+    return { ok: true };
+  }, [draft, store, blocks, code, key, t, confirmChecks, onSignInError]);
+
+  const submitDraft = useCallback(async () => {
+    if (!draft) return { ok: false as const, error: new Error("There's no draft open.") };
+    try {
+      const paths = await draft.paths();
+      const { url } = await draft.submitForReview({
+        title: t("draft.reviewTitle", { name: draft.name }),
+        description: [t("draft.reviewDescription"), "", ...paths.map((path) => `- \`${path}\``)].join("\n"),
+      });
+      return { ok: true as const, url };
+    } catch (error) {
+      return { ok: false as const, error };
+    }
+  }, [draft, t]);
+
+  const discardDraft = useCallback(async () => {
+    if (!draft) return { ok: true as const };
+    try {
+      await draft.discard();
+    } catch (error) {
+      return { ok: false as const, error };
+    }
+    rememberDraft(key, undefined);
+    views.current++;
+    setDraft(undefined);
+    return { ok: true as const };
+  }, [draft, key]);
+
+  const drafts = useMemo<DraftsValue>(
+    () => ({
+      kept: backendDrafts === undefined,
+      names: draftNames,
+      ...(draft && { current: { name: draft.name, paths: draftPaths } }),
+      open: openDraft,
+      publishAll,
+      submit: submitDraft,
+      discard: discardDraft,
+    }),
+    [backendDrafts, draftNames, draft, draftPaths, openDraft, publishAll, submitDraft, discardDraft],
   );
 
   // Where the host builds the site at each scheduled time (GitLab's pipeline schedules), keeps its builds in step
@@ -419,6 +647,7 @@ export function AdminProvider({
       mediaPreviews,
       reload,
       publish,
+      drafts,
       readFile,
       listFiles,
       registries,
@@ -448,6 +677,7 @@ export function AdminProvider({
       mediaPreviews,
       reload,
       publish,
+      drafts,
       readFile,
       listFiles,
       registries,
@@ -467,16 +697,32 @@ export function AdminProvider({
     ],
   );
 
+  // With a draft open, every screen's Publish adds to it.
+  const table = useStringTable();
+  const strings = useMemo(
+    () =>
+      draft
+        ? {
+            ...table,
+            "publish.button": table["draft.add"],
+            "publish.publishing": table["draft.adding"],
+            "publish.done": table["draft.added"],
+          }
+        : table,
+    [draft, table],
+  );
   return (
     <AdminContext.Provider value={value}>
-      {state.status === "ready" ? (
-        <SiteFrames frames={frames} state={state} onCodeClient={onCodeClient}>
-          {children}
-        </SiteFrames>
-      ) : (
-        children
-      )}
-      {checking && <ChecksDialog checks={checking.checks} content={checking.content} onDecide={checking.decide} />}
+      <StringsProvider strings={strings}>
+        {state.status === "ready" ? (
+          <SiteFrames frames={frames} state={state} onCodeClient={onCodeClient}>
+            {children}
+          </SiteFrames>
+        ) : (
+          children
+        )}
+        {checking && <ChecksDialog checks={checking.checks} content={checking.content} onDecide={checking.decide} />}
+      </StringsProvider>
     </AdminContext.Provider>
   );
 }

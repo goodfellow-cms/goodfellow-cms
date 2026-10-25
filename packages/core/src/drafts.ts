@@ -51,6 +51,8 @@ export interface DraftHost {
   mergeBase(branch: string): Promise<string>;
   /** Opens a pull or merge request from `branch` to the live branch, or gives the open one. */
   openReview(options: { branch: string; title: string; description: string }): Promise<{ url: string }>;
+  /** The branches whose names start with `prefix`. */
+  listBranches(prefix: string): Promise<string[]>;
 }
 
 /** One draft. */
@@ -60,6 +62,8 @@ export interface Draft {
   readonly store: ContentStore;
   /** The draft's changes since it started: each file it changed, as it is in the draft. */
   changes(): Promise<FileChange[]>;
+  /** The paths of the files it changed, without reading them. */
+  paths(): Promise<string[]>;
   /**
    * Publishes the draft's changes to the live site in one save, then removes
    * the draft. Throws `ConflictError` if someone changed the same files on the
@@ -73,10 +77,19 @@ export interface Draft {
 }
 
 export interface SiteDrafts {
-  /** Starts a draft from the live site as it is now. */
-  create(name: string): Promise<Draft>;
+  /**
+   * Starts a draft from the live site as it is now, or as it was at `from`,
+   * such as the revision an editor loaded, so publishing it fails where
+   * someone else has changed the same files since.
+   */
+  create(name: string, options?: { from?: string }): Promise<Draft>;
   /** A draft started earlier. Throws `DraftError` (`not-found`) if there's none by that name. */
   open(name: string): Promise<Draft>;
+  /**
+   * The drafts there are, by name, newest first where names start with their
+   * date (`newDraftName()`), whoever started them: in the admin panel or from Claude.
+   */
+  list(): Promise<string[]>;
 }
 
 /** A name for a new draft: the date, then random letters, such as `20261014-k3x9qa`. */
@@ -97,12 +110,14 @@ export function branchDrafts(live: ContentStore, host: DraftHost): SiteDrafts {
   function draft(name: string, branch: string): Draft {
     const store = host.branchStore(branch);
 
-    async function changes(): Promise<FileChange[]> {
+    async function paths(): Promise<string[]> {
       const base = await host.mergeBase(branch);
-      const head = await store.revision();
-      const paths = await store.changedPaths(base, head);
+      return store.changedPaths(base, await store.revision());
+    }
+
+    async function changes(): Promise<FileChange[]> {
       const result: FileChange[] = [];
-      for (const path of paths) {
+      for (const path of await paths()) {
         if (path.startsWith(`${MEDIA_DIR}/`)) {
           const bytes = await store.readBytes(path);
           result.push(bytes ? { path, bytes } : { path, delete: true });
@@ -118,6 +133,7 @@ export function branchDrafts(live: ContentStore, host: DraftHost): SiteDrafts {
       name,
       store,
       changes,
+      paths,
       async publish(message) {
         const base = await host.mergeBase(branch);
         const changed = await changes();
@@ -138,9 +154,9 @@ export function branchDrafts(live: ContentStore, host: DraftHost): SiteDrafts {
   }
 
   return {
-    async create(name) {
+    async create(name, options) {
       const branch = checkName(name);
-      await host.createBranch(branch, await live.revision());
+      await host.createBranch(branch, options?.from ?? (await live.revision()));
       return draft(name, branch);
     },
     async open(name) {
@@ -148,6 +164,14 @@ export function branchDrafts(live: ContentStore, host: DraftHost): SiteDrafts {
       // Throws if there's no such branch.
       await host.mergeBase(branch);
       return draft(name, branch);
+    },
+    async list() {
+      const branches = await host.listBranches(DRAFT_BRANCH_PREFIX);
+      return branches
+        .map((branch) => branch.slice(DRAFT_BRANCH_PREFIX.length))
+        .filter(isDraftName)
+        .sort()
+        .reverse();
     },
   };
 }

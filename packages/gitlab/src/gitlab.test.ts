@@ -488,6 +488,18 @@ describe("drafts", () => {
     ]);
   });
 
+  it("lists the drafts there are, newest first, and the files each changed", async () => {
+    const { drafts, draft, fake } = await withDraft();
+    await drafts.create("20261015-def456");
+    fake.repo.branches.set("feature", fake.repo.head());
+    expect(await drafts.list()).toEqual(["20261015-def456", "20261014-abc123"]);
+    expect(await draft.paths()).toEqual([
+      "content/pages/about.json",
+      "content/pages/index.json",
+      "public/media/photo.jpg",
+    ]);
+  });
+
   it("publishes a draft in one commit, on top of other people's changes to other files, then removes it", async () => {
     const { fake, draft, drafts } = await withDraft();
     fake.repo.write("src/styles.css", "@import 'tailwindcss'; /* changed */");
