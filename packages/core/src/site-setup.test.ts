@@ -159,6 +159,32 @@ describe("planSite", () => {
     expect(planned.has("vercel.ts")).toBe(false);
   });
 
+  it("installs plugins as the admin panel would, listing them in a config that didn't", async () => {
+    const files = await planSite({
+      template: template(),
+      name: "my-parish",
+      versions: { "@goodfellow-cms/core": "1.2.3" },
+      plugins: [
+        {
+          name: "goodfellow-plugin-guestbook",
+          release: { version: "1.0.0", published: "", provenance: true, goodfellow: "^1.2.0" },
+          manifest: { version: 1, title: "Guestbook", permissions: { connect: ["https://guestbook.example.com"] } },
+        },
+      ],
+      today: "2026-10-25",
+    });
+    const text = (path: string) => siteFileText(files.get(path) ?? "");
+    expect(JSON.parse(text("package.json")).dependencies).toEqual({
+      "@goodfellow-cms/core": "^1.2.3",
+      "goodfellow-plugin-guestbook": "1.0.0",
+    });
+    expect(JSON.parse(text("plugins/installed/installed.json")).plugins["goodfellow-plugin-guestbook"].release).toBe(
+      "1.0.0",
+    );
+    expect(text("plugins/installed/index.ts")).toContain('import plugin0 from "goodfellow-plugin-guestbook";');
+    expect(text("goodfellow.config.tsx")).toContain("plugins: installedPlugins,");
+  });
+
   it("keeps every host's setup when none is chosen", async () => {
     const files = await planSite({ template: template(), name: "site", versions: { "@goodfellow-cms/core": "1.0.0" } });
     expect(files.has(".gitlab-ci.yml") && files.has("vercel.ts") && files.has(".github/workflows/deploy.yml")).toBe(

@@ -97,6 +97,8 @@ To keep the server's token away from the site's code, the content can be kept in
 
 [Plugins](/docs/plugins#on-full-stack-sites-servers) with a server module answer at `/api/goodfellow/plugins/<id>/`. Import each server module in the API route and pass it to `goodfellowApi()` as `plugins: { "goodfellow-plugin-gallery": galleryServer }`. They're answered for anyone, as webhooks need, and told who's signed in only for requests from the site's own pages. A server module runs with everything the server has, so add only plugins you'd trust with its token.
 
+Owners can choose plugins on the admin panel's Plugins screen too, but on a full-stack site installing, updating or removing one is submitted for review, as a pull request or merge request for a developer to accept, since the site's builds and server hold its secrets. Changes to `plugins/installed/` are refused from the admin panel otherwise. Once you've accepted one, add its server module to the API route if it has one.
+
 ## Safety
 
 - The API answers people who aren't signed in only with where to sign in. Every request must come from the site's own pages: it carries a header that browsers don't send to another site without asking it first, and requests that say they come from another site are refused.

@@ -3,15 +3,18 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fakePlugins, samplePluginFiles } from "@goodfellow-cms/core/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   commitAll,
   configureBackend,
   copyTemplate,
+  findPlugin,
   hostsFor,
   initGitRepository,
   packageName,
   parseRepo,
+  pluginAsks,
   remoteUrl,
   ScaffoldError,
   scaffold,
@@ -191,6 +194,41 @@ describe("scaffold", { timeout: GIT_TIMEOUT }, () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("installs plugins as the admin panel would, choosing a release a few days old", async () => {
+    const now = new Date("2026-10-25T12:00:00Z");
+    const fake = fakePlugins({
+      now,
+      plugins: [
+        {
+          name: "goodfellow-plugin-guestbook",
+          releases: [
+            { version: "1.0.0", age: 10, goodfellow: "^1.2.0", files: samplePluginFiles() },
+            { version: "1.1.0", age: 1, goodfellow: "^1.2.0", files: samplePluginFiles() },
+          ],
+        },
+      ],
+    });
+    const plugin = await findPlugin("goodfellow-plugin-guestbook", "1.2.3", { fetch: fake.fetch, now });
+    expect(plugin.release.version).toBe("1.0.0");
+    expect(pluginAsks(plugin)).toEqual([
+      "Reach these addresses from the admin panel: https://guestbook.example.com",
+      "Read and publish these files: content/guestbook.json",
+      "Run in the admin panel, in a frame of its own",
+    ]);
+    await expect(findPlugin("goodfellow-plugin-guestbook", "2.0.0", { fetch: fake.fetch, now })).rejects.toThrow(
+      "No version of goodfellow-plugin-guestbook says it works with Goodfellow 2.0.0.",
+    );
+    await expect(findPlugin("guestbook", "1.2.3", { fetch: fake.fetch, now })).rejects.toBeInstanceOf(ScaffoldError);
+
+    const target = join(dir, "site");
+    await scaffold({ template: starter, target, versions, plugins: [plugin] });
+    const pkg = JSON.parse(await readFile(join(target, "package.json"), "utf8"));
+    expect(pkg.dependencies["goodfellow-plugin-guestbook"]).toBe("1.0.0");
+    expect(await readFile(join(target, "plugins/installed/index.ts"), "utf8")).toContain(
+      'import plugin0 from "goodfellow-plugin-guestbook";',
+    );
   });
 
   it("won't write into a folder that already has files", async () => {

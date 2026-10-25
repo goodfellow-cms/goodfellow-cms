@@ -6,11 +6,19 @@ import {
   type BrokerHost,
   BUNDLED_NAMES,
   CONTENT_REPOSITORY_DIR,
+  chooseRelease,
+  fetchPluginPackage,
   GOODFELLOW_REGISTRY,
   type Host,
+  isPluginName,
   newSiteSource,
+  PackageError,
+  type PackageFetch,
+  type PluginPackage,
   planBroker,
   planSite,
+  pluginReleases,
+  RELEASE_AGE_DAYS,
   type SeparateContent,
   type SetupRegistry,
   type SiteFiles,
@@ -121,6 +129,8 @@ export interface ScaffoldOptions {
   content?: SeparateContent;
   /** An admin address of its own, such as `https://admin.example.org`, which the config names. */
   admin?: string;
+  /** Plugins to install, from `findPlugin()`. */
+  plugins?: PluginPackage[];
 }
 
 async function isEmptyFolder(path: string): Promise<boolean> {
@@ -197,6 +207,7 @@ export async function scaffold({
   registryDir,
   content,
   admin,
+  plugins,
 }: ScaffoldOptions): Promise<void> {
   if (!(await isEmptyFolder(target))) {
     throw new ScaffoldError(`The folder ${target} already has files in it. Choose a new folder for the site.`);
@@ -210,6 +221,7 @@ export async function scaffold({
     registry: registryDir ? localRegistry(registryDir) : undefined,
     content,
     ...(admin && { admin }),
+    ...(plugins?.length && { plugins }),
   });
   await mkdir(target, { recursive: true });
   for (const [path, file] of files) {
@@ -264,4 +276,51 @@ export async function scaffoldBroker({ release, target, backend, host, domain, n
 /** The content repository's folder, inside the site's. */
 export function contentRepositoryDir(target: string): string {
   return join(target, CONTENT_REPOSITORY_DIR);
+}
+
+/**
+ * A plugin's release to install on a new site, as the admin panel would
+ * choose it: the newest that's a few days old and says it works with the
+ * site's Goodfellow release, with what it asks to do.
+ */
+export async function findPlugin(
+  name: string,
+  goodfellow: string,
+  options: { fetch?: PackageFetch; now?: Date } = {},
+): Promise<PluginPackage> {
+  if (!isPluginName(name))
+    throw new ScaffoldError(`${name} isn't a plugin's name: plugins are called goodfellow-plugin-<name>.`);
+  try {
+    const choice = chooseRelease(await pluginReleases(name, options), goodfellow, options.now);
+    if (!choice.release) {
+      throw new ScaffoldError(
+        choice.waiting
+          ? `${name}'s versions are too new to install: versions can be installed once they're ${RELEASE_AGE_DAYS} days old.`
+          : `No version of ${name} says it works with Goodfellow ${goodfellow}.`,
+      );
+    }
+    return await fetchPluginPackage(name, choice.release, options);
+  } catch (error) {
+    if (error instanceof PackageError) throw new ScaffoldError(`${name} can't be installed: ${error.message}`);
+    throw error;
+  }
+}
+
+/** What a plugin asks to do, a line each, for the terminal. */
+export function pluginAsks(plugin: PluginPackage): string[] {
+  const { manifest } = plugin;
+  const { permissions } = manifest;
+  const list = (values: readonly string[] | undefined, words: string) =>
+    values?.length ? [`${words}: ${values.join(", ")}`] : [];
+  return [
+    ...list(permissions.connect, "Reach these addresses from the admin panel"),
+    ...list(permissions.files, "Read and publish these files"),
+    ...list(permissions.secrets, "Get these secrets when the site is built"),
+    ...list(permissions.read, "Read these parts of the site when it's built"),
+    ...list(permissions.write, "Write these parts of the built site"),
+    ...list(manifest.blocks, "Add these blocks"),
+    ...(manifest.admin ? ["Run in the admin panel, in a frame of its own"] : []),
+    ...(manifest.build?.length ? ["Run steps when the site is built"] : []),
+    ...(manifest.server ? ["Answer requests on the site's server, with everything the server can do"] : []),
+  ];
 }

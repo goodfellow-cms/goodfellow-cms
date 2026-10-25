@@ -8,9 +8,35 @@ order: 8.5
 
 Plugins add what blocks can't: code and screens in the admin panel, steps in the build, and routes on [full-stack Next.js sites](/docs/full-stack-nextjs)' servers, as well as blocks of their own. Each runs where Goodfellow can hold it to the permissions it declares, and the docs say plainly where it can't.
 
-Developers add plugins in the site's config. Installing them from the admin panel comes later; see the roadmap in the README.
+Owners install plugins from the admin panel's **Site Settings → Plugins**, where the admin panel is out of the site's pages' reach; developers add them in the site's config, on any site.
 
-## Add a plugin
+## Install a plugin from the admin panel
+
+**Site Settings → Plugins** finds plugins on npm. Choose one to see:
+
+- **Its release:** the newest that's at least three days old, since most harmful releases are found by then, and that says it works with the site's Goodfellow release (its `peerDependencies` range on `@goodfellow-cms/core`), with where npm says it was built from, if it has [provenance](https://docs.npmjs.com/generating-provenance-statements).
+- **What it asks to do:** the permissions and parts in its `goodfellow-plugin.json` (see [Publish a plugin](#publish-a-plugin)), in plain words. An update lists what it asks for that the installed release didn't.
+- **What its code does:** the admin panel reads the plugin's package, and the packages it needs at the releases the site's build would take, from jsDelivr, and notes network requests, other programs, code made from text (`eval`, `new Function`), native code and install scripts. It reads code as text, so code can hide what it does: it's a place to start reading, not a promise.
+
+**Install** publishes three changes in one: `package.json` names the plugin at that exact release, `plugins/installed/installed.json` records what was approved, and `plugins/installed/index.ts`, which the config imports, lists it. Sites made before the config imported it get the import in the same publish, and where the config lists plugins of its own, a developer adds `...installedPlugins` to them first.
+
+The site's build then writes `package-lock.json`, with `npm install --package-lock-only --ignore-scripts`: it installs nothing and runs none of the plugin's code, and takes only releases at least three days old for the packages the plugin needs. It publishes the lockfile, and builds the site with it. The starters' setups for GitHub Pages, GitLab Pages and Cloudflare Pages do this; the admin panel says when a site's setup doesn't, and installs nothing until a developer updates it from the starter's. Vercel builds sites itself, so on Vercel developers add plugins in code for now.
+
+A plugin that asks for more than its owner approved, in a later release or by changing what its package exports, stops the site from loading, and says what it asked for: install it again from the Plugins screen to approve it.
+
+### Where plugins can be installed
+
+A plugin's code is included when the site builds, so the admin panel installs plugins only where the site's own pages can't publish code:
+
+- **At an admin address of its own** ([Security](/docs/security)), where the Plugins screen asks before installing, outside the editor's sandbox.
+- **With a token broker** ([Security](/docs/security)), which asks again in its own dialog, naming the plugin and what it asks to do.
+- **On full-stack Next.js sites**, whose builds and servers hold the site's secrets, installing, updating or removing a plugin is submitted for review, for a developer to accept. Only owners can.
+
+Elsewhere the screen lists plugins and explains, and developers add them in code. Plugins whose blocks are on a page can't be removed until the page no longer uses them. The Updates screen warns when a Goodfellow release is outside an installed plugin's range; installing such a release fails, as npm refuses it, and the site stays as it was.
+
+New sites can start with plugins: `npm create goodfellow@latest my-site -- --plugin goodfellow-plugin-guestbook` installs the same way.
+
+## Add a plugin in code
 
 Install its package, then list it in `goodfellow.config.tsx`:
 
@@ -18,12 +44,15 @@ Install its package, then list it in `goodfellow.config.tsx`:
 import { blocks } from "@goodfellow-cms/blocks";
 import { defineConfig } from "@goodfellow-cms/core";
 import { gallery } from "goodfellow-plugin-gallery";
+import { installedPlugins } from "./plugins/installed";
 
 export default defineConfig({
   blocks: { ...blocks },
-  plugins: [gallery({ columns: 3 })],
+  plugins: [...installedPlugins, gallery({ columns: 3 })],
 });
 ```
+
+Keep `...installedPlugins` (from `./plugins/installed`), which lists those installed from the admin panel.
 
 `defineConfig()` adds the plugin's blocks to `blocks`, so the editor offers them and the site renders them. A site with a plugin named wrongly, or two blocks with the same name, doesn't load, and says why.
 
@@ -180,3 +209,15 @@ So read a plugin's code, or trust its publisher, before adding one whose server 
 ## Publish a plugin
 
 Publish it to npm as `goodfellow-plugin-<name>`, with the `goodfellow-plugin` keyword, and keep it in a repository of its own, called the same, with the `goodfellow-plugin` topic on GitHub or GitLab. Say which Goodfellow releases it works with as a `peerDependencies` range on `@goodfellow-cms/core`, and publish from GitHub Actions or GitLab CI with [npm's provenance](https://docs.npmjs.com/generating-provenance-statements).
+
+For owners to install it from the admin panel, its package's default export is the plugin itself (`export default definePlugin({ … })`, with no options to pass), and its root has a `goodfellow-plugin.json` saying what it does, which the admin panel shows before installing it. Write it with `pluginManifest()` from `@goodfellow-cms/core`, so it's always what the plugin declares:
+
+```js
+import { writeFileSync } from "node:fs";
+import { pluginManifest } from "@goodfellow-cms/core";
+import plugin from "./dist/index.js";
+
+writeFileSync("goodfellow-plugin.json", `${JSON.stringify(pluginManifest(plugin), null, 2)}\n`);
+```
+
+It lists the plugin's title, description and permissions, and whether it has blocks (by name), an admin module, screens, build steps and a server module. A site that installed a release runs it only while it asks for no more than that.

@@ -19,6 +19,8 @@ On your own computer, the admin panel saves straight to the files in `content/`.
 
 More blocks, such as an FAQ, tabs and a pricing table, can be added on the admin panel's **Blocks** screen, which publishes their code into `blocks/installed/` and the shadcn components they use into `components/ui/`. See [Add blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/add-blocks).
 
+Plugins installed from **Site Settings → Plugins** are listed in `plugins/installed/`, which `goodfellow.config.tsx` imports; the site's build writes `package-lock.json` for them. See [Plugins](https://goodfellow-cms.github.io/goodfellow-cms/docs/plugins).
+
 To add blocks of your own, write React components and add them to `blocks` in `goodfellow.config.tsx`. Parts that respond to visitors, such as a button that shows more, go in a file starting with `"use client"`, and only pages that use them load JavaScript: see [Interactive blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/interactive-blocks).
 
 The News page and its stories are an example of a collection: a group of similar items that share one page design. Change it or delete it under **Collections** in the admin panel.

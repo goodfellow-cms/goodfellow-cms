@@ -20,6 +20,7 @@ import {
   commitAll,
   contentBuildsFor,
   contentRepositoryDir,
+  findPlugin,
   type GitResult,
   HOSTS,
   type Host,
@@ -27,6 +28,7 @@ import {
   initGitRepository,
   installPackages,
   parseRepo,
+  pluginAsks,
   ScaffoldError,
   type SeparateContent,
   scaffold,
@@ -56,6 +58,8 @@ Options:
   --broker <host>     Also writes a sign-in page of its own, a token broker, into a folder beside
                       the site, for github-pages, gitlab-pages, cloudflare-pages or vercel
   --broker-domain <d> The sign-in page's own domain, such as signin.example.org (needed on GitHub Pages)
+  --plugin <name>     Installs a plugin, such as goodfellow-plugin-guestbook, as the admin panel's
+                      Plugins screen would. Give it once for each plugin
   --wordpress <from>  Brings a WordPress site's pages, posts, menus and media into the new site,
                       from its export file (Tools → Export) or its address
   --no-install        Don't run npm install
@@ -144,6 +148,7 @@ async function main(): Promise<void> {
       content: { type: "string" },
       build: { type: "string" },
       wordpress: { type: "string" },
+      plugin: { type: "string", multiple: true },
       admin: { type: "string" },
       broker: { type: "string" },
       "broker-domain": { type: "string" },
@@ -269,6 +274,15 @@ async function main(): Promise<void> {
 
   const target = resolve(folder);
   const versions = JSON.parse(readFileSync(join(templatesDir, "versions.json"), "utf8")) as Record<string, string>;
+  const plugins = [];
+  for (const name of values.plugin ?? []) {
+    const plugin = await findPlugin(name, versions["@goodfellow-cms/core"] ?? "");
+    stdout.write(
+      `Installing ${plugin.manifest.title} (${name} ${plugin.release.version}), whose code is included when the site is built. It asks to:\n`,
+    );
+    for (const line of pluginAsks(plugin)) stdout.write(`  - ${line}\n`);
+    plugins.push(plugin);
+  }
   await scaffold({
     template: join(templatesDir, template ?? "starter"),
     target,
@@ -278,6 +292,7 @@ async function main(): Promise<void> {
     ...((blocks ?? "recommended") === "recommended" && { registryDir: join(templatesDir, "registry") }),
     ...(content && { content }),
     ...(admin && { admin }),
+    ...(plugins.length > 0 && { plugins }),
   });
   const brokerTarget = broker && backend ? `${target}-signin` : undefined;
   if (brokerTarget && backend) {
