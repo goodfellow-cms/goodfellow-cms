@@ -404,6 +404,7 @@ export {
   FONT_CATEGORIES,
   type FontCategory,
   isLanguageCode,
+  isPartName,
   type LayoutFile,
   layoutFileSchema,
   type MenuItem,

@@ -1,8 +1,9 @@
-import { classNameField, useSite } from "@goodfellow-cms/react";
+import { classNameField, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import { LayoutLanguageList } from "./language-switch-client.js";
 import { LanguageList } from "./language-switch-view.js";
 import { options } from "./options.js";
+import { LANGUAGE_SWITCH_PARTS } from "./parts.js";
 
 export interface LanguageSwitchProps {
   display: "links" | "menu";
@@ -17,20 +18,23 @@ export interface LanguageSwitchProps {
  * except in a layout shared by every page, which only the browser knows the
  * current page of.
  */
-export const LanguageSwitch: ComponentConfig<LanguageSwitchProps> = {
-  label: "Language switch",
-  fields: {
-    display: {
-      type: "radio",
-      label: "Show as",
-      options: options({ links: "Links side by side", menu: "A menu that opens" }),
+export const LanguageSwitch: ComponentConfig<LanguageSwitchProps> = withParts(
+  {
+    label: "Language switch",
+    fields: {
+      display: {
+        type: "radio",
+        label: "Show as",
+        options: options({ links: "Links side by side", menu: "A menu that opens" }),
+      },
+      label: { type: "text", label: "Name, for screen readers" },
+      className: classNameField,
     },
-    label: { type: "text", label: "Name, for screen readers" },
-    className: classNameField,
+    defaultProps: { display: "links", label: "Languages", className: "" },
+    render: ({ puck, id: _id, ...props }) => <LanguageSwitchView {...props} isEditing={puck.isEditing} />,
   },
-  defaultProps: { display: "links", label: "Languages", className: "" },
-  render: ({ puck, id: _id, ...props }) => <LanguageSwitchView {...props} isEditing={puck.isEditing} />,
-};
+  LANGUAGE_SWITCH_PARTS,
+);
 
 function LanguageSwitchView({ isEditing, ...stored }: Omit<LanguageSwitchProps, "id"> & { isEditing: boolean }) {
   const { languages, languageMap, adminLink } = useSite();

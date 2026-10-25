@@ -24,7 +24,7 @@ import {
   todayIn,
   variantPath,
 } from "@goodfellow-cms/core";
-import { cx, type SiteContextValue, SiteLink, useSite } from "@goodfellow-cms/react";
+import { type SiteContextValue, SiteLink, useParts, useSite } from "@goodfellow-cms/react";
 import type { Fields } from "@puckeditor/core";
 import { options, yesNo } from "./options.js";
 
@@ -289,6 +289,7 @@ export function PagesNotice({ listing, props }: { listing: Listing; props: Parti
 
 /** Links to a list's pages for each choice, with "All" first. */
 export function ChoiceLinks({ listing, props: stored }: { listing: Listing; props: Partial<ListingProps> }) {
+  const part = useParts();
   const props = { ...listingDefaults, ...stored };
   const choices = props.choicePages ? choicePageList(listing.collection, props.choicePages) : [];
   if (!listing.linked || choices.length === 0) return null;
@@ -298,8 +299,10 @@ export function ChoiceLinks({ listing, props: stored }: { listing: Listing; prop
       <SiteLink
         href={href}
         aria-current={current ? (listing.page === 1 ? "page" : "true") : undefined}
-        className={cx(
+        className={part(
+          "gf-choice-link",
           "inline-flex rounded-full border border-border px-3 py-1 text-sm hover:bg-muted",
+          // The current choice stays marked whatever the theme gives choices.
           current && "border-primary bg-primary text-primary-foreground hover:bg-primary",
         )}
       >
@@ -308,7 +311,7 @@ export function ChoiceLinks({ listing, props: stored }: { listing: Listing; prop
     </li>
   );
   return (
-    <ul className="flex flex-wrap gap-2">
+    <ul className={part("gf-choices", "flex flex-wrap gap-2")}>
       {link(props.allLabel, listing.path, listing.choice === undefined)}
       {choices.map((choice) =>
         link(choice.label, listingPath(listing.path, props, choice), listing.choice === choice.value),
@@ -319,6 +322,7 @@ export function ChoiceLinks({ listing, props: stored }: { listing: Listing; prop
 
 /** Links to a list's other pages: previous, each page's number, and next. */
 export function PageLinks({ listing, props: stored }: { listing: Listing; props: Partial<ListingProps> }) {
+  const part = useParts();
   const props = { ...listingDefaults, ...stored };
   if (!listing.linked || listing.pages <= 1) return null;
   const choice = listing.choice
@@ -328,19 +332,27 @@ export function PageLinks({ listing, props: stored }: { listing: Listing; props:
   const numbers = Array.from({ length: listing.pages }, (_, index) => index + 1);
   const linkClass = "inline-flex min-w-9 justify-center rounded-md px-3 py-1.5 text-sm hover:bg-muted";
   return (
-    <nav aria-label={props.pagesLabel} className="flex flex-wrap items-center justify-center gap-1">
+    <nav
+      aria-label={props.pagesLabel}
+      className={part("gf-page-links", "flex flex-wrap items-center justify-center gap-1")}
+    >
       {listing.page > 1 && (
-        <SiteLink href={href(listing.page - 1)} rel="prev" className={linkClass}>
+        <SiteLink href={href(listing.page - 1)} rel="prev" className={part("gf-page-link", linkClass)}>
           ← {props.previousLabel}
         </SiteLink>
       )}
-      <ol className="flex flex-wrap gap-1">
+      <ol className={part("gf-page-numbers", "flex flex-wrap gap-1")}>
         {numbers.map((page) => (
           <li key={page}>
             <SiteLink
               href={href(page)}
               aria-current={page === listing.page ? "page" : undefined}
-              className={cx(linkClass, page === listing.page && "bg-primary text-primary-foreground hover:bg-primary")}
+              className={part(
+                "gf-page-link",
+                linkClass,
+                // The current page stays marked whatever the theme gives page links.
+                page === listing.page && "bg-primary text-primary-foreground hover:bg-primary",
+              )}
             >
               {page}
             </SiteLink>
@@ -348,7 +360,7 @@ export function PageLinks({ listing, props: stored }: { listing: Listing; props:
         ))}
       </ol>
       {listing.page < listing.pages && (
-        <SiteLink href={href(listing.page + 1)} rel="next" className={linkClass}>
+        <SiteLink href={href(listing.page + 1)} rel="next" className={part("gf-page-link", linkClass)}>
           {props.nextLabel} →
         </SiteLink>
       )}

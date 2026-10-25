@@ -8,10 +8,11 @@ import {
   youtubePlayerUrl,
   youtubeVideo,
 } from "@goodfellow-cms/core";
-import { classNameField, cx, mediaField, useSite } from "@goodfellow-cms/react";
+import { classNameField, cx, mediaField, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Fields } from "@puckeditor/core";
 import type { ReactNode } from "react";
 import { options, yesNo } from "./options.js";
+import { VIDEO_PARTS } from "./parts.js";
 
 type Source = "upload" | "youtube" | "vimeo" | "embed";
 type Shape = "auto" | "wide" | "landscape" | "square" | "tall";
@@ -108,7 +109,9 @@ function playerAddress(props: VideoProps, siteUrl: string | undefined): { url: s
 function VideoView({ isEditing, ...props }: VideoProps & { isEditing: boolean }) {
   const { settings, base } = useSite();
   const { source, shape, caption, rounded, className } = props;
-  const frame = cx("relative w-full overflow-hidden bg-muted", rounded && "rounded-lg");
+  const part = useParts();
+  // Square corners are a choice, so they win over a theme's rounded ones.
+  const corners = rounded ? "rounded-lg" : "rounded-none";
 
   let player: ReactNode;
   if (source === "upload") {
@@ -158,9 +161,20 @@ function VideoView({ isEditing, ...props }: VideoProps & { isEditing: boolean })
   }
 
   return (
-    <figure className={className || undefined}>
-      <div className={cx(frame, (source !== "upload" || shape !== "auto") && shapeClasses[shape])}>{player}</div>
-      {caption && <figcaption className="mt-2 text-sm text-muted-foreground">{caption}</figcaption>}
+    <figure className={part("gf-video", undefined, className)}>
+      <div
+        className={part(
+          "gf-video-player",
+          "relative w-full overflow-hidden bg-muted",
+          (source !== "upload" || shape !== "auto") && shapeClasses[shape],
+          corners,
+        )}
+      >
+        {player}
+      </div>
+      {caption && (
+        <figcaption className={part("gf-video-caption", "mt-2 text-sm text-muted-foreground")}>{caption}</figcaption>
+      )}
     </figure>
   );
 }
@@ -204,46 +218,49 @@ const videoFields: Fields<VideoProps> = {
 };
 
 /** A video: one uploaded to the media library, or from YouTube, Vimeo or another site's player. */
-export const Video: ComponentConfig<VideoProps> = {
-  label: "Video",
-  fields: videoFields,
-  defaultProps: {
-    source: "youtube",
-    file: "",
-    poster: "",
-    captions: "",
-    captionsLabel: "",
-    youtube: "",
-    vimeo: "",
-    embed: "",
-    title: "",
-    shape: "auto",
-    autoplay: false,
-    muted: false,
-    loop: false,
-    caption: "",
-    rounded: true,
-    className: "",
+export const Video: ComponentConfig<VideoProps> = withParts(
+  {
+    label: "Video",
+    fields: videoFields,
+    defaultProps: {
+      source: "youtube",
+      file: "",
+      poster: "",
+      captions: "",
+      captionsLabel: "",
+      youtube: "",
+      vimeo: "",
+      embed: "",
+      title: "",
+      shape: "auto",
+      autoplay: false,
+      muted: false,
+      loop: false,
+      caption: "",
+      rounded: true,
+      className: "",
+    },
+    resolveFields: ({ props }, { fields }) => {
+      const resolved: Partial<Fields<VideoProps>> = { ...fields };
+      const keep: Record<Source, Array<keyof VideoProps>> = {
+        upload: ["file", "poster", "captions", "captionsLabel"],
+        youtube: ["youtube"],
+        vimeo: ["vimeo"],
+        embed: ["embed"],
+      };
+      for (const [source, names] of Object.entries(keep) as Array<[Source, Array<keyof VideoProps>]>) {
+        if (source !== props.source) for (const name of names) delete resolved[name];
+      }
+      if (props.source === "upload" && !props.captions) delete resolved.captionsLabel;
+      // Other sites' players have their own settings, in their embed address.
+      if (props.source === "embed") {
+        delete resolved.autoplay;
+        delete resolved.muted;
+        delete resolved.loop;
+      }
+      return resolved as Fields<VideoProps>;
+    },
+    render: ({ puck, ...props }) => <VideoView {...props} isEditing={puck.isEditing} />,
   },
-  resolveFields: ({ props }, { fields }) => {
-    const resolved: Partial<Fields<VideoProps>> = { ...fields };
-    const keep: Record<Source, Array<keyof VideoProps>> = {
-      upload: ["file", "poster", "captions", "captionsLabel"],
-      youtube: ["youtube"],
-      vimeo: ["vimeo"],
-      embed: ["embed"],
-    };
-    for (const [source, names] of Object.entries(keep) as Array<[Source, Array<keyof VideoProps>]>) {
-      if (source !== props.source) for (const name of names) delete resolved[name];
-    }
-    if (props.source === "upload" && !props.captions) delete resolved.captionsLabel;
-    // Other sites' players have their own settings, in their embed address.
-    if (props.source === "embed") {
-      delete resolved.autoplay;
-      delete resolved.muted;
-      delete resolved.loop;
-    }
-    return resolved as Fields<VideoProps>;
-  },
-  render: ({ puck, ...props }) => <VideoView {...props} isEditing={puck.isEditing} />,
-};
+  VIDEO_PARTS,
+);

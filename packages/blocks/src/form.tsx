@@ -7,10 +7,11 @@ import {
   googleFormUrl,
   WEB3FORMS_SCRIPT,
 } from "@goodfellow-cms/core";
-import { type AdminPlace, classNameField, cx, useSite } from "@goodfellow-cms/react";
+import { type AdminPlace, classNameField, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Fields } from "@puckeditor/core";
 import type { ReactNode } from "react";
 import { options, yesNo } from "./options.js";
+import { FORM_PARTS } from "./parts.js";
 
 type Source = "fields" | "google";
 
@@ -141,12 +142,13 @@ export function choicesOf(field: FormField): string[] {
   ];
 }
 
-const inputClass =
+const INPUT_CLASSES =
   "block w-full rounded-md border border-border bg-background px-3 py-2 text-foreground focus:outline-2 focus:outline-offset-1 focus:outline-primary";
 
 function Required() {
+  const part = useParts();
   return (
-    <span aria-hidden="true" className="text-muted-foreground">
+    <span aria-hidden="true" className={part("gf-form-required", "text-muted-foreground")}>
       {" "}
       *
     </span>
@@ -154,9 +156,13 @@ function Required() {
 }
 
 function Question({ field, name, id }: { field: FormField; name: string; id: string }) {
+  const part = useParts();
+  const inputClass = part("gf-form-input", INPUT_CLASSES);
+  const choiceClass = part("gf-form-choice", "flex items-start gap-2");
+  const checkClass = part("gf-form-check", "mt-1 size-4 accent-primary");
   const hintId = field.hint ? `${id}-hint` : undefined;
   const hint = field.hint && (
-    <p id={hintId} className="text-sm text-muted-foreground">
+    <p id={hintId} className={part("gf-form-hint", "text-sm text-muted-foreground")}>
       {field.hint}
     </p>
   );
@@ -165,15 +171,15 @@ function Question({ field, name, id }: { field: FormField; name: string; id: str
 
   if (field.type === "checkbox") {
     return (
-      <div className="space-y-1">
-        <label className="flex items-start gap-2">
+      <div className={part("gf-form-question", "space-y-1")}>
+        <label className={choiceClass}>
           <input
             type="checkbox"
             name={name}
             value="Yes"
             required={field.required}
             aria-describedby={hintId}
-            className="mt-1 size-4 accent-primary"
+            className={checkClass}
           />
           <span>
             {label}
@@ -187,28 +193,22 @@ function Question({ field, name, id }: { field: FormField; name: string; id: str
 
   if (field.type === "radio" || field.type === "checkboxes") {
     return (
-      <fieldset className="space-y-2" aria-describedby={hintId}>
-        <legend className="font-medium">
+      <fieldset className={part("gf-form-question", "space-y-2")} aria-describedby={hintId}>
+        <legend className={part("gf-form-label", "font-medium")}>
           {label}
           {field.required && field.type === "radio" && <Required />}
         </legend>
         {hint}
         {choices.map((choice) =>
           field.type === "radio" ? (
-            <label key={choice} className="flex items-start gap-2">
-              <input
-                type="radio"
-                name={name}
-                value={choice}
-                required={field.required}
-                className="mt-1 size-4 accent-primary"
-              />
+            <label key={choice} className={choiceClass}>
+              <input type="radio" name={name} value={choice} required={field.required} className={checkClass} />
               <span>{choice}</span>
             </label>
           ) : (
-            <label key={choice} className="flex items-start gap-2">
+            <label key={choice} className={choiceClass}>
               {/* Each choice is its own answer, which every service shows the same way. */}
-              <input type="checkbox" name={`${name}: ${choice}`} value="Yes" className="mt-1 size-4 accent-primary" />
+              <input type="checkbox" name={`${name}: ${choice}`} value="Yes" className={checkClass} />
               <span>{choice}</span>
             </label>
           ),
@@ -264,8 +264,8 @@ function Question({ field, name, id }: { field: FormField; name: string; id: str
   }
 
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="block font-medium">
+    <div className={part("gf-form-question", "space-y-1.5")}>
+      <label htmlFor={id} className={part("gf-form-label", "block font-medium")}>
         {label}
         {field.required && <Required />}
       </label>
@@ -319,6 +319,7 @@ function thankYouNotice(target: FormTarget, thankYou: string, siteUrl: string | 
 
 function FormView({ isEditing, id, ...stored }: FormProps & { isEditing: boolean; id: string }) {
   const { settings, adminLink } = useSite();
+  const part = useParts();
   // Stored props can leave settings out, such as an AI assistant's answer.
   const given = Object.fromEntries(Object.entries(stored).filter(([, value]) => value !== undefined));
   const props = { ...Form.defaultProps, ...given, fields: stored.fields ?? [] } as FormProps;
@@ -329,7 +330,7 @@ function FormView({ isEditing, id, ...stored }: FormProps & { isEditing: boolean
     if ("problem" in form) return isEditing ? <Notice>{googleProblems[form.problem]}</Notice> : null;
     return (
       <iframe
-        className={cx("block w-full rounded-lg border-0", className)}
+        className={part("gf-form-embed", "block w-full rounded-lg border-0", className)}
         style={{ height: form.height ?? props.height }}
         src={form.url}
         title={props.title || "Form"}
@@ -358,7 +359,7 @@ function FormView({ isEditing, id, ...stored }: FormProps & { isEditing: boolean
   ].filter((notice): notice is FormNotice => notice !== undefined);
 
   return (
-    <div className={cx("w-full max-w-xl space-y-4", className)}>
+    <div className={part("gf-form", "w-full max-w-xl space-y-4", className)}>
       {isEditing &&
         notices.map((notice) => {
           // In the editor, a note links to where it's fixed.
@@ -376,7 +377,7 @@ function FormView({ isEditing, id, ...stored }: FormProps & { isEditing: boolean
           );
         })}
       <form
-        className="space-y-5"
+        className={part("gf-form-questions", "space-y-5")}
         {...(onSite && "action" in target
           ? { action: target.action, method: "post" }
           : { onSubmit: (event: { preventDefault(): void }) => event.preventDefault() })}
@@ -410,7 +411,10 @@ function FormView({ isEditing, id, ...stored }: FormProps & { isEditing: boolean
           ))}
         <button
           type="submit"
-          className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-5 font-medium text-primary-foreground transition hover:opacity-90"
+          className={part(
+            "gf-form-submit",
+            "inline-flex h-10 items-center justify-center rounded-md bg-primary px-5 font-medium text-primary-foreground transition hover:opacity-90",
+          )}
         >
           {props.submitLabel || "Send"}
         </button>
@@ -456,38 +460,41 @@ const formFields: Fields<FormProps> = {
  * A form. Its answers go to the form service chosen in Site Settings, by a
  * plain form post, so it works without JavaScript; or a Google form.
  */
-export const Form: ComponentConfig<FormProps> = {
-  label: "Form",
-  fields: formFields,
-  defaultProps: {
-    source: "fields",
-    title: "Contact form",
-    fields: [
-      { label: "Name", type: "text", required: true, choices: "", hint: "" },
-      { label: "Email", type: "email", required: true, choices: "", hint: "" },
-      { label: "Message", type: "textarea", required: true, choices: "", hint: "" },
-    ],
-    submitLabel: "Send",
-    thankYou: "",
-    google: "",
-    height: 800,
-    className: "",
+export const Form: ComponentConfig<FormProps> = withParts(
+  {
+    label: "Form",
+    fields: formFields,
+    defaultProps: {
+      source: "fields",
+      title: "Contact form",
+      fields: [
+        { label: "Name", type: "text", required: true, choices: "", hint: "" },
+        { label: "Email", type: "email", required: true, choices: "", hint: "" },
+        { label: "Message", type: "textarea", required: true, choices: "", hint: "" },
+      ],
+      submitLabel: "Send",
+      thankYou: "",
+      google: "",
+      height: 800,
+      className: "",
+    },
+    resolveFields: ({ props }, { fields }) => {
+      const resolved: Partial<Fields<FormProps>> = { ...fields };
+      if (props.source === "google") {
+        delete resolved.fields;
+        delete resolved.submitLabel;
+        delete resolved.thankYou;
+        resolved.title = { type: "text", label: "The form's name, for screen readers" };
+        // The embed code says how tall the form is.
+        const form = googleFormUrl(props.google ?? "");
+        if ("height" in form && form.height) delete resolved.height;
+      } else {
+        delete resolved.google;
+        delete resolved.height;
+      }
+      return resolved as Fields<FormProps>;
+    },
+    render: ({ puck, id, ...props }) => <FormView {...props} id={id} isEditing={puck.isEditing} />,
   },
-  resolveFields: ({ props }, { fields }) => {
-    const resolved: Partial<Fields<FormProps>> = { ...fields };
-    if (props.source === "google") {
-      delete resolved.fields;
-      delete resolved.submitLabel;
-      delete resolved.thankYou;
-      resolved.title = { type: "text", label: "The form's name, for screen readers" };
-      // The embed code says how tall the form is.
-      const form = googleFormUrl(props.google ?? "");
-      if ("height" in form && form.height) delete resolved.height;
-    } else {
-      delete resolved.google;
-      delete resolved.height;
-    }
-    return resolved as Fields<FormProps>;
-  },
-  render: ({ puck, id, ...props }) => <FormView {...props} id={id} isEditing={puck.isEditing} />,
-};
+  FORM_PARTS,
+);

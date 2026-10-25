@@ -166,7 +166,7 @@ describe("Calendar", () => {
   it("keeps the month's name in the middle, with or without links beside it", async () => {
     const html = await render([calendar({ view: "month", monthsBefore: 0, monthsAfter: 1 })]);
     expect(html).toContain(
-      '<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-4"><span></span><h2 class="text-center',
+      '<div class="gf-calendar-month-header grid grid-cols-[1fr_auto_1fr] items-center gap-4"><span></span><h2 class="gf-calendar-month-title text-center',
     );
   });
 

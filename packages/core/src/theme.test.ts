@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { colorSchemeScript } from "./color-scheme.js";
-import { siteSettingsSchema } from "./content/schemas.js";
+import { isPartName, siteSettingsSchema } from "./content/schemas.js";
 import {
   codeStyle,
   colorSchemeMeta,
@@ -136,5 +136,29 @@ describe("escapeStyleText", () => {
     const escaped = escapeStyleText("a{} </style><script>alert(1)</script> </STYLE> <!--");
     expect(escaped).not.toMatch(/<\/style/i);
     expect(escaped).not.toContain("<!--");
+  });
+});
+
+describe("blocks' parts", () => {
+  it("names parts gf- and lowercase words", () => {
+    expect(isPartName("gf-card-title")).toBe(true);
+    expect(isPartName("gf-code")).toBe(true);
+    expect(isPartName("card-title")).toBe(false);
+    expect(isPartName("gf-card--title")).toBe(false);
+    expect(isPartName("gf-")).toBe(false);
+  });
+
+  it("keeps classes for parts by name", () => {
+    expect(theme({ parts: { "gf-card-title": "text-xl", "gf-heading": "tracking-tight" } }).parts).toEqual({
+      "gf-card-title": "text-xl",
+      "gf-heading": "tracking-tight",
+    });
+  });
+
+  it("refuses names that aren't parts' and classes that could close an attribute or tag", () => {
+    expect(() => theme({ parts: { heading: "text-xl" } })).toThrow(/part's name/);
+    expect(() => theme({ parts: { "gf-Heading": "text-xl" } })).toThrow(/part's name/);
+    expect(() => theme({ parts: { "gf-heading": "text-xl<script>" } })).toThrow(/CSS classes/);
+    expect(() => theme({ parts: { "gf-heading": "text-xl\nfoo" } })).toThrow(/CSS classes/);
   });
 });

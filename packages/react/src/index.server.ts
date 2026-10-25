@@ -24,6 +24,8 @@ export {
   type PageHeaderProps,
   siteMetadata,
 } from "./page-body.server.js";
+export { useParts } from "./parts.server.js";
+export { type ClassValue, type PartClasses, partClasses } from "./parts-shared.js";
 export {
   applyPageEntry,
   createPuckConfigs,
@@ -36,6 +38,8 @@ export {
 } from "./prepare.js";
 export {
   adminSite,
+  type BlockParts,
+  blockParts,
   classNameField,
   createPuckConfig,
   describeSite,
@@ -46,6 +50,7 @@ export {
   type PuckConfigKind,
   templateOnly,
   withClassName,
+  withParts,
 } from "./puck-config.js";
 export { CurrentPathProvider, useCurrentPath } from "./site-context.js";
 export { type SiteContextValue, SiteProvider, useSite } from "./site-context.server.js";

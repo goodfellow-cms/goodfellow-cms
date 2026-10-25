@@ -41,6 +41,22 @@ export type FontCategory = (typeof FONT_CATEGORIES)[number];
 /** A CSS length, such as `0.5rem` or `0`. */
 const cssLength = z.string().regex(/^\d*\.?\d+(px|rem|em)?$/, "must be a size, such as 0.5rem or 8px");
 
+/** A block's part's name, such as `gf-heading` or `gf-card-title`, which blocks put on that part. */
+const PART_NAME = /^gf-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Whether text is a part's name, such as `gf-card-title`. */
+export function isPartName(name: string): boolean {
+  return PART_NAME.test(name);
+}
+
+const partName = z.string().regex(PART_NAME, "must be a part's name, such as gf-card-title");
+
+/** Classes for a part, such as `rounded-xl shadow-sm`: Tailwind's, or the site's own from its custom CSS. */
+const partClasses = z
+  .string()
+  .max(1000)
+  .regex(/^[^<>\p{Cc}]*$/u, "must be CSS classes, such as rounded-xl shadow-sm");
+
 const themeSchema = z.object({
   colors: z.partialRecord(z.enum(THEME_COLORS), cssColor).default({}),
   /**
@@ -73,6 +89,12 @@ const themeSchema = z.object({
       background: z.enum(["theme", "site"]).optional(),
     })
     .optional(),
+  /**
+   * Classes for blocks' named parts (`gf-heading`, `gf-card-title`, …), which
+   * come after a block's own and before what editors choose, so the site's
+   * look can change every block of a kind at once.
+   */
+  parts: z.record(partName, partClasses).optional(),
 });
 
 /**

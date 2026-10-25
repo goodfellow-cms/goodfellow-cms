@@ -1,6 +1,7 @@
-import { classNameField, cx, useSite } from "@goodfellow-cms/react";
+import { classNameField, cx, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import { options, yesNo } from "./options.js";
+import { CONTACT_PARTS } from "./parts.js";
 
 export interface ContactDetailsProps {
   address: boolean;
@@ -25,20 +26,21 @@ function ContactDetailsView({
   isEditing,
 }: ContactDetailsProps & { isEditing: boolean }) {
   const { settings, adminLink } = useSite();
+  const part = useParts();
   const contact = settings.contact ?? {};
   const items = [
     address && contact.address && (
-      <address key="address" className="whitespace-pre-line not-italic">
+      <address key="address" className={part("gf-contact-address", "whitespace-pre-line not-italic")}>
         {contact.address}
       </address>
     ),
     phone && contact.phone && (
-      <a key="phone" href={phoneHref(contact.phone)} className="hover:underline">
+      <a key="phone" href={phoneHref(contact.phone)} className={part("gf-contact-phone", "hover:underline")}>
         {contact.phone}
       </a>
     ),
     email && contact.email && (
-      <a key="email" href={`mailto:${contact.email}`} className="hover:underline">
+      <a key="email" href={`mailto:${contact.email}`} className={part("gf-contact-email", "hover:underline")}>
         {contact.email}
       </a>
     ),
@@ -59,21 +61,31 @@ function ContactDetailsView({
   }
 
   return (
-    <div className={cx("flex", layout === "inline" ? "flex-wrap gap-x-6 gap-y-2" : "flex-col gap-2", className)}>
+    <div
+      className={part(
+        "gf-contact",
+        "flex",
+        layout === "inline" ? "flex-wrap gap-x-6 gap-y-2" : "flex-col gap-2",
+        className,
+      )}
+    >
       {items}
     </div>
   );
 }
 
-export const ContactDetails: ComponentConfig<ContactDetailsProps> = {
-  label: "Contact details",
-  fields: {
-    address: { type: "radio", label: "Show the address", options: yesNo },
-    phone: { type: "radio", label: "Show the phone number", options: yesNo },
-    email: { type: "radio", label: "Show the email address", options: yesNo },
-    layout: { type: "radio", label: "Layout", options: options({ stacked: "Down", inline: "Across" }) },
-    className: classNameField,
+export const ContactDetails: ComponentConfig<ContactDetailsProps> = withParts(
+  {
+    label: "Contact details",
+    fields: {
+      address: { type: "radio", label: "Show the address", options: yesNo },
+      phone: { type: "radio", label: "Show the phone number", options: yesNo },
+      email: { type: "radio", label: "Show the email address", options: yesNo },
+      layout: { type: "radio", label: "Layout", options: options({ stacked: "Down", inline: "Across" }) },
+      className: classNameField,
+    },
+    defaultProps: { address: true, phone: true, email: true, layout: "stacked", className: "" },
+    render: ({ puck, ...props }) => <ContactDetailsView {...props} isEditing={puck.isEditing} />,
   },
-  defaultProps: { address: true, phone: true, email: true, layout: "stacked", className: "" },
-  render: ({ puck, ...props }) => <ContactDetailsView {...props} isEditing={puck.isEditing} />,
-};
+  CONTACT_PARTS,
+);

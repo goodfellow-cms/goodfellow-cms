@@ -95,6 +95,25 @@ export function isTemplateOnly(component: AnyComponentConfig): boolean {
   return TEMPLATE_ONLY in component;
 }
 
+const PARTS = Symbol.for("goodfellow.parts");
+
+/** A block's named parts (`gf-card-title`), each with what owners call it ("Card's title"). */
+export type BlockParts = Readonly<Record<string, string>>;
+
+/**
+ * Says which named parts a block renders (see `useParts()`), so the admin
+ * panel can offer them to themes and owners. Part names are part of a site's
+ * look, like props are of its content: never rename or remove one.
+ */
+export function withParts<T extends object>(component: T, parts: BlockParts): T {
+  return Object.assign(component, { [PARTS]: parts });
+}
+
+/** The named parts a block renders, from `withParts()`. */
+export function blockParts(component: object): BlockParts | undefined {
+  return (component as { [PARTS]?: BlockParts })[PARTS];
+}
+
 /** Pages; the header and footer; or a collection's template, which is a page that can also show the entry's fields. */
 export type PuckConfigKind = "page" | "layout" | "template";
 
@@ -155,6 +174,7 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
             fields: asJson(component.fields),
             ...(component.defaultProps && { defaultProps: asJson(component.defaultProps) }),
             ...(block && isTemplateOnly(block) && { templateOnly: true }),
+            ...(block && blockParts(block) && { parts: { ...blockParts(block) } }),
           },
         ];
       }),

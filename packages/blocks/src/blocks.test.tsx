@@ -7,8 +7,9 @@ import {
   type SiteContent,
   siteSettingsSchema,
 } from "@goodfellow-cms/core";
-import { createPuckConfig } from "@goodfellow-cms/react";
+import { createPuckConfig, SiteProvider } from "@goodfellow-cms/react";
 import { createPageRenderer } from "@goodfellow-cms/react/server";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CODE_THEME_LOADERS } from "./highlight.js";
 import { blocks, categories, listedEntries } from "./index.js";
@@ -129,9 +130,9 @@ describe("built-in blocks", () => {
       },
     ]);
 
-    expect(html).toContain('<section class="py-20 bg-primary text-primary-foreground hero">');
-    expect(html).toContain('class="mx-auto px-4 max-w-2xl"');
-    expect(html).toContain('class="grid grid-cols-1 md:grid-cols-3 gap-3"');
+    expect(html).toContain('<section class="gf-section py-20 bg-primary text-primary-foreground hero">');
+    expect(html).toContain('class="gf-section-content mx-auto px-4 max-w-2xl"');
+    expect(html).toContain('class="gf-columns grid grid-cols-1 md:grid-cols-3 gap-3"');
     expect(html).toMatch(/<h1 class="[^"]*text-center text-red-500">Hi<\/h1>/);
     expect(html).not.toContain('<div class="hero"');
   });
@@ -140,7 +141,7 @@ describe("built-in blocks", () => {
     const html = await render([
       { type: "Menu", props: { id: "m", menu: "main", orientation: "horizontal", className: "" } },
     ]);
-    expect(html).toContain('<nav aria-label="main" data-gf-menu="">');
+    expect(html).toContain('<nav aria-label="main" class="gf-menu" data-gf-menu="">');
     // The current page's section, and the page itself, which is the current one.
     expect(html).toMatch(/href="\/about" class="[^"]*data-current:font-semibold" data-current="">/);
     expect(html).toMatch(/href="\/about\/staff" class="[^"]*" data-current="" aria-current="page">/);
@@ -158,7 +159,7 @@ describe("built-in blocks", () => {
     const html = await render([{ type: "SiteBrand", props: { id: "b", show: "both", className: "" } }]);
     // Beside the name, the logo is only decoration.
     expect(html).toContain(
-      '<img src="/media/logo.svg" alt="" aria-hidden="true" class="h-10 w-auto"/><span>St. Joseph</span>',
+      '<img src="/media/logo.svg" alt="" aria-hidden="true" class="gf-site-brand-logo h-10 w-auto"/><span class="gf-site-brand-name">St. Joseph</span>',
     );
   });
 
@@ -172,8 +173,12 @@ describe("built-in blocks", () => {
       expect(await render(brand)).not.toContain("logo-light.svg");
       content.settings = { ...saved, logo, theme: { ...saved.theme, darkMode: true } };
       const html = await render(brand);
-      expect(html).toContain('<img src="/media/logo.svg" alt="Logo" class="h-10 w-auto dark:hidden"/>');
-      expect(html).toContain('<img src="/media/logo-light.svg" alt="Logo" class="hidden h-10 w-auto dark:block"/>');
+      expect(html).toContain(
+        '<img src="/media/logo.svg" alt="Logo" class="gf-site-brand-logo h-10 w-auto dark:hidden"/>',
+      );
+      expect(html).toContain(
+        '<img src="/media/logo-light.svg" alt="Logo" class="gf-site-brand-logo h-10 w-auto hidden dark:block"/>',
+      );
     } finally {
       content.settings = saved;
     }
@@ -235,7 +240,9 @@ describe("built-in blocks", () => {
           props: { id: "c", address: true, phone: true, email: false, layout: "stacked", className: "" },
         },
       ]);
-      expect(html).toContain('<address class="whitespace-pre-line not-italic">1 Church Street\nAnytown</address>');
+      expect(html).toContain(
+        '<address class="gf-contact-address whitespace-pre-line not-italic">1 Church Street\nAnytown</address>',
+      );
       expect(html).toContain('href="tel:5550100100"');
       expect(html).not.toContain("office@example.org");
     } finally {
@@ -301,13 +308,15 @@ describe("built-in blocks", () => {
         },
       },
     ]);
-    expect(html).toContain('<ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">');
+    expect(html).toContain('<ul class="gf-collection-list-items grid gap-6 sm:grid-cols-2 lg:grid-cols-3">');
     expect(html.indexOf("Parish picnic")).toBeLessThan(html.indexOf("Fish fry"));
     expect(html).not.toContain("Undated");
     expect(html).toContain(
-      '<img src="/media/picnic.jpg" alt="" aria-hidden="true" loading="lazy" class="aspect-video w-full object-cover"/>',
+      '<img src="/media/picnic.jpg" alt="" aria-hidden="true" loading="lazy" class="gf-card-image aspect-video w-full object-cover"/>',
     );
-    expect(html).toContain('<time dateTime="2026-07-12" class="text-sm text-muted-foreground">July 12, 2026</time>');
+    expect(html).toContain(
+      '<time dateTime="2026-07-12" class="gf-card-date text-sm text-muted-foreground">July 12, 2026</time>',
+    );
     expect(html).toContain(
       '<a href="/events/picnic" class="after:absolute after:inset-0 hover:underline">Parish picnic</a>',
     );
@@ -335,7 +344,7 @@ describe("built-in blocks", () => {
       },
     ]);
     // Every event in the fixture is in the past.
-    expect(html).toContain('<p class="text-muted-foreground">No events planned</p>');
+    expect(html).toContain('<p class="gf-collection-list-empty text-muted-foreground">No events planned</p>');
   });
 
   it("filters and orders entries by date", () => {
@@ -363,13 +372,15 @@ describe("built-in blocks", () => {
       entry: { collection: "events", slug: "picnic" },
     });
     const main = html.slice(html.indexOf("<main"), html.indexOf("</main>"));
-    expect(main).toMatch(/<h1 class="text-4xl[^"]*">Parish picnic<\/h1>/);
+    expect(main).toMatch(/<h1 class="gf-entry-field text-4xl[^"]*">Parish picnic<\/h1>/);
     expect(main).toContain(
-      '<p class="text-sm text-muted-foreground"><time dateTime="2026-07-12">July 12, 2026</time></p>',
+      '<p class="gf-entry-field text-sm text-muted-foreground"><time dateTime="2026-07-12">July 12, 2026</time></p>',
     );
     expect(main).toContain("Join us");
     expect(main).not.toContain("<script");
-    expect(main).toContain('<img src="/media/picnic.jpg" alt="Parish picnic" class="w-full rounded-lg"/>');
+    expect(main).toContain(
+      '<img src="/media/picnic.jpg" alt="Parish picnic" class="gf-entry-field w-full rounded-lg"/>',
+    );
   });
 
   it("highlights code when the page is built, escaping it", async () => {
@@ -568,17 +579,28 @@ describe("built-in blocks", () => {
 
 describe("Search", () => {
   it("gives its box only its text, never Puck's functions, which Next.js can't send to the browser", () => {
-    const element = blocks.Search.render({
-      id: "Search-1",
-      className: "",
-      label: "Search the site",
-      placeholder: "Search",
-      noResults: "Nothing matches “{query}”.",
-      unavailable: "Search works on the published site.",
-      puck: { isEditing: false, renderDropZone: () => null, dragRef: null, metadata: {} },
-      editMode: false,
-    } as never) as { props: { children: { props: Record<string, unknown> } } };
-    expect(element.props.children.props).toEqual({
+    let element: { props: { children: { props: Record<string, unknown> } } } | undefined;
+    // Rendered inside a site, as Puck renders blocks, keeping what the block gives its box.
+    function Capture() {
+      element = blocks.Search.render({
+        id: "Search-1",
+        className: "",
+        label: "Search the site",
+        placeholder: "Search",
+        noResults: "Nothing matches “{query}”.",
+        unavailable: "Search works on the published site.",
+        puck: { isEditing: false, renderDropZone: () => null, dragRef: null, metadata: {} },
+        editMode: false,
+      } as never) as typeof element;
+      return null;
+    }
+    const settings = siteSettingsSchema.parse({ version: 1, title: "Test" });
+    renderToStaticMarkup(
+      <SiteProvider value={{ settings, menus: {}, path: "/", collections: [] }}>
+        <Capture />
+      </SiteProvider>,
+    );
+    expect(element?.props.children.props).toEqual({
       label: "Search the site",
       placeholder: "Search",
       noResults: "Nothing matches “{query}”.",

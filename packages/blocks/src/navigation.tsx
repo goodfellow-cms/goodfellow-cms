@@ -1,6 +1,7 @@
-import { classNameField, cx, SiteImage, SiteLink, useSite } from "@goodfellow-cms/react";
+import { classNameField, SiteImage, SiteLink, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import { options } from "./options.js";
+import { MENU_PARTS, SITE_BRAND_PARTS } from "./parts.js";
 
 export interface MenuProps {
   menu: string;
@@ -21,18 +22,21 @@ function isCurrent(href: string, path: string): boolean {
  */
 function MenuView({ menu, orientation, className }: MenuProps) {
   const { menus, path } = useSite();
+  const part = useParts();
   const items = menus[menu] ?? [];
   if (items.length === 0) return null;
 
   const vertical = orientation === "vertical";
-  const linkClass =
-    "block rounded-md px-3 py-2 hover:bg-accent hover:text-accent-foreground data-current:font-semibold";
+  const linkClass = part(
+    "gf-menu-link",
+    "block rounded-md px-3 py-2 hover:bg-accent hover:text-accent-foreground data-current:font-semibold",
+  );
 
   return (
-    <nav aria-label={menu} className={className || undefined} data-gf-menu="">
-      <ul className={cx("flex", vertical ? "flex-col gap-1" : "flex-wrap items-center gap-1")}>
+    <nav aria-label={menu} className={part("gf-menu", undefined, className)} data-gf-menu="">
+      <ul className={part("gf-menu-list", "flex gap-1", vertical ? "flex-col" : "flex-wrap items-center")}>
         {items.map((item) => (
-          <li key={`${item.label}-${item.href}`} className="group relative">
+          <li key={`${item.label}-${item.href}`} className={part("gf-menu-item", "group relative")}>
             <SiteLink
               href={item.href}
               className={linkClass}
@@ -43,14 +47,15 @@ function MenuView({ menu, orientation, className }: MenuProps) {
             </SiteLink>
             {item.children && item.children.length > 0 && (
               <ul
-                className={cx(
+                className={part(
+                  "gf-menu-submenu",
                   vertical
                     ? "ml-4 flex flex-col"
                     : "invisible absolute left-0 top-full z-10 min-w-48 rounded-md border bg-background p-1 opacity-0 shadow-md transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100",
                 )}
               >
                 {item.children.map((child) => (
-                  <li key={`${child.label}-${child.href}`}>
+                  <li key={`${child.label}-${child.href}`} className={part("gf-menu-item")}>
                     <SiteLink
                       href={child.href}
                       className={linkClass}
@@ -70,16 +75,19 @@ function MenuView({ menu, orientation, className }: MenuProps) {
   );
 }
 
-export const Menu: ComponentConfig<MenuProps> = {
-  label: "Menu",
-  fields: {
-    menu: { type: "text", label: "Menu name" },
-    orientation: { type: "radio", label: "Layout", options: options({ horizontal: "Across", vertical: "Down" }) },
-    className: classNameField,
+export const Menu: ComponentConfig<MenuProps> = withParts(
+  {
+    label: "Menu",
+    fields: {
+      menu: { type: "text", label: "Menu name" },
+      orientation: { type: "radio", label: "Layout", options: options({ horizontal: "Across", vertical: "Down" }) },
+      className: classNameField,
+    },
+    defaultProps: { menu: "main", orientation: "horizontal", className: "" },
+    render: (props) => <MenuView {...props} />,
   },
-  defaultProps: { menu: "main", orientation: "horizontal", className: "" },
-  render: (props) => <MenuView {...props} />,
-};
+  MENU_PARTS,
+);
 
 export interface SiteBrandProps {
   show: "both" | "logo" | "title";
@@ -89,6 +97,7 @@ export interface SiteBrandProps {
 /** The site's logo and/or title (from Site Settings), linking to the home page. */
 function SiteBrandView({ show, className }: SiteBrandProps) {
   const { settings, home = "/" } = useSite();
+  const part = useParts();
   const logo = show !== "title" ? settings.logo : undefined;
   const showTitle = show !== "logo" || !logo;
   const alt = showTitle ? "" : logo?.alt || settings.title;
@@ -97,31 +106,54 @@ function SiteBrandView({ show, className }: SiteBrandProps) {
   const dark = settings.theme.darkMode ? logo?.darkSrc : undefined;
 
   return (
-    <SiteLink href={home} className={cx("inline-flex items-center gap-3 font-heading text-xl font-bold", className)}>
+    <SiteLink
+      href={home}
+      className={part("gf-site-brand", "inline-flex items-center gap-3 font-heading text-xl font-bold", className)}
+    >
       {logo && dark ? (
         <>
           {/* The dark logo in dark mode, the usual one otherwise; dark: applies only where the site has dark mode. */}
-          <SiteImage src={logo.src} alt={alt} aria-hidden={decorative} className="h-10 w-auto dark:hidden" />
-          <SiteImage src={dark} alt={alt} aria-hidden={decorative} className="hidden h-10 w-auto dark:block" />
+          <SiteImage
+            src={logo.src}
+            alt={alt}
+            aria-hidden={decorative}
+            className={part("gf-site-brand-logo", "h-10 w-auto", "dark:hidden")}
+          />
+          <SiteImage
+            src={dark}
+            alt={alt}
+            aria-hidden={decorative}
+            className={part("gf-site-brand-logo", "h-10 w-auto", "hidden dark:block")}
+          />
         </>
       ) : (
-        logo && <SiteImage src={logo.src} alt={alt} aria-hidden={decorative} className="h-10 w-auto" />
+        logo && (
+          <SiteImage
+            src={logo.src}
+            alt={alt}
+            aria-hidden={decorative}
+            className={part("gf-site-brand-logo", "h-10 w-auto")}
+          />
+        )
       )}
-      {showTitle && <span>{settings.title}</span>}
+      {showTitle && <span className={part("gf-site-brand-name")}>{settings.title}</span>}
     </SiteLink>
   );
 }
 
-export const SiteBrand: ComponentConfig<SiteBrandProps> = {
-  label: "Site name and logo",
-  fields: {
-    show: {
-      type: "radio",
-      label: "Show",
-      options: options({ both: "Logo and name", logo: "Logo only", title: "Name only" }),
+export const SiteBrand: ComponentConfig<SiteBrandProps> = withParts(
+  {
+    label: "Site name and logo",
+    fields: {
+      show: {
+        type: "radio",
+        label: "Show",
+        options: options({ both: "Logo and name", logo: "Logo only", title: "Name only" }),
+      },
+      className: classNameField,
     },
-    className: classNameField,
+    defaultProps: { show: "both", className: "" },
+    render: (props) => <SiteBrandView {...props} />,
   },
-  defaultProps: { show: "both", className: "" },
-  render: (props) => <SiteBrandView {...props} />,
-};
+  SITE_BRAND_PARTS,
+);

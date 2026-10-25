@@ -49,7 +49,9 @@ const field = (label: string, type: FormField["type"], extra: Partial<FormField>
 describe("Form", () => {
   it("posts its answers to Web3Forms with a plain form, sending visitors back to the thank-you page", async () => {
     const html = await render(site({ accessKey: KEY }), { thankYou: "/thank-you", title: "Prayer request" });
-    expect(html).toContain('<form class="space-y-5" action="https://api.web3forms.com/submit" method="post">');
+    expect(html).toContain(
+      '<form class="gf-form-questions space-y-5" action="https://api.web3forms.com/submit" method="post">',
+    );
     expect(html).toContain(`<input type="hidden" name="access_key" value="${KEY}"/>`);
     expect(html).toContain('<input type="hidden" name="subject" value="Prayer request"/>');
     expect(html).toContain('<input type="hidden" name="from_name" value="St. Joseph"/>');
@@ -60,7 +62,7 @@ describe("Form", () => {
     expect(html).toMatch(/<input id="contact-0" type="text" required="" [^>]*name="Name"/);
     expect(html).toMatch(/<input id="contact-1" type="email" required="" autoComplete="email" [^>]*name="email"/);
     expect(html).toMatch(/<textarea id="contact-2" name="Message" rows="5" required=""/);
-    expect(html).toContain('<label for="contact-0" class="block font-medium">Name');
+    expect(html).toContain('<label for="contact-0" class="gf-form-label block font-medium">Name');
     expect(html).toContain(">Send</button>");
     // No JavaScript unless hCaptcha is on.
     // Only the structured data for search engines, which isn't JavaScript.
@@ -82,12 +84,14 @@ describe("Form", () => {
     expect(html).toMatch(
       /<input id="contact-0" type="tel" autoComplete="tel" aria-describedby="contact-0-hint" [^>]*name="Phone"/,
     );
-    expect(html).toContain('<p id="contact-0-hint" class="text-sm text-muted-foreground">So we can call you back</p>');
+    expect(html).toContain(
+      '<p id="contact-0-hint" class="gf-form-hint text-sm text-muted-foreground">So we can call you back</p>',
+    );
     expect(html).toMatch(/type="number" [^>]*name="Guests"/);
     expect(html).toMatch(/type="date" [^>]*name="Arriving"/);
     expect(html).toContain('<option value="" disabled="" selected="">—</option><option value="Saturday 5 pm">');
     expect(html.match(/<option value="Sunday 9 am">/g)).toHaveLength(1);
-    expect(html).toContain('<legend class="font-medium">Ministry');
+    expect(html).toContain('<legend class="gf-form-label font-medium">Ministry');
     expect(html).toMatch(/<input type="radio" required="" [^>]*name="Ministry" value="Choir"\/>/);
     expect(html).toMatch(/<input type="checkbox" [^>]*name="Help with: Set-up" value="Yes"\/>/);
     expect(html).toMatch(/<input type="checkbox" required="" [^>]*name="I agree to be contacted" value="Yes"\/>/);

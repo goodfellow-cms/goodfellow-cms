@@ -3,13 +3,15 @@
 import { SiteImage } from "@goodfellow-cms/react";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 
-/** The pictures, one at a time, with previous and next buttons. */
+/** The pictures, one at a time, with previous and next buttons, and their parts' classes from the block. */
 export function ImageCarousel({
   slides,
   loop,
+  classes,
 }: {
   slides: Array<{ image: string; alt: string; caption: string }>;
   loop: boolean;
+  classes: { image: string; caption: string };
 }) {
   return (
     <Carousel opts={{ loop }}>
@@ -18,10 +20,8 @@ export function ImageCarousel({
           // biome-ignore lint/suspicious/noArrayIndexKey: pictures have no ids of their own
           <CarouselItem key={index}>
             <figure>
-              <SiteImage src={slide.image} alt={slide.alt} className="aspect-video w-full rounded-xl object-cover" />
-              {slide.caption && (
-                <figcaption className="mt-2 text-center text-sm text-muted-foreground">{slide.caption}</figcaption>
-              )}
+              <SiteImage src={slide.image} alt={slide.alt} className={classes.image} />
+              {slide.caption && <figcaption className={classes.caption}>{slide.caption}</figcaption>}
             </figure>
           </CarouselItem>
         ))}

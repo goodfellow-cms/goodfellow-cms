@@ -1256,6 +1256,13 @@ export const defaultStrings = {
   "theme.bodyFont": "Text",
   "theme.radius": "Corner rounding",
   "theme.radiusHint": "Such as 0.5rem, or 0 for square corners.",
+  "theme.parts": "Blocks' parts",
+  "theme.partsHint":
+    "Give a part of every block of one kind classes, such as rounded-xl shadow-sm, to change how they all look. They come after the block's own classes and before what's chosen for each block.",
+  "theme.partsBlock": "Block",
+  "theme.partsBlockStyled": "{block} ({count} styled)",
+  "theme.partsName": "Its name is {name}, for custom CSS.",
+  "theme.partsNone": "This site's blocks have no named parts.",
   "theme.color.background": "Background",
   "theme.color.foreground": "Text",
   "theme.color.primary": "Main color",

@@ -1,5 +1,5 @@
 import type { LanguageLink } from "@goodfellow-cms/core";
-import { cx, SiteLink } from "@goodfellow-cms/react";
+import { SiteLink, useParts } from "@goodfellow-cms/react";
 
 export interface LanguageListProps {
   links: LanguageLink[];
@@ -10,6 +10,7 @@ export interface LanguageListProps {
 
 /** The Language switch's links, side by side or in a menu that opens, each language named in itself. */
 export function LanguageList({ links, display, label, className }: LanguageListProps) {
+  const part = useParts();
   const current = links.find((language) => language.current) ?? links[0];
   const items = links.map((language) => (
     <li key={language.code}>
@@ -18,10 +19,10 @@ export function LanguageList({ links, display, label, className }: LanguageListP
         hrefLang={language.code}
         lang={language.code}
         aria-current={language.current ? "true" : undefined}
-        className={cx(
+        className={part("gf-language-link", [
           "block rounded-md px-2 py-1 text-sm hover:bg-muted",
           language.current ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
-        )}
+        ])}
       >
         {language.name}
       </SiteLink>
@@ -29,18 +30,26 @@ export function LanguageList({ links, display, label, className }: LanguageListP
   ));
   if (display === "menu") {
     return (
-      <nav aria-label={label} className={cx("relative inline-block", className)}>
+      <nav aria-label={label} className={part("gf-language-switch", "relative inline-block", className)}>
         <details className="group">
           <summary
             lang={current?.code}
-            className="flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1 text-sm hover:bg-muted [&::-webkit-details-marker]:hidden"
+            className={part(
+              "gf-language-current",
+              "flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1 text-sm hover:bg-muted [&::-webkit-details-marker]:hidden",
+            )}
           >
             {current?.name}
             <span aria-hidden="true" className="text-xs transition-transform group-open:rotate-180">
               ▾
             </span>
           </summary>
-          <ul className="absolute right-0 z-10 mt-1 min-w-40 rounded-md border border-border bg-background p-1 shadow-md">
+          <ul
+            className={part(
+              "gf-language-list",
+              "absolute right-0 z-10 mt-1 min-w-40 rounded-md border border-border bg-background p-1 shadow-md",
+            )}
+          >
             {items}
           </ul>
         </details>
@@ -48,8 +57,8 @@ export function LanguageList({ links, display, label, className }: LanguageListP
     );
   }
   return (
-    <nav aria-label={label} className={className || undefined}>
-      <ul className="flex flex-wrap items-center gap-1">{items}</ul>
+    <nav aria-label={label} className={part("gf-language-switch", undefined, className)}>
+      <ul className={part("gf-language-list", "flex flex-wrap items-center gap-1")}>{items}</ul>
     </nav>
   );
 }
