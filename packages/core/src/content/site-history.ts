@@ -18,6 +18,7 @@ import {
   MENUS_FILE,
   REDIRECTS_FILE,
   SITE_FILE,
+  THEME_FILE,
   UPDATES_FILE,
 } from "./paths.js";
 import type { FileChange } from "./store.js";
@@ -171,7 +172,7 @@ export type SiteChangeSubject =
   | { kind: "page"; page: Page }
   | { kind: "entry"; collection: Collection; entry: Entry }
   | { kind: "collection"; collection: Collection }
-  | { kind: "header" | "footer" | "settings" | "menus" | "redirects" | "credits" | "css" | "code" }
+  | { kind: "header" | "footer" | "settings" | "menus" | "redirects" | "credits" | "css" | "code" | "theme" }
   | { kind: "media"; url: string }
   | { kind: "file"; path: string };
 
@@ -188,6 +189,7 @@ const NAMED_FILES: Record<string, SiteChangeSubject> = {
   [REDIRECTS_FILE]: { kind: "redirects" },
   [MEDIA_FILE]: { kind: "credits" },
   [CUSTOM_CSS_FILE]: { kind: "css" },
+  [THEME_FILE]: { kind: "theme" },
   [HEAD_CODE_FILE]: { kind: "code" },
   [BODY_CODE_FILE]: { kind: "code" },
 };

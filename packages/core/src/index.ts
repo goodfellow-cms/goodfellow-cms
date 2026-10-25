@@ -348,6 +348,7 @@ export {
   RESERVED_PAGE_PATHS,
   SITE_FILE,
   SLUG_PLACEHOLDER,
+  THEME_FILE,
   UPDATES_FILE,
 } from "./content/paths.js";
 export {
@@ -419,6 +420,7 @@ export {
   type Theme,
   type ThemeColor,
   TITLE_FIELD,
+  themeSchema,
   type UpdateSettings,
   updateSettingsSchema,
 } from "./content/schemas.js";
@@ -469,6 +471,27 @@ export {
   structuredDataScript,
   zonedIso,
 } from "./content/structured-data.js";
+export {
+  parseThemeLayout,
+  parseThemeRecord,
+  planTheme,
+  THEME_CSS_END,
+  type ThemeChanged,
+  type ThemeManifest,
+  type ThemeOptions,
+  type ThemePackage,
+  type ThemePlan,
+  type ThemeRecord,
+  type ThemeSite,
+  type ThemeValues,
+  themeCssLoads,
+  themeCssRegion,
+  themeFromValues,
+  themeManifestSchema,
+  themeRecordSchema,
+  themeValues,
+  withThemeCss,
+} from "./content/themes.js";
 export {
   CONTENT_BUILDS,
   type ContentBuild,
@@ -732,6 +755,30 @@ export {
   type LightCodeTheme,
   themeToCss,
 } from "./theme.js";
+export {
+  chooseThemeRelease,
+  fetchTheme,
+  isThemeName,
+  JSDELIVR_NPM,
+  MAX_THEMES,
+  searchThemes,
+  THEME_KEYWORD,
+  THEME_MANIFEST,
+  THEME_PEER,
+  THEME_RELEASE_AGE_DAYS,
+  type ThemeChoice,
+  ThemeError,
+  type ThemeErrorCode,
+  type ThemeFetch,
+  type ThemeFetchOptions,
+  type ThemeListing,
+  type ThemeRelease,
+  themeFileUrl,
+  themeLabel,
+  themeReleases,
+  themeUnknownBlocks,
+  worksWith,
+} from "./themes.js";
 export { trimChars } from "./trim.js";
 export {
   type AvailableUpdates,
@@ -742,6 +789,7 @@ export {
   DEFAULT_UPDATE_SETTINGS,
   findUpdateResult,
   formatUpdateResult,
+  inRange,
   NIGHTLY_MODES,
   NIGHTLY_VARIABLE,
   type NightlyBuilds,

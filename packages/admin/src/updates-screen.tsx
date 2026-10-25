@@ -3,12 +3,16 @@ import {
   availableUpdates,
   compareReleases,
   type GitBackend,
+  inRange,
   NIGHTLY_MODES,
   type NightlyMode,
   NPM_REGISTRY,
+  parseThemeRecord,
   parseUpdateSettings,
   releaseVersions,
   siteVersion,
+  THEME_FILE,
+  type ThemeRecord,
   UPDATES_FILE,
   type UpdateRun,
   type UpdateSettings,
@@ -108,6 +112,8 @@ interface Loaded {
   owner: boolean;
   /** When the site rebuilds overnight, where its setup can say: `mode` is unknown where the sign-in can't read it. */
   nightly?: { supported: boolean; mode?: NightlyMode };
+  /** The installed theme, whose Goodfellow releases a newer release is checked against. */
+  theme?: ThemeRecord;
 }
 
 function UpdatesPanel() {
@@ -127,7 +133,7 @@ function UpdatesPanel() {
     try {
       // Where the code is kept apart from the content, its package.json says which release the site uses.
       const code = updates.code;
-      const [packageJson, settingsText, metadata, setup, last, people, nightly] = await Promise.all([
+      const [packageJson, settingsText, metadata, setup, last, people, nightly, theme] = await Promise.all([
         code ? code.read("package.json").catch(() => undefined) : versions?.readAt("package.json", revision),
         readFile(UPDATES_FILE),
         window
@@ -142,6 +148,9 @@ function UpdatesPanel() {
               ([supported, mode]) => ({ supported, ...(mode && { mode }) }),
             )
           : undefined,
+        readFile(THEME_FILE)
+          .then(parseThemeRecord)
+          .catch(() => undefined),
       ]);
       const current = packageJson ? siteVersion(packageJson) : undefined;
       const settings = parseUpdateSettings(settingsText);
@@ -157,6 +166,7 @@ function UpdatesPanel() {
         // Without a list of editors, the host decides who may update when asked.
         owner: people ? people.editors.some((editor) => editor.self && editor.role === "owner") : true,
         ...(nightly && { nightly }),
+        ...(theme && { theme }),
       });
       setError(undefined);
     } catch (caught) {
@@ -314,6 +324,15 @@ function UpdatesPanel() {
                   {t("updates.newer.whatsNew")}
                 </a>
               </p>
+              {loaded.theme?.goodfellow && !inRange(available.newer, loaded.theme.goodfellow) && (
+                <p className="gfa-notice" role="note">
+                  {t("updates.themeRange", {
+                    title: loaded.theme.title,
+                    range: loaded.theme.goodfellow,
+                    version: available.newer,
+                  })}
+                </p>
+              )}
               {owner ? (
                 <div>
                   <Button disabled={busy || running} onClick={() => void start(available.newer ?? "")}>

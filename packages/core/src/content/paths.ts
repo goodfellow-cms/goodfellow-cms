@@ -15,6 +15,8 @@ export function languageLayoutFile(part: "header" | "footer", language: string):
   return `content/layout/${part}.${language}.json`;
 }
 export const CUSTOM_CSS_FILE = "content/styles/custom.css";
+/** Which theme the site's look came from, and what it installed, so an update keeps what owners changed since. */
+export const THEME_FILE = "content/styles/theme.json";
 /** Admin-written code for every page: in the `<head>`, and at the end of the `<body>`. */
 export const HEAD_CODE_FILE = "content/code/head.html";
 export const BODY_CODE_FILE = "content/code/body.html";

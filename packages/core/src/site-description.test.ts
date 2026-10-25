@@ -51,7 +51,12 @@ describe("siteVersionProblem", () => {
     expect(siteVersionProblem({ goodfellow: "0.3.0", content: { ...CURRENT_VERSION, page: 3 } }, "0.3.0", tool)).toBe(
       "tool-too-old",
     );
-    const { menus: _missing, ...partial } = CURRENT_VERSION;
-    expect(siteVersionProblem({ goodfellow: "0.3.0", content: partial }, "0.3.0")).toBe("site-too-old");
+    const { page: _missing, ...partial } = CURRENT_VERSION;
+    expect(siteVersionProblem({ goodfellow: "0.3.0", content: partial }, "0.3.0", tool)).toBe("site-too-old");
+  });
+
+  it("lets a site read without a kind of file that came after it, at its first version", () => {
+    const { theme: _later, ...before } = CURRENT_VERSION;
+    expect(siteVersionProblem({ goodfellow: "0.3.0", content: before }, "0.3.0")).toBeUndefined();
   });
 });
