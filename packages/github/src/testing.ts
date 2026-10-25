@@ -110,6 +110,22 @@ export interface FakeGitHubOptions {
   apps?: FakeGitHubApp[];
   /** Whether the site's repository is private. Public by default. */
   private?: boolean;
+  /**
+   * Answers plugins' tasks, as the site's `plugin-task.yml` would: given each
+   * `repository_dispatch` event's payload, it gives the text the workflow's
+   * `answer` job leaves on the request's branch, or nothing for a workflow
+   * that never answers. Without it, events are only recorded.
+   */
+  tasks?: (payload: FakeTaskPayload) => string | undefined | Promise<string | undefined>;
+}
+
+/** A plugin task's `repository_dispatch` payload, as the admin panel sends it. */
+export interface FakeTaskPayload {
+  request: string;
+  plugin: string;
+  task: string;
+  input: string;
+  key: string;
 }
 
 /** A GitHub App, as the sign-in worker uses one: its JWTs, installations, OAuth sign-in and tokens. */
@@ -236,6 +252,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
   const deployments: Deployment[] = [];
   const cloudflareBuilds = new Map<string, FakeCloudflareBuild>();
   const runs: FakeRun[] = [];
+  /** `repository_dispatch` events, in the order they were sent. */
+  const dispatches: Array<{ event_type: string; client_payload: FakeTaskPayload }> = [];
   /** The repository's Actions variables, by name. */
   const variables = new Map<string, string>();
   const requests: Request[] = [];
@@ -1024,9 +1042,11 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       if (user.bot && !user.permissions?.contents) {
         return json({ message: "Resource not accessible by integration" }, 403);
       }
-      const file = repo
-        .files(url.searchParams.get("ref") ?? repo.defaultBranch)
-        .get(decodeURIComponent(contents[1] ?? ""));
+      const ref = url.searchParams.get("ref") ?? repo.defaultBranch;
+      // As GitHub does for a branch that isn't there.
+      if (!repo.branches.has(ref) && !repo.commitAt(ref))
+        return json({ message: `No commit found for the ref ${ref}` }, 404);
+      const file = repo.files(ref).get(decodeURIComponent(contents[1] ?? ""));
       if (file === undefined) return json({ message: "Not Found" }, 404);
       return request.headers.get("accept")?.includes("raw")
         ? new Response(fakeFileBytes(file))
@@ -1201,6 +1221,26 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       }
     }
 
+    if (rest === "/dispatches" && request.method === "POST") {
+      // GitHub asks for the Contents permission, with write access, as publishing does.
+      if (user.push === false || (user.bot && user.permissions?.contents !== "write")) {
+        return json({ message: "Resource not accessible by integration" }, 403);
+      }
+      const body = (await request.json()) as { event_type: string; client_payload: FakeTaskPayload };
+      dispatches.push(body);
+      const answer = await options.tasks?.(body.client_payload);
+      if (answer !== undefined && body.event_type === "goodfellow-plugin-task") {
+        // As the workflow's answer job does: an orphan commit, on a branch of its own.
+        const sha = repo.addCommit(
+          undefined,
+          `The answer to plugin task ${body.client_payload.request}`,
+          new Map([["goodfellow-task-result.json", `${answer}\n`]]),
+        );
+        repo.branches.set(`goodfellow-task-${body.client_payload.request}`, sha);
+      }
+      return new Response(null, { status: 204 });
+    }
+
     const workflowFile = rest.match(/^\/actions\/workflows\/([\w.-]+)\/(?:dispatches|runs)$/)?.[1];
     const workflowPath = `.github/workflows/${workflowFile}`;
     const ofWorkflow = (run: FakeRun) => (run.path ?? ".github/workflows/deploy.yml") === workflowPath;
@@ -1371,6 +1411,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     failCloudflare,
     /** GitHub Actions workflow runs, which tests add with `failBuild()` and `cancelBuild()`. */
     runs,
+    /** `repository_dispatch` events sent, such as plugins' tasks. */
+    dispatches,
     /** The repository's Actions variables, such as `GOODFELLOW_NIGHTLY`. */
     variables,
     failBuild,

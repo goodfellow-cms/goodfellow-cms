@@ -1,7 +1,7 @@
 /**
- * Plugins' parts that run in Node: build steps, each in a process of its own
- * held to what its plugin declared, and the type of full-stack sites' server
- * modules.
+ * Plugins' parts that run in Node: build steps and tasks, each in a process
+ * of its own held to what its plugin declared, and the type of full-stack
+ * sites' server modules.
  */
 import { spawn } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -9,7 +9,8 @@ import { mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { GoodfellowPlugin, PluginBuildContext, PluginServerEditor } from "./plugins.js";
+import { TASK_OUTPUT_LIMIT, type TaskAnswer } from "./plugin-tasks.js";
+import type { GoodfellowPlugin, PluginBuildContext, PluginServerEditor, PluginTaskContext } from "./plugins.js";
 
 /**
  * A plugin's server module's default export: answers a request to
@@ -198,4 +199,130 @@ export async function runPluginBuildSteps(options: PluginBuildOptions): Promise<
 /** For a site's own module, such as a plugin kept in the site's repository, its address to import. */
 export function pluginModuleUrl(root: string, specifier: string): string {
   return pathToFileURL(resolvePluginModule(root, specifier)).href;
+}
+
+/**
+ * Runs a task's module, calls its default export with its input and context,
+ * and sends what it answers back over Node's IPC channel, so what the task
+ * prints doesn't mix with its answer.
+ */
+const TASK_RUNNER = [
+  "const [file, input, context] = process.argv.slice(1);",
+  'const { pathToFileURL } = await import("node:url");',
+  "let answer;",
+  "try {",
+  "  const task = (await import(pathToFileURL(file).href)).default;",
+  '  if (typeof task !== "function") throw new Error("A task\'s module must export a function as its default.");',
+  "  const output = await task(JSON.parse(input), JSON.parse(context));",
+  "  answer = { ok: true, output: output === undefined ? null : output };",
+  "} catch (error) {",
+  "  answer = { ok: false, error: error instanceof Error ? error.message : String(error) };",
+  "}",
+  "process.send(answer, () => process.exit(0));",
+].join("\n");
+
+/**
+ * The secrets CI gave the task's job: its environment, and on GitHub every
+ * repository secret as JSON in `GOODFELLOW_SECRETS` (`toJSON(secrets)`), since
+ * a workflow can't name secrets it doesn't know. Call it before loading the
+ * site's config, which takes `GOODFELLOW_SECRETS` out of the environment so
+ * no code the config loads sees the secrets the task didn't declare.
+ */
+export function taskSecretsFrom(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const all: Record<string, string> = {};
+  for (const [name, value] of Object.entries(env)) if (typeof value === "string") all[name] = value;
+  const json = env.GOODFELLOW_SECRETS;
+  delete env.GOODFELLOW_SECRETS;
+  delete all.GOODFELLOW_SECRETS;
+  if (json) {
+    try {
+      for (const [name, value] of Object.entries(JSON.parse(json) as Record<string, unknown>)) {
+        if (typeof value === "string") all[name] = value;
+      }
+    } catch {
+      // Not JSON: there are no secrets to add.
+    }
+  }
+  return all;
+}
+
+export interface PluginTaskOptions {
+  root: string;
+  plugin: GoodfellowPlugin;
+  task: string;
+  /** What the admin panel passed, as JSON. */
+  input: string;
+  /** Where secrets come from, such as `taskSecretsFrom()`. */
+  secrets: Record<string, string>;
+  /** Told what the task's process was given, before it runs. */
+  onRun?: (info: { args: string[]; env: string[] }) => void;
+}
+
+/**
+ * Runs one of a plugin's tasks in a Node process of its own, held to what
+ * the plugin declared as its build steps are: it reads only its own package,
+ * the site's `node_modules` and what it declared in `read`, writes nothing,
+ * starts no other processes, and gets only the secrets it declared. Answers
+ * with what the task returned, or the message of what it threw.
+ */
+export async function runPluginTask(options: PluginTaskOptions): Promise<TaskAnswer> {
+  const root = resolve(options.root);
+  const { plugin } = options;
+  const task = plugin.tasks?.find((candidate) => candidate.id === options.task);
+  if (!task) return { ok: false, error: `${plugin.title} has no task called "${options.task}".` };
+  const file = resolvePluginModule(root, task.module);
+  const permissions = plugin.permissions ?? {};
+  const reads = [
+    ...withRealPath(packageDir(file, root)),
+    ...withRealPath(join(root, "node_modules")),
+    ...(permissions.read ?? []).flatMap((path) => withRealPath(join(root, path))),
+  ];
+  const secrets = Object.fromEntries(
+    (permissions.secrets ?? []).flatMap((name) => {
+      const value = options.secrets[name];
+      return value === undefined ? [] : [[name, value]];
+    }),
+  );
+  const env = {
+    ...Object.fromEntries(
+      PASSED_ON.flatMap((name) => (options.secrets[name] === undefined ? [] : [[name, options.secrets[name]]])),
+    ),
+    NODE_ENV: "production",
+    ...secrets,
+  };
+  const context: PluginTaskContext = { root, secrets };
+  const args = [
+    "--permission",
+    ...[...new Set(reads)].map((path) => `--allow-fs-read=${path}`),
+    "--input-type=module",
+    "-e",
+    TASK_RUNNER,
+    file,
+    options.input,
+    JSON.stringify(context),
+  ];
+  options.onRun?.({ args: args.slice(0, args.indexOf("-e")), env: Object.keys(env) });
+  return await new Promise<TaskAnswer>((done, fail) => {
+    let answer: TaskAnswer | undefined;
+    const child = spawn(process.execPath, args, { cwd: root, env, stdio: ["ignore", "inherit", "inherit", "ipc"] });
+    child.on("message", (message) => {
+      answer = message as TaskAnswer;
+    });
+    child.on("error", fail);
+    child.on("exit", (code) => {
+      if (answer) {
+        const size = JSON.stringify(answer).length;
+        done(
+          size > TASK_OUTPUT_LIMIT
+            ? { ok: false, error: `${plugin.title}'s task "${task.id}" answered with too much.` }
+            : answer,
+        );
+      } else {
+        done({
+          ok: false,
+          error: `${plugin.title}'s task "${task.id}" stopped without answering${code === null ? "" : ` (exit code ${code})`}.`,
+        });
+      }
+    });
+  });
 }

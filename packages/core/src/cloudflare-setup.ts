@@ -22,6 +22,7 @@ import {
   LOCKFILE_JOB,
   PUBLISH_LOCKFILE_JOB,
 } from "./lockfile-setup.js";
+import { gitlabTaskJob } from "./task-setup.js";
 
 /** The secret (GitHub) or variable (GitLab) that holds the Pages project's deploy hook. */
 export const CLOUDFLARE_DEPLOY_HOOK = "CLOUDFLARE_DEPLOY_HOOK";
@@ -197,7 +198,8 @@ update:
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE || $GOODFELLOW_REBUILD)
-`;
+
+${gitlabTaskJob(cli)}`;
 }
 
 /** The setup files a site Cloudflare Pages serves gets, by path, in place of the template's hosts' ones. */

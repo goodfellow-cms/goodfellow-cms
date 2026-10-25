@@ -15,16 +15,23 @@ import {
   hasLanguages,
   loadSiteContent,
   type Page,
+  type PluginTaskRequest,
   parseSiteDescription,
   pathLanguage,
+  pluginId,
   type Redirect,
   redirectFiles,
   rootRobotsUrl,
   type SelfHostedResult,
   SITE_DESCRIPTION_PATH,
   type SiteProblem,
+  sealTaskAnswer,
   shownContent,
   siteLanguages,
+  TASK_RESULT_FILE,
+  type TaskAnswer,
+  type TaskResultFile,
+  taskRequestProblem,
 } from "@goodfellow-cms/core";
 import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import {
@@ -33,7 +40,9 @@ import {
   guardBuiltSite,
   reportedDate,
   runPluginBuildSteps,
+  runPluginTask,
   selfHostFonts,
+  taskSecretsFrom,
   writeBuildRecord,
 } from "@goodfellow-cms/core/node";
 import { buildPluginFrames, configHasPlugins, loadSiteConfig } from "./plugins.js";
@@ -405,4 +414,33 @@ export async function checkPages(pages: readonly BuiltPage[], root = process.cwd
       return file ? [{ path, file, html: page.html }] : [];
     }),
   );
+}
+
+/**
+ * Runs one of a plugin's tasks for the admin panel, as `goodfellow task`
+ * does for other sites, with the site's config loaded in Node, and writes its
+ * answer sealed to the request's key, even when the task fails. Secrets are
+ * taken out of the environment before the config loads.
+ */
+export async function writeTaskResult(
+  root: string,
+  request: PluginTaskRequest,
+  out: string = TASK_RESULT_FILE,
+): Promise<TaskResultFile> {
+  const secrets = taskSecretsFrom(process.env);
+  const problem = taskRequestProblem(request);
+  if (problem) throw new Error(problem);
+  let answer: TaskAnswer;
+  try {
+    const config = await loadSiteConfig(resolve(root));
+    const plugin = (config.plugins ?? []).find((candidate) => pluginId(candidate.name) === request.plugin);
+    answer = plugin
+      ? await runPluginTask({ root: resolve(root), plugin, task: request.task, input: request.input, secrets })
+      : { ok: false, error: `The site has no plugin ${request.plugin}.` };
+  } catch (error) {
+    answer = { ok: false, error: `The site couldn't run the task: ${error instanceof Error ? error.message : error}` };
+  }
+  const sealed = await sealTaskAnswer(answer, request.key);
+  await writeFile(resolve(root, out), `${JSON.stringify(sealed)}\n`);
+  return sealed;
 }

@@ -7,6 +7,8 @@ export const MENUS_FILE = "content/menus.json";
 export const REDIRECTS_FILE = "content/redirects.json";
 /** What the site knows about its media files, such as photos' credits. */
 export const MEDIA_FILE = "content/media.json";
+/** The media a plugin keeps outside the repository, such as S3 storage, and where it's public. */
+export const MEDIA_STORAGE_FILE = "content/media-storage.json";
 export const HEADER_FILE = "content/layout/header.json";
 export const FOOTER_FILE = "content/layout/footer.json";
 

@@ -101,6 +101,12 @@ describe("a site's plugins", () => {
       "bad-screen",
       "no-admin",
     ]);
+    expect(
+      pluginProblems([
+        definePlugin({ name: "goodfellow-plugin-a", title: "A", mediaStorage: {} }),
+        definePlugin({ name: "goodfellow-plugin-b", title: "B", admin: "./admin", mediaStorage: { maxBytes: -1 } }),
+      ]).map((problem) => problem.code),
+    ).toEqual(["no-admin", "bad-storage"]);
     expect(isPluginOrigin("http://localhost:4400")).toBe(true);
     expect(isPluginOrigin("https://storage.example.com/path")).toBe(false);
   });
@@ -165,5 +171,18 @@ describe("a plugin in the site's description", () => {
       }),
     );
     expect(parsed.ok && parsed.description.plugins?.[0]?.id).toBe("goodfellow-plugin-storage");
+    const keeper = describePlugin({ ...storage, mediaStorage: { maxBytes: 5_000_000_000 } });
+    expect(keeper.mediaStorage).toEqual({ maxBytes: 5_000_000_000 });
+    const reread = parseSiteDescription(
+      JSON.stringify({
+        version: 1,
+        goodfellow: "0.6.0",
+        content: {},
+        root: { fields: {} },
+        blocks: {},
+        plugins: [keeper],
+      }),
+    );
+    expect(reread.ok && reread.description.plugins?.[0]?.mediaStorage).toEqual({ maxBytes: 5_000_000_000 });
   });
 });

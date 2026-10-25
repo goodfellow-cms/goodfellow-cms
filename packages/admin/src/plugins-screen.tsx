@@ -42,6 +42,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
+import { AppLink } from "./use-link.js";
 
 const packageFetch: PackageFetch = (url) => window.fetch(url);
 
@@ -92,7 +93,12 @@ function asksFor(t: Translate, manifest: PluginManifest): string[] {
       manifest.build?.map((step) => step.title ?? step.id),
       "plugins.asks.build",
     ),
+    ...list(
+      manifest.tasks?.map((task) => task.title ?? task.id),
+      "plugins.asks.tasks",
+    ),
     ...(manifest.server ? [t("plugins.asks.server")] : []),
+    ...(manifest.mediaStorage ? [t("plugins.asks.mediaStorage")] : []),
   ];
 }
 
@@ -391,7 +397,7 @@ function InstalledRow({
   const { choice } = useReleaseChoice(name);
   const readFiles = useInstallFiles();
   const apply = useApply();
-  const [removing, setRemoving] = useState<{ plan?: PluginPlan; uses: string[] }>();
+  const [removing, setRemoving] = useState<{ plan?: PluginPlan; uses: string[]; keepsMedia?: boolean }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const title = plugin.manifest.title;
@@ -405,6 +411,11 @@ function InstalledRow({
       blockUses(content, block).length > 0 ? [block] : [],
     );
     if (uses.length > 0) return setRemoving({ uses });
+    // Pages show the media it keeps from its storage, which a developer could still remove it from the config without losing.
+    const storage = content.mediaStorage;
+    if (storage?.plugin === name && Object.keys(storage.files).length > 0) {
+      return setRemoving({ uses: [], keepsMedia: true });
+    }
     try {
       const { packageJson } = await readFiles();
       setRemoving({ plan: planPluginRemove({ packageJson, record }, name), uses: [] });
@@ -447,6 +458,10 @@ function InstalledRow({
         <Dialog title={t("plugins.removeTitle", { title })} onClose={() => setRemoving(undefined)}>
           {removing.uses.length > 0 ? (
             <p>{t("plugins.removeUsed", { blocks: removing.uses.join(", ") })}</p>
+          ) : removing.keepsMedia ? (
+            <p>
+              {t("plugins.removeKeepsMedia", { title })} <AppLink href="#/media">{t("nav.media")}</AppLink>
+            </p>
           ) : (
             <p>{t("plugins.removeBody")}</p>
           )}

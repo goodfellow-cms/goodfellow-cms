@@ -1,10 +1,17 @@
-import { ConflictError, type ContentStore, decodeBase64, encodeBase64Bytes } from "@goodfellow-cms/core";
+import {
+  ConflictError,
+  type ContentStore,
+  decodeBase64,
+  encodeBase64Bytes,
+  PluginTaskError,
+  type PluginTasks,
+} from "@goodfellow-cms/core";
 
 /**
  * A content store that reads and writes the site's files through
  * `goodfellow dev`. For local development only: it is never part of a built site.
  */
-export function localStore(apiBase = "/__goodfellow/api"): ContentStore {
+export function localStore(apiBase = "/__goodfellow/api"): ContentStore & { tasks: PluginTasks } {
   /** Calls the development API. A 404 means "no such file" only where `missingIsFine` says so. */
   async function request(path: string, init: RequestInit = {}, missingIsFine = false): Promise<Response> {
     // With a trailing slash, as in `revision/` and `files/?dir=…`, so a Next.js site with `trailingSlash` has
@@ -60,6 +67,23 @@ export function localStore(apiBase = "/__goodfellow/api"): ContentStore {
         }),
       });
       return (await response.json()) as { revision: string };
+    },
+    // Plugins' tasks run on this computer, with the development server's environment as their secrets.
+    tasks: {
+      async supported() {
+        const response = await request("task", {}, true).catch(() => undefined);
+        return response?.ok === true && ((await response.json()) as { supported?: boolean }).supported === true;
+      },
+      async run(task) {
+        const response = await request("task", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(task),
+        }).catch((error: Error) => {
+          throw new PluginTaskError("failed", error.message);
+        });
+        return ((await response.json()) as { result: string }).result;
+      },
     },
   };
 }

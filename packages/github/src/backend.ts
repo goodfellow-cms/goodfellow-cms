@@ -17,6 +17,7 @@ import {
   type HistoryOptions,
   type OwnerAccess,
   type PagesDomains,
+  type PluginTasks,
   REBUILD_JOB,
   type RedirectOptions,
   type RepositoryVisibility,
@@ -33,6 +34,7 @@ import { type ApiOptions, githubJson, githubRequest, repoPath, type TokenSource 
 import { githubEditors, githubOwnerAccess } from "./editors.js";
 import { githubPages } from "./pages.js";
 import { githubScheduledBuilds } from "./scheduled-builds.js";
+import { type GitHubTasksOptions, githubTasks } from "./tasks.js";
 import { githubCodeUpdates, githubUpdates } from "./updates.js";
 
 interface TreeResponse {
@@ -113,6 +115,8 @@ export interface GitHubBackendOptions {
   author?: { name: string; email: string };
   /** The commit reads see until `revision()` is next called, as a full-stack site's server reads what a browser loaded. */
   revision?: string;
+  /** How plugins' tasks wait for their answers; tests pass short waits. */
+  tasks?: GitHubTasksOptions;
   /** The repository holds only the site's content, with its code in a repository of its own (`GitBackend.contentOnly`). */
   contentOnly?: boolean;
   /**
@@ -142,6 +146,7 @@ export class GitHubBackend implements GitBackend {
   readonly updates?: SiteUpdates;
   readonly drafts: SiteDrafts;
   readonly scheduledBuilds: ScheduledBuilds;
+  readonly tasks: PluginTasks;
   readonly contentOnly: boolean;
   private readonly options: GitHubBackendOptions;
   private readonly api: ApiOptions;
@@ -192,6 +197,7 @@ export class GitHubBackend implements GitBackend {
     this.drafts = branchDrafts(this, this.draftHost());
     // The workflows are the repository's own, where the content is kept apart too.
     this.scheduledBuilds = githubScheduledBuilds((path) => this.read(path));
+    this.tasks = githubTasks(this.api, this.repo, this.branch, options.tasks);
   }
 
   async repositoryVisibility(): Promise<RepositoryVisibility> {

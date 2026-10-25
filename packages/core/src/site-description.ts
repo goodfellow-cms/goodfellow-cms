@@ -116,7 +116,9 @@ const descriptionSchema = z.object({
         admin: z.boolean().optional(),
         screens: z.array(z.object({ id: z.string(), title: z.string() })).optional(),
         build: z.array(z.object({ id: z.string(), title: z.string().optional() })).optional(),
+        tasks: z.array(z.object({ id: z.string(), title: z.string().optional() })).optional(),
         server: z.boolean().optional(),
+        mediaStorage: z.object({ maxBytes: z.number().optional() }).optional(),
       }),
     )
     .optional(),

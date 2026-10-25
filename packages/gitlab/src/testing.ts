@@ -41,6 +41,12 @@ export interface FakeGitLabOptions {
   accounts?: string[];
   /** Who can see the project. Private by default. */
   visibility?: "public" | "internal" | "private";
+  /**
+   * Answers plugins' tasks, as the site's `plugin-task` job would: given each
+   * pipeline's task variables, it gives the text the job leaves as its
+   * artifact, or nothing for a job that fails. Without it, task pipelines fail.
+   */
+  tasks?: (variables: Record<string, string>) => string | undefined | Promise<string | undefined>;
 }
 
 /** A pipeline schedule, such as the nightly one or one the admin panel adds for a scheduled change. */
@@ -275,6 +281,9 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     updateRuns.push(added);
     return added;
   }
+
+  /** Pipelines started for plugins' tasks, with their `plugin-task` job's artifact. */
+  const taskRuns: Array<{ id: number; job: number; variables: Record<string, string>; answer?: string }> = [];
 
   /** Failed jobs, by commit, which tests add with `failBuild()` and `cancelBuild()`. */
   const failures = new Map<
@@ -867,6 +876,12 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     if (rest === "/pipeline" && request.method === "POST") {
       if (accessLevel < 30) return json({ message: "403 Forbidden" }, 403);
       const body = (await request.json()) as { ref: string; variables?: Array<{ key: string; value: string }> };
+      const variables = Object.fromEntries((body.variables ?? []).map(({ key, value }) => [key, value]));
+      if (variables.GOODFELLOW_TASK_PLUGIN) {
+        const id = 90_000 + taskRuns.length;
+        taskRuns.push({ id, job: id + 50_000, variables, answer: await options.tasks?.(variables) });
+        return json({ id, status: "created" }, 201);
+      }
       const run = addUpdateRun({ source: "api", status: "created", variables: body.variables });
       return json({ id: run.id, status: run.status }, 201);
     }
@@ -949,6 +964,20 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         updateSettings.jobTokenPush = body.ci_push_repository_for_job_token_allowed;
       }
       return json({ ci_push_repository_for_job_token_allowed: updateSettings.jobTokenPush });
+    }
+    const taskJobs = rest.match(/^\/pipelines\/(\d+)\/jobs$/);
+    const taskRun = taskJobs && taskRuns.find((candidate) => candidate.id === Number(taskJobs[1]));
+    if (taskRun) {
+      return json([
+        { id: taskRun.job, name: "plugin-task", status: taskRun.answer === undefined ? "failed" : "success" },
+      ]);
+    }
+    const artifact = rest.match(/^\/jobs\/(\d+)\/artifacts\/(.+)$/);
+    if (artifact) {
+      const run = taskRuns.find((candidate) => candidate.job === Number(artifact[1]));
+      return run?.answer !== undefined && artifact[2] === "goodfellow-task-result.json"
+        ? new Response(`${run.answer}\n`)
+        : json({ message: "404 Not Found" }, 404);
     }
     const updateJobs = rest.match(/^\/pipelines\/(\d{4,})\/jobs$/);
     if (updateJobs) {

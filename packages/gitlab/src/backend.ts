@@ -18,6 +18,7 @@ import {
   type HistoryOptions,
   LOCKFILE_JOB,
   type PagesDomains,
+  type PluginTasks,
   REBUILD_JOB,
   type RepositoryVisibility,
   type RevisionFiles,
@@ -32,6 +33,7 @@ import { type ApiOptions, gitlabJson, gitlabRequest } from "./api.js";
 import { gitlabEditors } from "./editors.js";
 import { gitlabPages } from "./pages.js";
 import { gitlabScheduledBuilds } from "./scheduled-builds.js";
+import { type GitLabTasksOptions, gitlabTasks } from "./tasks.js";
 import { gitlabCodeUpdates, gitlabUpdates } from "./updates.js";
 
 const PAGE_SIZE = 100;
@@ -52,6 +54,8 @@ export interface GitLabBackendOptions {
   author?: { name: string; email: string };
   /** The commit reads see until `revision()` is next called, as a full-stack site's server reads what a browser loaded. */
   revision?: string;
+  /** How plugins' tasks wait for their answers; tests pass short waits. */
+  tasks?: GitLabTasksOptions;
   /** The project holds only the site's content, with its code in a project of its own (`GitBackend.contentOnly`). */
   contentOnly?: boolean;
   /** The code project, for a project that holds only content, where the site's updates run. */
@@ -94,6 +98,7 @@ export class GitLabBackend implements GitBackend {
   readonly updates?: SiteUpdates;
   readonly drafts: SiteDrafts;
   readonly scheduledBuilds: ScheduledBuilds;
+  readonly tasks: PluginTasks;
   readonly contentOnly: boolean;
   private readonly options: GitLabBackendOptions;
   private readonly api: ApiOptions;
@@ -134,6 +139,13 @@ export class GitLabBackend implements GitBackend {
     // Pipeline schedules run this project's pipeline, which builds the site, where the content is kept apart too.
     this.scheduledBuilds = gitlabScheduledBuilds(this.api, options.project, this.branch, async () =>
       this.readAt(".gitlab-ci.yml", this.pinned ?? (await this.revision())),
+    );
+    this.tasks = gitlabTasks(
+      this.api,
+      options.project,
+      this.branch,
+      async () => this.readAt(".gitlab-ci.yml", this.pinned ?? (await this.revision())),
+      options.tasks,
     );
   }
 

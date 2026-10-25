@@ -1,6 +1,12 @@
 import { relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { buildNotes, CLOUDFLARE_REDIRECTS_LIMIT, ContentError, formatUpdateResult } from "@goodfellow-cms/core";
+import {
+  buildNotes,
+  CLOUDFLARE_REDIRECTS_LIMIT,
+  ContentError,
+  formatUpdateResult,
+  TASK_RESULT_FILE,
+} from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   AdminSetupError,
@@ -31,6 +37,7 @@ import { dev } from "./dev.js";
 import { preview } from "./preview.js";
 import { buildCause, reportBuildCause } from "./problems.js";
 import { SiteSetupError } from "./site.js";
+import { runTask } from "./task.js";
 
 const BROKER_HOSTS = ["github-pages", "gitlab-pages", "cloudflare-pages", "vercel"] as const;
 
@@ -69,6 +76,11 @@ Commands:
             admin check            checks it once the site has rebuilt with it, then
                                    starts the admin panel only there
             admin remove           stops using it
+  task      Run one of a plugin's tasks for the admin panel, as the site's task
+            workflow or pipeline does, with the request in GOODFELLOW_TASK_REQUEST,
+            GOODFELLOW_TASK_PLUGIN, GOODFELLOW_TASK_NAME, GOODFELLOW_TASK_INPUT and
+            GOODFELLOW_TASK_KEY, writing its sealed answer to --out (default:
+            goodfellow-task-result.json)
   content   For a site whose content is kept in a repository of its own:
             content link [folder]  links content/ and public/media/ to the content
                                    repository in folder (default: content-repository)
@@ -76,7 +88,7 @@ Commands:
 
 Options:
   --root <dir>    The site's folder (default: current folder)
-  --out <dir>     Build output folder (default: dist)
+  --out <dir>     Build output folder (default: dist); for task, the answer's file
   --base <path>   Serve the site from a subfolder, such as /my-repo/ (also GOODFELLOW_BASE)
   --port <port>   Port for dev or preview
   --to <release>  For update: fixes (the default), automatic (fixes, unless
@@ -176,6 +188,19 @@ async function main(): Promise<void> {
         console.log("The build failed because of the site checks' errors (--strict).");
         process.exitCode = 1;
       }
+      return;
+    }
+    case "task": {
+      const env = process.env;
+      await runTask({
+        root: values.root ?? ".",
+        request: env.GOODFELLOW_TASK_REQUEST ?? "",
+        plugin: env.GOODFELLOW_TASK_PLUGIN ?? "",
+        task: env.GOODFELLOW_TASK_NAME ?? "",
+        input: env.GOODFELLOW_TASK_INPUT ?? "",
+        key: env.GOODFELLOW_TASK_KEY ?? "",
+        out: values.out ?? TASK_RESULT_FILE,
+      });
       return;
     }
     case "index": {

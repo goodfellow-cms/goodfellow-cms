@@ -92,10 +92,15 @@ function startDevApi(root: string): Promise<number> {
         console.error(`The editor's frames can't be served: ${error.message}`);
         return { serve: async () => false };
       });
+    // Plugins' tasks, from the config as it is when each runs, loaded only then.
+    const tasks = {
+      root,
+      plugins: async () => (await (await import("./plugins.js")).loadSiteConfig(root)).plugins ?? [],
+    };
     const server = createServer(async (req, res) => {
       if (await (await editor).serve(req, res)) return;
       // Requests come through Next.js's development server, so they're from its address rather than this one's.
-      if (!(await handleDevApi(store, req, res, { trustOrigin: isLocalOrigin, registryDir }))) {
+      if (!(await handleDevApi(store, req, res, { trustOrigin: isLocalOrigin, registryDir, tasks }))) {
         res.writeHead(404).end();
       }
     });

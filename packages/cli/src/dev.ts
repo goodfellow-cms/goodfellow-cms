@@ -289,7 +289,8 @@ function devPlugin(
             res.end(JSON.stringify(admin()));
             return;
           }
-          if (await handleDevApi(store, req, res, { registryDir })) return;
+          const tasks = { root, plugins: async () => (await loadServerEntry(server)).config.plugins ?? [] };
+          if (await handleDevApi(store, req, res, { registryDir, tasks })) return;
           if (req.method !== "GET" && req.method !== "HEAD") return next();
           const url = new URL(req.url ?? "/", "http://localhost");
 

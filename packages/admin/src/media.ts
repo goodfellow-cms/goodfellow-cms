@@ -58,3 +58,18 @@ export function mediaUsage(
 export function siteImages(media: string[]): string[] {
   return media.filter((path) => mediaKind(path) === "image").map(mediaUrl);
 }
+
+/**
+ * Every media file the site has, as `public/media/…` paths: those in the
+ * site's own files and those a plugin keeps outside them
+ * (`content/media-storage.json`), which content refers to the same way.
+ */
+export function allMedia(content: Pick<SiteContent, "mediaStorage">, media: readonly string[]): string[] {
+  const stored = Object.keys(content.mediaStorage?.files ?? {}).flatMap((url) => mediaPath(url) ?? []);
+  return [...new Set([...media, ...stored])];
+}
+
+/** Whether a plugin keeps a media file outside the site's own files. */
+export function isStoredMedia(content: Pick<SiteContent, "mediaStorage">, url: string): boolean {
+  return Object.hasOwn(content.mediaStorage?.files ?? {}, url);
+}

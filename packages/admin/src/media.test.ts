@@ -1,6 +1,15 @@
 import { type SiteContent, siteSettingsSchema } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
-import { formatSize, mediaKind, mediaPath, mediaUrl, mediaUsage, uploadName } from "./media.js";
+import {
+  allMedia,
+  formatSize,
+  isStoredMedia,
+  mediaKind,
+  mediaPath,
+  mediaUrl,
+  mediaUsage,
+  uploadName,
+} from "./media.js";
 
 describe("media addresses", () => {
   it("maps files to addresses and back", () => {
@@ -64,5 +73,26 @@ describe("mediaUsage", () => {
     expect(mediaUsage(content, "/media/a.jpg", names)).toEqual(["About", "Custom CSS"]);
     expect(mediaUsage(content, "/media/logo.svg", names)).toEqual(["Site settings"]);
     expect(mediaUsage(content, "/media/unused.png", names)).toEqual([]);
+  });
+});
+
+describe("media a plugin keeps", () => {
+  const content = {
+    mediaStorage: {
+      plugin: "goodfellow-plugin-s3",
+      url: "https://media.example.org",
+      files: { "/media/sermon.mp4": { size: 900_000_000 }, "/media/choir.jpg": { size: 10 } },
+    },
+  };
+
+  it("is listed with the site's own files, once each", () => {
+    expect(allMedia(content, ["public/media/logo.png", "public/media/choir.jpg"])).toEqual([
+      "public/media/logo.png",
+      "public/media/choir.jpg",
+      "public/media/sermon.mp4",
+    ]);
+    expect(allMedia({}, ["public/media/logo.png"])).toEqual(["public/media/logo.png"]);
+    expect(isStoredMedia(content, "/media/sermon.mp4")).toBe(true);
+    expect(isStoredMedia(content, "/media/logo.png")).toBe(false);
   });
 });

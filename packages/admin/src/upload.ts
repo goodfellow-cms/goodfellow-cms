@@ -1,4 +1,5 @@
 import { extensionOf, MAX_UPLOAD_BYTES, mediaKind } from "./media.js";
+import { mediaType } from "./media-previews.js";
 
 /** Photos are made no larger than this on their longest side, which is plenty for any screen. */
 export const MAX_IMAGE_SIDE = 2400;
@@ -93,8 +94,8 @@ export function cleanSvg(text: string): string | undefined {
   return new XMLSerializer().serializeToString(doc);
 }
 
-/** Checks a file chosen for upload and gets it ready: photos made web-sized, SVGs made safe. */
-export async function prepareUpload(file: File): Promise<PreparedUpload> {
+/** A file checked and made ready, as a `Blob`: photos made web-sized, SVGs made safe, other files as they are. */
+async function prepared(file: File, maxBytes: number): Promise<Blob> {
   const extension = extensionOf(file.name);
   if (!mediaKind(file.name)) {
     throw new UploadError("type", file.name, `${file.name} isn't a kind of file the site can use.`);
@@ -105,16 +106,53 @@ export async function prepareUpload(file: File): Promise<PreparedUpload> {
     const cleaned = cleanSvg(await file.text());
     if (cleaned === undefined) throw new UploadError("unreadable", file.name, `${file.name} isn't a valid SVG image.`);
     blob = new Blob([cleaned], { type: "image/svg+xml" });
-  } else {
+  } else if (mediaKind(file.name) === "image") {
     blob = (await resized(file, extension)) ?? file;
   }
 
-  if (blob.size > MAX_UPLOAD_BYTES) {
-    throw new UploadError(
-      "size",
-      file.name,
-      `${file.name} is ${blob.size} bytes, over the ${MAX_UPLOAD_BYTES}-byte limit.`,
-    );
+  if (blob.size > maxBytes) {
+    throw new UploadError("size", file.name, `${file.name} is ${blob.size} bytes, over the ${maxBytes}-byte limit.`);
   }
+  return blob;
+}
+
+/** Checks a file chosen for upload and gets it ready: photos made web-sized, SVGs made safe. */
+export async function prepareUpload(file: File): Promise<PreparedUpload> {
+  const blob = await prepared(file, MAX_UPLOAD_BYTES);
   return { name: file.name, bytes: new Uint8Array(await blob.arrayBuffer()), type: blob.type || file.type };
+}
+
+/** A file ready for a plugin to keep outside the site's own files, never read into memory whole. */
+export interface PreparedStoredUpload {
+  name: string;
+  blob: Blob;
+  type: string;
+  /** A picture's size in pixels, where the browser can read it. */
+  width?: number;
+  height?: number;
+}
+
+/** Reads a picture's size in pixels, or nothing where the browser can't. */
+export async function imageSize(blob: Blob, name: string): Promise<{ width: number; height: number } | undefined> {
+  if (mediaKind(name) !== "image" || extensionOf(name) === "svg" || typeof createImageBitmap !== "function") {
+    return undefined;
+  }
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return size.width > 0 && size.height > 0 ? size : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Checks a file for media storage and gets it ready as `prepareUpload()`
+ * does, up to the storage's largest file rather than the site's own 25 MB.
+ */
+export async function prepareStoredUpload(file: File, maxBytes: number): Promise<PreparedStoredUpload> {
+  const blob = await prepared(file, maxBytes);
+  const type = blob.type || file.type || mediaType(file.name);
+  return { name: file.name, blob, type, ...(await imageSize(blob, file.name)) };
 }

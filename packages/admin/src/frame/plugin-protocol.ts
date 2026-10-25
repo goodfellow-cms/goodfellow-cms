@@ -6,7 +6,7 @@
  * declared, and treats everything it sends as the plugin's code may have
  * written it.
  */
-import type { PluginDescription } from "@goodfellow-cms/core";
+import type { PluginDescription, PluginMediaReady } from "@goodfellow-cms/core";
 
 /** A plugin's frame sends this to the admin panel's page once it's listening, and the page answers with a port. */
 export const PLUGIN_READY_MESSAGE = "goodfellow:plugin-ready";
@@ -37,6 +37,20 @@ export interface PluginFrameRequests {
   theme(choice: PluginFrameInit["theme"]): void;
   /** Calls one of its services, for a block in the editor. */
   call(params: { method: string; args: unknown[] }): unknown;
+  /** For a plugin that keeps media: whether it can take files now. */
+  "media.ready"(): PluginMediaReady;
+  /** For a plugin that keeps media: keeps files at their addresses, all together. */
+  "media.upload"(params: { files: PluginFrameMediaFile[] }): void;
+  /** For a plugin that keeps media: removes files the site no longer lists. */
+  "media.remove"(params: { addresses: string[] }): void;
+}
+
+/** A file for media storage as it crosses the port, its contents a `Blob`, so a long video isn't read into memory first. */
+export interface PluginFrameMediaFile {
+  address: string;
+  type: string;
+  size: number;
+  data: Blob;
 }
 
 /** What a plugin's frame may ask the page, each checked against what the plugin declared. */
@@ -50,4 +64,6 @@ export interface PluginPageRequests {
     body: string;
   };
   navigate(href: string): void;
+  /** Runs one of the plugin's tasks in the site's CI, answering with what it returned. */
+  task(params: { id: string; input: unknown }): unknown;
 }

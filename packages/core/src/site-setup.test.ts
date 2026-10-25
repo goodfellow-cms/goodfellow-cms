@@ -23,6 +23,7 @@ function template(): SiteFiles {
     ["_gitignore", "node_modules\n"],
     ["_npmrc", "ignore-scripts=true\n"],
     [".github/workflows/deploy.yml", "name: Deploy"],
+    [".github/workflows/plugin-task.yml", "name: Plugin task"],
     [".gitlab-ci.yml", "pages:"],
     ["vercel.ts", "{}"],
     ["public/media/logo.png", new Uint8Array([137, 80, 78, 71])],
@@ -30,6 +31,30 @@ function template(): SiteFiles {
 }
 
 describe("planSite", () => {
+  it("keeps the setup that runs plugins' tasks for the git host the site is on, whoever builds it", async () => {
+    const plan = (
+      host: "github" | "gitlab",
+      builder: "github-pages" | "gitlab-pages" | "vercel" | "cloudflare-pages",
+    ) =>
+      planSite({
+        template: template(),
+        name: "my-parish",
+        versions: { "@goodfellow-cms/core": "1.2.3" },
+        backend: { host, repo: "someone/my-parish" },
+        host: builder,
+      });
+    for (const builder of ["github-pages", "vercel", "cloudflare-pages"] as const) {
+      expect((await plan("github", builder)).has(".github/workflows/plugin-task.yml")).toBe(true);
+    }
+    for (const builder of ["gitlab-pages", "vercel", "cloudflare-pages"] as const) {
+      const files = await plan("gitlab", builder);
+      expect(files.has(".github/workflows/plugin-task.yml")).toBe(false);
+      if (builder !== "gitlab-pages") {
+        expect(siteFileText(files.get(".gitlab-ci.yml") ?? "")).toContain("npx goodfellow task");
+      }
+    }
+  });
+
   it("names the site, uses published versions, and sets up its storage and host", async () => {
     const files = await planSite({
       template: template(),
@@ -80,6 +105,7 @@ describe("planSite", () => {
       host: "cloudflare-pages",
     });
     expect([...github.keys()].filter((path) => /workflows|gitlab|vercel/.test(path))).toEqual([
+      ".github/workflows/plugin-task.yml",
       ".github/workflows/deploy.yml",
       ".github/workflows/scheduled.yml",
     ]);
@@ -121,7 +147,7 @@ describe("planSite", () => {
     expect([...gitlab.keys()].filter((path) => /workflows|gitlab|vercel/.test(path))).toEqual([".gitlab-ci.yml"]);
     const pipeline = parse(siteFileText(gitlab.get(".gitlab-ci.yml") ?? ""));
     // Not "pages", which GitLab would take for a GitLab Pages job.
-    expect(Object.keys(pipeline)).toEqual(["variables", "lockfile", "update"]);
+    expect(Object.keys(pipeline)).toEqual(["variables", "lockfile", "update", "plugin-task"]);
     // The lockfile is written when package.json changes, and Cloudflare builds the push that publishes it.
     expect(pipeline.lockfile.rules).toEqual([
       { if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"', changes: ["package.json"] },

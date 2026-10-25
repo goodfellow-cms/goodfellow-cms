@@ -6,10 +6,16 @@
 import {
   APP_API_HEADER,
   type FileChange,
+  newTaskRequestId,
+  openTaskAnswer,
   type PluginDescription,
+  type PluginMediaReady,
+  type PluginTaskRequest,
   pluginFrameUrl,
   pluginMayList,
   pluginMayUse,
+  TASK_INPUT_LIMIT,
+  taskKeys,
 } from "@goodfellow-cms/core";
 import {
   type CSSProperties,
@@ -46,6 +52,12 @@ export interface PluginHost {
   /** On a full-stack site, the address of plugins' server routes, such as `https://example.org/api/goodfellow/plugins`. */
   server?: string;
   navigate(href: string): void;
+  /**
+   * Runs a plugin's task in the site's CI, giving its answer's text, still
+   * sealed, where the site's backend can; throws with what went wrong, in the
+   * admin panel's words.
+   */
+  runTask?(request: PluginTaskRequest): Promise<string>;
 }
 
 /** A plugin's frame asked for something it didn't declare, or that isn't there. */
@@ -141,6 +153,27 @@ function pluginHandlers(plugin: PluginDescription, host: () => PluginHost) {
     },
     navigate: (href) => {
       if (isAdminScreen(href)) host().navigate(href);
+    },
+    task: async (params) => {
+      const id = params?.id;
+      if (typeof id !== "string" || !plugin.tasks?.some((task) => task.id === id)) {
+        throw new RefusedError(`${plugin.title} has no task called ${String(id)}.`);
+      }
+      const run = host().runTask;
+      if (!run) throw new RefusedError(`${plugin.title}'s tasks can't run here.`);
+      let input: string;
+      try {
+        input = JSON.stringify(params.input ?? null);
+      } catch {
+        throw new RefusedError("A task's input must be plain data.");
+      }
+      if (input.length > TASK_INPUT_LIMIT) throw new RefusedError("That's too much for one task.");
+      // A key pair for this request alone: only this page can open the answer.
+      const keys = await taskKeys();
+      const sealed = await run({ id: newTaskRequestId(), plugin: plugin.id, task: id, input, key: keys.publicKey });
+      const answer = await openTaskAnswer(sealed, keys.privateKey);
+      if (!answer.ok) throw new Error(answer.error.slice(0, 2000));
+      return answer.output;
     },
   };
   return handlers as Record<string, (params: never) => unknown>;
@@ -244,6 +277,50 @@ function ServiceFrame({
 
 const PluginHostContext = createContext<PluginHost | null>(null);
 
+/** A file for a plugin that keeps media, its contents a `Blob`. */
+export interface PluginMediaUpload {
+  address: string;
+  type: string;
+  size: number;
+  data: Blob;
+}
+
+/** Asks a plugin that keeps media (`mediaStorage`) through its hidden frame. */
+export interface PluginMediaClient {
+  plugin: PluginDescription;
+  ready(): Promise<PluginMediaReady>;
+  /** Keeps files all together, since each batch may wait for one of the plugin's tasks. */
+  upload(files: PluginMediaUpload[]): Promise<void>;
+  remove(addresses: string[]): Promise<void>;
+}
+
+const PluginMediaContext = createContext<((name: string) => PluginMediaClient | undefined) | null>(null);
+
+/**
+ * The plugin keeping the site's media, by its name in
+ * `content/media-storage.json`, where the site has it and it says it keeps
+ * media. Outside `PluginServices`, such as in the site's frames, none.
+ */
+export function usePluginMedia(name: string | undefined): PluginMediaClient | undefined {
+  const media = useContext(PluginMediaContext);
+  return name && media ? media(name) : undefined;
+}
+
+/** What a plugin's frame said about being ready, as the admin panel shows it: its message is the plugin's own words. */
+function readyAnswer(plugin: PluginDescription, value: unknown): PluginMediaReady {
+  const answer = (value ?? {}) as { ready?: unknown; message?: unknown; screen?: unknown };
+  if (answer.ready === true) return { ready: true };
+  const screen =
+    typeof answer.screen === "string" && plugin.screens?.some((own) => own.id === answer.screen)
+      ? answer.screen
+      : undefined;
+  return {
+    ready: false,
+    message: typeof answer.message === "string" ? answer.message.slice(0, 500) : "",
+    ...(screen && { screen }),
+  };
+}
+
 /** What plugins' screens are given, inside `PluginServices`. */
 export function usePluginHost(): PluginHost {
   const value = useContext(PluginHostContext);
@@ -278,28 +355,46 @@ export function PluginServices({
     ready.current.set(id, channel);
     for (const resolve of waiting.current.get(id)?.splice(0) ?? []) resolve(channel);
   }, []);
+  const channelFor = useCallback(async (plugin: PluginDescription): Promise<Channel> => {
+    const channel = ready.current.get(plugin.id);
+    if (channel) return channel;
+    setStarted((current) => (current.includes(plugin.id) ? current : [...current, plugin.id]));
+    return await new Promise<Channel>((resolve, reject) => {
+      const list = waiting.current.get(plugin.id) ?? [];
+      list.push(resolve);
+      waiting.current.set(plugin.id, list);
+      setTimeout(() => reject(new Error(`${plugin.title} didn't start.`)), START_TIMEOUT);
+    });
+  }, []);
   const call = useCallback(
     async (name: string, method: string, args: unknown[]) => {
       const plugin = plugins.find((candidate) => candidate.name === name && candidate.admin);
       if (!plugin) throw new Error(`The site has no plugin called ${name} with services.`);
-      let channel = ready.current.get(plugin.id);
-      if (!channel) {
-        setStarted((current) => (current.includes(plugin.id) ? current : [...current, plugin.id]));
-        channel = await new Promise<Channel>((resolve, reject) => {
-          const list = waiting.current.get(plugin.id) ?? [];
-          list.push(resolve);
-          waiting.current.set(plugin.id, list);
-          setTimeout(() => reject(new Error(`${plugin.title} didn't start.`)), START_TIMEOUT);
-        });
-      }
-      return channel.call("call", { method, args });
+      return (await channelFor(plugin)).call("call", { method, args });
     },
-    [plugins],
+    [plugins, channelFor],
   );
   useEffect(() => onCall(call), [call, onCall]);
+  const media = useCallback(
+    (name: string): PluginMediaClient | undefined => {
+      const plugin = plugins.find((candidate) => candidate.name === name && candidate.admin && candidate.mediaStorage);
+      if (!plugin) return undefined;
+      return {
+        plugin,
+        ready: async () => readyAnswer(plugin, await (await channelFor(plugin)).call("media.ready")),
+        upload: async (files) => {
+          await (await channelFor(plugin)).call("media.upload", { files });
+        },
+        remove: async (addresses) => {
+          await (await channelFor(plugin)).call("media.remove", { addresses });
+        },
+      };
+    },
+    [plugins, channelFor],
+  );
   return (
     <PluginHostContext.Provider value={host}>
-      {children}
+      <PluginMediaContext.Provider value={media}>{children}</PluginMediaContext.Provider>
       {plugins
         .filter((plugin) => started.includes(plugin.id))
         .map((plugin) => (

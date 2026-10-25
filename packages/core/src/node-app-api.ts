@@ -13,9 +13,12 @@ import {
   isEditablePath,
   isSettingsPath,
   newDraftName,
+  PluginTaskError,
+  type PluginTaskRequest,
   pluginId,
   type ServerGit,
   SignInError,
+  taskRequestProblem,
 } from "./index.js";
 import type { PluginServer } from "./node-plugins.js";
 
@@ -263,6 +266,26 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
         200,
         await draft.submitForReview({ title, ...(typeof description === "string" && description && { description }) }),
       );
+    }
+    if (get && endpoint === "task") {
+      const backend = await reader(await options.git.revision());
+      return json(200, { supported: (await backend.tasks?.supported()) === true });
+    }
+    if (post && endpoint === "task") {
+      // A plugin's task, run in the site's CI with its secrets, as on a static site: its answer is sealed to the
+      // browser's key, so this server only passes it on.
+      const body = (await readBody(request)) as unknown as PluginTaskRequest;
+      const problem = taskRequestProblem(body);
+      if (problem) throw new BadRequest(problem);
+      const backend = await options.git.at(await options.git.revision(), { name: editor.name, email: editor.email });
+      if (!backend.tasks) return json(404, { error: "not-found" });
+      try {
+        const { id, plugin, task, input, key } = body;
+        return json(200, { result: await backend.tasks.run({ id, plugin, task, input, key }) });
+      } catch (error) {
+        if (error instanceof PluginTaskError) return json(502, { error: "task", problem: error.problem });
+        throw error;
+      }
     }
     if (get && endpoint === "changed") {
       const backend = await reader(revisionParam(query("to")));

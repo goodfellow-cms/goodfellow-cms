@@ -1,4 +1,4 @@
-import { type ContentStore, trimChars } from "@goodfellow-cms/core";
+import { type ContentStore, type MediaStorage, storedMediaUrl, trimChars } from "@goodfellow-cms/core";
 import { extensionOf, MEDIA_URL_PREFIX, mediaPath } from "./media.js";
 
 const TYPES: Record<string, string> = {
@@ -29,7 +29,8 @@ export function mediaType(name: string): string {
  * site is at the root of its address. Previews instead use the site's own
  * address, and for files the live site doesn't have yet (just uploaded, or
  * uploaded by someone else since the last rebuild), a copy read from the
- * repository.
+ * repository. Files a plugin keeps outside the repository are shown from
+ * their storage's address.
  */
 export interface MediaPreviews {
   /** The address to show a media file from now. Other addresses are returned as they are. */
@@ -44,7 +45,12 @@ export interface MediaPreviews {
   onRemember(listener: (url: string, bytes: Uint8Array) => void): () => void;
 }
 
-export function createMediaPreviews(store: Pick<ContentStore, "readBytes">, siteUrl: string): MediaPreviews {
+export function createMediaPreviews(
+  store: Pick<ContentStore, "readBytes">,
+  siteUrl: string,
+  /** The media kept outside the repository, as the site shown has it now. */
+  storage: () => MediaStorage | undefined = () => undefined,
+): MediaPreviews {
   const local = new Map<string, string>();
   const remembered = new Map<string, Uint8Array>();
   const listeners = new Set<(url: string, bytes: Uint8Array) => void>();
@@ -62,7 +68,9 @@ export function createMediaPreviews(store: Pick<ContentStore, "readBytes">, site
   return {
     resolve(url) {
       if (!url.startsWith(MEDIA_URL_PREFIX)) return url;
-      return local.get(url) ?? `${base}${url}`;
+      const end = url.search(/[?#]/);
+      const stored = local.has(url) ? undefined : storedMediaUrl(storage(), end < 0 ? url : url.slice(0, end));
+      return stored ? `${stored}${end < 0 ? "" : url.slice(end)}` : (local.get(url) ?? `${base}${url}`);
     },
     remember,
     onRemember(listener) {

@@ -25,6 +25,7 @@ import {
   planInstall,
   type RegistrySources,
 } from "./registry.js";
+import { gitlabTaskJob } from "./task-setup.js";
 import { trimChars } from "./trim.js";
 
 /** The sites a new site can start from. The keys are what `--template` takes. */
@@ -48,6 +49,9 @@ export interface Backend {
   /** `owner/name` on GitHub, or the project's path on GitLab, such as `group/subgroup/site`. */
   repo: string;
 }
+
+/** The workflow that runs plugins' tasks on GitHub, which every GitHub site has, whoever builds it. */
+export const GITHUB_TASK_WORKFLOW = ".github/workflows/plugin-task.yml";
 
 /** Where the built site is served from. Each has its own setup file in the template. */
 export const HOSTS = {
@@ -390,6 +394,11 @@ export async function planSite({
       for (const [path, text] of cloudflareSetupFiles({ git: backend?.host, next: files.has("next.config.ts") })) {
         files.set(path, text);
       }
+    }
+    // Plugins' tasks run on the git host's CI, whoever builds the site.
+    if (backend?.host === "gitlab") files.delete(GITHUB_TASK_WORKFLOW);
+    if (backend?.host === "gitlab" && host === "vercel") {
+      files.set(".gitlab-ci.yml", gitlabTaskJob(files.has("next.config.ts") ? "goodfellow-next" : "goodfellow"));
     }
   }
   return files;

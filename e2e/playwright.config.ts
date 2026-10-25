@@ -39,6 +39,8 @@ export default defineConfig({
       url: `http://localhost:${PORT}/admin`,
       reuseExistingServer: false,
       timeout: 60_000,
+      // The secret the test plugin Keeper's task signs with (`media-storage.spec.ts`), as a site's CI would have.
+      env: { KEEPER_KEY: "secret" },
     },
     // The Next.js template under `next dev`.
     {

@@ -18,9 +18,13 @@ import {
   keptDrafts,
   loadSiteContent,
   MEDIA_DIR,
+  type MediaStorage,
   newDraftName,
   type OwnerAccess,
   type PagesDomains,
+  PluginTaskError,
+  type PluginTaskRequest,
+  type PluginTasks,
   type RegistrySources,
   type RepositoryVisibility,
   type ScheduledBuilds,
@@ -49,7 +53,7 @@ import {
   frameSiteCode,
   SiteCodeFrame,
 } from "./frame/host.js";
-import { mediaUrl } from "./media.js";
+import { allMedia, mediaUrl } from "./media.js";
 import { MediaPickerDialog } from "./media-library.js";
 import { createMediaPreviews, type MediaPreviews } from "./media-previews.js";
 import { type PluginHost, PluginServices } from "./plugin-frames.js";
@@ -228,6 +232,8 @@ export interface AdminContextValue {
   scheduleSyncProblem?: "not-allowed";
   /** Follows a build of the loaded revision that isn't a publish's, such as Rebuild now's, until it's live. */
   followBuild?(): void;
+  /** Runs plugins' tasks in the site's CI, when the backend can. */
+  tasks?: PluginTasks;
 }
 
 /** Whether the admin panel runs at the site's admin address, once it's checked (`AdminAddress.checked`). */
@@ -315,7 +321,10 @@ export function AdminProvider({
     () => describedConfig(site.description, "template").components as Record<string, ComponentConfig>,
     [site.description],
   );
-  const mediaPreviews = useMemo(() => createMediaPreviews(content, siteUrl), [content, siteUrl]);
+  // Read when a preview shows a file, so stored media follows what's loaded.
+  const storage = useRef<MediaStorage | undefined>(undefined);
+  storage.current = state.status === "ready" ? state.content.mediaStorage : undefined;
+  const mediaPreviews = useMemo(() => createMediaPreviews(content, siteUrl, () => storage.current), [content, siteUrl]);
   // The development servers give their own registry; their admin panel holds no tokens.
   // With a token broker, the admin panel holds no tokens, and the broker asks before publishing code.
   const outOfReach = registry !== undefined || atAdminAddress(site.admin) || site.broker !== undefined;
@@ -360,6 +369,8 @@ export function AdminProvider({
   const updates = isGitBackend(store) ? store.updates : undefined;
   const contentOnly = isGitBackend(store) && store.contentOnly === true;
   const scheduledBuilds = isGitBackend(store) ? store.scheduledBuilds : undefined;
+  // Plugins' tasks go to the site's own backend, even while a draft is open.
+  const tasks = "tasks" in store ? (store as { tasks?: PluginTasks }).tasks : undefined;
   const repositoryVisibility = useMemo(
     () => (isGitBackend(store) ? store.repositoryVisibility?.bind(store) : undefined),
     [store],
@@ -694,6 +705,7 @@ export function AdminProvider({
       repositoryVisibility,
       scheduleSyncProblem,
       followBuild,
+      tasks,
     }),
     [
       site,
@@ -726,6 +738,7 @@ export function AdminProvider({
       repositoryVisibility,
       scheduleSyncProblem,
       followBuild,
+      tasks,
     ],
   );
 
@@ -811,6 +824,7 @@ function SiteFrames({
     readBytes,
     listFiles,
     publish,
+    tasks,
   } = useAdmin();
   const { timing, visibility } = useScheduleInfoOf(scheduledBuilds, repositoryVisibility);
   const schedule = useMemo(
@@ -837,8 +851,18 @@ function SiteFrames({
       publish: async (changes, message) => (await publish(changes, message)).ok,
       ...(account?.plugins && { server: account.plugins }),
       navigate: (href) => navigate(href, () => window.confirm(confirmLeave)),
+      ...(tasks && {
+        runTask: async (request: PluginTaskRequest) => {
+          try {
+            return await tasks.run(request);
+          } catch (error) {
+            if (error instanceof PluginTaskError) throw new Error(t(`plugins.task.${error.problem}`));
+            throw error;
+          }
+        },
+      }),
     }),
-    [frames.url, siteUrl, theme, readFile, readBytes, listFiles, publish, account, confirmLeave],
+    [frames.url, siteUrl, theme, readFile, readBytes, listFiles, publish, account, confirmLeave, tasks, t],
   );
   const callPlugin = useRef<(plugin: string, method: string, args: unknown[]) => Promise<unknown>>(undefined);
   const onPluginCall = useCallback((call: (plugin: string, method: string, args: unknown[]) => Promise<unknown>) => {
@@ -849,7 +873,7 @@ function SiteFrames({
       source: frames,
       init: {
         content: state.content,
-        media: state.media,
+        media: allMedia(state.content, state.media),
         schedule,
         siteUrl,
         preview,

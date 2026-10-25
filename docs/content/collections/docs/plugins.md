@@ -83,6 +83,7 @@ export function gallery(options: { columns?: number } = {}) {
     admin: "goodfellow-plugin-gallery/admin",
     screens: [{ id: "settings", title: "Gallery" }],
     build: [{ id: "thumbnails", module: "goodfellow-plugin-gallery/build", title: "Make thumbnails" }],
+    tasks: [{ id: "publish-album", module: "goodfellow-plugin-gallery/publish-album", title: "Publish an album" }],
     server: "goodfellow-plugin-gallery/server",
   });
 }
@@ -93,7 +94,9 @@ export function gallery(options: { columns?: number } = {}) {
 - **`admin`** names the module run in the admin panel, a package export or a path from the site's root such as `./plugins/gallery/admin.ts`. Its default export is made with `definePluginAdmin()`.
 - **`screens`** are drawn by the admin module, each listed in Site Settings by its `title`.
 - **`build`** steps run in order after the site is built, each a module whose default export is a function.
+- **`tasks`** run in the site's CI when the admin module asks, with the secrets the plugin declared (see [Tasks](#tasks)).
 - **`server`** names the module that answers requests on full-stack sites.
+- **`mediaStorage`** says it keeps the site's media outside the repository, as [S3 storage](#keeping-media) does, with the largest file it takes as `maxBytes`.
 
 A plugin kept in the site's own repository, such as one only that site uses, is a folder with the same files, named with paths from the site's root.
 
@@ -105,8 +108,8 @@ A plugin gets nothing it doesn't declare. Leave out what it doesn't need.
 | --- | --- | --- |
 | `connect` | The addresses its admin module may request, as origins: `https://api.example.com`, or `https://*.example.com` | The plugin's frame has a Content Security Policy that reaches only these. |
 | `files` | The content files and media its screens may read and publish: a file such as `content/gallery.json`, or a folder ending in `/`, under `content/` or `public/media/` | The admin panel refuses any other read or publish. The site's own code in `content/code/` can never be declared. |
-| `secrets` | The environment variables its build steps get | A step's process gets these and nothing else of the build's environment. The tokens that can publish to the repository can never be declared. |
-| `read` | Files and folders from the site's root its build steps may read, besides the built site, their own package and `node_modules` | Node's permission model refuses every other read. |
+| `secrets` | The environment variables its build steps and tasks get | A step's or task's process gets these and nothing else of the build's environment. The tokens that can publish to the repository can never be declared. |
+| `read` | Files and folders from the site's root its build steps and tasks may read, besides the built site, their own package and `node_modules` | Node's permission model refuses every other read. |
 | `write` | Files and folders in the built site its build steps may write | Node's permission model refuses every other write. |
 
 Services the admin module requests must allow requests from any origin (`Access-Control-Allow-Origin: *`): its frame is sandboxed, so it has no origin of its own.
@@ -143,6 +146,7 @@ export default definePluginAdmin({
 - `list(folder)`: the files the plugin declared under a folder, such as `public/media/`.
 - `publish(changes, message)`: changes to files the plugin declared, in one publish, after the same checks as any publish, answering whether it was published. A change is `{ path, text }`, `{ path, bytes }` or `{ path, delete: true }`.
 - `server(path, request)`: the plugin's server module on a full-stack site, signed in as the editor.
+- `task(id, input)`: one of the plugin's [tasks](#tasks), run in the site's CI, answering with what it returned. It takes about a minute.
 - `navigate(href)`: another of the admin panel's screens, such as `#/media`.
 
 **Services** answer the plugin's blocks in the editor, whose code runs in the editor's frame, which can fetch nothing. A block asks with `useSite().callPlugin`, which only the editor provides:
@@ -179,6 +183,48 @@ Each step runs in a Node process of its own with Node's permission model on: it 
 
 `goodfellow-next finish` loads the config outside Next.js for this, only when the config has a `plugins` line, bundling the site's own files and leaving its packages for Node to load.
 
+## Tasks
+
+A task is work the admin module asks the site's CI to do with secrets the admin panel must never hold, such as signing uploads to a storage service with its keys. The admin module calls `api.task(id, input)`; the admin panel starts the task with a key pair it makes for that request alone, and the site's CI runs `goodfellow task` (`goodfellow-next task` in Next.js sites), which loads the site's config, runs the task, and seals its answer to that request's public key, so only the admin panel that asked can read it. It takes about a minute.
+
+```js
+// goodfellow-plugin-gallery/publish-album
+export default async function publishAlbum(input, { root, secrets }) {
+  // Use secrets.GALLERY_KEY; return anything JSON keeps, or throw an Error whose message the admin module gets.
+  return { published: input.album };
+}
+```
+
+Each task runs in a Node process of its own, held as build steps are: it reads only its own package, `node_modules` and what it declared in `read`, writes nothing, starts no other processes, and gets only the secrets it declared. Its input and answer are JSON, at most 32,000 and 512,000 characters.
+
+- **On GitHub**, the starters' `.github/workflows/plugin-task.yml` runs it, started by a `repository_dispatch` event, which any sign-in that can publish can send. Its `task` job runs the site's code with read access only and `${{ toJSON(secrets) }}` in its environment, and a second job, which runs none of it, puts the sealed answer on a branch of its own, `goodfellow-task-<request>`, which the admin panel reads and deletes. Add the secrets under the repository's **Settings → Secrets and variables → Actions**.
+- **On GitLab**, the starters' `.gitlab-ci.yml` has a `plugin-task` job, run in a pipeline the admin panel starts with the request's variables, whose artifact holds the sealed answer. Add the secrets under **Settings → CI/CD → Variables**, masked, and protected, since tasks run on the main branch.
+- **Sites made before tasks** copy `plugin-task.yml`, or the `plugin-task` job and the `rules` line it adds to the `pages` job, from the starter. Without them, the admin panel says the site's setup can't run tasks yet.
+- **In `goodfellow dev` and `next dev`,** tasks run on your computer, with the development server's environment as their secrets.
+- **On full-stack sites,** tasks run in the site's CI as on any other, through the site's server, which passes the sealed answer on. A plugin can offer a server module that does the same work straight away with secrets in the server's environment, as S3 storage does.
+- **Sites whose content is in a repository of its own** can't run tasks yet, since the content repository's CI doesn't have the site's code.
+
+## Keeping media
+
+A plugin with `mediaStorage` keeps the site's media outside the repository, in place of `public/media/`. Its admin module's `media` answers the [Media screen](/docs/media#media-kept-in-a-storage-service):
+
+```ts
+export default definePluginAdmin({
+  media: {
+    // Whether it can take files now, or what needs doing first, with a screen of its own to do it on.
+    async ready(api) {
+      return { ready: true };
+    },
+    // Keeps files at their addresses, all together, since each batch may wait for a task.
+    async upload(files, api) {},
+    // Removes files the site no longer lists.
+    async remove(addresses, api) {},
+  },
+});
+```
+
+Its screens turn it on by publishing `content/media-storage.json` (declared in its `files`), with the plugin's name and the public address it keeps files at. The admin panel then lists every file it keeps there, by the `/media/…` address content uses, and builds show those files from that address, so pages never change when the site's media moves. The Media screen offers to move the site's own files to it and back, and the Plugins screen won't remove it while it keeps files the site shows.
+
 ## On full-stack sites' servers
 
 On a [full-stack Next.js site](/docs/full-stack-nextjs), a plugin's server module answers requests to `/api/goodfellow/plugins/<id>/…`. Pass the server modules to `goodfellowApi()` in the API route, since Next.js bundles only what the route imports:
@@ -200,7 +246,7 @@ Its default export gets the request and `{ path, editor }`: the path after its i
 ## What can't be enforced
 
 - **A server module** runs with everything the site's server has, its token and secrets included. Only a review backs what it declares.
-- **A build step's network requests** aren't limited: Node's permission model covers files, processes and workers, not the network. The packages a step loads share its process and what it was given.
+- **A build step's or task's network requests** aren't limited: Node's permission model covers files, processes and workers, not the network. The packages it loads share its process and what it was given.
 - **Blocks on the site's pages** run with everything visitors' browsers allow, like any block, since pages have no Content Security Policy.
 - **A sandboxed frame can leave for another address**, so a plugin's policy limits what its admin module can send while it's there without sealing it. Its sandbox is what keeps it from the admin panel's sign-in.
 
@@ -220,4 +266,4 @@ import plugin from "./dist/index.js";
 writeFileSync("goodfellow-plugin.json", `${JSON.stringify(pluginManifest(plugin), null, 2)}\n`);
 ```
 
-It lists the plugin's title, description and permissions, and whether it has blocks (by name), an admin module, screens, build steps and a server module. A site that installed a release runs it only while it asks for no more than that.
+It lists the plugin's title, description and permissions, and whether it has blocks (by name), an admin module, screens, build steps, tasks, a server module and media storage. A site that installed a release runs it only while it asks for no more than that.
