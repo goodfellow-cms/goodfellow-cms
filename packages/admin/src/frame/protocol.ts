@@ -116,6 +116,8 @@ export interface AdminRequests {
   "media.choose"(params: { kind: MediaFieldKind; value: string }): string | null;
   /** A media file's bytes, for one the live site doesn't have yet. Only `/media/…` addresses. */
   "media.bytes"(url: string): Uint8Array | null;
+  /** Asks one of a plugin's services, for a block in the editor, through the plugin's own frame. */
+  "plugin.call"(params: { plugin: string; method: string; args: unknown[] }): unknown;
 }
 
 /** The requests frames answer for the admin panel's page. */

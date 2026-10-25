@@ -32,9 +32,11 @@ import {
   fileSystemSource,
   guardBuiltSite,
   reportedDate,
+  runPluginBuildSteps,
   selfHostFonts,
   writeBuildRecord,
 } from "@goodfellow-cms/core/node";
+import { buildPluginFrames, configHasPlugins, loadSiteConfig } from "./plugins.js";
 
 export { NEXT_SITE_FILES } from "./site-files.js";
 
@@ -89,6 +91,38 @@ async function exportBasePath(root: string): Promise<string> {
   } catch {
     return "";
   }
+}
+
+/** What `writePluginFiles()` wrote and ran. */
+export interface PluginFilesWritten {
+  /** The plugins whose admin frames were written. */
+  frames: string[];
+  /** The build steps that ran, as `plugin: step`. */
+  steps: string[];
+}
+
+/**
+ * Plugins' parts that builds make: each plugin's admin frame, beside the
+ * editor's frames at `admin/plugins/<id>/`, and its build steps, each in a
+ * process of its own held to what the plugin declared. Into a static export
+ * (`outDir`), or a full-stack site's `public/`, where `next start` serves
+ * them. The config is loaded outside Next.js only when it lists plugins.
+ */
+export async function writePluginFiles(outDir: string, root = process.cwd()): Promise<PluginFilesWritten> {
+  const site = resolve(root);
+  if (!(await configHasPlugins(site))) return { frames: [], steps: [] };
+  const config = await loadSiteConfig(site);
+  const base = `${await exportBasePath(site)}/`;
+  const dir = resolve(site, outDir);
+  const frames = await buildPluginFrames(config.plugins, { root: site, outDir: dir });
+  const steps = await runPluginBuildSteps({
+    root: site,
+    outDir: dir,
+    base,
+    plugins: config.plugins ?? [],
+    onStep: (step) => console.log(`Running ${step.title}, from ${step.plugin}…`),
+  });
+  return { frames, steps: steps.map((step) => `${step.plugin}: ${step.title}`) };
 }
 
 async function exists(path: string): Promise<boolean> {

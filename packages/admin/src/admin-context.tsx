@@ -52,6 +52,7 @@ import {
 import { mediaUrl } from "./media.js";
 import { MediaPickerDialog } from "./media-library.js";
 import { createMediaPreviews, type MediaPreviews } from "./media-previews.js";
+import { type PluginHost, PluginServices } from "./plugin-frames.js";
 import { REGISTRY_VERSION } from "./registry-version.js";
 import { navigate } from "./router.js";
 import { useScheduleInfoOf } from "./schedule.js";
@@ -139,6 +140,8 @@ export interface Account {
   ai?: { server: string; services: string[]; fetch?: typeof fetch };
   /** Creates another repository on the site's host, such as its token broker's, with a token the owner pastes. */
   setup?: () => SetupHost;
+  /** On a full-stack site, where its server answers for plugins, such as `https://example.org/api/goodfellow/plugins`. */
+  plugins?: string;
 }
 
 export interface AdminContextValue {
@@ -175,6 +178,8 @@ export interface AdminContextValue {
   readFile(path: string): Promise<string | undefined>;
   /** Lists the site's files under a folder at the loaded revision. */
   listFiles(dir: string): Promise<string[]>;
+  /** Reads one of the site's files as bytes at the loaded revision, or `undefined` if it doesn't exist. */
+  readBytes(path: string): Promise<Uint8Array | undefined>;
   /**
    * The block registries the Blocks screen offers blocks from: Goodfellow's,
    * and, where installed code can't reach editors' tokens (`outOfReach`),
@@ -331,6 +336,7 @@ export function AdminProvider({
   useEffect(() => (favicon ? showSiteIcon(document, favicon, mediaPreviews) : undefined), [favicon, mediaPreviews]);
   const readFile = useCallback((path: string) => content.read(path), [content]);
   const listFiles = useCallback((dir: string) => content.list(dir), [content]);
+  const readBytes = useCallback((path: string) => content.readBytes(path), [content]);
   const demo = isDemoStore(store) ? store : undefined;
   const pages = isGitBackend(store) ? store.pages : undefined;
   const versions = isGitBackend(store) ? store : undefined;
@@ -650,6 +656,7 @@ export function AdminProvider({
       drafts,
       readFile,
       listFiles,
+      readBytes,
       registries,
       outOfReach,
       demo,
@@ -680,6 +687,7 @@ export function AdminProvider({
       drafts,
       readFile,
       listFiles,
+      readBytes,
       registries,
       outOfReach,
       demo,
@@ -766,8 +774,20 @@ function SiteFrames({
   const t = useStrings();
   const strings = useStringTable();
   const theme = useThemeChoice();
-  const { preview, siteUrl, mediaPreviews, account, scheduledBuilds, repositoryVisibility, scheduleSyncProblem } =
-    useAdmin();
+  const {
+    site,
+    preview,
+    siteUrl,
+    mediaPreviews,
+    account,
+    scheduledBuilds,
+    repositoryVisibility,
+    scheduleSyncProblem,
+    readFile,
+    readBytes,
+    listFiles,
+    publish,
+  } = useAdmin();
   const { timing, visibility } = useScheduleInfoOf(scheduledBuilds, repositoryVisibility);
   const schedule = useMemo(
     () => ({
@@ -780,6 +800,26 @@ function SiteFrames({
   const siteCss = useSiteCss(preview.stylesheets);
   const [choosing, setChoosing] = useState<{ kind: MediaFieldKind; resolve: (url: string | null) => void }>();
   const confirmLeave = t("unsaved.confirm");
+  // Plugins' frames: each answered only for what its plugin declared (`plugin-frames.tsx`).
+  const plugins = useMemo(() => site.description.plugins ?? [], [site.description.plugins]);
+  const pluginHost = useMemo<PluginHost>(
+    () => ({
+      editorUrl: frames.url,
+      siteUrl,
+      theme,
+      read: readFile,
+      readBytes,
+      list: listFiles,
+      publish: async (changes, message) => (await publish(changes, message)).ok,
+      ...(account?.plugins && { server: account.plugins }),
+      navigate: (href) => navigate(href, () => window.confirm(confirmLeave)),
+    }),
+    [frames.url, siteUrl, theme, readFile, readBytes, listFiles, publish, account, confirmLeave],
+  );
+  const callPlugin = useRef<(plugin: string, method: string, args: unknown[]) => Promise<unknown>>(undefined);
+  const onPluginCall = useCallback((call: (plugin: string, method: string, args: unknown[]) => Promise<unknown>) => {
+    callPlugin.current = call;
+  }, []);
   const services = useMemo<FrameServices>(
     () => ({
       source: frames,
@@ -803,12 +843,18 @@ function SiteFrames({
           });
         }),
       navigate: (href) => navigate(href, () => window.confirm(confirmLeave)),
+      callPlugin: (plugin, method, args) =>
+        callPlugin.current
+          ? callPlugin.current(plugin, method, args)
+          : Promise.reject(new Error("Plugins haven't started.")),
     }),
     [frames, state, schedule, siteUrl, preview, strings, theme, account, siteCss, mediaPreviews, confirmLeave],
   );
   return (
     <FrameServicesProvider value={services}>
-      {children}
+      <PluginServices plugins={plugins} host={pluginHost} onCall={onPluginCall}>
+        {children}
+      </PluginServices>
       <SiteCodeFrame onClient={onCodeClient} />
       {choosing && (
         <MediaPickerDialog

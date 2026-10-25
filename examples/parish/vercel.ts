@@ -103,7 +103,7 @@ function adminHeaders() {
   return [
     { source: "/((?!admin/|admin$).*)", has, headers: list({ "Content-Security-Policy": "sandbox" }) },
     {
-      source: "/admin/((?!editor/|editor$).*)",
+      source: "/admin/((?!editor/|editor$|plugins/).*)",
       has,
       headers: list({
         "Cross-Origin-Opener-Policy": "same-origin",
@@ -113,6 +113,11 @@ function adminHeaders() {
     },
     {
       source: "/admin/editor/:path*",
+      has,
+      headers: list({ "Content-Security-Policy": "frame-ancestors 'self'", "Origin-Agent-Cluster": "?1" }),
+    },
+    {
+      source: "/admin/plugins/:path*",
       has,
       headers: list({ "Content-Security-Policy": "frame-ancestors 'self'", "Origin-Agent-Cluster": "?1" }),
     },

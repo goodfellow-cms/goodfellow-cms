@@ -135,6 +135,7 @@ export function FrameProviders({
       },
       readFile: async () => refused(),
       listFiles: async () => refused(),
+      readBytes: async () => refused(),
       registries: {},
       outOfReach: false,
       contentOnly: false,

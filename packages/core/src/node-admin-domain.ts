@@ -63,8 +63,16 @@ export async function guardBuiltSite(
     const file = join(entry.parentPath, entry.name);
     const path = relative(outDir, file).split("\\").join("/");
     const kind = pageFileKind(path);
-    // The editor's frames refuse to run anywhere but in the admin panel's sandboxed frames (`EDITOR_PRELUDE`).
-    if (!kind || path.startsWith("admin/editor/") || path === "admin/editor.html") continue;
+    // The editor's frames, and plugins', refuse to run anywhere but in the admin panel's sandboxed frames
+    // (`EDITOR_PRELUDE`).
+    if (
+      !kind ||
+      path.startsWith("admin/editor/") ||
+      path === "admin/editor.html" ||
+      path.startsWith("admin/plugins/")
+    ) {
+      continue;
+    }
     const text = await readFile(file, "utf8");
     const next = withGuard(text, kind, path.startsWith("admin/") ? forAdmin : forSite);
     if (next === undefined || !startsWithGuard(next, kind)) {

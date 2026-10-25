@@ -52,6 +52,15 @@ export {
   nightlyCheck,
   reportNightly,
 } from "./node-nightly.js";
+export {
+  PluginBuildError,
+  type PluginBuildOptions,
+  type PluginBuildStepRunInfo,
+  type PluginServer,
+  pluginModuleUrl,
+  resolvePluginModule,
+  runPluginBuildSteps,
+} from "./node-plugins.js";
 export { localRegistryDir } from "./node-registry.js";
 export { type DueOptions, type DueResult, reportDue, scheduleDue } from "./node-schedule.js";
 export { type RunCommand, type SiteFile, siteFileChanges, type UpdateOptions, update } from "./node-update.js";

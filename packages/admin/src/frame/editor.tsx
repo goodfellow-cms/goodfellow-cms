@@ -304,6 +304,12 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
     [client],
   );
 
+  // Blocks a plugin adds can ask its services, which run in the plugin's own frame, through the admin panel's page.
+  const callPlugin = useCallback(
+    (plugin: string, method: string, ...args: unknown[]) => client.call("plugin.call", { plugin, method, args }),
+    [client],
+  );
+
   const site = useMemo<SiteContextValue>(
     () => ({
       settings: content.settings,
@@ -314,8 +320,9 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
       ...(view && { view }),
       ...(languages && { languages, home: languageHome(loaded, language) }),
       adminLink,
+      callPlugin,
     }),
-    [content, loaded, language, path, collection, view, languages, adminLink],
+    [content, loaded, language, path, collection, view, languages, adminLink, callPlugin],
   );
   const entry = kind === "entry" && collection && open.entry ? findEntry(loaded, collection.id, open.entry) : undefined;
   const config = useMemo(() => {

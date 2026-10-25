@@ -35,12 +35,18 @@
       "types": "./dist/editor.d.ts",
       "import": "./dist/editor.js"
     },
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "import": "./dist/plugin.js"
+    },
     "./styles.css": "./styles.css",
+    "./plugin.css": "./plugin.css",
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
-    "styles.css"
+    "styles.css",
+    "plugin.css"
   ],
   "scripts": {
     "build": "tsdown",

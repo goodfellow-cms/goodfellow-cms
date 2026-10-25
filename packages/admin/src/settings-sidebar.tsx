@@ -10,6 +10,7 @@ import {
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
+  Puzzle,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -18,6 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
+import { useAdmin } from "./admin-context.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { AppLink } from "./use-link.js";
 
@@ -106,8 +108,17 @@ function writeCollapsed(collapsed: boolean): void {
  * Site Settings' tabs as a sidebar, each with its icon. Collapsed, it shows
  * only the icons, with each name in a tooltip, and remembers that in this browser.
  */
-export function SettingsSidebar({ current }: { current: SettingsPlace }) {
+export function SettingsSidebar({ current }: { current: SettingsPlace | `plugin/${string}` }) {
   const t = useStrings();
+  const { site } = useAdmin();
+  // Plugins' screens, by what each plugin calls them.
+  const pluginScreens = (site.description.plugins ?? []).flatMap((plugin) =>
+    (plugin.screens ?? []).map((screen) => ({
+      key: `plugin/${plugin.id}/${screen.id}`,
+      href: `#/settings/plugin/${encodeURIComponent(plugin.id)}/${encodeURIComponent(screen.id)}`,
+      title: screen.title,
+    })),
+  );
   const [chosen, setChosen] = useState(readCollapsed);
   const narrow = useNarrow();
   const collapsed = chosen || narrow;
@@ -134,6 +145,25 @@ export function SettingsSidebar({ current }: { current: SettingsPlace }) {
       <ul className="gfa-sidebar-list">{FORM_ITEMS.map((entry) => item(entry, true))}</ul>
       <hr className="gfa-sidebar-divider" />
       <ul className="gfa-sidebar-list">{SCREEN_ITEMS.map((entry) => item(entry, false))}</ul>
+      {pluginScreens.length > 0 && (
+        <>
+          <hr className="gfa-sidebar-divider" />
+          <ul className="gfa-sidebar-list">
+            {pluginScreens.map((screen) => (
+              <li key={screen.key}>
+                <AppLink
+                  href={screen.href}
+                  className="gfa-sidebar-item"
+                  aria-current={screen.key === current ? "page" : undefined}
+                >
+                  <Puzzle className="gfa-sidebar-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
+                  <span className="gfa-sidebar-label">{screen.title}</span>
+                </AppLink>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       {/* In a narrow window there's no room for the names. */}
       {!narrow && (
         <button

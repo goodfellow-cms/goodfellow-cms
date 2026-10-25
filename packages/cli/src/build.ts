@@ -10,6 +10,7 @@ import {
   DEMO_CONTENT_PATH,
   demoContent,
   feedFiles,
+  framedPlugins,
   loadSiteContent,
   MEDIA_DIR,
   normalizeBase,
@@ -30,13 +31,20 @@ import {
   withBase,
 } from "@goodfellow-cms/core";
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
-import { fileSystemSource, guardBuiltSite, selfHostFonts, writeBuildRecord } from "@goodfellow-cms/core/node";
+import {
+  fileSystemSource,
+  guardBuiltSite,
+  runPluginBuildSteps,
+  selfHostFonts,
+  writeBuildRecord,
+} from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { createServer, build as viteBuild } from "vite";
 import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
 import { buildEditor } from "./editor-bundle.js";
 import { type ClientModules, ISLANDS_ENTRY } from "./islands.js";
 import { cssFiles, findEntry, type Manifest } from "./manifest.js";
+import { buildPluginFrame } from "./plugin-frames.js";
 import { baseViteConfig, findConfigFile, loadServerEntry, writeStylesEntries } from "./site.js";
 
 export interface BuildOptions {
@@ -74,6 +82,8 @@ export interface BuildResult {
   robotsElsewhere?: string;
   /** The sitemap's address, for a site with its address set. */
   sitemap?: string;
+  /** The plugins' build steps that ran, as `plugin: step`. */
+  pluginSteps?: string[];
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -191,6 +201,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       const admin = findEntry(manifest, "admin");
       if (!admin) throw new Error("The admin panel's bundle is missing from the build.");
       const { url } = await buildEditor(viteConfig, entries, { base, outDir });
+      // Each plugin's admin module, in a frame of its own beside the editor's.
+      for (const plugin of framedPlugins(config.plugins)) await buildPluginFrame(plugin, { root, base, outDir });
       const html = adminHtml({
         scripts: [`${base}${admin.file}`],
         stylesheets: cssFiles(manifest, "admin").map((file) => `${base}${file}`),
@@ -273,6 +285,18 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const fonts = await selfHostFonts(outDir, content.settings.theme, { base });
     const robotsElsewhere = rootRobotsUrl(url);
 
+    // Plugins' build steps, each in a process of its own held to what its plugin declared, once Goodfellow has
+    // written everything but the record, the search index and the guards, which then cover what the steps wrote.
+    const pluginSteps = (
+      await runPluginBuildSteps({
+        root,
+        outDir,
+        base,
+        plugins: config.plugins ?? [],
+        onStep: (step) => console.log(`Running ${step.title}, from ${step.plugin}…`),
+      })
+    ).map((step) => `${step.plugin}: ${step.title}`);
+
     // What the site was built from, and when it stops being current, for the nightly check.
     const record = await writeBuildRecord(outDir, { root, content: loaded, now });
 
@@ -298,6 +322,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       ...(record.currentUntil && { currentUntil: record.currentUntil }),
       ...(cloudflare.left > 0 && { redirectsLeft: cloudflare.left }),
       ...(fonts && { fonts }),
+      ...(pluginSteps.length > 0 && { pluginSteps }),
       ...(robotsElsewhere && { robotsElsewhere }),
       ...(url && { sitemap: absoluteUrl(url, "/sitemap.xml") }),
     };

@@ -918,6 +918,8 @@ export const defaultStrings = {
   "settings.tab.history": "Site history",
   "settings.tab.import": "WordPress",
   "settings.tab.themes": "Themes",
+  "plugins.notFound": "The site has no plugin screen at this address.",
+  "plugins.failed": "{plugin}'s screen couldn't start. If it keeps happening, the plugin may need updating.",
   "themes.intro":
     "A theme changes your site's look: its colors, fonts and the styles of its blocks, and sometimes its header and footer. Themes are only settings and styles, with no code, and you can change anything a theme sets afterwards in Colors & fonts and Custom CSS.",
   "themes.installed": "Installed theme",

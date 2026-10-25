@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { startsWithGuard, vercelAdminHeaders, withAdminConfig } from "@goodfellow-cms/core";
@@ -370,6 +370,89 @@ describe("a site with an admin address", () => {
       await rm(site, { recursive: true, force: true });
     }
   });
+});
+
+describe("a site with a plugin", () => {
+  it("builds the plugin's admin frame with its policy, and runs its build step held to what it declared", async () => {
+    // Inside the package, so the site's imports find its packages.
+    const site = await mkdtemp(join(import.meta.dirname, "../test/.plugin-"));
+    const out = join(site, "dist");
+    try {
+      await cp(fixture, site, { recursive: true, filter: (path) => !path.includes("node_modules") });
+      await mkdir(join(site, "plugins/hello"), { recursive: true });
+      await writeFile(
+        join(site, "plugins/hello/index.ts"),
+        [
+          'import { definePlugin } from "@goodfellow-cms/core";',
+          "export const hello = definePlugin({",
+          '  name: "goodfellow-plugin-hello",',
+          '  title: "Hello",',
+          '  permissions: { connect: ["https://api.example.com"], files: ["content/hello.json"], write: ["hello/"] },',
+          '  admin: "./plugins/hello/admin.ts",',
+          '  screens: [{ id: "settings", title: "Hello" }],',
+          '  build: [{ id: "greet", module: "./plugins/hello/build.mjs", title: "Say hello" }],',
+          "});",
+          "",
+        ].join("\n"),
+      );
+      await writeFile(
+        join(site, "plugins/hello/admin.ts"),
+        [
+          'import { definePluginAdmin } from "@goodfellow-cms/core";',
+          "export default definePluginAdmin({",
+          '  services: { greet: ([name]) => "Hello, " + String(name) + "!" },',
+          '  screens: { settings: (element) => { (element as HTMLElement).textContent = "Hello"; } },',
+          "});",
+          "",
+        ].join("\n"),
+      );
+      await writeFile(
+        join(site, "plugins/hello/build.mjs"),
+        [
+          'import { mkdirSync, readFileSync, writeFileSync } from "node:fs";',
+          "export default (context) => {",
+          "  let config = 'read';",
+          "  try { readFileSync(context.root + '/goodfellow.config.tsx'); } catch (error) { config = error.code; }",
+          "  mkdirSync(context.outDir + '/hello', { recursive: true });",
+          "  writeFileSync(context.outDir + '/hello/report.json', JSON.stringify({ config, base: context.base }));",
+          "};",
+          "",
+        ].join("\n"),
+      );
+      const configFile = join(site, "goodfellow.config.tsx");
+      const config = (await readFile(configFile, "utf8"))
+        .replace(
+          'import { Counter } from "./blocks/counter";',
+          'import { Counter } from "./blocks/counter";\nimport { hello } from "./plugins/hello";',
+        )
+        .replace('base: "/from-config/",', 'base: "/from-config/",\n  demo: true,\n  plugins: [hello],');
+      await writeFile(configFile, config);
+      const result = await build({ root: site, outDir: out });
+
+      const page = await readFile(join(out, "admin/plugins/goodfellow-plugin-hello/index.html"), "utf8");
+      expect(page).toContain("connect-src https://api.example.com;");
+      const script = /<script src="\/from-config\/(admin\/plugins\/goodfellow-plugin-hello\/[^"]+\.js)"/.exec(
+        page,
+      )?.[1];
+      expect(script).toBeDefined();
+      const code = await readFile(join(out, script ?? ""), "utf8");
+      // The prelude first, which the minifier rewrites without changing what it does: nothing runs unsandboxed.
+      expect(code.startsWith("(()=>{if(self.origin!==`null`)")).toBe(true);
+      expect(code).toContain("Hello, ");
+
+      expect(result.pluginSteps).toEqual(["goodfellow-plugin-hello: Say hello"]);
+      expect(JSON.parse(await readFile(join(out, "hello/report.json"), "utf8"))).toEqual({
+        config: "ERR_ACCESS_DENIED",
+        base: "/from-config/",
+      });
+      const description = JSON.parse(await readFile(join(out, "goodfellow-site.json"), "utf8"));
+      expect(description.plugins).toMatchObject([
+        { name: "goodfellow-plugin-hello", id: "goodfellow-plugin-hello", admin: true, screens: [{ id: "settings" }] },
+      ]);
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  }, 120_000);
 });
 
 describe("documentation site", () => {

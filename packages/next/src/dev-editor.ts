@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve, sep } from "node:path";
-import { DEV_EDITOR_PREFIX, EDITOR_PRELUDE, editorPage } from "@goodfellow-cms/core";
+import { DEV_EDITOR_PREFIX, EDITOR_PRELUDE, editorPage, pluginId } from "@goodfellow-cms/core";
+import { buildPluginFrame, loadSiteConfig } from "./plugins.js";
 
 /**
  * The editor's frames in `next dev`. They're sandboxed with `allow-scripts`
@@ -129,10 +130,62 @@ export async function startDevEditor(root: string): Promise<DevEditor> {
     }
   });
 
+  // Plugins' admin frames, beside the editor's (`pluginFrameUrl()`), each built the first time it's asked for,
+  // from the config as it is then, and rebuilt as its code changes.
+  const pluginsDir = join(root, "node_modules/.goodfellow/next-plugins");
+  const pluginsPrefix = DEV_EDITOR_PREFIX.replace(/editor\/$/, "plugins/");
+  const pluginBuilds = new Map<string, Promise<boolean>>();
+  const pluginFrame = (id: string): Promise<boolean> => {
+    let ready = pluginBuilds.get(id);
+    if (!ready) {
+      ready = (async () => {
+        const plugin = (await loadSiteConfig(root)).plugins?.find(
+          (candidate) => pluginId(candidate.name) === id && candidate.admin,
+        );
+        if (!plugin) {
+          pluginBuilds.delete(id);
+          return false;
+        }
+        await new Promise<void>((done) => {
+          buildPluginFrame(plugin, {
+            root,
+            dir: join(pluginsDir, id),
+            watch: {
+              onBuilt(error) {
+                if (error) console.error(`${plugin.title}'s admin frame couldn't be built: ${error.message}`);
+                done();
+              },
+            },
+          }).catch((error: Error) => {
+            console.error(`${plugin.title}'s admin frame couldn't be built: ${error.message}`);
+            done();
+          });
+        });
+        return true;
+      })();
+      pluginBuilds.set(id, ready);
+    }
+    return ready;
+  };
+
   return {
     async serve(req, res) {
       // Next.js passes the frames' page on without its trailing slash.
       const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+      if (pathname.startsWith(pluginsPrefix) && (req.method === "GET" || req.method === "HEAD")) {
+        const [id = "", ...rest] = decodeURIComponent(pathname.slice(pluginsPrefix.length)).split("/");
+        const file = resolve(pluginsDir, id, rest.join("/") || "index.html");
+        if (!file.startsWith(`${pluginsDir}${sep}`) || !(await pluginFrame(id))) return false;
+        try {
+          const data = await readFile(file);
+          res.setHeader("Content-Type", TYPES[file.slice(file.lastIndexOf(".") + 1)] ?? "application/octet-stream");
+          res.setHeader("Cache-Control", "no-store");
+          res.end(req.method === "HEAD" ? undefined : data);
+        } catch {
+          res.writeHead(404).end();
+        }
+        return true;
+      }
       const page = pathname === DEV_EDITOR_PREFIX.slice(0, -1);
       if (!(page || pathname.startsWith(DEV_EDITOR_PREFIX)) || (req.method !== "GET" && req.method !== "HEAD")) {
         return false;

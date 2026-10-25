@@ -82,6 +82,8 @@ export interface FrameServices {
   chooseMedia(kind: MediaFieldKind, value: string): Promise<string | null>;
   /** Goes to another screen, asking first about unpublished changes. */
   navigate(href: string): void;
+  /** Asks one of a plugin's services, through the plugin's own frame. */
+  callPlugin(plugin: string, method: string, args: unknown[]): Promise<unknown>;
 }
 
 const FrameServicesContext = createContext<FrameServices | null>(null);
@@ -145,6 +147,15 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
         const kind = params?.kind;
         if (kind !== "image" && kind !== "video" && kind !== "file") return null;
         return latest.current.services.chooseMedia(kind, typeof params.value === "string" ? params.value : "");
+      },
+      // Only the editor's blocks ask plugins: previews and the site's code never need to.
+      "plugin.call": (params) => {
+        if (mode !== "editor" || typeof params?.plugin !== "string" || typeof params.method !== "string") return null;
+        return latest.current.services.callPlugin(
+          params.plugin,
+          params.method,
+          Array.isArray(params.args) ? params.args : [],
+        );
       },
       "media.bytes": async (url) => {
         if (typeof url !== "string" || !url.startsWith(MEDIA_URL_PREFIX) || url.includes("..")) return null;

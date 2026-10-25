@@ -93,6 +93,10 @@ The server sends on only the requests the assistant makes, and only for people `
 
 To keep the server's token away from the site's code, the content can be kept in a [repository of its own](/docs/content-repository#full-stack-nextjs-sites), with a token for that repository only.
 
+## Plugins' routes
+
+[Plugins](/docs/plugins#on-full-stack-sites-servers) with a server module answer at `/api/goodfellow/plugins/<id>/`. Import each server module in the API route and pass it to `goodfellowApi()` as `plugins: { "goodfellow-plugin-gallery": galleryServer }`. They're answered for anyone, as webhooks need, and told who's signed in only for requests from the site's own pages. A server module runs with everything the server has, so add only plugins you'd trust with its token.
+
 ## Safety
 
 - The API answers people who aren't signed in only with where to sign in. Every request must come from the site's own pages: it carries a header that browsers don't send to another site without asking it first, and requests that say they come from another site are refused.

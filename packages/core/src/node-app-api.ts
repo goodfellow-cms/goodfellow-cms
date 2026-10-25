@@ -11,9 +11,11 @@ import {
   isContentPath,
   isEditablePath,
   isSettingsPath,
+  pluginId,
   type ServerGit,
   SignInError,
 } from "./index.js";
+import type { PluginServer } from "./node-plugins.js";
 
 export interface AppApiOptions {
   /** The site's repository, through a token of the site's own: `config.backend.server({ token })`. */
@@ -36,6 +38,13 @@ export interface AppApiOptions {
   };
   /** Told about failures the admin panel only hears about as "something went wrong". Defaults to `console.error`. */
   onError?: (error: unknown) => void;
+  /**
+   * Plugins' server modules, by plugin name, such as
+   * `{ "goodfellow-plugin-s3": s3Server }`, which answer requests to
+   * `plugins/<id>/…`, from anyone, as webhooks need. Each is told who's signed
+   * in only for requests from the site's own pages.
+   */
+  plugins?: Record<string, PluginServer>;
 }
 
 /** Room for a save with uploads, which are sent as base64 (a third larger than the files). */
@@ -241,9 +250,28 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
     return json(404, { error: "not-found" });
   }
 
+  /** A plugin's server module, for a request to `plugins/<id>/<path>`. */
+  async function plugin(request: Request, name: string): Promise<Response> {
+    const [, id = "", ...rest] = name.split("/");
+    const entry = Object.entries(options.plugins ?? {}).find(([plugin]) => pluginId(plugin) === id);
+    if (!entry) return json(404, { error: "not-found" });
+    try {
+      // Only a request from the site's own pages can be an editor's: anyone can send the rest.
+      const editor = isTrusted(request) ? await options.authorize(request) : null;
+      return await entry[1](request, {
+        path: rest.join("/"),
+        editor: editor ? { login: editor.login, name: editor.name, email: editor.email, role: editor.role } : null,
+      });
+    } catch (error) {
+      onError(error);
+      return json(500, { error: "server-error" });
+    }
+  }
+
   return async (request, endpoint) => {
     // Without a trailing slash: Next.js sites with `trailingSlash` call `revision/`.
     const name = endpoint.replace(/^\/+|\/+$/g, "");
+    if (name.startsWith("plugins/")) return plugin(request, name);
     if (!isTrusted(request)) return json(403, { error: "forbidden" });
     try {
       const editor = await options.authorize(request);

@@ -5,7 +5,7 @@ import { defineConfig } from "tsdown";
 const registryVersion: string = createRequire(import.meta.url)("@goodfellow-cms/registry/package.json").version;
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/dev.ts", "src/editor.ts"],
+  entry: ["src/index.ts", "src/dev.ts", "src/editor.ts", "src/plugin.ts"],
   format: "esm",
   dts: true,
   platform: "browser",
