@@ -379,7 +379,7 @@ function checkLayoutAddresses(theme: ThemePackage): void {
 /**
  * What installing a theme would have visitors' browsers load besides Google
  * Fonts and the site's own media: from its CSS, from classes it gives parts
- * or its header's and footer's blocks (such as `bg-[url(…)]`), and from its
+ * or its header's and footer's blocks (such as arbitrary `url()` backgrounds), and from its
  * header's and footer's pictures.
  */
 export function themeLoads(theme: ThemePackage): string[] {

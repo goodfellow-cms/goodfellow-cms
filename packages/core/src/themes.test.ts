@@ -175,7 +175,8 @@ describe("what a theme's header and footer may do", () => {
   it("lists what its classes and pictures would load", () => {
     const theme = withLayout(
       [{ type: "Section", props: { id: "a", backgroundImage: "https://images.example/sea.jpg", className: "" } }],
-      { "gf-card": "bg-[url(https://tracker.example/pixel.gif)]" },
+      // Put together here, so Tailwind, which reads this repository's files, never finds the class.
+      { "gf-card": ["bg-[url(", "https://tracker.example/pixel.gif", ")]"].join("") },
     );
     expect(themeLoads(theme)).toEqual(["https://images.example/sea.jpg", "https://tracker.example/pixel.gif"]);
   });
