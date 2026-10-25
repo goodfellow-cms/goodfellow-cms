@@ -85,8 +85,8 @@ const Pricing: ComponentConfig<PricingProps> = withParts(
           )}
           <div className={part("gf-shadcn-pricing-grid", "grid gap-6 md:grid-cols-2 lg:grid-cols-3")}>
             {plans.map((plan, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: plans have no ids of their own
               <Card
+                // biome-ignore lint/suspicious/noArrayIndexKey: plans have no ids of their own
                 key={index}
                 className={part("gf-shadcn-pricing-plan", undefined, plan.badge && "border-primary border-2")}
               >

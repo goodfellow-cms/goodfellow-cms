@@ -35,7 +35,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Previous and next | Links to the items before and after this one, in a page design only |
 | On this page | The headings of the item's Markdown text, in a page design only |
 
-Blocks use the site's colors, fonts and corner rounding. Every block accepts extra CSS classes, which override the block's own styles: `py-4` on a Section replaces its default padding.
+Blocks use the site's colors, fonts and corner rounding. Every block accepts extra CSS classes, which override the block's own styles: `py-4` on a Section replaces its default padding. Every part of a block also has a name, which the site's theme can give classes to (see [Named parts](#named-parts)).
 
 ## Video
 
@@ -68,3 +68,33 @@ On a site in [several languages](/docs/languages), the Language switch links to 
 ## Search
 
 The Search block searches the whole site in the visitor's browser, with [Pagefind](https://pagefind.app), so no search service is needed. When a site has a Search block, its build makes a search index of every page's main content; headers, footers and "Page not found" are left out. Search only works on the built site, so in the editor the box says so. See [Search](/docs/search) for details.
+
+## Named parts
+
+Every part of a built-in block has a name, which is on the part as a class, and which [Blocks' parts](/docs/layout-and-settings#blocks-parts) gives classes to and custom CSS can style. Names are never renamed or removed, so a theme that uses one keeps working; new ones may be added. Some parts are in more than one block, such as a list's page links.
+
+- **Add to calendar:** `gf-add-to-calendar` (Add to calendar), `gf-add-to-calendar-label` (Add to calendar's label), `gf-add-to-calendar-links` (Calendars' links), `gf-add-to-calendar-link` (Calendar's link).
+- **Button:** `gf-button` (Button).
+- **Calendar:** `gf-calendar` (Calendar), `gf-calendar-empty` (Nothing to show), `gf-calendar-days` (Days), `gf-calendar-day` (Day), `gf-calendar-day-heading` (Day's date), `gf-calendar-events` (Day's events), `gf-calendar-event` (Event), `gf-calendar-event-time` (Event's time), `gf-calendar-event-body` (Event's details), `gf-calendar-event-title` (Event's title), `gf-calendar-event-place` (Event's place), `gf-calendar-event-summary` (Event's summary), `gf-calendar-month` (Month), `gf-calendar-month-header` (Month's heading and links), `gf-calendar-month-link` (Previous or next month), `gf-calendar-month-title` (Month's name), `gf-calendar-weekdays` (Days of the week), `gf-calendar-month-days` (Month's days), `gf-calendar-month-day` (Month's day), `gf-calendar-month-blank` (Day outside the month), `gf-calendar-month-date` (Day's number), `gf-calendar-month-events` (Day's events in a month), `gf-calendar-month-event` (Event in a month), `gf-calendar-subscribe` (Subscribe), `gf-calendar-subscribe-label` (Subscribe's label), `gf-calendar-subscribe-links` (Subscribe links), `gf-calendar-subscribe-link` (Subscribe link), `gf-add-to-calendar` (Add to calendar), `gf-add-to-calendar-label` (Add to calendar's label), `gf-add-to-calendar-links` (Calendars' links), `gf-add-to-calendar-link` (Calendar's link).
+- **Code:** `gf-code` (Code), `gf-code-title` (Code's title), `gf-code-copy` (Copy button).
+- **Collection list:** `gf-collection-list` (List with its heading), `gf-collection-list-header` (List's heading and link), `gf-collection-list-heading` (List's heading), `gf-collection-list-more` (See all link), `gf-collection-list-items` (Items), `gf-collection-list-empty` (Nothing to show), `gf-card` (Card), `gf-card-image` (Card's picture), `gf-card-body` (Card's text), `gf-card-date` (Card's date), `gf-card-title` (Card's title), `gf-card-summary` (Card's summary), `gf-list-item` (List item), `gf-list-item-image` (List item's picture), `gf-list-item-body` (List item's text), `gf-list-item-date` (List item's date), `gf-list-item-title` (List item's title), `gf-list-item-summary` (List item's summary), `gf-choices` (Choices), `gf-choice-link` (Choice), `gf-page-links` (Page links), `gf-page-numbers` (Page numbers), `gf-page-link` (Page link).
+- **Collection loop:** `gf-collection-loop` (Collection loop), `gf-collection-loop-items` (Items), `gf-collection-loop-item` (Item), `gf-collection-loop-design` (Item's design), `gf-collection-loop-empty` (Nothing to show), `gf-choices` (Choices), `gf-choice-link` (Choice), `gf-page-links` (Page links), `gf-page-numbers` (Page numbers), `gf-page-link` (Page link).
+- **Collection navigation:** `gf-collection-nav` (Collection navigation), `gf-collection-nav-heading` (Navigation's heading), `gf-collection-nav-group` (Group), `gf-collection-nav-group-label` (Group's name), `gf-collection-nav-links` (Group's links), `gf-collection-nav-link` (Link).
+- **Columns:** `gf-columns` (Columns).
+- **Contact details:** `gf-contact` (Contact details), `gf-contact-address` (Address), `gf-contact-phone` (Phone number), `gf-contact-email` (Email address).
+- **Dark mode switch:** `gf-dark-mode-switch` (Dark mode switch), `gf-dark-mode-switch-track` (Switch's track), `gf-dark-mode-switch-thumb` (Switch's knob).
+- **Entry field:** `gf-entry-field` (Entry field), `gf-entry-field-link` (Field's link), `gf-code` (Code), `gf-code-title` (Code's title), `gf-code-copy` (Copy button).
+- **Form:** `gf-form` (Form), `gf-form-embed` (Google Form), `gf-form-questions` (Questions), `gf-form-question` (Question), `gf-form-label` (Question's wording), `gf-form-hint` (Help text), `gf-form-input` (Answer field), `gf-form-choice` (Choice), `gf-form-check` (Checkbox or option), `gf-form-required` (Required mark), `gf-form-submit` (Send button).
+- **Heading:** `gf-heading` (Heading).
+- **Image:** `gf-image` (Image and caption), `gf-image-picture` (Picture), `gf-image-caption` (Caption).
+- **Language switch:** `gf-language-switch` (Language switch), `gf-language-list` (Languages), `gf-language-link` (Language), `gf-language-current` (Current language).
+- **Menu:** `gf-menu` (Menu), `gf-menu-list` (Menu's links), `gf-menu-item` (Menu item), `gf-menu-link` (Menu link), `gf-menu-submenu` (Submenu).
+- **On this page:** `gf-on-this-page` (On this page), `gf-on-this-page-heading` (Heading), `gf-on-this-page-links` (Links), `gf-on-this-page-link` (Link).
+- **Previous and next:** `gf-entry-pager` (Previous and next), `gf-entry-pager-link` (Previous or next link), `gf-entry-pager-label` (Link's label), `gf-entry-pager-title` (Link's title).
+- **Row:** `gf-row` (Row).
+- **Search:** `gf-search` (Search), `gf-search-box` (Search box), `gf-search-input` (Search field), `gf-search-results` (Results), `gf-search-result` (Result), `gf-search-result-title` (Result's title), `gf-search-result-excerpt` (Result's excerpt), `gf-search-message` (Search message).
+- **Section:** `gf-section` (Section), `gf-section-content` (Section's content).
+- **Site name and logo:** `gf-site-brand` (Site name and logo), `gf-site-brand-logo` (Logo), `gf-site-brand-name` (Site name).
+- **Space:** `gf-space` (Space).
+- **Text:** `gf-text` (Text).
+- **Video:** `gf-video` (Video and caption), `gf-video-player` (Player), `gf-video-caption` (Caption).

@@ -47,8 +47,8 @@ export {
   mediaFieldKind,
   type PuckConfigKind,
   templateOnly,
-  withParts,
   withClassName,
+  withParts,
 } from "./puck-config.js";
 export { CurrentPathProvider, type SiteContextValue, SiteProvider, useCurrentPath, useSite } from "./site-context.js";
 export type { AdminLinkProps, AdminPlace, SiteComponents, SiteImageProps, SiteLinkProps } from "./site-types.js";

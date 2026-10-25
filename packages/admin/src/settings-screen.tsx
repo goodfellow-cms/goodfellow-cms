@@ -39,6 +39,7 @@ import { useHistory } from "./history.js";
 import { cleanLanguages, LanguagesTab, languagesProblem } from "./languages-tab.js";
 import { MediaField } from "./media-library.js";
 import { MenusTab } from "./menus-editor.js";
+import { PartsEditor } from "./parts-editor.js";
 import { PreviewFrame, type PreviewScheme } from "./preview.js";
 import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
 import { type SettingsSection, useUnsavedChanges } from "./router.js";
@@ -109,8 +110,17 @@ function cleanSettings(draft: SiteSettings): unknown {
       darkMode: draft.theme.darkMode || undefined,
       darkColors: Object.keys(darkColors).length > 0 ? darkColors : undefined,
       code: cleanCode(draft.theme.code),
+      parts: cleanParts(draft.theme.parts),
     },
   };
+}
+
+/** Parts' classes without the ones left empty. */
+function cleanParts(parts: SiteSettings["theme"]["parts"]): SiteSettings["theme"]["parts"] {
+  const kept = Object.entries(parts ?? {}).flatMap(([name, classes]) =>
+    classes.trim() ? [[name, classes.trim()]] : [],
+  );
+  return kept.length > 0 ? Object.fromEntries(kept) : undefined;
 }
 
 /** A font's kind is kept only with the font, which is all it's about. */
@@ -585,6 +595,14 @@ function ThemeTab({
         value={theme.radius ?? ""}
         error={errors["theme.radius"]}
         onChange={(radius) => onChange({ ...draft, theme: { ...theme, radius } })}
+      />
+
+      <h2 className="gfa-section-title">{t("theme.parts")}</h2>
+      <p className="gfa-hint">{t("theme.partsHint")}</p>
+      <PartsEditor
+        parts={theme.parts}
+        errors={errors}
+        onChange={(parts) => onChange({ ...draft, theme: { ...theme, parts } })}
       />
     </div>
   );

@@ -412,6 +412,23 @@ test("lets visitors go back to following their computer with the Dark mode menu"
   expect(await page.evaluate(() => localStorage.getItem("goodfellow.colorScheme"))).toBeNull();
 });
 
+test("gives every block of a kind a part's classes from the theme, before what's chosen for each", async ({ page }) => {
+  await page.goto("/admin#/settings/theme");
+  const preview = page.frameLocator(".gfa-preview iframe");
+  await expect(preview.getByRole("heading", { name: "Welcome to my site" })).toBeVisible();
+
+  await page.getByRole("combobox", { name: "Block", exact: true }).selectOption({ label: "Heading" });
+  await page.getByRole("textbox", { name: "Heading", exact: true }).fill("italic");
+  await expect(preview.getByRole("heading", { name: "Welcome to my site" })).toHaveCSS("font-style", "italic");
+  await expect(page.getByRole("combobox", { name: "Block", exact: true })).toContainText("Heading (1 styled)");
+
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readJson("content/site.json")).toMatchObject({ theme: { parts: { "gf-heading": "italic" } } });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Welcome to my site" })).toHaveClass(/^gf-heading .*\bitalic\b/);
+});
+
 test("chooses the colors code is shown in", async ({ page }) => {
   await page.goto("/admin#/settings/theme");
   await page.getByRole("combobox", { name: "Light colors" }).selectOption("everforest-light");

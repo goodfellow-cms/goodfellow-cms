@@ -165,7 +165,7 @@ describe("build", () => {
       expect(result.problems).toEqual([]);
       const html = await readFile(join(starterOut, "about/index.html"), "utf8");
       expect(html).toContain("<title>About us | My site</title>");
-      expect(html).toContain('<nav aria-label="main" data-gf-menu="">');
+      expect(html).toContain('<nav aria-label="main" class="gf-menu" data-gf-menu="">');
       const story = await readFile(join(starterOut, "news/welcome/index.html"), "utf8");
       expect(story).toContain("<title>Welcome to our new website | My site</title>");
     } finally {
