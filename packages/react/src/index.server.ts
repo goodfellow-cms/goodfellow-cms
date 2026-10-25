@@ -38,6 +38,8 @@ export {
 } from "./prepare.js";
 export {
   adminSite,
+  type BlockParts,
+  blockParts,
   classNameField,
   createPuckConfig,
   describeSite,
@@ -47,6 +49,7 @@ export {
   mediaFieldKind,
   type PuckConfigKind,
   templateOnly,
+  withParts,
   withClassName,
 } from "./puck-config.js";
 export { CurrentPathProvider, useCurrentPath } from "./site-context.js";

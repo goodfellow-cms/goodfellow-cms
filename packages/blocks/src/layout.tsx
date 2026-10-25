@@ -1,7 +1,8 @@
 import { withBase } from "@goodfellow-cms/core";
-import { classNameField, cx, mediaField, useSite } from "@goodfellow-cms/react";
+import { classNameField, mediaField, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Slot, SlotComponent } from "@puckeditor/core";
 import { type Gap, gapClasses, gapLabels, options, yesNo } from "./options.js";
+import { COLUMNS_PARTS, ROW_PARTS, SECTION_PARTS, SPACE_PARTS } from "./parts.js";
 
 type Width = "narrow" | "normal" | "wide" | "full";
 type Padding = "none" | "sm" | "md" | "lg";
@@ -43,50 +44,60 @@ function SectionView({
   className,
 }: Omit<SectionProps, "content"> & { content: SlotComponent }) {
   const { base } = useSite();
+  const part = useParts();
   const image = backgroundImage && withBase(backgroundImage, base);
   return (
     <section
-      className={cx(paddingClasses[padding], backgroundClasses[background], image && "bg-cover bg-center", className)}
+      className={part(
+        "gf-section",
+        image && "bg-cover bg-center",
+        paddingClasses[padding],
+        backgroundClasses[background],
+        className,
+      )}
       style={image ? { backgroundImage: `url(${JSON.stringify(image)})` } : undefined}
     >
-      <Content className={cx("mx-auto px-4", widthClasses[width])} />
+      <Content className={part("gf-section-content", "mx-auto px-4", widthClasses[width])} />
     </section>
   );
 }
 
 /** A full-width band of the page that centers its content. */
-export const Section: ComponentConfig<SectionProps> = {
-  label: "Section",
-  fields: {
-    content: { type: "slot" },
-    width: {
-      type: "select",
-      label: "Content width",
-      options: options({ narrow: "Narrow", normal: "Normal", wide: "Wide", full: "Full width" }),
+export const Section: ComponentConfig<SectionProps> = withParts(
+  {
+    label: "Section",
+    fields: {
+      content: { type: "slot" },
+      width: {
+        type: "select",
+        label: "Content width",
+        options: options({ narrow: "Narrow", normal: "Normal", wide: "Wide", full: "Full width" }),
+      },
+      padding: {
+        type: "select",
+        label: "Space above and below",
+        options: options({ none: "None", sm: "Small", md: "Medium", lg: "Large" }),
+      },
+      background: {
+        type: "select",
+        label: "Background color",
+        options: options({ none: "None", muted: "Subtle", primary: "Primary", secondary: "Secondary" }),
+      },
+      backgroundImage: mediaField("Background image"),
+      className: classNameField,
     },
-    padding: {
-      type: "select",
-      label: "Space above and below",
-      options: options({ none: "None", sm: "Small", md: "Medium", lg: "Large" }),
+    defaultProps: {
+      content: [],
+      width: "normal",
+      padding: "md",
+      background: "none",
+      backgroundImage: "",
+      className: "",
     },
-    background: {
-      type: "select",
-      label: "Background color",
-      options: options({ none: "None", muted: "Subtle", primary: "Primary", secondary: "Secondary" }),
-    },
-    backgroundImage: mediaField("Background image"),
-    className: classNameField,
+    render: (props) => <SectionView {...props} />,
   },
-  defaultProps: {
-    content: [],
-    width: "normal",
-    padding: "md",
-    background: "none",
-    backgroundImage: "",
-    className: "",
-  },
-  render: (props) => <SectionView {...props} />,
-};
+  SECTION_PARTS,
+);
 
 type Columns = "1" | "2" | "3" | "4";
 
@@ -105,19 +116,23 @@ const columnClasses: Record<Columns, string> = {
 };
 
 /** Columns of equal width. On phones, they stack. */
-export const Grid: ComponentConfig<GridProps> = {
-  label: "Columns",
-  fields: {
-    items: { type: "slot" },
-    columns: { type: "select", label: "Columns", options: options({ "1": "1", "2": "2", "3": "3", "4": "4" }) },
-    gap: { type: "select", label: "Space between", options: options(gapLabels) },
-    className: classNameField,
+export const Grid: ComponentConfig<GridProps> = withParts(
+  {
+    label: "Columns",
+    fields: {
+      items: { type: "slot" },
+      columns: { type: "select", label: "Columns", options: options({ "1": "1", "2": "2", "3": "3", "4": "4" }) },
+      gap: { type: "select", label: "Space between", options: options(gapLabels) },
+      className: classNameField,
+    },
+    defaultProps: { items: [], columns: "2", gap: "md", className: "" },
+    render: ({ items: Items, columns, gap, className }) => {
+      const part = useParts();
+      return <Items className={part("gf-columns", "grid", columnClasses[columns], gapClasses[gap], className)} />;
+    },
   },
-  defaultProps: { items: [], columns: "2", gap: "md", className: "" },
-  render: ({ items: Items, columns, gap, className }) => (
-    <Items className={cx("grid", columnClasses[columns], gapClasses[gap], className)} />
-  ),
-};
+  COLUMNS_PARTS,
+);
 
 type Direction = "row" | "column";
 type Justify = "start" | "center" | "end" | "between";
@@ -148,48 +163,55 @@ const alignClasses: Record<Align, string> = {
 };
 
 /** A row or column of blocks, such as a group of buttons. */
-export const Flex: ComponentConfig<FlexProps> = {
-  label: "Row",
-  fields: {
-    items: { type: "slot" },
-    direction: { type: "radio", label: "Direction", options: options({ row: "Across", column: "Down" }) },
-    justify: {
-      type: "select",
-      label: "Arrange",
-      options: options({ start: "Start", center: "Center", end: "End", between: "Spread out" }),
+export const Flex: ComponentConfig<FlexProps> = withParts(
+  {
+    label: "Row",
+    fields: {
+      items: { type: "slot" },
+      direction: { type: "radio", label: "Direction", options: options({ row: "Across", column: "Down" }) },
+      justify: {
+        type: "select",
+        label: "Arrange",
+        options: options({ start: "Start", center: "Center", end: "End", between: "Spread out" }),
+      },
+      align: {
+        type: "select",
+        label: "Align",
+        options: options({ start: "Start", center: "Center", end: "End", stretch: "Stretch" }),
+      },
+      gap: { type: "select", label: "Space between", options: options(gapLabels) },
+      wrap: { type: "radio", label: "Wrap onto new lines", options: yesNo },
+      className: classNameField,
     },
-    align: {
-      type: "select",
-      label: "Align",
-      options: options({ start: "Start", center: "Center", end: "End", stretch: "Stretch" }),
+    defaultProps: {
+      items: [],
+      direction: "row",
+      justify: "start",
+      align: "center",
+      gap: "md",
+      wrap: true,
+      className: "",
     },
-    gap: { type: "select", label: "Space between", options: options(gapLabels) },
-    wrap: { type: "radio", label: "Wrap onto new lines", options: yesNo },
-    className: classNameField,
+    render: ({ items: Items, direction, justify, align, gap, wrap, className }) => {
+      const part = useParts();
+      return (
+        <Items
+          className={part(
+            "gf-row",
+            "flex",
+            direction === "column" ? "flex-col" : "flex-row",
+            wrap ? "flex-wrap" : "flex-nowrap",
+            justifyClasses[justify],
+            alignClasses[align],
+            gapClasses[gap],
+            className,
+          )}
+        />
+      );
+    },
   },
-  defaultProps: {
-    items: [],
-    direction: "row",
-    justify: "start",
-    align: "center",
-    gap: "md",
-    wrap: true,
-    className: "",
-  },
-  render: ({ items: Items, direction, justify, align, gap, wrap, className }) => (
-    <Items
-      className={cx(
-        "flex",
-        direction === "column" ? "flex-col" : "flex-row",
-        wrap && "flex-wrap",
-        justifyClasses[justify],
-        alignClasses[align],
-        gapClasses[gap],
-        className,
-      )}
-    />
-  ),
-};
+  ROW_PARTS,
+);
 
 type SpaceSize = "sm" | "md" | "lg" | "xl";
 
@@ -201,16 +223,22 @@ export interface SpaceProps {
 const spaceClasses: Record<SpaceSize, string> = { sm: "h-4", md: "h-8", lg: "h-16", xl: "h-24" };
 
 /** Empty vertical space. */
-export const Space: ComponentConfig<SpaceProps> = {
-  label: "Space",
-  fields: {
-    size: {
-      type: "select",
-      label: "Size",
-      options: options({ sm: "Small", md: "Medium", lg: "Large", xl: "Extra large" }),
+export const Space: ComponentConfig<SpaceProps> = withParts(
+  {
+    label: "Space",
+    fields: {
+      size: {
+        type: "select",
+        label: "Size",
+        options: options({ sm: "Small", md: "Medium", lg: "Large", xl: "Extra large" }),
+      },
+      className: classNameField,
     },
-    className: classNameField,
+    defaultProps: { size: "md", className: "" },
+    render: ({ size, className }) => {
+      const part = useParts();
+      return <div aria-hidden="true" className={part("gf-space", undefined, spaceClasses[size], className)} />;
+    },
   },
-  defaultProps: { size: "md", className: "" },
-  render: ({ size, className }) => <div aria-hidden="true" className={cx(spaceClasses[size], className)} />,
-};
+  SPACE_PARTS,
+);

@@ -1,7 +1,7 @@
 "use client";
 
 import { SEARCH_INDEX_DIR, withBase } from "@goodfellow-cms/core";
-import { SiteLink, useSite } from "@goodfellow-cms/react";
+import { SiteLink, useParts, useSite } from "@goodfellow-cms/react";
 import { useEffect, useId, useRef, useState } from "react";
 
 interface Result {
@@ -76,6 +76,7 @@ export interface SearchBoxProps {
 /** A search box with results as you type, from the site's Pagefind index. */
 export function SearchBox({ label, placeholder, noResults, unavailable }: SearchBoxProps) {
   const { base } = useSite();
+  const part = useParts();
   const id = useId();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Result[]>();
@@ -137,7 +138,7 @@ export function SearchBox({ label, placeholder, noResults, unavailable }: Search
 
   const showing = open && query.trim() !== "";
   return (
-    <search ref={box} className="relative block">
+    <search ref={box} className={part("gf-search-box", "relative block")}>
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
@@ -153,26 +154,36 @@ export function SearchBox({ label, placeholder, noResults, unavailable }: Search
           setQuery(event.target.value);
           setOpen(true);
         }}
-        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-2 focus:outline-primary"
+        className={part(
+          "gf-search-input",
+          "w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-2 focus:outline-primary",
+        )}
       />
       {showing && (
-        <div className="absolute inset-x-0 top-full z-50 mt-2 max-h-[70vh] overflow-y-auto rounded-lg border border-border bg-background p-2 shadow-lg">
+        <div
+          className={part(
+            "gf-search-results",
+            "absolute inset-x-0 top-full z-50 mt-2 max-h-[70vh] overflow-y-auto rounded-lg border border-border bg-background p-2 shadow-lg",
+          )}
+        >
           {failed ? (
-            <p className="p-2 text-sm text-muted-foreground">{unavailable}</p>
+            <p className={part("gf-search-message", "p-2 text-sm text-muted-foreground")}>{unavailable}</p>
           ) : results && results.length === 0 ? (
-            <p className="p-2 text-sm text-muted-foreground">{noResults.replace("{query}", query.trim())}</p>
+            <p className={part("gf-search-message", "p-2 text-sm text-muted-foreground")}>
+              {noResults.replace("{query}", query.trim())}
+            </p>
           ) : (
             <ul className="flex flex-col">
               {results?.map((result) => (
                 <li key={result.url}>
                   <SiteLink
                     href={result.url}
-                    className="block rounded-md p-2 hover:bg-muted focus-visible:bg-muted"
+                    className={part("gf-search-result", "block rounded-md p-2 hover:bg-muted focus-visible:bg-muted")}
                     onClick={() => setOpen(false)}
                   >
-                    <span className="block font-medium">{result.title}</span>
+                    <span className={part("gf-search-result-title", "block font-medium")}>{result.title}</span>
                     <span
-                      className="block text-sm text-muted-foreground"
+                      className={part("gf-search-result-excerpt", "block text-sm text-muted-foreground")}
                       // biome-ignore lint/security/noDangerouslySetInnerHtml: Pagefind's excerpt, with everything but <mark> escaped
                       dangerouslySetInnerHTML={{ __html: result.excerpt }}
                     />

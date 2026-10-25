@@ -1,6 +1,7 @@
-import { classNameField, cx, mediaField, SiteImage, SiteLink } from "@goodfellow-cms/react";
+import { classNameField, mediaField, SiteImage, SiteLink, useParts, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, RichText } from "@puckeditor/core";
 import { options, yesNo } from "./options.js";
+import { BUTTON_PARTS, HEADING_PARTS, IMAGE_PARTS, TEXT_PARTS } from "./parts.js";
 
 type Level = "h1" | "h2" | "h3" | "h4";
 type TextAlign = "left" | "center" | "right";
@@ -22,23 +23,31 @@ const levelClasses: Record<Level, string> = {
   h4: "text-xl font-semibold",
 };
 
-export const Heading: ComponentConfig<HeadingProps> = {
-  label: "Heading",
-  fields: {
-    text: { type: "text", label: "Text", contentEditable: true },
-    level: {
-      type: "select",
-      label: "Level",
-      options: options({ h1: "Page title (H1)", h2: "Section (H2)", h3: "Subsection (H3)", h4: "Small (H4)" }),
+export const Heading: ComponentConfig<HeadingProps> = withParts(
+  {
+    label: "Heading",
+    fields: {
+      text: { type: "text", label: "Text", contentEditable: true },
+      level: {
+        type: "select",
+        label: "Level",
+        options: options({ h1: "Page title (H1)", h2: "Section (H2)", h3: "Subsection (H3)", h4: "Small (H4)" }),
+      },
+      align: { type: "radio", label: "Alignment", options: alignOptions },
+      className: classNameField,
     },
-    align: { type: "radio", label: "Alignment", options: alignOptions },
-    className: classNameField,
+    defaultProps: { text: "Heading", level: "h2", align: "left", className: "" },
+    render: ({ text, level: Tag, align, className }) => {
+      const part = useParts();
+      return (
+        <Tag className={part("gf-heading", ["text-balance", levelClasses[Tag]], alignClasses[align], className)}>
+          {text}
+        </Tag>
+      );
+    },
   },
-  defaultProps: { text: "Heading", level: "h2", align: "left", className: "" },
-  render: ({ text, level: Tag, align, className }) => (
-    <Tag className={cx("text-balance", levelClasses[Tag], alignClasses[align], className)}>{text}</Tag>
-  ),
-};
+  HEADING_PARTS,
+);
 
 export interface TextProps {
   content: RichText;
@@ -47,24 +56,28 @@ export interface TextProps {
 }
 
 /** Formatted text: paragraphs, lists, links and subheadings. */
-export const Text: ComponentConfig<TextProps> = {
-  label: "Text",
-  fields: {
-    content: {
-      type: "richtext",
-      label: "Text",
-      contentEditable: true,
-      // Tiptap opens every link in a new tab by default; keep links in the same tab like the rest of the site.
-      options: { link: { HTMLAttributes: { target: null, rel: null } } },
+export const Text: ComponentConfig<TextProps> = withParts(
+  {
+    label: "Text",
+    fields: {
+      content: {
+        type: "richtext",
+        label: "Text",
+        contentEditable: true,
+        // Tiptap opens every link in a new tab by default; keep links in the same tab like the rest of the site.
+        options: { link: { HTMLAttributes: { target: null, rel: null } } },
+      },
+      align: { type: "radio", label: "Alignment", options: alignOptions },
+      className: classNameField,
     },
-    align: { type: "radio", label: "Alignment", options: alignOptions },
-    className: classNameField,
+    defaultProps: { content: "<p>Write something here.</p>", align: "left", className: "" },
+    render: ({ content, align, className }) => {
+      const part = useParts();
+      return <div className={part("gf-text", "gf-prose", alignClasses[align], className)}>{content}</div>;
+    },
   },
-  defaultProps: { content: "<p>Write something here.</p>", align: "left", className: "" },
-  render: ({ content, align, className }) => (
-    <div className={cx("gf-prose", alignClasses[align], className)}>{content}</div>
-  ),
-};
+  TEXT_PARTS,
+);
 
 type Variant = "primary" | "secondary" | "outline" | "link";
 type Size = "sm" | "md" | "lg";
@@ -91,36 +104,45 @@ const sizeClasses: Record<Size, string> = {
   lg: "h-12 px-8 text-lg",
 };
 
-export const Button: ComponentConfig<ButtonProps> = {
-  label: "Button",
-  fields: {
-    label: { type: "text", label: "Label", contentEditable: true },
-    href: { type: "text", label: "Link to" },
-    variant: {
-      type: "select",
-      label: "Style",
-      options: options({ primary: "Primary", secondary: "Secondary", outline: "Outline", link: "Text link" }),
+export const Button: ComponentConfig<ButtonProps> = withParts(
+  {
+    label: "Button",
+    fields: {
+      label: { type: "text", label: "Label", contentEditable: true },
+      href: { type: "text", label: "Link to" },
+      variant: {
+        type: "select",
+        label: "Style",
+        options: options({ primary: "Primary", secondary: "Secondary", outline: "Outline", link: "Text link" }),
+      },
+      size: { type: "radio", label: "Size", options: options({ sm: "Small", md: "Medium", lg: "Large" }) },
+      newTab: { type: "radio", label: "Open in a new tab", options: yesNo },
+      className: classNameField,
     },
-    size: { type: "radio", label: "Size", options: options({ sm: "Small", md: "Medium", lg: "Large" }) },
-    newTab: { type: "radio", label: "Open in a new tab", options: yesNo },
-    className: classNameField,
+    defaultProps: { label: "Learn more", href: "/", variant: "primary", size: "md", newTab: false, className: "" },
+    render: ({ label, href, variant, size, newTab, className }) => {
+      const part = useParts();
+      return (
+        <SiteLink
+          href={href}
+          className={part(
+            "gf-button",
+            [
+              "inline-flex items-center justify-center rounded-md font-medium whitespace-nowrap transition",
+              variantClasses[variant],
+              sizeClasses[size],
+            ],
+            className,
+          )}
+          {...(newTab && { target: "_blank", rel: "noopener noreferrer" })}
+        >
+          {label}
+        </SiteLink>
+      );
+    },
   },
-  defaultProps: { label: "Learn more", href: "/", variant: "primary", size: "md", newTab: false, className: "" },
-  render: ({ label, href, variant, size, newTab, className }) => (
-    <SiteLink
-      href={href}
-      className={cx(
-        "inline-flex items-center justify-center rounded-md font-medium whitespace-nowrap transition",
-        variantClasses[variant],
-        sizeClasses[size],
-        className,
-      )}
-      {...(newTab && { target: "_blank", rel: "noopener noreferrer" })}
-    >
-      {label}
-    </SiteLink>
-  ),
-};
+  BUTTON_PARTS,
+);
 
 type Aspect = "auto" | "square" | "landscape" | "wide";
 
@@ -145,47 +167,60 @@ const aspectClasses: Record<Aspect, string> = {
   wide: "aspect-video object-cover",
 };
 
-export const Image: ComponentConfig<ImageProps> = {
-  label: "Image",
-  fields: {
-    src: mediaField("Image"),
-    alt: { type: "text", label: "Description for screen readers" },
-    decorative: { type: "radio", label: "Only decoration, with nothing to describe", options: yesNo },
-    caption: { type: "text", label: "Caption" },
-    aspect: {
-      type: "select",
-      label: "Shape",
-      options: options({ auto: "Original", square: "Square", landscape: "Landscape (4:3)", wide: "Wide (16:9)" }),
+export const Image: ComponentConfig<ImageProps> = withParts(
+  {
+    label: "Image",
+    fields: {
+      src: mediaField("Image"),
+      alt: { type: "text", label: "Description for screen readers" },
+      decorative: { type: "radio", label: "Only decoration, with nothing to describe", options: yesNo },
+      caption: { type: "text", label: "Caption" },
+      aspect: {
+        type: "select",
+        label: "Shape",
+        options: options({ auto: "Original", square: "Square", landscape: "Landscape (4:3)", wide: "Wide (16:9)" }),
+      },
+      rounded: { type: "radio", label: "Rounded corners", options: yesNo },
+      className: classNameField,
     },
-    rounded: { type: "radio", label: "Rounded corners", options: yesNo },
-    className: classNameField,
-  },
-  defaultProps: { src: "", alt: "", decorative: false, caption: "", aspect: "auto", rounded: true, className: "" },
-  render: ({ src, alt, decorative, caption, aspect, rounded, className }) => (
-    <figure className={className || undefined}>
-      {PLACEHOLDER.test(src) ? (
-        // A field's placeholder, such as {photo} in a collection's template or loop, filled in where pages are built.
-        <div
-          className={cx(
-            "flex w-full items-center justify-center bg-muted text-sm text-muted-foreground",
-            aspectClasses[aspect] || "aspect-video",
-            rounded && "rounded-lg",
+    defaultProps: { src: "", alt: "", decorative: false, caption: "", aspect: "auto", rounded: true, className: "" },
+    render: ({ src, alt, decorative, caption, aspect, rounded, className }) => {
+      const part = useParts();
+      // Square corners are a choice, so they win over a theme's rounded ones.
+      const corners = rounded ? "rounded-lg" : "rounded-none";
+      return (
+        <figure className={part("gf-image", undefined, className)}>
+          {PLACEHOLDER.test(src) ? (
+            // A field's placeholder, such as {photo} in a collection's template or loop, filled in where pages are built.
+            <div
+              className={part(
+                "gf-image-picture",
+                "flex w-full items-center justify-center bg-muted text-sm text-muted-foreground",
+                aspectClasses[aspect] || "aspect-video",
+                corners,
+              )}
+            >
+              {src}
+            </div>
+          ) : src ? (
+            <SiteImage
+              src={src}
+              alt={decorative ? "" : alt}
+              aria-hidden={decorative || undefined}
+              loading="lazy"
+              className={part("gf-image-picture", "w-full", aspectClasses[aspect], corners)}
+            />
+          ) : (
+            <div className={part("gf-image-picture", "w-full bg-muted aspect-video", corners)} />
           )}
-        >
-          {src}
-        </div>
-      ) : src ? (
-        <SiteImage
-          src={src}
-          alt={decorative ? "" : alt}
-          aria-hidden={decorative || undefined}
-          loading="lazy"
-          className={cx("w-full", aspectClasses[aspect], rounded && "rounded-lg")}
-        />
-      ) : (
-        <div className={cx("w-full bg-muted aspect-video", rounded && "rounded-lg")} />
-      )}
-      {caption && <figcaption className="mt-2 text-sm text-muted-foreground">{caption}</figcaption>}
-    </figure>
-  ),
-};
+          {caption && (
+            <figcaption className={part("gf-image-caption", "mt-2 text-sm text-muted-foreground")}>
+              {caption}
+            </figcaption>
+          )}
+        </figure>
+      );
+    },
+  },
+  IMAGE_PARTS,
+);

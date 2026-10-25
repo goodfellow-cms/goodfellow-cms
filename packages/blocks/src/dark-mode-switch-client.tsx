@@ -1,7 +1,7 @@
 "use client";
 
 import { COLOR_SCHEME_ATTRIBUTE, COLOR_SCHEME_STORAGE_KEY } from "@goodfellow-cms/core";
-import { cx } from "@goodfellow-cms/react";
+import { useParts } from "@goodfellow-cms/react";
 import { useEffect, useState } from "react";
 
 type Choice = "light" | "dark" | "system";
@@ -54,6 +54,7 @@ export function ColorSchemeControl({
   interactive,
   className,
 }: ColorSchemeControlProps) {
+  const part = useParts();
   const [choice, setChoice] = useState<Choice>("system");
   const [computerDark, setComputerDark] = useState(false);
   const [ready, setReady] = useState(false);
@@ -93,7 +94,8 @@ export function ColorSchemeControl({
         aria-label={label}
         // Until the page's script has started, choosing would do nothing.
         disabled={!ready}
-        className={cx(
+        className={part(
+          "gf-dark-mode-switch",
           "rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground",
           // A menu can't be set by CSS, so where the visitor has chosen light or dark it's hidden until its
           // script shows their choice, rather than showing "Follow my computer" first.
@@ -121,12 +123,27 @@ export function ColorSchemeControl({
       aria-label={label}
       title={label}
       disabled={!ready}
-      className={cx("inline-flex items-center gap-2 rounded-full text-sm text-foreground", className)}
+      className={part(
+        "gf-dark-mode-switch",
+        "inline-flex items-center gap-2 rounded-full text-sm text-foreground",
+        className,
+      )}
       onClick={() => choose(dark ? "light" : "dark")}
     >
       {showLabels && <span className="dark:text-muted-foreground">{lightLabel}</span>}
-      <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-border bg-muted">
-        <span className="inline-flex h-5 w-5 translate-x-0.5 items-center justify-center rounded-full bg-background text-foreground shadow-sm transition-transform dark:translate-x-5">
+      <span
+        className={part(
+          "gf-dark-mode-switch-track",
+          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-border bg-muted",
+        )}
+      >
+        <span
+          className={part(
+            "gf-dark-mode-switch-thumb",
+            "inline-flex h-5 w-5 items-center justify-center rounded-full bg-background text-foreground shadow-sm transition-transform",
+            "translate-x-0.5 dark:translate-x-5",
+          )}
+        >
           <svg
             className="dark:hidden"
             viewBox="0 0 24 24"

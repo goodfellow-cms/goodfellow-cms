@@ -25,6 +25,8 @@ export interface BlockDescription {
   defaultProps?: Record<string, unknown>;
   /** Only for collection templates, never pages, the header or the footer. */
   templateOnly?: boolean;
+  /** The named parts it renders, such as `gf-card-title`, each with what owners call it, for themes' classes. */
+  parts?: Record<string, string>;
 }
 
 export interface SiteDescription {
@@ -87,6 +89,7 @@ const descriptionSchema = z.object({
       fields: record,
       defaultProps: record.optional(),
       templateOnly: z.boolean().optional(),
+      parts: z.record(z.string(), z.string()).optional(),
     }),
   ),
   admin: z.object({ url: z.string(), checked: z.boolean().optional() }).optional(),

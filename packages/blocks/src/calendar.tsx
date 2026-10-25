@@ -33,10 +33,11 @@ import {
   withPages,
   zonedInstant,
 } from "@goodfellow-cms/core";
-import { classNameField, cx, SiteLink, templateOnly, useSite } from "@goodfellow-cms/react";
+import { classNameField, cx, SiteLink, templateOnly, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Fields } from "@puckeditor/core";
 import { pagesNotice } from "./listing.js";
 import { options } from "./options.js";
+import { ADD_TO_CALENDAR_PARTS, CALENDAR_PARTS } from "./parts.js";
 
 /** One time something happens, from a collection or another calendar, ready to show. */
 export interface CalendarItem {
@@ -223,24 +224,30 @@ function AddLinks({
   className?: string;
 }) {
   const { settings } = useSite();
+  const part = useParts();
   if (!label) return null;
+  const link = part("gf-add-to-calendar-link", "hover:underline");
   return (
-    <details className={cx("group text-sm", className)}>
-      <summary className="cursor-pointer text-primary underline-offset-2 hover:underline">{label}</summary>
-      <ul className="mt-2 flex flex-col gap-1 border-l-2 border-border pl-3">
+    <details className={part("gf-add-to-calendar", "group text-sm", className)}>
+      <summary
+        className={part("gf-add-to-calendar-label", "cursor-pointer text-primary underline-offset-2 hover:underline")}
+      >
+        {label}
+      </summary>
+      <ul className={part("gf-add-to-calendar-links", "mt-2 flex flex-col gap-1 border-l-2 border-border pl-3")}>
         <li>
-          <SiteLink href={googleCalendarLink(item, settings, settings.url)} className="hover:underline">
+          <SiteLink href={googleCalendarLink(item, settings, settings.url)} className={link}>
             Google Calendar
           </SiteLink>
         </li>
         <li>
-          <SiteLink href={outlookLink(item, settings)} className="hover:underline">
+          <SiteLink href={outlookLink(item, settings)} className={link}>
             Outlook.com
           </SiteLink>
         </li>
         {item.file && otherLabel && (
           <li>
-            <SiteLink href={item.file} download className="hover:underline">
+            <SiteLink href={item.file} download className={link}>
               {otherLabel}
             </SiteLink>
           </li>
@@ -253,28 +260,41 @@ function AddLinks({
 /** Links for subscribing to a collection's calendar file, so visitors' calendars keep up with it. */
 function SubscribeLinks({ collection, label, otherLabel }: { collection: string; label: string; otherLabel: string }) {
   const { settings } = useSite();
+  const part = useParts();
   if (!label) return null;
   const file = calendarFilePath(collection);
   const address = settings.url ? new URL(file.slice(1), `${settings.url.replace(/\/?$/, "/")}`).href : undefined;
   const webcal = address?.replace(/^https?:/, "webcal:");
   return (
-    <details className="mt-6 text-sm">
-      <summary className="cursor-pointer text-primary underline-offset-2 hover:underline">{label}</summary>
-      <ul className="mt-2 flex flex-col gap-1 border-l-2 border-border pl-3">
+    <details className={part("gf-calendar-subscribe", "mt-6 text-sm")}>
+      <summary
+        className={part(
+          "gf-calendar-subscribe-label",
+          "cursor-pointer text-primary underline-offset-2 hover:underline",
+        )}
+      >
+        {label}
+      </summary>
+      <ul className={part("gf-calendar-subscribe-links", "mt-2 flex flex-col gap-1 border-l-2 border-border pl-3")}>
         {webcal && (
           <li>
-            <SiteLink href={`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`}>
+            <SiteLink
+              href={`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`}
+              className={part("gf-calendar-subscribe-link")}
+            >
               Google Calendar
             </SiteLink>
           </li>
         )}
         {webcal && (
           <li>
-            <SiteLink href={webcal}>{otherLabel}</SiteLink>
+            <SiteLink href={webcal} className={part("gf-calendar-subscribe-link")}>
+              {otherLabel}
+            </SiteLink>
           </li>
         )}
         <li>
-          <SiteLink href={file} download>
+          <SiteLink href={file} download className={part("gf-calendar-subscribe-link")}>
             {webcal ? `${file.slice(file.lastIndexOf("/") + 1)}` : otherLabel}
           </SiteLink>
         </li>
@@ -286,17 +306,19 @@ function SubscribeLinks({ collection, label, otherLabel }: { collection: string;
 // The views -------------------------------------------------------------------
 
 function ItemTitle({ item }: { item: CalendarItem }) {
+  const part = useParts();
   return item.href ? (
-    <SiteLink href={item.href} className="font-medium hover:underline">
+    <SiteLink href={item.href} className={part("gf-calendar-event-title", "font-medium hover:underline")}>
       {item.title}
     </SiteLink>
   ) : (
-    <span className="font-medium">{item.title}</span>
+    <span className={part("gf-calendar-event-title", "font-medium")}>{item.title}</span>
   );
 }
 
 function ListView({ items, props }: { items: CalendarItem[]; props: CalendarProps }) {
   const { settings } = useSite();
+  const part = useParts();
   const language = settings.language;
   const byDate = new Map<string, CalendarItem[]>();
   for (const item of items) {
@@ -304,20 +326,30 @@ function ListView({ items, props }: { items: CalendarItem[]; props: CalendarProp
     byDate.set(date, [...(byDate.get(date) ?? []), item]);
   }
   return (
-    <ol className="flex flex-col gap-6">
+    <ol className={part("gf-calendar-days", "flex flex-col gap-6")}>
       {[...byDate].map(([date, dayItems]) => (
-        <li key={date}>
-          <h2 className="font-heading text-lg font-semibold">
+        <li key={date} className={part("gf-calendar-day")}>
+          <h2 className={part("gf-calendar-day-heading", "font-heading text-lg font-semibold")}>
             <time dateTime={date}>{formatDate(date, language)}</time>
           </h2>
-          <ul className="mt-2 flex flex-col divide-y divide-border">
+          <ul className={part("gf-calendar-events", "mt-2 flex flex-col divide-y divide-border")}>
             {dayItems.map((item) => (
-              <li key={item.key} className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-6">
-                <span className="shrink-0 text-muted-foreground sm:w-44">{timeText(item, language)}</span>
-                <div className="flex flex-col gap-1">
+              <li key={item.key} className={part("gf-calendar-event", "flex flex-col gap-1 py-3 sm:flex-row sm:gap-6")}>
+                <span className={part("gf-calendar-event-time", "shrink-0 text-muted-foreground sm:w-44")}>
+                  {timeText(item, language)}
+                </span>
+                <div className={part("gf-calendar-event-body", "flex flex-col gap-1")}>
                   <ItemTitle item={item} />
-                  {item.place && <span className="text-sm text-muted-foreground">{item.place}</span>}
-                  {item.summary && <p className="line-clamp-3 text-sm text-muted-foreground">{item.summary}</p>}
+                  {item.place && (
+                    <span className={part("gf-calendar-event-place", "text-sm text-muted-foreground")}>
+                      {item.place}
+                    </span>
+                  )}
+                  {item.summary && (
+                    <p className={part("gf-calendar-event-summary", "line-clamp-3 text-sm text-muted-foreground")}>
+                      {item.summary}
+                    </p>
+                  )}
                   {item.event && <AddLinks item={item} label={props.addLabel} otherLabel={props.otherCalendarsLabel} />}
                 </div>
               </li>
@@ -343,13 +375,16 @@ function MonthView({
   isEditing: boolean;
 }) {
   const { settings, path, view } = useSite();
+  const part = useParts();
   const language = settings.language;
   const order = props.weekStart === "monday" ? WEEKDAYS : (["su", "mo", "tu", "we", "th", "fr", "sa"] as const);
   const dates = datesInMonth(month);
   // Empty days before the 1st and after the month's last day fill out its first and last weeks.
   const leading = order.indexOf(weekdayOf(dates[0] ?? `${month}-01`));
   const trailing = (7 - ((leading + dates.length) % 7)) % 7;
-  const blank = (key: string) => <li key={key} aria-hidden="true" className="hidden bg-muted sm:block" />;
+  const blank = (key: string) => (
+    <li key={key} aria-hidden="true" className={part("gf-calendar-month-blank", "bg-muted", "hidden sm:block")} />
+  );
 
   // Month pages are the calendar's page with the month after it; the page itself shows the current month. Only
   // the block the page's other pages are for links to them (see `currentListing()`).
@@ -373,18 +408,18 @@ function MonthView({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={part("gf-calendar-month", "flex flex-col gap-4")}>
       {isEditing && !linked && (
         <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
           {pagesNotice(view, "month")}
         </p>
       )}
       {/* Equal columns either side keep the month's name in the middle, with or without links beside it. */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+      <div className={part("gf-calendar-month-header", "grid grid-cols-[1fr_auto_1fr] items-center gap-4")}>
         {hasPage(previous) ? (
           <SiteLink
             href={linkTo(previous)}
-            className="justify-self-start text-sm text-primary hover:underline"
+            className={part("gf-calendar-month-link", "text-sm text-primary hover:underline", "justify-self-start")}
             aria-label={props.previousLabel}
           >
             ← {formatMonth(previous, language)}
@@ -392,11 +427,17 @@ function MonthView({
         ) : (
           <span />
         )}
-        <h2 className="text-center font-heading text-2xl font-bold">{formatMonth(month, language)}</h2>
+        <h2 className={part("gf-calendar-month-title", "text-center font-heading text-2xl font-bold")}>
+          {formatMonth(month, language)}
+        </h2>
         {hasPage(next) ? (
           <SiteLink
             href={linkTo(next)}
-            className="justify-self-end text-right text-sm text-primary hover:underline"
+            className={part(
+              "gf-calendar-month-link",
+              "text-right text-sm text-primary hover:underline",
+              "justify-self-end",
+            )}
             aria-label={props.nextLabel}
           >
             {formatMonth(next, language)} →
@@ -405,34 +446,50 @@ function MonthView({
           <span />
         )}
       </div>
-      <div aria-hidden="true" className="hidden grid-cols-7 gap-px text-center text-sm text-muted-foreground sm:grid">
+      <div
+        aria-hidden="true"
+        className={part(
+          "gf-calendar-weekdays",
+          "grid-cols-7 gap-px text-center text-sm text-muted-foreground",
+          "hidden sm:grid",
+        )}
+      >
         {order.map((day) => (
           <span key={day}>{weekdayName(day, language)}</span>
         ))}
       </div>
-      <ol className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-7">
+      <ol
+        className={part(
+          "gf-calendar-month-days",
+          "grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-7",
+        )}
+      >
         {Array.from({ length: leading }, (_, index) => blank(`before-${index}`))}
         {dates.map((date) => {
           const dayItems = byDate.get(date) ?? [];
           return (
             <li
               key={date}
-              className={cx(
-                "flex-col gap-1 bg-background p-2 sm:flex sm:min-h-24",
-                dayItems.length ? "flex" : "hidden",
+              className={part(
+                "gf-calendar-month-day",
+                "flex-col gap-1 bg-background p-2 sm:min-h-24",
+                // Which days show on phones, and today's mark, whatever the theme gives days.
+                dayItems.length ? "flex" : "hidden sm:flex",
                 date === today && "ring-2 ring-primary ring-inset",
               )}
             >
-              <time dateTime={date} className="text-sm font-semibold">
+              <time dateTime={date} className={part("gf-calendar-month-date", "text-sm font-semibold")}>
                 <span className="sm:hidden">{formatDate(date, language)}</span>
                 <span className="hidden sm:inline">{Number(date.slice(8))}</span>
               </time>
               {dayItems.length > 0 && (
-                <ul className="flex flex-col gap-1 text-sm">
+                <ul className={part("gf-calendar-month-events", "flex flex-col gap-1 text-sm")}>
                   {dayItems.map((item) => (
-                    <li key={item.key} className="leading-snug">
+                    <li key={item.key} className={part("gf-calendar-month-event", "leading-snug")}>
                       {!item.allDay && datePart(item.start) === date && (
-                        <span className="text-muted-foreground">{formatTime(item.start, language)} </span>
+                        <span className={part("gf-calendar-event-time", "text-muted-foreground")}>
+                          {formatTime(item.start, language)}{" "}
+                        </span>
                       )}
                       <ItemTitle item={item} />
                     </li>
@@ -444,13 +501,16 @@ function MonthView({
         })}
         {Array.from({ length: trailing }, (_, index) => blank(`after-${index}`))}
       </ol>
-      {byDate.size === 0 && props.emptyText && <p className="text-muted-foreground">{props.emptyText}</p>}
+      {byDate.size === 0 && props.emptyText && (
+        <p className={part("gf-calendar-empty", "text-muted-foreground")}>{props.emptyText}</p>
+      )}
     </div>
   );
 }
 
 function CalendarView({ isEditing, ...props }: CalendarProps & { id?: string; isEditing: boolean }) {
   const { collections, settings, view } = useSite();
+  const part = useParts();
   const pageMonth = view && view.block === props.id ? view.month : undefined;
   const collection = collections.find((candidate) => candidate.id === props.collection);
   const today = todayIn(settings.timeZone);
@@ -473,7 +533,7 @@ function CalendarView({ isEditing, ...props }: CalendarProps & { id?: string; is
   if (!month && props.limit > 0) items = items.slice(0, props.limit);
 
   return (
-    <div className={cx("flex flex-col", props.className)}>
+    <div className={part("gf-calendar", "flex flex-col", props.className)}>
       {props.feed && isEditing && (
         <p className="mb-4 rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
           Events from {props.feed} are added when the site is built.
@@ -484,7 +544,7 @@ function CalendarView({ isEditing, ...props }: CalendarProps & { id?: string; is
       ) : items.length > 0 ? (
         <ListView items={items} props={props} />
       ) : (
-        props.emptyText && <p className="text-muted-foreground">{props.emptyText}</p>
+        props.emptyText && <p className={part("gf-calendar-empty", "text-muted-foreground")}>{props.emptyText}</p>
       )}
       {collection?.settings.calendar && (
         <SubscribeLinks
@@ -632,7 +692,7 @@ const calendar: ComponentConfig<CalendarProps> = {
   render: ({ puck, ...props }) => <CalendarView {...props} isEditing={puck.isEditing} />,
 };
 
-export const Calendar = withPages(calendar, (props: CalendarProps, { content, today }) => {
+export const Calendar = withPages(withParts(calendar, CALENDAR_PARTS), (props: CalendarProps, { content, today }) => {
   if (props.view !== "month") return [];
   const { before, after } = calendarMonths(props as unknown as Record<string, unknown>);
   return monthsAround(today, before, after).map((month) => ({
@@ -689,4 +749,4 @@ const addToCalendar: ComponentConfig<AddToCalendarProps> = {
 };
 
 /** Links that add the entry's event to visitors' calendars. Only offered in collection templates. */
-export const AddToCalendar = templateOnly(addToCalendar);
+export const AddToCalendar = templateOnly(withParts(addToCalendar, ADD_TO_CALENDAR_PARTS));

@@ -7,7 +7,9 @@ import {
   repeatsForEntries,
   type SiteContextValue,
   SiteLink,
+  useParts,
   useSite,
+  withParts,
 } from "@goodfellow-cms/react";
 import type { ComponentConfig, Fields, Slot, SlotComponent } from "@puckeditor/core";
 import {
@@ -22,6 +24,7 @@ import {
   resolveListingFields,
 } from "./listing.js";
 import { type Gap, gapClasses, gapLabels, options, yesNo } from "./options.js";
+import { COLLECTION_LOOP_PARTS } from "./parts.js";
 
 type Columns = "1" | "2" | "3" | "4";
 
@@ -67,12 +70,13 @@ function CollectionLoopView({
   ...props
 }: ViewProps) {
   const site = useSite();
+  const part = useParts();
 
   // One item's copy of the design.
   if (item) {
     return (
-      <div className="relative flex flex-col">
-        <Design className="flex flex-col gap-3" />
+      <div className={part("gf-collection-loop-item", "relative flex flex-col")}>
+        <Design className={part("gf-collection-loop-design", "flex flex-col gap-3")} />
         {linkToPage && item.path && (
           <SiteLink href={item.path} className="absolute inset-0">
             <span className="sr-only">{item.title}</span>
@@ -102,12 +106,12 @@ function CollectionLoopView({
   if (!listing) return null;
 
   return (
-    <div className={cx("flex flex-col gap-6", className)}>
+    <div className={part("gf-collection-loop", "flex flex-col gap-6", className)}>
       <ChoiceLinks listing={listing} props={props} />
       {listing.entries.length === 0 ? (
-        emptyText && <p className="text-muted-foreground">{emptyText}</p>
+        emptyText && <p className={part("gf-collection-loop-empty", "text-muted-foreground")}>{emptyText}</p>
       ) : (
-        <Items className={cx("grid", columnClasses[columns], gapClasses[gap])} />
+        <Items className={part("gf-collection-loop-items", "grid", columnClasses[columns], gapClasses[gap])} />
       )}
       <PageLinks listing={listing} props={props} />
     </div>
@@ -153,7 +157,7 @@ const collectionLoop: ComponentConfig<CollectionLoopProps> = {
  * later pages and a page for each choice of a field (see `withPages`).
  */
 export const CollectionLoop = withPages(
-  repeatsForEntries(collectionLoop, {
+  repeatsForEntries(withParts(collectionLoop, COLLECTION_LOOP_PARTS), {
     design: "design",
     items: "items",
     entries: (props: CollectionLoopProps & { id?: string }, site: SiteContextValue) => {
