@@ -1,5 +1,40 @@
 # @goodfellow-cms/ai
 
+## 0.5.0
+
+### Minor Changes
+
+- 884a0be: Sites in several languages. Add languages in Site Settings → Languages, each with the site's name and description in it; its pages go under its code, such as `/es/about`. The Pages screen and collections' lists translate pages and items into each language, say when a translation is out of date, and the AI assistant can translate a page or item. Each language can have menus of its own, the new Language switch block links to the page in each language, and pages say their language, link to their translations with `hreflang`, and are listed with them in the sitemap. Search finds only pages in the page's own language, and lists, feeds and calendars show only that language's items.
+
+### Patch Changes
+
+- 93c5b2c: Goodfellow needs Node.js 22.23.4, 24.22.1 or 26.12.1 or later. Earlier versions decompress Brotli unsafely (CVE-2026-111497, "Node2Shell"). Builds read other sites, such as Calendar blocks' feeds, so a feed's server could run code on the computer building the site. New sites' GitHub workflows (`deploy.yml`, `scheduled.yml`) set up Node with `check-latest: true`, so they always get the newest Node 22 instead of an older copy on GitHub's runner. To do the same on an existing site, add `check-latest: true` under `node-version: 22` in each `actions/setup-node` step of its `.github/workflows/` files. GitLab's `node:22` image already has the fix. On Cloudflare Pages and Vercel, check the Node.js version in the project's build settings.
+- Updated dependencies [043358b]
+- Updated dependencies [938e468]
+- Updated dependencies [e819602]
+- Updated dependencies [ba80f97]
+- Updated dependencies [e62801d]
+- Updated dependencies [38dcc3a]
+- Updated dependencies [9b96dd3]
+- Updated dependencies [1590ea2]
+- Updated dependencies [78d29e5]
+- Updated dependencies [11d4f6a]
+- Updated dependencies [564d1dc]
+- Updated dependencies [93c5b2c]
+- Updated dependencies [0b4972a]
+- Updated dependencies [2901de0]
+- Updated dependencies [8ac5d0e]
+- Updated dependencies [200f868]
+- Updated dependencies [74bb2ad]
+- Updated dependencies [91b9a4c]
+- Updated dependencies [fd00d26]
+- Updated dependencies [22ab254]
+- Updated dependencies [884a0be]
+- Updated dependencies [31217e1]
+- Updated dependencies [f9a405e]
+- Updated dependencies [e1e236d]
+  - @goodfellow-cms/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
