@@ -13,6 +13,9 @@ export default definePluginAdmin({
       const saved = (await api.read([FILE]))[FILE];
       const message = saved ? (JSON.parse(saved) as { message: string }).message : "";
 
+      // Plugins draw their screens' headings themselves.
+      const heading = doc.createElement("h1");
+      heading.textContent = api.plugin.title;
       const label = doc.createElement("label");
       label.textContent = "Message";
       label.htmlFor = "message";
@@ -38,6 +41,7 @@ export default definePluginAdmin({
         return element;
       };
       root.append(
+        heading,
         label,
         input,
         button("Save", async () => {

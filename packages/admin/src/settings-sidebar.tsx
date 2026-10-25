@@ -169,21 +169,24 @@ export function SettingsSidebar({ current }: { current: SettingsPlace | `plugin/
       )}
       {/* In a narrow window there's no room for the names. */}
       {!narrow && (
-        <button
-          type="button"
-          className="gfa-sidebar-item gfa-sidebar-toggle"
-          aria-expanded={!collapsed}
-          onClick={toggle}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="gfa-sidebar-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
-          ) : (
-            <PanelLeftClose className="gfa-sidebar-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
-          )}
-          <span className="gfa-sidebar-label">
-            {t(collapsed ? "settings.sidebar.expand" : "settings.sidebar.collapse")}
-          </span>
-        </button>
+        <div className="gfa-sidebar-footer">
+          <hr className="gfa-sidebar-divider" />
+          <button
+            type="button"
+            className="gfa-sidebar-item gfa-sidebar-toggle"
+            aria-expanded={!collapsed}
+            onClick={toggle}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="gfa-sidebar-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
+            ) : (
+              <PanelLeftClose className="gfa-sidebar-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
+            )}
+            <span className="gfa-sidebar-label">
+              {t(collapsed ? "settings.sidebar.expand" : "settings.sidebar.collapse")}
+            </span>
+          </button>
+        </div>
       )}
     </nav>
   );

@@ -6,7 +6,7 @@ section: editors
 order: 4
 ---
 
-The **Media** screen holds the site's images and files. They're saved in the repository's `public/media/` folder and served at `/media/`.
+The **Media** screen holds the site's images and files. They're saved in the repository's `public/media/` folder and served at `/media/`, unless a plugin keeps them in a storage service (see [below](#media-kept-in-a-storage-service)).
 
 ## Upload
 
@@ -20,6 +20,15 @@ Choose files, or drop them onto the Media screen. Wherever an image goes, such a
 ## Replace and delete
 
 Replacing a file keeps its address, so everything that uses it shows the new version. Deleting a file first lists everything that uses it, and can't be published until they use another file (see [Site checks](/docs/publishing#site-checks)).
+
+## Media kept in a storage service
+
+A plugin can keep the site's media in a storage service in place of the repository, such as [S3 storage](https://github.com/goodfellow-cms/goodfellow-plugin-s3), which keeps it in Amazon S3, Cloudflare R2, Backblaze B2 or any other S3-compatible service. Files can then be much larger, such as long videos, up to what the plugin takes, and nothing goes into the repository's history. Content still refers to files as `/media/…`, so pages don't change when the site's media moves: builds show them from the service's public address.
+
+- **Setting it up** happens on the plugin's own screen in **Site Settings**, which says what it needs. The service's keys stay in the site's build service's secrets (or a full-stack site's server), never in the admin panel.
+- **Uploading** works as before. Photos are made web-sized and SVGs safe, as for the site's own files. Each batch of uploads then waits about a minute while the site's build service signs it with the keys, and goes straight to the storage service.
+- **Moving the site's files:** the Media screen's **Where media is kept** offers to move the files already in the site's own files to the storage, in one publish, and to move them back, files up to 25 MB, once the storage isn't wanted any more. A plugin can't be removed while it keeps files the site shows.
+- **The list of files** the storage keeps, with their sizes, is in `content/media-storage.json` ([Content files](/docs/content-files)).
 
 ## Credits
 

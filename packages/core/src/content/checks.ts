@@ -26,6 +26,7 @@ import {
 import { linkTarget, siteLinks } from "./links.js";
 import type { Page, SiteContent } from "./load.js";
 import { allPages } from "./load.js";
+import { storedAddresses } from "./media-storage.js";
 import { SITE_FILE } from "./paths.js";
 import type { ThemeColor } from "./schemas.js";
 import { sitePages } from "./site-pages.js";
@@ -255,7 +256,8 @@ export function checkSite(content: SiteContent, options: SiteCheckOptions): Site
     (options.blocks && options.today ? sitePages(content, options.today, options.blocks) : allPages(content));
   const addresses = new Set(pages.map((page) => page.path));
   for (const redirect of content.redirects ?? []) addresses.add(redirect.from);
-  const media = new Set(options.media);
+  // Media a plugin keeps outside the repository is the site's too.
+  const media = new Set([...options.media, ...storedAddresses(content.mediaStorage)]);
 
   const errors: SiteProblem[] = [];
   for (const [file, links] of siteLinks(content, options.blocks)) {

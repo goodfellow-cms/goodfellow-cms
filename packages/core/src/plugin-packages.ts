@@ -61,8 +61,11 @@ export const pluginManifestSchema = z
     admin: z.boolean().optional(),
     screens: z.array(z.object({ id: z.string(), title: z.string() }).strict()).optional(),
     build: z.array(z.object({ id: z.string(), title: z.string().optional() }).strict()).optional(),
+    tasks: z.array(z.object({ id: z.string(), title: z.string().optional() }).strict()).optional(),
     /** Whether it answers requests on full-stack sites' servers. */
     server: z.boolean().optional(),
+    /** Whether it keeps the site's media outside the repository. */
+    mediaStorage: z.boolean().optional(),
   })
   .strict();
 
@@ -84,7 +87,9 @@ export function pluginManifest(plugin: GoodfellowPlugin): PluginManifest {
     ...(plugin.admin && { admin: true }),
     ...(plugin.screens?.length && { screens: plugin.screens.map(({ id, title }) => ({ id, title })) }),
     ...(plugin.build?.length && { build: plugin.build.map(({ id, title }) => ({ id, ...(title && { title }) })) }),
+    ...(plugin.tasks?.length && { tasks: plugin.tasks.map(({ id, title }) => ({ id, ...(title && { title }) })) }),
     ...(plugin.server && { server: true }),
+    ...(plugin.mediaStorage && { mediaStorage: true }),
   };
 }
 
@@ -114,6 +119,8 @@ export function unapproved(approved: ApprovedPlugin, plugin: GoodfellowPlugin): 
   for (const screen of plugin.screens ?? []) if (!screens.has(screen.id)) found.push(`the screen "${screen.id}"`);
   const steps = new Set((approved.build ?? []).map((step) => step.id));
   for (const step of plugin.build ?? []) if (!steps.has(step.id)) found.push(`the build step "${step.id}"`);
+  const tasks = new Set((approved.tasks ?? []).map((task) => task.id));
+  for (const task of plugin.tasks ?? []) if (!tasks.has(task.id)) found.push(`the task "${task.id}"`);
   if (plugin.admin && !approved.admin) found.push("an admin module");
   if (plugin.server && !approved.server) found.push("a server module");
   return found;

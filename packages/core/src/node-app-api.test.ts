@@ -3,6 +3,7 @@ import { APP_API_HEADER, type AppEditor, isSettingsPath } from "./app-api.js";
 import { ConflictError, type FileChange } from "./content/store.js";
 import { type CommitAuthor, encodeBase64Bytes, GitApiError, type GitBackend, type ServerGit } from "./git.js";
 import { appApi } from "./node-app-api.js";
+import { newTaskRequestId, PluginTaskError, type PluginTaskRequest, taskKeys } from "./plugin-tasks.js";
 import { FakeRepo, fakeFileBytes } from "./testing.js";
 
 const FILES = {
@@ -17,6 +18,7 @@ function fakeServerGit(repo: FakeRepo) {
   const authors = new Map<string, CommitAuthor>();
   const opened: string[] = [];
   const reviews: { from?: string; changes: FileChange[]; title: string; author?: string }[] = [];
+  const taskRuns: { request: PluginTaskRequest; author?: string }[] = [];
   const backend = (revision: string, author?: CommitAuthor): GitBackend => {
     const text = (path: string) => {
       const file = repo.files(revision).get(path);
@@ -52,6 +54,18 @@ function fakeServerGit(repo: FakeRepo) {
       },
       filesAt: (at) => backend(at),
       signOut: () => {},
+      tasks: {
+        supported: async () => true,
+        secretsPlace: async () => ({
+          kind: "github",
+          url: "https://github.com/parish/site/settings/secrets/actions/new",
+        }),
+        async run(request) {
+          taskRuns.push({ request, ...(author && { author: author.name }) });
+          if (request.task === "slow") throw new PluginTaskError("timeout", "The workflow didn't answer.");
+          return `sealed for ${request.id}`;
+        },
+      },
       drafts: {
         async create(_name, options) {
           const review: (typeof reviews)[number] = {
@@ -93,7 +107,7 @@ function fakeServerGit(repo: FakeRepo) {
       return backend(revision, author);
     },
   };
-  return { git, authors, opened, reviews };
+  return { git, authors, opened, reviews, taskRuns };
 }
 
 const ALICE: AppEditor = { login: "alice", name: "Alice Editor", email: "alice@example.org", role: "editor" };
@@ -343,6 +357,32 @@ describe("appApi", () => {
     const changed = await call("changed", { query: { from: revision, to: next } });
     expect(await changed.json()).toEqual({ paths: ["content/pages/index.json"] });
     expect(await (await call("deploy", { query: { revision: next } })).json()).toEqual({ state: "live" });
+  });
+
+  it("passes plugins' tasks on to the site's CI, with the answer still sealed", async () => {
+    const { call, post, taskRuns } = setup();
+    // Secrets go on the server, for plugins' server modules, or in the CI it names.
+    expect(await (await call("task")).json()).toEqual({
+      supported: true,
+      place: {
+        kind: "server",
+        ci: { kind: "github", url: "https://github.com/parish/site/settings/secrets/actions/new" },
+      },
+    });
+    const request = {
+      id: newTaskRequestId(),
+      plugin: "goodfellow-plugin-s3",
+      task: "sign",
+      input: "{}",
+      key: (await taskKeys()).publicKey,
+    };
+    expect(await (await post("task", request)).json()).toEqual({ result: `sealed for ${request.id}` });
+    expect(taskRuns).toEqual([{ request, author: "Alice Editor" }]);
+    // Why it couldn't run, without the host's own words.
+    const slow = await post("task", { ...request, task: "slow" });
+    expect(slow.status).toBe(502);
+    expect(await slow.json()).toEqual({ error: "task", problem: "timeout" });
+    expect((await post("task", { ...request, key: '{"kty":"EC","crv":"P-256","d":"private"}' })).status).toBe(400);
   });
 
   it("keeps the repository's errors on the server", async () => {

@@ -4,10 +4,10 @@
  * context with what its components use there, which can't publish or read the
  * repository.
  */
-import { type GoodfellowConfig, MEDIA_DIR } from "@goodfellow-cms/core";
+import { type GoodfellowConfig, MEDIA_DIR, type MediaStorage } from "@goodfellow-cms/core";
 import { adminSite, createPuckConfig } from "@goodfellow-cms/react";
 import type { ComponentConfig, Config } from "@puckeditor/core";
-import { createContext, type ReactNode, useContext, useEffect, useMemo } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef } from "react";
 import { AdminContext, type AdminContextValue } from "../admin-context.js";
 import { mediaUrl } from "../media.js";
 import { MediaChoiceContext } from "../media-library.js";
@@ -62,7 +62,11 @@ export function useAdminClient(): AdminClient {
 }
 
 /** Media from the admin panel's page, which reads files the live site doesn't have yet from the repository. */
-export function frameMediaPreviews(client: AdminClient, siteUrl: string): MediaPreviews {
+export function frameMediaPreviews(
+  client: AdminClient,
+  siteUrl: string,
+  storage: () => MediaStorage | undefined = () => undefined,
+): MediaPreviews {
   return createMediaPreviews(
     {
       readBytes: async (path) => {
@@ -71,6 +75,7 @@ export function frameMediaPreviews(client: AdminClient, siteUrl: string): MediaP
       },
     },
     siteUrl,
+    storage,
   );
 }
 
@@ -103,7 +108,12 @@ export function FrameProviders({
     [config],
   );
   const described = useMemo(() => adminSite(config), [config]);
-  const mediaPreviews = useMemo(() => frameMediaPreviews(client, init.siteUrl), [client, init.siteUrl]);
+  const storage = useRef(site.content.mediaStorage);
+  storage.current = site.content.mediaStorage;
+  const mediaPreviews = useMemo(
+    () => frameMediaPreviews(client, init.siteUrl, () => storage.current),
+    [client, init.siteUrl],
+  );
   useEffect(
     () =>
       client.channel.handle("media.remember", (file: { url: string; bytes: Uint8Array }) => {

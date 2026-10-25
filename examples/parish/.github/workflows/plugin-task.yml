@@ -1,0 +1,68 @@
+# Runs plugins' tasks for the admin panel, such as S3 storage signing uploads
+# with keys only this workflow has. The admin panel starts it with a
+# repository_dispatch event, and it leaves the task's answer, sealed to a key
+# only that admin panel holds, on a branch of its own, which the admin panel
+# reads and deletes. Plugins' secrets, such as S3_ACCESS_KEY_ID, are the
+# repository's Actions secrets (Settings → Secrets and variables → Actions):
+# each task gets only those its plugin declared. The job that runs the site's
+# code can only read the repository, and the job that leaves the answer runs
+# none of it. See README.md.
+name: Plugin task
+run-name: Plugin task ${{ github.event.client_payload.request }}
+
+on:
+  repository_dispatch:
+    types: [goodfellow-plugin-task]
+
+permissions: {}
+
+jobs:
+  task:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      result: ${{ steps.task.outputs.result }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          check-latest: true
+          cache: npm
+      - run: npm ci
+      - id: task
+        env:
+          GOODFELLOW_TASK_REQUEST: ${{ github.event.client_payload.request }}
+          GOODFELLOW_TASK_PLUGIN: ${{ github.event.client_payload.plugin }}
+          GOODFELLOW_TASK_NAME: ${{ github.event.client_payload.task }}
+          GOODFELLOW_TASK_INPUT: ${{ github.event.client_payload.input }}
+          GOODFELLOW_TASK_KEY: ${{ github.event.client_payload.key }}
+          GOODFELLOW_SECRETS: ${{ toJSON(secrets) }}
+        run: |
+          npx goodfellow task --out "$RUNNER_TEMP/goodfellow-task-result.json"
+          echo "result=$(cat "$RUNNER_TEMP/goodfellow-task-result.json")" >> "$GITHUB_OUTPUT"
+
+  answer:
+    # Leaves the sealed answer for the admin panel, running none of the site's code.
+    needs: task
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - env:
+          REQUEST: ${{ github.event.client_payload.request }}
+          RESULT: ${{ needs.task.outputs.result }}
+          TOKEN: ${{ github.token }}
+        run: |
+          case "$REQUEST" in "" | *[!a-z0-9]*) echo "That isn't a request from the admin panel."; exit 1 ;; esac
+          [ -n "$RESULT" ] || RESULT='{"version":1,"failed":true}'
+          git init -q answer
+          cd answer
+          printf '%s\n' "$RESULT" > goodfellow-task-result.json
+          git add goodfellow-task-result.json
+          git -c user.name="Goodfellow" -c user.email=tasks@goodfellow.invalid commit -q -m "The answer to plugin task $REQUEST"
+          git push -q "https://x-access-token:$TOKEN@${GITHUB_SERVER_URL#https://}/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/goodfellow-task-$REQUEST"

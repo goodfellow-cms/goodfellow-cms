@@ -8,9 +8,9 @@
  * - its admin module runs in a sandboxed frame of its own, whose Content
  *   Security Policy reaches only the addresses it declared (`connect`), and
  *   whose screens read and publish only the files it declared (`files`);
- * - its build steps each run in a process of their own, with only the
- *   environment variables it declared (`secrets`) and Node's permission model
- *   limiting the files they read and write (`read`, `write`);
+ * - its build steps and tasks each run in a process of their own, with only
+ *   the environment variables it declared (`secrets`) and Node's permission
+ *   model limiting the files they read and write (`read`, `write`);
  * - its server module answers requests on full-stack sites with everything
  *   the server has, which only a review can back.
  *
@@ -53,12 +53,38 @@ export interface GoodfellowPlugin {
   /** Steps run after the site is built, in order. */
   build?: PluginBuildStep[];
   /**
+   * Work its admin module asks the site's CI to do (`api.task()`), with the
+   * secrets only CI holds, such as signing uploads with a storage service's
+   * keys. Each takes about a minute, since CI starts a job for it.
+   */
+  tasks?: PluginTask[];
+  /**
    * The module answering requests to `/__goodfellow/api/plugins/<id>/…` on
    * full-stack Next.js sites: its default export is a `PluginServer` (from
    * `@goodfellow-cms/core/node`). Ignored
    * on static sites, which have no server.
    */
   server?: string;
+  /**
+   * Whether it keeps the site's media outside the repository, such as in S3
+   * storage: its admin module's `media` uploads and removes files, usually
+   * through a task, and the admin panel lists them in
+   * `content/media-storage.json`, which builds read to show them from the
+   * storage's address.
+   */
+  mediaStorage?: PluginMediaStorageOptions;
+  /**
+   * What a developer chose for it in the site's config, as JSON, which its
+   * admin module reads (`api.plugin.options`), such as more services for it
+   * to offer. At most `MAX_PLUGIN_OPTIONS` characters, and never secret:
+   * builds publish it with the site's description.
+   */
+  options?: PluginOptions;
+}
+
+export interface PluginMediaStorageOptions {
+  /** The largest file it takes, in bytes. The admin panel's own limit, 25 MB, applies without it. */
+  maxBytes?: number;
 }
 
 export interface PluginPermissions {
@@ -76,11 +102,12 @@ export interface PluginPermissions {
    * `public/media/`, but never the site's own code in `content/code/`.
    */
   files?: string[];
-  /** Environment variables its build steps get, such as `S3_SECRET_KEY`. They get no others. */
+  /** Environment variables its build steps and tasks get, such as `S3_SECRET_KEY`. They get no others. */
   secrets?: string[];
   /**
-   * Files and folders its build steps may read, from the site's root, besides
-   * the built site, their own package and `node_modules`, such as `content/`.
+   * Files and folders its build steps and tasks may read, from the site's
+   * root, besides the built site, their own package and `node_modules`, such
+   * as `content/`.
    */
   read?: string[];
   /** Files and folders in the built site its build steps may write, such as `media/`. */
@@ -116,6 +143,31 @@ export interface PluginBuildContext {
 }
 
 export type PluginBuildStepRun = (context: PluginBuildContext) => void | Promise<void>;
+
+export interface PluginTask {
+  /** Its name in `api.task()`, lowercase letters, digits and dashes. */
+  id: string;
+  /** The module whose default export is a `PluginTaskRun`, as for `admin`. */
+  module: string;
+  /** What CI's output calls it. */
+  title?: string;
+}
+
+/** What a task gets besides its input: the site's root, and the secrets it declared. */
+export interface PluginTaskContext {
+  /** The site's root. Only the folders the plugin declared in `read` can be read there. */
+  root: string;
+  /** The environment variables it declared, those that are set. */
+  secrets: Record<string, string>;
+}
+
+/**
+ * A task's code: given what the plugin's admin module passed (as the admin
+ * module may have been told anything by whoever used the admin panel, check
+ * it), it answers with anything JSON keeps, which the admin module gets.
+ * Throwing an `Error` answers with its message.
+ */
+export type PluginTaskRun = (input: unknown, context: PluginTaskContext) => unknown;
 
 /** Who's asking a plugin's server module, as the full-stack site's sign-in says. */
 export interface PluginServerEditor {
@@ -155,6 +207,42 @@ export interface PluginAdminApi {
   }>;
   /** Opens one of the admin panel's screens, such as `#/media`, asking first about unpublished changes. */
   navigate(href: string): void;
+  /**
+   * Runs one of the plugin's tasks in the site's CI, with its secrets,
+   * answering with what the task returned. It takes about a minute. Throws
+   * where the site's setup can't run tasks, or the task failed, with its
+   * message.
+   */
+  task(id: string, input?: unknown): Promise<unknown>;
+  /**
+   * How the site's owner adds the secrets the plugin declared, for this site
+   * as it's set up, in the admin panel's words: the first is where its tasks
+   * get them, and a full-stack site's server comes with the CI as a second.
+   * Empty where tasks can't run.
+   */
+  secretsHelp(): Promise<PluginSecretsHelp[]>;
+  /**
+   * Opens one of the links `secretsHelp()` gave in a new tab, which a
+   * plugin's frame can't do itself. Call it as the person clicks.
+   */
+  openSecretsLink(url: string): void;
+}
+
+/**
+ * How to add the secrets a plugin declared, in the admin panel's words, for
+ * a plugin's screen to show as they are.
+ */
+export interface PluginSecretsHelp {
+  /** Where they go: the development server's `.env.local`, a full-stack site's server, or GitHub's or GitLab's CI. */
+  where: "development" | "server" | "github" | "gitlab";
+  /** A heading for these steps, such as "On GitHub". */
+  title: string;
+  /** The page the secrets are added on, where there is one, and what to call the link. */
+  link?: { url: string; label: string };
+  /** What to do, in order; a step may come with something to type or paste, such as a line of a file. */
+  steps: { text: string; code?: string }[];
+  /** Anything else worth knowing, such as who can open the page. */
+  notes: string[];
 }
 
 /** One file to write or delete. */
@@ -172,6 +260,40 @@ export type PluginScreenMount = (element: HTMLElementLike, api: PluginAdminApi) 
 /** The element a screen draws into: a DOM element, named loosely so core needs no DOM types. */
 export type HTMLElementLike = { ownerDocument: unknown };
 
+/** A file's contents as the admin panel hands it over: a browser's `Blob`, named loosely so core needs no DOM types. */
+export interface BlobLike {
+  readonly size: number;
+  readonly type: string;
+  arrayBuffer(): Promise<ArrayBuffer>;
+}
+
+/** A file for media storage to keep, with its contents. */
+export interface PluginMediaFile {
+  /** The address content will use, such as `/media/sermon.mp4`, which `isStorableAddress()` accepts. */
+  address: string;
+  /** Its media type, such as `video/mp4`. */
+  type: string;
+  size: number;
+  data: BlobLike;
+}
+
+/** Whether media storage can take files now, or what needs doing first, in the plugin's words. */
+export type PluginMediaReady = { ready: true } | { ready: false; message: string; screen?: string };
+
+/** What a plugin that keeps media (`mediaStorage`) does in the admin panel. */
+export interface PluginMediaStorage {
+  /** Whether it can take files now, such as once it's set up. */
+  ready(api: PluginAdminApi): Promise<PluginMediaReady>;
+  /**
+   * Keeps files at their addresses, replacing any there, all together, since
+   * each batch may wait for a task. Throws, with what went wrong, when it
+   * can't keep them all.
+   */
+  upload(files: PluginMediaFile[], api: PluginAdminApi): Promise<void>;
+  /** Removes files it keeps, by address, once the site no longer lists them. */
+  remove(addresses: string[], api: PluginAdminApi): Promise<void>;
+}
+
 /** The default export of a plugin's admin module. */
 export interface PluginAdmin {
   /**
@@ -182,6 +304,8 @@ export interface PluginAdmin {
   services?: Record<string, (args: unknown[], api: PluginAdminApi) => unknown>;
   /** Each of the plugin's screens, by the id it declared. */
   screens?: Record<string, PluginScreenMount>;
+  /** Where it keeps media, for a plugin that says it does (`mediaStorage`). */
+  media?: PluginMediaStorage;
 }
 
 /** Declares a plugin with full type checking. Returns it unchanged. */
@@ -208,9 +332,21 @@ export interface PluginDescription {
   screens?: PluginScreen[];
   /** Its build steps' names. */
   build?: { id: string; title?: string }[];
+  /** Its tasks' names. */
+  tasks?: { id: string; title?: string }[];
   /** Whether it answers requests on full-stack sites. */
   server?: boolean;
+  /** Whether it keeps media, and the largest file it takes. */
+  mediaStorage?: PluginMediaStorageOptions;
+  /** What the site's config chose for it, for its admin module. */
+  options?: PluginOptions;
 }
+
+/** A plugin's options in the site's config: anything JSON keeps. */
+export type PluginOptions = { [key: string]: unknown };
+
+/** How long a plugin's options may be, as JSON. */
+export const MAX_PLUGIN_OPTIONS = 16_000;
 
 /** Whether a package's name is a plugin's: `goodfellow-plugin-<name>` or `@scope/goodfellow-plugin-<name>`. */
 export function isPluginName(name: string): boolean {
@@ -236,8 +372,11 @@ export interface PluginProblem {
     | "bad-write"
     | "bad-screen"
     | "bad-step"
+    | "bad-task"
     | "no-admin"
     | "block-clash"
+    | "bad-storage"
+    | "bad-options"
     | "not-approved";
   /** What's wrong, for the developer. */
   message: string;
@@ -340,6 +479,28 @@ export function pluginProblems(
     if ((plugin.screens?.length ?? 0) > 0 && !plugin.admin) {
       problem("no-admin", `${name} has screens but no admin module to draw them.`);
     }
+    if (plugin.mediaStorage) {
+      const { maxBytes } = plugin.mediaStorage;
+      if (!plugin.admin) problem("no-admin", `${name} keeps media but has no admin module to upload it.`);
+      if (maxBytes !== undefined && !(Number.isSafeInteger(maxBytes) && maxBytes > 0)) {
+        problem("bad-storage", `${name}'s largest file for media storage isn't a number of bytes.`);
+      }
+    }
+    if (plugin.options !== undefined) {
+      let json: string | undefined;
+      try {
+        json = JSON.stringify(plugin.options);
+      } catch {
+        json = undefined;
+      }
+      const plain = json !== undefined && typeof plugin.options === "object" && !Array.isArray(plugin.options);
+      if (!plain || json === undefined || json.length > MAX_PLUGIN_OPTIONS) {
+        problem(
+          "bad-options",
+          `${name}'s options aren't an object of at most ${MAX_PLUGIN_OPTIONS} characters of JSON.`,
+        );
+      }
+    }
     const stepIds = new Set<string>();
     for (const step of plugin.build ?? []) {
       if (!ID.test(step?.id ?? "") || stepIds.has(step.id) || typeof step.module !== "string" || !step.module) {
@@ -349,6 +510,16 @@ export function pluginProblems(
         );
       }
       stepIds.add(step?.id);
+    }
+    const taskIds = new Set<string>();
+    for (const task of plugin.tasks ?? []) {
+      if (!ID.test(task?.id ?? "") || taskIds.has(task.id) || typeof task.module !== "string" || !task.module) {
+        problem(
+          "bad-task",
+          `${name} has a task without a module or an id of lowercase letters, digits and dashes of its own.`,
+        );
+      }
+      taskIds.add(task?.id);
     }
     for (const block of Object.keys(plugin.blocks ?? {})) {
       const owner = blockOwners.get(block);
@@ -412,7 +583,13 @@ export function describePlugin(plugin: GoodfellowPlugin): PluginDescription {
     ...(plugin.admin && { admin: true }),
     ...(plugin.screens?.length && { screens: plugin.screens.map(({ id, title }) => ({ id, title })) }),
     ...(plugin.build?.length && { build: plugin.build.map(({ id, title }) => ({ id, ...(title && { title }) })) }),
+    ...(plugin.tasks?.length && { tasks: plugin.tasks.map(({ id, title }) => ({ id, ...(title && { title }) })) }),
     ...(plugin.server && { server: true }),
+    ...(plugin.mediaStorage && {
+      mediaStorage: plugin.mediaStorage.maxBytes ? { maxBytes: plugin.mediaStorage.maxBytes } : {},
+    }),
+    // A copy through JSON, so what the admin module gets is exactly what's published.
+    ...(plugin.options && { options: JSON.parse(JSON.stringify(plugin.options)) as PluginOptions }),
   };
 }
 

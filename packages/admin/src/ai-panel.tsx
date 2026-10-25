@@ -36,7 +36,7 @@ import { allowedProviders, useAiSettings, useStockPhotoChoice } from "./ai-setti
 import { mediaFileChange, pageTitle } from "./changes.js";
 import { inSentence } from "./collection-screen.js";
 import type { EditorChange } from "./frame/protocol.js";
-import { fileName, siteImages } from "./media.js";
+import { allMedia, fileName, siteImages } from "./media.js";
 import { findStockPhotos, stockPhotoChanges } from "./stock-photos.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, ErrorMessage, Field, TextField } from "./ui.js";
@@ -467,7 +467,11 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
   };
 
   const runTask = async (task: AiTask) => {
-    const request: AiRequest = buildRequest(task, editor.config, siteSummary(content, media, photosAllowed, language));
+    const request: AiRequest = buildRequest(
+      task,
+      editor.config,
+      siteSummary(content, allMedia(content, media), photosAllowed, language),
+    );
     if (settings.provider === "manual") {
       setReply("");
       setCopied(false);

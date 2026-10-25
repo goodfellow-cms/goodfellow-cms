@@ -21,6 +21,7 @@ import {
   siteLanguages,
   sitemapPages,
   sitePages,
+  storedMediaSizes,
   themeToCss,
   todayIn,
   withBase,
@@ -168,7 +169,12 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   const site = () => loadSite(options.root);
   const basePath = () => options.basePath ?? configuredBasePath();
 
-  const renderOptions = async () => ({ base: basePath(), components, media: await readMediaSizes(root) });
+  // Stored media's sizes are by its public address, which the site shows it from.
+  const renderOptions = async () => ({
+    base: basePath(),
+    components,
+    media: { ...(await readMediaSizes(root)), ...storedMediaSizes((await site()).mediaStorage) },
+  });
 
   /** The site's theme and fonts, which React moves into the document's head. themeToCss escapes its output. */
   async function Theme({ content }: { content: SiteContent }) {

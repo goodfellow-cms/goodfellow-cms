@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DEV_API_PREFIX, handleDevApi, isLocalOrigin } from "./node-dev-api.js";
 import { localFileStore } from "./node-local-files.js";
+import { newTaskRequestId, openTaskAnswer, taskKeys } from "./plugin-tasks.js";
+import { definePlugin } from "./plugins.js";
 
 describe("handleDevApi", () => {
   let root: string;
@@ -138,5 +140,74 @@ describe("isLocalOrigin", () => {
     expect(isLocalOrigin("https://evil.example", "localhost:4399")).toBe(false);
     expect(isLocalOrigin("http://localhost:3000", "evil.example:3000")).toBe(false);
     expect(isLocalOrigin("not a url", "localhost")).toBe(false);
+  });
+});
+
+describe("handleDevApi's plugins' tasks", () => {
+  let root: string;
+  let server: Server;
+  let base: string;
+  const plugin = definePlugin({
+    name: "goodfellow-plugin-storage",
+    title: "Storage",
+    permissions: { secrets: ["STORAGE_KEY"] },
+    tasks: [{ id: "sign", module: "./plugins/storage/sign.mjs" }],
+  });
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), "goodfellow-api-tasks-"));
+    await mkdir(join(root, "plugins/storage"), { recursive: true });
+    await writeFile(join(root, "package.json"), "{}");
+    await writeFile(
+      join(root, "plugins/storage/sign.mjs"),
+      "export default (input, context) => ({ input, key: context.secrets.STORAGE_KEY ?? null });\n",
+    );
+    const store = localFileStore(root);
+    server = createServer(async (req, res) => {
+      const tasks = { root, plugins: async () => [plugin], server: "goodfellow-dev" as const };
+      if (!(await handleDevApi(store, req, res, { tasks }))) res.writeHead(418).end();
+    });
+    await new Promise<void>((done) => server.listen(0, done));
+    base = `http://localhost:${(server.address() as AddressInfo).port}${DEV_API_PREFIX}`;
+  });
+
+  afterAll(async () => {
+    await new Promise((done) => server.close(done));
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const json = { "x-goodfellow-request": "1", "content-type": "application/json" };
+
+  it("run on this computer, with the server's environment as secrets, answering sealed to the request's key", async () => {
+    expect(await (await fetch(`${base}/task/`, { headers: json })).json()).toEqual({
+      supported: true,
+      place: { kind: "goodfellow-dev" },
+    });
+    const keys = await taskKeys();
+    const request = {
+      id: newTaskRequestId(),
+      plugin: "goodfellow-plugin-storage",
+      task: "sign",
+      input: '{"files":["/media/a.mp4"]}',
+      key: keys.publicKey,
+    };
+    // The site's .env.local, read as the task runs, as developers keep secrets on their computers.
+    await writeFile(join(root, ".env.local"), "STORAGE_KEY=local key\n");
+    try {
+      const response = await fetch(`${base}/task/`, { method: "POST", headers: json, body: JSON.stringify(request) });
+      const { result } = (await response.json()) as { result: string };
+      expect(await openTaskAnswer(result, keys.privateKey)).toEqual({
+        ok: true,
+        output: { input: { files: ["/media/a.mp4"] }, key: "local key" },
+      });
+    } finally {
+      await rm(join(root, ".env.local"));
+    }
+    const bad = await fetch(`${base}/task/`, {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({ ...request, key: "{}" }),
+    });
+    expect(bad.status).toBe(400);
   });
 });

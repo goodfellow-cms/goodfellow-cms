@@ -101,6 +101,12 @@ describe("a site's plugins", () => {
       "bad-screen",
       "no-admin",
     ]);
+    expect(
+      pluginProblems([
+        definePlugin({ name: "goodfellow-plugin-a", title: "A", mediaStorage: {} }),
+        definePlugin({ name: "goodfellow-plugin-b", title: "B", admin: "./admin", mediaStorage: { maxBytes: -1 } }),
+      ]).map((problem) => problem.code),
+    ).toEqual(["no-admin", "bad-storage"]);
     expect(isPluginOrigin("http://localhost:4400")).toBe(true);
     expect(isPluginOrigin("https://storage.example.com/path")).toBe(false);
   });
@@ -165,5 +171,40 @@ describe("a plugin in the site's description", () => {
       }),
     );
     expect(parsed.ok && parsed.description.plugins?.[0]?.id).toBe("goodfellow-plugin-storage");
+    const keeper = describePlugin({ ...storage, mediaStorage: { maxBytes: 5_000_000_000 } });
+    expect(keeper.mediaStorage).toEqual({ maxBytes: 5_000_000_000 });
+    const reread = parseSiteDescription(
+      JSON.stringify({
+        version: 1,
+        goodfellow: "0.6.0",
+        content: {},
+        root: { fields: {} },
+        blocks: {},
+        plugins: [keeper],
+      }),
+    );
+    expect(reread.ok && reread.description.plugins?.[0]?.mediaStorage).toEqual({ maxBytes: 5_000_000_000 });
+  });
+
+  it("carries the options the site's config gave it, as JSON, and refuses ones that aren't", () => {
+    const services = [{ id: "minio", name: "Our MinIO", endpoint: "https://minio.example.org" }];
+    const described = describePlugin({ ...storage, options: { services } });
+    expect(described.options).toEqual({ services });
+    const reread = parseSiteDescription(
+      JSON.stringify({
+        version: 1,
+        goodfellow: "0.6.0",
+        content: {},
+        root: { fields: {} },
+        blocks: {},
+        plugins: [described],
+      }),
+    );
+    expect(reread.ok && reread.description.plugins?.[0]?.options).toEqual({ services });
+    const codes = (options: unknown) =>
+      pluginProblems([{ ...storage, options: options as Record<string, unknown> }]).map((problem) => problem.code);
+    expect(codes({ services })).toEqual([]);
+    expect(codes(["not", "an", "object"])).toEqual(["bad-options"]);
+    expect(codes({ long: "x".repeat(20_000) })).toEqual(["bad-options"]);
   });
 });

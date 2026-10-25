@@ -8,8 +8,10 @@ import {
   type FileChange,
   type FileVersion,
   type GitBackend,
+  PluginTaskError,
   type RevisionFiles,
   SignInError,
+  type TaskSecretsPlace,
 } from "@goodfellow-cms/core";
 
 /** Thrown when the site's server refuses something, such as an editor changing settings only owners may change. */
@@ -56,7 +58,12 @@ export function appServer(api: string) {
     });
     if (response.ok || (response.status === 404 && missingIsFine)) return response;
     if (response.status === 409) throw new ConflictError();
-    const answer = (await response.json().catch(() => ({}))) as { error?: string };
+    const answer = (await response.json().catch(() => ({}))) as { error?: string; problem?: string };
+    // A plugin's task that couldn't run, with why, which the admin panel puts in its own words.
+    if (answer.error === "task") {
+      const problem = ["missing", "not-allowed", "timeout"].includes(answer.problem ?? "") ? answer.problem : "failed";
+      throw new PluginTaskError(problem as PluginTaskError["problem"], "The site's server couldn't run the task.");
+    }
     // The site's own sign-in has ended, or no longer lets them edit.
     if (response.status === 401) throw new SignInError("invalid", "Signing in to the site has ended.");
     throw new AppServerError(response.status, answer.error ?? "error");
@@ -156,6 +163,21 @@ export function appServer(api: string) {
         async readAt(path, revision) {
           const response = await request("version", { query: { path, revision }, missingIsFine: true });
           return response.status === 404 ? undefined : ((await response.json()) as { content: string }).content;
+        },
+        // Plugins' tasks, run in the site's CI as on a static site; their answers are sealed to this browser's key.
+        tasks: {
+          async supported() {
+            const response = await request("task", { missingIsFine: true }).catch(() => undefined);
+            return response?.ok === true && ((await response.json()) as { supported?: boolean }).supported === true;
+          },
+          async secretsPlace() {
+            const response = await request("task", { missingIsFine: true }).catch(() => undefined);
+            if (!response?.ok) return undefined;
+            return ((await response.json()) as { place?: TaskSecretsPlace }).place;
+          },
+          async run(task) {
+            return ((await (await request("task", { body: task })).json()) as { result: string }).result;
+          },
         },
         signOut: onSignOut,
       };

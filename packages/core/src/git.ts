@@ -4,6 +4,7 @@ import type { ContentStore } from "./content/store.js";
 import type { PagesDomains } from "./domains.js";
 import type { SiteDrafts } from "./drafts.js";
 import type { OwnerAccess, SiteEditors } from "./editors.js";
+import type { PluginTasks } from "./plugin-tasks.js";
 import type { RepositoryVisibility, ScheduledBuilds } from "./scheduled-builds.js";
 import type { SetupHost } from "./setup-host.js";
 import type { SiteUpdates } from "./updates.js";
@@ -78,6 +79,8 @@ export interface GitBackend extends ContentStore {
   readonly drafts?: SiteDrafts;
   /** How the site is built again when a scheduled change comes due. Absent where the backend can't say. */
   readonly scheduledBuilds?: ScheduledBuilds;
+  /** Plugins' tasks, run in the site's CI with its secrets. Absent where the backend can't run them. */
+  readonly tasks?: PluginTasks;
   /**
    * Who can read the repository, so the admin panel can warn that content
    * scheduled for later can be read there before it's shown.

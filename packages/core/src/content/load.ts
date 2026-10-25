@@ -5,6 +5,7 @@ import { mediaFileSchema, type PhotoCredit } from "./credits.js";
 import { ContentError, type ContentProblem } from "./errors.js";
 import { entryLanguage, entryPathIn, isOtherLanguage, siteLanguages } from "./languages.js";
 import { parseMarkdownEntry } from "./markdown.js";
+import { type MediaStorage, mediaStorageFileSchema } from "./media-storage.js";
 import {
   BODY_CODE_FILE,
   COLLECTION_SETTINGS_FILE,
@@ -17,6 +18,7 @@ import {
   isReservedPagePath,
   languageLayoutFile,
   MEDIA_FILE,
+  MEDIA_STORAGE_FILE,
   MENUS_FILE,
   PAGES_DIR,
   pageFileToPath,
@@ -107,6 +109,8 @@ export interface SiteContent {
   redirectMessage?: string;
   /** Media files' credits, by address (`content/media.json`), such as photos from Openverse. Missing means none. */
   credits?: Record<string, PhotoCredit>;
+  /** The media a plugin keeps outside the repository (`content/media-storage.json`). Missing means none. */
+  mediaStorage?: MediaStorage;
 }
 
 export interface SiteCode {
@@ -191,6 +195,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     menusFile,
     redirectsFile,
     mediaFile,
+    storageFile,
     header,
     footer,
     customCss,
@@ -203,6 +208,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     loadOptional("menus", menusFileSchema, MENUS_FILE, { version: 1, menus: {} }),
     loadOptional("redirects", redirectsFileSchema, REDIRECTS_FILE, { version: 1, redirects: [] }),
     loadOptional("media", mediaFileSchema, MEDIA_FILE, { version: 1, credits: {} }),
+    loadOptional("storage", mediaStorageFileSchema.optional(), MEDIA_STORAGE_FILE, undefined),
     loadOptional("layout", layoutFileSchema, HEADER_FILE, EMPTY_LAYOUT),
     loadOptional("layout", layoutFileSchema, FOOTER_FILE, EMPTY_LAYOUT),
     source.read(CUSTOM_CSS_FILE),
@@ -325,6 +331,9 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     redirects: redirectsFile.redirects,
     ...(redirectsFile.message !== undefined && { redirectMessage: redirectsFile.message }),
     credits: mediaFile.credits,
+    ...(storageFile && {
+      mediaStorage: { plugin: storageFile.plugin, url: storageFile.url, files: storageFile.files },
+    }),
   };
 }
 

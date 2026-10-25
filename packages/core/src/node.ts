@@ -57,9 +57,12 @@ export {
   type PluginBuildOptions,
   type PluginBuildStepRunInfo,
   type PluginServer,
+  type PluginTaskOptions,
   pluginModuleUrl,
   resolvePluginModule,
   runPluginBuildSteps,
+  runPluginTask,
+  taskSecretsFrom,
 } from "./node-plugins.js";
 export { localRegistryDir } from "./node-registry.js";
 export { type DueOptions, type DueResult, reportDue, scheduleDue } from "./node-schedule.js";

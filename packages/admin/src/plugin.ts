@@ -7,7 +7,7 @@
  */
 import type { PluginAdmin, PluginAdminApi, PluginFileChange } from "@goodfellow-cms/core";
 import { type Channel, CONNECT_MESSAGE, createChannel } from "./frame/channel.js";
-import { PLUGIN_READY_MESSAGE, type PluginFrameInit } from "./frame/plugin-protocol.js";
+import { PLUGIN_READY_MESSAGE, type PluginFrameInit, type PluginFrameMediaFile } from "./frame/plugin-protocol.js";
 
 /** Shows the admin panel's light or dark choice, as the admin panel's stylesheet reads it. */
 function applyTheme(choice: PluginFrameInit["theme"]) {
@@ -28,6 +28,11 @@ function adminApi(channel: Channel, init: PluginFrameInit): PluginAdminApi {
     navigate: (href) => {
       void channel.call("navigate", href).catch(() => {});
     },
+    task: (id, input) => channel.call("task", { id, input: input ?? null }),
+    secretsHelp: () => channel.call("secrets.help"),
+    openSecretsLink: (url) => {
+      void channel.call("secrets.open", { url }).catch(() => {});
+    },
   };
 }
 
@@ -44,13 +49,24 @@ export function mountPluginFrame(admin: PluginAdmin): void {
     window.removeEventListener("message", onMessage);
     const channel = createChannel(port);
     let api: PluginAdminApi | undefined;
-    channel.handle("init", async (init: PluginFrameInit) => {
-      applyTheme(init.theme);
-      api = adminApi(channel, init);
-      if (init.mode !== "screen") return;
+    let init: PluginFrameInit | undefined;
+    channel.handle("init", async (given: PluginFrameInit) => {
+      init = given;
+      applyTheme(given.theme);
+      api = adminApi(channel, given);
+      if (given.mode !== "screen") return;
       const mount =
-        init.screen && admin.screens && Object.hasOwn(admin.screens, init.screen) && admin.screens[init.screen];
-      if (!mount) throw new Error(`${init.plugin.title} has no screen called "${init.screen}".`);
+        given.screen && admin.screens && Object.hasOwn(admin.screens, given.screen) && admin.screens[given.screen];
+      if (!mount) throw new Error(`${given.plugin.title} has no screen called "${given.screen}".`);
+      // The page sizes the frame to what the screen draws, as it changes.
+      const body = document.body;
+      let reported = 0;
+      new ResizeObserver(() => {
+        const height = Math.ceil(body.getBoundingClientRect().height);
+        if (height === reported) return;
+        reported = height;
+        void channel.call("resize", { height }).catch(() => {});
+      }).observe(body);
       const cleanup = await mount(element, api);
       if (typeof cleanup === "function") window.addEventListener("pagehide", () => cleanup());
     });
@@ -59,6 +75,22 @@ export function mountPluginFrame(admin: PluginAdmin): void {
       const service = admin.services && Object.hasOwn(admin.services, method) && admin.services[method];
       if (!service || !api) throw new Error(`No such service: ${method}`);
       return service(Array.isArray(args) ? args : [], api);
+    });
+    const media = () => {
+      if (!admin.media || !api) throw new Error(`${init?.plugin.title ?? "This plugin"} doesn't keep media.`);
+      return { storage: admin.media, api };
+    };
+    channel.handle("media.ready", () => {
+      const { storage, api } = media();
+      return storage.ready(api);
+    });
+    channel.handle("media.upload", ({ files }: { files: PluginFrameMediaFile[] }) => {
+      const { storage, api } = media();
+      return storage.upload(files, api);
+    });
+    channel.handle("media.remove", ({ addresses }: { addresses: string[] }) => {
+      const { storage, api } = media();
+      return storage.remove(addresses, api);
     });
   };
   window.addEventListener("message", onMessage);

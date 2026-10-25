@@ -235,6 +235,7 @@ const BACKEND: Shape = {
     },
     drafts: { methods: ["create", "open", "list"], returns: { create: DRAFT, open: DRAFT } },
     scheduledBuilds: { methods: ["timing", "sync"] },
+    tasks: { methods: ["supported", "secretsPlace", "run"] },
   },
 };
 

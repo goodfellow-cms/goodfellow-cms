@@ -13,6 +13,7 @@ import { pageTitle } from "./changes.js";
 import { type Collection, type Entry, entryTitle } from "./collections.js";
 import { linkTarget } from "./links.js";
 import type { Page, SiteContent } from "./load.js";
+import { withStoredMedia } from "./media-storage.js";
 import type { MenuItem, Menus } from "./schemas.js";
 
 /** When a page or entry is on the site. Either time can be left out. */
@@ -115,10 +116,15 @@ function shownMenus(menus: Menus, hidden: ReadonlySet<string>): Menus {
 /**
  * The site as visitors see it at an instant: without the pages and entries
  * its schedules don't show then, and without menus' links to their addresses.
- * Builds, `goodfellow dev` and Next.js's routes use it; the admin panel edits
- * the site as loaded.
+ * Media a plugin keeps outside the repository is shown from its storage's
+ * address (`withStoredMedia()`). Builds, `goodfellow dev` and Next.js's
+ * routes use it; the admin panel edits the site as loaded.
  */
 export function shownContent(content: SiteContent, now: Date = new Date()): SiteContent {
+  return withStoredMedia(scheduledContent(content, now));
+}
+
+function scheduledContent(content: SiteContent, now: Date): SiteContent {
   const { timeZone } = content.settings;
   const hidden = new Set<string>();
   const pages = content.pages.filter((page) => {

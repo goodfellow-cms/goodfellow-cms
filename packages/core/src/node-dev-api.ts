@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
+import { parseEnv } from "node:util";
 import {
   CALENDARS_DIR,
   ConflictError,
@@ -10,10 +12,17 @@ import {
   FEEDS_DIR,
   type FileChange,
   feedFiles,
+  type GoodfellowPlugin,
   loadSiteContent,
+  type PluginTaskRequest,
+  pluginId,
+  sealTaskAnswer,
   shownContent,
+  type TaskAnswer,
+  taskRequestProblem,
 } from "./index.js";
 import { InvalidPathError } from "./node-local-files.js";
+import { runPluginTask, taskSecretsFrom } from "./node-plugins.js";
 
 /** Where the development server exposes the local backend. The admin panel's local store calls these endpoints. */
 export const DEV_API_PREFIX = "/__goodfellow/api";
@@ -63,6 +72,52 @@ export interface DevApiOptions {
   trustOrigin?: (origin: string, host: string | undefined) => boolean;
   /** The built block registry to serve at `registry/<name>.json`, for the admin panel's Blocks screen. */
   registryDir?: string;
+  /**
+   * Runs plugins' tasks (`task`) on this computer, as the site's CI would,
+   * with the secrets in the site's `.env.local` and this server's
+   * environment: the site's root, its plugins, read from its config as it is
+   * now, and which development server this is, for saying where secrets go.
+   */
+  tasks?: {
+    root: string;
+    plugins: () => Promise<readonly GoodfellowPlugin[]>;
+    server: "goodfellow-dev" | "next-dev";
+  };
+}
+
+/** Where tasks in the development servers get their secrets: the site's `.env.local`, read each time, which git ignores. */
+export const DEV_SECRETS_FILE = ".env.local";
+
+/** This server's environment with the site's `.env.local` over it, read as each task runs, so a change needs no restart. */
+function devSecrets(root: string): Record<string, string> {
+  let file: Record<string, string> = {};
+  try {
+    file = parseEnv(readFileSync(join(root, DEV_SECRETS_FILE), "utf8")) as Record<string, string>;
+  } catch {
+    // No file: the environment alone.
+  }
+  return taskSecretsFrom({ ...process.env, ...file });
+}
+
+/** Runs a plugin's task as `goodfellow task` does in the site's CI, answering with its sealed answer's text. */
+async function runDevTask(tasks: NonNullable<DevApiOptions["tasks"]>, request: PluginTaskRequest): Promise<string> {
+  let answer: TaskAnswer;
+  try {
+    const plugin = (await tasks.plugins()).find((candidate) => pluginId(candidate.name) === request.plugin);
+    answer = plugin
+      ? await runPluginTask({
+          root: tasks.root,
+          plugin,
+          task: request.task,
+          input: request.input,
+          secrets: devSecrets(tasks.root),
+          onRun: () => console.log(`  Running ${plugin.title}'s task "${request.task}"`),
+        })
+      : { ok: false, error: `The site has no plugin ${request.plugin}.` };
+  } catch (error) {
+    answer = { ok: false, error: `The site couldn't run the task: ${error instanceof Error ? error.message : error}` };
+  }
+  return JSON.stringify(await sealTaskAnswer(answer, request.key));
 }
 
 /** Serves a file of the built block registry: public, read-only files, so they need no checks. */
@@ -213,6 +268,21 @@ export async function handleDevApi(
       const result = await store.write(changes, { message, expectedRevision });
       console.log(`  Saved: ${message}`);
       send(res, 200, result);
+    } else if (req.method === "GET" && endpoint === "task") {
+      send(res, 200, {
+        supported: options.tasks !== undefined,
+        ...(options.tasks && { place: { kind: options.tasks.server } }),
+      });
+    } else if (req.method === "POST" && endpoint === "task" && options.tasks) {
+      if (!req.headers["content-type"]?.startsWith("application/json")) {
+        send(res, 415, { error: "unsupported-media-type" });
+        return true;
+      }
+      const request = (await readJson(req)) as PluginTaskRequest;
+      const problem =
+        typeof request === "object" && request !== null ? taskRequestProblem(request) : "That isn't a task's request.";
+      if (problem) send(res, 400, { error: "bad-request", message: problem });
+      else send(res, 200, { result: await runDevTask(options.tasks, request) });
     } else {
       send(res, 404, { error: "not-found" });
     }

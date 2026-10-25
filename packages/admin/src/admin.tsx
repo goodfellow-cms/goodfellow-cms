@@ -155,8 +155,8 @@ function PluginScreen({ id, screen }: { id?: string; screen?: string }) {
     );
   }
   return (
-    <div className="gfa-screen gfa-plugin-screen-wrap">
-      <h1>{found.title}</h1>
+    // The plugin draws its own heading, so the frame is the whole screen.
+    <div className="gfa-plugin-screen-wrap">
       <PluginScreenFrame
         key={`${plugin.id}/${found.id}`}
         plugin={plugin}

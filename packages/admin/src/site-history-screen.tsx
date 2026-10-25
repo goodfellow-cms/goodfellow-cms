@@ -250,7 +250,10 @@ function PublishDetail({ version, onRestored }: { version: FileVersion; onRestor
   );
 
   const media = useMemo(
-    () => (loaded.status === "ready" ? createMediaPreviews(loaded.then, siteUrl) : undefined),
+    () =>
+      loaded.status === "ready"
+        ? createMediaPreviews(loaded.then, siteUrl, () => loaded.content.mediaStorage)
+        : undefined,
     [loaded, siteUrl],
   );
 
