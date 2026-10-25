@@ -3,12 +3,16 @@ import {
   availableUpdates,
   compareReleases,
   type GitBackend,
+  INSTALLED_PLUGINS_FILE,
+  type InstalledPlugins,
   inRange,
   NIGHTLY_MODES,
   type NightlyMode,
   NPM_REGISTRY,
+  parseInstalledPlugins,
   parseThemeRecord,
   parseUpdateSettings,
+  pluginsOutOfRange,
   releaseVersions,
   siteVersion,
   THEME_FILE,
@@ -114,6 +118,8 @@ interface Loaded {
   nightly?: { supported: boolean; mode?: NightlyMode };
   /** The installed theme, whose Goodfellow releases a newer release is checked against. */
   theme?: ThemeRecord;
+  /** Plugins installed from the admin panel, whose Goodfellow releases updates are checked against. */
+  plugins?: InstalledPlugins;
 }
 
 function UpdatesPanel() {
@@ -133,7 +139,7 @@ function UpdatesPanel() {
     try {
       // Where the code is kept apart from the content, its package.json says which release the site uses.
       const code = updates.code;
-      const [packageJson, settingsText, metadata, setup, last, people, nightly, theme] = await Promise.all([
+      const [packageJson, settingsText, metadata, setup, last, people, nightly, theme, plugins] = await Promise.all([
         code ? code.read("package.json").catch(() => undefined) : versions?.readAt("package.json", revision),
         readFile(UPDATES_FILE),
         window
@@ -151,6 +157,9 @@ function UpdatesPanel() {
         readFile(THEME_FILE)
           .then(parseThemeRecord)
           .catch(() => undefined),
+        readFile(INSTALLED_PLUGINS_FILE)
+          .then(parseInstalledPlugins)
+          .catch(() => undefined),
       ]);
       const current = packageJson ? siteVersion(packageJson) : undefined;
       const settings = parseUpdateSettings(settingsText);
@@ -167,6 +176,7 @@ function UpdatesPanel() {
         owner: people ? people.editors.some((editor) => editor.self && editor.role === "owner") : true,
         ...(nightly && { nightly }),
         ...(theme && { theme }),
+        ...(plugins && { plugins }),
       });
       setError(undefined);
     } catch (caught) {
@@ -305,6 +315,7 @@ function UpdatesPanel() {
                   version: available.fixes,
                 })}
               </p>
+              <PluginRanges plugins={loaded.plugins} version={available.fixes} />
               <div>
                 <Button variant="primary" disabled={busy || running} onClick={() => void start("fixes")}>
                   {t("updates.fixes.now")}
@@ -333,6 +344,7 @@ function UpdatesPanel() {
                   })}
                 </p>
               )}
+              <PluginRanges plugins={loaded.plugins} version={available.newer} />
               {owner ? (
                 <div>
                   <Button disabled={busy || running} onClick={() => void start(available.newer ?? "")}>
@@ -521,5 +533,20 @@ function LastRun({ run }: { run?: UpdateRun }) {
         </p>
       )}
     </div>
+  );
+}
+
+/** Plugins installed from the admin panel whose range leaves out a release, which the site may not build with. */
+function PluginRanges({ plugins, version }: { plugins: InstalledPlugins | undefined; version: string }) {
+  const t = useStrings();
+  if (!plugins) return null;
+  return (
+    <>
+      {pluginsOutOfRange(plugins, version).map((plugin) => (
+        <p key={plugin.name} className="gfa-notice" role="note">
+          {t("updates.pluginRange", { title: plugin.title, range: plugin.range, version })}
+        </p>
+      ))}
+    </>
   );
 }

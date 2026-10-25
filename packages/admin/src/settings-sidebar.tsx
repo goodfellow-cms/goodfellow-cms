@@ -10,6 +10,7 @@ import {
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
+  Plug,
   Puzzle,
   RefreshCw,
   Settings,
@@ -35,6 +36,7 @@ export type SettingsPlace =
   | "domain"
   | "editors"
   | "themes"
+  | "plugins"
   | "updates"
   | "history"
   | "import"
@@ -62,6 +64,7 @@ const SCREEN_ITEMS: SidebarItem[] = [
   { place: "domain", label: "settings.tab.domain", icon: Globe },
   { place: "editors", label: "settings.tab.editors", icon: Users },
   { place: "themes", label: "settings.tab.themes", icon: SwatchBook },
+  { place: "plugins", label: "settings.tab.plugins", icon: Plug },
   { place: "updates", label: "settings.tab.updates", icon: RefreshCw },
   { place: "history", label: "settings.tab.history", icon: History },
   { place: "import", label: "settings.tab.import", icon: FileInput },

@@ -8,9 +8,11 @@ import {
   type FileChange,
   GitApiError,
   type GitBackend,
+  INSTALLED_PLUGINS_DIR,
   isContentPath,
   isEditablePath,
   isSettingsPath,
+  newDraftName,
   pluginId,
   type ServerGit,
   SignInError,
@@ -93,11 +95,29 @@ function revisionParam(value: unknown): string {
   return value;
 }
 
+/**
+ * The files installing a plugin changes, which only go to a developer for
+ * review on a full-stack site, since its builds and server hold its secrets.
+ */
+export function isPluginInstallPath(path: string): boolean {
+  return path === "package.json" || path === "goodfellow.config.tsx" || isInstalledPluginsPath(path);
+}
+
+function isInstalledPluginsPath(path: string): boolean {
+  return isEditablePath(path) && path.startsWith(`${INSTALLED_PLUGINS_DIR}/`);
+}
+
+function reviewPath(value: unknown): string {
+  if (typeof value !== "string" || !isPluginInstallPath(value))
+    throw new BadRequest("That file can't be changed here.");
+  return value;
+}
+
 /** A change as sent over JSON, where an upload's bytes are base64. */
-function toFileChange(value: unknown): FileChange {
+function toFileChange(value: unknown, pathOf: (value: unknown) => string = editablePath): FileChange {
   if (typeof value !== "object" || value === null) throw new BadRequest("That isn't a change.");
   const change = value as Record<string, unknown>;
-  const path = editablePath(change.path);
+  const path = pathOf(change.path);
   if (change.delete === true) return { path, delete: true };
   if (typeof change.content === "string") return { path, content: change.content };
   if (typeof change.base64 === "string") return { path, bytes: decodeBase64(change.base64) };
@@ -210,7 +230,7 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       const { message } = body;
       const expectedRevision = revisionParam(body.expectedRevision);
       if (!Array.isArray(body.changes) || typeof message !== "string") throw new BadRequest("That isn't a save.");
-      const changes = body.changes.map(toFileChange);
+      const changes = body.changes.map((change) => toFileChange(change));
       // Checked here, whatever the admin panel shows: the browser can't be trusted to leave settings alone.
       if (editor.role !== "owner" && changes.some((change) => isSettingsPath(change.path))) {
         return json(403, { error: "owners-only" });
@@ -219,8 +239,30 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       if (options.git.contentOnly && changes.some((change) => !isContentPath(change.path))) {
         throw new BadRequest("The site's code is kept in a repository of its own.");
       }
+      // Plugins are only ever added through a review, below.
+      if (changes.some((change) => isInstalledPluginsPath(change.path))) return json(403, { error: "review-only" });
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
       return json(200, await backend.write(changes, { message, expectedRevision }));
+    }
+    if (post && endpoint === "review") {
+      // Installing, updating or removing a plugin: a draft with the changes, submitted for a developer to accept.
+      if (editor.role !== "owner") return json(403, { error: "owners-only" });
+      if (options.git.contentOnly) throw new BadRequest("The site's code is kept in a repository of its own.");
+      const body = await readBody(request);
+      const { title, description } = body;
+      const from = revisionParam(body.from);
+      if (!Array.isArray(body.changes) || body.changes.length === 0 || typeof title !== "string" || !title.trim()) {
+        throw new BadRequest("That isn't a change to review.");
+      }
+      const changes = body.changes.map((change) => toFileChange(change, reviewPath));
+      const backend = await options.git.at(from, { name: editor.name, email: editor.email });
+      if (!backend.drafts) throw new BadRequest("This site's repository can't take changes for review.");
+      const draft = await backend.drafts.create(newDraftName(), { from });
+      await draft.store.write(changes, { message: title, expectedRevision: await draft.store.revision() });
+      return json(
+        200,
+        await draft.submitForReview({ title, ...(typeof description === "string" && description && { description }) }),
+      );
     }
     if (get && endpoint === "changed") {
       const backend = await reader(revisionParam(query("to")));
@@ -244,7 +286,10 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
     }
     if (get && endpoint === "version") {
       const revision = revisionParam(query("revision"));
-      const content = await (await reader(revision)).readAt(editablePath(query("path")), revision);
+      // Owners may read the files a plugin's install changes, to plan one for review.
+      const asked = query("path");
+      const path = editor.role === "owner" && asked && isPluginInstallPath(asked) ? asked : editablePath(asked);
+      const content = await (await reader(revision)).readAt(path, revision);
       return content === undefined ? json(404, { error: "not-found" }) : json(200, { content });
     }
     return json(404, { error: "not-found" });

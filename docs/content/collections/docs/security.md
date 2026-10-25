@@ -13,7 +13,7 @@ A Goodfellow site is static files: there's no server or database to break into, 
 - **Editors sign in to GitHub or GitLab,** with their own account, and can do there only what the site's repository lets them. Every change is in the site's [version history](/docs/publishing), with who made it, and can be put back.
 - **The admin panel keeps the sign-in in the browser,** where the editor chose: until the tab closes, or with **Stay signed in** until they sign out. Signing out forgets it, and AI keys with it.
 - **The site's own code never runs where the sign-in is.** The editor, blocks and previews run in sandboxed frames that can't reach the admin panel's page, its storage or the internet.
-- **The site's pages are another matter:** code pasted into Site Settings, such as analytics, runs on them. Without an admin address or a token broker, the admin panel shares an address with those pages, or on `github.io` and `gitlab.io` with every site in the same account, so such code could read a sign-in kept with **Stay signed in**. That's why, without one, the admin panel adds blocks only from Goodfellow's own registry.
+- **The site's pages are another matter:** code pasted into Site Settings, such as analytics, runs on them. Without an admin address or a token broker, the admin panel shares an address with those pages, or on `github.io` and `gitlab.io` with every site in the same account, so such code could read a sign-in kept with **Stay signed in**. That's why, without one, the admin panel adds blocks only from Goodfellow's own registry, and installs no [plugins](/docs/plugins#install-a-plugin-from-the-admin-panel).
 
 Two things close that gap, and owners choose one on **Site Settings**:
 
@@ -58,6 +58,7 @@ The site is built by GitHub Actions, GitLab CI, Cloudflare Pages or Vercel, from
 
 - **No secrets, no publishing (GitHub):** in the starters' workflows, each job has only the permissions it needs. The jobs that run the site's code can only read the repository and keep no credentials, the job that puts the site online runs none of its code, and the nightly update builds the site with the update before a separate job, which runs none of its code, publishes it.
 - **No install scripts:** sites' `.npmrc` turns off packages' install scripts, code a package runs when it's installed, since none of a site's packages need one.
+- **Lockfiles written without running anything:** when a plugin is installed from the admin panel, the site's build writes `package-lock.json` with `npm install --package-lock-only --ignore-scripts`, which installs nothing, and takes only releases at least three days old for what it adds.
 - **Updates are checked first:** an update is published only once the site builds with it, and an owner can [go back](/docs/updates) to the release before.
 - **GitLab** gives every job in a project the same token, so once automatic updates are turned on, any job in the site's pipeline can publish.
 

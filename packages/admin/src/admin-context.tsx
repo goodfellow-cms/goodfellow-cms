@@ -142,6 +142,11 @@ export interface Account {
   setup?: () => SetupHost;
   /** On a full-stack site, where its server answers for plugins, such as `https://example.org/api/goodfellow/plugins`. */
   plugins?: string;
+  /** On a full-stack site, for its owners: submits changes for a developer to review, as installing a plugin does. */
+  review?(
+    changes: FileChange[],
+    details: { title: string; description?: string; from: string },
+  ): Promise<{ url: string }>;
 }
 
 export interface AdminContextValue {
@@ -192,6 +197,13 @@ export interface AdminContextValue {
    * which holds no tokens. Only then is code other than Goodfellow's installed.
    */
   outOfReach: boolean;
+  /**
+   * How plugins are installed here: published, where the admin panel runs at
+   * the site's checked admin address or with a token broker, or submitted for
+   * review, on a full-stack site. None elsewhere, where plugins are a
+   * developer's to add.
+   */
+  pluginInstalls?: "publish" | "review";
   /** In a demo, the store keeping the visitor's changes in their browser. */
   demo?: DemoStore;
   /** The git host's own Pages, for connecting a domain, when the backend can. */
@@ -640,6 +652,16 @@ export function AdminProvider({
     }
   }, [state, store]);
 
+  // Plugins' code runs when the site builds: installed only where the site's own pages can't publish it.
+  const pluginInstalls =
+    demo || contentOnly
+      ? undefined
+      : account?.review
+        ? ("review" as const)
+        : atAdminAddress(site.admin) || site.broker !== undefined
+          ? ("publish" as const)
+          : undefined;
+
   const value = useMemo(
     () => ({
       site,
@@ -659,6 +681,7 @@ export function AdminProvider({
       readBytes,
       registries,
       outOfReach,
+      pluginInstalls,
       demo,
       pages,
       versions,
@@ -690,6 +713,7 @@ export function AdminProvider({
       readBytes,
       registries,
       outOfReach,
+      pluginInstalls,
       demo,
       pages,
       versions,

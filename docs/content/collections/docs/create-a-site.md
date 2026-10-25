@@ -44,7 +44,7 @@ To skip the questions, give the answers as options:
 npm create goodfellow@latest my-site -- --template parish --github your-name/your-site --host github-pages --blocks built-in
 ```
 
-`--admin https://admin.example.org` gives editors an admin address of its own, `--broker gitlab-pages` (or `github-pages` with `--broker-domain signin.example.org`, `cloudflare-pages` or `vercel`) writes a token broker beside the site, `--content your-name/your-site-content` keeps the content in a repository of its own, and `--wordpress wordpress-export.xml` (or a WordPress site's address) starts the site with a WordPress site's pages, posts, menus and media; see [Move from WordPress](/docs/move-from-wordpress). Run it with `--help` for every option.
+`--admin https://admin.example.org` gives editors an admin address of its own, `--broker gitlab-pages` (or `github-pages` with `--broker-domain signin.example.org`, `cloudflare-pages` or `vercel`) writes a token broker beside the site, `--content your-name/your-site-content` keeps the content in a repository of its own, and `--wordpress wordpress-export.xml` (or a WordPress site's address) starts the site with a WordPress site's pages, posts, menus and media; see [Move from WordPress](/docs/move-from-wordpress). `--plugin goodfellow-plugin-guestbook`, once for each, installs a [plugin](/docs/plugins#install-a-plugin-from-the-admin-panel) as the admin panel would, saying what it asks to do. Run it with `--help` for every option.
 
 > To try changes that haven't been released yet, use the sites in [the repository](https://github.com/goodfellow-cms/goodfellow-cms) instead: install [pnpm](https://pnpm.io) 12, run `pnpm install` and `pnpm build` at the root, then `pnpm dev` in `templates/starter`.
 
@@ -67,9 +67,10 @@ npm run preview  # serves dist/ the way a host would
 
 ```text
 my-site/
-├── goodfellow.config.tsx    # the site's blocks and where it's stored
+├── goodfellow.config.tsx    # the site's blocks, plugins and where it's stored
 ├── blocks/                  # the site's own blocks, and blocks/installed/ from block registries
 ├── components/ui/           # shadcn components that installed blocks use
+├── plugins/installed/       # the plugins installed from the admin panel, and what each was approved to do
 ├── content/                 # everything the admin panel edits
 │   ├── site.json            # name, logo, colors, fonts, contact details
 │   ├── menus.json           # navigation menus

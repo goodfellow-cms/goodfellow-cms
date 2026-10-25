@@ -13,6 +13,7 @@ import {
   framedPlugins,
   type GoodfellowConfig,
   type GoodfellowPlugin,
+  INSTALLED_PLUGINS_INDEX,
   PLUGINS_PATH,
   pluginFrameEntry,
   pluginFramePage,
@@ -28,11 +29,17 @@ export function findConfigFile(root: string): string | undefined {
 
 /**
  * Whether the site's config lists plugins, read from its text, so builds of
- * sites without any never load the config outside Next.js.
+ * sites without any never load the config outside Next.js: plugins of its
+ * own, or any installed from the admin panel, which `plugins/installed/`
+ * lists.
  */
 export async function configHasPlugins(root: string): Promise<boolean> {
   const file = findConfigFile(root);
-  return file !== undefined && /\bplugins\s*:/.test(await readFile(file, "utf8"));
+  const listed = file && /\bplugins\s*:\s*([^\n]*)/.exec(await readFile(file, "utf8"))?.[1];
+  if (!listed) return false;
+  if (!/^installedPlugins\s*,?$/.test(listed.trim())) return true;
+  const index = join(root, INSTALLED_PLUGINS_INDEX);
+  return existsSync(index) && /\binstalledPlugin\(/.test(await readFile(index, "utf8"));
 }
 
 /**

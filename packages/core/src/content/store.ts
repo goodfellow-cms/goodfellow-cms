@@ -1,5 +1,13 @@
 import type { ContentSource } from "./load.js";
-import { COMPONENTS_DIR, CONTENT_DIR, HOOKS_DIR, INSTALLED_BLOCKS_DIR, LIB_DIR, MEDIA_DIR } from "./paths.js";
+import {
+  COMPONENTS_DIR,
+  CONTENT_DIR,
+  HOOKS_DIR,
+  INSTALLED_BLOCKS_DIR,
+  INSTALLED_PLUGINS_DIR,
+  LIB_DIR,
+  MEDIA_DIR,
+} from "./paths.js";
 
 /** One change in a save: a file's new text, its new bytes (for uploads such as images), or its removal. */
 export type FileChange =
@@ -49,10 +57,18 @@ export class ConflictError extends Error {
 }
 
 /**
- * The folders the admin panel reads and writes: content, media, and the code of
- * blocks installed from block registries.
+ * The folders the admin panel reads and writes: content, media, the code of
+ * blocks installed from block registries, and the list of installed plugins.
  */
-export const EDITABLE_FOLDERS = [CONTENT_DIR, MEDIA_DIR, INSTALLED_BLOCKS_DIR, COMPONENTS_DIR, LIB_DIR, HOOKS_DIR];
+export const EDITABLE_FOLDERS = [
+  CONTENT_DIR,
+  MEDIA_DIR,
+  INSTALLED_BLOCKS_DIR,
+  COMPONENTS_DIR,
+  LIB_DIR,
+  HOOKS_DIR,
+  INSTALLED_PLUGINS_DIR,
+];
 
 /**
  * Whether the admin panel may read or write a path: only files in

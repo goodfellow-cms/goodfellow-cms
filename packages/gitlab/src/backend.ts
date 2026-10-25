@@ -16,6 +16,7 @@ import {
   type GitBackend,
   type GitUser,
   type HistoryOptions,
+  LOCKFILE_JOB,
   type PagesDomains,
   REBUILD_JOB,
   type RepositoryVisibility,
@@ -67,11 +68,12 @@ interface CommitStatus {
 
 /**
  * Whether a status says when the site is live. A job that only asks another
- * host to rebuild the site doesn't, and nor does the nightly update where
- * Cloudflare builds the site, which runs on the newest commit too.
+ * host to rebuild the site doesn't, and nor do the nightly update and the
+ * job that writes the lockfile where Cloudflare builds the site, which run
+ * on the newest commit too.
  */
 function builds(status: CommitStatus): boolean {
-  return status.name !== REBUILD_JOB && status.name !== "update";
+  return status.name !== REBUILD_JOB && status.name !== "update" && status.name !== LOCKFILE_JOB;
 }
 
 function listFrom(tree: Map<string, string>, dir: string): string[] {

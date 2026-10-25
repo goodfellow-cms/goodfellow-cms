@@ -84,8 +84,13 @@ describe("planSite", () => {
       ".github/workflows/scheduled.yml",
     ]);
     const workflow = parse(siteFileText(github.get(".github/workflows/deploy.yml") ?? ""));
-    // Cloudflare builds pushes itself, so the workflow only runs at night and when it's started.
-    expect(Object.keys(workflow.on)).toEqual(["schedule", "workflow_dispatch"]);
+    // Cloudflare builds pushes itself, so the workflow runs at night, when it's started, and on pushes only for
+    // the lockfile.
+    expect(Object.keys(workflow.on)).toEqual(["push", "schedule", "workflow_dispatch"]);
+    expect(workflow.on.push.paths).toEqual(["package.json"]);
+    expect(workflow.jobs.lockfile.permissions).toEqual({ contents: "read" });
+    expect(workflow.jobs["publish-lockfile"].permissions).toEqual({ contents: "write" });
+    expect(workflow.jobs.update.needs).toEqual(["check", "lockfile"]);
     // The update is built with a token that can only read, and published by a job that runs none of the site's code.
     const update = workflow.jobs.update.steps.find((step: { id?: string }) => step.id === "update");
     expect(update.run).toBe('npx goodfellow update --commit --to "$TO"');
@@ -98,9 +103,9 @@ describe("planSite", () => {
     expect(workflow.jobs.update.if).toContain("needs.check.outputs.update == 'true'");
     // The rebuild is for when no update was published, which Cloudflare would build by itself, and at night only
     // when the check says so.
-    expect(workflow.jobs.rebuild.needs).toEqual(["check", "update", "publish-update"]);
+    expect(workflow.jobs.rebuild.needs).toEqual(["check", "update", "publish-update", "lockfile", "publish-lockfile"]);
     expect(workflow.jobs.rebuild.if).toBe(
-      `\${{ !cancelled() && (github.event_name != 'schedule' || needs.check.outputs.build == 'true' || needs.check.result == 'failure') && needs.publish-update.outputs.sha == '' }}`,
+      `\${{ !cancelled() && (github.event_name != 'schedule' || needs.check.outputs.build == 'true' || needs.check.result == 'failure') && github.event_name != 'push' && needs.publish-update.outputs.sha == '' && needs.publish-lockfile.outputs.sha == '' }}`,
     );
     expect(workflow.jobs.rebuild.steps[0].env.HOOK).toBe(`\${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}`);
     const scheduled = parse(siteFileText(github.get(".github/workflows/scheduled.yml") ?? ""));
@@ -116,7 +121,12 @@ describe("planSite", () => {
     expect([...gitlab.keys()].filter((path) => /workflows|gitlab|vercel/.test(path))).toEqual([".gitlab-ci.yml"]);
     const pipeline = parse(siteFileText(gitlab.get(".gitlab-ci.yml") ?? ""));
     // Not "pages", which GitLab would take for a GitLab Pages job.
-    expect(Object.keys(pipeline)).toEqual(["update"]);
+    expect(Object.keys(pipeline)).toEqual(["variables", "lockfile", "update"]);
+    // The lockfile is written when package.json changes, and Cloudflare builds the push that publishes it.
+    expect(pipeline.lockfile.rules).toEqual([
+      { if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"', changes: ["package.json"] },
+    ]);
+    expect(pipeline.lockfile.script[0]).toContain('git push origin "HEAD:$CI_COMMIT_BRANCH"');
     // Scheduled changes and Rebuild now only rebuild; the nightly schedule checks first.
     expect(pipeline.update.script[0]).toContain(
       'elif [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ] && [ -z "$GOODFELLOW_REBUILD" ]',
@@ -147,6 +157,32 @@ describe("planSite", () => {
     expect(siteFileText(planned.get(".github/workflows/scheduled.yml") ?? "")).toContain("npx goodfellow-next due");
     expect(siteFileText(planned.get(".gitlab-ci.yml") ?? "")).toContain("npx goodfellow-next update");
     expect(planned.has("vercel.ts")).toBe(false);
+  });
+
+  it("installs plugins as the admin panel would, listing them in a config that didn't", async () => {
+    const files = await planSite({
+      template: template(),
+      name: "my-parish",
+      versions: { "@goodfellow-cms/core": "1.2.3" },
+      plugins: [
+        {
+          name: "goodfellow-plugin-guestbook",
+          release: { version: "1.0.0", published: "", provenance: true, goodfellow: "^1.2.0" },
+          manifest: { version: 1, title: "Guestbook", permissions: { connect: ["https://guestbook.example.com"] } },
+        },
+      ],
+      today: "2026-10-25",
+    });
+    const text = (path: string) => siteFileText(files.get(path) ?? "");
+    expect(JSON.parse(text("package.json")).dependencies).toEqual({
+      "@goodfellow-cms/core": "^1.2.3",
+      "goodfellow-plugin-guestbook": "1.0.0",
+    });
+    expect(JSON.parse(text("plugins/installed/installed.json")).plugins["goodfellow-plugin-guestbook"].release).toBe(
+      "1.0.0",
+    );
+    expect(text("plugins/installed/index.ts")).toContain('import plugin0 from "goodfellow-plugin-guestbook";');
+    expect(text("goodfellow.config.tsx")).toContain("plugins: installedPlugins,");
   });
 
   it("keeps every host's setup when none is chosen", async () => {

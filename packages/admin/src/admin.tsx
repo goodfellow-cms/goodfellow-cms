@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AdminProvider, type PreviewOptions, useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import { forgetAiKeys } from "./ai-settings.js";
+import { appServer } from "./app-server.js";
 import { AppSignInGate } from "./app-sign-in.js";
 import { BlocksScreen } from "./blocks-screen.js";
 import { BrokerGate } from "./broker-gate.js";
@@ -30,6 +31,7 @@ import { ImportScreen } from "./import-screen.js";
 import { MediaScreen } from "./media-library.js";
 import { PagesScreen } from "./pages-screen.js";
 import { PluginScreenFrame } from "./plugin-frames.js";
+import { PluginsScreen } from "./plugins-screen.js";
 import { hasUnsavedChanges, SETTINGS_SECTIONS, useRoute } from "./router.js";
 import { SecurityScreen } from "./security-screen.js";
 import { SETTINGS_TABS, SettingsScreen, type SettingsTab } from "./settings-screen.js";
@@ -172,6 +174,7 @@ function SettingsLayout({ sub, rest, params }: { sub?: string; rest: string[]; p
     domain: DomainScreen,
     editors: EditorsScreen,
     themes: ThemesScreen,
+    plugins: PluginsScreen,
     updates: UpdatesScreen,
     history: SiteHistoryScreen,
     import: ImportScreen,
@@ -583,6 +586,7 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
               ai: { server: new URL(`${server.replace(/\/+$/, "")}/ai`, location.href).href, services: session.ai },
             }),
             plugins: new URL(`${server.replace(/\/+$/, "")}/plugins`, location.href).href,
+            ...(session.role === "owner" && { review: appServer(server).review }),
             ...(session.signOut && {
               signOut: () => {
                 forgetAiKeys();

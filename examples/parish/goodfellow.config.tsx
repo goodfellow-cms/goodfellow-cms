@@ -6,6 +6,7 @@ import { installedBlocks, installedCategories } from "./blocks/installed";
 import { MassTimes } from "./blocks/mass-times";
 import { Notice } from "./blocks/notice";
 import { Scripture } from "./blocks/scripture";
+import { installedPlugins } from "./plugins/installed";
 
 export default defineConfig({
   // The built-in blocks, those installed from the admin panel's Blocks screen, and this site's own.
@@ -16,6 +17,10 @@ export default defineConfig({
     ...installedCategories,
     parish: { title: "Parish", components: ["MassTimes", "Scripture", "Notice"] },
   },
+
+  // Plugins installed from the admin panel's Plugins screen. Add your own here too,
+  // e.g. `plugins: [...installedPlugins, storage]`.
+  plugins: installedPlugins,
 
   // Where the site is stored. Once this is set, builds include the admin panel at /admin.
   // See README.md for how to set up sign-in.

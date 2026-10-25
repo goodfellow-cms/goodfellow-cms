@@ -5,6 +5,7 @@ import {
   type DeployStatus,
   decodeBase64,
   encodeBase64Bytes,
+  type FileChange,
   type FileVersion,
   type GitBackend,
   type RevisionFiles,
@@ -62,6 +63,22 @@ export function appServer(api: string) {
   }
 
   return {
+    /**
+     * Submits changes for a developer to review, which on a full-stack site
+     * is how plugins are installed, updated and removed, since its builds and
+     * server hold its secrets. Gives the review's address.
+     */
+    async review(
+      changes: FileChange[],
+      details: { title: string; description?: string; from: string },
+    ): Promise<{ url: string }> {
+      const body = {
+        changes: changes.map((change) => ("bytes" in change ? { path: change.path } : change)),
+        ...details,
+      };
+      return (await (await request("review", { body })).json()) as { url: string };
+    },
+
     /** Who's signed in, and what they may do, or where to sign in. */
     async session(): Promise<AppSession> {
       return (await (await request("session")).json()) as AppSession;

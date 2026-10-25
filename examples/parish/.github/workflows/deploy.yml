@@ -9,6 +9,10 @@
 # or not at all ("off"). scheduled.yml also starts it when a page or item
 # scheduled to be shown or hidden comes due, and the Updates screen's Rebuild
 # now when an owner asks.
+# When package.json names packages package-lock.json doesn't have, such as a
+# plugin installed from the admin panel, it writes package-lock.json first,
+# installing nothing and running none of their code, publishes it, and builds
+# the site with it.
 # Each job gets only the permissions it needs: the jobs that run the site's
 # code can only read the repository, and the jobs that publish run none of it.
 # In the repository's Settings → Pages, set "Source" to "GitHub Actions".
@@ -34,6 +38,61 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  lockfile:
+    # When package.json names packages package-lock.json doesn't have, such as a plugin installed from the
+    # admin panel: writes package-lock.json, installing nothing and running none of the packages' code, with
+    # releases at least 3 days old for what it adds. publish-lockfile publishes it.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.lockfile.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          check-latest: true
+      - id: lockfile
+        env:
+          CHECK: 'const fs = require("fs"); const read = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; } }; const site = read("package.json") || {}; const root = ((read("package-lock.json") || {}).packages || {})[""]; const same = (a, b) => JSON.stringify(Object.entries(a || {}).sort()) === JSON.stringify(Object.entries(b || {}).sort()); process.exit(root && ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].every((key) => same(site[key], root[key])) ? 0 : 1);'
+        run: |
+          if node -e "$CHECK"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.lockfile.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockfile
+          path: package-lock.json
+          retention-days: 1
+
+  publish-lockfile:
+    # Publishes the lockfile, without running any of the site's code.
+    needs: lockfile
+    if: needs.lockfile.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.publish.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: lockfile
+      - id: publish
+        run: |
+          git add package-lock.json
+          git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   check:
     # Each night, unless GOODFELLOW_NIGHTLY is "off": whether to build the site, and update Goodfellow first.
     if: github.event_name == 'schedule' && vars.GOODFELLOW_NIGHTLY != 'off'
@@ -61,8 +120,9 @@ jobs:
   update:
     # When the nightly check finds one, and when the admin panel's Updates screen asks. It installs
     # the update and builds the site with it, but can't publish it: publish-update does.
-    needs: check
-    if: ${{ !cancelled() && ((github.event_name == 'schedule' && needs.check.outputs.update == 'true') || (github.event_name == 'workflow_dispatch' && inputs.update != '')) }}
+    # Not while the lockfile is being written: the next night's runs it.
+    needs: [check, lockfile]
+    if: ${{ !cancelled() && needs.lockfile.outputs.changed != 'true' && ((github.event_name == 'schedule' && needs.check.outputs.update == 'true') || (github.event_name == 'workflow_dispatch' && inputs.update != '')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -113,7 +173,7 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: [check, update, publish-update]
+    needs: [check, update, publish-update, lockfile, publish-lockfile]
     # At night only when the check says so, or couldn't tell; otherwise always, even when there was
     # no update to run, or it didn't work.
     if: ${{ !cancelled() && (github.event_name != 'schedule' || needs.check.outputs.build == 'true' || needs.check.result == 'failure') }}
@@ -124,8 +184,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          # The update's commit, when it published one.
-          ref: ${{ needs.publish-update.outputs.sha || github.sha }}
+          # The update's or the lockfile's commit, when it published one.
+          ref: ${{ needs.publish-update.outputs.sha || needs.publish-lockfile.outputs.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:

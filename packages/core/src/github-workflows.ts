@@ -29,6 +29,11 @@ export interface UpdateJobsOptions {
   checkout?: string;
   /** Steps after installing its packages, such as copying its content in. */
   prepare?: string;
+  /**
+   * Whether the workflow has the lockfile jobs (`githubLockfileJobs()`):
+   * the update then waits for them, and doesn't run while the lockfile is written.
+   */
+  lockfile?: boolean;
 }
 
 /**
@@ -37,7 +42,7 @@ export interface UpdateJobsOptions {
  * publishing it; then `publish-update` publishes that commit, running none of
  * the site's code, and gives its `sha`.
  */
-export function githubUpdateJobs({ update, nightly, checkout, prepare }: UpdateJobsOptions): string {
+export function githubUpdateJobs({ update, nightly, checkout, prepare, lockfile }: UpdateJobsOptions): string {
   const checkJob = nightly
     ? `  check:
     # Each night, unless GOODFELLOW_NIGHTLY is "off": whether to build the site, and update Goodfellow first.
@@ -60,11 +65,16 @@ ${prepare ? `${prepare}\n` : ""}      - id: nightly
 
 `
     : "";
+  const lockfileWait = lockfile
+    ? `
+    # Not while the lockfile is being written: the next night's runs it.`
+    : "";
+  const lockfileCondition = lockfile ? " && needs.lockfile.outputs.changed != 'true'" : "";
   const when = nightly
     ? `    # When the nightly check finds one, and when the admin panel's Updates screen asks. It installs
-    # the update and builds the site with it, but can't publish it: ${PUBLISH_UPDATE_JOB} does.
-    needs: check
-    if: \${{ !cancelled() && ((github.event_name == 'schedule' && needs.check.outputs.update == 'true') || (github.event_name == 'workflow_dispatch' && inputs.update != '')) }}`
+    # the update and builds the site with it, but can't publish it: ${PUBLISH_UPDATE_JOB} does.${lockfileWait}
+    needs: ${lockfile ? "[check, lockfile]" : "check"}
+    if: \${{ !cancelled()${lockfileCondition} && ((github.event_name == 'schedule' && needs.check.outputs.update == 'true') || (github.event_name == 'workflow_dispatch' && inputs.update != '')) }}`
     : `    # Each night, and when the admin panel's Updates screen asks. It installs
     # the update and builds the site with it, but can't publish it: ${PUBLISH_UPDATE_JOB} does.
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.update != '')`;

@@ -29,6 +29,7 @@ On your own computer, the admin panel saves straight to the files in `content/`.
   - **Staff**, listed on the About us page. They have no pages of their own, and the **Order** field sets who comes first.
 - **Contact details** (address, phone and email) are set once in **Site settings → General**, and shown in the footer and on the contact page by the **Contact details** block.
 - **More blocks**, such as an FAQ and tabs, can be added on the admin panel's **Blocks** screen. See [Add blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/add-blocks).
+- **Plugins** installed from **Site Settings → Plugins** are listed in `plugins/installed/`. See [Plugins](https://goodfellow-cms.github.io/goodfellow-cms/docs/plugins).
 - **The parish's own blocks**, in `blocks/`, show how a developer adds blocks to a site. They're listed under **Parish** in the editor:
   - **Mass times:** a list of days and times, each with an optional note.
   - **Scripture quote:** a short passage with its reference. The example uses the Douay-Rheims Bible (Challoner revision), a Catholic translation in the public domain; most modern translations need permission to quote.

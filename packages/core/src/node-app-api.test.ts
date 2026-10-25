@@ -16,6 +16,7 @@ const FILES = {
 function fakeServerGit(repo: FakeRepo) {
   const authors = new Map<string, CommitAuthor>();
   const opened: string[] = [];
+  const reviews: { from?: string; changes: FileChange[]; title: string; author?: string }[] = [];
   const backend = (revision: string, author?: CommitAuthor): GitBackend => {
     const text = (path: string) => {
       const file = repo.files(revision).get(path);
@@ -51,6 +52,38 @@ function fakeServerGit(repo: FakeRepo) {
       },
       filesAt: (at) => backend(at),
       signOut: () => {},
+      drafts: {
+        async create(_name, options) {
+          const review: (typeof reviews)[number] = {
+            ...(options?.from && { from: options.from }),
+            changes: [],
+            title: "",
+          };
+          return {
+            name: _name,
+            store: {
+              ...backend(options?.from ?? repo.head(), author),
+              revision: async () => "draft",
+              async write(changes: FileChange[]) {
+                review.changes.push(...changes);
+                return { revision: "draft-2" };
+              },
+            },
+            changes: async () => review.changes,
+            paths: async () => review.changes.map((change) => change.path),
+            publish: async () => ({ revision: "" }),
+            async submitForReview({ title }) {
+              reviews.push({ ...review, title, ...(author && { author: author.name }) });
+              return { url: "https://github.example/parish/site/pull/1" };
+            },
+            discard: async () => {},
+          };
+        },
+        open: async () => {
+          throw new Error("no drafts");
+        },
+        list: async () => [],
+      },
     };
   };
   const git: ServerGit = {
@@ -60,7 +93,7 @@ function fakeServerGit(repo: FakeRepo) {
       return backend(revision, author);
     },
   };
-  return { git, authors, opened };
+  return { git, authors, opened, reviews };
 }
 
 const ALICE: AppEditor = { login: "alice", name: "Alice Editor", email: "alice@example.org", role: "editor" };
@@ -250,6 +283,43 @@ describe("appApi", () => {
 
     signIn(OWEN);
     expect((await post("write", { ...settings, expectedRevision: revision })).status).toBe(200);
+  });
+
+  it("adds plugins only through a review, which only owners can ask for", async () => {
+    const { call, post, signIn, reviews } = setup();
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const install = {
+      changes: [
+        { path: "package.json", content: '{"dependencies":{"goodfellow-plugin-guestbook":"1.0.0"}}' },
+        { path: "plugins/installed/index.ts", content: "export const installedPlugins = [];" },
+      ],
+      title: "Install the Guestbook plugin",
+      description: "It asks to reach https://guestbook.example.com.",
+      from: revision,
+    };
+    expect((await post("review", install)).status).toBe(403);
+    expect((await call("version", { query: { path: "package.json", revision } })).status).toBe(400);
+    signIn(OWEN);
+    const direct = await post("write", {
+      changes: [{ path: "plugins/installed/index.ts", content: "" }],
+      message: "Sneaky",
+      expectedRevision: revision,
+    });
+    expect(await direct.json()).toEqual({ error: "review-only" });
+    const read = await call("version", { query: { path: "package.json", revision } });
+    expect(await read.json()).toEqual({ content: '{"name":"secret"}' });
+    const outside = await post("review", { ...install, changes: [{ path: "content/site.json", content: "{}" }] });
+    expect(outside.status).toBe(400);
+    const answer = await post("review", install);
+    expect(await answer.json()).toEqual({ url: "https://github.example/parish/site/pull/1" });
+    expect(reviews).toEqual([
+      {
+        from: revision,
+        changes: install.changes,
+        title: "Install the Guestbook plugin",
+        author: "Owen Owner",
+      },
+    ]);
   });
 
   it("gives versions, changes between revisions and whether the site is live", async () => {

@@ -6,7 +6,7 @@
 
 import { adminOrigin, vercelAdminHeaders, withAdminConfig, withVercelHeaders } from "./admin-domain.js";
 import { cloudflareSetupFiles } from "./cloudflare-setup.js";
-import { CONTENT_REPOSITORY_DIR } from "./content/paths.js";
+import { CONTENT_REPOSITORY_DIR, INSTALLED_PLUGINS_FILE } from "./content/paths.js";
 import { CONTENT_FOLDERS } from "./content/store.js";
 import {
   CODE_GITIGNORE,
@@ -16,6 +16,7 @@ import {
   SINGLE_REPOSITORY_SETUP_FILES,
   separateSetupFiles,
 } from "./content-repository-setup.js";
+import { CONFIG_FILE, type PluginPackage, planPluginInstall } from "./plugin-packages.js";
 import {
   availableBlocks,
   EMPTY_RECORD,
@@ -262,6 +263,14 @@ export interface SitePlan {
    * site is online. Only for hosts that serve a site at more than one address.
    */
   admin?: string;
+  /**
+   * Plugins to install, as the admin panel's Plugins screen would
+   * (`planPluginInstall()`): each in `package.json` at its release, and
+   * recorded with what it asks to do in `plugins/installed/`.
+   */
+  plugins?: PluginPackage[];
+  /** Today, `YYYY-MM-DD`, for the plugins' record. */
+  today?: string;
 }
 
 /** Hosts that serve a site at more than one address, which an admin address needs: not GitHub Pages. */
@@ -291,6 +300,8 @@ export async function planSite({
   registry,
   content,
   admin,
+  plugins = [],
+  today = new Date().toISOString().slice(0, 10),
 }: SitePlan): Promise<SiteFiles> {
   if (content && (!backend || !host)) {
     throw new Error("Keeping the content in a repository of its own needs both repositories and a host.");
@@ -317,6 +328,27 @@ export async function planSite({
   if (readme !== undefined) files.set("README.md", withoutRepositoryNotes(siteFileText(readme)));
 
   if (registry) await installRecommendedBlocks(files, registry);
+
+  for (const plugin of plugins) {
+    const text = (path: string) => {
+      const file = files.get(path);
+      return file === undefined ? undefined : siteFileText(file);
+    };
+    const record = text(INSTALLED_PLUGINS_FILE);
+    const plan = planPluginInstall(
+      {
+        packageJson: text("package.json") ?? "{}",
+        config: text(CONFIG_FILE) ?? "",
+        ...(record !== undefined && { record }),
+        // The site's blocks are known only once its config loads, which stops for a clash then.
+        blocks: [],
+        plugins: [],
+      },
+      plugin,
+      { today },
+    );
+    for (const change of plan.changes) if ("content" in change) files.set(change.path, change.content);
+  }
 
   if (backend) {
     const config = files.get("goodfellow.config.tsx");

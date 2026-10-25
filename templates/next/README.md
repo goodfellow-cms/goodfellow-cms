@@ -37,6 +37,8 @@ Your own Next.js pages can go beside these, in `app/`, and import from the proje
 
 More blocks, such as an FAQ, tabs and a pricing table, can be added on the admin panel's **Blocks** screen, which publishes their code into `blocks/installed/` and the shadcn components they use into `components/ui/`. See [Add blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/add-blocks).
 
+Plugins installed from **Site Settings → Plugins** are listed in `plugins/installed/`, which `goodfellow.config.tsx` imports; the site's build writes `package-lock.json` for them. See [Plugins](https://goodfellow-cms.github.io/goodfellow-cms/docs/plugins).
+
 Blocks are React components in `blocks/`, added to the editor in `goodfellow.config.tsx`. For links and images, use `SiteLink` and `SiteImage` from `@goodfellow-cms/react` rather than `<a>` and `<img>`, so they follow the site's address and use `next/link` and `next/image`. Read the site's settings, menus and collections with `useSite()`.
 
 Interactive parts of a block go in a Client Component: a file starting with `"use client"`, which can use any React hooks and runs in the browser. Pass it plain values and content such as `children`, not functions. `useSite()` works there too.
