@@ -10,3 +10,11 @@ overrides:
   # the connector never runs (Workers use Browser Rendering's browsers) and
   # which brings in extract-zip and basic-ftp, both with security advisories.
   "@cloudflare/puppeteer>@puppeteer/browsers": "-"
+  # Puck renders rich text on the server with @tiptap/html, which asks for
+  # happy-dom 20. Only 21.0.4 and later fix GHSA-834v-8h66-3h79, and the few
+  # calls tiptap makes (a Window with scripts and loading turned off) work the same.
+  "@puckeditor/core>happy-dom": "^21.0.4"
+
+peerDependencyRules:
+  allowedVersions:
+    "@tiptap/html>happy-dom": "21"
