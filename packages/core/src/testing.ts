@@ -212,6 +212,14 @@ export class FakeRepo {
 }
 
 export {
+  type FakeTheme,
+  type FakeThemeRelease,
+  type FakeThemesOptions,
+  type FakeThemesResponse,
+  fakeThemes,
+  sampleThemeFiles,
+} from "./themes-testing.js";
+export {
   type FakeWordPressOptions,
   type FakeWordPressResponse,
   fakeWordPress,

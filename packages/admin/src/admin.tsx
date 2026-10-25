@@ -38,6 +38,7 @@ import { SiteHistoryScreen } from "./site-history-screen.js";
 import { isPreviewAddress, SitePreview } from "./site-preview.js";
 import { defaultStrings, type StringKey, type Strings, StringsProvider, useStrings } from "./strings.js";
 import { setThemeChoice, type ThemeChoice, useApplyThemeChoice, useThemeChoice } from "./theme.js";
+import { ThemesScreen } from "./themes-screen.js";
 import { Button, Dialog, ErrorMessage } from "./ui.js";
 import { UpdatesScreen } from "./updates-screen.js";
 import { AppLink } from "./use-link.js";
@@ -143,6 +144,7 @@ function SettingsLayout({ sub, params }: { sub?: string; params: URLSearchParams
   const screens = {
     domain: DomainScreen,
     editors: EditorsScreen,
+    themes: ThemesScreen,
     updates: UpdatesScreen,
     history: SiteHistoryScreen,
     import: ImportScreen,

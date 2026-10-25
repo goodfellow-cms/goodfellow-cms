@@ -105,6 +105,97 @@ export function chooseUpdate(
   return wanted && versions.includes(wanted) && compareReleases(wanted, current) !== 0 ? wanted : undefined;
 }
 
+type Test = (version: Parts) => boolean;
+
+/** A version with parts left out or written `x` or `*`, such as `1.2` or `1.x`, as the parts given; `undefined` if it isn't one. */
+function partial(text: string): number[] | undefined {
+  if (text === "" || text === "*") return [];
+  const parts = text.replace(/^v/, "").split(".");
+  if (parts.length > 3) return undefined;
+  const given: number[] = [];
+  for (const part of parts) {
+    if (/^[xX*]$/.test(part)) break;
+    if (!/^\d+$/.test(part)) return undefined;
+    given.push(Number(part));
+  }
+  return given;
+}
+
+const filled = (given: number[]): Parts => [given[0] ?? 0, given[1] ?? 0, given[2] ?? 0];
+
+/** The first version after every one a partial version covers: `1.2` → `1.3.0`. */
+function after(given: number[]): Parts | undefined {
+  if (given.length === 0) return undefined;
+  const next = [...given];
+  next[next.length - 1] = (next[next.length - 1] ?? 0) + 1;
+  return filled(next);
+}
+
+function between(low: Parts, high: Parts | undefined): Test[] {
+  return [(v) => compare(v, low) >= 0, ...(high ? [(v: Parts) => compare(v, high) < 0] : [])];
+}
+
+/** The tests one comparator of a range, such as `^0.4.2` or `<1.0`, stands for; `undefined` if it isn't one. */
+function comparator(text: string): Test[] | undefined {
+  const match = /^(\^|~|>=|<=|>|<|=)?(.*)$/.exec(text);
+  const operator = match?.[1] ?? "";
+  const given = partial(match?.[2] ?? "");
+  if (!given) return undefined;
+  const low = filled(given);
+  const exact = given.length === 3;
+  switch (operator) {
+    case "^": {
+      const [major, minor, patch] = low;
+      if (given.length === 0) return [];
+      if (major > 0 || given.length === 1) return between(low, [major + 1, 0, 0]);
+      if (minor > 0 || given.length === 2) return between(low, [0, minor + 1, 0]);
+      return between(low, [0, 0, patch + 1]);
+    }
+    case "~":
+      return given.length === 0 ? [] : between(low, given.length === 1 ? [low[0] + 1, 0, 0] : [low[0], low[1] + 1, 0]);
+    case ">": {
+      if (exact) return [(v) => compare(v, low) > 0];
+      const next = after(given);
+      return next ? [(v) => compare(v, next) >= 0] : [() => false];
+    }
+    case ">=":
+      return [(v) => compare(v, low) >= 0];
+    case "<":
+      return [(v) => compare(v, low) < 0];
+    case "<=": {
+      if (exact) return [(v) => compare(v, low) <= 0];
+      const next = after(given);
+      return next ? [(v) => compare(v, next) < 0] : [];
+    }
+    default:
+      return exact ? [(v) => compare(v, low) === 0] : between(low, after(given));
+  }
+}
+
+/**
+ * Whether a release is in a range as npm writes them, such as `^0.4.0`,
+ * `>=0.4.0 <1.0.0`, `0.4.x` or `^0.4.0 || ^0.5.0`. Ranges this can't read,
+ * and pre-releases, are never in range.
+ */
+export function inRange(version: string, range: string): boolean {
+  const release = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(version.trim());
+  if (!release) return false;
+  const parts: Parts = [Number(release[1]), Number(release[2]), Number(release[3])];
+  return range.split("||").some((set) => {
+    const normalized = set
+      .trim()
+      .replace(/(\^|~|>=|<=|>|<|=)\s+/g, "$1")
+      .replace(/^(\S+)\s+-\s+(\S+)$/, (_, from: string, to: string) => `>=${from} <=${to}`);
+    const tests: Test[] = [];
+    for (const text of normalized.split(/\s+/).filter(Boolean)) {
+      const more = comparator(text);
+      if (!more) return false;
+      tests.push(...more);
+    }
+    return tests.every((test) => test(parts));
+  });
+}
+
 /** A site that has no `content/updates.json` installs fixes on its own and skips nothing. */
 export const DEFAULT_UPDATE_SETTINGS: UpdateSettings = { version: 1, automatic: true, skip: [] };
 

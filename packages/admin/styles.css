@@ -196,11 +196,6 @@ body,
   overflow: auto;
 }
 
-.gfa-settings-content > .gfa-screen {
-  margin: 0;
-  padding: 24px;
-}
-
 .gfa-sidebar {
   display: flex;
   flex-direction: column;
@@ -335,6 +330,12 @@ body,
   max-width: 960px;
   margin: 0 auto;
   padding: 24px 16px;
+}
+
+/* Site Settings' tabs sit beside the sidebar, left-aligned. */
+.gfa-settings-content > .gfa-screen {
+  margin: 0;
+  padding: 24px;
 }
 
 .gfa-screen-header {
@@ -1692,6 +1693,65 @@ body,
 .gfa-version-preview {
   position: relative;
   height: 70vh;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+  overflow: hidden;
+}
+
+.gfa-theme-search {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.gfa-theme-search > :first-child {
+  flex: 1;
+}
+
+.gfa-theme-installed {
+  flex-wrap: wrap;
+}
+
+.gfa-theme-details {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-surface);
+}
+
+.gfa-theme-details .gfa-screen-header {
+  margin-bottom: 0;
+}
+
+.gfa-theme-image {
+  max-width: 100%;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+}
+
+.gfa-theme-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gfa-theme-swatch {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--gfa-border);
+  border-radius: 50%;
+}
+
+.gfa-theme-preview {
+  position: relative;
+  height: 60vh;
   border: 1px solid var(--gfa-border);
   border-radius: var(--gfa-radius);
   overflow: hidden;

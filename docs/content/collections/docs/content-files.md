@@ -19,6 +19,7 @@ Everything the admin panel edits is a file in `content/` or `public/media/`, in 
 | `content/collections/<id>/_collection.json` | A collection's settings, fields and page design |
 | `content/collections/<id>/<slug>.json` or `.md` | One item: its field values |
 | `content/styles/custom.css` | The custom CSS from Site Settings |
+| `content/styles/theme.json` | Which [theme](/docs/themes) is installed, and what it installed, so an update keeps what owners changed |
 | `public/media/` | Uploaded images and files, served at `/media/` |
 
 Every JSON file has a `version`, and is written with two-space indentation, keys in a fixed order and a trailing newline, so changes read well in a diff. If you edit one by hand, run the build, which reports any file that doesn't fit, with what's wrong.

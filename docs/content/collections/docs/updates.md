@@ -49,7 +49,7 @@ Where the site's [content is kept in a repository of its own](/docs/content-repo
 ## The Updates screen
 
 - **Fixes:** when fixes are ready, **Install fixes now** installs them without waiting for the night.
-- **Newer releases:** when a newer release is out, owners see **Update to …**, with a link to what's new. Read it first: a newer release can change how some things work.
+- **Newer releases:** when a newer release is out, owners see **Update to …**, with a link to what's new. Read it first: a newer release can change how some things work. If the site's [theme](/docs/themes) doesn't say it works with that release, the screen says so, so you can check for a newer version of the theme first.
 - **Install fixes automatically each night:** owners can turn this off to keep the site on the release it has, for example while something an update changed is looked into. Fixes are then only installed with **Install fixes now**.
 - **Something stopped working?** Owners see **Go back to …**, which installs the release the site had before, as an update does: the site is checked to still build with it, and going back is published as one change, named "Go back to Goodfellow …". The release it went back from is skipped from then on, so the nightly update won't install it again, but it will install fixes that come after it.
 - **Releases that won't be installed:** the releases the site went back from. **Allow … again** lets updates install one again.

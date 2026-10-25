@@ -917,6 +917,67 @@ export const defaultStrings = {
   "settings.tab.updates": "Updates",
   "settings.tab.history": "Site history",
   "settings.tab.import": "WordPress",
+  "settings.tab.themes": "Themes",
+  "themes.intro":
+    "A theme changes your site's look: its colors, fonts and the styles of its blocks, and sometimes its header and footer. Themes are only settings and styles, with no code, and you can change anything a theme sets afterwards in Colors & fonts and Custom CSS.",
+  "themes.installed": "Installed theme",
+  "themes.noneInstalled": "No theme is installed. Your site uses its own colors and fonts.",
+  "themes.installedBadge": "Installed",
+  "themes.release": "version {version}",
+  "themes.updateAvailable": "Version {version} is out",
+  "themes.updateTo": "Update to {version}",
+  "themes.seeVersion": "See version {version}",
+  "themes.upToDate": "Up to date",
+  "themes.show": "Show",
+  "themes.showLabel": "Show {name}",
+  "themes.find": "Find a theme",
+  "themes.search": "Search themes",
+  "themes.searchButton": "Search",
+  "themes.loading": "Looking for themes…",
+  "themes.noneFound": "No themes were found.",
+  "themes.byPublisher": "{name}, published by {publisher}",
+  "themes.releaseDetails": "{name}, version {version}, published {date}",
+  "themes.provenance": "Built from {source}, which npm checked when it was published.",
+  "themes.noProvenance":
+    "There's no record of where this version was built, so nobody has checked it came from its publisher's own code.",
+  "themes.waiting":
+    "Version {version} can be installed once it's {days} days old, since most harmful versions are found by then.",
+  "themes.incompatible": "Version {version} doesn't say it works with Goodfellow {goodfellow}.",
+  "themes.tooNew":
+    "This theme's versions are too new to install. Versions can be installed once they're {days} days old.",
+  "themes.notCompatible": "No version of this theme says it works with Goodfellow {version}.",
+  "themes.imageAlt": "A site with the {title} theme",
+  "themes.loads":
+    "This theme asks visitors' browsers for these files from other sites, which can tell those sites who visits yours:",
+  "themes.useLayout":
+    "Use the theme's header and footer in place of yours. Your menus, logo and contact details stay as they are.",
+  "themes.layoutUnknown":
+    "The theme's header and footer use blocks a theme can't add, or that your site doesn't have ({blocks}), so they can't be used.",
+  "themes.kept": "You changed these since the version before, so they stay as you set them: {list}.",
+  "themes.replaced": "You changed these, and installing this theme replaces your changes: {list}.",
+  "themes.changed.css": "the theme's CSS",
+  "themes.preview": "Your site with {title}",
+  "themes.previewPage": "Page to look at",
+  "themes.install": "Install and publish",
+  "themes.installDemo": "Install",
+  "themes.installMessage": "Install the {title} theme, version {version}",
+  "themes.updateMessage": "Update the {title} theme to version {version}",
+  "themes.installedNotice": "{title} is installed. Your site will show it once it's rebuilt.",
+  "themes.updated": "{title} is updated to version {version}.",
+  "themes.remove": "Remove",
+  "themes.removeTitle": "Remove {title}?",
+  "themes.removeBody":
+    "Colors, fonts and styles the theme set go back to Goodfellow's defaults, and its CSS is removed. Anything you changed yourself, and your header and footer, stay as they are.",
+  "themes.removeReplaced": "Removing it also removes your changes to: {list}.",
+  "themes.removeMessage": "Remove the {title} theme",
+  "themes.removed": "{title} is removed.",
+  "themes.error.record": "The record of which theme is installed can't be read.",
+  "themes.error.unreachable": "Themes can't be looked up right now. Check your internet connection and try again.",
+  "themes.error.badFile":
+    "This theme has a problem in its files, so it can't be installed. Its publisher needs to fix it.",
+  "themes.error.notATheme": "This package isn't a Goodfellow theme.",
+  "updates.themeRange":
+    "Your theme, {title}, says it works with Goodfellow {range}. Goodfellow {version} may change how it looks, so check Themes for a newer version of it after updating.",
 
   "siteHistory.intro":
     "Every publish that changed the site's pages, items, settings or media, newest first. Choose one to see how the site looked after it and what has changed since, then restore the whole site as it was.",
@@ -951,6 +1012,7 @@ export const defaultStrings = {
   "siteHistory.subject.redirects": "Redirects",
   "siteHistory.subject.credits": "Photo credits",
   "siteHistory.subject.css": "Custom CSS",
+  "siteHistory.subject.theme": "Which theme is installed",
   "siteHistory.subject.code": "Code added to every page",
 
   "import.title": "Import from WordPress",

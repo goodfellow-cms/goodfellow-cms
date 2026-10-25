@@ -57,7 +57,7 @@ const partClasses = z
   .max(1000)
   .regex(/^[^<>\p{Cc}]*$/u, "must be CSS classes, such as rounded-xl shadow-sm");
 
-const themeSchema = z.object({
+export const themeSchema = z.object({
   colors: z.partialRecord(z.enum(THEME_COLORS), cssColor).default({}),
   /**
    * Whether pages follow the visitor's light or dark setting. Off by default:

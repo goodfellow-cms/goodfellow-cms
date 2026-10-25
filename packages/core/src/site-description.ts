@@ -138,6 +138,9 @@ export function siteVersionProblem(
   if (!previous) return "site-too-old";
   for (const [kind, version] of Object.entries(versions)) {
     const read = description.content[kind as ContentKind];
+    // A kind of file the site doesn't list came after it, such as the theme's
+    // record: at its first version, nothing the site reads is written differently.
+    if (read === undefined && version === 1) continue;
     if (read === undefined || read < version) return "site-too-old";
     if (read > version) return "tool-too-old";
   }

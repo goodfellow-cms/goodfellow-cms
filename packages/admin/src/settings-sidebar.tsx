@@ -14,6 +14,7 @@ import {
   Settings,
   ShieldCheck,
   Signpost,
+  SwatchBook,
   Users,
 } from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
@@ -31,6 +32,7 @@ export type SettingsPlace =
   | "code"
   | "domain"
   | "editors"
+  | "themes"
   | "updates"
   | "history"
   | "import"
@@ -57,6 +59,7 @@ const FORM_ITEMS: SidebarItem[] = [
 const SCREEN_ITEMS: SidebarItem[] = [
   { place: "domain", label: "settings.tab.domain", icon: Globe },
   { place: "editors", label: "settings.tab.editors", icon: Users },
+  { place: "themes", label: "settings.tab.themes", icon: SwatchBook },
   { place: "updates", label: "settings.tab.updates", icon: RefreshCw },
   { place: "history", label: "settings.tab.history", icon: History },
   { place: "import", label: "settings.tab.import", icon: FileInput },
