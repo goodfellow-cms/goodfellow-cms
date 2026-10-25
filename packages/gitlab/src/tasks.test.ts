@@ -36,6 +36,11 @@ describe("plugins' tasks on GitLab", () => {
     });
     const tasks = gitlabTasks(api, "parish/site", "main", async () => PIPELINE, { wait: async () => {} });
     expect(await tasks.supported()).toBe(true);
+    // Where the site's owner adds the secrets: the project's CI/CD variables.
+    expect(await tasks.secretsPlace()).toEqual({
+      kind: "gitlab",
+      url: `${api.apiUrl.replace(/\/api\/v4$/, "")}/parish/site/-/settings/ci_cd#js-cicd-variables-settings`,
+    });
     const { keys, sent } = await request();
     expect(await openTaskAnswer(await tasks.run(sent), keys.privateKey)).toEqual({ ok: true, output: "signed" });
     expect(variables).toEqual({

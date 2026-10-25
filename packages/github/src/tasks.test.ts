@@ -36,6 +36,11 @@ describe("plugins' tasks on GitHub", () => {
       },
     );
     expect(await tasks.supported()).toBe(true);
+    // Where the site's owner adds the secrets: the form for a new Actions secret.
+    expect(await tasks.secretsPlace()).toEqual({
+      kind: "github",
+      url: "https://github.com/parish/site/settings/secrets/actions/new",
+    });
     const { keys, request: sent } = await request();
     const text = await tasks.run(sent);
     expect(await openTaskAnswer(text, keys.privateKey)).toEqual({

@@ -29,6 +29,10 @@ function adminApi(channel: Channel, init: PluginFrameInit): PluginAdminApi {
       void channel.call("navigate", href).catch(() => {});
     },
     task: (id, input) => channel.call("task", { id, input: input ?? null }),
+    secretsHelp: () => channel.call("secrets.help"),
+    openSecretsLink: (url) => {
+      void channel.call("secrets.open", { url }).catch(() => {});
+    },
   };
 }
 
@@ -54,6 +58,15 @@ export function mountPluginFrame(admin: PluginAdmin): void {
       const mount =
         given.screen && admin.screens && Object.hasOwn(admin.screens, given.screen) && admin.screens[given.screen];
       if (!mount) throw new Error(`${given.plugin.title} has no screen called "${given.screen}".`);
+      // The page sizes the frame to what the screen draws, as it changes.
+      const body = document.body;
+      let reported = 0;
+      new ResizeObserver(() => {
+        const height = Math.ceil(body.getBoundingClientRect().height);
+        if (height === reported) return;
+        reported = height;
+        void channel.call("resize", { height }).catch(() => {});
+      }).observe(body);
       const cleanup = await mount(element, api);
       if (typeof cleanup === "function") window.addEventListener("pagehide", () => cleanup());
     });

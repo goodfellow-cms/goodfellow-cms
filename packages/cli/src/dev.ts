@@ -289,7 +289,11 @@ function devPlugin(
             res.end(JSON.stringify(admin()));
             return;
           }
-          const tasks = { root, plugins: async () => (await loadServerEntry(server)).config.plugins ?? [] };
+          const tasks = {
+            root,
+            plugins: async () => (await loadServerEntry(server)).config.plugins ?? [],
+            server: "goodfellow-dev" as const,
+          };
           if (await handleDevApi(store, req, res, { registryDir, tasks })) return;
           if (req.method !== "GET" && req.method !== "HEAD") return next();
           const url = new URL(req.url ?? "/", "http://localhost");

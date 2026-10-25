@@ -231,15 +231,21 @@ body,
   border-top: 1px solid var(--gfa-border);
 }
 
-/* A plugin's screen, drawn by the plugin in a frame of its own, filling the rest of the window. */
+/*
+ * A plugin's screen, drawn by the plugin in a frame of its own, which looks
+ * like any other screen: as wide as the screen, with no border, and as tall
+ * as what the plugin draws, which its frame reports.
+ */
 .gfa-plugin-screen {
   display: block;
   width: 100%;
-  height: calc(100vh - var(--gfa-topbar-height) - 140px);
-  min-height: 320px;
-  border: 1px solid var(--gfa-border);
-  border-radius: var(--gfa-radius);
+  min-height: 240px;
+  border: 0;
   background: var(--gfa-bg);
+}
+
+.gfa-plugin-screen-wrap > .gfa-error {
+  margin: 24px;
 }
 
 .gfa-sidebar-item {
@@ -288,7 +294,7 @@ body,
   text-overflow: ellipsis;
 }
 
-.gfa-sidebar-toggle {
+.gfa-sidebar-footer {
   margin-top: auto;
 }
 

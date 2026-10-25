@@ -11,6 +11,7 @@ import {
   PluginTaskError,
   type RevisionFiles,
   SignInError,
+  type TaskSecretsPlace,
 } from "@goodfellow-cms/core";
 
 /** Thrown when the site's server refuses something, such as an editor changing settings only owners may change. */
@@ -168,6 +169,11 @@ export function appServer(api: string) {
           async supported() {
             const response = await request("task", { missingIsFine: true }).catch(() => undefined);
             return response?.ok === true && ((await response.json()) as { supported?: boolean }).supported === true;
+          },
+          async secretsPlace() {
+            const response = await request("task", { missingIsFine: true }).catch(() => undefined);
+            if (!response?.ok) return undefined;
+            return ((await response.json()) as { place?: TaskSecretsPlace }).place;
           },
           async run(task) {
             return ((await (await request("task", { body: task })).json()) as { result: string }).result;

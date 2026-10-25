@@ -5,6 +5,7 @@ import {
   encodeBase64Bytes,
   PluginTaskError,
   type PluginTasks,
+  type TaskSecretsPlace,
 } from "@goodfellow-cms/core";
 
 /**
@@ -73,6 +74,11 @@ export function localStore(apiBase = "/__goodfellow/api"): ContentStore & { task
       async supported() {
         const response = await request("task", {}, true).catch(() => undefined);
         return response?.ok === true && ((await response.json()) as { supported?: boolean }).supported === true;
+      },
+      async secretsPlace() {
+        const response = await request("task", {}, true).catch(() => undefined);
+        if (!response?.ok) return undefined;
+        return ((await response.json()) as { place?: TaskSecretsPlace }).place;
       },
       async run(task) {
         const response = await request("task", {

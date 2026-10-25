@@ -164,7 +164,7 @@ describe("handleDevApi's plugins' tasks", () => {
     );
     const store = localFileStore(root);
     server = createServer(async (req, res) => {
-      const tasks = { root, plugins: async () => [plugin] };
+      const tasks = { root, plugins: async () => [plugin], server: "goodfellow-dev" as const };
       if (!(await handleDevApi(store, req, res, { tasks }))) res.writeHead(418).end();
     });
     await new Promise<void>((done) => server.listen(0, done));
@@ -179,7 +179,10 @@ describe("handleDevApi's plugins' tasks", () => {
   const json = { "x-goodfellow-request": "1", "content-type": "application/json" };
 
   it("run on this computer, with the server's environment as secrets, answering sealed to the request's key", async () => {
-    expect(await (await fetch(`${base}/task/`, { headers: json })).json()).toEqual({ supported: true });
+    expect(await (await fetch(`${base}/task/`, { headers: json })).json()).toEqual({
+      supported: true,
+      place: { kind: "goodfellow-dev" },
+    });
     const keys = await taskKeys();
     const request = {
       id: newTaskRequestId(),
@@ -188,7 +191,8 @@ describe("handleDevApi's plugins' tasks", () => {
       input: '{"files":["/media/a.mp4"]}',
       key: keys.publicKey,
     };
-    process.env.STORAGE_KEY = "local key";
+    // The site's .env.local, read as the task runs, as developers keep secrets on their computers.
+    await writeFile(join(root, ".env.local"), "STORAGE_KEY=local key\n");
     try {
       const response = await fetch(`${base}/task/`, { method: "POST", headers: json, body: JSON.stringify(request) });
       const { result } = (await response.json()) as { result: string };
@@ -197,7 +201,7 @@ describe("handleDevApi's plugins' tasks", () => {
         output: { input: { files: ["/media/a.mp4"] }, key: "local key" },
       });
     } finally {
-      delete process.env.STORAGE_KEY;
+      await rm(join(root, ".env.local"));
     }
     const bad = await fetch(`${base}/task/`, {
       method: "POST",

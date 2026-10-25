@@ -96,6 +96,7 @@ function startDevApi(root: string): Promise<number> {
     const tasks = {
       root,
       plugins: async () => (await (await import("./plugins.js")).loadSiteConfig(root)).plugins ?? [],
+      server: "next-dev" as const,
     };
     const server = createServer(async (req, res) => {
       if (await (await editor).serve(req, res)) return;

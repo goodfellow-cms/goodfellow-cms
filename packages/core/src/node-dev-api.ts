@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
+import { parseEnv } from "node:util";
 import {
   CALENDARS_DIR,
   ConflictError,
@@ -72,10 +74,29 @@ export interface DevApiOptions {
   registryDir?: string;
   /**
    * Runs plugins' tasks (`task`) on this computer, as the site's CI would,
-   * with the secrets in this server's environment: the site's root and its
-   * plugins, read from its config as it is now.
+   * with the secrets in the site's `.env.local` and this server's
+   * environment: the site's root, its plugins, read from its config as it is
+   * now, and which development server this is, for saying where secrets go.
    */
-  tasks?: { root: string; plugins: () => Promise<readonly GoodfellowPlugin[]> };
+  tasks?: {
+    root: string;
+    plugins: () => Promise<readonly GoodfellowPlugin[]>;
+    server: "goodfellow-dev" | "next-dev";
+  };
+}
+
+/** Where tasks in the development servers get their secrets: the site's `.env.local`, read each time, which git ignores. */
+export const DEV_SECRETS_FILE = ".env.local";
+
+/** This server's environment with the site's `.env.local` over it, read as each task runs, so a change needs no restart. */
+function devSecrets(root: string): Record<string, string> {
+  let file: Record<string, string> = {};
+  try {
+    file = parseEnv(readFileSync(join(root, DEV_SECRETS_FILE), "utf8")) as Record<string, string>;
+  } catch {
+    // No file: the environment alone.
+  }
+  return taskSecretsFrom({ ...process.env, ...file });
 }
 
 /** Runs a plugin's task as `goodfellow task` does in the site's CI, answering with its sealed answer's text. */
@@ -89,8 +110,7 @@ async function runDevTask(tasks: NonNullable<DevApiOptions["tasks"]>, request: P
           plugin,
           task: request.task,
           input: request.input,
-          // A copy, so this server keeps its environment for the next task.
-          secrets: taskSecretsFrom({ ...process.env }),
+          secrets: devSecrets(tasks.root),
           onRun: () => console.log(`  Running ${plugin.title}'s task "${request.task}"`),
         })
       : { ok: false, error: `The site has no plugin ${request.plugin}.` };
@@ -249,7 +269,10 @@ export async function handleDevApi(
       console.log(`  Saved: ${message}`);
       send(res, 200, result);
     } else if (req.method === "GET" && endpoint === "task") {
-      send(res, 200, { supported: options.tasks !== undefined });
+      send(res, 200, {
+        supported: options.tasks !== undefined,
+        ...(options.tasks && { place: { kind: options.tasks.server } }),
+      });
     } else if (req.method === "POST" && endpoint === "task" && options.tasks) {
       if (!req.headers["content-type"]?.startsWith("application/json")) {
         send(res, 415, { error: "unsupported-media-type" });

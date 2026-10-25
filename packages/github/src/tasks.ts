@@ -22,6 +22,13 @@ export interface GitHubTasksOptions {
   wait?: (ms: number) => Promise<void>;
 }
 
+/** GitHub's own pages for an API address: `github.com` for its API, the host itself for GitHub Enterprise's `/api/v3`. */
+function webBase(apiUrl: string): string {
+  const url = new URL(apiUrl);
+  if (url.hostname === "api.github.com") return "https://github.com";
+  return `${url.origin}${url.pathname.replace(/\/api\/v3\/?$/, "")}`.replace(/\/+$/, "");
+}
+
 /**
  * Plugins' tasks on GitHub, through the starters' `plugin-task.yml`: a
  * `repository_dispatch` event starts it, which editors' tokens can send with
@@ -43,6 +50,8 @@ export function githubTasks(
 
   return {
     supported,
+    // The page that adds one of the repository's Actions secrets.
+    secretsPlace: async () => ({ kind: "github", url: `${webBase(api.apiUrl)}/${repo}/settings/secrets/actions/new` }),
     async run(request: PluginTaskRequest) {
       const problem = taskRequestProblem(request);
       if (problem) throw new PluginTaskError("failed", problem);

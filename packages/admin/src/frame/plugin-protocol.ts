@@ -6,7 +6,7 @@
  * declared, and treats everything it sends as the plugin's code may have
  * written it.
  */
-import type { PluginDescription, PluginMediaReady } from "@goodfellow-cms/core";
+import type { PluginDescription, PluginMediaReady, PluginSecretsHelp } from "@goodfellow-cms/core";
 
 /** A plugin's frame sends this to the admin panel's page once it's listening, and the page answers with a port. */
 export const PLUGIN_READY_MESSAGE = "goodfellow:plugin-ready";
@@ -64,6 +64,12 @@ export interface PluginPageRequests {
     body: string;
   };
   navigate(href: string): void;
+  /** A screen's frame says how tall what it draws is, so the page shows it all without a scroll bar of its own. */
+  resize(params: { height: number }): void;
   /** Runs one of the plugin's tasks in the site's CI, answering with what it returned. */
   task(params: { id: string; input: unknown }): unknown;
+  /** How the site's owner adds the secrets the plugin declared, for this site. */
+  "secrets.help"(): PluginSecretsHelp[];
+  /** Opens one of the links `secrets.help` gave in a new tab, which the frame's sandbox can't. */
+  "secrets.open"(params: { url: string }): void;
 }

@@ -57,6 +57,7 @@ import { allMedia, mediaUrl } from "./media.js";
 import { MediaPickerDialog } from "./media-library.js";
 import { createMediaPreviews, type MediaPreviews } from "./media-previews.js";
 import { type PluginHost, PluginServices } from "./plugin-frames.js";
+import { pluginSecretsHelp } from "./plugin-secrets.js";
 import { REGISTRY_VERSION } from "./registry-version.js";
 import { navigate } from "./router.js";
 import { useScheduleInfoOf } from "./schedule.js";
@@ -851,6 +852,7 @@ function SiteFrames({
       publish: async (changes, message) => (await publish(changes, message)).ok,
       ...(account?.plugins && { server: account.plugins }),
       navigate: (href) => navigate(href, () => window.confirm(confirmLeave)),
+      secretsHelp: async (plugin) => pluginSecretsHelp(await tasks?.secretsPlace().catch(() => undefined), plugin, t),
       ...(tasks && {
         runTask: async (request: PluginTaskRequest) => {
           try {

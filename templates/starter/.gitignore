@@ -1,2 +1,4 @@
 node_modules/
 dist/
+# Secrets for trying plugins on this computer, which never leave it.
+.env*.local

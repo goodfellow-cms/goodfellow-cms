@@ -97,6 +97,7 @@ export function gallery(options: { columns?: number } = {}) {
 - **`tasks`** run in the site's CI when the admin module asks, with the secrets the plugin declared (see [Tasks](#tasks)).
 - **`server`** names the module that answers requests on full-stack sites.
 - **`mediaStorage`** says it keeps the site's media outside the repository, as [S3 storage](#keeping-media) does, with the largest file it takes as `maxBytes`.
+- **`options`** is anything else the site's config chooses for it, as JSON, which its admin module reads as `api.plugin.options`, such as more services to offer. It's published with the site's description, so never put secrets in it.
 
 A plugin kept in the site's own repository, such as one only that site uses, is a folder with the same files, named with paths from the site's root.
 
@@ -138,7 +139,7 @@ export default definePluginAdmin({
 });
 ```
 
-**Screens** draw into the element they're given, with plain DOM or a framework of the plugin's own, and may return a function that cleans up. Their frame has the admin panel's colors as `--gfa-*` custom properties, which follow its light or dark choice, and plain styles for headings, fields and buttons.
+**Screens** draw into the element they're given, with plain DOM or a framework of the plugin's own, and may return a function that cleans up. A screen's frame is the whole screen, as wide as the admin panel's other screens and as tall as what it draws, so start with the screen's own heading (`<h1>`). The frame has the admin panel's colors as `--gfa-*` custom properties, which follow its light or dark choice, and plain styles for headings, sections, fields, buttons, lists and code.
 
 **`api`**, which screens and services are given, asks the admin panel for:
 
@@ -147,6 +148,8 @@ export default definePluginAdmin({
 - `publish(changes, message)`: changes to files the plugin declared, in one publish, after the same checks as any publish, answering whether it was published. A change is `{ path, text }`, `{ path, bytes }` or `{ path, delete: true }`.
 - `server(path, request)`: the plugin's server module on a full-stack site, signed in as the editor.
 - `task(id, input)`: one of the plugin's [tasks](#tasks), run in the site's CI, answering with what it returned. It takes about a minute.
+- `secretsHelp()`: how the site's owner adds the secrets the plugin declared, for this site as it's set up, in the admin panel's words: on GitHub, the form for a new Actions secret and what to type in it; on GitLab, the CI/CD variables; in `goodfellow dev` and `next dev`, the lines of `.env.local`; on a full-stack site, the server's environment, then the CI. Show its steps as they are.
+- `openSecretsLink(url)`: opens one of the links `secretsHelp()` gave in a new tab, which the frame's sandbox can't do itself.
 - `navigate(href)`: another of the admin panel's screens, such as `#/media`.
 
 **Services** answer the plugin's blocks in the editor, whose code runs in the editor's frame, which can fetch nothing. A block asks with `useSite().callPlugin`, which only the editor provides:
@@ -200,7 +203,7 @@ Each task runs in a Node process of its own, held as build steps are: it reads o
 - **On GitHub**, the starters' `.github/workflows/plugin-task.yml` runs it, started by a `repository_dispatch` event, which any sign-in that can publish can send. Its `task` job runs the site's code with read access only and `${{ toJSON(secrets) }}` in its environment, and a second job, which runs none of it, puts the sealed answer on a branch of its own, `goodfellow-task-<request>`, which the admin panel reads and deletes. Add the secrets under the repository's **Settings → Secrets and variables → Actions**.
 - **On GitLab**, the starters' `.gitlab-ci.yml` has a `plugin-task` job, run in a pipeline the admin panel starts with the request's variables, whose artifact holds the sealed answer. Add the secrets under **Settings → CI/CD → Variables**, masked, and protected, since tasks run on the main branch.
 - **Sites made before tasks** copy `plugin-task.yml`, or the `plugin-task` job and the `rules` line it adds to the `pages` job, from the starter. Without them, the admin panel says the site's setup can't run tasks yet.
-- **In `goodfellow dev` and `next dev`,** tasks run on your computer, with the development server's environment as their secrets.
+- **In `goodfellow dev` and `next dev`,** tasks run on your computer, with the site's `.env.local` (read as each task runs, and ignored by git) and the development server's environment as their secrets.
 - **On full-stack sites,** tasks run in the site's CI as on any other, through the site's server, which passes the sealed answer on. A plugin can offer a server module that does the same work straight away with secrets in the server's environment, as S3 storage does.
 - **Sites whose content is in a repository of its own** can't run tasks yet, since the content repository's CI doesn't have the site's code.
 

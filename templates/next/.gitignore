@@ -6,3 +6,5 @@ next-env.d.ts
 # A full-stack site's calendar files and search index, written after each build.
 public/calendars/
 public/pagefind/
+# Secrets for trying plugins on this computer, which never leave it.
+.env*.local

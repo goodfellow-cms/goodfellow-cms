@@ -45,6 +45,11 @@ export function gitlabTasks(
 
   return {
     supported,
+    // The project's CI/CD settings, open at its variables.
+    secretsPlace: async () => ({
+      kind: "gitlab",
+      url: `${api.apiUrl.replace(/\/api\/v4\/?$/, "")}/${project}/-/settings/ci_cd#js-cicd-variables-settings`,
+    }),
     async run(request: PluginTaskRequest) {
       const problem = taskRequestProblem(request);
       if (problem) throw new PluginTaskError("failed", problem);

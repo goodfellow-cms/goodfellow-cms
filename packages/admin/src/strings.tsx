@@ -1060,6 +1060,34 @@ export const defaultStrings = {
   "plugins.asks.build": "Run these steps when your site is built: {list}",
   "plugins.asks.tasks":
     "Run these tasks with its secrets when the admin panel asks, each taking about a minute: {list}",
+  "plugins.secrets.github.title": "Add them on GitHub",
+  "plugins.secrets.github.link": "Open GitHub's form for a new secret",
+  "plugins.secrets.github.open":
+    "Open GitHub's form for a new secret with the link below. Add each key there, one at a time, opening the form again for the next.",
+  "plugins.secrets.github.add": "For {name}: type {name} in Name, paste its value in Secret, and choose Add secret.",
+  "plugins.secrets.github.who": "Only the site's owners on GitHub can open the form.",
+  "plugins.secrets.github.kind":
+    "This form adds secrets for this site alone, which is all it needs. GitHub's environment and organization secrets are for other things, so you can leave them alone.",
+  "plugins.secrets.gitlab.title": "Add them on GitLab",
+  "plugins.secrets.gitlab.link": "Open the site's CI/CD settings on GitLab",
+  "plugins.secrets.gitlab.open":
+    "Open the site's CI/CD settings on GitLab with the link below, and expand Variables. Add each key there, one at a time.",
+  "plugins.secrets.gitlab.add":
+    "For {name}: choose Add variable, choose Masked under Visibility, keep Protect variable ticked, type {name} in Key, paste its value in Value, and choose Add variable.",
+  "plugins.secrets.gitlab.who": "Only the site's owners (Maintainers) on GitLab can change its CI/CD settings.",
+  "plugins.secrets.development.title": "Add them on this computer",
+  "plugins.secrets.development.file":
+    "In the site's folder, beside package.json, open the file .env.local, or make it, and add a line for each of {names}:",
+  "plugins.secrets.development.values":
+    "Put each value after its =, save the file, and try again. There's no need to restart the development server.",
+  "plugins.secrets.development.local":
+    "This is only for trying the site on this computer: .env.local is never published. The live site needs them in its own secrets too.",
+  "plugins.secrets.server.title": "Add them to the site's server",
+  "plugins.secrets.server.add":
+    "Add {names} as environment variables where the site's server runs, such as the project's Settings → Environment Variables on Vercel.",
+  "plugins.secrets.server.deploy": "Then deploy the site again so the server has them.",
+  "plugins.secrets.server.who":
+    "Whoever set up the site's server knows where its environment variables are. Without them there, the build service's secrets below are used instead, which is slower.",
   "plugins.task.missing":
     "Your site's setup can't run plugins' tasks yet. A developer needs to copy the starter's plugin-task setup into the site.",
   "plugins.task.not-allowed": "Your sign-in can't run plugins' tasks. Ask the site's owner to let you publish.",

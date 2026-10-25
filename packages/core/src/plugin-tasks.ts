@@ -168,10 +168,25 @@ export async function openTaskAnswer(text: string, privateKey: TaskPrivateKey): 
   throw new PluginTaskError("failed", "The task's answer couldn't be read.");
 }
 
+/**
+ * Where the secrets plugins' tasks get are kept, as the backend knows it, for
+ * the admin panel to say how to add them: the page of a GitHub repository's
+ * Actions secrets or a GitLab project's CI/CD variables, the development
+ * server's `.env.local`, or a full-stack site's server, whose own tasks run in
+ * the CI it names.
+ */
+export type TaskSecretsPlace =
+  | { kind: "github"; url: string }
+  | { kind: "gitlab"; url: string }
+  | { kind: "goodfellow-dev" | "next-dev" }
+  | { kind: "server"; ci?: TaskSecretsPlace };
+
 /** How a backend runs plugins' tasks in the site's CI. */
 export interface PluginTasks {
   /** Whether the site's setup files run them: the starters' task workflow or job. */
   supported(): Promise<boolean>;
+  /** Where the secrets tasks get are kept. */
+  secretsPlace(): Promise<TaskSecretsPlace | undefined>;
   /** Starts a task and waits for it, giving its answer's text, still sealed. Throws a `PluginTaskError`. */
   run(request: PluginTaskRequest): Promise<string>;
 }

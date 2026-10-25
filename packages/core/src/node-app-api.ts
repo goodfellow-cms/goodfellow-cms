@@ -269,7 +269,12 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
     }
     if (get && endpoint === "task") {
       const backend = await reader(await options.git.revision());
-      return json(200, { supported: (await backend.tasks?.supported()) === true });
+      // Secrets can be the server's own, for plugins' server modules, or its CI's, for their tasks.
+      const ci = await backend.tasks?.secretsPlace().catch(() => undefined);
+      return json(200, {
+        supported: (await backend.tasks?.supported()) === true,
+        place: { kind: "server", ...(ci && { ci }) },
+      });
     }
     if (post && endpoint === "task") {
       // A plugin's task, run in the site's CI with its secrets, as on a static site: its answer is sealed to the

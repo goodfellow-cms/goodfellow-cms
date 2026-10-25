@@ -73,6 +73,13 @@ export interface GoodfellowPlugin {
    * storage's address.
    */
   mediaStorage?: PluginMediaStorageOptions;
+  /**
+   * What a developer chose for it in the site's config, as JSON, which its
+   * admin module reads (`api.plugin.options`), such as more services for it
+   * to offer. At most `MAX_PLUGIN_OPTIONS` characters, and never secret:
+   * builds publish it with the site's description.
+   */
+  options?: PluginOptions;
 }
 
 export interface PluginMediaStorageOptions {
@@ -207,6 +214,35 @@ export interface PluginAdminApi {
    * message.
    */
   task(id: string, input?: unknown): Promise<unknown>;
+  /**
+   * How the site's owner adds the secrets the plugin declared, for this site
+   * as it's set up, in the admin panel's words: the first is where its tasks
+   * get them, and a full-stack site's server comes with the CI as a second.
+   * Empty where tasks can't run.
+   */
+  secretsHelp(): Promise<PluginSecretsHelp[]>;
+  /**
+   * Opens one of the links `secretsHelp()` gave in a new tab, which a
+   * plugin's frame can't do itself. Call it as the person clicks.
+   */
+  openSecretsLink(url: string): void;
+}
+
+/**
+ * How to add the secrets a plugin declared, in the admin panel's words, for
+ * a plugin's screen to show as they are.
+ */
+export interface PluginSecretsHelp {
+  /** Where they go: the development server's `.env.local`, a full-stack site's server, or GitHub's or GitLab's CI. */
+  where: "development" | "server" | "github" | "gitlab";
+  /** A heading for these steps, such as "On GitHub". */
+  title: string;
+  /** The page the secrets are added on, where there is one, and what to call the link. */
+  link?: { url: string; label: string };
+  /** What to do, in order; a step may come with something to type or paste, such as a line of a file. */
+  steps: { text: string; code?: string }[];
+  /** Anything else worth knowing, such as who can open the page. */
+  notes: string[];
 }
 
 /** One file to write or delete. */
@@ -302,7 +338,15 @@ export interface PluginDescription {
   server?: boolean;
   /** Whether it keeps media, and the largest file it takes. */
   mediaStorage?: PluginMediaStorageOptions;
+  /** What the site's config chose for it, for its admin module. */
+  options?: PluginOptions;
 }
+
+/** A plugin's options in the site's config: anything JSON keeps. */
+export type PluginOptions = { [key: string]: unknown };
+
+/** How long a plugin's options may be, as JSON. */
+export const MAX_PLUGIN_OPTIONS = 16_000;
 
 /** Whether a package's name is a plugin's: `goodfellow-plugin-<name>` or `@scope/goodfellow-plugin-<name>`. */
 export function isPluginName(name: string): boolean {
@@ -332,6 +376,7 @@ export interface PluginProblem {
     | "no-admin"
     | "block-clash"
     | "bad-storage"
+    | "bad-options"
     | "not-approved";
   /** What's wrong, for the developer. */
   message: string;
@@ -441,6 +486,21 @@ export function pluginProblems(
         problem("bad-storage", `${name}'s largest file for media storage isn't a number of bytes.`);
       }
     }
+    if (plugin.options !== undefined) {
+      let json: string | undefined;
+      try {
+        json = JSON.stringify(plugin.options);
+      } catch {
+        json = undefined;
+      }
+      const plain = json !== undefined && typeof plugin.options === "object" && !Array.isArray(plugin.options);
+      if (!plain || json === undefined || json.length > MAX_PLUGIN_OPTIONS) {
+        problem(
+          "bad-options",
+          `${name}'s options aren't an object of at most ${MAX_PLUGIN_OPTIONS} characters of JSON.`,
+        );
+      }
+    }
     const stepIds = new Set<string>();
     for (const step of plugin.build ?? []) {
       if (!ID.test(step?.id ?? "") || stepIds.has(step.id) || typeof step.module !== "string" || !step.module) {
@@ -528,6 +588,8 @@ export function describePlugin(plugin: GoodfellowPlugin): PluginDescription {
     ...(plugin.mediaStorage && {
       mediaStorage: plugin.mediaStorage.maxBytes ? { maxBytes: plugin.mediaStorage.maxBytes } : {},
     }),
+    // A copy through JSON, so what the admin module gets is exactly what's published.
+    ...(plugin.options && { options: JSON.parse(JSON.stringify(plugin.options)) as PluginOptions }),
   };
 }
 

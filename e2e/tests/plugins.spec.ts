@@ -17,10 +17,13 @@ test("a plugin's screen publishes only the files it declared, and reaches only t
 }) => {
   await page.goto("/admin#/settings/general");
   await page.getByRole("link", { name: "Greeter" }).click();
-  await expect(page.getByRole("heading", { name: "Greeter", level: 1 })).toBeVisible();
-  // The plugin's own frame, sandboxed away from the admin panel's sign-in like the editor's.
+  // The plugin's own frame, sandboxed away from the admin panel's sign-in like the editor's, is the whole
+  // screen: the plugin draws its heading, and the frame is as tall as what it draws.
   await expect(page.locator('iframe[title="Greeter"]')).toHaveAttribute("sandbox", "allow-scripts");
   const screen = page.frameLocator('iframe[title="Greeter"]');
+  await expect(screen.getByRole("heading", { name: "Greeter", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Greeter" })).toHaveCount(0);
+  await expect(page.locator('iframe[title="Greeter"]')).toHaveAttribute("style", /height: \d+px/);
 
   await screen.getByLabel("Message").fill("Welcome, friends");
   await screen.getByRole("button", { name: "Save" }).click();

@@ -10,6 +10,7 @@ import {
   openTaskAnswer,
   type PluginDescription,
   type PluginMediaReady,
+  type PluginSecretsHelp,
   type PluginTaskRequest,
   pluginFrameUrl,
   pluginMayList,
@@ -58,6 +59,8 @@ export interface PluginHost {
    * admin panel's words.
    */
   runTask?(request: PluginTaskRequest): Promise<string>;
+  /** How a plugin's secrets are added for this site, in the admin panel's words. */
+  secretsHelp?(plugin: PluginDescription): Promise<PluginSecretsHelp[]>;
 }
 
 /** A plugin's frame asked for something it didn't declare, or that isn't there. */
@@ -93,8 +96,12 @@ function toFileChange(plugin: PluginDescription, value: unknown): FileChange {
   throw new RefusedError("That isn't a change.");
 }
 
+/** The tallest a screen's frame is made, whatever it says. */
+const MAX_SCREEN_HEIGHT = 20_000;
+
 /** The answers a plugin's frame gets, each checked against what the plugin declared. */
-function pluginHandlers(plugin: PluginDescription, host: () => PluginHost) {
+function pluginHandlers(plugin: PluginDescription, host: () => PluginHost, onResize: (height: number) => void) {
+  const secretsLinks = new Set<string>();
   const handlers: { [K in keyof PluginPageRequests]: (params: Parameters<PluginPageRequests[K]>[0]) => unknown } = {
     read: async (params) => {
       const paths = strings(params?.paths, "files");
@@ -154,6 +161,24 @@ function pluginHandlers(plugin: PluginDescription, host: () => PluginHost) {
     navigate: (href) => {
       if (isAdminScreen(href)) host().navigate(href);
     },
+    "secrets.help": async () => {
+      const help = (await host().secretsHelp?.(plugin)) ?? [];
+      for (const { link } of help) if (link) secretsLinks.add(link.url);
+      return help;
+    },
+    // Only the links the page itself gave, so a plugin can't open whatever it likes.
+    "secrets.open": (params) => {
+      const url = params?.url;
+      if (typeof url !== "string" || !secretsLinks.has(url))
+        throw new RefusedError("That isn't one of the links given.");
+      window.open(url, "_blank", "noopener,noreferrer");
+    },
+    resize: (params) => {
+      const height = params?.height;
+      if (typeof height === "number" && Number.isFinite(height)) {
+        onResize(Math.min(Math.max(0, Math.ceil(height)), MAX_SCREEN_HEIGHT));
+      }
+    },
     task: async (params) => {
       const id = params?.id;
       if (typeof id !== "string" || !plugin.tasks?.some((task) => task.id === id)) {
@@ -183,7 +208,13 @@ export interface PluginFrameConnection {
   /** The connected frame, once it has started. */
   channel?: Channel;
   failed: boolean;
-  frameProps: { ref: (element: HTMLIFrameElement | null) => void; sandbox: string; src: string };
+  frameProps: {
+    ref: (element: HTMLIFrameElement | null) => void;
+    sandbox: string;
+    src: string;
+    /** A screen's frame is as tall as what it draws. */
+    style?: CSSProperties;
+  };
 }
 
 /** Makes one of a plugin's frames and connects to it. */
@@ -196,6 +227,7 @@ export function usePluginFrame(
   const element = useRef<HTMLIFrameElement | null>(null);
   const [channel, setChannel] = useState<Channel>();
   const [failed, setFailed] = useState(false);
+  const [height, setHeight] = useState<number>();
   const latest = useRef(host);
   latest.current = host;
 
@@ -216,7 +248,13 @@ export function usePluginFrame(
       const { port1, port2 } = new MessageChannel();
       const next = createChannel(
         port1,
-        pluginHandlers(plugin, () => latest.current),
+        pluginHandlers(
+          plugin,
+          () => latest.current,
+          (next) => {
+            if (mode === "screen") setHeight(next);
+          },
+        ),
       );
       current = next;
       frame.postMessage({ type: CONNECT_MESSAGE }, "*", [port2]);
@@ -254,7 +292,12 @@ export function usePluginFrame(
   return {
     channel,
     failed,
-    frameProps: { ref, sandbox: FRAME_SANDBOX, src: pluginFrameUrl(host.editorUrl, plugin.id) },
+    frameProps: {
+      ref,
+      sandbox: FRAME_SANDBOX,
+      src: pluginFrameUrl(host.editorUrl, plugin.id),
+      ...(height !== undefined && { style: { height } }),
+    },
   };
 }
 
@@ -272,7 +315,7 @@ function ServiceFrame({
 }) {
   const { channel, frameProps } = usePluginFrame(plugin, host, "service");
   useEffect(() => onChannel(plugin.id, channel), [plugin.id, channel, onChannel]);
-  return <iframe title="" aria-hidden="true" tabIndex={-1} style={HIDDEN} {...frameProps} />;
+  return <iframe title="" aria-hidden="true" tabIndex={-1} {...frameProps} style={HIDDEN} />;
 }
 
 const PluginHostContext = createContext<PluginHost | null>(null);

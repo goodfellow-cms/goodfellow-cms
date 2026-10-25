@@ -56,6 +56,10 @@ function fakeServerGit(repo: FakeRepo) {
       signOut: () => {},
       tasks: {
         supported: async () => true,
+        secretsPlace: async () => ({
+          kind: "github",
+          url: "https://github.com/parish/site/settings/secrets/actions/new",
+        }),
         async run(request) {
           taskRuns.push({ request, ...(author && { author: author.name }) });
           if (request.task === "slow") throw new PluginTaskError("timeout", "The workflow didn't answer.");
@@ -357,7 +361,14 @@ describe("appApi", () => {
 
   it("passes plugins' tasks on to the site's CI, with the answer still sealed", async () => {
     const { call, post, taskRuns } = setup();
-    expect(await (await call("task")).json()).toEqual({ supported: true });
+    // Secrets go on the server, for plugins' server modules, or in the CI it names.
+    expect(await (await call("task")).json()).toEqual({
+      supported: true,
+      place: {
+        kind: "server",
+        ci: { kind: "github", url: "https://github.com/parish/site/settings/secrets/actions/new" },
+      },
+    });
     const request = {
       id: newTaskRequestId(),
       plugin: "goodfellow-plugin-s3",
