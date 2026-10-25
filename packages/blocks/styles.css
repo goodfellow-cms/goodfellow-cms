@@ -62,15 +62,16 @@
     font-size: 0.9em;
   }
 
-  /* Inline code, but not code blocks, which are highlighted or shown plainly below. */
+  /* Inline code, but not code blocks, which are highlighted or shown plainly below. Both take their tint from the
+     text around them, so they read on any section's background, a primary one included. */
   .gf-prose :not(pre) > code {
-    background: var(--color-muted);
+    background: color-mix(in oklab, currentColor 12%, transparent);
     border-radius: 0.25rem;
     padding: 0.1em 0.3em;
   }
 
   .gf-prose pre:not(.shiki) {
-    background: var(--color-muted);
+    background: color-mix(in oklab, currentColor 8%, transparent);
     border-radius: var(--radius-lg);
     padding: 1rem;
     overflow-x: auto;
@@ -99,7 +100,7 @@
   }
 
   .gf-prose th {
-    background: var(--color-muted);
+    background: color-mix(in oklab, currentColor 8%, transparent);
     font-weight: 600;
   }
 

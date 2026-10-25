@@ -245,6 +245,14 @@ export function islandsPlugin(root: string, modules: ClientModules): Plugin {
     return exports;
   }
 
+  /** Lists a Client Component's module in the browser's entry, which a page that uses it loads. */
+  function remember(file: string) {
+    const name = slashes(relative(root, file));
+    if (modules.get(name) === file) return;
+    modules.set(name, file);
+    invalidateEntry();
+  }
+
   return {
     name: "goodfellow:islands",
     // Before Vite's own resolver, which would otherwise resolve imports of Client Components' modules first.
@@ -267,6 +275,9 @@ export function islandsPlugin(root: string, modules: ClientModules): Plugin {
       const file = resolved.id.split("?")[0] ?? resolved.id;
       // Only where a server-rendered module imports a Client Component's module: inside it, it's all one component.
       if (!clientExports(file) || clientExports(importer.split("?")[0] ?? importer)) return resolved;
+      // Here as well as in `load`, since a module deleted and written again, such as a block removed and added back,
+      // can keep its island module from before, which isn't loaded again.
+      remember(file);
       return `${ISLAND_PREFIX}${file}`;
     },
 
@@ -299,12 +310,8 @@ export function islandsPlugin(root: string, modules: ClientModules): Plugin {
       // Changes to the module's exports change this one.
       this.addWatchFile(file);
       if (!exports) return `export * from ${jsString(file)};\n`;
-      const name = slashes(relative(root, file));
-      if (modules.get(name) !== file) {
-        modules.set(name, file);
-        invalidateEntry();
-      }
-      return islandModule(file, name, exports);
+      remember(file);
+      return islandModule(file, slashes(relative(root, file)), exports);
     },
   };
 }
