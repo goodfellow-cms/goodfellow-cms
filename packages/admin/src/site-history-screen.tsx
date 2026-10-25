@@ -22,7 +22,6 @@ import { pageTitle } from "./changes.js";
 import { mediaUrl } from "./media.js";
 import { createMediaPreviews } from "./media-previews.js";
 import { PreviewFrame } from "./preview.js";
-import { SettingsTabs } from "./settings-screen.js";
 import { type StringKey, type Translate, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, Field } from "./ui.js";
 import { unknownBlocks } from "./versions.js";
@@ -43,9 +42,8 @@ export function SiteHistoryScreen() {
   return (
     <div className="gfa-screen gfa-versions-screen">
       <div className="gfa-screen-header">
-        <h1>{t("settings.title")}</h1>
+        <h1>{t("settings.tab.history")}</h1>
       </div>
-      <SettingsTabs tab="history" />
       {restored && (
         <p className="gfa-notice gfa-notice-success" role="status">
           {t("siteHistory.restored", { date: restored })}

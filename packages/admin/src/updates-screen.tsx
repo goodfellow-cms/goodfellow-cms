@@ -20,7 +20,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { updateSettingsFileChange } from "./changes.js";
 import { OwnerTokenActive, OwnerTokenForm } from "./owner-token.js";
-import { SettingsTabs } from "./settings-screen.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, ErrorMessage } from "./ui.js";
 
@@ -80,9 +79,8 @@ export function UpdatesScreen() {
   return (
     <div className="gfa-screen">
       <div className="gfa-screen-header">
-        <h1>{t("settings.title")}</h1>
+        <h1>{t("settings.tab.updates")}</h1>
       </div>
-      <SettingsTabs tab="updates" />
       <div className="gfa-form">
         <p>{t("updates.intro")}</p>
         {demo ? (

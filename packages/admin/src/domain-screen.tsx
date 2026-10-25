@@ -16,7 +16,6 @@ import { AdminAddressSection } from "./admin-address.js";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { siteSettingsFileChange } from "./changes.js";
 import { OwnerTokenActive, OwnerTokenForm } from "./owner-token.js";
-import { SettingsTabs } from "./settings-screen.js";
 import { useOutsideHost } from "./site-host.js";
 import { useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
@@ -122,9 +121,8 @@ export function DomainScreen() {
   return (
     <div className="gfa-screen">
       <div className="gfa-screen-header">
-        <h1>{t("settings.title")}</h1>
+        <h1>{t("settings.tab.domain")}</h1>
       </div>
-      <SettingsTabs tab="domain" />
       <div className="gfa-form">
         <p>{t("domain.intro")}</p>
         <OwnerTokenActive onForget={loadSite} />

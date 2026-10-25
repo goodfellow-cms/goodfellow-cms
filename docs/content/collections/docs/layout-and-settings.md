@@ -12,7 +12,7 @@ order: 5
 
 ## Site Settings
 
-**Site Settings** has several tabs, with a preview of the home page that shows changes as you type. Undo and Redo work across every tab.
+**Site Settings** lists its tabs in a sidebar on the left, each with an icon; **Hide names** at the bottom of it shows only the icons, with each name appearing as you point at its icon, and the admin panel remembers the choice on that computer. In a narrow window, the sidebar shows only the icons. The first seven tabs are published together, with a preview of the home page that shows changes as you type, and Undo and Redo work across all of them:
 
 - **General:** the site's name, its address, the title shown in browser tabs, a description for search engines, the logo, the icon, the image for link previews, whether links to other sites open in a new tab, the time zone events' times are in (see [Calendars and events](/docs/calendars#time-zone)), the contact details (address, phone number and email address) that the Contact details block shows, and where forms' answers go (see [Forms](/docs/forms#choose-a-form-service)). Links to the site's own pages always open in the same tab.
 - **Languages:** the site's main language and any others, each with the site's name and description in it (see [Several languages](/docs/languages)).
@@ -21,6 +21,8 @@ order: 5
 - **Redirects:** old addresses that send visitors on to new ones (see [Redirects](#redirects)).
 - **Custom CSS:** CSS for the whole site, including Tailwind's `@apply`, in a code editor that indents, closes brackets, suggests properties and values, and finds and replaces (Ctrl+F). Tab indents; press Escape, then Tab, to leave it. It shows in the editor at once. Give a block your own class in its "CSS classes" setting, then style that class here.
 - **Code:** code that services such as Google Analytics or a site verification give you, added to every page: **In the page head** takes `<script>`, `<style>`, `<link>`, `<meta>` and `<noscript>` tags, and **At the end of the page** takes any HTML. The code never runs in the admin panel, so check it on the site once it's published. Only paste code you trust, since it can change anything on the site. On a Next.js site, inline scripts from the page head run at the start of the page rather than in its head, and none of the code runs again when visitors move between pages.
+
+Below them, after a line, the sidebar's other tabs are screens of their own: [Domain](/docs/custom-domains), [Editors](/docs/sign-in), [Updates](/docs/updates), [Site history](/docs/publishing#restoring-the-whole-site), [WordPress](/docs/move-from-wordpress) and [Security](/docs/security).
 
 ## Dark mode
 

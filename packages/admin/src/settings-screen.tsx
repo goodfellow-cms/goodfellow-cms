@@ -46,7 +46,6 @@ import { describeContrast } from "./site-checks.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { useDarkMode } from "./theme.js";
 import { Button, ErrorMessage, Field, PublishedNotice, TextField, useDebounced } from "./ui.js";
-import { AppLink } from "./use-link.js";
 import { useSitePages } from "./use-site-pages.js";
 
 export type SettingsTab = "general" | "languages" | "theme" | "menus" | "redirects" | "css" | "code";
@@ -653,46 +652,6 @@ function CodeTab({
 }
 
 /**
- * The Site settings screens' tabs. Switching between the form's tabs keeps
- * unpublished changes, so it doesn't ask first; going to Domain, which has
- * nothing to publish, asks as leaving any screen does.
- */
-export function SettingsTabs({
-  tab,
-}: {
-  tab: SettingsTab | "domain" | "editors" | "updates" | "history" | "import" | "security";
-}) {
-  const t = useStrings();
-  return (
-    <nav className="gfa-tabs" aria-label={t("settings.title")}>
-      {SETTINGS_TABS.map((name) => (
-        <a key={name} href={`#/settings/${name}`} className="gfa-tab" aria-current={name === tab ? "page" : undefined}>
-          {t(tabLabels[name])}
-        </a>
-      ))}
-      <AppLink href="#/settings/domain" className="gfa-tab" aria-current={tab === "domain" ? "page" : undefined}>
-        {t("settings.tab.domain")}
-      </AppLink>
-      <AppLink href="#/settings/editors" className="gfa-tab" aria-current={tab === "editors" ? "page" : undefined}>
-        {t("settings.tab.editors")}
-      </AppLink>
-      <AppLink href="#/settings/updates" className="gfa-tab" aria-current={tab === "updates" ? "page" : undefined}>
-        {t("settings.tab.updates")}
-      </AppLink>
-      <AppLink href="#/settings/history" className="gfa-tab" aria-current={tab === "history" ? "page" : undefined}>
-        {t("settings.tab.history")}
-      </AppLink>
-      <AppLink href="#/settings/import" className="gfa-tab" aria-current={tab === "import" ? "page" : undefined}>
-        {t("settings.tab.import")}
-      </AppLink>
-      <AppLink href="#/settings/security" className="gfa-tab" aria-current={tab === "security" ? "page" : undefined}>
-        {t("settings.tab.security")}
-      </AppLink>
-    </nav>
-  );
-}
-
-/**
  * Site settings, theme, menus, custom CSS and the site's own code, with a live
  * preview of the home page (without the code, which never runs in the admin
  * panel). Publishing saves every changed file in one go.
@@ -838,7 +797,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     <div className="gfa-split">
       <div className="gfa-split-main">
         <div className="gfa-screen-header">
-          <h1>{t("settings.title")}</h1>
+          <h1>{t(tabLabels[tab])}</h1>
           <div className="gfa-header-actions">
             <Button variant="ghost" title={t("action.undoHint")} disabled={!history.canUndo} onClick={history.undo}>
               {t("action.undo")}
@@ -868,8 +827,6 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
             }
           />
         )}
-
-        <SettingsTabs tab={tab} />
 
         {tab === "general" && (
           <GeneralTab

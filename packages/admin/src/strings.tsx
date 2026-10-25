@@ -685,6 +685,8 @@ export const defaultStrings = {
   "settings.tab.css": "Custom CSS",
   "settings.tab.code": "Code",
   "settings.tab.redirects": "Redirects",
+  "settings.sidebar.collapse": "Hide names",
+  "settings.sidebar.expand": "Show names",
   "settings.tab.domain": "Domain",
   "settings.message": "Update site settings",
   "settings.preview": "Preview of the home page",
