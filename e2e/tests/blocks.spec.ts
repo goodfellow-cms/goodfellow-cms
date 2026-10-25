@@ -40,9 +40,14 @@ async function editorHas(page: Page, block: string) {
   await expect
     .poll(
       async () => {
-        const html = await (await page.request.get("/admin/editor/")).text();
-        const script = /<script src="([^"]+)"/.exec(html)?.[1];
-        return script ? (await (await page.request.get(script)).text()).includes(JSON.stringify(block)) : false;
+        try {
+          const html = await (await page.request.get("/admin/editor/")).text();
+          const script = /<script src="([^"]+)"/.exec(html)?.[1];
+          return script ? (await (await page.request.get(script)).text()).includes(JSON.stringify(block)) : false;
+        } catch {
+          // The server can drop a request while it rebuilds the frames, so ask again.
+          return false;
+        }
       },
       { timeout: 30_000 },
     )
