@@ -1,5 +1,48 @@
 # @goodfellow-cms/mcp
 
+## 0.5.0
+
+### Minor Changes
+
+- 9b96dd3: The editor's sandbox. The admin panel's page, which signs in and publishes, no longer loads the site's config or any block's code: Puck, the config and every block run in frames sandboxed without `allow-same-origin`, which talk to the page through one message port, so blocks can't reach editors' tokens or AI keys. The page draws the editor's header, Undo and Redo, preview widths, Publish and the AI panel outside the frame; the Settings, Version history and Site history previews, the pages rendered to check a publish and the preview page for screenshots are frames too. The site's CSS is kept to the editor's canvas, with its width media queries as container queries, so the phone and tablet buttons show the site at those widths. The frames' Content Security Policy lets them fetch nothing and run only the site's own scripts, which first remove WebRTC.
+  
+  `Admin` takes `site` (`adminSite()` from `@goodfellow-cms/react`) and `frames` in place of `config`; `GitHost.source` lets the admin panel make the site's git host again. `goodfellow build` writes the frames' page at `admin/editor/`. Next.js sites get `app/admin/editor/page.tsx` (`GoodfellowEditor` from `@goodfellow-cms/next/editor`), their `app/admin/page.tsx` becomes a server component passing `site.admin()` to `GoodfellowAdmin`, and `goodfellow-next finish` writes the editor page's policy. An `app/admin/page.tsx` that still passes `config` loads every block's code itself, so the admin panel only says how to update it there and never signs in; `goodfellow-next update` replaces it with the starter's, and adds the editor page, wherever nobody has changed it, on its first run after this release. Every frame is sandboxed with `allow-scripts` alone, in `goodfellow dev` and `next dev` too: they bundle the frames as builds do, rebuild them as the site's code changes and reload the frames, leaving the admin panel's page as it is. `@goodfellow-cms/next` depends on Rolldown for that, loaded only in `next dev`.
+- 74bb2ad: Scheduled publishing: pages and collection items can be shown from a time and hidden after one (`showFrom` and `hideAfter` in their files, in the site's time zone), which builds, `goodfellow dev` and Next.js apply, leaving menus' links to them out until they're shown. The admin panel schedules pages from the Pages screen and items in their editor, lists what's coming up, and warns that scheduled content can be read early on a public repository. On GitLab it adds a pipeline schedule at each time, so changes go live then; the starters' new `.github/workflows/scheduled.yml` checks each hour with the new `goodfellow due` command and builds the site only when something has come due. Letting editors publish on GitLab now lets Developers merge too, which adding those schedules needs.
+- 884a0be: Sites in several languages. Add languages in Site Settings → Languages, each with the site's name and description in it; its pages go under its code, such as `/es/about`. The Pages screen and collections' lists translate pages and items into each language, say when a translation is out of date, and the AI assistant can translate a page or item. Each language can have menus of its own, the new Language switch block links to the page in each language, and pages say their language, link to their translations with `hreflang`, and are listed with them in the sitemap. Search finds only pages in the page's own language, and lists, feeds and calendars show only that language's items.
+
+### Patch Changes
+
+- 93c5b2c: Goodfellow needs Node.js 22.23.4, 24.22.1 or 26.12.1 or later. Earlier versions decompress Brotli unsafely (CVE-2026-111497, "Node2Shell"). Builds read other sites, such as Calendar blocks' feeds, so a feed's server could run code on the computer building the site. New sites' GitHub workflows (`deploy.yml`, `scheduled.yml`) set up Node with `check-latest: true`, so they always get the newest Node 22 instead of an older copy on GitHub's runner. To do the same on an existing site, add `check-latest: true` under `node-version: 22` in each `actions/setup-node` step of its `.github/workflows/` files. GitLab's `node:22` image already has the fix. On Cloudflare Pages and Vercel, check the Node.js version in the project's build settings.
+- eb68b5d: Security updates: Vite 8.3.4 for `goodfellow dev` and `goodfellow build`, and the MCP TypeScript SDK 1.32.1 for the Claude connector's tools, both fixing published advisories.
+- Updated dependencies [043358b]
+- Updated dependencies [938e468]
+- Updated dependencies [e819602]
+- Updated dependencies [ba80f97]
+- Updated dependencies [e62801d]
+- Updated dependencies [38dcc3a]
+- Updated dependencies [9b96dd3]
+- Updated dependencies [1590ea2]
+- Updated dependencies [78d29e5]
+- Updated dependencies [11d4f6a]
+- Updated dependencies [564d1dc]
+- Updated dependencies [93c5b2c]
+- Updated dependencies [0b4972a]
+- Updated dependencies [2901de0]
+- Updated dependencies [8ac5d0e]
+- Updated dependencies [200f868]
+- Updated dependencies [74bb2ad]
+- Updated dependencies [91b9a4c]
+- Updated dependencies [fd00d26]
+- Updated dependencies [22ab254]
+- Updated dependencies [884a0be]
+- Updated dependencies [31217e1]
+- Updated dependencies [f9a405e]
+- Updated dependencies [e1e236d]
+  - @goodfellow-cms/core@0.5.0
+  - @goodfellow-cms/github@0.5.0
+  - @goodfellow-cms/gitlab@0.5.0
+  - @goodfellow-cms/ai@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes

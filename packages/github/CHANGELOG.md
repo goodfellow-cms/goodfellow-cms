@@ -1,5 +1,53 @@
 # @goodfellow-cms/github
 
+## 0.5.0
+
+### Minor Changes
+
+- 043358b: Add a token broker from the admin panel: Site Settings' Security tab makes the broker's repository from Goodfellow's released page, with a token that can create repositories, and puts it online with GitHub Pages (at a domain of its own) or GitLab Pages (at the project's unique domain), or leaves it ready for Cloudflare Pages or Vercel. `goodfellow broker add`, `use` and `remove` do the same from a computer. `create-goodfellow` (`--admin`, `--broker`, `--broker-domain`) and the setup page offer an admin address or a sign-in page of its own for new sites. The docs have a new Security page.
+- 938e468: An address of its own for the admin panel, such as `admin.example.org`, so the site's pages can't reach what it keeps. Site Settings' Domain screen sets it on GitLab Pages, Cloudflare Pages and Vercel, writing the config's new `admin` line: `goodfellow build` and `goodfellow-next finish` then start every page with a script that sends it to the Site address when it's opened at the admin address, fail if a page can't start with it, and write Cloudflare Pages' header rules, while the starters' `vercel.ts` and `withGoodfellow()` give Vercel's. Once the admin panel has checked the address from there, it opens only there and refuses to be shown in a frame. The sign-in worker gives tokens to the admin address too. The Blocks screen offers blocks from the config's `registries`, and shadcn/ui's own, only at a checked admin address and in `goodfellow dev` and `next dev`. GitLab's backend can publish files outside the editable folders, such as the config.
+- e819602: Cloudflare Pages as a host. `create-goodfellow --host cloudflare-pages` and the setup page give a site a nightly update and rebuild, and the checks for scheduled changes, on GitHub Actions or GitLab CI, which ask Cloudflare to rebuild through the project's deploy hook (`CLOUDFLARE_DEPLOY_HOOK`). The admin panel shows when Cloudflare has built the site, from its check runs and commit statuses, and GitHub token links ask for Commit statuses. `goodfellow build` and `goodfellow-next finish` write `_redirects`, so Cloudflare sends the site's redirects itself. The Domain screen explains connecting a domain in Cloudflare, and the media library notes Cloudflare's terms for videos.
+- e62801d: Drafts in the admin panel. The editors' **Add to draft**, beside **Publish**, keeps a change on a draft branch instead of publishing it, and while a draft is open every Publish adds to it. A bar on every screen shows the draft, with **Publish all**, which runs the site checks over everything in it and publishes it in one change with one rebuild, **Submit for review**, **Throw away** and **Back to the live site**. Drafts stay when the tab closes, other editors see them, and ones started from Claude can be finished there. Full-stack sites, demos and the development servers keep the draft in the browser instead (`keptDrafts()`). Drafts can be listed (`SiteDrafts.list()`), list the files they changed (`Draft.paths()`), and start at a given revision (`create(name, { from })`). The starters' `vercel.ts` turns off Vercel's previews of draft branches; existing sites on Vercel can add its `git: { deploymentEnabled: { "goodfellow-draft-*": false } }` line, and sites on Cloudflare Pages can set preview branches to None.
+- 9b96dd3: The editor's sandbox. The admin panel's page, which signs in and publishes, no longer loads the site's config or any block's code: Puck, the config and every block run in frames sandboxed without `allow-same-origin`, which talk to the page through one message port, so blocks can't reach editors' tokens or AI keys. The page draws the editor's header, Undo and Redo, preview widths, Publish and the AI panel outside the frame; the Settings, Version history and Site history previews, the pages rendered to check a publish and the preview page for screenshots are frames too. The site's CSS is kept to the editor's canvas, with its width media queries as container queries, so the phone and tablet buttons show the site at those widths. The frames' Content Security Policy lets them fetch nothing and run only the site's own scripts, which first remove WebRTC.
+  
+  `Admin` takes `site` (`adminSite()` from `@goodfellow-cms/react`) and `frames` in place of `config`; `GitHost.source` lets the admin panel make the site's git host again. `goodfellow build` writes the frames' page at `admin/editor/`. Next.js sites get `app/admin/editor/page.tsx` (`GoodfellowEditor` from `@goodfellow-cms/next/editor`), their `app/admin/page.tsx` becomes a server component passing `site.admin()` to `GoodfellowAdmin`, and `goodfellow-next finish` writes the editor page's policy. An `app/admin/page.tsx` that still passes `config` loads every block's code itself, so the admin panel only says how to update it there and never signs in; `goodfellow-next update` replaces it with the starter's, and adds the editor page, wherever nobody has changed it, on its first run after this release. Every frame is sandboxed with `allow-scripts` alone, in `goodfellow dev` and `next dev` too: they bundle the frames as builds do, rebuild them as the site's code changes and reload the frames, leaving the admin panel's page as it is. `@goodfellow-cms/next` depends on Rolldown for that, loaded only in `next dev`.
+- 564d1dc: Sites rebuild overnight only when visitors would see something new. Every build writes `goodfellow-build.json` with what it was built from and when what it shows by today's date next changes, and the starters' setups run `goodfellow nightly` (or `goodfellow-next nightly`) first each night, building only when there are fixes to install, something dated has changed, or the live site isn't the newest build. On GitLab Pages, a night with nothing new publishes the live site's files again. The Updates screen lets owners choose to rebuild overnight only when something changed, every night or never, and has Rebuild now. On GitHub the choice is the `GOODFELLOW_NIGHTLY` repository variable, which the sign-in service's owners' app now asks for the Variables permission to set.
+- 8ac5d0e: Restore the whole site as it was at an earlier publish, from Site Settings → Site history: every publish that changed the site's pages, items, settings or media, how the site looked after each, with its pictures, what has changed since, and restoring everything in `content/` and `public/media/` in one publish. Backends gain `filesAt(revision)`, which reads the site's files as they were, and `history()` lists a folder's publishes as well as a file's.
+- 200f868: Safer builds on GitHub: every job in the starters' workflows, and in the ones new sites get, has only the permissions it needs. The jobs that run the site's code can only read the repository and keep no credentials in it, and the nightly update builds the site before a separate job, which runs none of its code, publishes it (`goodfellow update --commit`). Sites' `.npmrc` turns off packages' install scripts. The admin panel's page has a Content Security Policy that keeps its frames on the editor's pages. Existing sites can copy the starter's `.github/workflows/` and `.npmrc` to get the same.
+- 74bb2ad: Scheduled publishing: pages and collection items can be shown from a time and hidden after one (`showFrom` and `hideAfter` in their files, in the site's time zone), which builds, `goodfellow dev` and Next.js apply, leaving menus' links to them out until they're shown. The admin panel schedules pages from the Pages screen and items in their editor, lists what's coming up, and warns that scheduled content can be read early on a public repository. On GitLab it adds a pipeline schedule at each time, so changes go live then; the starters' new `.github/workflows/scheduled.yml` checks each hour with the new `goodfellow due` command and builds the site only when something has come due. Letting editors publish on GitLab now lets Developers merge too, which adding those schedules needs.
+
+### Patch Changes
+
+- 93c5b2c: Goodfellow needs Node.js 22.23.4, 24.22.1 or 26.12.1 or later. Earlier versions decompress Brotli unsafely (CVE-2026-111497, "Node2Shell"). Builds read other sites, such as Calendar blocks' feeds, so a feed's server could run code on the computer building the site. New sites' GitHub workflows (`deploy.yml`, `scheduled.yml`) set up Node with `check-latest: true`, so they always get the newest Node 22 instead of an older copy on GitHub's runner. To do the same on an existing site, add `check-latest: true` under `node-version: 22` in each `actions/setup-node` step of its `.github/workflows/` files. GitLab's `node:22` image already has the fix. On Cloudflare Pages and Vercel, check the Node.js version in the project's build settings.
+- 2901de0: A publish made while a GitLab Pages site is still building now cancels that build and builds both, so publishing several pages one after another mostly costs one build: the starters' and the content repository's GitLab Pages jobs are `interruptible`. The admin panel no longer reports a build that a newer publish cancelled or replaced as failed, on GitLab or GitHub: it follows the newer build instead.
+  
+  Existing sites on GitLab Pages can add `interruptible: true` to the `pages` job in their `.gitlab-ci.yml` to get the same.
+- Updated dependencies [043358b]
+- Updated dependencies [938e468]
+- Updated dependencies [e819602]
+- Updated dependencies [ba80f97]
+- Updated dependencies [e62801d]
+- Updated dependencies [38dcc3a]
+- Updated dependencies [9b96dd3]
+- Updated dependencies [1590ea2]
+- Updated dependencies [78d29e5]
+- Updated dependencies [11d4f6a]
+- Updated dependencies [564d1dc]
+- Updated dependencies [93c5b2c]
+- Updated dependencies [0b4972a]
+- Updated dependencies [2901de0]
+- Updated dependencies [8ac5d0e]
+- Updated dependencies [200f868]
+- Updated dependencies [74bb2ad]
+- Updated dependencies [91b9a4c]
+- Updated dependencies [fd00d26]
+- Updated dependencies [22ab254]
+- Updated dependencies [884a0be]
+- Updated dependencies [31217e1]
+- Updated dependencies [f9a405e]
+- Updated dependencies [e1e236d]
+  - @goodfellow-cms/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

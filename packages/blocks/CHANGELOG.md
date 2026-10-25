@@ -1,5 +1,46 @@
 # @goodfellow-cms/blocks
 
+## 0.5.0
+
+### Minor Changes
+
+- 11d4f6a: More for sites in several languages. Header & Footer picks a language and gives it a header or footer of its own. The page and item editors have a language menu that opens their translations, or makes one. The site checks suggest translating pages and items that have no translation or an out-of-date one, when a publish brings them, and builds list them. Events and stories say their language in their structured data. In Next.js, the header and footer stay in the shared layout, one for each language, and the browser shows the page's.
+- 564d1dc: Sites rebuild overnight only when visitors would see something new. Every build writes `goodfellow-build.json` with what it was built from and when what it shows by today's date next changes, and the starters' setups run `goodfellow nightly` (or `goodfellow-next nightly`) first each night, building only when there are fixes to install, something dated has changed, or the live site isn't the newest build. On GitLab Pages, a night with nothing new publishes the live site's files again. The Updates screen lets owners choose to rebuild overnight only when something changed, every night or never, and has Rebuild now. On GitHub the choice is the `GOODFELLOW_NIGHTLY` repository variable, which the sign-in service's owners' app now asks for the Variables permission to set.
+- 0b4972a: Site checks on rendered pages, finishing roadmap step 26. Publishing warns about images without a description, headings that skip a level and links whose text, such as "Click here", doesn't say where they go, on the pages it changes as they'll show. `goodfellow build`, and `goodfellow-next finish` for Next.js sites, check every built page for those and with axe-core's accessibility rules, explained in plain words, and say that automated checks find only some problems. Core's new `@goodfellow-cms/core/accessibility` entry has `checkBuiltPages()` and `reportSiteProblems()`, and `renderedProblems()` is in the main entry.
+  
+  Blocks' output is more accessible: the Image block has an "Only decoration" setting; logos beside the site's name and Collection list's pictures are marked as decoration; Collection list's item titles are level 2 headings when the list has no heading of its own, and Calendar's days are level 2; photo credits are no longer an `<aside>` inside the page's main content.
+- 884a0be: Sites in several languages. Add languages in Site Settings → Languages, each with the site's name and description in it; its pages go under its code, such as `/es/about`. The Pages screen and collections' lists translate pages and items into each language, say when a translation is out of date, and the AI assistant can translate a page or item. Each language can have menus of its own, the new Language switch block links to the page in each language, and pages say their language, link to their translations with `hreflang`, and are listed with them in the sitemap. Search finds only pages in the page's own language, and lists, feeds and calendars show only that language's items.
+
+### Patch Changes
+
+- 93c5b2c: Goodfellow needs Node.js 22.23.4, 24.22.1 or 26.12.1 or later. Earlier versions decompress Brotli unsafely (CVE-2026-111497, "Node2Shell"). Builds read other sites, such as Calendar blocks' feeds, so a feed's server could run code on the computer building the site. New sites' GitHub workflows (`deploy.yml`, `scheduled.yml`) set up Node with `check-latest: true`, so they always get the newest Node 22 instead of an older copy on GitHub's runner. To do the same on an existing site, add `check-latest: true` under `node-version: 22` in each `actions/setup-node` step of its `.github/workflows/` files. GitLab's `node:22` image already has the fix. On Cloudflare Pages and Vercel, check the Node.js version in the project's build settings.
+- Updated dependencies [043358b]
+- Updated dependencies [938e468]
+- Updated dependencies [e819602]
+- Updated dependencies [ba80f97]
+- Updated dependencies [e62801d]
+- Updated dependencies [38dcc3a]
+- Updated dependencies [9b96dd3]
+- Updated dependencies [1590ea2]
+- Updated dependencies [78d29e5]
+- Updated dependencies [11d4f6a]
+- Updated dependencies [564d1dc]
+- Updated dependencies [93c5b2c]
+- Updated dependencies [0b4972a]
+- Updated dependencies [2901de0]
+- Updated dependencies [8ac5d0e]
+- Updated dependencies [200f868]
+- Updated dependencies [74bb2ad]
+- Updated dependencies [91b9a4c]
+- Updated dependencies [fd00d26]
+- Updated dependencies [22ab254]
+- Updated dependencies [884a0be]
+- Updated dependencies [31217e1]
+- Updated dependencies [f9a405e]
+- Updated dependencies [e1e236d]
+  - @goodfellow-cms/core@0.5.0
+  - @goodfellow-cms/react@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes

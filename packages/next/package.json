@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/next",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Goodfellow pages and the admin panel in a Next.js site.",
   "keywords": [
     "goodfellow",
