@@ -144,6 +144,17 @@ describe("a plugin's admin frame", () => {
     expect(page.indexOf("Content-Security-Policy")).toBeLessThan(page.indexOf("plugin.css"));
     expect(page).toContain('<script src="plugin.js"></script>');
   });
+
+  it("loads the theme's Google Fonts only where the plugin draws a page editor, as the editor's frames do", () => {
+    expect(pluginPolicy({})).toContain("font-src 'self' data:");
+    expect(pluginPolicy({})).not.toContain("googleapis");
+    const editor = pluginPolicy({}, { editor: true });
+    expect(editor).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;");
+    expect(editor).toContain("font-src 'self' https://fonts.gstatic.com data:;");
+    expect(editor).toContain("connect-src 'none'");
+    const page = pluginFramePage({ permissions: {}, scripts: ["plugin.js"], stylesheets: [], editor: true });
+    expect(page).toContain("https://fonts.gstatic.com");
+  });
 });
 
 describe("a plugin in the site's description", () => {

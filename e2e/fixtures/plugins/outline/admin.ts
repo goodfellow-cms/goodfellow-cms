@@ -106,12 +106,13 @@ export default definePluginAdmin({
           drawn.innerHTML = await session.draw({ type: "Script", props: { id: "Script-1" } });
         }),
         button("Load the site's styles", async () => {
-          const { stylesheets, tailwind } = await session.styles();
+          const { stylesheets, tailwind, fonts } = await session.styles();
           const theme = stylesheets.some((css) => css.includes("--primary:"));
           const classes = tailwind.includes("--color-primary")
             ? ", and Tailwind's source with the theme's classes"
             : "";
-          status.textContent = `${stylesheets.length} stylesheets${theme ? ", with the theme" : ""}${classes}`;
+          const fontsNote = fonts?.startsWith("https://fonts.googleapis.com/") ? ", and the theme's fonts" : "";
+          status.textContent = `${stylesheets.length} stylesheets${theme ? ", with the theme" : ""}${classes}${fontsNote}`;
         }),
         status,
         drawn,

@@ -415,6 +415,13 @@ export interface PluginEditorStyles {
    * previews do the same.
    */
   tailwind: string;
+  /**
+   * The theme's Google Fonts stylesheet (`googleFontsUrl()`), if it uses any,
+   * to load with a `<link rel="stylesheet">` where blocks are shown: the
+   * stylesheets name the fonts but don't load them. An editor plugin's frame
+   * may load it, and the fonts it names.
+   */
+  fonts?: string;
 }
 
 /** What an editor plugin says about itself as it changes. */
@@ -790,15 +797,21 @@ export function pluginFrameUrl(editorUrl: string, id: string): string {
  * editor's frames, it's sandboxed without `allow-same-origin`, so it never
  * reaches the admin panel's sign-in, and can still leave for another address,
  * so the policy limits what it can send while it's there without sealing it.
+ * An editor plugin's frame may also load the theme's Google Fonts, as the
+ * editor's frames do, to show the site's blocks in them
+ * (`PluginEditorStyles.fonts`).
  */
-export function pluginPolicy(permissions: PluginPermissions): string {
+export function pluginPolicy(permissions: PluginPermissions, options: { editor?: boolean } = {}): string {
   const connect = (permissions.connect ?? []).filter(isPluginOrigin);
   const reach = connect.length > 0 ? ` ${connect.join(" ")}` : "";
+  const fonts = options.editor
+    ? { style: " https://fonts.googleapis.com", font: " https://fonts.gstatic.com" }
+    : undefined;
   return [
     "default-src 'none'",
     "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "font-src 'self' data:",
+    `style-src 'self' 'unsafe-inline'${fonts?.style ?? ""}`,
+    `font-src 'self'${fonts?.font ?? ""} data:`,
     `img-src 'self' data: blob:${reach}`,
     `media-src 'self' blob:${reach}`,
     `connect-src ${connect.length > 0 ? connect.join(" ") : "'none'"}`,
@@ -822,12 +835,14 @@ export function pluginFramePage(options: {
   stylesheets: readonly string[];
   /** The notices of what its script bundles (`LICENSES_FILE` in `@goodfellow-cms/core/node`). */
   licenses?: string;
+  /** Whether the plugin draws a page editor (`editor`), whose frame may load the theme's fonts. */
+  editor?: boolean;
 }): string {
   return [
     "<!DOCTYPE html>",
     '<html lang="en">',
     "  <head>",
-    `    <meta http-equiv="Content-Security-Policy" content="${escapeAttribute(pluginPolicy(options.permissions))}" />`,
+    `    <meta http-equiv="Content-Security-Policy" content="${escapeAttribute(pluginPolicy(options.permissions, { editor: options.editor }))}" />`,
     '    <meta charset="utf-8" />',
     '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
     '    <meta name="robots" content="noindex" />',

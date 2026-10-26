@@ -125,6 +125,7 @@ export async function buildPluginFrame(
         scripts: ["plugin.js"],
         stylesheets: ["plugin.css"],
         licenses: LICENSES_FILE,
+        editor: Boolean(plugin.editor),
       }),
     );
   };
