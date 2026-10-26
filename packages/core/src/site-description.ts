@@ -119,6 +119,9 @@ const descriptionSchema = z.object({
         tasks: z.array(z.object({ id: z.string(), title: z.string().optional() })).optional(),
         server: z.boolean().optional(),
         mediaStorage: z.object({ maxBytes: z.number().optional() }).optional(),
+        editor: z
+          .object({ title: z.string(), kinds: z.array(z.enum(["page", "header", "footer", "template"])) })
+          .optional(),
         options: z.record(z.string(), z.unknown()).optional(),
       }),
     )

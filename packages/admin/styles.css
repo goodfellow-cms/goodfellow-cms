@@ -1046,6 +1046,17 @@ body,
   gap: 4px;
 }
 
+/* Tools an editor plugin doesn't have, such as Puck's sidebars and preview widths. */
+.gfa-editor-tools[hidden] {
+  display: none;
+}
+
+/* Which editor to edit with, where the site has editor plugins. */
+.gfa-editor-choice {
+  font-size: 13px;
+  color: var(--gfa-muted);
+}
+
 .gfa-editor-tools .gfa-button[aria-pressed="true"],
 .gfa-header-actions .gfa-button[aria-pressed="true"] {
   background: var(--gfa-current-bg);

@@ -6,19 +6,40 @@
  * declared, and treats everything it sends as the plugin's code may have
  * written it.
  */
-import type { PluginDescription, PluginMediaReady, PluginSecretsHelp } from "@goodfellow-cms/core";
+import type {
+  PluginDescription,
+  PluginEditorData,
+  PluginEditorSession,
+  PluginEditorState,
+  PluginMediaReady,
+  PluginSecretsHelp,
+  PluginSharePreview,
+} from "@goodfellow-cms/core";
 
 /** A plugin's frame sends this to the admin panel's page once it's listening, and the page answers with a port. */
 export const PLUGIN_READY_MESSAGE = "goodfellow:plugin-ready";
 
-/** What a plugin's frame is for: answering its services, hidden, or showing one of its screens. */
-export type PluginFrameMode = "service" | "screen";
+/** What a plugin's frame is for: answering its services, hidden, showing one of its screens, or its page editor. */
+export type PluginFrameMode = "service" | "screen" | "editor";
+
+/** What an editor plugin's frame opens: its session, without the functions, which the frame's runtime adds. */
+export type PluginFrameEditorOpen = Omit<PluginEditorSession, "change" | "chooseMedia" | "sharePreview">;
+
+/** What an editor plugin's frame says it can do once it's open, for the admin panel's header. */
+export interface PluginFrameEditorOpened {
+  /** Whether it takes changes from outside, such as the AI assistant's. */
+  set: boolean;
+  /** Whether it has Undo and Redo for the header's buttons. */
+  undo: boolean;
+}
 
 /** Everything a plugin's frame starts with (`init`). */
 export interface PluginFrameInit {
   mode: PluginFrameMode;
   /** The screen to show, by the id the plugin declared. */
   screen?: string;
+  /** What its page editor opens, in `editor` mode. */
+  editor?: PluginFrameEditorOpen;
   plugin: PluginDescription;
   /** The live site's address. */
   siteUrl: string;
@@ -33,7 +54,8 @@ export type PluginFrameChange =
 
 /** What the page asks a plugin's frame. */
 export interface PluginFrameRequests {
-  init(init: PluginFrameInit): void;
+  /** Starts the frame; an editor plugin's says what its editor can do. */
+  init(init: PluginFrameInit): PluginFrameEditorOpened | undefined;
   theme(choice: PluginFrameInit["theme"]): void;
   /** Calls one of its services, for a block in the editor. */
   call(params: { method: string; args: unknown[] }): unknown;
@@ -43,6 +65,12 @@ export interface PluginFrameRequests {
   "media.upload"(params: { files: PluginFrameMediaFile[] }): void;
   /** For a plugin that keeps media: removes files the site no longer lists. */
   "media.remove"(params: { addresses: string[] }): void;
+  /** For an editor plugin: what's edited now, as Publish publishes it. */
+  "editor.data"(): PluginEditorData;
+  /** For an editor plugin that takes changes from outside: replaces what's edited. */
+  "editor.set"(data: PluginEditorData): void;
+  "editor.undo"(): void;
+  "editor.redo"(): void;
 }
 
 /** A file for media storage as it crosses the port, its contents a `Blob`, so a long video isn't read into memory first. */
@@ -72,4 +100,10 @@ export interface PluginPageRequests {
   "secrets.help"(): PluginSecretsHelp[];
   /** Opens one of the links `secrets.help` gave in a new tab, which the frame's sandbox can't. */
   "secrets.open"(params: { url: string }): void;
+  /** An editor plugin's frame says what's edited now, as it changes. Only editor frames may. */
+  "editor.change"(params: { data: PluginEditorData; state?: PluginEditorState }): void;
+  /** Opens the media library for an editor plugin, answering with the address chosen, or `null`. Only editor frames may. */
+  "media.choose"(params: { kind: "image" | "video" | "audio" | "file"; value?: string }): string | null;
+  /** How a link to the page edited looks when it's shared. Only editor frames may. */
+  "editor.sharePreview"(params: { root: PluginEditorData["root"] }): PluginSharePreview;
 }

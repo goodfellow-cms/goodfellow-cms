@@ -97,6 +97,7 @@ export function gallery(options: { columns?: number } = {}) {
 - **`tasks`** run in the site's CI when the admin module asks, with the secrets the plugin declared (see [Tasks](#tasks)).
 - **`server`** names the module that answers requests on full-stack sites.
 - **`mediaStorage`** says it keeps the site's media outside the repository, as [S3 storage](#keeping-media) does, with the largest file it takes as `maxBytes`.
+- **`editor`** says its admin module draws a page editor that people can choose in place of the standard one, with the `title` they choose it by and the `kinds` it edits (see [A page editor of its own](#a-page-editor-of-its-own)).
 - **`options`** is anything else the site's config chooses for it, as JSON, which its admin module reads as `api.plugin.options`, such as more services to offer. It's published with the site's description, so never put secrets in it.
 
 A plugin kept in the site's own repository, such as one only that site uses, is a folder with the same files, named with paths from the site's root.
@@ -228,6 +229,50 @@ export default definePluginAdmin({
 ```
 
 Its screens turn it on by publishing `content/media-storage.json` (declared in its `files`), with the plugin's name and the public address it keeps files at. The admin panel then lists every file it keeps there, by the `/media/…` address content uses, and builds show those files from that address, so pages never change when the site's media moves. The Media screen offers to move the site's own files to it and back, and the Plugins screen won't remove it while it keeps files the site shows.
+
+## A page editor of its own
+
+A plugin with `editor` offers a page editor of its own, such as one people already know from elsewhere. Each person editing the site chooses it, or the standard editor, from **Editor** in the editor's header, and their browser remembers the choice. It edits pages unless it lists other `kinds`: `"header"`, `"footer"` and `"template"` (collections' templates) are the others. Items' fields are always edited in the standard editor.
+
+```ts
+definePlugin({
+  name: "goodfellow-plugin-outline",
+  title: "Outline",
+  admin: "goodfellow-plugin-outline/admin",
+  editor: { title: "Outline editor", kinds: ["page", "header", "footer"] },
+});
+```
+
+Its admin module's `editor` draws the editor in the plugin's frame, sandboxed away from the admin panel's sign-in like every plugin's frame, which fills the space Puck would. The admin panel keeps the header: Publish, Add to draft, the AI assistant, and Undo and Redo where the editor has them.
+
+```ts
+export default definePluginAdmin({
+  editor: {
+    mount(element, session, api) {
+      // session.data is what's edited, as Puck keeps it: the page's settings (root.props) and its
+      // blocks, with blocks inside blocks in their slots. session.blocks are the blocks it may use,
+      // with their fields as JSON; session.root the page settings' fields.
+      // Say what's edited whenever it changes, so the admin panel knows there's something to publish:
+      session.change(data, { past: true, future: false, selected: "Heading-1" });
+      // Choose media from the media library, and see how a link to the page looks when shared:
+      // await session.chooseMedia("image");
+      // await session.sharePreview(data.root);
+      return {
+        data: () => data, // what Publish publishes; without it, the last change()
+        set: (next) => {}, // takes the AI assistant's changes; without it, the AI assistant isn't offered
+        undo: () => {},
+        redo: () => {},
+      };
+    },
+  },
+});
+```
+
+The session also carries the page's `kind`, `path`, `title` and `language`, the site's settings, its pages for links, and for a template, the collection whose fields its `{name}` placeholders fill in. The editor never sees the site's blocks' code, only their fields, so it draws them from those.
+
+What it hands back is checked before anything is published: only the site's blocks (template-only blocks only in templates), each value fitting its field, every block with an id of its own, and nothing a block doesn't have unless it was already there, unchanged, when the editor opened. Anything else isn't published, and the admin panel says so, with the details. Switching back to the standard editor keeps what was edited, when it passes the same check.
+
+Installing an editor plugin from the Plugins screen says it offers a page editor, since it's given what people edit in it, and an installed plugin that later asks to edit another kind of page needs approving again.
 
 ## On full-stack sites' servers
 

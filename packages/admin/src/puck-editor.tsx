@@ -4,15 +4,29 @@
  * this draws the editor's header around it, with Publish, which only this page
  * can do, and the AI assistant, which keeps editors' keys out of the frame.
  */
-import { type Collection, type FileChange, serializeContent } from "@goodfellow-cms/core";
+import {
+  type Collection,
+  checkEditedData,
+  describedConfig,
+  type FileChange,
+  type PluginEditorKind,
+  serializeContent,
+} from "@goodfellow-cms/core";
 import { cx } from "@goodfellow-cms/react";
 import type { Config, Data, UiState } from "@puckeditor/core";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin } from "./admin-context.js";
 import { AiPanel } from "./ai-panel.js";
 import { storedData } from "./changes.js";
+import { applyEditorChange, findBlock } from "./editor-change.js";
 import { type FrameClient, useFrame, useFrameUpdates } from "./frame/host.js";
 import type { EditorChange, EditorOpen, EditorState } from "./frame/protocol.js";
+import {
+  type PluginEditorChange,
+  PluginEditorFrame,
+  type PluginEditorHandle,
+  useEditorChoice,
+} from "./plugin-editor.js";
 import { useUnsavedChanges } from "./router.js";
 import { useStrings } from "./strings.js";
 import { Button, ErrorMessage, PublishedNotice } from "./ui.js";
@@ -92,9 +106,14 @@ export function PuckEditor({
 }: PuckEditorProps) {
   const t = useStrings();
   const { site, publish, reload, drafts } = useAdmin();
+  // An editor plugin chosen in this browser, for what it edits, in place of Puck.
+  const editors = useEditorChoice(site.description, kind);
+  const plugin = editors.chosen;
+  const editorName = plugin?.editor?.title ?? plugin?.title ?? "";
+  const [pluginEditor, setPluginEditor] = useState<{ handle: PluginEditorHandle; opened: Data }>();
   const [status, setStatus] = useState<
     | { type: "idle" | "publishing" | "done" }
-    | { type: "invalid"; message: string }
+    | { type: "invalid"; message: string; details?: string }
     | { type: "failed"; reason: "conflict" | "error"; error: unknown }
   >({ type: "idle" });
 
@@ -159,11 +178,75 @@ export function PuckEditor({
     serializeContent(storedData(state.data)) !== published.current;
   useUnsavedChanges(dirty);
 
+  /** What an editor plugin has now, if it's something the site can publish, or why not. */
+  const pluginData = useCallback(
+    async (given: { handle: PluginEditorHandle; opened: Data }, fallback: Data) => {
+      const edited = await given.handle.data().catch(() => fallback);
+      return checkEditedData(edited, {
+        description: site.description,
+        kind: kind as PluginEditorKind,
+        opened: given.opened,
+      });
+    },
+    [site.description, kind],
+  );
+
+  const onPluginOpen = useCallback((handle: PluginEditorHandle, opened: Data) => {
+    setPluginEditor({ handle, opened });
+    published.current ??= serializeContent(storedData(opened));
+    latest.current.data = opened;
+    setState({
+      data: opened,
+      selected: null,
+      past: false,
+      future: false,
+      leftSideBarVisible: false,
+      rightSideBarVisible: false,
+    });
+  }, []);
+  const onPluginChange = useCallback((change: PluginEditorChange) => {
+    latest.current.data = change.data;
+    setState({
+      data: change.data,
+      selected: findBlock(change.data, change.selected),
+      past: change.past,
+      future: change.future,
+      leftSideBarVisible: false,
+      rightSideBarVisible: false,
+    });
+  }, []);
+
+  /** Changes editor, keeping what's edited: from an editor plugin, only what the site can publish. */
+  const chooseEditor = async (name: string | undefined) => {
+    if (plugin && pluginEditor) {
+      const checked = await pluginData(pluginEditor, latest.current.data);
+      latest.current.data = checked.ok ? checked.data : pluginEditor.opened;
+    }
+    setPluginEditor(undefined);
+    editors.choose(name);
+  };
+
   /** Publishes, or with `draft`, starts a draft with the change instead, where none is open (with one, every publish goes into it). */
   const onPublish = async (draft?: boolean) => {
-    if (!state || !client) return;
-    // As it is when Publish is pressed, even if the frame hasn't said so yet.
-    const next = await client.call("editor.data").catch(() => state.data);
+    if (!state) return;
+    let next: Data;
+    if (plugin) {
+      if (!pluginEditor) return;
+      const checked = await pluginData(pluginEditor, state.data);
+      if (!checked.ok) {
+        setStatus({
+          type: "invalid",
+          message: t("editor.plugin.invalid", { editor: editorName }),
+          details: checked.problems.map((problem) => `${problem.path}: ${problem.message}`).join("\n"),
+        });
+        return;
+      }
+      next = checked.data;
+    } else {
+      if (!client) return;
+      // As it is when Publish is pressed, even if the frame hasn't said so yet.
+      next = await client.call("editor.data").catch(() => state.data);
+    }
     const problem = validate?.(next);
     if (problem) {
       setStatus({ type: "invalid", message: problem });
@@ -197,18 +280,39 @@ export function PuckEditor({
   };
   const apply = useCallback(
     async (change: EditorChange) => {
+      if (plugin) {
+        const set = pluginEditor?.handle.set;
+        if (!set) throw new Error("The editor isn't ready.");
+        const next = applyEditorChange(latest.current.data, change);
+        await set(next);
+        onPluginChange({ data: next, past: true, future: false, selected: null });
+        return;
+      }
       if (!client) throw new Error("The editor isn't ready.");
       await client.call("editor.apply", change);
     },
-    [client],
+    [client, plugin, pluginEditor, onPluginChange],
   );
-  const aiOffered = site.ai !== false;
+  // Editor plugins give the AI assistant the blocks' fields from the site's description, and take its changes if they can.
+  const aiConfig = useMemo(
+    () =>
+      plugin
+        ? describedConfig(
+            site.description,
+            kind === "header" || kind === "footer" ? "layout" : kind === "template" ? "template" : "page",
+          )
+        : config,
+    [plugin, site.description, kind, config],
+  );
+  const aiOffered = site.ai !== false && (!plugin || Boolean(pluginEditor?.handle.set));
+  const undo = plugin ? pluginEditor?.handle.undo : () => void client?.call("editor.undo");
+  const redo = plugin ? pluginEditor?.handle.redo : () => void client?.call("editor.redo");
 
   return (
     <div className={cx("gfa-editor", `gfa-editor-for-${kind}`)}>
       {notice && <div className="gfa-editor-notice">{notice}</div>}
       <div className="gfa-editor-header">
-        <div className="gfa-editor-tools">
+        <div className="gfa-editor-tools" hidden={Boolean(plugin)}>
           <Button
             variant="ghost"
             className="gfa-icon-button"
@@ -241,7 +345,28 @@ export function PuckEditor({
             </>
           )}
         </h2>
-        <fieldset className="gfa-editor-tools gfa-editor-viewports" aria-label={t("editor.viewport")}>
+        {editors.plugins.length > 0 && (
+          <label className="gfa-inline-field gfa-editor-choice">
+            {t("editor.choose")}
+            <select
+              className="gfa-input"
+              value={plugin?.name ?? ""}
+              onChange={(event) => void chooseEditor(event.target.value || undefined)}
+            >
+              <option value="">{t("editor.standard")}</option>
+              {editors.plugins.map((option) => (
+                <option key={option.name} value={option.name}>
+                  {option.editor?.title ?? option.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <fieldset
+          className="gfa-editor-tools gfa-editor-viewports"
+          aria-label={t("editor.viewport")}
+          hidden={Boolean(plugin)}
+        >
           {VIEWPORTS.map((option) => (
             <Button
               key={option.label}
@@ -253,11 +378,11 @@ export function PuckEditor({
             </Button>
           ))}
         </fieldset>
-        <div className="gfa-editor-tools">
-          <Button variant="ghost" disabled={!state?.past} onClick={() => void client?.call("editor.undo")}>
+        <div className="gfa-editor-tools" hidden={!undo || !redo}>
+          <Button variant="ghost" disabled={!state?.past} onClick={() => undo?.()}>
             {t("action.undo")}
           </Button>
-          <Button variant="ghost" disabled={!state?.future} onClick={() => void client?.call("editor.redo")}>
+          <Button variant="ghost" disabled={!state?.future} onClick={() => redo?.()}>
             {t("action.redo")}
           </Button>
         </div>
@@ -289,6 +414,7 @@ export function PuckEditor({
           {status.type === "invalid" && (
             <ErrorMessage
               message={status.message}
+              error={status.details}
               action={<Button onClick={() => setStatus({ type: "idle" })}>{t("action.close")}</Button>}
             />
           )}
@@ -310,10 +436,10 @@ export function PuckEditor({
       <div className="gfa-editor-body">
         {aiOpen && aiOffered && (
           <aside className="gfa-editor-ai-panel" aria-label={t("ai.title")}>
-            {state && config ? (
+            {state && aiConfig ? (
               <AiPanel
                 context={{ kind, path, title, collection, language }}
-                editor={{ data: state.data, selected: state.selected, config, apply }}
+                editor={{ data: state.data, selected: state.selected, config: aiConfig, apply }}
               />
             ) : (
               <p className="gfa-hint">{t("loading")}</p>
@@ -321,7 +447,16 @@ export function PuckEditor({
           </aside>
         )}
         <div className="gfa-editor-frame-wrap">
-          {failed ? (
+          {plugin && (kind === "page" || kind === "header" || kind === "footer" || kind === "template") ? (
+            <PluginEditorFrame
+              key={plugin.name}
+              plugin={plugin}
+              target={{ kind, path, title, ...(language && { language }), ...(collection && { collection }) }}
+              data={() => latest.current.data}
+              onOpen={onPluginOpen}
+              onChange={onPluginChange}
+            />
+          ) : failed ? (
             <ErrorMessage message={t("editor.failed")} />
           ) : (
             <iframe className="gfa-editor-frame" title={t("editor.frame", { title })} {...frameProps} />

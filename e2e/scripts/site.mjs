@@ -72,7 +72,7 @@ export function resetContent() {
 
 /** Blocks with Client Components, which every test site has besides the starter's. */
 const testBlocks = join(here, "../fixtures/blocks");
-/** Plugins, which the `goodfellow dev` test site has (`plugins.spec.ts`, `media-storage.spec.ts`). */
+/** Plugins, which the `goodfellow dev` test site has (`plugins.spec.ts`, `media-storage.spec.ts`, `editor-plugins.spec.ts`). */
 const testPlugins = join(here, "../fixtures/plugins");
 
 /** A test site's config: the starter's blocks, the test blocks, and optionally a backend. */
@@ -89,7 +89,13 @@ function testConfig({
     'import { blocks, categories } from "@goodfellow-cms/blocks";',
     'import { defineConfig } from "@goodfellow-cms/core";',
     ...(importLine ? [importLine] : []),
-    ...(plugins ? ['import { greeter } from "./plugins/greeter";', 'import { keeper } from "./plugins/keeper";'] : []),
+    ...(plugins
+      ? [
+          'import { greeter } from "./plugins/greeter";',
+          'import { keeper } from "./plugins/keeper";',
+          'import { outline } from "./plugins/outline";',
+        ]
+      : []),
     `import { Counter, Disclosure } from ${JSON.stringify(`${from}/counter`)};`,
     `import { installedBlocks, installedCategories } from ${JSON.stringify(`${from}/installed`)};`,
     "",
@@ -100,7 +106,7 @@ function testConfig({
     "  categories: { ...categories, ...installedCategories },",
     ...(backend ? [`  backend: ${backend},`] : []),
     ...(demo ? ["  demo: true,"] : []),
-    ...(plugins ? ["  plugins: [greeter, keeper],"] : []),
+    ...(plugins ? ["  plugins: [greeter, keeper, outline],"] : []),
     "});",
     "",
   ].join("\n");

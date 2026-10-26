@@ -33,6 +33,8 @@ import { FRAME_SANDBOX } from "./frame/host.js";
 import {
   PLUGIN_READY_MESSAGE,
   type PluginFrameChange,
+  type PluginFrameEditorOpen,
+  type PluginFrameEditorOpened,
   type PluginFrameInit,
   type PluginFrameMode,
   type PluginPageRequests,
@@ -99,8 +101,33 @@ function toFileChange(plugin: PluginDescription, value: unknown): FileChange {
 /** The tallest a screen's frame is made, whatever it says. */
 const MAX_SCREEN_HEIGHT = 20_000;
 
+/** What the page edited with an editor plugin answers its frame with, and hears from it. */
+export interface PluginEditorHooks {
+  /** What the editor opens, read each time the frame starts. */
+  open(): PluginFrameEditorOpen;
+  /** The editor opened, saying what it can do, on the channel to it. */
+  onOpened(opened: PluginFrameEditorOpened, channel: Channel): void;
+  /** What's edited now, as the frame says: the page checks it before publishing. */
+  onChange(change: Parameters<PluginPageRequests["editor.change"]>[0]): void;
+  chooseMedia(kind: "image" | "video" | "audio" | "file", value: string): Promise<string | null>;
+  sharePreview(root: unknown): ReturnType<PluginPageRequests["editor.sharePreview"]>;
+}
+
+const MEDIA_KINDS = new Set(["image", "video", "audio", "file"]);
+
 /** The answers a plugin's frame gets, each checked against what the plugin declared. */
-function pluginHandlers(plugin: PluginDescription, host: () => PluginHost, onResize: (height: number) => void) {
+function pluginHandlers(
+  plugin: PluginDescription,
+  host: () => PluginHost,
+  onResize: (height: number) => void,
+  editor: () => PluginEditorHooks | undefined,
+) {
+  /** The page edited with the plugin's editor, for requests only its editor frame may make. */
+  const editing = (what: string) => {
+    const hooks = editor();
+    if (!hooks) throw new RefusedError(`Only an editor's frame may ${what}.`);
+    return hooks;
+  };
   const secretsLinks = new Set<string>();
   const handlers: { [K in keyof PluginPageRequests]: (params: Parameters<PluginPageRequests[K]>[0]) => unknown } = {
     read: async (params) => {
@@ -179,6 +206,31 @@ function pluginHandlers(plugin: PluginDescription, host: () => PluginHost, onRes
         onResize(Math.min(Math.max(0, Math.ceil(height)), MAX_SCREEN_HEIGHT));
       }
     },
+    "editor.change": (params) => {
+      const hooks = editing("say what's edited");
+      if (typeof params !== "object" || params === null || typeof params.data !== "object" || params.data === null) {
+        throw new RefusedError("That isn't what's edited.");
+      }
+      const state = typeof params.state === "object" && params.state !== null ? params.state : {};
+      hooks.onChange({
+        data: params.data,
+        state: {
+          past: state.past === true,
+          future: state.future === true,
+          selected: typeof state.selected === "string" ? state.selected : null,
+        },
+      });
+    },
+    "media.choose": (params) => {
+      const hooks = editing("choose media");
+      const kind = params?.kind;
+      if (typeof kind !== "string" || !MEDIA_KINDS.has(kind)) throw new RefusedError("That isn't a kind of media.");
+      return hooks.chooseMedia(kind as "image", typeof params.value === "string" ? params.value : "");
+    },
+    "editor.sharePreview": (params) => {
+      const hooks = editing("preview a shared link");
+      return hooks.sharePreview(params?.root);
+    },
     task: async (params) => {
       const id = params?.id;
       if (typeof id !== "string" || !plugin.tasks?.some((task) => task.id === id)) {
@@ -217,12 +269,13 @@ export interface PluginFrameConnection {
   };
 }
 
-/** Makes one of a plugin's frames and connects to it. */
+/** Makes one of a plugin's frames and connects to it; an editor's frame with `editor`. */
 export function usePluginFrame(
   plugin: PluginDescription,
   host: PluginHost,
   mode: PluginFrameMode,
   screen?: string,
+  editor?: PluginEditorHooks,
 ): PluginFrameConnection {
   const element = useRef<HTMLIFrameElement | null>(null);
   const [channel, setChannel] = useState<Channel>();
@@ -230,6 +283,8 @@ export function usePluginFrame(
   const [height, setHeight] = useState<number>();
   const latest = useRef(host);
   latest.current = host;
+  const latestEditor = useRef(editor);
+  latestEditor.current = editor;
 
   useEffect(() => {
     let current: Channel | undefined;
@@ -254,20 +309,28 @@ export function usePluginFrame(
           (next) => {
             if (mode === "screen") setHeight(next);
           },
+          () => (mode === "editor" ? latestEditor.current : undefined),
         ),
       );
       current = next;
       frame.postMessage({ type: CONNECT_MESSAGE }, "*", [port2]);
+      const opening = mode === "editor" ? latestEditor.current?.open() : undefined;
       const init: PluginFrameInit = {
         mode,
         ...(screen && { screen }),
+        ...(opening && { editor: opening }),
         plugin,
         siteUrl: latest.current.siteUrl,
         theme: latest.current.theme,
       };
       next.call("init", init).then(
-        () => {
-          if (!stopped && current === next) setChannel(next);
+        (opened: unknown) => {
+          if (stopped || current !== next) return;
+          setChannel(next);
+          if (mode === "editor") {
+            const said = (opened ?? {}) as Partial<PluginFrameEditorOpened>;
+            latestEditor.current?.onOpened({ set: said.set === true, undo: said.undo === true }, next);
+          }
         },
         () => {
           if (!stopped && current === next) setFailed(true);

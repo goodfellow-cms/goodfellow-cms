@@ -42,6 +42,7 @@ export const STRINGS = {
   pluginAdmin: "Run in the admin panel, in a frame of its own",
   pluginBuild: "Run steps when the site is built",
   pluginServer: "Answer requests on the site's server, with everything the server can do",
+  pluginEditor: "Offer its own page editor, {title}, which is given what's edited in it",
   pluginNothing: "Nothing more",
   confirmEditors: "Giving {who} access to edit the site{role}.",
   confirmEditorsPublish: "Letting the site's editors publish to it.",
