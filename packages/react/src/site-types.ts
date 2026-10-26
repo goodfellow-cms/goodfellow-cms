@@ -6,6 +6,7 @@ import type {
   LanguageMap,
   Menus,
   PageCredit,
+  PageLink,
   PageView,
   SiteSettings,
 } from "@goodfellow-cms/core";
@@ -51,6 +52,8 @@ export interface SiteContextValue {
   path: string;
   /** Every collection, with its entries. */
   collections: Collection[];
+  /** The site's pages in the page's language, by address, for lists of pages (`pageLinks()`). */
+  pages?: PageLink[];
   /** The collection whose template is being rendered or edited. */
   collection?: Collection;
   /** The entry being rendered, on an entry's page. */

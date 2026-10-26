@@ -10,8 +10,10 @@ import { Form } from "./form.js";
 import { LanguageSwitch } from "./language-switch.js";
 import { Flex, Grid, Section, Space } from "./layout.js";
 import { CollectionLoop } from "./loop.js";
-import { Menu, SiteBrand } from "./navigation.js";
+import { Audio, File, Gallery, MediaText } from "./media.js";
+import { Menu, PageList, SiteBrand } from "./navigation.js";
 import { Search } from "./search.js";
+import { Details, Preformatted, Pullquote, Separator, Table, Verse } from "./text.js";
 import { Video } from "./video.js";
 
 export {
@@ -81,8 +83,40 @@ export {
   selectedEntries,
 } from "./listing.js";
 export { CollectionLoop, type CollectionLoopProps } from "./loop.js";
-export { Menu, type MenuProps, SiteBrand, type SiteBrandProps } from "./navigation.js";
+export {
+  Audio,
+  type AudioProps,
+  File,
+  type FileProps,
+  Gallery,
+  type GalleryImage,
+  type GalleryProps,
+  MediaText,
+  type MediaTextProps,
+} from "./media.js";
+export {
+  Menu,
+  type MenuProps,
+  PageList,
+  type PageListProps,
+  SiteBrand,
+  type SiteBrandProps,
+} from "./navigation.js";
 export { Search, type SearchProps } from "./search.js";
+export {
+  Details,
+  type DetailsProps,
+  Preformatted,
+  type PreformattedProps,
+  Pullquote,
+  type PullquoteProps,
+  Separator,
+  type SeparatorProps,
+  Table,
+  type TableProps,
+  Verse,
+  type VerseProps,
+} from "./text.js";
 export { Video, type VideoProps } from "./video.js";
 
 /**
@@ -115,18 +149,44 @@ export const blocks = {
   AddToCalendar,
   EntryPager,
   OnThisPage,
+  Separator,
+  Pullquote,
+  Preformatted,
+  Verse,
+  Details,
+  Table,
+  File,
+  Audio,
+  MediaText,
+  Gallery,
+  PageList,
 };
 
 /** Groups for the editor's block list. */
 export const categories = {
-  layout: { title: "Layout", components: ["Section", "Grid", "Flex", "Space"] },
+  layout: { title: "Layout", components: ["Section", "Grid", "Flex", "Space", "Separator", "MediaText", "Details"] },
   content: {
     title: "Content",
-    components: ["Heading", "Text", "Button", "Image", "Video", "Form", "Code", "ContactDetails"],
+    components: [
+      "Heading",
+      "Text",
+      "Button",
+      "Pullquote",
+      "Table",
+      "Preformatted",
+      "Verse",
+      "Code",
+      "Form",
+      "ContactDetails",
+    ],
+  },
+  media: {
+    title: "Media",
+    components: ["Image", "Gallery", "Video", "Audio", "File"],
   },
   navigation: {
     title: "Navigation",
-    components: ["Menu", "SiteBrand", "Search", "DarkModeSwitch", "LanguageSwitch", "CollectionNav"],
+    components: ["Menu", "SiteBrand", "Search", "DarkModeSwitch", "LanguageSwitch", "CollectionNav", "PageList"],
   },
   collections: {
     title: "Collections",

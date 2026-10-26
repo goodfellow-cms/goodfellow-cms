@@ -1,7 +1,8 @@
+import { type PageTree, pageTree } from "@goodfellow-cms/core";
 import { classNameField, SiteImage, SiteLink, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
-import { options } from "./options.js";
-import { MENU_PARTS, SITE_BRAND_PARTS } from "./parts.js";
+import { options, yesNo } from "./options.js";
+import { MENU_PARTS, PAGE_LIST_PARTS, SITE_BRAND_PARTS } from "./parts.js";
 
 export interface MenuProps {
   menu: string;
@@ -91,11 +92,13 @@ export const Menu: ComponentConfig<MenuProps> = withParts(
 
 export interface SiteBrandProps {
   show: "both" | "logo" | "title";
+  /** Shows the site's description from Site Settings under its name. Stored blocks may predate it. */
+  tagline?: boolean;
   className: string;
 }
 
 /** The site's logo and/or title (from Site Settings), linking to the home page. */
-function SiteBrandView({ show, className }: SiteBrandProps) {
+function SiteBrandView({ show, tagline, className }: SiteBrandProps) {
   const { settings, home = "/" } = useSite();
   const part = useParts();
   const logo = show !== "title" ? settings.logo : undefined;
@@ -136,7 +139,17 @@ function SiteBrandView({ show, className }: SiteBrandProps) {
           />
         )
       )}
-      {showTitle && <span className={part("gf-site-brand-name")}>{settings.title}</span>}
+      {showTitle &&
+        (tagline && settings.description ? (
+          <span className={part("gf-site-brand-text", "flex flex-col")}>
+            <span className={part("gf-site-brand-name")}>{settings.title}</span>
+            <span className={part("gf-site-brand-tagline", "font-body text-sm font-normal text-muted-foreground")}>
+              {settings.description}
+            </span>
+          </span>
+        ) : (
+          <span className={part("gf-site-brand-name")}>{settings.title}</span>
+        ))}
     </SiteLink>
   );
 }
@@ -150,10 +163,74 @@ export const SiteBrand: ComponentConfig<SiteBrandProps> = withParts(
         label: "Show",
         options: options({ both: "Logo and name", logo: "Logo only", title: "Name only" }),
       },
+      tagline: { type: "radio", label: "Site description under the name", options: yesNo },
       className: classNameField,
     },
-    defaultProps: { show: "both", className: "" },
+    defaultProps: { show: "both", tagline: false, className: "" },
     render: (props) => <SiteBrandView {...props} />,
   },
   SITE_BRAND_PARTS,
+);
+
+export interface PageListProps {
+  /** Only the pages under this address, such as `/about`; every page without it. */
+  parent: string;
+  className: string;
+}
+
+function PageListItems({
+  pages,
+  path,
+  nested,
+  className,
+}: {
+  pages: PageTree[];
+  path: string;
+  nested: boolean;
+  className?: string;
+}) {
+  const part = useParts();
+  return (
+    <ul
+      className={
+        nested
+          ? part("gf-page-list-children", "ml-4 mt-1 flex flex-col gap-1")
+          : part("gf-page-list", "flex flex-col gap-1", className)
+      }
+    >
+      {pages.map((page) => (
+        <li key={page.path} className={part("gf-page-list-item")}>
+          <SiteLink
+            href={page.path}
+            aria-current={page.path === path ? "page" : undefined}
+            className={part("gf-page-list-link", "hover:underline", page.path === path && "font-semibold")}
+          >
+            {page.title}
+          </SiteLink>
+          {page.children.length > 0 && <PageListItems pages={page.children} path={path} nested />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PageListView({ parent, className }: PageListProps) {
+  const { pages = [], path } = useSite();
+  const tree = pageTree(pages, parent.trim() || "/");
+  if (tree.length === 0) return null;
+  return <PageListItems pages={tree} path={path} nested={false} className={className} />;
+}
+
+/** A list of the site's pages, nested by their addresses, as WordPress's Page List block shows them. */
+export const PageList: ComponentConfig<PageListProps> = withParts(
+  {
+    label: "Page list",
+    fields: {
+      parent: { type: "text", label: "Only pages under this address (empty for every page)" },
+      className: classNameField,
+    },
+    defaultProps: { parent: "", className: "" },
+    render: (props) => <PageListView {...props} />,
+  },
+  PAGE_LIST_PARTS,
 );

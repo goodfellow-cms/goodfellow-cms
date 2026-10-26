@@ -241,7 +241,7 @@ function walkParts(parts: Part[], visit: (part: Part) => void): void {
   for (const part of parts) {
     visit(part);
     if (part.kind === "columns") for (const column of part.columns) walkParts(column, visit);
-    if (part.kind === "cover") walkParts(part.parts, visit);
+    if (part.kind === "cover" || part.kind === "details" || part.kind === "media-text") walkParts(part.parts, visit);
   }
 }
 
@@ -588,12 +588,20 @@ export function planWordPressImport(
     const title = page.title || source.title;
     const parts = itemParts(page, context(title));
     walkParts(parts, (part) => {
-      if (part.kind === "table") notes.convert("table", "table", title);
+      // Sites without the Table block show tables as text.
+      if (part.kind === "table" && options.blocks && !options.blocks.includes("Table")) {
+        notes.convert("table", "table", title);
+      }
     });
     const writer = new BlockWriter();
     // Every page has its title as its heading, unless its content starts with one of its own.
     const ownHeading = parts.some((part) => part.kind === "heading" && part.level === 1);
-    const blocks = pageBlocks(ownHeading ? undefined : title, parts, { link, posts: collectionId, writer });
+    const blocks = pageBlocks(ownHeading ? undefined : title, parts, {
+      link,
+      posts: collectionId,
+      writer,
+      ...(options.blocks && { blocks: options.blocks }),
+    });
     if (collectionId && path === listPath) {
       blocks.push(writer.section([writer.collectionList({ ...listProps, className: "mt-8" })], { width: "normal" }));
       listWritten = true;

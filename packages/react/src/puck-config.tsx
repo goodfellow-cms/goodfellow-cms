@@ -6,7 +6,7 @@ import {
   type GoodfellowConfig,
   type SiteDescription,
 } from "@goodfellow-cms/core";
-import type { ComponentConfig, Config, Fields, TextField } from "@puckeditor/core";
+import type { ComponentConfig, Config, CustomField, Fields, TextField } from "@puckeditor/core";
 import type { ReactNode } from "react";
 
 /** The field every block gets for adding CSS classes, such as Tailwind utilities. */
@@ -16,7 +16,7 @@ export const classNameField: TextField = {
 };
 
 /** What kind of media a field holds, for the admin panel to offer its media library. */
-export type MediaFieldKind = "image" | "video" | "file";
+export type MediaFieldKind = "image" | "video" | "audio" | "file";
 
 /**
  * A text field for the address of an uploaded file, such as an image. The
@@ -29,7 +29,42 @@ export function mediaField(label: string, kind: MediaFieldKind = "image"): TextF
 /** The kind of media a field holds, if it's a media field. */
 export function mediaFieldKind(field: { metadata?: unknown } | undefined): MediaFieldKind | undefined {
   const media = (field?.metadata as { media?: unknown } | undefined)?.media;
-  return media === "image" || media === "video" || media === "file" ? media : undefined;
+  return media === "image" || media === "video" || media === "audio" || media === "file" ? media : undefined;
+}
+
+/** A table's cells, row by row, as plain text. */
+export type TableCells = string[][];
+
+/**
+ * A field for a table's cells, row by row. The admin panel's editor shows it
+ * as a grid of cells to type in; elsewhere it shows nothing, since fields are
+ * only edited there. The AI assistant fills it in as rows of text.
+ */
+export function tableField(label: string): CustomField<TableCells> {
+  return {
+    type: "custom",
+    label,
+    metadata: {
+      table: true,
+      ai: { type: "table", description: "Rows of the table, each a list of its cells' plain text" },
+    },
+    render: () => <></>,
+  };
+}
+
+/** Whether a field holds a table's cells (`tableField()`). */
+export function isTableField(field: { metadata?: unknown } | undefined): boolean {
+  return (field?.metadata as { table?: unknown } | undefined)?.table === true;
+}
+
+/** Cells as they're kept: rows of text, every row as long as the longest, never empty. */
+export function tableCells(value: unknown): TableCells {
+  const rows = Array.isArray(value)
+    ? value.map((row) => (Array.isArray(row) ? row.map((cell) => (typeof cell === "string" ? cell : "")) : []))
+    : [];
+  const width = Math.max(1, ...rows.map((row) => row.length));
+  const filled = rows.map((row) => [...row, ...Array<string>(width - row.length).fill("")]);
+  return filled.length > 0 ? filled : [Array<string>(width).fill("")];
 }
 
 /** Settings on the page itself (the root of the page's Puck data). */

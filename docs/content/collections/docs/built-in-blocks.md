@@ -10,23 +10,34 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 
 | Block | What it's for |
 |---|---|
-| Section | A full-width band of the page with a background, centering its content |
+| Section | A full-width band of the page with a background, centering its content; with a picture behind it, a color over it and a height, it's WordPress's Cover (see [Sections as covers](#sections-as-covers)) |
 | Columns | Equal-width columns that stack on phones |
 | Row | Blocks side by side, such as a group of buttons |
 | Space | Empty vertical space |
+| Separator | A line between parts of the page: short, full width or dots |
+| Media and text | A picture or uploaded video beside other blocks, on either side, which stack on phones |
+| Details | A summary that opens to show the blocks inside it, with no JavaScript |
 | Heading | A heading, from page title (H1) down to H4 |
 | Text | Formatted text: paragraphs, lists, links |
 | Button | A link styled as a button |
+| Pullquote | A quote shown large, set off from the text around it, with who said it |
+| Table | A table of text, with an optional row of headings, a footer, a caption and stripes (see [Table](#table)) |
+| Preformatted text | Text shown exactly as it's typed, spaces and line breaks included, in a fixed-width font |
+| Verse | Poetry or lyrics, with their lines and spaces as typed, in the page's own font |
 | Image | An image with an optional caption, and a description for people who can't see it, unless it's only decoration |
+| Gallery | Pictures in two to four columns, each with an optional caption, cropped to squares or not |
 | Video | A video from the media library, YouTube, Vimeo or another site's player |
+| Audio | A sound file from the media library, such as a homily, with the browser's own player |
+| File | A link to a file from the media library, such as a PDF, with an optional download button |
 | Form | A form whose answers a form service emails to you, or a Google form (see [Forms](/docs/forms)) |
 | Code | Code with syntax highlighting, an optional title and a copy button |
 | Contact details | The address, phone number and email address from Site Settings |
 | Menu | One of the site's menus, with dropdowns for submenus |
-| Site name and logo | The site's logo and name, linking home |
+| Site name and logo | The site's logo and name, linking home, with the site's description under the name if you like |
 | Search | A search box for the whole site, with results as you type |
 | Dark mode switch | Lets visitors choose light or dark colors, on sites with dark mode |
 | Collection navigation | Links to every item in a collection, grouped by one of its choice fields |
+| Page list | The site's pages, or the ones under an address, nested by their addresses |
 | Collection list | A collection's items as a list or cards, with a heading, on pages of their own and a page for each choice (see [Showing collections](/docs/showing-collections)) |
 | Collection loop | Blocks you design, shown once for each of a collection's items |
 | Calendar | Events coming up, or a month at a time, from a collection of events or another calendar (see [Calendars and events](/docs/calendars)) |
@@ -34,6 +45,8 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Add to calendar | Links that add the item's event to visitors' calendars, in a page design only |
 | Previous and next | Links to the items before and after this one, in a page design only |
 | On this page | The headings of the item's Markdown text, in a page design only |
+
+The blocks from Separator to File in the list match WordPress's own blocks of the same names, so [moving from WordPress](/docs/move-from-wordpress) keeps them as they are, and [exporting to WordPress](/docs/move-from-wordpress) makes them WordPress's again.
 
 Blocks use the site's colors, fonts and corner rounding. Every block accepts extra CSS classes, which override the block's own styles: `py-4` on a Section replaces its default padding. Every part of a block also has a name, which the site's theme can give classes to (see [Named parts](#named-parts)).
 
@@ -47,6 +60,14 @@ The Video block shows a video from one of four places, chosen in **Video from**:
 - **Another site's player**: paste the player's embed address, or the whole embed code the other site gives. It's shown in a sandbox, with only what players need, and only from a secure (`https://`) address on another site.
 
 Give every video a description for screen readers. It can also have a caption below it, a shape (the video's own, wide, landscape, square, or tall for videos made on phones), and play on its own without sound, start with the sound off, or play again when it ends. Players load only when they're scrolled near, so they don't slow down the top of the page.
+
+## Table
+
+Select a Table block to edit its cells in a grid in the block's settings: type in each cell, and add or remove rows and columns. **First row is headings** makes the first row the columns' headings, and **Last row is a footer** sets the last row apart, such as for totals. Cells hold plain text. The table scrolls sideways on phones when it's wider than the screen.
+
+## Sections as covers
+
+A Section with a background picture can be a cover, like WordPress's Cover block: **Color over the background** puts a dark, light or primary color over the picture, **How strong a color** sets how much, so text on the photo can be read, and the text color changes to suit it. **Part of the picture to keep in view** chooses what stays visible when the picture is cropped, and **Height at least** makes the section taller, up to the whole screen, with its content in the middle.
 
 ## Code
 
@@ -73,6 +94,7 @@ The Search block searches the whole site in the visitor's browser, with [Pagefin
 
 Every part of a built-in block has a name, which is on the part as a class, and which [Blocks' parts](/docs/layout-and-settings#blocks-parts) gives classes to and custom CSS can style. Names are never renamed or removed, so a theme that uses one keeps working; new ones may be added. Some parts are in more than one block, such as a list's page links.
 
+- **Audio:** `gf-audio` (Audio and caption), `gf-audio-player` (Player), `gf-audio-caption` (Caption).
 - **Add to calendar:** `gf-add-to-calendar` (Add to calendar), `gf-add-to-calendar-label` (Add to calendar's label), `gf-add-to-calendar-links` (Calendars' links), `gf-add-to-calendar-link` (Calendar's link).
 - **Button:** `gf-button` (Button).
 - **Calendar:** `gf-calendar` (Calendar), `gf-calendar-empty` (Nothing to show), `gf-calendar-days` (Days), `gf-calendar-day` (Day), `gf-calendar-day-heading` (Day's date), `gf-calendar-events` (Day's events), `gf-calendar-event` (Event), `gf-calendar-event-time` (Event's time), `gf-calendar-event-body` (Event's details), `gf-calendar-event-title` (Event's title), `gf-calendar-event-place` (Event's place), `gf-calendar-event-summary` (Event's summary), `gf-calendar-month` (Month), `gf-calendar-month-header` (Month's heading and links), `gf-calendar-month-link` (Previous or next month), `gf-calendar-month-title` (Month's name), `gf-calendar-weekdays` (Days of the week), `gf-calendar-month-days` (Month's days), `gf-calendar-month-day` (Month's day), `gf-calendar-month-blank` (Day outside the month), `gf-calendar-month-date` (Day's number), `gf-calendar-month-events` (Day's events in a month), `gf-calendar-month-event` (Event in a month), `gf-calendar-subscribe` (Subscribe), `gf-calendar-subscribe-label` (Subscribe's label), `gf-calendar-subscribe-links` (Subscribe links), `gf-calendar-subscribe-link` (Subscribe link), `gf-add-to-calendar` (Add to calendar), `gf-add-to-calendar-label` (Add to calendar's label), `gf-add-to-calendar-links` (Calendars' links), `gf-add-to-calendar-link` (Calendar's link).
@@ -82,19 +104,29 @@ Every part of a built-in block has a name, which is on the part as a class, and 
 - **Collection navigation:** `gf-collection-nav` (Collection navigation), `gf-collection-nav-heading` (Navigation's heading), `gf-collection-nav-group` (Group), `gf-collection-nav-group-label` (Group's name), `gf-collection-nav-links` (Group's links), `gf-collection-nav-link` (Link).
 - **Columns:** `gf-columns` (Columns).
 - **Contact details:** `gf-contact` (Contact details), `gf-contact-address` (Address), `gf-contact-phone` (Phone number), `gf-contact-email` (Email address).
+- **Details:** `gf-details` (Details), `gf-details-summary` (Summary), `gf-details-content` (What it shows).
 - **Dark mode switch:** `gf-dark-mode-switch` (Dark mode switch), `gf-dark-mode-switch-track` (Switch's track), `gf-dark-mode-switch-thumb` (Switch's knob).
 - **Entry field:** `gf-entry-field` (Entry field), `gf-entry-field-link` (Field's link), `gf-code` (Code), `gf-code-title` (Code's title), `gf-code-copy` (Copy button).
+- **File:** `gf-file` (File), `gf-file-link` (File's link), `gf-file-button` (Download button).
 - **Form:** `gf-form` (Form), `gf-form-embed` (Google Form), `gf-form-questions` (Questions), `gf-form-question` (Question), `gf-form-label` (Question's wording), `gf-form-hint` (Help text), `gf-form-input` (Answer field), `gf-form-choice` (Choice), `gf-form-check` (Checkbox or option), `gf-form-required` (Required mark), `gf-form-submit` (Send button).
+- **Gallery:** `gf-gallery` (Gallery), `gf-gallery-items` (Pictures), `gf-gallery-item` (Picture and caption), `gf-gallery-picture` (Picture), `gf-gallery-item-caption` (Picture's caption), `gf-gallery-caption` (Gallery's caption).
 - **Heading:** `gf-heading` (Heading).
 - **Image:** `gf-image` (Image and caption), `gf-image-picture` (Picture), `gf-image-caption` (Caption).
 - **Language switch:** `gf-language-switch` (Language switch), `gf-language-list` (Languages), `gf-language-link` (Language), `gf-language-current` (Current language).
+- **Media and text:** `gf-media-text` (Media and text), `gf-media-text-media` (Picture), `gf-media-text-content` (Text beside it).
 - **Menu:** `gf-menu` (Menu), `gf-menu-list` (Menu's links), `gf-menu-item` (Menu item), `gf-menu-link` (Menu link), `gf-menu-submenu` (Submenu).
 - **On this page:** `gf-on-this-page` (On this page), `gf-on-this-page-heading` (Heading), `gf-on-this-page-links` (Links), `gf-on-this-page-link` (Link).
+- **Page list:** `gf-page-list` (Page list), `gf-page-list-item` (Page), `gf-page-list-link` (Page's link), `gf-page-list-children` (Pages under it).
+- **Preformatted text:** `gf-preformatted` (Preformatted text).
 - **Previous and next:** `gf-entry-pager` (Previous and next), `gf-entry-pager-link` (Previous or next link), `gf-entry-pager-label` (Link's label), `gf-entry-pager-title` (Link's title).
+- **Pullquote:** `gf-pullquote` (Pullquote), `gf-pullquote-quote` (Quote), `gf-pullquote-citation` (Who said it).
 - **Row:** `gf-row` (Row).
 - **Search:** `gf-search` (Search), `gf-search-box` (Search box), `gf-search-input` (Search field), `gf-search-results` (Results), `gf-search-result` (Result), `gf-search-result-title` (Result's title), `gf-search-result-excerpt` (Result's excerpt), `gf-search-message` (Search message).
-- **Section:** `gf-section` (Section), `gf-section-content` (Section's content).
-- **Site name and logo:** `gf-site-brand` (Site name and logo), `gf-site-brand-logo` (Logo), `gf-site-brand-name` (Site name).
+- **Section:** `gf-section` (Section), `gf-section-content` (Section's content), `gf-section-overlay` (Section's overlay).
+- **Separator:** `gf-separator` (Separator).
+- **Site name and logo:** `gf-site-brand` (Site name and logo), `gf-site-brand-logo` (Logo), `gf-site-brand-name` (Site name), `gf-site-brand-text` (Name and tagline), `gf-site-brand-tagline` (Tagline).
 - **Space:** `gf-space` (Space).
+- **Table:** `gf-table` (Table and caption), `gf-table-grid` (Table), `gf-table-caption` (Caption), `gf-table-row` (Row), `gf-table-header-cell` (Heading cell), `gf-table-cell` (Cell).
 - **Text:** `gf-text` (Text).
+- **Verse:** `gf-verse` (Verse).
 - **Video:** `gf-video` (Video and caption), `gf-video-player` (Player), `gf-video-caption` (Caption).

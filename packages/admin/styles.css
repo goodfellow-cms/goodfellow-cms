@@ -1359,6 +1359,54 @@ body,
 }
 
 .gfa-media-actions .gfa-button,
+/* A table's cells, in the editor's fields. */
+.gfa-table-field {
+  padding: 0 16px 16px;
+  font:
+    14px / 1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+.gfa-table-field-label {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.gfa-table-field-grid {
+  display: grid;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.gfa-table-field-row {
+  display: contents;
+}
+
+.gfa-table-field-cell {
+  min-width: 0;
+}
+
+.gfa-table-field-remove {
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+  background: transparent;
+  color: var(--gfa-muted);
+  cursor: pointer;
+}
+
+.gfa-table-field-remove:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.gfa-table-field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .gfa-media-chooser .gfa-button {
   min-height: 30px;
   padding: 0 10px;

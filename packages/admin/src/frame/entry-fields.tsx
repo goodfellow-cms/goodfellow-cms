@@ -4,7 +4,15 @@
  * collection's design shows it, as the canvas.
  */
 import type { AiFieldHint } from "@goodfellow-cms/ai";
-import type { Collection, CollectionField, Entry, Schedule, SiteContent, SiteSettings } from "@goodfellow-cms/core";
+import {
+  type Collection,
+  type CollectionField,
+  type Entry,
+  pageLinks,
+  type Schedule,
+  type SiteContent,
+  type SiteSettings,
+} from "@goodfellow-cms/core";
 import { applyEntry, type SiteContextValue, SiteProvider, siteMetadata } from "@goodfellow-cms/react";
 import {
   AutoField,
@@ -243,6 +251,7 @@ function EntryPreview({ collection, entry, content, templateConfig, layoutConfig
       menus: content.menus,
       path: entry.path ?? "/",
       collections: content.collections,
+      pages: pageLinks(content),
       collection,
       entry: current,
     }),

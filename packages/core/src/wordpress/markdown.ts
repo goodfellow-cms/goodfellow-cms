@@ -221,7 +221,39 @@ export function partsMarkdown(parts: Part[], link: Link): string {
         for (const column of part.columns) column.forEach(write);
         break;
       case "cover":
+      case "media-text":
+        if (part.kind === "media-text") image(part.media, part.alt, "");
         part.parts.forEach(write);
+        break;
+      case "details":
+        if (part.summary) out.push(`**${escapeText(part.summary)}**`);
+        part.parts.forEach(write);
+        break;
+      case "separator":
+        out.push("---");
+        break;
+      case "pullquote": {
+        const lines = part.quote.split("\n").map((line) => `> ${escapeText(line)}`);
+        if (part.citation) lines.push(">", `> — ${escapeText(part.citation)}`);
+        out.push(lines.join("\n"));
+        break;
+      }
+      case "preformatted":
+        if (part.verse) {
+          // Each line its own, with a backslash for Markdown's line break.
+          out.push(part.text.split("\n").map(escapeText).join("\\\n"));
+        } else {
+          const marks = fence(part.text);
+          out.push(`${marks}\n${part.text}\n${marks}`);
+        }
+        break;
+      case "file":
+        out.push(
+          `[${escapeText(part.label || part.buttonLabel || part.href.split("/").pop() || part.href)}](${destination(part.href)})`,
+        );
+        break;
+      case "audio":
+        out.push(`[${escapeText(part.caption || part.url.split("/").pop() || part.url)}](${destination(part.url)})`);
         break;
       case "buttons": {
         const links = part.buttons.map((button) => `[${escapeText(button.label)}](${destination(button.href)})`);
@@ -243,6 +275,7 @@ export function partsMarkdown(parts: Part[], link: Link): string {
       }
       case "space":
       case "posts":
+      case "pages":
         break;
     }
   };

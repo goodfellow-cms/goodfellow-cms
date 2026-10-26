@@ -145,7 +145,7 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
       },
       "media.choose": (params) => {
         const kind = params?.kind;
-        if (kind !== "image" && kind !== "video" && kind !== "file") return null;
+        if (kind !== "image" && kind !== "video" && kind !== "audio" && kind !== "file") return null;
         return latest.current.services.chooseMedia(kind, typeof params.value === "string" ? params.value : "");
       },
       // Only the editor's blocks ask plugins: previews and the site's code never need to.
