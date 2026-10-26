@@ -43,6 +43,13 @@ export {
 } from "./node-dev-api.js";
 export { fontStandIns, readFontFile, readStylesheet, selfHostFonts } from "./node-fonts.js";
 export { fileSystemSource } from "./node-fs-source.js";
+export {
+  type BundledPackage,
+  bundledPackages,
+  LICENSES_FILE,
+  licenseNotices,
+  licensesPlugin,
+} from "./node-licenses.js";
 export { InvalidPathError, localFileStore } from "./node-local-files.js";
 export { readMediaSizes } from "./node-media.js";
 export {

@@ -396,12 +396,25 @@ export interface PluginEditorSession {
    * HTML the site's pages have, before their scripts start.
    */
   draw(block: PluginEditorBlock): Promise<string>;
+  /** The site's styles, for drawn blocks to look as they do on the site. */
+  styles(): Promise<PluginEditorStyles>;
+}
+
+/** The site's styles, for an editor plugin to show drawn blocks with. */
+export interface PluginEditorStyles {
   /**
    * The site's stylesheets as CSS text, as its last build compiled them, with
-   * the theme's colors and fonts as they are now, for drawn blocks to look as
-   * they do on the site.
+   * the theme's colors and fonts as they are now.
    */
-  styles(): Promise<string[]>;
+  stylesheets: string[];
+  /**
+   * Tailwind's source for the site, to compile with `@tailwindcss/browser`
+   * (in a `<style type="text/tailwindcss">`) where blocks may have classes
+   * the last build hasn't seen yet, such as ones an editor just chose: the
+   * theme's classes and the custom CSS as it is now. The admin panel's own
+   * previews do the same.
+   */
+  tailwind: string;
 }
 
 /** What an editor plugin says about itself as it changes. */
@@ -807,6 +820,8 @@ export function pluginFramePage(options: {
   permissions: PluginPermissions;
   scripts: readonly string[];
   stylesheets: readonly string[];
+  /** The notices of what its script bundles (`LICENSES_FILE` in `@goodfellow-cms/core/node`). */
+  licenses?: string;
 }): string {
   return [
     "<!DOCTYPE html>",
@@ -817,6 +832,7 @@ export function pluginFramePage(options: {
     '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
     '    <meta name="robots" content="noindex" />',
     ...options.stylesheets.map((href) => `    <link rel="stylesheet" href="${escapeAttribute(href)}" />`),
+    ...(options.licenses ? [`    <link rel="license" href="${escapeAttribute(options.licenses)}" />`] : []),
     "  </head>",
     '  <body class="gfa-plugin-frame">',
     '    <div id="goodfellow-plugin"></div>',

@@ -8,6 +8,7 @@ import {
   pluginFramePage,
   pluginId,
 } from "@goodfellow-cms/core";
+import { LICENSES_FILE, licensesPlugin } from "@goodfellow-cms/core/node";
 import { type Plugin, type Rolldown, build as viteBuild } from "vite";
 import { findEntry, type Manifest } from "./manifest.js";
 
@@ -31,9 +32,10 @@ function adminModule(root: string, specifier: string): string {
  * Bundles a plugin's admin module into its frame: one classic script, like
  * the editor's frames, starting with `EDITOR_PRELUDE`, so it runs only
  * sandboxed, with the page `pluginFramePage()` writes beside it, whose Content
- * Security Policy reaches only the addresses the plugin declared. Built on its
- * own, without the site's Vite plugins, since a plugin's frame has nothing of
- * the site's.
+ * Security Policy reaches only the addresses the plugin declared, and the
+ * notices of what it bundles (`LICENSES_FILE`), since serving it distributes
+ * them. Built on its own, without the site's Vite plugins, since a plugin's
+ * frame has nothing of the site's.
  */
 export async function buildPluginFrame(
   plugin: GoodfellowPlugin,
@@ -64,6 +66,7 @@ export async function buildPluginFrame(
         permissions: plugin.permissions ?? {},
         scripts: [`${base}${script.file}`],
         stylesheets: stylesheets.map((file) => `${base}${file}`),
+        licenses: `${base}${dir}${LICENSES_FILE}`,
       }),
     );
   };
@@ -72,7 +75,7 @@ export async function buildPluginFrame(
     root,
     configFile: false,
     logLevel: "warn",
-    plugins: [entry],
+    plugins: [entry, licensesPlugin(plugin.title, `${dir}${LICENSES_FILE}`)],
     base,
     ...(watch && { mode: "development" }),
     build: {

@@ -34,5 +34,6 @@ export {
   type WordPressSite,
   type WordPressTerm,
 } from "./wordpress/model.js";
-export { IMPORT_BLOCKS, WORDPRESS_BLOCKS } from "./wordpress/page-blocks.js";
+export { type BlockData, IMPORT_BLOCKS, WORDPRESS_BLOCKS } from "./wordpress/page-blocks.js";
+export { type HtmlBlocks, type HtmlBlocksOptions, htmlBlocks } from "./wordpress/paste.js";
 export { type FetchWordPressOptions, fetchWordPressSite, wordPressAddress } from "./wordpress/rest.js";
