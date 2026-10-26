@@ -785,6 +785,7 @@ export {
 } from "./plugin-tasks.js";
 export {
   type BlobLike,
+  DRAWN_SLOT_ELEMENT,
   definePlugin,
   definePluginAdmin,
   describePlugin,
@@ -805,6 +806,7 @@ export {
   type PluginBuildStepRun,
   type PluginDescription,
   type PluginEditor,
+  type PluginEditorBlock,
   type PluginEditorControls,
   type PluginEditorData,
   type PluginEditorKind,

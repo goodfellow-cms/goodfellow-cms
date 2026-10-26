@@ -11,12 +11,14 @@ import {
   getPageHead,
   type PageFile,
   type PluginDescription,
+  type PluginEditorBlock,
   type PluginEditorData,
   type PluginEditorKind,
   type PluginSharePreview,
   pageLinks,
   pathLanguage,
   type SiteDescription,
+  themeToCss,
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -116,9 +118,10 @@ export function PluginEditorFrame({
   const host = usePluginHost();
   const services = useFrameServices();
   const { content } = useSiteContent();
-  const { description } = useAdmin().site;
-  const latest = useRef({ target, data, onOpen, onChange, content, description, services });
-  latest.current = { target, data, onOpen, onChange, content, description, services };
+  const { site, code } = useAdmin();
+  const { description } = site;
+  const latest = useRef({ target, data, onOpen, onChange, content, description, services, code });
+  latest.current = { target, data, onOpen, onChange, content, description, services, code };
   const opening = useRef<Data | undefined>(undefined);
 
   const hooks = useMemo<PluginEditorHooks>(
@@ -142,6 +145,18 @@ export function PluginEditorFrame({
       },
       chooseMedia: (kind, value) => latest.current.services.chooseMedia(kind, value),
       sharePreview: (root) => sharePreview(latest.current.content, latest.current.target.path, root),
+      draw: (block: PluginEditorBlock) => {
+        const { target, content, description, code } = latest.current;
+        if (!editorBlocks(target, description)[block.type]) {
+          return Promise.reject(new Error(`${block.type} isn't one of the blocks this editor may use.`));
+        }
+        return code.drawBlock(content, { kind: target.kind, path: target.path, block });
+      },
+      // As the site's last build compiled them, with the theme as it is now, which may not be published yet.
+      styles: async () => [
+        ...(await latest.current.services.siteCss()),
+        themeToCss(latest.current.content.settings.theme),
+      ],
     }),
     [],
   );
@@ -167,6 +182,13 @@ function editorHandle(opened: PluginFrameEditorOpened, channel: Channel): Plugin
   };
 }
 
+/** The blocks an editor plugin may use for what it edits: all but those only templates have, except in templates. */
+function editorBlocks(target: PluginEditorTarget, description: SiteDescription): SiteDescription["blocks"] {
+  return Object.fromEntries(
+    Object.entries(description.blocks).filter(([, block]) => target.kind === "template" || !block.templateOnly),
+  );
+}
+
 /** What an editor plugin opens: what's edited, the blocks it may use and the site around it. */
 function editorOpen(
   target: PluginEditorTarget,
@@ -176,9 +198,7 @@ function editorOpen(
 ): PluginFrameEditorOpen {
   const layout = target.kind === "header" || target.kind === "footer";
   const language = target.language ?? pathLanguage(content.settings, target.path);
-  const blocks = Object.fromEntries(
-    Object.entries(description.blocks).filter(([, block]) => target.kind === "template" || !block.templateOnly),
-  );
+  const blocks = editorBlocks(target, description);
   return {
     kind: target.kind,
     path: target.path,

@@ -17,7 +17,7 @@ import {
 } from "react";
 import { MEDIA_URL_PREFIX } from "../media.js";
 import type { MediaPreviews } from "../media-previews.js";
-import type { RenderTarget, SiteCodeService } from "../site-code.js";
+import type { DrawTarget, RenderTarget, SiteCodeService } from "../site-code.js";
 import { type Channel, CONNECT_MESSAGE, createChannel } from "./channel.js";
 import type { AdminRequests, FrameEvents, FrameInit, FrameMode, FrameRequests } from "./protocol.js";
 import { READY_MESSAGE } from "./protocol.js";
@@ -250,6 +250,9 @@ export function frameSiteCode(client: () => Promise<FrameClient>): SiteCodeServi
     },
     async renderedProblems(content: SiteContent, targets: RenderTarget[], today: string) {
       return (await client()).call("code.renderedProblems", { content, targets, today });
+    },
+    async drawBlock(content: SiteContent, target: DrawTarget) {
+      return (await client()).call("code.drawBlock", { content, target });
     },
   };
 }

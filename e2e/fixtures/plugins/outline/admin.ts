@@ -1,6 +1,9 @@
 import { definePluginAdmin, type PluginEditorData } from "@goodfellow-cms/core";
 
-/** A page editor that lists the page's top-level blocks, each with a text field for its text, if it has one. */
+/**
+ * A page editor that lists the page's top-level blocks, each with a text field
+ * for its text, if it has one, and a button that draws it as the site does.
+ */
 export default definePluginAdmin({
   editor: {
     mount(element, session) {
@@ -12,6 +15,9 @@ export default definePluginAdmin({
       const status = doc.createElement("p");
       status.setAttribute("role", "status");
       const list = doc.createElement("ol");
+      // Where a block is drawn by the site's code, which this plugin doesn't have.
+      const drawn = doc.createElement("div");
+      drawn.className = "drawn";
       const title = doc.createElement("input");
       title.id = "outline-title";
 
@@ -43,6 +49,11 @@ export default definePluginAdmin({
               });
               item.append(input);
             }
+            item.append(
+              button(`Draw ${label.textContent}`, async () => {
+                drawn.innerHTML = await session.draw(block);
+              }),
+            );
             return item;
           }),
         );
@@ -91,7 +102,16 @@ export default definePluginAdmin({
           const preview = await session.sharePreview(data.root);
           status.textContent = `Shared as ${preview.title}`;
         }),
+        button("Draw a block the site doesn't have", async () => {
+          drawn.innerHTML = await session.draw({ type: "Script", props: { id: "Script-1" } });
+        }),
+        button("Load the site's styles", async () => {
+          const styles = await session.styles();
+          const theme = styles.some((css) => css.includes("--primary:"));
+          status.textContent = `${styles.length} stylesheets${theme ? ", with the theme" : ""}`;
+        }),
         status,
+        drawn,
       );
       (root.firstChild as HTMLElement).textContent = `Outline of ${session.title} (${session.kind})`;
       draw();

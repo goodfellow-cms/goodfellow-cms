@@ -1,7 +1,7 @@
 /**
  * What the admin panel needs the site's own code for: the pages its blocks add
- * (a calendar's months, a list's later pages), and pages rendered to check a
- * publish. The admin panel's page never runs that code: it asks the frame that
+ * (a calendar's months, a list's later pages), pages rendered to check a
+ * publish, and blocks drawn for editor plugins. The admin panel's page never runs that code: it asks the frame that
  * does (`frameSiteCode()` in `frame/host.tsx`), which answers with `localSiteCode()` (`frame/local-code.ts`).
  */
 import {
@@ -13,11 +13,21 @@ import {
   type SiteContent,
   type SiteProblem,
 } from "@goodfellow-cms/core";
+import type { ComponentData } from "@puckeditor/core";
 
 /** A page to render for the checks, with the file its own content comes from. */
 export interface RenderTarget {
   page: Page;
   file: string;
+}
+
+/** A block to draw (`drawBlock()`), and where it is. */
+export interface DrawTarget {
+  /** What it's part of: a page, the header or footer, or a collection's template. */
+  kind: "page" | "header" | "footer" | "template";
+  /** The page it's on, or the language's home for the header and footer. */
+  path: string;
+  block: ComponentData;
 }
 
 export interface SiteCodeService {
@@ -31,6 +41,13 @@ export interface SiteCodeService {
    * preview shows why.
    */
   renderedProblems(content: SiteContent, targets: RenderTarget[], today: string): Promise<SiteProblem[]>;
+  /**
+   * One block drawn as the site draws it, as HTML, for an editor plugin,
+   * which has none of the blocks' code: each of its slots is left as an
+   * empty `DRAWN_SLOT_ELEMENT` with the slot's name, where the slot's blocks
+   * go, and the blocks in them aren't drawn.
+   */
+  drawBlock(content: SiteContent, target: DrawTarget): Promise<string>;
 }
 
 /** The page at an address, as `findSitePage()` gives it: a page a build writes, or "Page not found". */

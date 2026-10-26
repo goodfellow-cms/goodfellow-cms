@@ -257,6 +257,9 @@ export default definePluginAdmin({
       // Choose media from the media library, and see how a link to the page looks when shared:
       // await session.chooseMedia("image");
       // await session.sharePreview(data.root);
+      // Have a block drawn as the site draws it, and the site's styles to show it with:
+      // const html = await session.draw(data.content[0]);
+      // const styles = await session.styles();
       return {
         data: () => data, // what Publish publishes; without it, the last change()
         set: (next) => {}, // takes the AI assistant's changes; without it, the AI assistant isn't offered
@@ -268,7 +271,12 @@ export default definePluginAdmin({
 });
 ```
 
-The session also carries the page's `kind`, `path`, `title` and `language`, the site's settings, its pages for links, and for a template, the collection whose fields its `{name}` placeholders fill in. The editor never sees the site's blocks' code, only their fields, so it draws them from those.
+The session also carries the page's `kind`, `path`, `title` and `language`, the site's settings, its pages for links, and for a template, the collection whose fields its `{name}` placeholders fill in. The editor never sees the site's blocks' code, only their fields.
+
+To show blocks as they look on the site, it asks for them to be drawn:
+
+- **`session.draw(block)`** gives one block's HTML, drawn by the site's own code in a frame of the admin panel's, in the page being edited, as the site's pages have it before their scripts start. Each of the block's slots is left as an empty `<gf-slot data-slot="…">` (`DRAWN_SLOT_ELEMENT`), with the slot's name, where the slot's blocks go, and the blocks in it aren't drawn: the editor draws those itself, into those places, so each stays the editor's to select and move. Give the places `display: contents`, so the blocks in them are laid out by the block around them, as in a grid of columns. Only the blocks the editor may use are drawn.
+- **`session.styles()`** gives the site's stylesheets as CSS text, as its last build compiled them, with the theme's colors and fonts as they are now, to style what's drawn with. Classes the site's build hasn't seen yet, such as ones typed into a block's CSS classes since, aren't in them.
 
 What it hands back is checked before anything is published: only the site's blocks (template-only blocks only in templates), each value fitting its field, every block with an id of its own, and nothing a block doesn't have unless it was already there, unchanged, when the editor opened. Anything else isn't published, and the admin panel says so, with the details. Switching back to the standard editor keeps what was edited, when it passes the same check.
 

@@ -9,6 +9,7 @@ import {
   newTaskRequestId,
   openTaskAnswer,
   type PluginDescription,
+  type PluginEditorBlock,
   type PluginMediaReady,
   type PluginSecretsHelp,
   type PluginTaskRequest,
@@ -111,6 +112,9 @@ export interface PluginEditorHooks {
   onChange(change: Parameters<PluginPageRequests["editor.change"]>[0]): void;
   chooseMedia(kind: "image" | "video" | "audio" | "file", value: string): Promise<string | null>;
   sharePreview(root: unknown): ReturnType<PluginPageRequests["editor.sharePreview"]>;
+  /** Draws a block of what's edited, which the page checks is one the editor may use. */
+  draw(block: PluginEditorBlock): Promise<string>;
+  styles(): Promise<string[]>;
 }
 
 const MEDIA_KINDS = new Set(["image", "video", "audio", "file"]);
@@ -231,6 +235,21 @@ function pluginHandlers(
       const hooks = editing("preview a shared link");
       return hooks.sharePreview(params?.root);
     },
+    "editor.draw": (params) => {
+      const hooks = editing("draw blocks");
+      const block = params?.block;
+      if (
+        typeof block !== "object" ||
+        block === null ||
+        typeof block.type !== "string" ||
+        typeof block.props !== "object" ||
+        block.props === null
+      ) {
+        throw new RefusedError("That isn't a block.");
+      }
+      return hooks.draw(block);
+    },
+    "editor.styles": () => editing("read the site's styles").styles(),
     task: async (params) => {
       const id = params?.id;
       if (typeof id !== "string" || !plugin.tasks?.some((task) => task.id === id)) {
