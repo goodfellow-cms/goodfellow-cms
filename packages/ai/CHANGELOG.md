@@ -1,5 +1,25 @@
 # @goodfellow-cms/ai
 
+## 0.6.0
+
+### Minor Changes
+
+- b9b0434: Built-in blocks for WordPress's core blocks Goodfellow had nothing like: Separator, Pullquote, Preformatted text, Verse, Details, Table (edited in a grid of cells, which the AI assistant can fill in too), File, Audio, Media and text, Gallery and Page list. Sections get a cover's color over the background, its strength, a least height and the part of the picture to keep in view, and Site name and logo can show the site's description under the name. Moving from WordPress keeps these blocks as they are, falling back to the blocks used before on sites without them, and exporting to WordPress makes them WordPress's own again. Media fields can hold sound files (`mediaField(label, "audio")`), blocks can read the site's pages with `useSite().pages`, and `tableField()` gives a block a table's cells.
+
+### Patch Changes
+
+- Updated dependencies [1b9781e]
+- Updated dependencies [3436a92]
+- Updated dependencies [2f6c59e]
+- Updated dependencies [f591bc0]
+- Updated dependencies [6bf08ae]
+- Updated dependencies [b803050]
+- Updated dependencies [4c909ac]
+- Updated dependencies [11a429f]
+- Updated dependencies [be7bbec]
+- Updated dependencies [b9b0434]
+  - @goodfellow-cms/core@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

@@ -1,5 +1,28 @@
 # @goodfellow-cms/blocks
 
+## 0.6.0
+
+### Minor Changes
+
+- 6bf08ae: Every part of a block has a stable name, such as `gf-heading` or `gf-card-title`, and **Colors & fonts → Blocks' parts** gives a part classes for every block of that kind at once, kept in `content/site.json`'s `theme.parts`. A part's classes come after the block's own and before what's chosen for each block, so a choice made for one block still wins. Blocks name their parts with `useParts()` and declare them with `withParts()`, from `@goodfellow-cms/react`; the registry's blocks name theirs after themselves, such as `gf-shadcn-cards-title`. Images and videos with **Rounded corners** off now have the `rounded-none` class, and Rows that don't wrap `flex-nowrap`, so a theme's classes can't change them.
+- b9b0434: Built-in blocks for WordPress's core blocks Goodfellow had nothing like: Separator, Pullquote, Preformatted text, Verse, Details, Table (edited in a grid of cells, which the AI assistant can fill in too), File, Audio, Media and text, Gallery and Page list. Sections get a cover's color over the background, its strength, a least height and the part of the picture to keep in view, and Site name and logo can show the site's description under the name. Moving from WordPress keeps these blocks as they are, falling back to the blocks used before on sites without them, and exporting to WordPress makes them WordPress's own again. Media fields can hold sound files (`mediaField(label, "audio")`), blocks can read the site's pages with `useSite().pages`, and `tableField()` gives a block a table's cells.
+
+### Patch Changes
+
+- fbf76bb: Inline code, plain code blocks and table headings in rich text and Markdown take their tint from the text around them, so they stay readable on sections with a primary or dark background. `goodfellow dev` runs a block's interactive parts again after the block is removed and added back.
+- Updated dependencies [1b9781e]
+- Updated dependencies [3436a92]
+- Updated dependencies [2f6c59e]
+- Updated dependencies [f591bc0]
+- Updated dependencies [6bf08ae]
+- Updated dependencies [b803050]
+- Updated dependencies [4c909ac]
+- Updated dependencies [11a429f]
+- Updated dependencies [be7bbec]
+- Updated dependencies [b9b0434]
+  - @goodfellow-cms/core@0.6.0
+  - @goodfellow-cms/react@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
