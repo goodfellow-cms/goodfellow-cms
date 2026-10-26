@@ -167,6 +167,27 @@ describe("scaffold", { timeout: GIT_TIMEOUT }, () => {
     expect(remoteUrl({ host: "bitbucket", repo: "parish/site" })).toBe("https://bitbucket.org/parish/site.git");
   });
 
+  it("keeps a Bitbucket site's content in a repository of its own, whose pipelines ask Vercel to rebuild", async () => {
+    const target = join(dir, "site");
+    await scaffold({
+      template: starter,
+      target,
+      versions,
+      backend: { host: "bitbucket", repo: "parish/site" },
+      host: "vercel",
+      content: { repo: "parish/site-content", build: "code" },
+    });
+    expect(await readFile(join(target, "goodfellow.config.tsx"), "utf8")).toContain(
+      '  backend: bitbucket({ repo: "parish/site-content", contentOnly: true, code: "parish/site" }),',
+    );
+    expect(await readFile(join(target, "vercel.ts"), "utf8")).toContain("bitbucket.org/parish/site-content.git");
+    expect(await readFile(join(target, "content-repository/bitbucket-pipelines.yml"), "utf8")).toContain(
+      "Scheduled change",
+    );
+    expect(existsSync(join(target, "bitbucket-pipelines.yml"))).toBe(false);
+    expect(existsSync(join(target, ".github"))).toBe(false);
+  });
+
   it("keeps the content in a repository of its own, which the code ignores and links to", async () => {
     const target = join(dir, "site");
     await scaffold({

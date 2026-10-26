@@ -23,5 +23,6 @@
   "browser": { "binding": "BROWSER" }
   // `pnpm run setup` sets the secrets, which `npx wrangler secret put NAME` can also set: GITHUB_APP_ID,
   // GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_PRIVATE_KEY, SESSION_KEY, and for GitLab sites,
-  // GITLAB_CLIENT_ID and GITLAB_CLIENT_SECRET (and GITLAB_URL in vars for self-managed GitLab).
+  // GITLAB_CLIENT_ID and GITLAB_CLIENT_SECRET (and GITLAB_URL in vars for self-managed GitLab), and for
+  // Bitbucket sites, BITBUCKET_CLIENT_ID and BITBUCKET_CLIENT_SECRET (an OAuth consumer's key and secret).
 }

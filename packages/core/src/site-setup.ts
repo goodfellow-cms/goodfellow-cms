@@ -325,8 +325,9 @@ The site is stored on Bitbucket and built by Vercel, which builds and publishes 
 
 1. In Vercel, import the repository from Bitbucket. \`vercel.ts\` already has the right settings. Under the project's **Settings → Git → Deploy Hooks**, create a hook for the main branch and copy its address.
 2. In the repository on Bitbucket, turn on Pipelines (**Repository settings → Pipelines → Settings**), and under **Repository settings → Pipelines → Repository variables**, add the hook's address as \`VERCEL_DEPLOY_HOOK\`, with **Secured** ticked.
-3. In the admin panel, open **Site Settings → Updates** and turn on updates: it adds a schedule that checks each night whether the site needs rebuilding or has fixes to install, which also puts pages and items scheduled to be shown or hidden live. Doing this needs the repository's Admin permission. Each check takes about a minute of Bitbucket's build minutes, of which the free plan has 50 a month.
-4. To have scheduled pages and items go live within the hour instead, add a schedule under **Pipelines → Schedules** that runs the \`scheduled\` pipeline on the main branch each hour. That uses about 720 build minutes a month, so it needs a paid Bitbucket plan.
+3. In the admin panel, open **Site Settings → Updates** and turn on updates: it adds a schedule that checks each night whether the site needs rebuilding or has fixes to install. Doing this needs the repository's Admin permission. Each check takes about a minute of Bitbucket's build minutes, of which the free plan has 50 a month.
+
+Pages and items scheduled to be shown or hidden go live at their time: the admin panel adds a schedule under **Pipelines → Schedules** for each time, which runs the \`scheduled\` pipeline then, and removes it once it has passed. That pipeline only asks Vercel to rebuild the site, so it takes seconds of build minutes. Adding schedules needs permission to change the repository's Pipelines settings, so an owner opening the admin panel adds any that an editor couldn't.
 
 Plugins' tasks, such as S3 storage signing uploads, run in the same pipelines (\`npx ${cli} task\`), with the secrets they need added as secured repository variables.
 `;
@@ -347,9 +348,6 @@ export async function planSite({
 }: SitePlan): Promise<SiteFiles> {
   if (content && (!backend || !host)) {
     throw new Error("Keeping the content in a repository of its own needs both repositories and a host.");
-  }
-  if (content && backend?.host === "bitbucket") {
-    throw new Error("Sites stored on Bitbucket can't keep their content in a repository of their own yet.");
   }
   const adminUrl = admin === undefined ? undefined : adminOrigin({ url: admin });
   if (admin !== undefined && (!adminUrl || !allowsAdminAddress(host))) {
@@ -422,7 +420,7 @@ export async function planSite({
     }
   }
 
-  if (content && backend && backend.host !== "bitbucket" && host) {
+  if (content && backend && host) {
     separateContent(files, name, { ...content, git: backend.host, code: backend.repo, host });
     // Vercel reads a content repository's vercel.ts before the code is cloned, so it gets the header rules written out.
     const vercel = files.get(`${CONTENT_REPOSITORY_DIR}/vercel.ts`);
@@ -460,7 +458,7 @@ export async function planSite({
 function separateContent(
   files: SiteFiles,
   name: string,
-  { repo, build, git, code, host }: SeparateContent & { git: "github" | "gitlab"; code: string; host: Host },
+  { repo, build, git, code, host }: SeparateContent & { git: Backend["host"]; code: string; host: Host },
 ): void {
   const setup = { git, host, build, code, content: repo, next: files.has("next.config.ts") };
   const vercel = files.get("vercel.ts");
@@ -472,6 +470,8 @@ function separateContent(
     }
   }
   for (const file of SINGLE_REPOSITORY_SETUP_FILES) files.delete(file);
+  // Plugins' tasks run in the starters' GitHub workflow, which a separate site's content repository can't run yet.
+  if (git !== "github") files.delete(GITHUB_TASK_WORKFLOW);
   for (const [path, text] of generated.code) files.set(path, text);
   for (const [path, text] of generated.content) files.set(`${CONTENT_REPOSITORY_DIR}/${path}`, text);
 

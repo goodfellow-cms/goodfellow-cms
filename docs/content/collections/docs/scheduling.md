@@ -33,7 +33,7 @@ Visitors see the site as it was last built, so a scheduled change goes live when
 |---|---|
 | GitLab | At their time. The admin panel adds a pipeline schedule for each time, which builds the site then, and removes it once it's no longer needed. |
 | GitHub | Within the hour after their time. The site's `.github/workflows/scheduled.yml` checks each hour whether anything has come due, and builds the site only then. It also builds it the first hour after what the site shows by today's date changes, such as an event's next date. |
-| Bitbucket | With the nightly rebuild after their time, or within the hour where an owner has added an hourly schedule for the `scheduled` pipeline, which needs more build minutes than Bitbucket's free plan has (see [Put it online](/docs/put-it-online#3-choose-a-host)). Either asks Vercel to rebuild the site through its deploy hook. |
+| Bitbucket | At their time. The admin panel adds a Pipelines schedule for each time, which runs the `scheduled` pipeline once then, and removes it once it has passed. The pipeline only asks Vercel to rebuild the site through its deploy hook, so it takes seconds of the free plan's build minutes. Adding schedules needs the repository's Admin permission: where an editor's sign-in can't, the admin panel says so, and the change goes live with the nightly rebuild unless an owner opens the admin panel before then. |
 
 Sites built by Cloudflare Pages work the same way: the schedule or the hourly check asks Cloudflare to rebuild the site through the Pages project's deploy hook, which the site's setup files need as `CLOUDFLARE_DEPLOY_HOOK` (see [Put it online](/docs/put-it-online#3-choose-a-host)).
 

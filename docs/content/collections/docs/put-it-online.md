@@ -69,7 +69,7 @@ Each host's free plan has its own rules about business use; read [Hosts and busi
 1. Import the repository in Vercel, as above, and under the project's **Settings → Git → Deploy Hooks** create a hook for the main branch.
 2. In the repository on Bitbucket, turn Pipelines on under **Repository settings → Pipelines → Settings**, and under **Repository settings → Pipelines → Repository variables** add the hook's address as `VERCEL_DEPLOY_HOOK`, with **Secured** ticked.
 3. In the admin panel, turn on updates on the **Updates** screen, which adds the nightly schedule under **Pipelines → Schedules**. That needs the repository's Admin permission.
-4. Scheduled changes then go live with the nightly rebuild. To have them go live within the hour, add a schedule yourself under **Pipelines → Schedules** that runs the `scheduled` pipeline on the main branch every hour. It uses about 720 build minutes a month, more than the 50 Bitbucket's free plan has, so it needs a paid plan.
+4. Scheduled changes then go live at their time: the admin panel adds a schedule for each, which runs the `scheduled` pipeline once, and removes it once it has passed. That needs the Admin permission too, so an editor's scheduled change waits for the nightly rebuild unless an owner opens the admin panel before then.
 
 Bitbucket gives every pipeline step the repository's variables and lets it publish, so keep only what the site needs there.
 

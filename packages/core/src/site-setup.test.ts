@@ -203,19 +203,23 @@ describe("planSite", () => {
     expect(Object.keys(parsed.pipelines.branches)).toEqual(["main"]);
     // Publishing doesn't use build minutes: the lockfile step runs only when package.json changes.
     expect(JSON.stringify(parsed.pipelines.branches.main)).toContain('"includePaths":["package.json"]');
-    expect(Object.keys(parsed.pipelines.custom)).toEqual(Object.values(BITBUCKET_PIPELINE_NAMES));
+    const { update, scheduled, task } = BITBUCKET_PIPELINE_NAMES;
+    expect(Object.keys(parsed.pipelines.custom)).toEqual([update, scheduled, task]);
     const script = (name: string) =>
       JSON.stringify(parsed.pipelines.custom[name]?.find((part) => "step" in part)?.step ?? {});
     expect(script(BITBUCKET_PIPELINE_NAMES.update)).toContain("npx goodfellow nightly --output nightly.env");
     expect(script(BITBUCKET_PIPELINE_NAMES.update)).toContain("VERCEL_DEPLOY_HOOK");
-    expect(script(BITBUCKET_PIPELINE_NAMES.scheduled)).toContain("npx goodfellow due");
+    // A scheduled change's rebuild only asks Vercel to build: it clones and installs nothing, so it takes seconds.
+    expect(script(BITBUCKET_PIPELINE_NAMES.scheduled)).toContain("VERCEL_DEPLOY_HOOK");
+    expect(script(BITBUCKET_PIPELINE_NAMES.scheduled)).toContain('"clone":{"enabled":false}');
+    expect(script(BITBUCKET_PIPELINE_NAMES.scheduled)).not.toContain("npm");
     expect(script(BITBUCKET_PIPELINE_NAMES.task)).toContain(
       `HEAD:refs/heads/${TASK_BRANCH_PREFIX}$GOODFELLOW_TASK_REQUEST`,
     );
     expect(pipelines).toContain("--package-lock-only");
     expect(files.get("README.md")).toContain("## Bitbucket and Vercel");
 
-    // Bitbucket's sites are put online by Vercel, and don't keep their content apart yet.
+    // Bitbucket's sites are put online by Vercel.
     expect(hostsFor("bitbucket")).toEqual(["vercel"]);
     await expect(
       planSite({
@@ -226,16 +230,6 @@ describe("planSite", () => {
         host: "github-pages",
       }),
     ).rejects.toThrow("GitHub Pages");
-    await expect(
-      planSite({
-        template: template(),
-        name: "my-parish",
-        versions: {},
-        backend: { host: "bitbucket", repo: "someone/my-parish" },
-        host: "vercel",
-        content: { repo: "someone/my-parish-content", build: "content" },
-      }),
-    ).rejects.toThrow("Bitbucket");
   });
 
   it("gives a Next.js site on Cloudflare Pages goodfellow-next's commands, and both hosts' setups without a repository", async () => {

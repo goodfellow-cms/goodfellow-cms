@@ -1,6 +1,8 @@
 import {
   BITBUCKET_PIPELINE_NAMES,
   BITBUCKET_SCHEDULES,
+  bitbucketCronAt,
+  bitbucketCronInstant,
   bitbucketPipelines,
   CodeChangeError,
   ConflictError,
@@ -337,28 +339,57 @@ describe("editors", () => {
 });
 
 describe("updates and scheduled changes", () => {
-  it("turns on Pipelines and adds the nightly schedule, and goes live within the hour with an hourly one", async () => {
+  it("turns on Pipelines and adds the nightly schedule", async () => {
     const { fake, backend } = await signedIn();
-    const { updates, scheduledBuilds } = backend;
-    if (!updates || !scheduledBuilds) throw new Error("No updates");
+    const { updates } = backend;
+    if (!updates) throw new Error("No updates");
     expect(await updates.setup()).toBe("needs-setup");
-    expect(await scheduledBuilds.timing()).toBe("none");
     await updates.enable?.();
     expect(fake.settings.pipelines).toBe(true);
     expect(fake.schedules.map(({ pattern, cron, branch }) => ({ pattern, cron, branch }))).toEqual([
       { pattern: BITBUCKET_PIPELINE_NAMES.update, cron: BITBUCKET_SCHEDULES.update, branch: "main" },
     ]);
     expect(await updates.setup()).toBe("ready");
-    expect(await scheduledBuilds.timing()).toBe("nightly");
-    // An owner with build minutes to spare adds the hourly check's schedule on Bitbucket.
+  });
+
+  it("puts scheduled changes live at their time, with a schedule pinned to each, and removes those that passed", async () => {
+    const { fake, backend } = await signedIn();
+    const scheduledBuilds = backend.scheduledBuilds;
+    expect(await scheduledBuilds?.timing()).toBe("exact");
+    const soon = new Date(Date.now() + 3_600_000);
+    soon.setUTCSeconds(0, 0);
+    const later = new Date(Date.UTC(soon.getUTCFullYear() + 1, 2, 4, 9, 30));
+    // The nightly schedule isn't the admin panel's to remove.
     fake.schedules.push({
-      uuid: "{hourly}",
-      pattern: BITBUCKET_PIPELINE_NAMES.scheduled,
+      uuid: "{nightly}",
+      pattern: BITBUCKET_PIPELINE_NAMES.update,
       branch: "main",
-      cron: BITBUCKET_SCHEDULES.scheduled,
+      cron: BITBUCKET_SCHEDULES.update,
       enabled: true,
     });
-    expect(await scheduledBuilds.timing()).toBe("hourly");
+    await scheduledBuilds?.sync?.([soon, later, new Date(Date.now() - 60_000)]);
+    const ours = () =>
+      fake.schedules.filter((schedule) => schedule.pattern === BITBUCKET_PIPELINE_NAMES.scheduled).map((s) => s.cron);
+    expect(ours()).toEqual([bitbucketCronAt(soon), bitbucketCronAt(later)]);
+    expect(bitbucketCronAt(later)).toBe(`0 30 9 4 3 ? ${later.getUTCFullYear()}`);
+    expect(bitbucketCronInstant(bitbucketCronAt(later))).toEqual(later);
+
+    await scheduledBuilds?.sync?.([later]);
+    expect(ours()).toEqual([bitbucketCronAt(later)]);
+    expect(fake.schedules.some((schedule) => schedule.uuid === "{nightly}")).toBe(true);
+  });
+
+  it("says when the sign-in can't add schedules, and has changes go live with the nightly update without the pipeline", async () => {
+    const { fake, backend } = await signedIn({ tokens: { [TOKEN]: { nickname: "editor", permission: "write" } } });
+    await expect(backend.scheduledBuilds?.sync?.([new Date(Date.now() + 3_600_000)])).rejects.toMatchObject({
+      problem: "not-allowed",
+    });
+    fake.commit(
+      "bitbucket-pipelines.yml",
+      "pipelines:\n  custom:\n    update:\n      - step:\n          script: [npx goodfellow nightly --output x]\n",
+    );
+    await backend.revision();
+    expect(await backend.scheduledBuilds?.timing()).toBe("nightly");
   });
 
   it("says the setup has no update without the pipelines", async () => {
@@ -456,6 +487,36 @@ describe("a repository of content only", () => {
         expectedRevision: await backend.revision(),
       }),
     ).rejects.toBeInstanceOf(CodeChangeError);
+  });
+
+  it("follows the code repository's version, with the same sign-in, where the config names it", async () => {
+    const fake = fakeBitbucket({
+      repo: "parish/site-content",
+      files: FILES,
+      tokens: { [TOKEN]: { nickname: "editor" }, "content-token": { nickname: "content", access: true } },
+    });
+    fake.addRepo("parish/site", {
+      "package.json": JSON.stringify({ dependencies: { "@goodfellow-cms/react": "0.5.0" } }),
+    });
+    const host = () =>
+      bitbucket({
+        repo: "parish/site-content",
+        contentOnly: true,
+        code: "parish/site",
+        fetch: fake.fetch,
+        storage: {},
+      });
+    const backend = await host().signInWithToken(TOKEN, false);
+    const updates = backend.updates;
+    expect(updates?.code?.repo).toBe("parish/site");
+    expect(updates?.code?.webUrl).toBe("https://bitbucket.org/parish/site");
+    expect(await updates?.code?.read("package.json")).toContain("0.5.0");
+    // The code repository has no update pipeline of its own: Vercel rebuilds the site, as on GitHub and GitLab.
+    expect(await updates?.setup()).toBe("missing");
+
+    // A repository access token reaches only the content repository.
+    const tokenBackend = await host().signInWithToken("content-token", false);
+    expect(await tokenBackend.updates?.setup()).toBe("no-access");
   });
 });
 

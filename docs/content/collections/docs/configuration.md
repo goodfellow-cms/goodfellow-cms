@@ -73,8 +73,9 @@ bitbucket({ repo: "workspace/site", clientId: "…" })
 - `repo`: the repository, as `workspace/name`.
 - `clientId`: the Key of the workspace's OAuth consumer, for one-click **Sign in with Bitbucket**. Without it, editors sign in with a token.
 - `branch`: the branch the live site is built from.
+- `contentOnly` and `code`: as for GitHub, with the code repository as `workspace/name`.
 
-Bitbucket Cloud only; content kept in a repository of its own isn't offered on Bitbucket yet.
+Bitbucket Cloud only.
 
 ## AI services
 

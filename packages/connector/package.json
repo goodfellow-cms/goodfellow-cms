@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@cloudflare/puppeteer": "1.4.0",
+    "@goodfellow-cms/bitbucket": "workspace:*",
     "@goodfellow-cms/core": "workspace:*",
     "@goodfellow-cms/github": "workspace:*",
     "@goodfellow-cms/gitlab": "workspace:*",

@@ -27,7 +27,7 @@ The token needs to be able to change the site's files and, for submitting for re
 
 ### Through a connector service
 
-A connector service lets editors add Goodfellow to Claude on the web, on phones and in Claude Code without a token, by signing in with GitHub or GitLab (not yet Bitbucket, whose sites connect through Claude Desktop or Claude Code). Goodfellow doesn't run one for everyone yet, and may in the future. An organization can run its own; see [Claude connector service](/docs/claude-connector). Then editors add it once:
+A connector service lets editors add Goodfellow to Claude on the web, on phones and in Claude Code without a token, by signing in with GitHub, GitLab or Bitbucket. Goodfellow doesn't run one for everyone yet, and may in the future. An organization can run its own; see [Claude connector service](/docs/claude-connector). Then editors add it once:
 
 1. In Claude, open **Settings → Connectors** and choose **Add custom connector**. (In a Claude Team or Enterprise organization, an owner adds it for everyone in the organization's settings.)
 2. Name it **Goodfellow**, and give the connector's address, such as `https://claude.your-name.workers.dev/mcp`.

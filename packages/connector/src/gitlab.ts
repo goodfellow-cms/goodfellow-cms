@@ -5,7 +5,7 @@
  * when Claude renews its own.
  */
 import { GitLabBackend } from "@goodfellow-cms/gitlab";
-import { type GitLabSite, type GitLabTokens, MAX_SITES } from "./connection.js";
+import { type GitLabSite, type HostTokens, MAX_SITES } from "./connection.js";
 
 export interface GitLabConfig {
   /** Such as `https://gitlab.com`. */
@@ -41,7 +41,7 @@ export function authorizeUrl(config: GitLabConfig, redirectUri: string, state: s
   })}`;
 }
 
-async function tokenRequest(config: GitLabConfig, params: Record<string, string>, now: number): Promise<GitLabTokens> {
+async function tokenRequest(config: GitLabConfig, params: Record<string, string>, now: number): Promise<HostTokens> {
   let response: Response;
   try {
     response = await config.fetch(`${config.url}/oauth/token`, {
@@ -72,7 +72,7 @@ export function exchangeCode(
   config: GitLabConfig,
   grant: { code: string; redirectUri: string; verifier: string },
   now: number,
-): Promise<GitLabTokens> {
+): Promise<HostTokens> {
   return tokenRequest(
     config,
     {
@@ -90,7 +90,7 @@ export function refreshTokens(
   refresh: string,
   redirectUri: string,
   now: number,
-): Promise<GitLabTokens> {
+): Promise<HostTokens> {
   return tokenRequest(config, { grant_type: "refresh_token", refresh_token: refresh, redirect_uri: redirectUri }, now);
 }
 

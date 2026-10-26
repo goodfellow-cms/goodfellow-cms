@@ -4,6 +4,13 @@
  * `planSite()` uses them for new sites, so `create-goodfellow` and the setup
  * page make the same ones.
  */
+import {
+  BITBUCKET_PIPELINE_NAMES,
+  BITBUCKET_PIPELINES,
+  bitbucketCodeRebuildPipelines,
+  bitbucketContentPipelines,
+  VERCEL_DEPLOY_HOOK,
+} from "./bitbucket-setup.js";
 import { CLOUDFLARE_DEPLOY_HOOK } from "./cloudflare-setup.js";
 import { CONTENT_REPOSITORY_DIR } from "./content/paths.js";
 import {
@@ -57,7 +64,8 @@ export function contentBuildsFor(host: Host): ContentBuild[] {
 }
 
 export interface SeparateSetup {
-  git: "github" | "gitlab";
+  /** The host of both repositories. Sites on Bitbucket are built by Vercel. */
+  git: "github" | "gitlab" | "bitbucket";
   host: Host;
   build: ContentBuild;
   /** The code repository. */
@@ -87,6 +95,7 @@ export const SINGLE_REPOSITORY_SETUP_FILES = [
   GITHUB_SCHEDULED_WORKFLOW,
   GITLAB_CI,
   VERCEL_CONFIG,
+  BITBUCKET_PIPELINES,
 ];
 
 /** Comment lines, wrapped at about 80 columns. */
@@ -117,9 +126,20 @@ function commands(setup: SeparateSetup) {
 
 /** A clone address that uses a token from `variable` when it's set, for repositories that aren't public. */
 function cloneUrl(setup: SeparateSetup, repo: string, variable: string): string {
-  const user = setup.git === "github" ? "x-access-token" : "oauth2";
-  const host = setup.git === "github" ? "github.com" : "gitlab.com";
+  const { user, host } = {
+    github: { user: "x-access-token", host: "github.com" },
+    gitlab: { user: "oauth2", host: "gitlab.com" },
+    bitbucket: { user: "x-token-auth", host: "bitbucket.org" },
+  }[setup.git];
   return `https://\${${variable}:+${user}:$${variable}@}${host}/${repo}.git`;
+}
+
+/** A token that can only read a repository, on each host, for Vercel to clone it with. */
+function readTokenNote(setup: SeparateSetup, repo: string): string {
+  if (setup.git === "github") return `a fine-grained token for ${repo} with Contents read`;
+  if (setup.git === "gitlab")
+    return `a project access token for ${repo} with the Reporter role and the read_repository scope`;
+  return `a repository access token for ${repo} with Repositories: Read`;
 }
 
 /**
@@ -492,7 +512,7 @@ function vercelCodeConfig(setup: SeparateSetup, template: string | undefined): s
   const { copy } = commands(setup);
   const install = `npm ci && git clone --depth 1 "${cloneUrl(setup, setup.content, "GOODFELLOW_CONTENT_TOKEN")}" ${CONTENT_REPOSITORY_DIR} && ${copy}`;
   const note = comment(
-    `The site's content is kept in ${setup.content}, which the install clones into ${CONTENT_REPOSITORY_DIR}/. If it isn't public, add a token that can only read it as this project's GOODFELLOW_CONTENT_TOKEN environment variable: ${setup.git === "github" ? `a fine-grained token for ${setup.content} with Contents read` : `a project access token for ${setup.content} with the Reporter role and the read_repository scope`}.`,
+    `The site's content is kept in ${setup.content}, which the install clones into ${CONTENT_REPOSITORY_DIR}/. If it isn't public, add a token that can only read it as this project's GOODFELLOW_CONTENT_TOKEN environment variable: ${readTokenNote(setup, setup.content)}.`,
     "// ",
   );
   if (setup.next || template === undefined) {
@@ -519,7 +539,7 @@ function vercelContentConfig(setup: SeparateSetup, template: string | undefined)
   const install = `git clone --depth 1 "${cloneUrl(setup, setup.code, "GOODFELLOW_CODE_TOKEN")}" site && cd site && npm ci && npx ${cli} content copy ..`;
   const build = setup.next ? "cd site && npm run build" : "cd site && npx goodfellow build";
   const note = comment(
-    `This repository holds only the site's content. Its code is in ${setup.code}, which the install clones into site/ and builds with this content. If it isn't public, add a token that can only read it as this project's GOODFELLOW_CODE_TOKEN environment variable: ${setup.git === "github" ? `a fine-grained token for ${setup.code} with Contents read` : `a project access token for ${setup.code} with the Reporter role and the read_repository scope`}.`,
+    `This repository holds only the site's content. Its code is in ${setup.code}, which the install clones into site/ and builds with this content. If it isn't public, add a token that can only read it as this project's GOODFELLOW_CODE_TOKEN environment variable: ${readTokenNote(setup, setup.code)}.`,
     "// ",
   );
   if (setup.next || template === undefined) {
@@ -581,6 +601,9 @@ export function separateSetupFiles(setup: SeparateSetup, vercelTemplate?: string
   if (!contentBuildsFor(setup.host).includes(setup.build)) {
     throw new Error(`${setup.host} can only build the site from the content repository.`);
   }
+  if (setup.git === "bitbucket" && setup.host !== "vercel") {
+    throw new Error("Sites stored on Bitbucket are built by Vercel.");
+  }
   if (setup.host === "github-pages") {
     content.set(GITHUB_PAGES_WORKFLOW, githubPagesContentWorkflow(setup));
     content.set(GITHUB_SCHEDULED_WORKFLOW, githubScheduledContentWorkflow(setup));
@@ -602,6 +625,12 @@ export function separateSetupFiles(setup: SeparateSetup, vercelTemplate?: string
       VERCEL_CONFIG,
       setup.build === "code" ? vercelCodeConfig(setup, vercelTemplate) : vercelContentConfig(setup, vercelTemplate),
     );
+    if (setup.git === "bitbucket") {
+      // The content repository rebuilds for scheduled changes and each night, as the admin panel edits it.
+      content.set(BITBUCKET_PIPELINES, bitbucketContentPipelines(setup.build));
+      if (setup.build === "content") code.set(BITBUCKET_PIPELINES, bitbucketCodeRebuildPipelines(setup.content));
+      return { code, content };
+    }
     const rebuild = rebuildOnVercel(
       setup,
       setup.build === "code" ? setup.code : setup.content,
@@ -640,7 +669,8 @@ export interface SeparateSetupLinks {
  */
 export function separateSetupLinks(setup: Pick<SeparateSetup, "git" | "host" | "build">): SeparateSetupLinks {
   if (setup.host === "vercel") {
-    // The repository Vercel doesn't build from asks it to rebuild each night.
+    // The repository Vercel doesn't build from asks it to rebuild each night; on Bitbucket, the content repository.
+    if (setup.git === "bitbucket") return { reads: [], nightly: ["content"] };
     return { reads: [], nightly: setup.git === "gitlab" ? [setup.build === "code" ? "content" : "code"] : [] };
   }
   const gitlab = setup.git === "gitlab";
@@ -659,11 +689,19 @@ export function separateSetupLinks(setup: Pick<SeparateSetup, "git" | "host" | "
 }
 
 function repoUrl(setup: SeparateSetup, repo: string): string {
-  return `https://${setup.git === "github" ? "github.com" : "gitlab.com"}/${repo}`;
+  return `https://${{ github: "github.com", gitlab: "gitlab.com", bitbucket: "bitbucket.org" }[setup.git]}/${repo}`;
 }
 
 /** How the site is built, for the READMEs. */
 function buildNote(setup: SeparateSetup): string {
+  if (setup.git === "bitbucket") {
+    const { scheduled, rebuild } = BITBUCKET_PIPELINE_NAMES;
+    const where =
+      setup.build === "code"
+        ? `Vercel builds the site from the code repository: its \`${VERCEL_CONFIG}\` clones the content when it installs. The content repository's \`${BITBUCKET_PIPELINES}\` asks Vercel to rebuild the site whenever the content changes.`
+        : `Vercel builds the site from the content repository: its \`${VERCEL_CONFIG}\` clones the code when it installs, so the admin panel can show when changes are live. The code's \`${BITBUCKET_PIPELINES}\` asks Vercel to rebuild the site whenever the code changes.`;
+    return `${where} The content repository's pipelines also rebuild the site at the time a page or item scheduled to be shown or hidden comes due (\`${scheduled}\`, which the admin panel schedules for each such time) and each night (\`${rebuild}\`: add a schedule for it under **Pipelines → Schedules**). They ask through the Vercel project's deploy hook: add it as the secured repository variable \`${VERCEL_DEPLOY_HOOK}\` in each repository with a \`${BITBUCKET_PIPELINES}\`, and turn Pipelines on there.`;
+  }
   const rebuild = setup.git === "github" ? GITHUB_REBUILD_WORKFLOW : GITLAB_CI;
   if (setup.host === "github-pages") {
     return `The site is built and published with GitHub Pages from the content repository, by its \`${GITHUB_PAGES_WORKFLOW}\`, which checks out the code: turn GitHub Pages on there (Settings → Pages, with "GitHub Actions" as the source). The code's \`${GITHUB_UPDATE_WORKFLOW}\` installs Goodfellow's fixes each night and asks the content repository to rebuild the site after each change to the code.`;

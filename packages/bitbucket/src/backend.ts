@@ -25,6 +25,7 @@ import {
   type WriteOptions,
 } from "@goodfellow-cms/core";
 import { type ApiOptions, allPages, bitbucketJson, bitbucketRequest, type Paged, quoted } from "./api.js";
+import { bitbucketCodeUpdates } from "./code-updates.js";
 import { bitbucketEditors, bitbucketOwnerAccess, type Permission } from "./editors.js";
 import { bitbucketScheduledBuilds } from "./scheduled-builds.js";
 import { type BitbucketTasksOptions, bitbucketTasks } from "./tasks.js";
@@ -54,6 +55,8 @@ export interface BitbucketBackendOptions {
   tasks?: BitbucketTasksOptions;
   /** The repository holds only the site's content (`GitBackend.contentOnly`). */
   contentOnly?: boolean;
+  /** With `contentOnly`, the code's repository, whose updates the Updates screen follows. */
+  code?: string;
   /** Where to make the owner token, which can change editors and the repository's Pipelines settings. */
   ownerTokenLink?: TokenLink;
 }
@@ -162,9 +165,17 @@ export class BitbucketBackend implements GitBackend {
     this.editors = bitbucketEditors(this.api, this.owner.api, this.repo, this.user, options.permission);
     if (!this.contentOnly) {
       this.updates = bitbucketUpdates(this.api, this.owner.api, this.repo, this.branch, setup);
+    } else if (options.code) {
+      const code = options.code;
+      this.updates = bitbucketCodeUpdates(
+        this.api,
+        this.owner.api,
+        code,
+        (branch) => new BitbucketBackend({ api: this.api, repo: code, branch, user: this.user, onSignOut: () => {} }),
+      );
     }
     this.drafts = branchDrafts(this, this.draftHost());
-    this.scheduledBuilds = bitbucketScheduledBuilds(this.api, this.owner.api, this.repo, setup);
+    this.scheduledBuilds = bitbucketScheduledBuilds(this.api, this.owner.api, this.repo, this.branch, setup);
     this.tasks = bitbucketTasks(this.api, this.repo, this.branch, setup, options.tasks);
   }
 

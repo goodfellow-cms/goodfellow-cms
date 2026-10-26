@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fakeBitbucket } from "@goodfellow-cms/bitbucket/testing";
 import { blocks } from "@goodfellow-cms/blocks";
 import { type FakeGitHubApp, fakeGitHub } from "@goodfellow-cms/github/testing";
 import { fakeGitLab } from "@goodfellow-cms/gitlab/testing";
@@ -63,6 +64,17 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
     files: starterFiles(),
     oauth: { clientId: "gl-client", user: { username: "maria", name: "Maria" } },
   });
+  const bitbucket = fakeBitbucket({
+    repo: "parish/site",
+    files: starterFiles(),
+    tokens: {},
+    oauth: {
+      clientId: "bb-key",
+      secret: "bb-secret",
+      callback: `${CONNECTOR}/connect/bitbucket/callback`,
+      user: { nickname: "maria", displayName: "Maria", permission: "write" },
+    },
+  });
   const documents = new Map<string, unknown>();
   const outgoing: string[] = [];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -71,6 +83,7 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
     outgoing.push(request.url);
     if (host === "api.github.com" || host === "github.com") return github.fetch(request);
     if (host === "gitlab.example") return gitlab.fetch(request);
+    if (host === "api.bitbucket.org" || host === "bitbucket.org") return bitbucket.fetch(request);
     if (request.url === `${SITE}/goodfellow-site.json`) return Response.json(description);
     if (documents.has(request.url)) return Response.json(documents.get(request.url));
     return new Response(`No ${host}${pathname}`, { status: 404 });
@@ -93,6 +106,8 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
     GITLAB_URL: "https://gitlab.example",
     GITLAB_CLIENT_ID: "gl-client",
     GITLAB_CLIENT_SECRET: "gl-secret",
+    BITBUCKET_CLIENT_ID: "bb-key",
+    BITBUCKET_CLIENT_SECRET: "bb-secret",
   };
 
   /** A browser: it keeps the connector's cookies. */
@@ -218,6 +233,7 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
   return {
     github,
     gitlab,
+    bitbucket,
     grants,
     documents,
     outgoing,
@@ -295,6 +311,7 @@ describe("connecting with GitHub", () => {
     expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
     expect(html).toContain("Sign in with GitHub");
     expect(html).toContain("Sign in with GitLab");
+    expect(html).toContain("Sign in with Bitbucket");
     expect(html).toContain("claude.ai");
 
     const { page, verifier, callback } = await signInWithGitHub(clientId);
@@ -529,5 +546,63 @@ describe("connecting with GitLab", () => {
     expect(renewed.status).toBe(200);
     const next = (await renewed.json()) as { access_token: string };
     expect((await (await mcp(next.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(false);
+  });
+});
+
+describe("connecting with Bitbucket", () => {
+  it("keeps the person's Bitbucket tokens sealed in Claude's, and renews them with Claude's", async () => {
+    const { bitbucket, register, startAuthorize, visit, allow, exchange, post, mcp, outgoing } = setup();
+    const clientId = await register();
+    const started = await startAuthorize(clientId);
+    const toBitbucket = await visit(started.link("bitbucket"));
+    const authorize = new URL(toBitbucket.headers.get("location") ?? "");
+    expect(authorize.origin + authorize.pathname).toBe("https://bitbucket.org/site/oauth2/authorize");
+    expect(authorize.searchParams.get("response_type")).toBe("code");
+    const back = await bitbucket.fetch(authorize.toString());
+    const callback = await visit(back.headers.get("location") ?? "");
+    const page = await callback.text();
+    expect(page).toContain('value="parish/site"');
+    const code =
+      new URL((await allow(page, ["parish/site"])).headers.get("location") ?? "").searchParams.get("code") ?? "";
+    const tokens = (await (await exchange(clientId, code, started.verifier)).json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    // Claude's tokens are sealed, so Bitbucket's never show in them.
+    expect(tokens.access_token).not.toMatch(/oauth-|refresh-/);
+    expect(tokens.refresh_token).not.toMatch(/oauth-|refresh-/);
+
+    const { call } = await mcp(tokens.access_token);
+    expect((await call("get_site", { site: "bitbucket:parish/site" })).json()).toMatchObject({ address: SITE });
+    expect((await call("get_site", { site: "bitbucket:parish/other" })).isError).toBe(true);
+    expect(outgoing.some((address) => /oauth-|refresh-|bb-secret/.test(address))).toBe(false);
+
+    const renewed = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+      client_id: clientId,
+    });
+    expect(renewed.status).toBe(200);
+    const next = (await renewed.json()) as { access_token: string; refresh_token: string };
+    expect((await (await mcp(next.access_token)).call("get_site", { site: "bitbucket:parish/site" })).isError).toBe(
+      false,
+    );
+    // Bitbucket's refresh token worked once, so the old one from Claude is refused.
+    const again = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+      client_id: clientId,
+    });
+    expect(again.status).toBe(400);
+  });
+
+  it("says when the account can't publish to any repository", async () => {
+    const { bitbucket, register, startAuthorize, visit } = setup();
+    for (const entry of bitbucket.permissions.values()) entry.permission = "read";
+    const started = await startAuthorize(await register());
+    const authorize = new URL((await visit(started.link("bitbucket"))).headers.get("location") ?? "");
+    const callback = await visit((await bitbucket.fetch(authorize.toString())).headers.get("location") ?? "");
+    expect(callback.status).toBe(400);
+    expect(await callback.text()).toContain("publish to any repository");
   });
 });
