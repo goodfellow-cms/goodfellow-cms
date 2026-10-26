@@ -143,7 +143,10 @@ describe("isLocalOrigin", () => {
   });
 });
 
-describe("handleDevApi's plugins' tasks", () => {
+/** Tests that start Node processes, which can take seconds to start on Windows while many tests run at once. */
+const NODE_TIMEOUT = 60_000;
+
+describe("handleDevApi's plugins' tasks", { timeout: NODE_TIMEOUT }, () => {
   let root: string;
   let server: Server;
   let base: string;
@@ -172,6 +175,7 @@ describe("handleDevApi's plugins' tasks", () => {
   });
 
   afterAll(async () => {
+    server.closeAllConnections();
     await new Promise((done) => server.close(done));
     await rm(root, { recursive: true, force: true });
   });
