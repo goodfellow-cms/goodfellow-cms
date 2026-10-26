@@ -54,6 +54,8 @@ export interface BitbucketOptions {
    * panel then leaves adding blocks, which changes code, to a developer.
    */
   contentOnly?: boolean;
+  /** With `contentOnly`, the code's repository, `workspace/name`, whose updates the Updates screen follows. */
+  code?: string;
   /** For tests. */
   fetch?: typeof fetch;
   /** For tests. */
@@ -143,7 +145,7 @@ export function bitbucket(options: BitbucketOptions): GitHost {
         ? { login, name: account?.display_name, avatarUrl: account?.links?.avatar?.href }
         : { login: "access-token", name: "Access token" },
       ...(permission && { permission }),
-      ...(options.contentOnly && { contentOnly: true }),
+      ...(options.contentOnly && { contentOnly: true, ...(options.code && { code: options.code }) }),
       onSignOut: () => storage.clear(),
     });
   }
@@ -207,14 +209,14 @@ export function bitbucket(options: BitbucketOptions): GitHost {
         api,
         repo: options.repo,
         branch: await liveBranch(),
-        ...(options.contentOnly && { contentOnly: true }),
+        ...(options.contentOnly && { contentOnly: true, ...(options.code && { code: options.code }) }),
         user: { login: author?.name ?? options.repo, ...(author && { name: author.name }) },
         onSignOut: () => {},
         ...(revision && { revision }),
         ...(author && { author }),
       });
     return {
-      ...(options.contentOnly && { contentOnly: true }),
+      ...(options.contentOnly && { contentOnly: true, ...(options.code && { code: options.code }) }),
       async revision() {
         return (await backend()).revision();
       },

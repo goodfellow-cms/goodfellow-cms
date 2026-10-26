@@ -18,10 +18,12 @@ const STARTER_VERCEL = readFileSync(new URL("../../../templates/starter/vercel.t
 const config = `import { defineConfig } from "@goodfellow-cms/core";
 // import { github } from "@goodfellow-cms/github";
 // import { gitlab } from "@goodfellow-cms/gitlab";
+// import { bitbucket } from "@goodfellow-cms/bitbucket";
 
 export default defineConfig({
   // backend: github({ repo: "your-name/your-site" }),
   // backend: gitlab({ project: "your-name/your-site", clientId: "your-application-id" }),
+  // backend: bitbucket({ repo: "your-workspace/your-site", clientId: "your-consumer-key" }),
 });
 `;
 
@@ -63,7 +65,7 @@ describe("planSite with the content in a repository of its own", () => {
   const plan = (
     host: "github-pages" | "gitlab-pages" | "vercel" | "cloudflare-pages",
     build: "content" | "code" = "content",
-    git: "github" | "gitlab" = host === "gitlab-pages" ? "gitlab" : "github",
+    git: "github" | "gitlab" | "bitbucket" = host === "gitlab-pages" ? "gitlab" : "github",
   ) =>
     planSite({
       template: template(),
@@ -194,6 +196,66 @@ describe("planSite with the content in a repository of its own", () => {
     expect(parse(text(files, ".github/workflows/rebuild.yml")).on.push).toEqual({ branches: ["main"] });
     // Vercel reads it before the code is cloned, so the admin address's header rules are written out in it.
     expect(vercel.headers).toEqual([]);
+  });
+
+  it("keeps a Bitbucket site's content apart, with Vercel building either repository and the content's pipelines rebuilding it", async () => {
+    // Vercel builds the code, which clones the content with a repository access token.
+    const fromCode = await plan("vercel", "code", "bitbucket");
+    expect(text(fromCode, "goodfellow.config.tsx")).toContain(
+      'backend: bitbucket({ repo: "parish/site-content", contentOnly: true, code: "parish/site" }),',
+    );
+    const vercel = await vercelConfig(text(fromCode, "vercel.ts"));
+    expect(vercel.installCommand).toContain(
+      `\${GOODFELLOW_CONTENT_TOKEN:+x-token-auth:$GOODFELLOW_CONTENT_TOKEN@}bitbucket.org/parish/site-content.git`,
+    );
+    expect(text(fromCode, "vercel.ts").replace(/\s*\/\/\s*/g, " ")).toContain(
+      "a repository access token for parish/site-content with Repositories: Read",
+    );
+    const content = parse(text(fromCode, "content-repository/bitbucket-pipelines.yml"));
+    // The content's pipelines rebuild when it changes, for scheduled changes and each night, running none of the code.
+    expect(Object.keys(content.pipelines.branches)).toEqual(["main"]);
+    expect(Object.keys(content.pipelines.custom)).toEqual(["scheduled", "rebuild"]);
+    for (const step of [
+      content.pipelines.branches.main,
+      content.pipelines.custom.scheduled,
+      content.pipelines.custom.rebuild,
+    ]) {
+      expect(step[0].step.clone).toEqual({ enabled: false });
+      expect(step[0].step.script[0]).toContain(
+        'curl --fail --silent --show-error --request POST "$VERCEL_DEPLOY_HOOK"',
+      );
+    }
+    expect(fromCode.has("bitbucket-pipelines.yml")).toBe(false);
+    expect(fromCode.has(".github/workflows/plugin-task.yml")).toBe(false);
+    expect(text(fromCode, "README.md")).toContain("https://bitbucket.org/parish/site-content");
+
+    // Vercel builds the content, which clones the code; the code asks it to rebuild when it changes.
+    const fromContent = await plan("vercel", "content", "bitbucket");
+    const contentVercel = await vercelConfig(text(fromContent, "content-repository/vercel.ts"));
+    expect(contentVercel.installCommand).toContain(
+      `\${GOODFELLOW_CODE_TOKEN:+x-token-auth:$GOODFELLOW_CODE_TOKEN@}bitbucket.org/parish/site.git`,
+    );
+    const own = parse(text(fromContent, "content-repository/bitbucket-pipelines.yml"));
+    expect(own.pipelines.branches).toBeUndefined();
+    expect(Object.keys(own.pipelines.custom)).toEqual(["scheduled", "rebuild"]);
+    const code = parse(text(fromContent, "bitbucket-pipelines.yml"));
+    expect(Object.keys(code.pipelines.branches)).toEqual(["main"]);
+    expect(code.pipelines.custom).toBeUndefined();
+
+    expect(separateSetupLinks({ git: "bitbucket", host: "vercel", build: "code" })).toEqual({
+      reads: [],
+      nightly: ["content"],
+    });
+    expect(() =>
+      separateSetupFiles({
+        git: "bitbucket",
+        host: "cloudflare-pages",
+        build: "content",
+        code: "parish/site",
+        content: "parish/site-content",
+        next: false,
+      }),
+    ).toThrow("Vercel");
   });
 
   it("names an admin address in the code's config, with Vercel's header rules written out in the content's vercel.ts", async () => {

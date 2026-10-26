@@ -218,7 +218,7 @@ async function main(): Promise<void> {
     }
     // Vercel is the one host that builds sites stored on Bitbucket.
     host ??= storage === "bitbucket" ? "vercel" : await chooseHost(storage);
-    if (backend && host && contentRepo === undefined && backend.host !== "bitbucket") {
+    if (backend && host && contentRepo === undefined) {
       const separate = await choose("Where should the site's content be kept?", [
         { value: false, label: "With the code", note: "One repository for everything." },
         {
@@ -412,11 +412,8 @@ function separateContent(
 ): SeparateContent {
   if (!backend || !host) {
     throw new ScaffoldError(
-      "Keeping the content in a repository of its own needs the code's repository (--github or --gitlab) and a host (--host).",
+      "Keeping the content in a repository of its own needs the code's repository (--github, --gitlab or --bitbucket) and a host (--host).",
     );
-  }
-  if (backend.host === "bitbucket") {
-    throw new ScaffoldError("Sites stored on Bitbucket can't keep their content in a repository of their own yet.");
   }
   const parsed = parseRepo(backend.host, repo);
   if (!parsed || parsed === backend.repo) {

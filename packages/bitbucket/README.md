@@ -1,6 +1,6 @@
 # @goodfellow-cms/bitbucket
 
-Edit a Goodfellow site stored on Bitbucket Cloud, straight from the browser: sign-in with an access token, an API token or Bitbucket's own sign-in, publishing as single commits, conflict checks, drafts and pull requests, and the nightly update, scheduled changes and plugins' tasks through Bitbucket Pipelines.
+Edit a Goodfellow site stored on Bitbucket Cloud, straight from the browser: sign-in with an access token, an API token or Bitbucket's own sign-in, publishing as single commits, conflict checks, drafts and pull requests, the nightly update, scheduled changes that go live at their time, and plugins' tasks through Bitbucket Pipelines, and content kept in a repository of its own (`contentOnly` and `code`).
 
 ```tsx
 import { bitbucket } from "@goodfellow-cms/bitbucket";

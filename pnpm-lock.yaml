@@ -586,6 +586,9 @@ importers:
       '@cloudflare/puppeteer':
         specifier: 1.4.0
         version: 1.4.0
+      '@goodfellow-cms/bitbucket':
+        specifier: workspace:*
+        version: link:../bitbucket
       '@goodfellow-cms/core':
         specifier: workspace:*
         version: link:../core

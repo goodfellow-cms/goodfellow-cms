@@ -37,7 +37,7 @@ GitHub suits a site whose editors already use GitHub, or one with a developer wh
 Sites stored on [Bitbucket Cloud](https://bitbucket.org) are built and put online by Vercel: Bitbucket's own static websites have one address for each workspace and no domains of their own, and Cloudflare Pages doesn't build from Bitbucket. Bitbucket's free plan ([Bitbucket plans](https://www.atlassian.com/software/bitbucket/pricing)):
 
 - **Up to 5 users** in a workspace, each with their own Atlassian account.
-- **50 build minutes a month** for Bitbucket Pipelines, which run the nightly check for [updates](/docs/updates), plugins' [tasks](/docs/plugins#tasks) and writing `package-lock.json` when a plugin is installed. Vercel builds the site itself, so publishing uses none. The nightly check takes about a minute when nothing changed, so it fits; an hourly check for [scheduled changes](/docs/scheduling) would use about 720, so the free plan's scheduled changes go live with the nightly rebuild.
+- **50 build minutes a month** for Bitbucket Pipelines, which run the nightly check for [updates](/docs/updates), plugins' [tasks](/docs/plugins#tasks) and writing `package-lock.json` when a plugin is installed. Vercel builds the site itself, so publishing uses none. The nightly check takes about a minute when nothing changed, so it fits. [Scheduled changes](/docs/scheduling) only ask Vercel to rebuild, at their time, which takes seconds.
 - **Vercel's free plan is for non-commercial sites** (see below), so a business site on Bitbucket needs Vercel's paid plan.
 
 The [setup page](/new-site) doesn't offer Bitbucket; make the site with `npm create goodfellow@latest -- --bitbucket your-workspace/your-site` ([Put it online](/docs/put-it-online)).

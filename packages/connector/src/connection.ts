@@ -19,12 +19,21 @@ export interface GitLabSite {
   branch: string;
 }
 
+export interface BitbucketSite {
+  id: string;
+  repo: string;
+}
+
 export type Connection =
   | { host: "github"; user: { login: string; id: number; name?: string }; sites: GitHubSite[] }
-  | { host: "gitlab"; user: { login: string; name?: string }; sites: GitLabSite[] };
+  | { host: "gitlab"; user: { login: string; name?: string }; sites: GitLabSite[] }
+  | { host: "bitbucket"; user: { login: string; name?: string }; sites: BitbucketSite[] };
 
-/** The person's GitLab tokens, since GitLab has no app tokens: sealed in Claude's tokens, never stored. */
-export interface GitLabTokens {
+/**
+ * The person's GitLab or Bitbucket tokens, since those hosts have no app
+ * tokens: sealed in Claude's tokens, never stored.
+ */
+export interface HostTokens {
   access: string;
   refresh: string;
   /** Milliseconds since the epoch. */

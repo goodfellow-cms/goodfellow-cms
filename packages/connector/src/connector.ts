@@ -5,9 +5,10 @@
  * 1. Claude finds the authorization server from `/mcp`'s 401 and the
  *    `.well-known` documents, and registers (`/register`) or names itself
  *    with a client ID metadata document.
- * 2. `/authorize` asks which host the site is on; `/connect/github` and
- *    `/connect/gitlab` sign the person in there, and come back to a page
- *    where they choose the sites Claude may work on (`/connect/confirm`).
+ * 2. `/authorize` asks which host the site is on; `/connect/github`,
+ *    `/connect/gitlab` and `/connect/bitbucket` sign the person in there, and
+ *    come back to a page where they choose the sites Claude may work on
+ *    (`/connect/confirm`).
  * 3. Claude exchanges the code at `/token` for an access token, lasting an
  *    hour, and a refresh token, which works once.
  *
@@ -21,8 +22,9 @@ import { createGoodfellowServer, type Screenshotter, ToolError } from "@goodfell
 import { type App, type GitHubConfig, GitHubError } from "@goodfellow-cms/worker/github";
 import { base64UrlEncode, challengeFor, createSealer, type Sealer } from "@goodfellow-cms/worker/seal";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import * as bb from "./bitbucket.js";
 import { ClientError, findClient, redirectMatches, registerClient } from "./clients.js";
-import { type Connection, type GitLabTokens, MAX_SITES } from "./connection.js";
+import { type Connection, type HostTokens, MAX_SITES } from "./connection.js";
 import * as gh from "./github.js";
 import * as gl from "./gitlab.js";
 import { type D1Like, d1Grants, type GrantStore } from "./grants.js";
@@ -44,6 +46,9 @@ export interface ConnectorEnv {
   GITLAB_URL?: string;
   GITLAB_CLIENT_ID?: string;
   GITLAB_CLIENT_SECRET?: string;
+  /** A private Bitbucket OAuth consumer, for sites on Bitbucket. */
+  BITBUCKET_CLIENT_ID?: string;
+  BITBUCKET_CLIENT_SECRET?: string;
   /** The D1 database with the `grants` table (`migrations/`). */
   DB?: D1Like;
   /** Cloudflare Browser Rendering, for screenshots. */
@@ -51,7 +56,7 @@ export interface ConnectorEnv {
 }
 
 export interface ConnectorOptions {
-  /** Every request the connector makes: to GitHub, GitLab, clients' documents and sites. */
+  /** Every request the connector makes: to GitHub, GitLab, Bitbucket, clients' documents and sites. */
   fetch?: typeof fetch;
   now?: () => number;
   /** Where refresh token generations are kept. Defaults to `env.DB`. */
@@ -85,7 +90,8 @@ interface RequestData {
 interface PickerData {
   request: RequestData;
   connection: Connection;
-  gitlab?: GitLabTokens;
+  /** The person's GitLab or Bitbucket tokens. */
+  tokens?: HostTokens;
 }
 
 interface CodeData {
@@ -93,12 +99,15 @@ interface CodeData {
   redirectUri: string;
   challenge: string;
   connection: Connection;
-  gitlab?: GitLabTokens;
+  tokens?: HostTokens;
 }
 
 interface AccessData {
   grant: string;
   connection: Connection;
+  /** The person's GitLab or Bitbucket access token. */
+  token?: string;
+  /** What `token` was called before Bitbucket, in tokens sealed then. */
   gitlab?: string;
 }
 
@@ -107,6 +116,9 @@ interface RefreshData {
   generation: number;
   clientId: string;
   connection: Connection;
+  /** The person's GitLab or Bitbucket refresh token. */
+  token?: string;
+  /** What `token` was called before Bitbucket, in tokens sealed then. */
   gitlab?: string;
 }
 
@@ -193,6 +205,10 @@ export function createConnector(options: ConnectorOptions = {}) {
             fetch: fetcher,
           }
         : undefined;
+    const bitbucket: bb.BitbucketConfig | undefined =
+      env.BITBUCKET_CLIENT_ID && env.BITBUCKET_CLIENT_SECRET
+        ? { clientId: env.BITBUCKET_CLIENT_ID, clientSecret: env.BITBUCKET_CLIENT_SECRET, fetch: fetcher }
+        : undefined;
     const grants = options.grants ? options.grants(env) : env.DB && d1Grants(env.DB);
     const githubCallback = `${origin}/connect/github/callback`;
     const gitlabCallback = `${origin}/connect/gitlab/callback`;
@@ -265,7 +281,7 @@ export function createConnector(options: ConnectorOptions = {}) {
       if (resource && resource.replace(/\/$/, "") !== `${origin}/mcp` && resource.replace(/\/$/, "") !== origin) {
         return backWithError(back, "invalid_target", `This server's resource is ${origin}/mcp.`);
       }
-      if (!app && !gitlab)
+      if (!app && !gitlab && !bitbucket)
         return problemPage("Not set up yet", "This connector isn't set up to sign in anywhere yet.", 503);
       const nonce = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
       const data: RequestData = { clientId: client.id, clientName: client.name, redirectUri, challenge, state, nonce };
@@ -273,6 +289,7 @@ export function createConnector(options: ConnectorOptions = {}) {
       const links: Array<[string, string]> = [];
       if (app) links.push(["Sign in with GitHub", `/connect/github?request=${sealed}`]);
       if (gitlab) links.push(["Sign in with GitLab", `/connect/gitlab?request=${sealed}`]);
+      if (bitbucket) links.push(["Sign in with Bitbucket", `/connect/bitbucket?request=${sealed}`]);
       links.push(["Cancel", `/connect/cancel?request=${sealed}`]);
       const response = connectPage({ client: client.name, redirectUri, links });
       response.headers.append(
@@ -282,10 +299,10 @@ export function createConnector(options: ConnectorOptions = {}) {
       return response;
     }
 
-    async function pickSites(data: RequestData, connection: Connection, tokens?: GitLabTokens): Promise<Response> {
+    async function pickSites(data: RequestData, connection: Connection, tokens?: HostTokens): Promise<Response> {
       const picker = await (await sealer()).seal(
         "picker",
-        { request: data, connection, ...(tokens && { gitlab: tokens }) } satisfies PickerData,
+        { request: data, connection, ...(tokens && { tokens }) } satisfies PickerData,
         REQUEST_LIFETIME,
       );
       return sitesPage({
@@ -354,6 +371,31 @@ export function createConnector(options: ConnectorOptions = {}) {
       }
     }
 
+    async function bitbucketCallbackRoute(): Promise<Response> {
+      if (!bitbucket) return problemPage("Not set up", "This connector doesn't sign in with Bitbucket.", 404);
+      const state = await (await sealer()).open<{ request: string }>("bitbucket-state", url.searchParams.get("state"));
+      const data = state && (await openRequest(state.request));
+      if (!state || !data) return expired();
+      const code = url.searchParams.get("code");
+      if (!code) return backWithError(data, "access_denied", "Bitbucket didn't sign the person in.");
+      try {
+        const tokens = await bb.exchangeCode(bitbucket, code, now());
+        const found = await bb.signedInSites(bitbucket, tokens.access);
+        if (!found.sites.length) {
+          return problemPage(
+            "No sites to work on",
+            `The Bitbucket account ${found.user.login} can't publish to any repository. Ask the site's owner to give you Write or Admin, then connect again.`,
+          );
+        }
+        return pickSites(data, { host: "bitbucket", user: found.user, sites: found.sites }, tokens);
+      } catch (error) {
+        if (error instanceof bb.BitbucketError) {
+          return problemPage("Bitbucket didn't sign you in", "Go back to Claude and connect Goodfellow again.", 502);
+        }
+        throw error;
+      }
+    }
+
     async function confirm(): Promise<Response> {
       const body = await form().catch(() => new URLSearchParams());
       const picker = await (await sealer()).open<PickerData>("picker", body.get("picker"));
@@ -371,7 +413,7 @@ export function createConnector(options: ConnectorOptions = {}) {
           redirectUri: data.redirectUri,
           challenge: data.challenge,
           connection: { ...connection, sites } as Connection,
-          ...(picker.gitlab && { gitlab: picker.gitlab }),
+          ...(picker.tokens && { tokens: picker.tokens }),
         } satisfies CodeData,
         CODE_LIFETIME,
       );
@@ -394,18 +436,18 @@ export function createConnector(options: ConnectorOptions = {}) {
       generation: number,
       clientId: string,
       connection: Connection,
-      tokens?: GitLabTokens,
+      tokens?: HostTokens,
     ) {
       const lifetime = tokens ? Math.min(ACCESS_LIFETIME, tokens.expiresAt - now() - 60_000) : ACCESS_LIFETIME;
       const seal = await sealer();
       const access = await seal.seal(
         "access",
-        { grant, connection, ...(tokens && { gitlab: tokens.access }) } satisfies AccessData,
+        { grant, connection, ...(tokens && { token: tokens.access }) } satisfies AccessData,
         Math.max(lifetime, 60_000),
       );
       const refresh = await seal.seal(
         "refresh",
-        { grant, generation, clientId, connection, ...(tokens && { gitlab: tokens.refresh }) } satisfies RefreshData,
+        { grant, generation, clientId, connection, ...(tokens && { token: tokens.refresh }) } satisfies RefreshData,
         REFRESH_LIFETIME,
       );
       return json({
@@ -436,7 +478,7 @@ export function createConnector(options: ConnectorOptions = {}) {
           await grants.revoke(grant);
           throw new OAuthError("invalid_grant", "The code has been used already.");
         }
-        return issueTokens(grant, 1, clientId, data.connection, data.gitlab);
+        return issueTokens(grant, 1, clientId, data.connection, data.tokens);
       }
       if (grantType === "refresh_token") {
         const data = await (await sealer()).open<RefreshData>("refresh", body.get("refresh_token"));
@@ -451,18 +493,25 @@ export function createConnector(options: ConnectorOptions = {}) {
             "The refresh token has been used already, or the connection has ended.",
           );
         }
-        let tokens: GitLabTokens | undefined;
-        if (data.connection.host === "gitlab") {
-          if (!gitlab || !data.gitlab)
-            throw new OAuthError("invalid_grant", "This connector doesn't sign in with GitLab.");
+        let tokens: HostTokens | undefined;
+        const { host } = data.connection;
+        if (host !== "github") {
+          const refresh = data.token ?? data.gitlab;
+          const name = host === "gitlab" ? "GitLab" : "Bitbucket";
+          if (!refresh || !(host === "gitlab" ? gitlab : bitbucket)) {
+            throw new OAuthError("invalid_grant", `This connector doesn't sign in with ${name}.`);
+          }
           try {
-            tokens = await gl.refreshTokens(gitlab, data.gitlab, gitlabCallback, now());
+            tokens =
+              host === "gitlab" && gitlab
+                ? await gl.refreshTokens(gitlab, refresh, gitlabCallback, now())
+                : await bb.refreshTokens(bitbucket as bb.BitbucketConfig, refresh, now());
           } catch (error) {
-            if (error instanceof gl.GitLabError && error.status === 0) {
-              throw new OAuthError("temporarily_unavailable", "GitLab couldn't be reached.", 503);
+            if ((error instanceof gl.GitLabError || error instanceof bb.BitbucketError) && error.status === 0) {
+              throw new OAuthError("temporarily_unavailable", `${name} couldn't be reached.`, 503);
             }
             await grants.revoke(data.grant);
-            throw new OAuthError("invalid_grant", "GitLab didn't renew the sign-in. Connect again.");
+            throw new OAuthError("invalid_grant", `${name} didn't renew the sign-in. Connect again.`);
           }
         }
         return issueTokens(data.grant, data.generation + 1, clientId, data.connection, tokens);
@@ -508,14 +557,23 @@ export function createConnector(options: ConnectorOptions = {}) {
           if (!site) throw new ToolError(`Claude wasn't connected to ${id}. Connect again to choose it.`);
           return opened.backend(site);
         };
-      } else {
+      } else if (connection.host === "gitlab") {
         const config = gitlab;
-        if (!config || !access.gitlab) return reconnect();
-        const token = access.gitlab;
+        const token = access.token ?? access.gitlab;
+        if (!config || !token) return reconnect();
         backend = async (id) => {
           const site = connection.sites.find((candidate) => candidate.id === id);
           if (!site) throw new ToolError(`Claude wasn't connected to ${id}. Connect again to choose it.`);
           return gl.gitlabBackend(config, site, connection.user, token);
+        };
+      } else {
+        const config = bitbucket;
+        const token = access.token;
+        if (!config || !token) return reconnect();
+        backend = async (id) => {
+          const site = connection.sites.find((candidate) => candidate.id === id);
+          if (!site) throw new ToolError(`Claude wasn't connected to ${id}. Connect again to choose it.`);
+          return bb.bitbucketBackend(config, site, connection.user, token);
         };
       }
       const screenshots = options.screenshots
@@ -552,6 +610,7 @@ export function createConnector(options: ConnectorOptions = {}) {
           ok: true,
           github: Boolean(app),
           gitlab: Boolean(gitlab),
+          bitbucket: Boolean(bitbucket),
           database: Boolean(grants),
           screenshots: Boolean(env.BROWSER),
         });
@@ -618,6 +677,12 @@ export function createConnector(options: ConnectorOptions = {}) {
         const state = await (await sealer()).seal("gitlab-state", { request: sealed, verifier }, REQUEST_LIFETIME);
         return redirect(gl.authorizeUrl(gitlab, gitlabCallback, state, await challengeFor(verifier)));
       }
+      if (path === "/connect/bitbucket" && request.method === "GET") {
+        const sealed = url.searchParams.get("request");
+        if (!bitbucket || !(await openRequest(sealed))) return expired();
+        const state = await (await sealer()).seal("bitbucket-state", { request: sealed }, REQUEST_LIFETIME);
+        return redirect(bb.authorizeUrl(bitbucket, state));
+      }
       if (path === "/connect/cancel" && request.method === "GET") {
         const data = await openRequest(url.searchParams.get("request"));
         if (!data) return expired();
@@ -625,6 +690,7 @@ export function createConnector(options: ConnectorOptions = {}) {
       }
       if (path === "/connect/github/callback" && request.method === "GET") return await githubCallbackRoute();
       if (path === "/connect/gitlab/callback" && request.method === "GET") return await gitlabCallbackRoute();
+      if (path === "/connect/bitbucket/callback" && request.method === "GET") return await bitbucketCallbackRoute();
       if (path === "/connect/confirm" && request.method === "POST") return await confirm();
       if (path === "/" && request.method === "GET") {
         return page(

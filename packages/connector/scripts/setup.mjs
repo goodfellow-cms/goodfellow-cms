@@ -7,11 +7,12 @@
  * 3. Creates the Goodfellow for Claude GitHub App from a manifest: a page on
  *    this computer posts it to GitHub, and GitHub comes back with a code that
  *    gives the app's id, keys and secret, so nothing is copied by hand.
- * 4. Optionally, takes a GitLab OAuth application's id and secret.
+ * 4. Optionally, takes a GitLab OAuth application's id and secret, and a
+ *    Bitbucket OAuth consumer's key and secret.
  * 5. Sets the secrets through Wrangler's standard input, deploys again and
  *    checks the connector answers.
  *
- * Run it again to replace the app or add GitLab; it keeps what the connector
+ * Run it again to replace the app or add GitLab or Bitbucket; it keeps what the connector
  * already has unless asked. Secrets are never printed, put in a command line
  * or written to disk.
  */
@@ -211,7 +212,7 @@ async function checkConnector(connector) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     try {
       const health = await (await fetch(`${connector}/health`)).json();
-      if (health.ok && health.database && (health.github || health.gitlab)) return health;
+      if (health.ok && health.database && (health.github || health.gitlab || health.bitbucket)) return health;
     } catch {
       // Not answering yet.
     }
@@ -255,6 +256,16 @@ async function main() {
     console.log("- Scopes: api\n");
     values.GITLAB_CLIENT_ID = await ask("Its Application ID: ");
     values.GITLAB_CLIENT_SECRET = await askSecret("Its Secret (not shown as you type): ");
+  }
+
+  const haveBitbucket = secrets.includes("BITBUCKET_CLIENT_ID");
+  if (await yesNo(haveBitbucket ? "Change the Bitbucket consumer?" : "Work on sites on Bitbucket too?", false)) {
+    console.log("\nOn Bitbucket, add an OAuth consumer (the workspace's settings, then OAuth consumers), with:");
+    console.log(`- Callback URL: ${connector}/connect/bitbucket/callback`);
+    console.log("- This is a private consumer: on");
+    console.log("- Permissions: Account Read, Workspace membership Read, Repositories Write, Pull requests Write\n");
+    values.BITBUCKET_CLIENT_ID = await ask("Its Key: ");
+    values.BITBUCKET_CLIENT_SECRET = await askSecret("Its Secret (not shown as you type): ");
   }
 
   // A new key would end every connection, so the connector keeps the one it has.

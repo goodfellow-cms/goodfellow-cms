@@ -23,8 +23,12 @@ export interface FakeBitbucketOptions {
    * which belongs to no account.
    */
   tokens?: Record<string, FakeBitbucketUser & { email?: string; access?: boolean }>;
-  /** The OAuth consumer's key, its callback URL, and the user who signs in through it. */
-  oauth?: { clientId: string; callback: string; user: FakeBitbucketUser };
+  /**
+   * The OAuth consumer's key, its callback URL, and the user who signs in
+   * through it; with `secret`, a private consumer, which can also use the code
+   * grant, as the Claude connector does.
+   */
+  oauth?: { clientId: string; callback: string; user: FakeBitbucketUser; secret?: string };
   /** Simulates Vercel building each published commit, live after being checked this many times. Off by default. */
   deployAfterChecks?: number;
   /** Other people in the repository's workspace, who can be given permissions. */
@@ -122,6 +126,9 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
   }
   for (const name of options.members ?? []) if (!members.has(name)) members.set(name, { nickname: name });
   const oauthTokens = new Map<string, FakeBitbucketUser>();
+  /** Codes and refresh tokens the code grant gave, which each work once here. */
+  const oauthCodes = new Set<string>();
+  const refreshTokens = new Set<string>();
   const pipelines: FakePipeline[] = [];
   const schedules: FakeSchedule[] = [];
   const variables = new Map<string, { uuid: string; value: string; secured: boolean }>();
@@ -289,6 +296,8 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
       return error(404, `Repository ${name} not found`);
     }
     if (rest === "" && method === "POST") return error(400, "Repository with this Slug and Owner already exists.");
+    // A repository access token reaches only the repository it was made for.
+    if (!own && user.access) return error(403, "This token has no access to this repository.");
     if (own && user.access === undefined && !permissions.has(`{${user.nickname}}`) && settings.private) {
       return error(403, "You don't have access to this repository.");
     }
@@ -515,6 +524,8 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
             enabled: boolean;
             target: { ref_name: string; selector: { pattern: string } };
           };
+          // Bitbucket's patterns have seven fields: seconds first, the year last.
+          if (body.cron_pattern.trim().split(/\s+/).length !== 7) return error(400, "Invalid cron pattern");
           const added: FakeSchedule = {
             uuid: nextId(),
             pattern: body.target.selector.pattern,
@@ -596,10 +607,19 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
     };
   }
 
-  /** Bitbucket's sign-in page, which comes straight back with a token in the address's fragment. */
+  /**
+   * Bitbucket's sign-in page, which comes straight back with a token in the
+   * address's fragment, or with a code in its query for `response_type=code`.
+   */
   function authorize(url: URL): Response {
     if (!options.oauth || url.searchParams.get("client_id") !== options.oauth.clientId) {
       return error(400, "Invalid client_id");
+    }
+    if (url.searchParams.get("response_type") === "code") {
+      const code = `code-${oauthCodes.size + 1}`;
+      oauthCodes.add(code);
+      const query = new URLSearchParams({ code, state: url.searchParams.get("state") ?? "" });
+      return new Response(null, { status: 302, headers: { location: `${options.oauth.callback}?${query}` } });
     }
     const token = `oauth-${oauthTokens.size + 1}`;
     oauthTokens.set(token, options.oauth.user);
@@ -608,9 +628,39 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
     return new Response(null, { status: 302, headers: { location: `${options.oauth.callback}#${fragment}` } });
   }
 
+  /** The code grant's token endpoint, which only a consumer with a secret can use. */
+  async function accessToken(request: Request): Promise<Response> {
+    const oauth = options.oauth;
+    const header = request.headers.get("authorization") ?? "";
+    if (!oauth?.secret || header !== `Basic ${btoa(`${oauth.clientId}:${oauth.secret}`)}`) {
+      return Response.json({ error: "invalid_client", error_description: "Bad client credentials" }, { status: 401 });
+    }
+    const body = new URLSearchParams(await request.text());
+    const grant = body.get("grant_type");
+    const given = grant === "authorization_code" ? body.get("code") : body.get("refresh_token");
+    const known = grant === "authorization_code" ? oauthCodes : grant === "refresh_token" ? refreshTokens : undefined;
+    if (!known || !given || !known.delete(given)) {
+      return Response.json({ error: "invalid_grant", error_description: "Invalid grant" }, { status: 400 });
+    }
+    const access = `oauth-${oauthTokens.size + 1}`;
+    oauthTokens.set(access, oauth.user);
+    const refresh = `refresh-${oauthTokens.size}`;
+    refreshTokens.add(refresh);
+    return Response.json({
+      access_token: access,
+      refresh_token: refresh,
+      token_type: "bearer",
+      expires_in: 7200,
+      scopes: "account repository:write pullrequest:write",
+    });
+  }
+
   async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.origin === web && url.pathname === "/site/oauth2/authorize") return authorize(url);
+    if (url.origin === web && url.pathname === "/site/oauth2/access_token" && request.method === "POST") {
+      return accessToken(request);
+    }
     if (!request.url.startsWith(api)) return error(404, "Not the API");
     const path = url.pathname.slice("/2.0".length);
     requests.push({ method: request.method, path: `${path}${url.search}` });
@@ -660,6 +710,12 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
     /** Explicit permissions on the repository by account uuid, and the workspace's people, which tests can change. */
     permissions,
     members,
+    /** Adds another repository in the workspace, such as a site's code repository, which the same sign-ins can read. */
+    addRepo(name: string, files: Record<string, string> = {}): FakeRepo {
+      const added = new FakeRepo(files);
+      created.set(name, { repo: added, private: true, mainBranch: added.defaultBranch });
+      return added;
+    },
     /** Pipelines started, schedules and repository variables, which tests can read and change. */
     pipelines,
     schedules,

@@ -134,8 +134,7 @@ export function bitbucketUpdates(
       if (!settings.enabled) {
         await bitbucketRequest(api(), config, { method: "PUT", body: { enabled: true } }).catch(notAllowed);
       }
-      // Only the nightly one: the hourly check for scheduled changes uses more build minutes than Bitbucket's
-      // free plan has, so owners with minutes to spare add its schedule themselves.
+      // Scheduled changes get schedules of their own, which the backend's scheduledBuilds keeps.
       if (scheduleFor(await schedules(api(), repo).catch(notAllowed), update)) return;
       await bitbucketRequest(api(), `${config}/schedules`, {
         body: {

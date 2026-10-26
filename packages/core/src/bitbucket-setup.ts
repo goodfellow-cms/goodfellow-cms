@@ -4,14 +4,14 @@
  * custom domains, and Cloudflare Pages doesn't build from Bitbucket, so Vercel
  * builds and serves the site, from its Bitbucket integration, whenever the
  * main branch changes. Vercel can't build on a schedule, so Bitbucket
- * Pipelines runs the nightly update, the check for scheduled changes
- * and plugins' tasks, and asks Vercel to rebuild the site through the
- * project's deploy hook when there's nothing new for it to build. Pipelines'
- * schedules can't be written in the file, so the admin panel's Updates screen
- * adds the nightly one (`BITBUCKET_SCHEDULES`); an hourly one uses more
- * build minutes than Bitbucket's free plan has, so owners add it themselves.
- * `planSite()` writes the file for new sites, so `create-goodfellow` makes the
- * same one every time.
+ * Pipelines runs the nightly update, the rebuilds for scheduled changes and
+ * plugins' tasks, and asks Vercel to rebuild the site through the project's
+ * deploy hook when there's nothing new for it to build. Pipelines' schedules
+ * can't be written in the file, so the admin panel adds them: the Updates
+ * screen the nightly one (`BITBUCKET_SCHEDULES`), and the backend's
+ * `scheduledBuilds.sync()` one for each scheduled change, pinned to its
+ * minute. `planSite()` writes the file for new sites, so `create-goodfellow`
+ * makes the same one every time.
  */
 
 import { LOCKFILE_CHECK, LOCKFILE_COMMAND } from "./lockfile-setup.js";
@@ -28,21 +28,47 @@ export const VERCEL_DEPLOY_HOOK = "VERCEL_DEPLOY_HOOK";
 /**
  * The custom pipelines the admin panel starts, and its schedules run: the
  * nightly update, which also rebuilds (`GOODFELLOW_REBUILD`) and updates to a
- * release (`GOODFELLOW_UPDATE`); the hourly check for scheduled changes; and
- * plugins' tasks.
+ * release (`GOODFELLOW_UPDATE`); the rebuild for a scheduled change, which
+ * a schedule pinned to its minute runs; plugins' tasks; and, in a content
+ * repository, the nightly rebuild.
  */
-export const BITBUCKET_PIPELINE_NAMES = { update: "update", scheduled: "scheduled", task: TASK_JOB } as const;
+export const BITBUCKET_PIPELINE_NAMES = {
+  update: "update",
+  scheduled: "scheduled",
+  task: TASK_JOB,
+  rebuild: "rebuild",
+} as const;
 
 /**
- * The pipelines' schedules, as Bitbucket's seven-field cron patterns, in UTC:
- * each night at the time the starters' GitHub workflow runs, which the
- * Updates screen adds, and each hour at the minute their hourly check does,
- * which owners add themselves where they have the build minutes.
+ * The nightly schedule, as Bitbucket's seven-field cron pattern (seconds first,
+ * the year last), in UTC: each night at the time the starters' GitHub workflow
+ * runs. The Updates screen adds it.
  */
 export const BITBUCKET_SCHEDULES = {
   update: "0 17 4 * * ? *",
-  scheduled: "0 47 * * * ? *",
 } as const;
+
+/**
+ * The cron pattern of a schedule that runs once, at an instant's minute in
+ * UTC, pinned to its year. Bitbucket has no schedules that run only once, so
+ * `scheduledBuilds.sync()` also removes them once they've passed.
+ */
+export function bitbucketCronAt(at: Date): string {
+  return `0 ${at.getUTCMinutes()} ${at.getUTCHours()} ${at.getUTCDate()} ${at.getUTCMonth() + 1} ? ${at.getUTCFullYear()}`;
+}
+
+/** The instant a pattern `bitbucketCronAt()` wrote runs at, or nothing for any other pattern. */
+export function bitbucketCronInstant(pattern: string): Date | undefined {
+  const match = /^0 (\d{1,2}) (\d{1,2}) (\d{1,2}) (\d{1,2}) \? (\d{4})$/.exec(pattern.trim());
+  if (!match) return undefined;
+  const [, minute, hour, day, month, year] = match.map(Number) as number[];
+  return new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, day, hour, minute));
+}
+
+/** Where the step that only asks Vercel to rebuild runs: Bitbucket's own image, which has curl, cloning nothing, so it takes seconds. */
+const HOOK_STEP = `image: atlassian/default-image:4
+          clone:
+            enabled: false`;
 
 /** Comment lines, wrapped at about 80 columns. */
 function comment(text: string): string {
@@ -69,12 +95,22 @@ const REBUILD = `if [ -z "$${VERCEL_DEPLOY_HOOK}" ]; then
               fi
               curl --fail --silent --show-error --request POST "$${VERCEL_DEPLOY_HOOK}"`;
 
+/** A step that only asks Vercel to rebuild the site. */
+export function bitbucketRebuildStep(name: string): string {
+  return `      - step:
+          name: ${name}
+          ${HOOK_STEP}
+          script:
+            - |
+              ${REBUILD}`;
+}
+
 /** The setup file of a site stored on Bitbucket and built by Vercel. */
 export function bitbucketPipelines(cli: SiteCli): string {
   const { update, scheduled, task } = BITBUCKET_PIPELINE_NAMES;
   return `${comment(
-    `Vercel builds and publishes the site whenever the main branch changes (including every Publish in the admin panel). These pipelines keep it current, and run plugins' tasks. The first runs only when package.json changes, and the others only when started: the admin panel's Updates screen adds a schedule for "${update}" each night (Pipelines → Schedules), and starts "${update}" and "${task}" when an owner or editor asks. Each run takes about a minute of Bitbucket's build minutes, of which the free plan has 50 a month.
-"${update}" checks whether the site needs building: when Goodfellow has new fixes, which it installs and publishes only if the site still builds with them, unless content/updates.json turns automatic updates off; when something the site shows by today's date, such as an event, has changed; or when the live site isn't the newest build. When it needs building but there's no update to publish, it asks Vercel to rebuild the site. The repository variable GOODFELLOW_NIGHTLY, which the Updates screen sets, can make it rebuild every night ("always") or not at all ("off"). "${scheduled}" asks Vercel to rebuild the site when a page or item scheduled to be shown or hidden has come due. Without a schedule of its own, scheduled changes go live with the nightly rebuild; with one each hour (Pipelines → Schedules → New schedule, the "${scheduled}" pipeline, hourly), they go live within the hour, which uses about 720 build minutes a month, more than the free plan has.
+    `Vercel builds and publishes the site whenever the main branch changes (including every Publish in the admin panel). These pipelines keep it current, and run plugins' tasks. The first runs only when package.json changes, and the others only when started: the admin panel's Updates screen adds a schedule for "${update}" each night (Pipelines → Schedules), the admin panel adds a schedule for "${scheduled}" at each time a page or item is to be shown or hidden, and it starts "${update}" and "${task}" when an owner or editor asks. "${update}" and "${task}" take about a minute of Bitbucket's build minutes each, of which the free plan has 50 a month; "${scheduled}" takes seconds.
+"${update}" checks whether the site needs building: when Goodfellow has new fixes, which it installs and publishes only if the site still builds with them, unless content/updates.json turns automatic updates off; when something the site shows by today's date, such as an event, has changed; or when the live site isn't the newest build. When it needs building but there's no update to publish, it asks Vercel to rebuild the site. The repository variable GOODFELLOW_NIGHTLY, which the Updates screen sets, can make it rebuild every night ("always") or not at all ("off"). "${scheduled}" asks Vercel to rebuild the site, at the time a page or item scheduled to be shown or hidden comes due; each of its schedules runs once, and the admin panel removes it once it has passed.
 They ask Vercel through the project's deploy hook (in Vercel, the project's Settings → Git → Deploy Hooks, for the main branch), which can only start builds: add it as the secured repository variable ${VERCEL_DEPLOY_HOOK} (Repository settings → Pipelines → Repository variables). Pipelines must be turned on (Repository settings → Pipelines → Settings). Every step gets the repository's variables and can publish to it, so keep only what the site needs there. See README.md.`,
   )}
 image: node:22
@@ -145,16 +181,7 @@ pipelines:
               fi
 
     ${scheduled}:
-      - step:
-          name: Scheduled changes
-          caches: [npm]
-          script:
-            - npm ci --prefer-offline
-            - npx ${cli} due --since "$(date -u -d '70 minutes ago' +%Y-%m-%dT%H:%M:%SZ)" --output due.env && . ./due.env
-            - |
-              if [ "$due" = true ]; then
-                ${REBUILD}
-              fi
+${bitbucketRebuildStep("Scheduled change")}
 
     ${task}:
       # Runs a plugin's task for the admin panel, such as S3 storage signing uploads with keys kept in the
@@ -183,5 +210,54 @@ pipelines:
               git add ${TASK_RESULT_FILE}
               git -c user.name="Goodfellow" -c user.email=tasks@goodfellow.invalid commit -q -m "The answer to plugin task $GOODFELLOW_TASK_REQUEST"
               git push -q origin "HEAD:refs/heads/${TASK_BRANCH_PREFIX}$GOODFELLOW_TASK_REQUEST"
+`;
+}
+
+/**
+ * The content repository's `bitbucket-pipelines.yml`, for a site whose content
+ * is kept in a repository of its own, which Vercel builds from either
+ * repository: the rebuild for each scheduled change, which the admin panel
+ * schedules here since it edits this repository, the nightly rebuild, and,
+ * where Vercel builds from the code, a rebuild whenever the content changes.
+ * Each only asks Vercel to rebuild, so none of them runs the site's code.
+ */
+export function bitbucketContentPipelines(build: "code" | "content"): string {
+  const { scheduled, rebuild } = BITBUCKET_PIPELINE_NAMES;
+  const onChange =
+    build === "code"
+      ? `  branches:
+    # The main branch: rename this if yours is called something else.
+    main:
+${bitbucketRebuildStep("Rebuild on Vercel")}
+
+`
+      : "";
+  return `${comment(
+    `This repository holds only the site's content${build === "code" ? `, and Vercel builds the site from its code repository, so these pipelines ask Vercel to rebuild it whenever the content changes (including every Publish in the admin panel), ` : ", which Vercel builds the site from, so these pipelines ask Vercel to rebuild it "}at the time a page or item scheduled to be shown or hidden comes due ("${scheduled}", which the admin panel schedules for each such time, removing each schedule once it has passed), and each night so what the site shows by today's date stays current ("${rebuild}": add a schedule for it each night under Pipelines → Schedules). Each only asks Vercel to rebuild, so it takes seconds of build minutes and runs none of the site's code.
+They ask through the Vercel project's deploy hook (Settings → Git → Deploy Hooks, for the main branch), which can only start builds: add it as the secured repository variable ${VERCEL_DEPLOY_HOOK} (Repository settings → Pipelines → Repository variables), and turn Pipelines on (Repository settings → Pipelines → Settings).`,
+  )}
+pipelines:
+${onChange}  custom:
+    ${scheduled}:
+${bitbucketRebuildStep("Scheduled change")}
+
+    ${rebuild}:
+${bitbucketRebuildStep("Nightly rebuild")}
+`;
+}
+
+/**
+ * The code repository's `bitbucket-pipelines.yml`, where Vercel builds the
+ * site from the content repository: a rebuild whenever the code changes.
+ */
+export function bitbucketCodeRebuildPipelines(content: string): string {
+  return `${comment(
+    `Vercel builds the site from its content repository, ${content}, so this asks Vercel to rebuild it whenever the code changes, through the Vercel project's deploy hook (Settings → Git → Deploy Hooks), which can only start builds: add it as the secured repository variable ${VERCEL_DEPLOY_HOOK} (Repository settings → Pipelines → Repository variables), and turn Pipelines on (Repository settings → Pipelines → Settings).`,
+  )}
+pipelines:
+  branches:
+    # The main branch: rename this if yours is called something else.
+    main:
+${bitbucketRebuildStep("Rebuild on Vercel")}
 `;
 }
