@@ -13,7 +13,10 @@ import {
 
 const ROOT = join(import.meta.dirname, "../../..");
 
-describe("the lockfile check", () => {
+/** Tests that start Node processes, which can take seconds to start on Windows while many tests run at once. */
+const NODE_TIMEOUT = 60_000;
+
+describe("the lockfile check", { timeout: NODE_TIMEOUT }, () => {
   async function check(site: unknown, lock?: unknown): Promise<boolean> {
     const dir = await mkdtemp(join(tmpdir(), "goodfellow-lockfile-"));
     try {

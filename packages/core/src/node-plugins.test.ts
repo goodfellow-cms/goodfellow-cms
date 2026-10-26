@@ -31,7 +31,10 @@ export default async function step(context) {
 }
 `;
 
-describe("plugins' build steps", () => {
+/** Tests that start Node processes, which can take seconds to start on Windows while many tests run at once. */
+const NODE_TIMEOUT = 60_000;
+
+describe("plugins' build steps", { timeout: NODE_TIMEOUT }, () => {
   let root: string;
   let outDir: string;
 
@@ -117,7 +120,7 @@ export default async function task(input, context) {
 }
 `;
 
-describe("plugins' tasks", () => {
+describe("plugins' tasks", { timeout: NODE_TIMEOUT }, () => {
   let root: string;
   const plugin = definePlugin({
     name: "goodfellow-plugin-storage",
