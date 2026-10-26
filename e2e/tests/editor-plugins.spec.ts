@@ -114,9 +114,11 @@ test("an editor plugin has blocks drawn by the site's code, with their slots lef
   await outline.getByRole("button", { name: "Draw a block the site doesn't have" }).click();
   await expect(outline.getByRole("status")).toHaveText(/Refused: .*Script/);
 
-  // The site's stylesheets, with the theme, for drawn blocks to look as they do on the site.
+  // The site's stylesheets, with the theme, and Tailwind's source for classes the last build hasn't seen.
   await outline.getByRole("button", { name: "Load the site's styles" }).click();
-  await expect(outline.getByRole("status")).toHaveText(/^[1-9]\d* stylesheets, with the theme$/);
+  await expect(outline.getByRole("status")).toHaveText(
+    /^[1-9]\d* stylesheets, with the theme, and Tailwind's source with the theme's classes$/,
+  );
 });
 
 test("an editor plugin is offered only for what it edits, and edits the header", async ({ page }) => {

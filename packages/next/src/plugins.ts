@@ -19,6 +19,7 @@ import {
   pluginFramePage,
   pluginId,
 } from "@goodfellow-cms/core";
+import { LICENSES_FILE, licensesPlugin } from "@goodfellow-cms/core/node";
 
 const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
 const FRAME_ENTRY = "\0goodfellow:plugin-frame";
@@ -102,9 +103,9 @@ export interface PluginFrameBuild {
 /**
  * Bundles a plugin's admin module into its frame, at `admin/plugins/<id>/`
  * under `outDir`: one classic script starting with `EDITOR_PRELUDE`, its
- * stylesheets in one file, and `pluginFramePage()`, whose Content Security
- * Policy reaches only the addresses the plugin declared. Answers a function
- * that stops rebuilding.
+ * stylesheets in one file, `pluginFramePage()`, whose Content Security
+ * Policy reaches only the addresses the plugin declared, and the notices of
+ * what it bundles (`LICENSES_FILE`). Answers a function that stops rebuilding.
  */
 export async function buildPluginFrame(
   plugin: GoodfellowPlugin,
@@ -123,6 +124,7 @@ export async function buildPluginFrame(
         permissions: plugin.permissions ?? {},
         scripts: ["plugin.js"],
         stylesheets: ["plugin.css"],
+        licenses: LICENSES_FILE,
       }),
     );
   };
@@ -148,6 +150,7 @@ export async function buildPluginFrame(
           return undefined;
         },
       },
+      licensesPlugin(plugin.title, LICENSES_FILE),
     ],
     onLog(level: string, log: { code?: string }, handler: (level: never, log: never) => void) {
       if (log.code === "MODULE_LEVEL_DIRECTIVE") return;

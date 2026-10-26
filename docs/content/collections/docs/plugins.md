@@ -177,6 +177,8 @@ Other plugins' blocks can ask a plugin's services too, so a service should offer
 
 `goodfellow build` and `goodfellow-next finish` bundle each plugin's admin module into its frame, at `admin/plugins/<id>/`, and run its build steps once the site's pages are written, before the search index and the [admin address's](/docs/custom-domains#an-admin-address) guards, which then cover what the steps wrote.
 
+Serving a frame hands its code to whoever opens it, so every build, the development servers' included, writes `admin/plugins/<id>/LICENSES.txt` beside it, and its page links to it. It lists every package the frame bundles, the plugin's own and the ones it needs, with its version, its license and where its source is (its repository, or else its page on npm), then each license text once, after the packages it covers.
+
 ```js
 export default async function thumbnails({ root, outDir, base, secrets }) {
   // Read what the plugin declared, and write into the built site where it declared.
@@ -259,7 +261,8 @@ export default definePluginAdmin({
       // await session.sharePreview(data.root);
       // Have a block drawn as the site draws it, and the site's styles to show it with:
       // const html = await session.draw(data.content[0]);
-      // const styles = await session.styles();
+      // const { stylesheets, tailwind } = await session.styles();
+      // And turn pasted HTML into the site's blocks, with htmlBlocks() from @goodfellow-cms/core/wordpress.
       return {
         data: () => data, // what Publish publishes; without it, the last change()
         set: (next) => {}, // takes the AI assistant's changes; without it, the AI assistant isn't offered
@@ -276,7 +279,9 @@ The session also carries the page's `kind`, `path`, `title` and `language`, the 
 To show blocks as they look on the site, it asks for them to be drawn:
 
 - **`session.draw(block)`** gives one block's HTML, drawn by the site's own code in a frame of the admin panel's, in the page being edited, as the site's pages have it before their scripts start. Each of the block's slots is left as an empty `<gf-slot data-slot="…">` (`DRAWN_SLOT_ELEMENT`), with the slot's name, where the slot's blocks go, and the blocks in it aren't drawn: the editor draws those itself, into those places, so each stays the editor's to select and move. Give the places `display: contents`, so the blocks in them are laid out by the block around them, as in a grid of columns. Only the blocks the editor may use are drawn.
-- **`session.styles()`** gives the site's stylesheets as CSS text, as its last build compiled them, with the theme's colors and fonts as they are now, to style what's drawn with. Classes the site's build hasn't seen yet, such as ones typed into a block's CSS classes since, aren't in them.
+- **`session.styles()`** gives what to style what's drawn with: `stylesheets`, the site's stylesheets as CSS text, as its last build compiled them, with the theme's colors and fonts as they are now; and `tailwind`, Tailwind's source for the site (the theme's classes and the custom CSS as it is now). Classes the site's build hasn't seen yet, such as ones an editor just chose, aren't in the stylesheets: compile `tailwind` with `@tailwindcss/browser` in a `<style type="text/tailwindcss">` where blocks are shown, as the admin panel's own previews do.
+
+Pasted HTML becomes the site's blocks with `htmlBlocks(html, { blocks })` from `@goodfellow-cms/core/wordpress`, the WordPress import's own conversion: WordPress's block markup, which copying from its editor gives, by its blocks, and any other HTML by its elements, leaving out scripts and anything else that would run code. Give it the site's blocks (`Object.keys(session.blocks)`), so WordPress's blocks the site doesn't have come across as the ones it does would show them, and `link` and `media` to change addresses as the site keeps them. It answers with the blocks, without a Section around them, each with an id of its own, and `notes` saying what couldn't come across as it was.
 
 What it hands back is checked before anything is published: only the site's blocks (template-only blocks only in templates), each value fitting its field, every block with an id of its own, and nothing a block doesn't have unless it was already there, unchanged, when the editor opened. Anything else isn't published, and the admin panel says so, with the details. Switching back to the standard editor keeps what was edited, when it passes the same check.
 
@@ -323,4 +328,6 @@ import plugin from "./dist/index.js";
 writeFileSync("goodfellow-plugin.json", `${JSON.stringify(pluginManifest(plugin), null, 2)}\n`);
 ```
 
-It lists the plugin's title, description and permissions, and whether it has blocks (by name), an admin module, screens, build steps, tasks, a server module and media storage. A site that installed a release runs it only while it asks for no more than that.
+Every site that uses it serves its admin frame, so the code bundled into it is distributed with each one, under its license. Builds write the notices (see [In the build](#in-the-build)) from each package's `package.json` and license files, so give the plugin a `license`, a `repository` and a `LICENSE` file.
+
+The manifest lists the plugin's title, description and permissions, and whether it has blocks (by name), an admin module, screens, build steps, tasks, a server module and media storage. A site that installed a release runs it only while it asks for no more than that.

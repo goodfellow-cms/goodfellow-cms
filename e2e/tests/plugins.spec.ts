@@ -50,3 +50,16 @@ test("a plugin's block asks the plugin's service in the editor, through the plug
   await page.goto("/greetings");
   await expect(page.locator("[data-greeting]")).toHaveText("Ada");
 });
+
+test("a plugin's frame is served with the notices of what it bundles", async ({ page }) => {
+  test.setTimeout(90_000);
+  const frame = await page.request.get("/admin/plugins/goodfellow-plugin-greeter/");
+  expect(frame.ok()).toBe(true);
+  expect(await frame.text()).toContain(
+    '<link rel="license" href="/admin/plugins/goodfellow-plugin-greeter/LICENSES.txt" />',
+  );
+  const notices = await page.request.get("/admin/plugins/goodfellow-plugin-greeter/LICENSES.txt");
+  expect(notices.ok()).toBe(true);
+  // The frame bundles Goodfellow's core, under its own license, with where its source is.
+  expect(await notices.text()).toMatch(/^- @goodfellow-cms\/core [\d.]+: MIT, source at https:\/\/github\.com\//m);
+});

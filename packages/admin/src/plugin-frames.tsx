@@ -10,6 +10,7 @@ import {
   openTaskAnswer,
   type PluginDescription,
   type PluginEditorBlock,
+  type PluginEditorStyles,
   type PluginMediaReady,
   type PluginSecretsHelp,
   type PluginTaskRequest,
@@ -114,7 +115,7 @@ export interface PluginEditorHooks {
   sharePreview(root: unknown): ReturnType<PluginPageRequests["editor.sharePreview"]>;
   /** Draws a block of what's edited, which the page checks is one the editor may use. */
   draw(block: PluginEditorBlock): Promise<string>;
-  styles(): Promise<string[]>;
+  styles(): Promise<PluginEditorStyles>;
 }
 
 const MEDIA_KINDS = new Set(["image", "video", "audio", "file"]);

@@ -180,6 +180,10 @@ describe("writePluginFiles", () => {
       const page = await readFile(join(out, "admin/plugins/goodfellow-plugin-hello/index.html"), "utf8");
       expect(page).toContain("connect-src https://api.example.com;");
       expect(page).toContain('<script src="plugin.js"></script>');
+      // What it bundles, with where its source is, beside it: here, only the site's own package.
+      expect(page).toContain('<link rel="license" href="LICENSES.txt" />');
+      const notices = await readFile(join(out, "admin/plugins/goodfellow-plugin-hello/LICENSES.txt"), "utf8");
+      expect(notices).toContain("- plugin-site: no license named, source at https://www.npmjs.com/package/plugin-site");
       const code = await readFile(join(out, "admin/plugins/goodfellow-plugin-hello/plugin.js"), "utf8");
       expect(code).toContain("self.origin");
       expect(await readFile(join(out, "hello/done.txt"), "utf8")).toBe("/");

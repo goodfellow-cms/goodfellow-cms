@@ -440,6 +440,15 @@ describe("a site with a plugin", () => {
       // The prelude first, which the minifier rewrites without changing what it does: nothing runs unsandboxed.
       expect(code.startsWith("(()=>{if(self.origin!==`null`)")).toBe(true);
       expect(code).toContain("Hello, ");
+      // What it bundles, with where its source is, beside it.
+      expect(page).toContain(
+        '<link rel="license" href="/from-config/admin/plugins/goodfellow-plugin-hello/LICENSES.txt" />',
+      );
+      const notices = await readFile(join(out, "admin/plugins/goodfellow-plugin-hello/LICENSES.txt"), "utf8");
+      expect(notices).toMatch(
+        /^- @goodfellow-cms\/core [\d.]+: MIT, source at https:\/\/github\.com\/goodfellow-cms\/goodfellow-cms\/tree\/HEAD\/packages\/core$/m,
+      );
+      expect(notices).toContain("MIT License");
 
       expect(result.pluginSteps).toEqual(["goodfellow-plugin-hello: Say hello"]);
       expect(JSON.parse(await readFile(join(out, "hello/report.json"), "utf8"))).toEqual({

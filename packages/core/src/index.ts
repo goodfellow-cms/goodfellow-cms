@@ -813,6 +813,7 @@ export {
   type PluginEditorOptions,
   type PluginEditorSession,
   type PluginEditorState,
+  type PluginEditorStyles,
   PluginError,
   type PluginFileChange,
   type PluginMediaFile,

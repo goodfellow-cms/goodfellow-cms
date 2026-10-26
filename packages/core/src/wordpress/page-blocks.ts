@@ -60,13 +60,18 @@ export interface PageBlocksOptions {
   blocks?: readonly string[];
 }
 
-/** Writes blocks with ids of their own on one page. */
+/** Writes blocks with ids of their own on one page, each `<type>-<prefix>-<count>`. */
 export class BlockWriter {
   private count = 0;
 
+  constructor(private readonly prefix = "wp") {}
+
   block(type: string, props: Record<string, unknown>): BlockData {
     this.count += 1;
-    return { type, props: { id: `${type}-wp-${this.count}`, ...props, className: (props.className as string) ?? "" } };
+    return {
+      type,
+      props: { id: `${type}-${this.prefix}-${this.count}`, ...props, className: (props.className as string) ?? "" },
+    };
   }
 
   /** A Section holding blocks, with space between them, as the starter's pages have. */

@@ -11,6 +11,12 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Playwright's image has every browser the end-to-end tests use, with their system packages, which
+    # `playwright install --with-deps` took up to an hour to download from Ubuntu's mirror. Its tag is
+    # @playwright/test's version in e2e/package.json, which the step before the tests checks.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-resolute
+      options: --user 1001
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v6.1.0
@@ -24,7 +30,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-      - run: pnpm --filter @goodfellow-cms/e2e exec playwright install --with-deps chromium firefox webkit
+      - name: Check the image has this Playwright's browsers
+        run: |
+          for dir in $(pnpm --filter @goodfellow-cms/e2e exec playwright install --dry-run chromium firefox webkit | sed -n 's/^ *Install location: *//p'); do
+            if [ ! -d "$dir" ]; then
+              echo "::error::$dir isn't in the image: change the job's container to Playwright's image for the @playwright/test version in e2e/package.json"
+              exit 1
+            fi
+          done
       - run: pnpm test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()

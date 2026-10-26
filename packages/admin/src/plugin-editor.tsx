@@ -118,10 +118,11 @@ export function PluginEditorFrame({
   const host = usePluginHost();
   const services = useFrameServices();
   const { content } = useSiteContent();
-  const { site, code } = useAdmin();
+  const { site, code, preview } = useAdmin();
   const { description } = site;
-  const latest = useRef({ target, data, onOpen, onChange, content, description, services, code });
-  latest.current = { target, data, onOpen, onChange, content, description, services, code };
+  const { themeCss } = preview;
+  const latest = useRef({ target, data, onOpen, onChange, content, description, services, code, themeCss });
+  latest.current = { target, data, onOpen, onChange, content, description, services, code, themeCss };
   const opening = useRef<Data | undefined>(undefined);
 
   const hooks = useMemo<PluginEditorHooks>(
@@ -152,11 +153,14 @@ export function PluginEditorFrame({
         }
         return code.drawBlock(content, { kind: target.kind, path: target.path, block });
       },
-      // As the site's last build compiled them, with the theme as it is now, which may not be published yet.
-      styles: async () => [
-        ...(await latest.current.services.siteCss()),
-        themeToCss(latest.current.content.settings.theme),
-      ],
+      // As the site's last build compiled them, with the theme and custom CSS as they are now, which may not be published yet.
+      styles: async () => {
+        const { services, content, themeCss } = latest.current;
+        return {
+          stylesheets: [...(await services.siteCss()), themeToCss(content.settings.theme)],
+          tailwind: `${themeCss}\n${content.customCss}`,
+        };
+      },
     }),
     [],
   );
