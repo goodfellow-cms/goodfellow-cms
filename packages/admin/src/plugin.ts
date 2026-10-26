@@ -67,6 +67,8 @@ async function openEditor(
     },
     chooseMedia: (kind, value) => channel.call("media.choose", { kind, value: value ?? "" }),
     sharePreview: (root) => channel.call("editor.sharePreview", { root }),
+    draw: (block) => channel.call("editor.draw", { block }),
+    styles: () => channel.call("editor.styles"),
   };
   // The editor fills the frame, which the admin panel's page sizes.
   document.documentElement.classList.add("gfa-plugin-editor");

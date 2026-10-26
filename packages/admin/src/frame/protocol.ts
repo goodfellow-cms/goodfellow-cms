@@ -16,7 +16,7 @@ import type { MediaFieldKind } from "@goodfellow-cms/react";
 import type { ComponentData, Config, Data, UiState } from "@puckeditor/core";
 import type { PreviewOptions } from "../admin-context.js";
 import type { PreviewScheme } from "../preview.js";
-import type { RenderTarget } from "../site-code.js";
+import type { DrawTarget, RenderTarget } from "../site-code.js";
 import type { Strings } from "../strings.js";
 import type { ThemeChoice } from "../theme.js";
 
@@ -140,6 +140,8 @@ export interface FrameRequests {
   "code.sitePages"(params: { content: SiteContent; today: string }): Page[];
   "code.pageView"(params: { page: Page; content: SiteContent; today: string }): PageView | null;
   "code.renderedProblems"(params: { content: SiteContent; targets: RenderTarget[]; today: string }): SiteProblem[];
+  /** One block drawn as the site draws it, for an editor plugin. */
+  "code.drawBlock"(params: { content: SiteContent; target: DrawTarget }): string;
 }
 
 /** Events frames send the admin panel's page. */

@@ -6,7 +6,7 @@
 import type { GoodfellowConfig, Page, SiteContent } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { RenderTarget } from "../site-code.js";
+import type { DrawTarget, RenderTarget } from "../site-code.js";
 import { setThemeChoice, type ThemeChoice } from "../theme.js";
 import { installSiteCss } from "./canvas-styles.js";
 import { type Channel, CONNECT_MESSAGE, createChannel } from "./channel.js";
@@ -32,6 +32,9 @@ function CodeService({ channel }: { channel: Channel }) {
         "code.renderedProblems",
         ({ content, targets, today }: { content: SiteContent; targets: RenderTarget[]; today: string }) =>
           code.renderedProblems(content, targets, today),
+      ),
+      channel.handle("code.drawBlock", ({ content, target }: { content: SiteContent; target: DrawTarget }) =>
+        code.drawBlock(content, target),
       ),
     ];
     return () => {

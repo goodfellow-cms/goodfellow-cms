@@ -70,6 +70,55 @@ test("an editor plugin edits a page in place of Puck, in a sandboxed frame, and 
   await expect(canvas(page).getByRole("heading", { name: "Hello" })).toBeVisible({ timeout: 20_000 });
 });
 
+test("an editor plugin has blocks drawn by the site's code, with their slots left for it to fill", async ({ page }) => {
+  test.setTimeout(90_000);
+  const drawnPage = {
+    version: 1,
+    data: {
+      content: [
+        {
+          type: "Section",
+          props: {
+            id: "Section-1",
+            className: "",
+            content: [
+              {
+                type: "Heading",
+                props: { id: "Heading-2", text: "Inside", level: "h2", align: "left", className: "" },
+              },
+            ],
+          },
+        },
+        { type: "Heading", props: { id: "Heading-1", className: "", text: "Drawn", level: "h1", align: "left" } },
+      ],
+      root: { props: { className: "", description: "Drawn blocks", image: "", title: "Drawn" } },
+    },
+  };
+  writeSiteFile("content/pages/drawn.json", `${JSON.stringify(drawnPage, null, 2)}\n`);
+  await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/drawn")}`);
+  await page.locator(".gfa-editor-header").getByLabel("Editor").selectOption({ label: "Outline editor" });
+  const outline = page.frameLocator("iframe.gfa-editor-frame");
+  const drawn = outline.locator(".drawn");
+
+  // A block as the site draws it, in the page it's on.
+  await outline.getByRole("button", { name: "Draw Heading 2" }).click();
+  await expect(drawn.getByRole("heading", { level: 1, name: "Drawn" })).toBeVisible({ timeout: 20_000 });
+  // A block with a slot: its own HTML, with the slot left empty where its blocks go.
+  await outline.getByRole("button", { name: "Draw Section 1" }).click();
+  await expect(drawn.locator('gf-slot[data-slot="content"]')).toHaveCount(1);
+  await expect(drawn.locator("gf-slot")).toBeEmpty();
+  await expect(drawn.locator("section, div").first()).toBeAttached();
+  await expect(drawn).not.toContainText("Inside");
+
+  // Only blocks the site has, for what's edited.
+  await outline.getByRole("button", { name: "Draw a block the site doesn't have" }).click();
+  await expect(outline.getByRole("status")).toHaveText(/Refused: .*Script/);
+
+  // The site's stylesheets, with the theme, for drawn blocks to look as they do on the site.
+  await outline.getByRole("button", { name: "Load the site's styles" }).click();
+  await expect(outline.getByRole("status")).toHaveText(/^[1-9]\d* stylesheets, with the theme$/);
+});
+
 test("an editor plugin is offered only for what it edits, and edits the header", async ({ page }) => {
   await page.goto("/admin#/layout/header");
   const choice = page.locator(".gfa-editor-header").getByLabel("Editor");

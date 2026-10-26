@@ -342,6 +342,15 @@ export interface PluginAdmin {
 /** A page's data as Puck keeps it: its settings (`root.props`) and its blocks, with blocks inside blocks in their slots. */
 export type PluginEditorData = Data;
 
+/** One block of what's edited, as `PluginEditorData` holds it. */
+export type PluginEditorBlock = Data["content"][number];
+
+/**
+ * The element `draw()` leaves in each of a block's slots, empty, with the
+ * slot's name: `<gf-slot data-slot="content"></gf-slot>`.
+ */
+export const DRAWN_SLOT_ELEMENT = "gf-slot";
+
 /** What's open in an editor plugin, and what it can ask the admin panel for while it's open. */
 export interface PluginEditorSession {
   /** What's edited: a page, the header or footer, or a collection's template. */
@@ -378,6 +387,21 @@ export interface PluginEditorSession {
   chooseMedia(kind: "image" | "video" | "audio" | "file", value?: string): Promise<string | null>;
   /** How a link to the page looks when it's shared, from its settings or else Site Settings'. */
   sharePreview(root: PluginEditorData["root"]): Promise<PluginSharePreview>;
+  /**
+   * One block drawn as the site draws it, as HTML, by the site's own code in
+   * a frame of the admin panel's, so an editor needs none of the blocks' code:
+   * in the page edited, with each of its slots left as an empty
+   * `DRAWN_SLOT_ELEMENT` for the editor to put the slot's blocks in. The
+   * blocks in its slots aren't drawn, and nothing in it runs: it's the
+   * HTML the site's pages have, before their scripts start.
+   */
+  draw(block: PluginEditorBlock): Promise<string>;
+  /**
+   * The site's stylesheets as CSS text, as its last build compiled them, with
+   * the theme's colors and fonts as they are now, for drawn blocks to look as
+   * they do on the site.
+   */
+  styles(): Promise<string[]>;
 }
 
 /** What an editor plugin says about itself as it changes. */

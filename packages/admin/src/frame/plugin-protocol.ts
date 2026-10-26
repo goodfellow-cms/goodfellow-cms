@@ -8,6 +8,7 @@
  */
 import type {
   PluginDescription,
+  PluginEditorBlock,
   PluginEditorData,
   PluginEditorSession,
   PluginEditorState,
@@ -23,7 +24,10 @@ export const PLUGIN_READY_MESSAGE = "goodfellow:plugin-ready";
 export type PluginFrameMode = "service" | "screen" | "editor";
 
 /** What an editor plugin's frame opens: its session, without the functions, which the frame's runtime adds. */
-export type PluginFrameEditorOpen = Omit<PluginEditorSession, "change" | "chooseMedia" | "sharePreview">;
+export type PluginFrameEditorOpen = Omit<
+  PluginEditorSession,
+  "change" | "chooseMedia" | "sharePreview" | "draw" | "styles"
+>;
 
 /** What an editor plugin's frame says it can do once it's open, for the admin panel's header. */
 export interface PluginFrameEditorOpened {
@@ -106,4 +110,8 @@ export interface PluginPageRequests {
   "media.choose"(params: { kind: "image" | "video" | "audio" | "file"; value?: string }): string | null;
   /** How a link to the page edited looks when it's shared. Only editor frames may. */
   "editor.sharePreview"(params: { root: PluginEditorData["root"] }): PluginSharePreview;
+  /** One block drawn as the site draws it, its slots left empty. Only editor frames may. */
+  "editor.draw"(params: { block: PluginEditorBlock }): string;
+  /** The site's stylesheets, for drawn blocks. Only editor frames may. */
+  "editor.styles"(): string[];
 }
