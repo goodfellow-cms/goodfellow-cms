@@ -30,9 +30,9 @@ npm create goodfellow@latest my-site
 It asks these questions, with menus you move through with the arrow keys and choose from with Enter:
 
 - **Which site to start from:** the **Starter** (a home page, an about page and a news section), the **Parish example** (a complete made-up parish site, with collections and blocks of its own) or the **Starter for Next.js** (see [Next.js](/docs/nextjs)).
-- **Where the site will be stored:** GitHub or GitLab, and the repository's name.
-- **Where it will be hosted:** GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel, with each host's rules for business sites. Only that host's setup files are kept; Cloudflare Pages gets setup files of its own, for its nightly update and rebuild.
-- **Where the content will be kept:** with the code, or, for organizations with a developer, in a [repository of its own](/docs/content-repository), so editors can change the content but never the code.
+- **Where the site will be stored:** GitHub, GitLab or Bitbucket, and the repository's name.
+- **Where it will be hosted:** GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel, with each host's rules for business sites. Only that host's setup files are kept; Cloudflare Pages gets setup files of its own, for its nightly update and rebuild. A site on Bitbucket is hosted on Vercel, with `bitbucket-pipelines.yml` for its nightly update (see [Put it online](/docs/put-it-online#3-choose-a-host)).
+- **Where the content will be kept:** with the code, or, on GitHub and GitLab, for organizations with a developer, in a [repository of its own](/docs/content-repository), so editors can change the content but never the code.
 - **Where editors sign in:** in the admin panel at the site's address, at an admin address of its own (where the host serves a site at more than one address), or at a sign-in page of its own, a [token broker](/docs/token-broker), which it writes into a folder beside the site's. See [Security](/docs/security).
 - **Which blocks to start with:** the recommended blocks from Goodfellow's [block registry](/docs/add-blocks), such as an FAQ and tabs, or the built-in blocks only. Either way, blocks can be added and removed later in the admin panel.
 
@@ -44,7 +44,7 @@ To skip the questions, give the answers as options:
 npm create goodfellow@latest my-site -- --template parish --github your-name/your-site --host github-pages --blocks built-in
 ```
 
-`--admin https://admin.example.org` gives editors an admin address of its own, `--broker gitlab-pages` (or `github-pages` with `--broker-domain signin.example.org`, `cloudflare-pages` or `vercel`) writes a token broker beside the site, `--content your-name/your-site-content` keeps the content in a repository of its own, and `--wordpress wordpress-export.xml` (or a WordPress site's address) starts the site with a WordPress site's pages, posts, menus and media; see [Move from WordPress](/docs/move-from-wordpress). `--plugin goodfellow-plugin-guestbook`, once for each, installs a [plugin](/docs/plugins#install-a-plugin-from-the-admin-panel) as the admin panel would, saying what it asks to do. Run it with `--help` for every option.
+`--gitlab your-group/your-site` and `--bitbucket your-workspace/your-site` store it on GitLab or Bitbucket instead. `--admin https://admin.example.org` gives editors an admin address of its own, `--broker gitlab-pages` (or `github-pages` with `--broker-domain signin.example.org`, `cloudflare-pages` or `vercel`) writes a token broker beside the site, `--content your-name/your-site-content` keeps the content in a repository of its own, and `--wordpress wordpress-export.xml` (or a WordPress site's address) starts the site with a WordPress site's pages, posts, menus and media; see [Move from WordPress](/docs/move-from-wordpress). `--plugin goodfellow-plugin-guestbook`, once for each, installs a [plugin](/docs/plugins#install-a-plugin-from-the-admin-panel) as the admin panel would, saying what it asks to do. Run it with `--help` for every option.
 
 > To try changes that haven't been released yet, use the sites in [the repository](https://github.com/goodfellow-cms/goodfellow-cms) instead: install [pnpm](https://pnpm.io) 12, run `pnpm install` and `pnpm build` at the root, then `pnpm dev` in `templates/starter`.
 
@@ -81,7 +81,7 @@ my-site/
 ├── public/media/            # uploaded images and files
 ├── src/styles.css           # Tailwind and the site's theme
 ├── .npmrc                   # installing packages runs none of their install scripts
-└── .github/workflows/deploy.yml, .gitlab-ci.yml, vercel.ts   # host setups
+└── .github/workflows/deploy.yml, .gitlab-ci.yml, vercel.ts   # host setups (bitbucket-pipelines.yml on Bitbucket)
 ```
 
 None of a site's packages need an install script, the code a package can run when it's installed, so `.npmrc` turns them off, here and in every build. If a package you add needs one, run `npm rebuild <package>` after installing it, in the site's build too.

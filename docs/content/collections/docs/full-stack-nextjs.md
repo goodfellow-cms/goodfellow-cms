@@ -9,7 +9,7 @@ order: 7
 Goodfellow sites are static files by default, and nothing on this page is needed for them. For an organization with a developer and a [Next.js](/docs/nextjs) app that has a server of its own, Goodfellow can be the app's CMS, beside the app's own pages:
 
 - Editors sign in to the admin panel with the app's own sign-in, such as [Better Auth](https://www.better-auth.com), and the app says who may edit and who may change settings.
-- The app's server reads and publishes through GitHub or GitLab with one token, from an environment variable, which never reaches a browser. What each editor publishes still names them as its author.
+- The app's server reads and publishes through GitHub, GitLab or Bitbucket with one token, from an environment variable, which never reaches a browser. What each editor publishes still names them as its author.
 - Optionally, the AI assistant asks AI services through the server, with keys in environment variables, so editors don't need keys of their own.
 
 The content still lives in the site's repository, so the site is still rebuilt when something is published, as hosts that run Next.js do on every change to the repository. `next dev` still saves to the files on disk.
@@ -71,6 +71,7 @@ The content still lives in the site's repository, so the site is still rebuilt w
 
    - **GitHub:** a fine-grained token for the site's repository only, with Contents read and write, and Deployments and Actions read, which the admin panel uses to say when a change is live and why a rebuild failed. Make it from an account kept for the site, such as a machine user, rather than a person's own.
    - **GitLab:** a project access token with the Developer role (Maintainer if the main branch only lets Maintainers push) and the `api` scope.
+   - **Bitbucket:** a repository access token with Repositories read and write and Pipelines read. Commits still name each editor as their author.
 
 ## Who may do what
 
@@ -103,7 +104,7 @@ Owners can choose plugins on the admin panel's Plugins screen too, but on a full
 
 - The API answers people who aren't signed in only with where to sign in. Every request must come from the site's own pages: it carries a header that browsers don't send to another site without asking it first, and requests that say they come from another site are refused.
 - It reads and writes only what the admin panel edits: `content/`, `public/media/` and installed blocks' code.
-- Errors from GitHub or GitLab stay on the server, which reports them with `console.error`, or `onError` if given. Editors see only that something went wrong.
+- Errors from GitHub, GitLab or Bitbucket stay on the server, which reports them with `console.error`, or `onError` if given. Editors see only that something went wrong.
 
 ## What's different
 

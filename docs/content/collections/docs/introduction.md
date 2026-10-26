@@ -6,18 +6,18 @@ section: start
 order: 1
 ---
 
-Goodfellow is a website builder for people who aren't developers, from a volunteer running a club's site to a company's marketing team working alongside its developers. Editors build pages from blocks in a visual editor, built on [Puck](https://puckeditor.com), at `/admin` on their own site. There's no server, database or monthly hosting bill: every page is a file in the site's own GitHub or GitLab repository, and a free static host puts the site online.
+Goodfellow is a website builder for people who aren't developers, from a volunteer running a club's site to a company's marketing team working alongside its developers. Editors build pages from blocks in a visual editor, built on [Puck](https://puckeditor.com), at `/admin` on their own site. There's no server, database or monthly hosting bill: every page is a file in the site's own GitHub, GitLab or Bitbucket repository, and a free static host puts the site online.
 
 > Goodfellow is in early development. Everything these pages describe works today, and the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap) shows what's next. If something doesn't work, or you'd like it to do something it doesn't, [open an issue](https://github.com/goodfellow-cms/goodfellow-cms/issues/new/choose).
 
 ## How it works
 
-1. An editor opens `/admin` on the site and signs in with their GitHub or GitLab account.
+1. An editor opens `/admin` on the site and signs in with their GitHub, GitLab or Bitbucket account.
 2. They change a page in the editor, which shows it exactly as visitors will see it.
 3. **Publish** saves the change to the site's repository, straight from their browser.
 4. The host (GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel) notices the change and rebuilds the site, usually within a minute or two. The admin panel shows when it's live.
 
-Because the admin panel talks to GitHub or GitLab directly, nothing else needs to run anywhere: no server to keep updated, and nothing for attackers to break into besides your git host account.
+Because the admin panel talks to GitHub, GitLab or Bitbucket directly, nothing else needs to run anywhere: no server to keep updated, and nothing for attackers to break into besides your git host account.
 
 ## What you can do
 

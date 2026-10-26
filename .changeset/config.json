@@ -6,6 +6,7 @@
     [
       "@goodfellow-cms/admin",
       "@goodfellow-cms/ai",
+      "@goodfellow-cms/bitbucket",
       "@goodfellow-cms/blocks",
       "@goodfellow-cms/broker",
       "@goodfellow-cms/core",

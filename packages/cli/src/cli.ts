@@ -51,7 +51,7 @@ Commands:
   update    Update Goodfellow, and blocks from its registry, if the site still builds
   due       Say whether a scheduled change has come due since --since (default: the
             last hour), so the site needs building again; on GitHub Actions it also
-            sets the step's due output to true or false
+            sets the step's due output to true or false, or adds it to --output
   nightly   Say whether tonight's build is needed: when the site has changed since
             the live site was built, what it shows by today's date has, or an update
             is available (--mode, or GOODFELLOW_NIGHTLY: changed, the default,
@@ -101,7 +101,8 @@ Options:
   --domain <name> For broker add: the sign-in page's own domain, such as signin.example.org
   --since <time>  For due: when the last check started, such as 2026-11-29T09:17:00Z
   --mode <mode>   For nightly: changed (build only when something changed), always or off
-  --output <file> For nightly: add build=… and update=… to file, as GitHub Actions' outputs
+  --output <file> For nightly: add build=… and update=… to file, as GitHub Actions' outputs;
+                  for due: add due=…
   --strict        For build: fail if the site checks find links to pages or media that don't exist
   --dry-run       For import: say what importing would bring across, and change nothing
   -h, --help      Show this help
@@ -222,7 +223,9 @@ async function main(): Promise<void> {
     }
     case "due": {
       const result = await scheduleDue({ root: values.root, since: values.since });
-      for (const line of await reportDue(result)) console.log(line);
+      for (const line of await reportDue(result, process.env, values.output ?? process.env.GITHUB_OUTPUT)) {
+        console.log(line);
+      }
       return;
     }
     case "nightly": {

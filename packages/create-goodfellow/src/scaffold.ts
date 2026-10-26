@@ -147,7 +147,7 @@ export type GitResult = { created: true; remote?: string } | { created: false; r
 
 /** Where a backend's repository is pushed to, over HTTPS. */
 export function remoteUrl(backend: Backend): string {
-  const host = backend.host === "github" ? "github.com" : "gitlab.com";
+  const host = { github: "github.com", gitlab: "gitlab.com", bitbucket: "bitbucket.org" }[backend.host];
   return `https://${host}/${backend.repo}.git`;
 }
 

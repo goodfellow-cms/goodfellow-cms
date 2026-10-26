@@ -29,6 +29,7 @@ const next = join(repo, "templates/next");
 
 const versions = {
   "@goodfellow-cms/admin": "1.2.3",
+  "@goodfellow-cms/bitbucket": "1.2.3",
   "@goodfellow-cms/blocks": "1.2.3",
   "@goodfellow-cms/core": "1.2.3",
   "@goodfellow-cms/github": "1.2.3",
@@ -142,6 +143,28 @@ describe("scaffold", { timeout: GIT_TIMEOUT }, () => {
     expect(existsSync(join(target, ".gitlab-ci.yml"))).toBe(true);
     expect(existsSync(join(target, "vercel.ts"))).toBe(false);
     expect(existsSync(join(target, ".github"))).toBe(false);
+  });
+
+  it("sets up a site stored on Bitbucket, built by Vercel, with Bitbucket Pipelines for its updates", async () => {
+    const target = join(dir, "site");
+    await scaffold({
+      template: starter,
+      target,
+      versions,
+      backend: { host: "bitbucket", repo: "parish/site" },
+      host: "vercel",
+    });
+    const config = await readFile(join(target, "goodfellow.config.tsx"), "utf8");
+    expect(config).toContain('\nimport { bitbucket } from "@goodfellow-cms/bitbucket";');
+    expect(config).toContain('  backend: bitbucket({ repo: "parish/site" }),');
+    expect(await readFile(join(target, "bitbucket-pipelines.yml"), "utf8")).toContain("npx goodfellow task");
+    expect(existsSync(join(target, "vercel.ts"))).toBe(true);
+    expect(existsSync(join(target, ".gitlab-ci.yml"))).toBe(false);
+    expect(existsSync(join(target, ".github"))).toBe(false);
+    expect(
+      JSON.parse(await readFile(join(target, "package.json"), "utf8")).dependencies["@goodfellow-cms/bitbucket"],
+    ).toBe("^1.2.3");
+    expect(remoteUrl({ host: "bitbucket", repo: "parish/site" })).toBe("https://bitbucket.org/parish/site.git");
   });
 
   it("keeps the content in a repository of its own, which the code ignores and links to", async () => {

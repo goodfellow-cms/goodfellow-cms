@@ -1,14 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { planSite, type SiteFiles, siteFileText, sitePackageName, withoutRepositoryNotes } from "./site-setup.js";
+import { BITBUCKET_PIPELINE_NAMES, BITBUCKET_PIPELINES } from "./bitbucket-setup.js";
+import { TASK_BRANCH_PREFIX } from "./plugin-tasks.js";
+import {
+  hostsFor,
+  parseRepo,
+  planSite,
+  type SiteFiles,
+  siteFileText,
+  sitePackageName,
+  withoutRepositoryNotes,
+} from "./site-setup.js";
 
 const config = `import { defineConfig } from "@goodfellow-cms/core";
 // import { github } from "@goodfellow-cms/github";
 // import { gitlab } from "@goodfellow-cms/gitlab";
+// import { bitbucket } from "@goodfellow-cms/bitbucket";
 
 export default defineConfig({
   // backend: github({ repo: "your-name/your-site" }),
   // backend: gitlab({ project: "your-name/your-site", clientId: "your-application-id" }),
+  // backend: bitbucket({ repo: "your-workspace/your-site", clientId: "your-consumer-key" }),
 });
 `;
 
@@ -170,6 +182,62 @@ describe("planSite", () => {
     ]);
   });
 
+  it("gives a site on Bitbucket Pipelines for its updates, scheduled changes and plugins' tasks, with Vercel building it", async () => {
+    const files = await planSite({
+      template: template(),
+      name: "my-parish",
+      versions: { "@goodfellow-cms/core": "1.2.3" },
+      backend: { host: "bitbucket", repo: "someone/my-parish" },
+      host: "vercel",
+    });
+    expect(files.get("goodfellow.config.tsx")).toContain('backend: bitbucket({ repo: "someone/my-parish" }),');
+    expect(files.get("goodfellow.config.tsx")).toContain('\nimport { bitbucket } from "@goodfellow-cms/bitbucket";');
+    expect([...files.keys()].filter((path) => /workflows|gitlab|vercel|bitbucket/.test(path)).sort()).toEqual([
+      BITBUCKET_PIPELINES,
+      "vercel.ts",
+    ]);
+    const pipelines = siteFileText(files.get(BITBUCKET_PIPELINES) ?? "");
+    const parsed = parse(pipelines) as {
+      pipelines: { branches: Record<string, unknown>; custom: Record<string, Array<Record<string, unknown>>> };
+    };
+    expect(Object.keys(parsed.pipelines.branches)).toEqual(["main"]);
+    // Publishing doesn't use build minutes: the lockfile step runs only when package.json changes.
+    expect(JSON.stringify(parsed.pipelines.branches.main)).toContain('"includePaths":["package.json"]');
+    expect(Object.keys(parsed.pipelines.custom)).toEqual(Object.values(BITBUCKET_PIPELINE_NAMES));
+    const script = (name: string) =>
+      JSON.stringify(parsed.pipelines.custom[name]?.find((part) => "step" in part)?.step ?? {});
+    expect(script(BITBUCKET_PIPELINE_NAMES.update)).toContain("npx goodfellow nightly --output nightly.env");
+    expect(script(BITBUCKET_PIPELINE_NAMES.update)).toContain("VERCEL_DEPLOY_HOOK");
+    expect(script(BITBUCKET_PIPELINE_NAMES.scheduled)).toContain("npx goodfellow due");
+    expect(script(BITBUCKET_PIPELINE_NAMES.task)).toContain(
+      `HEAD:refs/heads/${TASK_BRANCH_PREFIX}$GOODFELLOW_TASK_REQUEST`,
+    );
+    expect(pipelines).toContain("--package-lock-only");
+    expect(files.get("README.md")).toContain("## Bitbucket and Vercel");
+
+    // Bitbucket's sites are put online by Vercel, and don't keep their content apart yet.
+    expect(hostsFor("bitbucket")).toEqual(["vercel"]);
+    await expect(
+      planSite({
+        template: template(),
+        name: "my-parish",
+        versions: {},
+        backend: { host: "bitbucket", repo: "someone/my-parish" },
+        host: "github-pages",
+      }),
+    ).rejects.toThrow("GitHub Pages");
+    await expect(
+      planSite({
+        template: template(),
+        name: "my-parish",
+        versions: {},
+        backend: { host: "bitbucket", repo: "someone/my-parish" },
+        host: "vercel",
+        content: { repo: "someone/my-parish-content", build: "content" },
+      }),
+    ).rejects.toThrow("Bitbucket");
+  });
+
   it("gives a Next.js site on Cloudflare Pages goodfellow-next's commands, and both hosts' setups without a repository", async () => {
     const files = template();
     files.set("next.config.ts", "export default {};");
@@ -217,6 +285,16 @@ describe("planSite", () => {
       true,
     );
     expect(files.get("goodfellow.config.tsx")).toBe(config);
+  });
+});
+
+describe("parseRepo", () => {
+  it("reads Bitbucket repositories from their path or any of their addresses", () => {
+    expect(parseRepo("bitbucket", "parish/site")).toBe("parish/site");
+    expect(parseRepo("bitbucket", "https://bitbucket.org/parish/site/src/main/")).toBe("parish/site");
+    expect(parseRepo("bitbucket", "https://someone@bitbucket.org/parish/site.git")).toBe("parish/site");
+    expect(parseRepo("bitbucket", "parish")).toBeUndefined();
+    expect(parseRepo("bitbucket", "https://gitlab.com/parish/site")).toBeUndefined();
   });
 });
 

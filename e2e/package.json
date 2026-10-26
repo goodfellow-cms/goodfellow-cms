@@ -13,6 +13,7 @@
     "@goodfellow-cms/blocks": "workspace:*",
     "@goodfellow-cms/broker": "workspace:*",
     "@goodfellow-cms/core": "workspace:*",
+    "@goodfellow-cms/bitbucket": "workspace:*",
     "@goodfellow-cms/github": "workspace:*",
     "@goodfellow-cms/gitlab": "workspace:*",
     "@goodfellow-cms/mcp": "workspace:*",

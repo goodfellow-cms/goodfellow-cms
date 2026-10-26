@@ -1,0 +1,54 @@
+{
+  "name": "@goodfellow-cms/bitbucket",
+  "version": "0.5.0",
+  "description": "Edit a Goodfellow site stored on Bitbucket, straight from the browser.",
+  "keywords": [
+    "goodfellow",
+    "cms",
+    "website-builder",
+    "puck",
+    "bitbucket",
+    "git-based-cms"
+  ],
+  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/hosts",
+  "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goodfellow-cms/goodfellow-cms.git",
+    "directory": "packages/bitbucket"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@goodfellow-cms/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@puckeditor/core": "0.23.0"
+  },
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

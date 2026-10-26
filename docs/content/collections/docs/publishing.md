@@ -6,7 +6,7 @@ section: editors
 order: 2
 ---
 
-**Publish** saves what you changed to the site's repository on GitHub or GitLab, as one change, from your own browser. The host then rebuilds the site, usually within a minute or two, and the top of the admin panel shows when the live site has been updated, or that the rebuild failed, with a link to the details. Publishing several pages one after another doesn't cost a rebuild each: on GitLab Pages, a publish made while the site is still rebuilding cancels that rebuild and builds both, and on GitHub Pages, the publishes made during a rebuild share the next one.
+**Publish** saves what you changed to the site's repository on GitHub, GitLab or Bitbucket, as one change, from your own browser. The host then rebuilds the site, usually within a minute or two, and the top of the admin panel shows when the live site has been updated, or that the rebuild failed, with a link to the details. Publishing several pages one after another doesn't cost a rebuild each: on GitLab Pages, a publish made while the site is still rebuilding cancels that rebuild and builds both, and on GitHub Pages, the publishes made during a rebuild share the next one.
 
 ## Site checks
 
@@ -43,7 +43,7 @@ The header, the footer and each item in a collection have a **Version history** 
 
 - **Versions that can't be restored:** one that uses blocks the site doesn't have any more, until they're added again under **Blocks**, and an item whose values no longer fit its collection's fields, such as a choice that's since been removed. An item's values for fields removed since are left out.
 - **Moved pages:** a page moved to a new address starts a new history there.
-- **Where it works:** in the published site's admin panel, where you sign in with GitHub or GitLab. There's no history in a demo, or when the site runs on your own computer.
+- **Where it works:** in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket. There's no history in a demo, or when the site runs on your own computer.
 
 ## Restoring the whole site
 
@@ -64,7 +64,7 @@ Then choose **Restore the site as it was** to put everything back in one publish
 To publish changes to several pages together, with one rebuild, keep them in a **draft** first. In an editor, **Add to draft**, beside **Publish**, starts a draft with your change instead of publishing it. While you're working in a draft, a bar at the top of every screen says so, and every **Publish** button says **Add to draft**: pages, items, the header and footer, Site Settings and the media library all save into the draft. Visitors don't see any of it until it's published. The bar has:
 
 - **Publish all**, which runs the [site checks](#site-checks) over everything in the draft, then publishes it in one change, with one rebuild. If someone else has published changes to the same pages or settings since the draft started, it stops rather than overwriting them, and the draft is kept: submit it for review, or throw it away and make the changes again.
-- **Submit for review**, so someone else checks it first. On GitHub this opens a pull request, and on GitLab a merge request; whoever reviews it publishes it there.
+- **Submit for review**, so someone else checks it first. On GitHub and Bitbucket this opens a pull request, and on GitLab a merge request; whoever reviews it publishes it there.
 - **Throw away**, which deletes the draft and leaves the live site as it is.
 - **Back to the live site**, which leaves the draft for later.
 

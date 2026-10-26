@@ -12,7 +12,7 @@ npx goodfellow broker add --host gitlab-pages # writes the site's token broker b
 npx goodfellow admin check  # checks the admin address named with goodfellow admin add, then uses it
 ```
 
-[Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub or GitLab repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellow-cms.github.io/goodfellow-cms/) for everything else.
+[Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab or Bitbucket repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellow-cms.github.io/goodfellow-cms/) for everything else.
 
 More in the docs: [Commands](https://goodfellow-cms.github.io/goodfellow-cms/docs/commands).
 

@@ -49,7 +49,7 @@ const packageFetch: PackageFetch = (url) => window.fetch(url);
 type Translate = ReturnType<typeof useStrings>;
 
 /** The setup files whose workflows write the lockfile, as the starters' do. */
-const SETUP_FILES = [".github/workflows/deploy.yml", ".gitlab-ci.yml"];
+const SETUP_FILES = [".github/workflows/deploy.yml", ".gitlab-ci.yml", "bitbucket-pipelines.yml"];
 
 /** What a plugin is called until its own title is read: `goodfellow-plugin-guest-book` → "Guest book". */
 function pluginLabel(name: string): string {

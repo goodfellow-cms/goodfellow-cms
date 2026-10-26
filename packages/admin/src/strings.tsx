@@ -30,6 +30,8 @@ export const defaultStrings = {
   "signIn.token.createBroad": "Create a broader token instead",
   "signIn.token.createBroadHint":
     "Use this if the site belongs to someone else and the first link doesn't let you choose it. This kind of token can change everything your account can.",
+  "signIn.token.apiTokenHint":
+    "Use this if you can't create a token for the site itself. Paste your Atlassian account's email address, a colon, then the token, such as name@example.org:ATATT3x…, and give the token permission to read and write repositories, pull requests and pipelines.",
   "signIn.token.chooseSite": "If {host} asks what the token can access, choose this site.",
   "signIn.token.step2": "Copy the token and paste it here:",
   "signIn.token.label": "Access token",
@@ -302,7 +304,8 @@ export const defaultStrings = {
   "versions.intro":
     "Every version that's been published, newest first. Choose one to see it, then restore it to put it back. Something that was moved to a new address starts a new history there.",
   "versions.notFound": "There's no history to show here. It may have been moved or deleted.",
-  "versions.local": "Version history is in the published site's admin panel, where you sign in with GitHub or GitLab.",
+  "versions.local":
+    "Version history is in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
   "versions.demo": "Version history isn't kept in a demo.",
   "versions.loading": "Loading versions…",
   "versions.loadingVersion": "Loading this version…",
@@ -729,7 +732,8 @@ export const defaultStrings = {
   "domain.connected": "Connected to {domain}.",
   "domain.signIn":
     "Editors sign in by going to {host} and coming back here. Add {address} to the redirect URIs of the application they sign in with on {host}, or signing in will stop working once the site moves.",
-  "domain.local": "Domains are connected in the published site's admin panel, where you sign in with GitHub or GitLab.",
+  "domain.local":
+    "Domains are connected in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
   "domain.admin.title": "Admin address",
   "domain.admin.intro":
     "An address of its own for the admin panel, such as admin.example.org, keeps the site's pages from reaching what the admin panel keeps, such as editors' sign-in. Editors then sign in there. Blocks from registries other than Goodfellow's can be added only once the admin panel has one.",
@@ -848,7 +852,7 @@ export const defaultStrings = {
   "settings.tab.security": "Security",
   "security.demo": "A demo has no sign-in to keep safe.",
   "security.local":
-    "The sign-in page is set in the published site's admin panel, where you sign in with GitHub or GitLab.",
+    "The sign-in page is set in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
   "security.contentOnly":
     "The sign-in page is set in the site's code, which is kept apart from its content, so a developer sets it there.",
   "security.broker.title": "Sign-in page",
@@ -1075,6 +1079,14 @@ export const defaultStrings = {
   "plugins.secrets.gitlab.add":
     "For {name}: choose Add variable, choose Masked under Visibility, keep Protect variable ticked, type {name} in Key, paste its value in Value, and choose Add variable.",
   "plugins.secrets.gitlab.who": "Only the site's owners (Maintainers) on GitLab can change its CI/CD settings.",
+  "plugins.secrets.bitbucket.title": "Add them on Bitbucket",
+  "plugins.secrets.bitbucket.link": "Open the site's Pipelines variables on Bitbucket",
+  "plugins.secrets.bitbucket.open":
+    "Open the site's Pipelines variables on Bitbucket with the link below. Add each key there, one at a time. If Bitbucket says Pipelines isn't turned on, turn it on under Settings first.",
+  "plugins.secrets.bitbucket.add":
+    "For {name}: type {name} in Name, paste its value in Value, tick Secured, and choose Add.",
+  "plugins.secrets.bitbucket.who":
+    "Only the site's owners (with Admin permission) on Bitbucket can change its variables.",
   "plugins.secrets.development.title": "Add them on this computer",
   "plugins.secrets.development.file":
     "In the site's folder, beside package.json, open the file .env.local, or make it, and add a line for each of {names}:",
@@ -1164,7 +1176,8 @@ export const defaultStrings = {
 
   "siteHistory.intro":
     "Every publish that changed the site's pages, items, settings or media, newest first. Choose one to see how the site looked after it and what has changed since, then restore the whole site as it was.",
-  "siteHistory.local": "Site history is in the published site's admin panel, where you sign in with GitHub or GitLab.",
+  "siteHistory.local":
+    "Site history is in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
   "siteHistory.demo": "Site history isn't kept in a demo.",
   "siteHistory.error": "The site's history couldn't be loaded. Check your connection and try again.",
   "siteHistory.current": "The site now",
@@ -1293,7 +1306,8 @@ export const defaultStrings = {
   "updates.noAccess":
     "Your sign-in can't see the site's code, at {place}, where its updates are installed. Ask the site's developer to give you access to it. On GitHub, an access token needs to reach it too, or with Sign in with GitHub, Goodfellow's app needs to be installed there.",
   "updates.back.skip": "Don't install Goodfellow {version} again",
-  "updates.local": "Updates are shown in the published site's admin panel, where you sign in with GitHub or GitLab.",
+  "updates.local":
+    "Updates are shown in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
   "updates.demo": "Updates aren't installed in a demo.",
   "updates.loading": "Checking for updates…",
   "updates.current": "This site uses Goodfellow {version}.",
@@ -1375,7 +1389,8 @@ export const defaultStrings = {
   "editors.intro": "The people who can edit this site.",
   "editors.roles":
     "Editors can change and publish everything in the admin panel. Owners can also invite and remove editors, and connect a domain.",
-  "editors.local": "Editors are invited in the published site's admin panel, where you sign in with GitHub or GitLab.",
+  "editors.local":
+    "Editors are invited in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
   "editors.demo": "Editors can't be invited in a demo.",
   "editors.loading": "Loading editors…",
   "editors.onlyOwners": "Only the site's owners can invite and remove editors.",
@@ -1402,6 +1417,8 @@ export const defaultStrings = {
   "editors.invite.field": "Their {host} username",
   "editors.invite.hint":
     "They need a {host} account. {host} emails them an invitation, which they accept before they can sign in here.",
+  "editors.invite.hintMembers":
+    "They need to be in the site's {host} workspace already. They can edit as soon as you add them.",
   "editors.invite.fieldEmail": "Their email address or {host} username",
   "editors.invite.hintEmail":
     "With an email address, {host} emails them an invitation, and they make an account if they don't have one.",

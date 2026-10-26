@@ -224,7 +224,10 @@ const BACKEND: Shape = {
   sync: { filesAt: FILES },
   objects: {
     pages: { data: ["severalDomains"], methods: ["site", "connect", "records", "status", "secure", "disconnect"] },
-    editors: { methods: ["list", "invite", "setRole", "remove", "letEditorsPublish"] },
+    editors: {
+      data: ["invitesByEmail", "membersOnly"],
+      methods: ["list", "invite", "setRole", "remove", "letEditorsPublish"],
+    },
     ownerAccess: { data: ["tokenLink", "active", "problem"], methods: ["forget", "startRedirect", "requestToken"] },
     updates: {
       methods: ["setup", "enable", "lastRun", "start", "rebuild"],

@@ -1,7 +1,112 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 import { BROKER_ADDRESSES, builtSites, NEXT_SERVER } from "./scripts/site.mjs";
 
 const PORT = 4400;
+
+type Server = {
+  command: string;
+  url: string;
+  reuseExistingServer: false;
+  timeout: number;
+  env?: Record<string, string>;
+};
+
+function server(command: string, url: string, timeout: number, env?: Record<string, string>): Server {
+  return { command, url, reuseExistingServer: false, timeout, ...(env && { env }) };
+}
+
+function builtSite(name: keyof typeof builtSites): Server {
+  return server(
+    `node scripts/start-built-site.mjs ${name}`,
+    `http://localhost:${builtSites[name].port}/admin/`,
+    120_000,
+  );
+}
+
+/**
+ * Every test server, each with what a spec says when it uses it: its address's port, or the constant naming it.
+ * The `goodfellow dev` site is the tests' `baseURL`, so every run starts it.
+ */
+const SERVERS: { server: Server; usedBy?: RegExp }[] = [
+  // The starter under `goodfellow dev`. The secret is the one the test plugin Keeper's task signs with
+  // (`media-storage.spec.ts`), as a site's CI would have.
+  {
+    server: server(`node scripts/start-site.mjs ${PORT}`, `http://localhost:${PORT}/admin`, 60_000, {
+      KEEPER_KEY: "secret",
+    }),
+  },
+  // The Next.js template under `next dev`.
+  { server: server("node scripts/start-next-site.mjs 4403", "http://localhost:4403/about/", 120_000), usedBy: /4403/ },
+  // A production build of the Next.js template served from /site/, like a GitHub Pages project site.
+  {
+    server: server("node scripts/start-next-built-site.mjs 4404", "http://localhost:4404/site/", 240_000),
+    usedBy: /4404|NEXT_BASE/,
+  },
+  // The Next.js template as a full-stack site, with a server and a sign-in of its own, on a fake GitHub.
+  {
+    server: server(
+      `node scripts/start-next-server-site.mjs ${NEXT_SERVER.port}`,
+      `http://localhost:${NEXT_SERVER.port}/sign-in/`,
+      240_000,
+    ),
+    usedBy: /NEXT_SERVER/,
+  },
+  // The documentation site, built and served from a subfolder, with its search index.
+  {
+    server: server("node scripts/start-docs-site.mjs 4406", "http://localhost:4406/goodfellow-cms/", 120_000),
+    usedBy: /4406/,
+  },
+  // The token broker, which shows the broker site's admin panel in its frame.
+  {
+    server: server("node scripts/start-broker.mjs", `${BROKER_ADDRESSES.broker}/`, 60_000),
+    usedBy: /BROKER_ADDRESSES/,
+  },
+  // Production builds of the starter with each git backend, as a demo, with its content in a repository of its
+  // own, with an admin address, and with a token broker, served like a static host.
+  { server: builtSite("github"), usedBy: /GITHUB_SITE|builtSites\.github|4401/ },
+  { server: builtSite("gitlab"), usedBy: /GITLAB_SITE|builtSites\.gitlab|4402/ },
+  { server: builtSite("bitbucket"), usedBy: /BITBUCKET_SITE|builtSites\.bitbucket|4414/ },
+  { server: builtSite("demo"), usedBy: /builtSites\.demo|4405/ },
+  { server: builtSite("content"), usedBy: /builtSites\.content|4410/ },
+  { server: builtSite("admin"), usedBy: /ADMIN_ADDRESSES|builtSites\.admin|4411/ },
+  { server: builtSite("broker"), usedBy: /BROKER_ADDRESSES|builtSites\.broker|4412/ },
+];
+
+/** A file filter as Playwright reads it, a regular expression, or the text itself where it isn't one. */
+function fileFilter(text: string): RegExp {
+  try {
+    return new RegExp(text);
+  } catch {
+    return new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  }
+}
+
+/** Options that take a value, so a value such as `--project chromium`'s isn't taken for a file. */
+const VALUE_OPTIONS = new Set(["-c", "--config", "-g", "--grep", "--grep-invert", "--project", "--reporter", "-j"]);
+
+/**
+ * The servers a run needs: every one when it names no spec files (the whole suite, or a `--grep` across it),
+ * and otherwise the `goodfellow dev` site and the servers the named specs use, since starting them all at once
+ * takes more memory than some computers have. `E2E_ALL_SERVERS=1` starts every one regardless.
+ */
+function serversFor(args: string[]): Server[] {
+  const all = SERVERS.map(({ server }) => server);
+  if (process.env.E2E_ALL_SERVERS) return all;
+  const filters: RegExp[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] ?? "";
+    if (VALUE_OPTIONS.has(arg)) i++;
+    else if (arg !== "test" && !arg.startsWith("-")) filters.push(fileFilter(arg.replace(/(:\d+)+$/, "")));
+  }
+  if (!filters.length) return all;
+  const specs = readdirSync(new URL("tests/", import.meta.url))
+    .filter((name) => name.endsWith(".spec.ts") && filters.some((filter) => filter.test(`tests/${name}`)))
+    .map((name) => readFileSync(new URL(`tests/${name}`, import.meta.url), "utf8"));
+  // A filter no spec matches is something else, so start everything rather than guess.
+  if (!specs.length) return all;
+  return SERVERS.filter(({ usedBy }) => !usedBy || specs.some((text) => usedBy.test(text))).map(({ server }) => server);
+}
 
 export default defineConfig({
   testDir: "tests",
@@ -33,57 +138,5 @@ export default defineConfig({
       },
     })),
   ],
-  webServer: [
-    {
-      command: `node scripts/start-site.mjs ${PORT}`,
-      url: `http://localhost:${PORT}/admin`,
-      reuseExistingServer: false,
-      timeout: 60_000,
-      // The secret the test plugin Keeper's task signs with (`media-storage.spec.ts`), as a site's CI would have.
-      env: { KEEPER_KEY: "secret" },
-    },
-    // The Next.js template under `next dev`.
-    {
-      command: "node scripts/start-next-site.mjs 4403",
-      url: "http://localhost:4403/about/",
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
-    // A production build of the Next.js template served from /site/, like a GitHub Pages project site.
-    {
-      command: "node scripts/start-next-built-site.mjs 4404",
-      url: "http://localhost:4404/site/",
-      reuseExistingServer: false,
-      timeout: 240_000,
-    },
-    // The Next.js template as a full-stack site, with a server and a sign-in of its own, on a fake GitHub.
-    {
-      command: `node scripts/start-next-server-site.mjs ${NEXT_SERVER.port}`,
-      url: `http://localhost:${NEXT_SERVER.port}/sign-in/`,
-      reuseExistingServer: false,
-      timeout: 240_000,
-    },
-    // The documentation site, built and served from a subfolder, with its search index.
-    {
-      command: "node scripts/start-docs-site.mjs 4406",
-      url: "http://localhost:4406/goodfellow-cms/",
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
-    // Production builds of the starter with each git backend, as a demo, and with its content in a repository
-    // of its own, served like a static host.
-    // The token broker, which shows the broker site's admin panel in its frame.
-    {
-      command: "node scripts/start-broker.mjs",
-      url: `${BROKER_ADDRESSES.broker}/`,
-      reuseExistingServer: false,
-      timeout: 60_000,
-    },
-    ...(["github", "gitlab", "demo", "content", "admin", "broker"] as const).map((name) => ({
-      command: `node scripts/start-built-site.mjs ${name}`,
-      url: `http://localhost:${builtSites[name].port}/admin/`,
-      reuseExistingServer: false,
-      timeout: 120_000,
-    })),
-  ],
+  webServer: serversFor(process.argv.slice(2)),
 });

@@ -10,6 +10,8 @@ Most sites keep everything in one repository: the code, `content/` and `public/m
 
 A site can keep its content in a repository of its own instead. Editors' sign-in, publishing, the [Claude connector](/docs/claude-connector) and a full-stack site's server then reach only the content repository, so they can change the site's content but never its code.
 
+It works on GitHub and GitLab. Sites on Bitbucket keep their content with the code for now.
+
 It's for organizations with a developer, who looks after the code repository. It doesn't keep Goodfellow's own settings away from editors: Site Settings, custom CSS and code, and collections' settings stay with the content, since some saves change settings and content together, such as removing a collection's field from every item. On a full-stack site, the app's own roles do that.
 
 ## Creating a site this way

@@ -49,9 +49,9 @@ Images are served as they are. To resize them and convert them to modern formats
 
 Setup takes four steps. It's done once, usually by whoever set up the site.
 
-### 1. Store the site on GitHub or GitLab
+### 1. Store the site on GitHub, GitLab or Bitbucket
 
-Create an empty repository on GitHub or GitLab, without a README, and push this folder to it:
+Create an empty repository on GitHub, GitLab or Bitbucket, without a README, and push this folder to it (a site on Bitbucket is put online by Vercel, and needs the `bitbucket-pipelines.yml` that `npm create goodfellow@latest -- --bitbucket your-workspace/your-site` gives it, with its own steps in its README):
 
 ```sh
 git remote add origin https://github.com/your-name/your-site.git   # unless origin is already set
@@ -99,7 +99,7 @@ Each host's free plan has its own rules about business use. If the site is for a
 2. In Cloudflare's dashboard, under **Workers & Pages**, create a Pages project from the repository, with no framework preset, the build command `npm run build` and the build output directory `out`. Cloudflare then builds and publishes the site on every change, and sends its redirects itself. Under the project's **Settings → Builds → Branch control**, set preview branches to **None**: drafts made in the admin panel are kept on branches of their own, which Cloudflare would otherwise build too.
 3. Under the project's **Settings → Builds**, add a deploy hook for the main branch, and add it to the repository as the `CLOUDFLARE_DEPLOY_HOOK` secret on GitHub, or masked variable on GitLab, for the nightly rebuild and scheduled changes. On GitLab, also turn on updates on the admin panel's **Updates** screen, which adds the nightly schedule.
 
-**Vercel** (works with GitHub and GitLab; the free plan is for non-commercial sites only)
+**Vercel** (works with GitHub, GitLab and Bitbucket; the free plan is for non-commercial sites only)
 
 1. Import the repository in Vercel, which recognizes it as a Next.js site, and sends the site's redirects itself. Under the project's **Settings → Git → Ignored Build Step**, choose **Only build production**: drafts made in the admin panel are kept on branches of their own, which Vercel would otherwise build previews of.
 2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule.
@@ -121,7 +121,7 @@ Delete the setup files for the hosts you don't use.
    - **Scopes:** `api`.
 3. Copy the **Application ID** into the config: `gitlab({ project: "your-name/your-site", clientId: "…" })`.
 
-Every editor needs permission to change the repository: on GitHub, write access; on GitLab, the Developer role or higher.
+Every editor needs permission to change the repository: on GitHub, write access; on GitLab, the Developer role or higher; on Bitbucket, Write. For Bitbucket's sign-in, see [Editors and sign-in](https://goodfellow-cms.github.io/goodfellow-cms/docs/sign-in#bitbucket).
 
 ## Images and files
 

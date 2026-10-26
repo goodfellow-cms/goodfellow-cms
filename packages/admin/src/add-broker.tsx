@@ -34,6 +34,8 @@ const PLACE_HOSTS: Record<Place, BrokerHost> = {
 /** The places a broker can go for a site kept on this host, the usual one first. */
 function placesFor(host: string): Place[] {
   if (host === "GitLab") return ["gitlab-pages", "gitlab-domain", "cloudflare-pages", "vercel"];
+  // Bitbucket has no Pages with domains of their own, and Cloudflare Pages doesn't build from it.
+  if (host === "Bitbucket") return ["vercel"];
   return ["github-domain", "cloudflare-pages", "vercel"];
 }
 

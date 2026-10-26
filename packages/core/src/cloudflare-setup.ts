@@ -220,11 +220,12 @@ const OUTSIDE_HOST_FILES = [
   ".github/workflows/update.yml",
   ".github/workflows/rebuild.yml",
   GITLAB_CI,
+  "bitbucket-pipelines.yml",
   "vercel.ts",
 ];
 
 /**
- * Which host outside GitHub and GitLab builds a site, as its setup files say:
+ * Which host outside GitHub, GitLab and Bitbucket builds a site, as its setup files say:
  * Cloudflare Pages where they use its deploy hook, Vercel where they use its
  * own or the site has `vercel.ts`, or `undefined` for neither (or none known).
  */

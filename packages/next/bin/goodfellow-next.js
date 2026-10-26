@@ -4,7 +4,7 @@
 // copies the site's Google Fonts into the export, builds plugins' admin frames and runs their build steps, starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
 // `goodfellow-next task [--out <file>]` runs one of a plugin's tasks for the admin panel, as `goodfellow task` does.
-// `goodfellow-next due [--since <time>]` says whether a scheduled change has come due, as `goodfellow due` does.
+// `goodfellow-next due [--since <time>] [--output <file>]` says whether a scheduled change has come due, as `goodfellow due` does.
 // `goodfellow-next nightly [--mode <mode>]` says whether tonight's build is needed, as `goodfellow nightly` does.
 // `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
 // content is kept in a repository of its own.
@@ -126,8 +126,13 @@ if (command === "task") {
   process.exit(0);
 }
 if (command === "due") {
-  const { values } = parseArgs({ args: process.argv.slice(3), options: { since: { type: "string" } } });
-  for (const line of await reportDue(await scheduleDue({ since: values.since }))) console.log(line);
+  const { values } = parseArgs({
+    args: process.argv.slice(3),
+    options: { since: { type: "string" }, output: { type: "string" } },
+  });
+  const result = await scheduleDue({ since: values.since });
+  for (const line of await reportDue(result, process.env, values.output ?? process.env.GITHUB_OUTPUT))
+    console.log(line);
   process.exit(0);
 }
 if (command === "nightly") {
@@ -229,7 +234,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next finish --server",
       "       goodfellow-next index [folder]",
       "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish | --commit]",
-      "       goodfellow-next due [--since <time>]",
+      "       goodfellow-next due [--since <time>] [--output <file>]",
       "       goodfellow-next nightly [--mode changed|always|off] [--output <file>]",
       "       goodfellow-next content link|copy [folder]",
       "       goodfellow-next import wordpress <file or address> [--dry-run]",
@@ -251,7 +256,7 @@ if (command !== "finish" && command !== "index") {
       "        that runs none of the site's code to publish.",
       "due     Says whether a scheduled change has come due since --since (default: the last",
       "        hour), so the site needs building again, and sets the step's due output on",
-      "        GitHub Actions.",
+      "        GitHub Actions, or adds it to --output.",
       "nightly Says whether tonight's build is needed: when the site has changed since the live",
       "        site was built, what it shows by today's date has, or an update is available",
       "        (--mode, or GOODFELLOW_NIGHTLY: changed, the default, always or off), and sets the",

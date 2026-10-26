@@ -82,6 +82,7 @@
   },
   "devDependencies": {
     "@goodfellow-cms/admin": "workspace:*",
+    "@goodfellow-cms/bitbucket": "workspace:*",
     "@goodfellow-cms/github": "workspace:*",
     "@goodfellow-cms/gitlab": "workspace:*",
     "@puckeditor/core": "0.23.0",

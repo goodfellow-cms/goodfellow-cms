@@ -66,10 +66,15 @@ function describe(change: ScheduledChange): string {
 }
 
 /**
- * What the check found, for the log, and on GitHub Actions `due=true` or
- * `due=false` in the step's outputs, which the build job's condition reads.
+ * What the check found, for the log, and `due=true` or `due=false` added to
+ * `output`: on GitHub Actions the step's outputs, which the build job's
+ * condition reads, or a file a Bitbucket pipeline reads in.
  */
-export async function reportDue(result: DueResult, env: NodeJS.ProcessEnv = process.env): Promise<string[]> {
+export async function reportDue(
+  result: DueResult,
+  env: NodeJS.ProcessEnv = process.env,
+  output: string | undefined = env.GITHUB_OUTPUT,
+): Promise<string[]> {
   const zone = result.timeZone ?? "UTC";
   const due = result.due.length > 0 || result.dated !== undefined;
   const lines =
@@ -82,6 +87,6 @@ export async function reportDue(result: DueResult, env: NodeJS.ProcessEnv = proc
         ? [`What the live site shows by today's date changed at ${result.dated}, so the site is built again.`]
         : [`No scheduled change came due since ${result.since.toISOString()}, so the site isn't built again.`];
   if (result.next) lines.push(`Next scheduled change: ${describe(result.next)} (${zone})`);
-  if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, `due=${due}\n`);
+  if (output) await appendFile(output, `due=${due}\n`);
   return lines;
 }

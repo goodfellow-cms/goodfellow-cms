@@ -46,6 +46,8 @@ Options:
   --template <name>   starter (the default), parish, or next for a Next.js site
   --github <repo>     The GitHub repository the site will be stored in, such as your-name/your-site
   --gitlab <project>  The GitLab project the site will be stored in, such as your-group/your-site
+  --bitbucket <repo>  The Bitbucket repository the site will be stored in, such as your-workspace/your-site,
+                      which Vercel builds, with Bitbucket Pipelines for its updates
   --host <host>       github-pages, gitlab-pages, cloudflare-pages or vercel. Keeps only that
                       host's setup files (for Cloudflare Pages, a nightly update and rebuild)
   --content <repo>    Keeps the site's content in a repository of its own, such as
@@ -71,7 +73,14 @@ Options:
 /** Bundled into the package when it's built: see scripts/bundle-templates.mjs. */
 const templatesDir = fileURLToPath(new URL("../templates/", import.meta.url));
 
-const HOST_NAMES = { github: "GitHub", gitlab: "GitLab" } as const;
+const HOST_NAMES = { github: "GitHub", gitlab: "GitLab", bitbucket: "Bitbucket" } as const;
+
+/** What each host calls a repository, and an example of one. */
+const REPO_WORDS = {
+  github: { word: "repository", example: "your-name/your-site" },
+  gitlab: { word: "project", example: "your-group/your-site" },
+  bitbucket: { word: "repository", example: "your-workspace/your-site" },
+} as const;
 
 /** Asks one question. Each has its own interface, since menus read the terminal themselves in between. */
 async function ask(question: string): Promise<string> {
@@ -99,10 +108,10 @@ async function choose<T>(question: string, choices: Choice<T>[]): Promise<T> {
 }
 
 async function askRepo(host: Backend["host"]): Promise<string | undefined> {
-  const example = host === "github" ? "your-name/your-site" : "your-group/your-site";
+  const { word, example } = REPO_WORDS[host];
   for (;;) {
     const answer = await ask(
-      `\nThe ${HOST_NAMES[host]} ${host === "github" ? "repository" : "project"}, such as ${example} (leave empty if it doesn't exist yet): `,
+      `\nThe ${HOST_NAMES[host]} ${word}, such as ${example} (leave empty if it doesn't exist yet): `,
     );
     if (answer.trim() === "") return undefined;
     const repo = parseRepo(host, answer);
@@ -119,19 +128,15 @@ function isHost(name: string): name is Host {
   return Object.hasOwn(HOSTS, name);
 }
 
-function backendFromOptions(github: string | undefined, gitlab: string | undefined): Backend | undefined {
-  if (github !== undefined && gitlab !== undefined) {
-    throw new ScaffoldError("Choose either --github or --gitlab, not both.");
-  }
-  const host = github !== undefined ? "github" : gitlab !== undefined ? "gitlab" : undefined;
+function backendFromOptions(given: Partial<Record<Backend["host"], string>>): Backend | undefined {
+  const named = (Object.keys(REPO_WORDS) as Backend["host"][]).filter((host) => given[host] !== undefined);
+  if (named.length > 1) throw new ScaffoldError("Choose one of --github, --gitlab and --bitbucket, not several.");
+  const [host] = named;
   if (!host) return undefined;
-  const repo = parseRepo(host, (github ?? gitlab) as string);
+  const repo = parseRepo(host, given[host] as string);
   if (!repo) {
-    throw new ScaffoldError(
-      host === "github"
-        ? "--github takes a repository such as your-name/your-site."
-        : "--gitlab takes a project such as your-group/your-site.",
-    );
+    const { word, example } = REPO_WORDS[host];
+    throw new ScaffoldError(`--${host} takes a ${word} such as ${example}.`);
   }
   return { host, repo };
 }
@@ -143,6 +148,7 @@ async function main(): Promise<void> {
       template: { type: "string" },
       github: { type: "string" },
       gitlab: { type: "string" },
+      bitbucket: { type: "string" },
       host: { type: "string" },
       blocks: { type: "string" },
       content: { type: "string" },
@@ -168,7 +174,7 @@ async function main(): Promise<void> {
   if (template !== undefined && !isTemplate(template)) {
     throw new ScaffoldError(`There's no template called "${template}". Choose ${Object.keys(TEMPLATES).join(" or ")}.`);
   }
-  let backend = backendFromOptions(values.github, values.gitlab);
+  let backend = backendFromOptions({ github: values.github, gitlab: values.gitlab, bitbucket: values.bitbucket });
   let host: string | undefined = values.host;
   if (host !== undefined && !isHost(host)) {
     throw new ScaffoldError(`--host takes ${Object.keys(HOSTS).join(", ")}.`);
@@ -203,14 +209,16 @@ async function main(): Promise<void> {
         [
           { value: "github", label: "GitHub" },
           { value: "gitlab", label: "GitLab" },
+          { value: "bitbucket", label: "Bitbucket", note: "Built and put online by Vercel." },
           { value: undefined, label: "Not decided yet" },
         ],
       );
       const repo = storage && (await askRepo(storage));
       if (storage && repo) backend = { host: storage, repo };
     }
-    host ??= await chooseHost(storage);
-    if (backend && host && contentRepo === undefined) {
+    // Vercel is the one host that builds sites stored on Bitbucket.
+    host ??= storage === "bitbucket" ? "vercel" : await chooseHost(storage);
+    if (backend && host && contentRepo === undefined && backend.host !== "bitbucket") {
       const separate = await choose("Where should the site's content be kept?", [
         { value: false, label: "With the code", note: "One repository for everything." },
         {
@@ -253,6 +261,7 @@ async function main(): Promise<void> {
   if (!folder) {
     throw new ScaffoldError("Say which folder to create the site in, such as: npm create goodfellow@latest my-site");
   }
+  if (backend?.host === "bitbucket") host ??= "vercel";
   if (host && backend && !hostsFor(backend.host).includes(host as Host)) {
     throw new ScaffoldError(`${HOSTS[host as Host].label} can't serve a site stored on ${HOST_NAMES[backend.host]}.`);
   }
@@ -264,7 +273,9 @@ async function main(): Promise<void> {
     );
   }
   if (broker !== undefined) {
-    if (!backend) throw new ScaffoldError("A sign-in page needs the site's repository (--github or --gitlab).");
+    if (!backend) {
+      throw new ScaffoldError("A sign-in page needs the site's repository (--github, --gitlab or --bitbucket).");
+    }
     if (!brokerHostsFor(backend.host).includes(broker as BrokerHost)) {
       throw new ScaffoldError(
         `--broker takes ${brokerHostsFor(backend.host).join(", ")} for a site on ${HOST_NAMES[backend.host]}.`,
@@ -379,9 +390,7 @@ async function askContentRepo(backend: Backend): Promise<string> {
   const suggested = `${backend.repo}-content`;
   for (;;) {
     const answer = (
-      await ask(
-        `\nThe ${HOST_NAMES[backend.host]} ${backend.host === "github" ? "repository" : "project"} for the content (${suggested}): `,
-      )
+      await ask(`\nThe ${HOST_NAMES[backend.host]} ${REPO_WORDS[backend.host].word} for the content (${suggested}): `)
     ).trim();
     if (answer === "") return suggested;
     const repo = parseRepo(backend.host, answer);
@@ -405,6 +414,9 @@ function separateContent(
     throw new ScaffoldError(
       "Keeping the content in a repository of its own needs the code's repository (--github or --gitlab) and a host (--host).",
     );
+  }
+  if (backend.host === "bitbucket") {
+    throw new ScaffoldError("Sites stored on Bitbucket can't keep their content in a repository of their own yet.");
   }
   const parsed = parseRepo(backend.host, repo);
   if (!parsed || parsed === backend.repo) {

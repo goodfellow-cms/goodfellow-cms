@@ -2,6 +2,7 @@ import { blocks, categories } from "@goodfellow-cms/blocks";
 import { defineConfig } from "@goodfellow-cms/core";
 // import { github } from "@goodfellow-cms/github";
 // import { gitlab } from "@goodfellow-cms/gitlab";
+// import { bitbucket } from "@goodfellow-cms/bitbucket";
 import { installedBlocks, installedCategories } from "./blocks/installed";
 import { installedPlugins } from "./plugins/installed";
 
@@ -19,4 +20,5 @@ export default defineConfig({
   // See README.md for how to set up sign-in.
   // backend: github({ repo: "your-name/your-site" }),
   // backend: gitlab({ project: "your-name/your-site", clientId: "your-application-id" }),
+  // backend: bitbucket({ repo: "your-workspace/your-site", clientId: "your-consumer-key" }),
 });

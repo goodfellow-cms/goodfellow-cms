@@ -60,7 +60,7 @@ A site published with Cloudflare Pages connects its domain in Cloudflare: open t
 - **A subdomain**, such as `www.example.org`, can keep its DNS where it is: Cloudflare shows a CNAME record pointing at the project's `pages.dev` address, to add at your registrar.
 - **The domain itself**, such as `example.org`, has to use Cloudflare's nameservers. Cloudflare walks you through adding the domain to your account, copies its existing records, and shows the two nameservers to set at your registrar. Keep the MX records, which deliver the domain's email. To keep your DNS where it is instead, see [Keeping your DNS at your registrar](#keeping-your-dns-at-your-registrar).
 
-Once the site opens at its new address, put the address in **Site Settings → General → Site address** and publish.
+Once the site opens at its new address, put the address in **Site Settings → General → Site address** and publish. With **Sign in with Bitbucket**, change the OAuth consumer's callback URL to the new admin address, such as `https://example.org/admin/`, too; the Domain screen reminds you.
 
 ### Keeping your DNS at your registrar
 
@@ -73,7 +73,7 @@ Either way, the Site address is `https://www.example.org`.
 
 ## Sites on Vercel
 
-A site published with Vercel connects its domain in Vercel: open the site's project, go to **Settings → Domains** and add the domain, and Vercel shows the records to add at your registrar. Once the site opens at its new address, put the address in **Site Settings → General → Site address** and publish.
+A site published with Vercel, as every site on Bitbucket is, connects its domain in Vercel: open the site's project, go to **Settings → Domains** and add the domain, and Vercel shows the records to add at your registrar. Once the site opens at its new address, put the address in **Site Settings → General → Site address** and publish. With **Sign in with Bitbucket**, change the OAuth consumer's callback URL to the new admin address, such as `https://example.org/admin/`, too; the Domain screen reminds you.
 
 ## An admin address
 

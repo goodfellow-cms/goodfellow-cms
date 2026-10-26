@@ -103,7 +103,7 @@ export interface GitBackend extends ContentStore {
 export interface TokenLink {
   url: string;
   label: "signIn.token.create" | "signIn.token.createBroad" | "owner.token.create";
-  hint?: "signIn.token.createBroadHint";
+  hint?: "signIn.token.createBroadHint" | "signIn.token.apiTokenHint";
 }
 
 /** How people sign in to a git host. */

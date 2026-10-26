@@ -14,9 +14,9 @@ It works with the sites' own blocks and settings, as the admin panel does: Claud
 
 Claude Desktop and Claude Code run Goodfellow's tools on your computer, signed in with a token that stays there. Screenshots use the Google Chrome or Microsoft Edge you have.
 
-The token needs to be able to change the site's files and, for submitting for review, open pull requests (GitHub) or merge requests (GitLab). [Editors and sign-in](/docs/sign-in#signing-in-with-a-token) explains making one; on GitHub, give it **Pull requests: Read and write** too.
+The token needs to be able to change the site's files and, for submitting for review, open pull requests (GitHub and Bitbucket) or merge requests (GitLab). [Editors and sign-in](/docs/sign-in#signing-in-with-a-token) explains making one; on GitHub, give it **Pull requests: Read and write** too.
 
-- **Claude Desktop:** download the [Goodfellow extension](https://goodfellow-cms.github.io/goodfellow-cms/goodfellow.mcpb), open it, and choose **Install**. Claude asks for the site, such as `github:your-name/your-site` or `gitlab:your-group/your-site`, and the token.
+- **Claude Desktop:** download the [Goodfellow extension](https://goodfellow-cms.github.io/goodfellow-cms/goodfellow.mcpb), open it, and choose **Install**. Claude asks for the site, such as `github:your-name/your-site`, `gitlab:your-group/your-site` or `bitbucket:your-workspace/your-site`, and the token.
 - **Claude Code:**
 
   ```sh
@@ -27,7 +27,7 @@ The token needs to be able to change the site's files and, for submitting for re
 
 ### Through a connector service
 
-A connector service lets editors add Goodfellow to Claude on the web, on phones and in Claude Code without a token, by signing in with GitHub or GitLab. Goodfellow doesn't run one for everyone yet, and may in the future. An organization can run its own; see [Claude connector service](/docs/claude-connector). Then editors add it once:
+A connector service lets editors add Goodfellow to Claude on the web, on phones and in Claude Code without a token, by signing in with GitHub or GitLab (not yet Bitbucket, whose sites connect through Claude Desktop or Claude Code). Goodfellow doesn't run one for everyone yet, and may in the future. An organization can run its own; see [Claude connector service](/docs/claude-connector). Then editors add it once:
 
 1. In Claude, open **Settings → Connectors** and choose **Add custom connector**. (In a Claude Team or Enterprise organization, an owner adds it for everyone in the organization's settings.)
 2. Name it **Goodfellow**, and give the connector's address, such as `https://claude.your-name.workers.dev/mcp`.
@@ -43,7 +43,7 @@ On GitHub, Claude works on sites through the connector's GitHub App, **Goodfello
 Claude never changes the live site straight away. The first change it makes starts a **draft**, a copy of the site that visitors don't see, and every later change goes into the same draft until you're happy with it. The site's editors see it in the admin panel too, where it can be finished like a [draft started there](/docs/publishing#drafts). Then ask Claude to:
 
 - **Publish** it, which puts every change on the live site at once, as the admin panel's **Publish** does. The site is rebuilt and the changes go live in a minute or two.
-- **Submit it for review**, so someone else checks it first. On GitHub this opens a pull request, and on GitLab a merge request; whoever reviews it publishes it there.
+- **Submit it for review**, so someone else checks it first. On GitHub and Bitbucket this opens a pull request, and on GitLab a merge request; whoever reviews it publishes it there.
 - **Throw it away**.
 
 If someone publishes changes to the same pages in the admin panel while Claude's draft is open, publishing the draft stops rather than overwriting them, and Claude says so. It can make its changes again on top of theirs in a new draft.

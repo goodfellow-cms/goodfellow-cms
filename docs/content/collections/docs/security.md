@@ -10,7 +10,7 @@ A Goodfellow site is static files: there's no server or database to break into, 
 
 ## For owners and editors
 
-- **Editors sign in to GitHub or GitLab,** with their own account, and can do there only what the site's repository lets them. Every change is in the site's [version history](/docs/publishing), with who made it, and can be put back.
+- **Editors sign in to GitHub, GitLab or Bitbucket,** with their own account or a token for the site, and can do there only what the site's repository lets them. Every change is in the site's [version history](/docs/publishing), with who made it, and can be put back.
 - **The admin panel keeps the sign-in in the browser,** where the editor chose: until the tab closes, or with **Stay signed in** until they sign out. Signing out forgets it, and AI keys with it.
 - **The site's own code never runs where the sign-in is.** The editor, blocks and previews run in sandboxed frames that can't reach the admin panel's page, its storage or the internet.
 - **The site's pages are another matter:** code pasted into Site Settings, such as analytics, runs on them. Without an admin address or a token broker, the admin panel shares an address with those pages, or on `github.io` and `gitlab.io` with every site in the same account, so such code could read a sign-in kept with **Stay signed in**. That's why, without one, the admin panel adds blocks only from Goodfellow's own registry, and installs no [plugins](/docs/plugins#install-a-plugin-from-the-admin-panel).
@@ -35,6 +35,8 @@ On GitLab, either:
 
 On GitLab, a sign-in reaches every project the editor's account can, not only the site's, so editors should use an account, or a group, that's only for the site. And once automatic updates are on, any job in the site's pipeline can publish to it.
 
+On Bitbucket, whose sites Vercel hosts, the same two: an admin address, which Vercel serves from the site's project, or a token broker on Vercel. Give each editor a repository access token, which reaches the site's repository alone, rather than an API token or Sign in with Bitbucket, which reach everything the editor's account can. Every pipeline step can publish to the repository and read its variables.
+
 ### In between
 
 On GitHub, one repository, with the [sign-in service](/docs/sign-in-service) and a [token broker](/docs/token-broker):
@@ -54,7 +56,7 @@ The setup in between, with the site's content in a [repository of its own](/docs
 
 ## Builds
 
-The site is built by GitHub Actions, GitLab CI, Cloudflare Pages or Vercel, from its repository.
+The site is built by GitHub Actions, GitLab CI, Cloudflare Pages or Vercel, from its repository, and on Bitbucket, Pipelines run its nightly update and plugins' tasks.
 
 - **No secrets, no publishing (GitHub):** in the starters' workflows, each job has only the permissions it needs. The jobs that run the site's code can only read the repository and keep no credentials, the job that puts the site online runs none of its code, and the nightly update builds the site with the update before a separate job, which runs none of its code, publishes it.
 - **No install scripts:** sites' `.npmrc` turns off packages' install scripts, code a package runs when it's installed, since none of a site's packages need one.
@@ -62,6 +64,7 @@ The site is built by GitHub Actions, GitLab CI, Cloudflare Pages or Vercel, from
 - **Plugins' tasks keep their secrets in the build:** a [task](/docs/plugins#tasks), such as S3 storage signing uploads, runs in the site's CI with only the secrets its plugin declared, in a process that can't read the rest of the site, write files or start programs, and its answer is sealed to a key that only the admin panel that asked holds. On GitHub, the job that runs it can only read the repository, and a separate job, which runs none of the site's code, leaves the answer on a branch of its own. The secrets never reach the admin panel or an editor's browser.
 - **Updates are checked first:** an update is published only once the site builds with it, and an owner can [go back](/docs/updates) to the release before.
 - **GitLab** gives every job in a project the same token, so once automatic updates are turned on, any job in the site's pipeline can publish.
+- **Bitbucket** lets every pipeline step publish, and gives each one every repository variable, so a plugin's task gets only the secrets it declared, but the site's other pipelines could read the rest. Keep only what the site needs in the repository's variables.
 
 ## For developers
 

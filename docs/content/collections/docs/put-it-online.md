@@ -1,16 +1,16 @@
 ---
 version: 1
 title: Put it online
-description: Store the site on GitHub or GitLab, choose a host, and set up sign-in for editors.
+description: Store the site on GitHub, GitLab or Bitbucket, choose a host, and set up sign-in for editors.
 section: start
 order: 4
 ---
 
 Setup takes four steps, done once by whoever sets up the site. A site made with the [setup page](/new-site) has done the first three, unless it's on Cloudflare Pages or Vercel, which you connect it to in step 3, so start at [step 4](#4-set-up-sign-in).
 
-## 1. Store the site on GitHub or GitLab
+## 1. Store the site on GitHub, GitLab or Bitbucket
 
-Create an empty repository on GitHub or GitLab, without a README, and push the site's folder to it. If you're not sure which, we recommend GitLab, with GitLab Pages: see [Which to choose](/docs/hosts#which-to-choose).
+Create an empty repository on GitHub, GitLab or Bitbucket Cloud, without a README, and push the site's folder to it. If you're not sure which, we recommend GitLab, with GitLab Pages: see [Which to choose](/docs/hosts#which-to-choose). A site stored on Bitbucket is put online by Vercel, so make it with `npm create goodfellow@latest -- --bitbucket your-workspace/your-site`, which gives it the setup Bitbucket needs.
 
 ```sh
 git remote add origin https://github.com/your-name/your-site.git   # unless origin is already set
@@ -59,10 +59,19 @@ Each host's free plan has its own rules about business use; read [Hosts and busi
 2. In [Cloudflare's dashboard](https://dash.cloudflare.com/), go to **Workers & Pages** and create a Pages project with **Import an existing Git repository**. Connect your GitHub or GitLab account, choose the repository, and set no framework preset, the build command `npm run build` and the build output directory `dist` (`out` for the Next.js starter). Cloudflare builds and publishes the site on every change, including every Publish in the admin panel, and sends the site's [redirects](/docs/layout-and-settings#redirects) itself. Under the project's **Settings → Builds → Branch control**, set preview branches to **None**: [drafts](/docs/publishing#drafts), and the answers of plugins' [tasks](/docs/plugins#tasks), are kept on branches of their own, which Cloudflare would otherwise build too.
 3. Cloudflare can't build on a schedule, so the setup files do it: each night they install Goodfellow's [updates](/docs/updates) and check whether the site needs rebuilding, and they check for [scheduled changes](/docs/scheduling), asking Cloudflare to rebuild the site when it needs it and there's nothing new for it to build. They ask through the project's deploy hook: under the project's **Settings → Builds**, add one for the main branch, and add its address to the repository as the `CLOUDFLARE_DEPLOY_HOOK` secret (GitHub: **Settings → Secrets and variables → Actions**) or masked variable (GitLab: **Settings → CI/CD → Variables**). On GitLab, turn on updates on the admin panel's **Updates** screen too, which adds the nightly schedule.
 
-**Vercel**, which works with GitHub and GitLab:
+**Vercel**, which works with GitHub, GitLab and Bitbucket:
 
 1. Import the repository in Vercel. `vercel.ts` already has the right settings: it has Vercel send the site's redirects itself, and not build previews of [drafts](/docs/publishing#drafts) or plugins' [task](/docs/plugins#tasks) answers, which are kept on branches of their own. The Next.js starter has no `vercel.ts`, so for it choose **Only build production** under the project's **Settings → Git → Ignored Build Step**.
-2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule.
+2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule. Sites stored on Bitbucket have this set up already (see below).
+
+**Bitbucket**, whose sites Vercel builds: Bitbucket's own static websites have one address for each workspace and no domains of their own, and Cloudflare Pages doesn't build from Bitbucket. `create-goodfellow --bitbucket` gives the site `bitbucket-pipelines.yml`, in which Bitbucket Pipelines run the nightly [update](/docs/updates), the check for [scheduled changes](/docs/scheduling), and plugins' [tasks](/docs/plugins#tasks), and writes `package-lock.json` when a plugin is installed. To set it up:
+
+1. Import the repository in Vercel, as above, and under the project's **Settings → Git → Deploy Hooks** create a hook for the main branch.
+2. In the repository on Bitbucket, turn Pipelines on under **Repository settings → Pipelines → Settings**, and under **Repository settings → Pipelines → Repository variables** add the hook's address as `VERCEL_DEPLOY_HOOK`, with **Secured** ticked.
+3. In the admin panel, turn on updates on the **Updates** screen, which adds the nightly schedule under **Pipelines → Schedules**. That needs the repository's Admin permission.
+4. Scheduled changes then go live with the nightly rebuild. To have them go live within the hour, add a schedule yourself under **Pipelines → Schedules** that runs the `scheduled` pipeline on the main branch every hour. It uses about 720 build minutes a month, more than the 50 Bitbucket's free plan has, so it needs a paid plan.
+
+Bitbucket gives every pipeline step the repository's variables and lets it publish, so keep only what the site needs there.
 
 Delete the setup files of the hosts you don't use. Overnight rebuilds keep pages that depend on the date, such as a list of upcoming events, current; the starters' setups rebuild only when something changed ([Rebuilding overnight](/docs/updates#rebuilding-overnight)).
 
@@ -78,7 +87,13 @@ If the host serves the site from a subfolder, such as `/your-site/` on GitHub Pa
 2. Set the **Redirect URI** to the admin panel's address with a trailing slash, such as `https://your-site.example/admin/`, leave **Confidential** off, and choose the `api` scope.
 3. Copy the **Application ID** into the config: `gitlab({ project: "your-name/your-site", clientId: "…" })`. If the site moves to a domain of its own later, add its new admin address as a redirect URI too.
 
-Every editor needs permission to change the repository: on GitHub, write access; on GitLab, the Developer role or higher.
+**Bitbucket:** editors can sign in with a repository access token or an Atlassian API token straight away (see [Editors and sign-in](/docs/sign-in#bitbucket)). For one-click **Sign in with Bitbucket**, register the admin panel with Bitbucket once:
+
+1. In the workspace's **Settings → OAuth consumers**, add a consumer.
+2. Set the **Callback URL** to the admin panel's address with a trailing slash, such as `https://your-site.example/admin/`, leave **This is a private consumer** off, and give it the **Account: Read**, **Repositories: Write**, **Pull requests: Write** and **Pipelines: Write** permissions.
+3. Copy the consumer's **Key** into the config: `bitbucket({ repo: "your-workspace/your-site", clientId: "…" })`. If the site moves to a domain of its own later, change the callback URL to its new admin address.
+
+Every editor needs permission to change the repository: on GitHub, write access; on GitLab, the Developer role or higher; on Bitbucket, Write.
 
 ## Your own domain
 

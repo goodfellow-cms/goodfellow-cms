@@ -4,7 +4,7 @@ The built-in blocks: sections, grids and spacing; headings, text, buttons, image
 
 Sites list them in `goodfellow.config.tsx`: `blocks: { ...blocks }`.
 
-[Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub or GitLab repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellow-cms.github.io/goodfellow-cms/) for everything else.
+[Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab or Bitbucket repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellow-cms.github.io/goodfellow-cms/) for everything else.
 
 More in the docs: [Built-in blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/built-in-blocks).
 
