@@ -12,6 +12,7 @@ import {
   type Page,
   pageCredits,
   pageLanguage,
+  pageLinks,
   type SiteContent,
   type SiteSettings,
   setLinkTargets,
@@ -156,6 +157,7 @@ export async function prepareLayout(
     menus: content.menus,
     path: "",
     collections: content.collections,
+    pages: pageLinks(content),
     ...(home && { home }),
     ...options,
   };
@@ -187,6 +189,7 @@ export async function preparePage(
     menus: content.menus,
     path: page.path,
     collections: content.collections,
+    pages: pageLinks(content),
     ...(found && { collection: found.collection, entry: found.entry }),
     ...(page.view && { view: page.view }),
     ...(languages.length > 0 && { languages, home: languageHome(loaded, pageLanguage(loaded, page)) }),

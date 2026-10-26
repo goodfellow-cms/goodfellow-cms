@@ -22,21 +22,32 @@ import { type Schedule, scheduleState } from "../content/schedule.js";
 import type { CollectionField } from "../content/schemas.js";
 import { vimeoVideo, youtubeVideo } from "../video.js";
 import {
+  audio,
   buttons,
   code,
   columns,
   cover,
+  details,
   embed,
   escapeAttribute,
+  file,
+  gallery,
   group,
   heading,
   htmlBlocks,
   image,
   latestPosts,
+  mediaText,
+  pageList,
   paragraph,
+  preformatted,
+  pullquote,
+  separator,
   spacer,
+  textTable,
   video,
   type WpButton,
+  type WpCoverLook,
 } from "./gutenberg.js";
 
 export interface WordPressExportOptions {
@@ -95,6 +106,31 @@ const LEFT_OUT = new Set([
 
 /** The Space block's sizes, in pixels. */
 const SPACES: Record<string, number> = { sm: 16, md: 32, lg: 64, xl: 96 };
+
+/** A Section's overlay strengths, heights and focuses as a cover's `dimRatio`, least height and focal point. */
+const DIM_RATIOS: Record<string, number> = { light: 30, medium: 50, strong: 70 };
+const MIN_HEIGHTS: Record<string, number> = { small: 256, medium: 384, large: 576, screen: 800 };
+const FOCAL_POINTS: Record<string, { x: number; y: number }> = {
+  top: { x: 0.5, y: 0 },
+  bottom: { x: 0.5, y: 1 },
+  left: { x: 0, y: 0.5 },
+  right: { x: 1, y: 0.5 },
+};
+
+/** The Media and text block's picture widths, as percentages. */
+const MEDIA_WIDTHS: Record<string, number> = { third: 33, half: 50, "two-thirds": 67 };
+
+function coverLook(props: Record<string, unknown>): WpCoverLook {
+  const overlay = text(props.overlay);
+  const minHeight = MIN_HEIGHTS[text(props.minHeight)];
+  const focalPoint = FOCAL_POINTS[text(props.focus)];
+  return {
+    // A Section with no overlay is a cover with none.
+    dimRatio: overlay && overlay !== "none" ? (DIM_RATIOS[text(props.overlayStrength)] ?? 50) : 0,
+    ...(minHeight && { minHeight }),
+    ...(focalPoint && { focalPoint }),
+  };
+}
 
 interface PuckBlock {
   type: string;
@@ -174,7 +210,7 @@ function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string[] {
       case "Section": {
         const inner = puckBlocks(blocksIn(props.content), context);
         const background = context.media(text(props.backgroundImage));
-        return background ? [cover(background, inner)] : inner;
+        return background ? [cover(background, inner, coverLook(props))] : inner;
       }
       case "Heading": {
         const shown = text(props.text).trim();
@@ -198,6 +234,76 @@ function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string[] {
         return [code(text(props.code))];
       case "ContactDetails":
         return contactBlocks(props, context);
+      case "Separator": {
+        const style = text(props.style);
+        return [separator(style === "wide" || style === "dots" ? style : "default")];
+      }
+      case "Pullquote": {
+        const quote = text(props.quote).trim();
+        return quote ? [pullquote(quote, text(props.citation).trim())] : [];
+      }
+      case "Preformatted":
+      case "Verse": {
+        const shown = text(props.text);
+        return shown.trim() ? [preformatted(shown, block.type === "Verse")] : [];
+      }
+      case "Details":
+        return [details(text(props.summary), props.open === true, puckBlocks(blocksIn(props.content), context))];
+      case "Table": {
+        const cells = Array.isArray(props.cells)
+          ? props.cells.map((row) => (Array.isArray(row) ? row.map(text) : []))
+          : [];
+        return cells.length
+          ? [
+              textTable(cells, {
+                header: props.header === true,
+                footer: props.footer === true,
+                caption: text(props.caption),
+                striped: props.striped === true,
+              }),
+            ]
+          : [];
+      }
+      case "File": {
+        const href = context.link(text(props.file));
+        if (!href) return [];
+        const label = text(props.label).trim() || decodeURIComponent(href.slice(href.lastIndexOf("/") + 1));
+        return [file(href, label, props.button === false ? undefined : text(props.buttonLabel) || "Download")];
+      }
+      case "Audio": {
+        const src = context.media(text(props.src));
+        return src ? [audio(src, text(props.caption), props.loop === true)] : [];
+      }
+      case "MediaText": {
+        const inner = puckBlocks(blocksIn(props.content), context);
+        const src = context.media(text(props.media));
+        if (!src) return inner;
+        return [
+          mediaText(
+            { src, alt: text(props.alt), video: mediaKind(src) === "video" },
+            { right: props.position === "right", width: MEDIA_WIDTHS[text(props.width)] ?? 50 },
+            inner,
+          ),
+        ];
+      }
+      case "Gallery": {
+        const images = (Array.isArray(props.images) ? props.images : []).flatMap((item) => {
+          const picture = item as Record<string, unknown>;
+          const src = context.media(text(picture?.src));
+          return src ? [{ src, alt: text(picture.alt), caption: text(picture.caption) }] : [];
+        });
+        return images.length
+          ? [
+              gallery(images, {
+                columns: Number(text(props.columns)) || 3,
+                crop: props.crop !== false,
+                caption: text(props.caption),
+              }),
+            ]
+          : [];
+      }
+      case "PageList":
+        return [pageList()];
       case "CollectionList": {
         if (!context.posts.has(text(props.collection))) {
           context.note(block.type);

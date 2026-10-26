@@ -41,6 +41,7 @@ export const IMAGE_PARTS: BlockParts = {
 export const SECTION_PARTS: BlockParts = {
   "gf-section": "Section",
   "gf-section-content": "Section's content",
+  "gf-section-overlay": "Section's overlay",
 };
 
 export const COLUMNS_PARTS: BlockParts = { "gf-columns": "Columns" };
@@ -59,6 +60,8 @@ export const SITE_BRAND_PARTS: BlockParts = {
   "gf-site-brand": "Site name and logo",
   "gf-site-brand-logo": "Logo",
   "gf-site-brand-name": "Site name",
+  "gf-site-brand-text": "Name and tagline",
+  "gf-site-brand-tagline": "Tagline",
 };
 
 export const CONTACT_PARTS: BlockParts = {
@@ -203,4 +206,64 @@ export const ON_THIS_PAGE_PARTS: BlockParts = {
   "gf-on-this-page-heading": "Heading",
   "gf-on-this-page-links": "Links",
   "gf-on-this-page-link": "Link",
+};
+
+export const SEPARATOR_PARTS: BlockParts = { "gf-separator": "Separator" };
+
+export const PULLQUOTE_PARTS: BlockParts = {
+  "gf-pullquote": "Pullquote",
+  "gf-pullquote-quote": "Quote",
+  "gf-pullquote-citation": "Who said it",
+};
+
+export const PREFORMATTED_PARTS: BlockParts = { "gf-preformatted": "Preformatted text" };
+export const VERSE_PARTS: BlockParts = { "gf-verse": "Verse" };
+
+export const DETAILS_PARTS: BlockParts = {
+  "gf-details": "Details",
+  "gf-details-summary": "Summary",
+  "gf-details-content": "What it shows",
+};
+
+export const TABLE_PARTS: BlockParts = {
+  "gf-table": "Table and caption",
+  "gf-table-grid": "Table",
+  "gf-table-caption": "Caption",
+  "gf-table-row": "Row",
+  "gf-table-header-cell": "Heading cell",
+  "gf-table-cell": "Cell",
+};
+
+export const FILE_PARTS: BlockParts = {
+  "gf-file": "File",
+  "gf-file-link": "File's link",
+  "gf-file-button": "Download button",
+};
+
+export const AUDIO_PARTS: BlockParts = {
+  "gf-audio": "Audio and caption",
+  "gf-audio-player": "Player",
+  "gf-audio-caption": "Caption",
+};
+
+export const MEDIA_TEXT_PARTS: BlockParts = {
+  "gf-media-text": "Media and text",
+  "gf-media-text-media": "Picture",
+  "gf-media-text-content": "Text beside it",
+};
+
+export const GALLERY_PARTS: BlockParts = {
+  "gf-gallery": "Gallery",
+  "gf-gallery-items": "Pictures",
+  "gf-gallery-item": "Picture and caption",
+  "gf-gallery-picture": "Picture",
+  "gf-gallery-item-caption": "Picture's caption",
+  "gf-gallery-caption": "Gallery's caption",
+};
+
+export const PAGE_LIST_PARTS: BlockParts = {
+  "gf-page-list": "Page list",
+  "gf-page-list-item": "Page",
+  "gf-page-list-link": "Page's link",
+  "gf-page-list-children": "Pages under it",
 };

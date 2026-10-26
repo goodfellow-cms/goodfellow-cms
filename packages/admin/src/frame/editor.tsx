@@ -13,6 +13,7 @@ import {
   mainLanguage,
   type PageFile,
   type PageView,
+  pageLinks,
   pageView,
   pathLanguage,
   todayIn,
@@ -52,6 +53,7 @@ import { useAdminClient, useFrameCode } from "./frame-site.js";
 import { type ShownSettings, shownSettings } from "./page-settings.js";
 import type { EditorChange, EditorOpen, EditorOpened, EditorState } from "./protocol.js";
 import { SiteFrame } from "./site-frame.js";
+import { withTableFields } from "./table-field.js";
 
 const usePuck = createUsePuck();
 
@@ -316,6 +318,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
       menus: content.menus,
       path,
       collections: content.collections,
+      pages: pageLinks(content),
       collection,
       ...(view && { view }),
       ...(languages && { languages, home: languageHome(loaded, language) }),
@@ -330,13 +333,15 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
       if (!collection || !entry) throw new Error("The item isn't in the site.");
       return entryConfig(collection, entry.entry, content, { templateConfig, layoutConfig });
     }
-    return canvasConfig(
-      kind,
-      kind === "page" ? pageConfig : kind === "template" ? templateConfig : layoutConfig,
-      layoutConfig,
-      content.header.data as Data,
-      content.footer.data as Data,
-      site,
+    return withTableFields(
+      canvasConfig(
+        kind,
+        kind === "page" ? pageConfig : kind === "template" ? templateConfig : layoutConfig,
+        layoutConfig,
+        content.header.data as Data,
+        content.footer.data as Data,
+        site,
+      ),
     );
   }, [kind, collection, entry, pageConfig, templateConfig, layoutConfig, content, site]);
 

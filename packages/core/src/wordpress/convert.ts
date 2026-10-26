@@ -42,10 +42,24 @@ export interface ButtonPart {
 
 export interface TableRow {
   header: boolean;
+  /** A row of the table's footer (`<tfoot>`), such as totals. */
+  footer?: boolean;
   cells: ChildNode[][];
 }
 
 export type SpaceSize = "sm" | "md" | "lg" | "xl";
+
+/** How a cover's picture is shown: how strong a color over it, how tall, and the part kept in view. */
+export interface CoverLook {
+  /** WordPress's `dimRatio`, from 0 to 100. */
+  dim: number;
+  /** The least height in pixels, or 0. */
+  minHeight: number;
+  /** WordPress's focal point, each from 0 to 1. */
+  focus?: { x: number; y: number };
+}
+
+export type MediaWidth = "third" | "half" | "two-thirds";
 
 /** One part of a page or post. `text` holds paragraphs, lists and quotes as HTML elements. */
 export type Part =
@@ -54,13 +68,30 @@ export type Part =
   | { kind: "image"; image: ImagePart }
   | { kind: "gallery"; images: ImagePart[]; columns: number }
   | { kind: "columns"; columns: Part[][] }
-  | { kind: "cover"; image: string; parts: Part[] }
+  | { kind: "cover"; image: string; parts: Part[]; look?: CoverLook }
   | { kind: "buttons"; buttons: ButtonPart[] }
   | { kind: "space"; size: SpaceSize }
+  | { kind: "separator"; style: "default" | "wide" | "dots" }
+  | { kind: "pullquote"; quote: string; citation: string }
+  /** Text kept as it's typed: WordPress's Preformatted block, or its Verse block. */
+  | { kind: "preformatted"; text: string; verse: boolean }
+  | { kind: "details"; summary: string; open: boolean; parts: Part[] }
+  | { kind: "file"; href: string; label: string; button: boolean; buttonLabel: string }
+  | { kind: "audio"; url: string; caption: string }
+  | {
+      kind: "media-text";
+      media: string;
+      alt: string;
+      right: boolean;
+      width: MediaWidth;
+      parts: Part[];
+    }
+  /** WordPress's Page List block. */
+  | { kind: "pages" }
   /** A YouTube or Vimeo video, or a video file, by its address. */
   | { kind: "video"; url: string; caption: string }
   | { kind: "code"; code: string; language: string }
-  | { kind: "table"; rows: TableRow[] }
+  | { kind: "table"; rows: TableRow[]; caption?: string }
   /** A list of the latest posts. */
   | { kind: "posts"; count: number };
 
@@ -78,7 +109,7 @@ export type ConversionNote =
   | "form"
   /** A script or something else that would run code, left out. */
   | "script"
-  /** A table, which pages show as text. */
+  /** A table, which pages show as text on sites without the Table block. */
   | "table"
   /** A list of the latest posts, which posts can't show. */
   | "posts"
@@ -185,7 +216,7 @@ export function expandShortcodes(text: string, context: ConvertContext): string 
 /* Blocks */
 
 const DROPPED =
-  /^core\/(comments|comment-|post-|query-|site-|navigation|template-part|search|loginout|archives|categories|calendar|tag-cloud|rss|latest-comments|page-list|read-more|home-link|avatar|term-description|pattern)/;
+  /^core\/(comments|comment-|post-|query-|site-|navigation|template-part|search|loginout|archives|categories|calendar|tag-cloud|rss|latest-comments|read-more|home-link|avatar|term-description|pattern)/;
 const SILENT = new Set(["core/more", "core/nextpage"]);
 
 function htmlOf(html: string, context: ConvertContext): Part[] {
@@ -194,6 +225,13 @@ function htmlOf(html: string, context: ConvertContext): Part[] {
 
 function number(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+/** The Media & Text block's picture width, a percentage, as the nearest of Goodfellow's. */
+function mediaWidth(percent: number): MediaWidth {
+  if (percent < 42) return "third";
+  if (percent > 58) return "two-thirds";
+  return "half";
 }
 
 function blockParts(blocks: WordPressBlock[], context: ConvertContext, reused: Set<number>): Part[] {
@@ -242,28 +280,45 @@ function blockToParts(block: WordPressBlock, context: ConvertContext, reused: Se
     case "core/cover": {
       const image = typeof block.attrs.url === "string" ? context.media(block.attrs.url) : "";
       const parts = inner();
-      return image ? [{ kind: "cover", image, parts }] : parts;
+      const focal = block.attrs.focalPoint as { x?: unknown; y?: unknown } | undefined;
+      const look: CoverLook = {
+        dim: number(block.attrs.dimRatio, 50),
+        minHeight:
+          block.attrs.minHeightUnit && block.attrs.minHeightUnit !== "px" ? 0 : number(block.attrs.minHeight, 0),
+        ...(focal && { focus: { x: number(focal.x, 0.5), y: number(focal.y, 0.5) } }),
+      };
+      return image ? [{ kind: "cover", image, parts, look }] : parts;
     }
     case "core/media-text": {
-      const url = typeof block.attrs.mediaUrl === "string" ? block.attrs.mediaUrl : "";
-      const media = block.attrs.mediaType === "video" ? undefined : url;
-      const first: Part[] = media
-        ? [
-            {
-              kind: "image",
-              image: {
-                src: context.media(media),
-                alt: typeof block.attrs.mediaAlt === "string" ? block.attrs.mediaAlt : "",
-                caption: "",
-              },
-            },
-          ]
-        : url
-          ? [{ kind: "video", url: context.media(url), caption: "" }]
-          : [];
-      const columns = [first, inner()];
-      return [{ kind: "columns", columns: block.attrs.mediaPosition === "right" ? columns.reverse() : columns }];
+      // WordPress keeps the picture's address and description in the block's HTML, not its comment.
+      const picture = findElement(
+        parseHtml(html()).children,
+        (element) =>
+          (element.name === "img" || element.name === "video") &&
+          hasClass(element.parent ?? undefined, "wp-block-media-text__media"),
+      );
+      const url =
+        typeof block.attrs.mediaUrl === "string" && block.attrs.mediaUrl
+          ? block.attrs.mediaUrl
+          : attribute(picture, "src");
+      const right = block.attrs.mediaPosition === "right";
+      if (!url) {
+        const columns: Part[][] = [[], inner()];
+        return [{ kind: "columns", columns: right ? columns.reverse() : columns }];
+      }
+      return [
+        {
+          kind: "media-text",
+          media: context.media(url),
+          alt: typeof block.attrs.mediaAlt === "string" ? block.attrs.mediaAlt : attribute(picture, "alt"),
+          right,
+          width: mediaWidth(number(block.attrs.mediaWidth, 50)),
+          parts: inner(),
+        },
+      ];
     }
+    case "core/page-list":
+      return [{ kind: "pages" }];
     case "core/buttons":
     case "core/button":
       return htmlOf(html(), context);
@@ -427,6 +482,7 @@ function spaceSize(height: string): SpaceSize {
 function tableRows(table: Element): TableRow[] {
   return findElements(table, (element) => element.name === "tr").map((row) => ({
     header: tagName(row.parent ?? undefined) === "thead" || childElements(row).every((cell) => cell.name === "th"),
+    ...(tagName(row.parent ?? undefined) === "tfoot" && { footer: true }),
     cells: childElements(row)
       .filter((cell) => cell.name === "td" || cell.name === "th")
       .map((cell) => cell.children),
@@ -512,13 +568,32 @@ function elementParts(element: Element, name: string, context: ConvertContext): 
       if (hasClass(element, "wp-block-latest-posts")) {
         return [{ kind: "posts", count: childElements(element).length || 5 }];
       }
+      if (hasClass(element, "wp-block-page-list")) return [{ kind: "pages" }];
       return [{ kind: "text", nodes: [element] }];
     case "blockquote":
+      if (hasClass(element, "wp-block-pullquote")) return pullquoteParts(element);
+      return [{ kind: "text", nodes: [element] }];
     case "dl":
-    case "details":
     case "address":
       return [{ kind: "text", nodes: [element] }];
+    case "details": {
+      const summary = findElement(element, (candidate) => candidate.name === "summary");
+      return [
+        {
+          kind: "details",
+          summary: summary ? collapsed(textOf(summary)) : "",
+          open: element.attribs.open !== undefined,
+          parts: htmlParts(
+            element.children.filter((node) => node !== summary),
+            context,
+          ),
+        },
+      ];
+    }
     case "pre": {
+      if (hasClass(element, "wp-block-verse") || hasClass(element, "wp-block-preformatted")) {
+        return [{ kind: "preformatted", text: preText(element.children), verse: hasClass(element, "wp-block-verse") }];
+      }
       const code = findElement(element, (candidate) => candidate.name === "code");
       const language =
         /\blang(?:uage)?-([a-z0-9+#-]+)/i.exec(`${attribute(code, "class")} ${attribute(element, "class")}`)?.[1] ?? "";
@@ -533,7 +608,12 @@ function elementParts(element: Element, name: string, context: ConvertContext): 
     case "table":
       return [{ kind: "table", rows: tableRows(element) }];
     case "hr":
-      return [{ kind: "space", size: "md" }];
+      return [
+        {
+          kind: "separator",
+          style: hasClass(element, "is-style-wide") ? "wide" : hasClass(element, "is-style-dots") ? "dots" : "default",
+        },
+      ];
     case "iframe":
       return embedParts(attribute(element, "src"), attribute(element, "title"), context);
     case "video": {
@@ -552,15 +632,8 @@ function elementParts(element: Element, name: string, context: ConvertContext): 
           findElement(element, (candidate) => candidate.name === "source"),
           "src",
         );
-      const href = source ? context.media(source) : "";
-      if (!href) return [];
-      const label = decodeURIComponent(href.split("/").pop() ?? href);
-      return [
-        {
-          kind: "text",
-          nodes: parseHtml(`<p><a href="${escapeAttribute(href)}">${escapeAttribute(label)}</a></p>`).children,
-        },
-      ];
+      const url = source ? context.media(source) : "";
+      return url ? [{ kind: "audio", url, caption: "" }] : [];
     }
     case "figure":
       return figureParts(element, context);
@@ -586,8 +659,9 @@ function figureParts(figure: Element, context: ConvertContext): Part[] {
       ? [{ kind: "gallery", images, columns: Number.isFinite(columns) ? columns : Math.min(images.length, 3) }]
       : [];
   }
+  if (hasClass(figure, "wp-block-pullquote")) return pullquoteParts(figure);
   const table = findElement(figure, (element) => element.name === "table");
-  if (table) return [{ kind: "table", rows: tableRows(table) }];
+  if (table) return [{ kind: "table", rows: tableRows(table), ...(captionText && { caption: captionText }) }];
   const frame = findElement(figure, (element) => element.name === "iframe");
   if (hasClass(figure, "wp-block-embed") || frame) {
     const wrapper = findElement(figure, (element) => hasClass(element, "wp-block-embed__wrapper"));
@@ -595,7 +669,11 @@ function figureParts(figure: Element, context: ConvertContext): Part[] {
     return url ? embedParts(url, captionText, context) : [];
   }
   const video = findElement(figure, (element) => element.name === "video" || element.name === "audio");
-  if (video) return elementParts(video, video.name, context);
+  if (video) {
+    return elementParts(video, video.name, context).map((part) =>
+      part.kind === "audio" || part.kind === "video" ? { ...part, caption: captionText } : part,
+    );
+  }
   const quote = findElement(figure, (element) => element.name === "blockquote");
   if (quote) return [{ kind: "text", nodes: [quote] }];
   const images = imagesIn(figure, context);
@@ -605,6 +683,47 @@ function figureParts(figure: Element, context: ConvertContext): Part[] {
     figure.children.filter((node) => node !== caption),
     context,
   );
+}
+
+/** WordPress's Pullquote: its paragraphs, one to a line, and who said it. */
+function pullquoteParts(element: Element): Part[] {
+  const cite = findElement(element, (candidate) => candidate.name === "cite");
+  const paragraphs = findElements(element, (candidate) => candidate.name === "p").map((p) => collapsed(textOf(p)));
+  const quote = (paragraphs.length ? paragraphs : [collapsed(textOf(element).replace(cite ? textOf(cite) : "", ""))])
+    .filter(Boolean)
+    .join("\n");
+  return quote ? [{ kind: "pullquote", quote, citation: cite ? collapsed(textOf(cite)) : "" }] : [];
+}
+
+/** Text kept as it's shown, with line breaks where the HTML has `<br>`s. */
+function preText(nodes: ChildNode[]): string {
+  return nodes
+    .map((node) => {
+      if (node.type === "text") return textOf(node);
+      if (!isElement(node)) return "";
+      if (node.name === "br") return "\n";
+      return preText(node.children);
+    })
+    .join("")
+    .replace(/^\n/, "")
+    .replace(/\s+$/, "");
+}
+
+/** A cover's look as WordPress shows it: its overlay's strength, its height and its picture's focal point. */
+function coverLook(cover: Element, background: Element | undefined): CoverLook {
+  const overlay = findElement(cover, (candidate) => hasClass(candidate, "wp-block-cover__background"));
+  const dimClass = classes(overlay ?? cover).find((name) => /^has-background-dim(-\d+)?$/.test(name));
+  const ratio = dimClass ? Number.parseInt(dimClass.slice("has-background-dim-".length), 10) : Number.NaN;
+  const dim = Number.isFinite(ratio) ? ratio : dimClass || overlay ? 50 : 0;
+  const minHeight = Number.parseFloat(/min-height\s*:\s*([\d.]+)px/.exec(attribute(cover, "style"))?.[1] ?? "");
+  const position = /([\d.]+)%\s+([\d.]+)%/.exec(
+    attribute(background, "data-object-position") || attribute(background, "style"),
+  );
+  return {
+    dim,
+    minHeight: Number.isFinite(minHeight) ? minHeight : 0,
+    ...(position && { focus: { x: Number(position[1]) / 100, y: Number(position[2]) / 100 } }),
+  };
 }
 
 /** Block elements, such as WordPress's columns, buttons and covers as it shows them, or ones whose content stands on its own. */
@@ -629,13 +748,49 @@ function blockElementParts(element: Element, context: ConvertContext): Part[] {
     const source = attribute(background, "src") || backgroundImage(element);
     const container = findElement(element, (candidate) => hasClass(candidate, "wp-block-cover__inner-container"));
     const parts = htmlParts(container?.children ?? [], context);
-    return source ? [{ kind: "cover", image: context.media(source), parts }] : parts;
+    return source
+      ? [{ kind: "cover", image: context.media(source), parts, look: coverLook(element, background) }]
+      : parts;
   }
   if (hasClass(element, "wp-block-media-text")) {
     const media = findElement(element, (candidate) => hasClass(candidate, "wp-block-media-text__media"));
     const content = findElement(element, (candidate) => hasClass(candidate, "wp-block-media-text__content"));
+    const right = hasClass(element, "has-media-on-the-right");
+    const picture = media && findElement(media, (candidate) => candidate.name === "img" || candidate.name === "video");
+    const source = attribute(picture, "src");
+    if (picture && source) {
+      const percent = Number.parseFloat(
+        /grid-template-columns\s*:\s*(?:auto\s+)?([\d.]+)%/.exec(attribute(element, "style"))?.[1] ?? "",
+      );
+      return [
+        {
+          kind: "media-text",
+          media: context.media(source),
+          alt: attribute(picture, "alt"),
+          right,
+          width: mediaWidth(Number.isFinite(percent) ? percent : 50),
+          parts: htmlParts(content?.children ?? [], context),
+        },
+      ];
+    }
     const columns = [media ? htmlParts(media.children, context) : [], htmlParts(content?.children ?? [], context)];
-    return [{ kind: "columns", columns: hasClass(element, "has-media-on-the-right") ? columns.reverse() : columns }];
+    return [{ kind: "columns", columns: right ? columns.reverse() : columns }];
+  }
+  if (hasClass(element, "wp-block-file")) {
+    const links = findElements(element, (candidate) => candidate.name === "a");
+    const button = links.find((link) => hasClass(link, "wp-block-file__button"));
+    const link = links.find((candidate) => candidate !== button) ?? button;
+    const href = link ? context.link(attribute(link, "href")) : "";
+    if (!href) return [];
+    return [
+      {
+        kind: "file",
+        href,
+        label: link && link !== button ? collapsed(textOf(link)) : "",
+        button: Boolean(button),
+        buttonLabel: button ? collapsed(textOf(button)) : "",
+      },
+    ];
   }
   if (hasClass(element, "wp-block-spacer")) {
     return [{ kind: "space", size: spaceSize(/height\s*:\s*([\d.]+)/.exec(attribute(element, "style"))?.[1] ?? "") }];

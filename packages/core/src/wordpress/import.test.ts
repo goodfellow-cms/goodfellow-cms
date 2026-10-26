@@ -119,7 +119,8 @@ describe("planning an import", () => {
     expect(about).not.toContain("contact-form-7");
 
     const staff = JSON.stringify(json(files["content/pages/about/staff.json"]).data.content);
-    expect(staff).toContain("<p><strong>Name · Role</strong></p><p>Fr. Aidan Walsh · Pastor</p>");
+    expect(staff).toContain('"type":"Table"');
+    expect(staff).toContain('"cells":[["Name","Role"],["Fr. Aidan Walsh","Pastor"]]');
     expect(staff).toContain('"source":"youtube"');
     expect(staff).toContain('"src":"/media/choir.jpg"');
   });
@@ -202,7 +203,6 @@ describe("planning an import", () => {
         { kind: "left-out", what: "comments", count: 2 },
         { kind: "left-out", what: "tribe_events", count: 1 },
         { kind: "converted", note: "shortcode", name: "contact-form-7", items: ["About us"] },
-        { kind: "converted", note: "table", name: "table", items: ["Our staff"] },
         { kind: "converted", note: "video", name: "video", items: ["Parish picnic"] },
         { kind: "converted", note: "block", name: "kadence/rowlayout", items: ["Parish picnic"] },
         { kind: "old-links", urls: [`${SAMPLE_WORDPRESS_URL}/old-history/`] },

@@ -7,6 +7,10 @@ import { COLUMNS_PARTS, ROW_PARTS, SECTION_PARTS, SPACE_PARTS } from "./parts.js
 type Width = "narrow" | "normal" | "wide" | "full";
 type Padding = "none" | "sm" | "md" | "lg";
 type Background = "none" | "muted" | "primary" | "secondary";
+type Overlay = "none" | "dark" | "light" | "primary";
+type OverlayStrength = "light" | "medium" | "strong";
+type MinHeight = "none" | "small" | "medium" | "large" | "screen";
+type Focus = "center" | "top" | "bottom" | "left" | "right";
 
 export interface SectionProps {
   content: Slot;
@@ -14,6 +18,16 @@ export interface SectionProps {
   padding: Padding;
   background: Background;
   backgroundImage: string;
+  /**
+   * A color over the background, so text on a photo can be read, as
+   * WordPress's Cover block has, how strongly, and the part of the photo
+   * kept in view. Stored sections may predate them.
+   */
+  overlay?: Overlay;
+  overlayStrength?: OverlayStrength;
+  focus?: Focus;
+  /** How tall the section is at least, with its content in the middle. */
+  minHeight?: MinHeight;
   className: string;
 }
 
@@ -34,6 +48,35 @@ const backgroundClasses: Record<Background, string> = {
   secondary: "bg-secondary text-secondary-foreground",
 };
 
+/** Overlays' colors at each strength, with the text color that reads on them. */
+const overlayClasses: Record<Exclude<Overlay, "none">, Record<OverlayStrength, string>> = {
+  dark: { light: "bg-black/30", medium: "bg-black/50", strong: "bg-black/70" },
+  light: { light: "bg-white/40", medium: "bg-white/60", strong: "bg-white/80" },
+  primary: { light: "bg-primary/40", medium: "bg-primary/60", strong: "bg-primary/80" },
+};
+
+const overlayTextClasses: Record<Exclude<Overlay, "none">, string> = {
+  dark: "text-white",
+  light: "text-black",
+  primary: "text-primary-foreground",
+};
+
+const minHeightClasses: Record<MinHeight, string> = {
+  none: "",
+  small: "flex min-h-64 flex-col justify-center",
+  medium: "flex min-h-96 flex-col justify-center",
+  large: "flex min-h-[36rem] flex-col justify-center",
+  screen: "flex min-h-screen flex-col justify-center",
+};
+
+const focusClasses: Record<Focus, string> = {
+  center: "bg-center",
+  top: "bg-top",
+  bottom: "bg-bottom",
+  left: "bg-left",
+  right: "bg-right",
+};
+
 /** A Section's band, with its background image at the site's own address. */
 function SectionView({
   content: Content,
@@ -41,22 +84,34 @@ function SectionView({
   padding,
   background,
   backgroundImage,
+  overlay = "none",
+  overlayStrength = "medium",
+  focus = "center",
+  minHeight = "none",
   className,
 }: Omit<SectionProps, "content"> & { content: SlotComponent }) {
   const { base } = useSite();
   const part = useParts();
   const image = backgroundImage && withBase(backgroundImage, base);
+  const tinted = overlay !== "none";
   return (
     <section
       className={part(
         "gf-section",
-        image && "bg-cover bg-center",
+        [image && "bg-cover", image && focusClasses[focus], tinted && "relative isolate", minHeightClasses[minHeight]],
         paddingClasses[padding],
         backgroundClasses[background],
+        tinted && overlayTextClasses[overlay],
         className,
       )}
       style={image ? { backgroundImage: `url(${JSON.stringify(image)})` } : undefined}
     >
+      {tinted && (
+        <span
+          aria-hidden="true"
+          className={part("gf-section-overlay", ["absolute inset-0 -z-10", overlayClasses[overlay][overlayStrength]])}
+        />
+      )}
       <Content className={part("gf-section-content", "mx-auto px-4", widthClasses[width])} />
     </section>
   );
@@ -84,6 +139,32 @@ export const Section: ComponentConfig<SectionProps> = withParts(
         options: options({ none: "None", muted: "Subtle", primary: "Primary", secondary: "Secondary" }),
       },
       backgroundImage: mediaField("Background image"),
+      focus: {
+        type: "select",
+        label: "Part of the picture to keep in view",
+        options: options({ center: "Middle", top: "Top", bottom: "Bottom", left: "Left", right: "Right" }),
+      },
+      overlay: {
+        type: "select",
+        label: "Color over the background",
+        options: options({ none: "None", dark: "Dark", light: "Light", primary: "Primary" }),
+      },
+      overlayStrength: {
+        type: "radio",
+        label: "How strong a color",
+        options: options({ light: "Light", medium: "Medium", strong: "Strong" }),
+      },
+      minHeight: {
+        type: "select",
+        label: "Height at least",
+        options: options({
+          none: "As tall as its content",
+          small: "Small",
+          medium: "Medium",
+          large: "Large",
+          screen: "The whole screen",
+        }),
+      },
       className: classNameField,
     },
     defaultProps: {
@@ -92,6 +173,10 @@ export const Section: ComponentConfig<SectionProps> = withParts(
       padding: "md",
       background: "none",
       backgroundImage: "",
+      focus: "center",
+      overlay: "none",
+      overlayStrength: "medium",
+      minHeight: "none",
       className: "",
     },
     render: (props) => <SectionView {...props} />,

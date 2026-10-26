@@ -763,23 +763,26 @@ export function MediaScreen() {
   );
 }
 
-export type MediaFieldKind = "image" | "video" | "file";
+export type MediaFieldKind = "image" | "video" | "audio" | "file";
 
 const PICKER_TITLES: Record<MediaFieldKind, StringKey> = {
   image: "media.pickerTitle",
   video: "media.pickerTitleVideo",
+  audio: "media.pickerTitleAudio",
   file: "media.pickerTitleFile",
 };
 
 const CHOOSE_LABELS: Record<MediaFieldKind, StringKey> = {
   image: "media.choose",
   video: "media.chooseVideo",
+  audio: "media.chooseAudio",
   file: "media.chooseFile",
 };
 
 const ACCEPT: Record<MediaFieldKind, string | undefined> = {
   image: "image/*",
   video: "video/mp4,video/webm",
+  audio: "audio/mpeg,audio/mp4,.mp3,.m4a",
   file: undefined,
 };
 

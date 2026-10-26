@@ -197,7 +197,7 @@ function noteLine(note: WordPressImportNote): string {
         embed: `Something from ${note.name} is now a link to it`,
         form: "A form was left out; add a Form block in its place",
         script: "A script was left out",
-        table: "A table became text, since pages have no tables",
+        table: "A table became text, since the site has no Table block",
         posts: "A list of the latest posts was left out of a post",
         video: "A video is now a link to it, since posts show videos as links",
       };

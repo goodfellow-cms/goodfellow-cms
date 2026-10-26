@@ -48,7 +48,7 @@ From the command line, JPEG photos lose the details hidden in them, such as wher
 ## What comes across
 
 - **Pages** keep their addresses, such as `/about/staff`, with their titles as their headings. A page at an address Goodfellow uses itself, such as `/admin`, gets one of its own.
-- **WordPress's blocks** become Goodfellow's built-in ones: headings, text with its lists, quotes, links and formatting, images with their captions and descriptions, galleries and columns as [Columns](/docs/built-in-blocks), buttons, YouTube and Vimeo videos and video files, code, spacers, and covers as sections with their picture behind them. Reusable blocks are put in place. Classic pages, written before WordPress had blocks, come across too, with their captions and galleries.
+- **WordPress's blocks** become Goodfellow's [built-in ones](/docs/built-in-blocks): headings, text with its lists, quotes, links and formatting, images with their captions and descriptions, galleries, columns, buttons, YouTube and Vimeo videos and video files, sound files, files with their download buttons, code, preformatted text and verse, pullquotes, tables, details, separators, media and text, page lists, spacers, and covers as sections with their picture behind them, with the cover's color over it, its height and its focal point. Reusable blocks are put in place. Classic pages, written before WordPress had blocks, come across too, with their captions and galleries.
 - **Posts** become a collection of [Markdown items](/docs/collections), with their dates, featured images, summaries, categories and tags. Where WordPress's addresses for them can stay as they are, such as `/my-post` or `/blog/my-post`, they do; addresses with dates in them, such as `/2026/06/my-post`, can't be a collection's addresses, so posts move to `/news/my-post` (or `/posts/` where the site already uses `/news/`), and their old addresses send visitors on.
 - **The list of posts** goes on WordPress's own page for posts, such as `/news`. Without one, it goes where the posts' addresses start, such as `/blog`, or on the home page. It has a page for each category, and WordPress's category and tag archives, such as `/category/events`, send visitors there.
 - **Scheduled posts** stay [scheduled](/docs/scheduling), and appear when WordPress would have published them.
@@ -63,7 +63,7 @@ From the command line, JPEG photos lose the details hidden in them, such as wher
 - **Comments**, which need a server.
 - **Other kinds of content**, such as products or events from a plugin. The import names them.
 - **What plugins do.** Shortcodes, such as a contact form's, only work in WordPress, so they're left out, and the import lists the pages they were on, so you can put a [Form block](/docs/forms) where a form was. Blocks from other plugins come across as their text and pictures.
-- **Tables in pages**, which become text, since Goodfellow's pages have no tables. Tables in posts stay tables.
+- **Tables' formatting.** Table blocks' cells hold plain text, so links and bold in a page's tables are left out. Tables in posts keep them.
 - **Videos in posts**, which become links to them, since Markdown shows videos as links.
 - **The theme.** The site keeps its own [colors, fonts and layout](/docs/layout-and-settings).
 
@@ -90,7 +90,7 @@ A Goodfellow site can go to WordPress too, as a WordPress export file, so choosi
 What goes across:
 
 - **Pages** keep their addresses, such as `/about/staff`, with their place under other pages. The home page is a page called "home", which you can make WordPress's home page in **Settings → Reading**.
-- **Blocks** become WordPress's own: headings, text with its lists and links, images with their captions, buttons, columns and rows, sections with a picture behind them as covers, YouTube and Vimeo videos and video files, code, spaces, contact details as text, and collection lists as a list of the latest posts. A page's first heading is left out when it's the page's title, since WordPress's themes show the title.
+- **Blocks** become WordPress's own: headings, text with its lists and links, images with their captions, galleries, buttons, columns and rows, sections with a picture behind them as covers, with their color over it, height and focal point, YouTube and Vimeo videos and video files, sound files, files, code, preformatted text and verse, pullquotes, tables, details, separators, media and text, page lists, spaces, contact details as text, and collection lists as a list of the latest posts. A page's first heading is left out when it's the page's title, since WordPress's themes show the title.
 - **Items of collections with pages** become posts, with their dates, summaries, first images as featured images and text, each collection a category and its tags and choices as tags. [Scheduled](/docs/scheduling) items stay scheduled, and ones their schedule has hidden again become drafts.
 - **Menus** go across with their links, which point at the pages and posts they went to.
 - **Media**: every file in the media library, which WordPress copies from the site's address.

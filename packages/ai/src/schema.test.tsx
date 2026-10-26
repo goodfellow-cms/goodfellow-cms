@@ -146,3 +146,33 @@ describe("values", () => {
     ).toEqual({ title: "New", date: "2026-01-01", kind: "homily", topics: ["music", "youth"], secret: "kept" });
   });
 });
+
+describe("tables", () => {
+  it("describes a table's cells as rows of text, and lines rows up", () => {
+    const schema = blocksSchema(config) as Loose;
+    const table = schema.properties.blocks.items.anyOf.find(
+      (variant: Loose) => variant.properties.type.enum[0] === "Table",
+    );
+    expect(table.properties.props.properties.cells).toMatchObject({
+      type: "array",
+      items: { type: "array", items: { type: "string" } },
+    });
+    const content = toContent(
+      {
+        blocks: [
+          {
+            id: "t",
+            type: "Table",
+            props: { cells: [["Day", "Time"], ["Sunday"], "not a row"], header: true },
+          },
+        ],
+      },
+      config,
+      newId,
+    );
+    expect(content[0]?.props.cells).toEqual([
+      ["Day", "Time"],
+      ["Sunday", ""],
+    ]);
+  });
+});

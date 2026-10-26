@@ -8,7 +8,7 @@ export type JsonSchema = { [key: string]: unknown };
  * say what they hold. Set it as `metadata: { ai: … }` on the field.
  */
 export interface AiFieldHint {
-  type: "string" | "number" | "date" | "choice" | "choices";
+  type: "string" | "number" | "date" | "choice" | "choices" | "table";
   /** The choices, for `choice` (one of them) and `choices` (any number of them). */
   options?: Array<{ value: string; label: string }>;
   description?: string;
@@ -88,6 +88,17 @@ export function fieldSchema(field: AnyField): JsonSchema | undefined {
       if (!hint) return undefined;
       const description = describe(field, hint.description);
       if (hint.type === "number") return withDescription({ type: "number" }, description);
+      if (hint.type === "table") {
+        return withDescription(
+          { type: "array", items: { type: "array", items: { type: "string" } } },
+          describe(
+            field,
+            [hint.description, "Each row a list of its cells' plain text, rows the same length"]
+              .filter(Boolean)
+              .join(". "),
+          ),
+        );
+      }
       if (hint.type === "date")
         return withDescription({ type: "string" }, describe(field, "A date written as YYYY-MM-DD, or empty"));
       if (hint.type === "choice" && hint.options?.length) {
@@ -235,6 +246,15 @@ function cleanValue(field: AnyField, value: unknown): { ok: true; value: unknown
       if (!hint) return { ok: false };
       if (hint.type === "number") {
         return typeof value === "number" && Number.isFinite(value) ? { ok: true, value } : { ok: false };
+      }
+      if (hint.type === "table") {
+        if (!Array.isArray(value)) return { ok: false };
+        const rows = value
+          .filter(Array.isArray)
+          .map((row: unknown[]) => row.map((cell) => (typeof cell === "string" ? cell : String(cell ?? ""))));
+        if (rows.length === 0) return { ok: false };
+        const width = Math.max(1, ...rows.map((row) => row.length));
+        return { ok: true, value: rows.map((row) => [...row, ...Array<string>(width - row.length).fill("")]) };
       }
       if (hint.type === "choices") {
         if (!Array.isArray(value)) return { ok: false };

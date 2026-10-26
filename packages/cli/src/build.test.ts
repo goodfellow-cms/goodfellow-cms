@@ -72,8 +72,9 @@ describe("build", () => {
     expect(css).toContain(".bg-rose-200");
     expect(css).toContain(".text-teal-600");
     expect(css).toContain(".custom-rule");
-    // Theme colors resolve to the CSS variables written from site.json.
-    expect(css).toMatch(/\.bg-primary\{background-color:var\(--primary\)\}/);
+    // Theme colors resolve to the CSS variables written from site.json (Tailwind may group the
+    // selector with others that share the rule, such as `bg-primary/40`'s fallback).
+    expect(css).toMatch(/\.bg-primary(,[^{]+)?\{background-color:var\(--primary\)\}/);
   });
 
   it("runs Client Components in the browser, only on pages that use them", async () => {

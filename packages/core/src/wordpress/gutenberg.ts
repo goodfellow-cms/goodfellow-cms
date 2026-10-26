@@ -88,11 +88,27 @@ export function group(blocks: string[], row = false): string {
   return wpBlock("group", { layout }, `<div class="wp-block-group">${innerBlocks(blocks)}</div>`);
 }
 
-export function cover(url: string, blocks: string[]): string {
+/** How a cover shows its picture: its overlay's strength, its least height and its focal point. */
+export interface WpCoverLook {
+  dimRatio: number;
+  /** In pixels, or 0. */
+  minHeight?: number;
+  focalPoint?: { x: number; y: number };
+}
+
+export function cover(url: string, blocks: string[], look: WpCoverLook = { dimRatio: 50 }): string {
+  const { dimRatio, minHeight, focalPoint } = look;
+  const dim = dimRatio === 50 ? "has-background-dim" : `has-background-dim-${dimRatio} has-background-dim`;
+  const position = focalPoint && `${Math.round(focalPoint.x * 100)}% ${Math.round(focalPoint.y * 100)}%`;
   return wpBlock(
     "cover",
-    { url, dimRatio: 50 },
-    `<div class="wp-block-cover"><span aria-hidden="true" class="wp-block-cover__background has-background-dim"></span><img class="wp-block-cover__image-background" alt="" src="${escapeAttribute(url)}" data-object-fit="cover"/><div class="wp-block-cover__inner-container">${innerBlocks(blocks)}</div></div>`,
+    {
+      url,
+      dimRatio,
+      ...(focalPoint && { focalPoint }),
+      ...(minHeight && { minHeight, minHeightUnit: "px" }),
+    },
+    `<div class="wp-block-cover"${minHeight ? ` style="min-height:${minHeight}px"` : ""}><span aria-hidden="true" class="wp-block-cover__background ${dim}"></span><img class="wp-block-cover__image-background" alt="" src="${escapeAttribute(url)}"${position ? ` style="object-position:${position}"` : ""} data-object-fit="cover"${position ? ` data-object-position="${position}"` : ""}/><div class="wp-block-cover__inner-container">${innerBlocks(blocks)}</div></div>`,
   );
 }
 
@@ -104,8 +120,124 @@ export function spacer(pixels: number): string {
   );
 }
 
-export function separator(): string {
-  return wpBlock("separator", undefined, '<hr class="wp-block-separator has-alpha-channel-opacity"/>');
+export function separator(style: "default" | "wide" | "dots" = "default"): string {
+  if (style === "default") {
+    return wpBlock("separator", undefined, '<hr class="wp-block-separator has-alpha-channel-opacity"/>');
+  }
+  return wpBlock(
+    "separator",
+    { className: `is-style-${style}` },
+    `<hr class="wp-block-separator has-alpha-channel-opacity is-style-${style}"/>`,
+  );
+}
+
+/** Text with its line breaks as the block editor keeps them, `<br>`. */
+const withBreaks = (text: string) => escapeText(text).replace(/\n/g, "<br>");
+
+export function pullquote(quote: string, citation: string): string {
+  const cite = citation ? `<cite>${escapeText(citation)}</cite>` : "";
+  return wpBlock(
+    "pullquote",
+    undefined,
+    `<figure class="wp-block-pullquote"><blockquote><p>${withBreaks(quote)}</p>${cite}</blockquote></figure>`,
+  );
+}
+
+/** Text kept as it's typed: WordPress's Preformatted block, or its Verse block. */
+export function preformatted(text: string, verse = false): string {
+  const name = verse ? "verse" : "preformatted";
+  return wpBlock(name, undefined, `<pre class="wp-block-${name}">${withBreaks(text)}</pre>`);
+}
+
+export function details(summary: string, open: boolean, blocks: string[]): string {
+  return wpBlock(
+    "details",
+    open ? { showContent: true } : undefined,
+    `<details class="wp-block-details"${open ? " open" : ""}><summary>${escapeText(summary)}</summary>${innerBlocks(blocks)}</details>`,
+  );
+}
+
+/** A table of plain text, with its first row as headings and its last as a footer where asked. */
+export function textTable(
+  cells: string[][],
+  options: { header: boolean; footer: boolean; caption: string; striped: boolean },
+): string {
+  const row = (cellsOf: string[], tag: "td" | "th") =>
+    `<tr>${cellsOf.map((cell) => `<${tag}>${escapeText(cell)}</${tag}>`).join("")}</tr>`;
+  const head = options.header && cells.length > 1 ? cells[0] : undefined;
+  const foot = options.footer && cells.length > (head ? 2 : 1) ? cells[cells.length - 1] : undefined;
+  const body = cells.slice(head ? 1 : 0, foot ? -1 : undefined);
+  const stripes = options.striped ? " is-style-stripes" : "";
+  const caption = options.caption
+    ? `<figcaption class="wp-element-caption">${escapeText(options.caption)}</figcaption>`
+    : "";
+  return wpBlock(
+    "table",
+    options.striped ? { className: "is-style-stripes" } : undefined,
+    `<figure class="wp-block-table${stripes}"><table>${head ? `<thead>${row(head, "th")}</thead>` : ""}<tbody>${body.map((cellsOf) => row(cellsOf, "td")).join("")}</tbody>${foot ? `<tfoot>${row(foot, "td")}</tfoot>` : ""}</table>${caption}</figure>`,
+  );
+}
+
+export function file(href: string, label: string, button: string | undefined): string {
+  const download = button
+    ? `<a href="${escapeAttribute(href)}" class="wp-block-file__button wp-element-button" download>${escapeText(button)}</a>`
+    : "";
+  return wpBlock(
+    "file",
+    { href, ...(!button && { showDownloadButton: false }) },
+    `<div class="wp-block-file"><a href="${escapeAttribute(href)}">${escapeText(label)}</a>${download}</div>`,
+  );
+}
+
+export function audio(src: string, caption = "", loop = false): string {
+  const figcaption = caption ? `<figcaption class="wp-element-caption">${escapeText(caption)}</figcaption>` : "";
+  return wpBlock(
+    "audio",
+    loop ? { loop: true } : undefined,
+    `<figure class="wp-block-audio"><audio controls src="${escapeAttribute(src)}"${loop ? " loop" : ""}></audio>${figcaption}</figure>`,
+  );
+}
+
+/** A picture or video beside blocks; `width` is the picture's share, a percentage. */
+export function mediaText(
+  media: { src: string; alt: string; video: boolean },
+  options: { right: boolean; width: number },
+  blocks: string[],
+): string {
+  const { right, width } = options;
+  const picture = media.video
+    ? `<video controls src="${escapeAttribute(media.src)}"></video>`
+    : `<img src="${escapeAttribute(media.src)}" alt="${escapeAttribute(media.alt)}"/>`;
+  const figure = `<figure class="wp-block-media-text__media">${picture}</figure>`;
+  const content = `<div class="wp-block-media-text__content">${innerBlocks(blocks)}</div>`;
+  const style = width === 50 ? "" : ` style="grid-template-columns:${right ? `auto ${width}%` : `${width}% auto`}"`;
+  return wpBlock(
+    "media-text",
+    {
+      ...(right && { mediaPosition: "right" }),
+      mediaType: media.video ? "video" : "image",
+      ...(width !== 50 && { mediaWidth: width }),
+    },
+    `<div class="wp-block-media-text${right ? " has-media-on-the-right" : ""} is-stacked-on-mobile"${style}>${right ? `${content}${figure}` : `${figure}${content}`}</div>`,
+  );
+}
+
+export function gallery(
+  images: Array<{ src: string; alt: string; caption: string }>,
+  options: { columns: number; crop: boolean; caption: string },
+): string {
+  const caption = options.caption
+    ? `<figcaption class="blocks-gallery-caption wp-element-caption">${escapeText(options.caption)}</figcaption>`
+    : "";
+  return wpBlock(
+    "gallery",
+    { columns: options.columns, ...(!options.crop && { imageCrop: false }), linkTo: "none" },
+    `<figure class="wp-block-gallery has-nested-images columns-${options.columns}${options.crop ? " is-cropped" : ""}">${innerBlocks(images.map((picture) => image(picture.src, picture.alt, picture.caption)))}${caption}</figure>`,
+  );
+}
+
+export function pageList(): string {
+  return wpBlock("page-list");
 }
 
 export function code(text: string): string {
