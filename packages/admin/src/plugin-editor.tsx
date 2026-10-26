@@ -9,6 +9,7 @@ import {
   type Collection,
   contentInLanguage,
   getPageHead,
+  googleFontsUrl,
   type PageFile,
   type PluginDescription,
   type PluginEditorBlock,
@@ -156,9 +157,11 @@ export function PluginEditorFrame({
       // As the site's last build compiled them, with the theme and custom CSS as they are now, which may not be published yet.
       styles: async () => {
         const { services, content, themeCss } = latest.current;
+        const fonts = googleFontsUrl(content.settings.theme);
         return {
           stylesheets: [...(await services.siteCss()), themeToCss(content.settings.theme)],
           tailwind: `${themeCss}\n${content.customCss}`,
+          ...(fonts && { fonts }),
         };
       },
     }),

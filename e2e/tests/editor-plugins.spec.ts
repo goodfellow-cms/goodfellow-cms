@@ -117,8 +117,13 @@ test("an editor plugin has blocks drawn by the site's code, with their slots lef
   // The site's stylesheets, with the theme, and Tailwind's source for classes the last build hasn't seen.
   await outline.getByRole("button", { name: "Load the site's styles" }).click();
   await expect(outline.getByRole("status")).toHaveText(
-    /^[1-9]\d* stylesheets, with the theme, and Tailwind's source with the theme's classes$/,
+    /^[1-9]\d* stylesheets, with the theme, and Tailwind's source with the theme's classes, and the theme's fonts$/,
   );
+  // An editor's frame is the editor's alone: no screen's spacing, and none of the screens' plain styles.
+  const body = page.frameLocator("iframe.gfa-editor-frame").locator("body");
+  await expect(body).toHaveCSS("padding-top", "0px");
+  await expect(body).toHaveCSS("max-width", "none");
+  await expect(outline.locator("li").first()).toHaveCSS("margin-bottom", "0px");
 });
 
 test("an editor plugin is offered only for what it edits, and edits the header", async ({ page }) => {

@@ -1,8 +1,10 @@
 /*
  * The base look of a plugin's admin frame: the admin panel's colors, as
- * `--gfa-*` custom properties that follow its light or dark choice, its
- * font, and plain buttons, fields and headings. A plugin's screens can use
- * the properties in styles of their own.
+ * `--gfa-*` custom properties that follow its light or dark choice, and its
+ * font, and on screens, the screens' spacing and plain buttons, fields and
+ * headings. A plugin's screens can use the properties in styles of their own.
+ * An editor plugin's frame (`gfa-plugin-editor`) gets the colors and font
+ * only, since what it draws is its own, and the site's blocks among it.
  */
 :root {
   color-scheme: light dark;
@@ -66,65 +68,67 @@ body {
     sans-serif;
 }
 
-/* Spaced as the admin panel's other screens, since a screen's frame fills the screen. */
-body {
-  padding: 24px;
-  max-width: 960px;
-}
-
-/* Nothing in a screen's frame scrolls on its own: the frame grows with it. */
-html {
-  overflow: hidden;
-}
-
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-h1,
-h2,
-h3 {
+/* The rest is for screens only. */
+
+/* Spaced as the admin panel's other screens, since a screen's frame fills the screen. */
+:where(html:not(.gfa-plugin-editor)) body {
+  padding: 24px;
+  max-width: 960px;
+}
+
+/* Nothing in a screen's frame scrolls on its own: the frame grows with it. */
+html:not(.gfa-plugin-editor) {
+  overflow: hidden;
+}
+
+:where(html:not(.gfa-plugin-editor)) h1,
+:where(html:not(.gfa-plugin-editor)) h2,
+:where(html:not(.gfa-plugin-editor)) h3 {
   line-height: 1.25;
   margin: 0 0 0.75rem;
 }
 
-h1 {
+:where(html:not(.gfa-plugin-editor)) h1 {
   font-size: 24px;
   margin-bottom: 16px;
 }
 
-h2 {
+:where(html:not(.gfa-plugin-editor)) h2 {
   font-size: 17px;
 }
 
-h3 {
+:where(html:not(.gfa-plugin-editor)) h3 {
   font-size: 15px;
   margin-top: 1.25rem;
 }
 
-section {
+:where(html:not(.gfa-plugin-editor)) section {
   margin-top: 2rem;
 }
 
-p {
+:where(html:not(.gfa-plugin-editor)) p {
   margin: 0 0 0.75rem;
 }
 
-a {
+:where(html:not(.gfa-plugin-editor)) a {
   color: var(--gfa-accent);
 }
 
-label {
+:where(html:not(.gfa-plugin-editor)) label {
   display: block;
   font-weight: 600;
   margin-bottom: 0.25rem;
 }
 
-input,
-select,
-textarea {
+:where(html:not(.gfa-plugin-editor)) input,
+:where(html:not(.gfa-plugin-editor)) select,
+:where(html:not(.gfa-plugin-editor)) textarea {
   font: inherit;
   color: inherit;
   background: var(--gfa-surface);
@@ -135,7 +139,7 @@ textarea {
   max-width: 32rem;
 }
 
-button {
+:where(html:not(.gfa-plugin-editor)) button {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -146,24 +150,24 @@ button {
   padding: 0.4rem 0.9rem;
 }
 
-button:disabled {
+:where(html:not(.gfa-plugin-editor)) button:disabled {
   cursor: default;
   opacity: 0.6;
 }
 
-:focus-visible {
+:where(html:not(.gfa-plugin-editor)) :focus-visible {
   outline: 2px solid var(--gfa-accent);
   outline-offset: 2px;
 }
 
-input[type="checkbox"],
-input[type="radio"] {
+:where(html:not(.gfa-plugin-editor)) input[type="checkbox"],
+:where(html:not(.gfa-plugin-editor)) input[type="radio"] {
   width: auto;
   margin: 0 0.4rem 0 0;
 }
 
-small,
-.gfa-hint {
+:where(html:not(.gfa-plugin-editor)) small,
+:where(html:not(.gfa-plugin-editor)) .gfa-hint {
   display: block;
   color: var(--gfa-muted);
   font-size: 13px;
@@ -171,24 +175,24 @@ small,
   max-width: 40rem;
 }
 
-ol,
-ul {
+:where(html:not(.gfa-plugin-editor)) ol,
+:where(html:not(.gfa-plugin-editor)) ul {
   padding-left: 1.25rem;
   margin: 0 0 0.75rem;
   max-width: 44rem;
 }
 
-li {
+:where(html:not(.gfa-plugin-editor)) li {
   margin-bottom: 0.5rem;
 }
 
-code,
-pre {
+:where(html:not(.gfa-plugin-editor)) code,
+:where(html:not(.gfa-plugin-editor)) pre {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 13px;
 }
 
-pre {
+:where(html:not(.gfa-plugin-editor)) pre {
   margin: 0.4rem 0 0;
   padding: 0.5rem 0.75rem;
   max-width: 40rem;
@@ -198,11 +202,11 @@ pre {
   border-radius: var(--gfa-radius);
 }
 
-details {
+:where(html:not(.gfa-plugin-editor)) details {
   margin: 0.75rem 0;
 }
 
-summary {
+:where(html:not(.gfa-plugin-editor)) summary {
   cursor: pointer;
   font-weight: 600;
 }

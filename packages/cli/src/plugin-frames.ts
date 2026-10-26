@@ -67,6 +67,7 @@ export async function buildPluginFrame(
         scripts: [`${base}${script.file}`],
         stylesheets: stylesheets.map((file) => `${base}${file}`),
         licenses: `${base}${dir}${LICENSES_FILE}`,
+        editor: Boolean(plugin.editor),
       }),
     );
   };
