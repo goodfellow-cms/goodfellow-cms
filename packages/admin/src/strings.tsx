@@ -123,6 +123,11 @@ export const defaultStrings = {
   "editor.viewport.phone": "Phone",
   "editor.failed": "The editor stopped working. Reload the page to start it again.",
   "editor.frame": "Editing {title}",
+  "editor.choose": "Editor",
+  "editor.standard": "Standard editor",
+  "editor.plugin.failed": "{editor} didn't start. Choose the standard editor to keep editing.",
+  "editor.plugin.invalid":
+    "{editor} gave back something this site can't publish, so nothing was published. Try again, or choose the standard editor.",
   "publish.publishing": "Publishing…",
   "publish.done": "Published.",
   "publish.conflict":
@@ -1117,6 +1122,8 @@ export const defaultStrings = {
     "The site's build service couldn't run the plugin's task. Try again, or ask a developer to look at the site's builds.",
   "plugins.asks.server": "Answer requests on your site's server, with everything the server can do",
   "plugins.asks.mediaStorage": "Keep your site's media in a storage service, outside the site's own files",
+  "plugins.asks.editor":
+    "Offer its own page editor, {title}, which anyone editing the site can choose in place of the usual one, and which is given what they edit there",
   "plugins.asks.always":
     "Like any plugin, its code is included when your site is built, and its blocks run on your site's pages, where nothing holds them to what it asks.",
   "plugins.asks.new": "This version asks for more than the one installed:",

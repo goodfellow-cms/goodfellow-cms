@@ -206,3 +206,10 @@ summary {
   cursor: pointer;
   font-weight: 600;
 }
+
+/* An editor plugin's frame: its editor fills the frame, which the admin panel sizes. */
+html.gfa-plugin-editor,
+html.gfa-plugin-editor body,
+html.gfa-plugin-editor #goodfellow-plugin {
+  height: 100%;
+}

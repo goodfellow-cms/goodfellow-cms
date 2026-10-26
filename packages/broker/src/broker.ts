@@ -359,6 +359,7 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
       ...(manifest.admin ? [t("pluginAdmin")] : []),
       ...(manifest.build?.length ? [t("pluginBuild")] : []),
       ...(manifest.server ? [t("pluginServer")] : []),
+      ...(manifest.editor ? [t("pluginEditor", { title: manifest.editor.title })] : []),
     ];
     return lines.length > 0 ? lines : [t("pluginNothing")];
   }

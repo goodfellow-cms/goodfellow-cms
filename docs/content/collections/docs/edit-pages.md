@@ -17,6 +17,7 @@ Click **Edit** beside a page. The editor shows the page with the site's own head
 - **Move a block** by dragging its handle, and remove it from its toolbar.
 - **Undo and redo** with the buttons above the page, or Ctrl+Z and Ctrl+Shift+Z.
 - **Phones and tablets:** **Tablet** and **Phone** above the page show it as wide as one, and **Full width** goes back.
+- **Another editor:** where the site has a [plugin with a page editor of its own](/docs/plugins#a-page-editor-of-its-own), **Editor** above the page chooses it or the standard editor, and your browser remembers your choice. What you've changed so far comes with you when you switch.
 - **Light or dark:** the admin panel follows your computer's setting. To choose for yourself, use the menu at the top right; your browser remembers it.
 - **CSS classes**: every block has a "CSS classes" setting for [Tailwind](https://tailwindcss.com) classes, such as `mt-8` or `text-center`, which override the block's own styles, and for classes of your own that [Custom CSS](/docs/layout-and-settings#site-settings) styles. Both show in the editor at once.
 

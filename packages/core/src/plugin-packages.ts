@@ -30,6 +30,7 @@ import {
   PLUGIN_KEYWORD,
   PluginError,
   type PluginPermissions,
+  pluginEditorKinds,
   pluginProblems,
 } from "./plugins.js";
 import { inRange } from "./updates.js";
@@ -66,6 +67,14 @@ export const pluginManifestSchema = z
     server: z.boolean().optional(),
     /** Whether it keeps the site's media outside the repository. */
     mediaStorage: z.boolean().optional(),
+    /** The page editor it draws in place of Puck, for those who choose it, and what it edits. */
+    editor: z
+      .object({
+        title: z.string().trim().min(1),
+        kinds: z.array(z.enum(["page", "header", "footer", "template"])).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -90,6 +99,7 @@ export function pluginManifest(plugin: GoodfellowPlugin): PluginManifest {
     ...(plugin.tasks?.length && { tasks: plugin.tasks.map(({ id, title }) => ({ id, ...(title && { title }) })) }),
     ...(plugin.server && { server: true }),
     ...(plugin.mediaStorage && { mediaStorage: true }),
+    ...(plugin.editor && { editor: { title: plugin.editor.title, kinds: pluginEditorKinds(plugin.editor) } }),
   };
 }
 
@@ -123,6 +133,12 @@ export function unapproved(approved: ApprovedPlugin, plugin: GoodfellowPlugin): 
   for (const task of plugin.tasks ?? []) if (!tasks.has(task.id)) found.push(`the task "${task.id}"`);
   if (plugin.admin && !approved.admin) found.push("an admin module");
   if (plugin.server && !approved.server) found.push("a server module");
+  if (plugin.editor) {
+    // An editor is given what's edited, so it needs approving, as does each kind of page it edits.
+    const kinds = new Set(approved.editor ? pluginEditorKinds(approved.editor) : []);
+    if (!approved.editor) found.push("a page editor");
+    else for (const kind of pluginEditorKinds(plugin.editor)) if (!kinds.has(kind)) found.push(`editing ${kind}s`);
+  }
   return found;
 }
 
@@ -304,6 +320,7 @@ export async function fetchPluginPackage(
       ...(manifest.admin && { admin: PLUGIN_MANIFEST }),
       ...(manifest.screens && { screens: manifest.screens }),
       ...(manifest.build && { build: manifest.build.map((step) => ({ ...step, module: PLUGIN_MANIFEST })) }),
+      ...(manifest.editor && { editor: manifest.editor }),
     },
   ]);
   if (problems.length > 0) throw new PackageError("bad-file", problems[0]?.message ?? "", PLUGIN_MANIFEST);

@@ -178,6 +178,16 @@ describe("approving a plugin", () => {
     expect(() => installedPlugin(greedier, approved)).toThrow(/secrets "GUESTBOOK_KEY", a server module/);
     expect(() => installedPlugin(undefined, approved)).toThrow(/doesn't export a plugin/);
   });
+
+  it("approves a page editor, and each kind of page it edits, since it's given what's edited", () => {
+    const editor = { ...plugin, editor: { title: "Guestbook editor" } };
+    expect(() => installedPlugin(editor, approved)).toThrow(/a page editor/);
+    const withEditor = { name: plugin.name, release: "1.0.0", ...pluginManifest(editor) };
+    expect(withEditor.editor).toEqual({ title: "Guestbook editor", kinds: ["page"] });
+    expect(installedPlugin(editor, withEditor)).toBe(editor);
+    const more = { ...editor, editor: { title: "Guestbook editor", kinds: ["page" as const, "header" as const] } };
+    expect(() => installedPlugin(more, withEditor)).toThrow(/editing headers/);
+  });
 });
 
 describe("installing a plugin", () => {

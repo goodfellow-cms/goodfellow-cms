@@ -234,6 +234,12 @@ export {
   pageCredits,
   photoCreditSchema,
 } from "./content/credits.js";
+export {
+  checkEditedData,
+  type EditedData,
+  type EditedDataProblem,
+  MAX_EDITED_DATA,
+} from "./content/edited-data.js";
 export { dateField, type EntryDetails, entryDetails, SUMMARY_LENGTH } from "./content/entry-details.js";
 export { ContentError, type ContentProblem } from "./content/errors.js";
 export {
@@ -789,6 +795,7 @@ export {
   isPluginName,
   isPluginOrigin,
   MAX_PLUGIN_OPTIONS,
+  PLUGIN_EDITOR_KINDS,
   PLUGIN_KEYWORD,
   PLUGINS_PATH,
   type PluginAdmin,
@@ -797,6 +804,13 @@ export {
   type PluginBuildStep,
   type PluginBuildStepRun,
   type PluginDescription,
+  type PluginEditor,
+  type PluginEditorControls,
+  type PluginEditorData,
+  type PluginEditorKind,
+  type PluginEditorOptions,
+  type PluginEditorSession,
+  type PluginEditorState,
   PluginError,
   type PluginFileChange,
   type PluginMediaFile,
@@ -810,9 +824,11 @@ export {
   type PluginScreenMount,
   type PluginSecretsHelp,
   type PluginServerEditor,
+  type PluginSharePreview,
   type PluginTask,
   type PluginTaskContext,
   type PluginTaskRun,
+  pluginEditorKinds,
   pluginFrameEntry,
   pluginFramePage,
   pluginFrameUrl,

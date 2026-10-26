@@ -186,6 +186,37 @@ describe("a plugin in the site's description", () => {
     expect(reread.ok && reread.description.plugins?.[0]?.mediaStorage).toEqual({ maxBytes: 5_000_000_000 });
   });
 
+  it("says it draws a page editor, and what for: pages unless it says more", () => {
+    const editor = definePlugin({
+      name: "goodfellow-plugin-editor",
+      title: "Another editor",
+      admin: "goodfellow-plugin-editor/admin",
+      editor: { title: "Another editor" },
+    });
+    expect(describePlugin(editor).editor).toEqual({ title: "Another editor", kinds: ["page"] });
+    const everything = describePlugin({ ...editor, editor: { title: "All", kinds: ["page", "header", "template"] } });
+    const reread = parseSiteDescription(
+      JSON.stringify({
+        version: 1,
+        goodfellow: "0.6.0",
+        content: {},
+        root: { fields: {} },
+        blocks: {},
+        plugins: [everything],
+      }),
+    );
+    expect(reread.ok && reread.description.plugins?.[0]?.editor).toEqual({
+      title: "All",
+      kinds: ["page", "header", "template"],
+    });
+    const codes = (plugin: Parameters<typeof pluginProblems>[0][number]) =>
+      pluginProblems([plugin]).map((problem) => problem.code);
+    expect(codes(editor)).toEqual([]);
+    expect(codes({ ...editor, admin: undefined })).toEqual(["no-admin"]);
+    expect(codes({ ...editor, editor: { title: "" } })).toEqual(["bad-editor"]);
+    expect(codes({ ...editor, editor: { title: "Items", kinds: ["entry" as "page"] } })).toEqual(["bad-editor"]);
+  });
+
   it("carries the options the site's config gave it, as JSON, and refuses ones that aren't", () => {
     const services = [{ id: "minio", name: "Our MinIO", endpoint: "https://minio.example.org" }];
     const described = describePlugin({ ...storage, options: { services } });

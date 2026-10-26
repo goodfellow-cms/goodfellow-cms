@@ -99,6 +99,7 @@ function asksFor(t: Translate, manifest: PluginManifest): string[] {
     ),
     ...(manifest.server ? [t("plugins.asks.server")] : []),
     ...(manifest.mediaStorage ? [t("plugins.asks.mediaStorage")] : []),
+    ...(manifest.editor ? [t("plugins.asks.editor", { title: manifest.editor.title })] : []),
   ];
 }
 

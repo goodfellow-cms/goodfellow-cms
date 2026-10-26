@@ -18,7 +18,10 @@
  * here, since the config is loaded in the browser too: each runtime loads
  * only its own part.
  */
-import type { ComponentConfig, Config } from "@puckeditor/core";
+import type { ComponentConfig, Config, Data } from "@puckeditor/core";
+import type { PageLink } from "./content/page-links.js";
+import type { SiteSettings } from "./content/schemas.js";
+import type { BlockDescription } from "./site-description.js";
 
 /** The npm keyword, and the GitHub and GitLab topic, plugins are found by. */
 export const PLUGIN_KEYWORD = "goodfellow-plugin";
@@ -74,12 +77,38 @@ export interface GoodfellowPlugin {
    */
   mediaStorage?: PluginMediaStorageOptions;
   /**
+   * Whether its admin module draws a page editor (its `editor`), which each
+   * person editing the site can choose in place of Puck, for the kinds of
+   * page it lists. It's given what's edited and hands it back; the admin panel
+   * checks what comes back against the blocks' fields before publishing.
+   */
+  editor?: PluginEditorOptions;
+  /**
    * What a developer chose for it in the site's config, as JSON, which its
    * admin module reads (`api.plugin.options`), such as more services for it
    * to offer. At most `MAX_PLUGIN_OPTIONS` characters, and never secret:
    * builds publish it with the site's description.
    */
   options?: PluginOptions;
+}
+
+/** What an editor plugin edits, and what people choosing it see. */
+export interface PluginEditorOptions {
+  /** What the editor is called where people choose it, such as "Gutenberg". */
+  title: string;
+  /** What it can edit: pages unless it says more. Items' fields stay in Puck's item editor. */
+  kinds?: PluginEditorKind[];
+}
+
+/** What an editor plugin can edit: pages, the header and footer, or collections' templates. */
+export type PluginEditorKind = "page" | "header" | "footer" | "template";
+
+/** Every kind of page an editor plugin may say it edits. */
+export const PLUGIN_EDITOR_KINDS: readonly PluginEditorKind[] = ["page", "header", "footer", "template"];
+
+/** The kinds an editor plugin edits: pages, unless it lists others. */
+export function pluginEditorKinds(editor: Pick<PluginEditorOptions, "kinds">): PluginEditorKind[] {
+  return editor.kinds?.length ? [...editor.kinds] : ["page"];
 }
 
 export interface PluginMediaStorageOptions {
@@ -306,6 +335,92 @@ export interface PluginAdmin {
   screens?: Record<string, PluginScreenMount>;
   /** Where it keeps media, for a plugin that says it does (`mediaStorage`). */
   media?: PluginMediaStorage;
+  /** The page editor it draws, for a plugin that says it has one (`editor`). */
+  editor?: PluginEditor;
+}
+
+/** A page's data as Puck keeps it: its settings (`root.props`) and its blocks, with blocks inside blocks in their slots. */
+export type PluginEditorData = Data;
+
+/** What's open in an editor plugin, and what it can ask the admin panel for while it's open. */
+export interface PluginEditorSession {
+  /** What's edited: a page, the header or footer, or a collection's template. */
+  kind: PluginEditorKind;
+  /** The page's address, or the language's home for the header and footer. */
+  path: string;
+  /** What the admin panel calls it, such as the page's title. */
+  title: string;
+  /** The language of what's edited, on a site in several languages. */
+  language?: string;
+  /** What's edited as it is now, which may have changes not yet published. */
+  data: PluginEditorData;
+  /**
+   * The blocks it may use, by the name content refers to them by, with their
+   * fields as JSON (as the site's description has them): only these, with
+   * values that fit their fields, can be published.
+   */
+  blocks: Record<string, BlockDescription>;
+  /** The page settings' fields, such as its title; the header and footer have none. */
+  root: { fields: Record<string, unknown> };
+  /** For a collection's template: the collection, whose fields `{name}` placeholders in text fill in. */
+  collection?: { id: string; name: string; fields: { name: string; label: string; type: string }[] };
+  /** Site Settings, such as the theme's colors and fonts. */
+  settings: SiteSettings;
+  /** The site's pages in the language edited, for links. */
+  pages: PageLink[];
+  /**
+   * Tells the admin panel what's edited now, whenever it changes, so it knows
+   * there's something to publish: with whether there's something to undo and
+   * redo, and the block selected, by its id, for the AI assistant.
+   */
+  change(data: PluginEditorData, state?: PluginEditorState): void;
+  /** Opens the media library to choose a file of a kind, answering with its address, or `null`. */
+  chooseMedia(kind: "image" | "video" | "audio" | "file", value?: string): Promise<string | null>;
+  /** How a link to the page looks when it's shared, from its settings or else Site Settings'. */
+  sharePreview(root: PluginEditorData["root"]): Promise<PluginSharePreview>;
+}
+
+/** What an editor plugin says about itself as it changes. */
+export interface PluginEditorState {
+  past?: boolean;
+  future?: boolean;
+  /** The selected block's id, or `null`. */
+  selected?: string | null;
+}
+
+/** How a link to a page looks when it's shared, as `getPageHead()` works it out. */
+export interface PluginSharePreview {
+  title: string;
+  description?: string;
+  /** The picture's address, such as `/media/church.jpg`. */
+  image?: string;
+  /** The site's domain, without a Site address none. */
+  host?: string;
+  /** Whether the page is hidden from search engines. */
+  noIndex: boolean;
+}
+
+/** What an editor plugin's `mount` may give back, for the admin panel's header to use. */
+export interface PluginEditorControls {
+  /** What's edited now, which Publish publishes. Without it, the last `change()`. */
+  data?(): PluginEditorData | Promise<PluginEditorData>;
+  /** Replaces what's edited, such as with the AI assistant's changes; without it, the AI assistant isn't offered. */
+  set?(data: PluginEditorData): void | Promise<void>;
+  /** Undo and Redo, which the admin panel's header offers when it has both. */
+  undo?(): void;
+  redo?(): void;
+  /** Cleans up when the editor closes. */
+  destroy?(): void;
+}
+
+/** The page editor an editor plugin's admin module draws. */
+export interface PluginEditor {
+  /** Draws the editor into `element`, for what `session` says is open. */
+  mount(
+    element: HTMLElementLike,
+    session: PluginEditorSession,
+    api: PluginAdminApi,
+  ): PluginEditorControls | undefined | Promise<PluginEditorControls | undefined>;
 }
 
 /** Declares a plugin with full type checking. Returns it unchanged. */
@@ -338,6 +453,8 @@ export interface PluginDescription {
   server?: boolean;
   /** Whether it keeps media, and the largest file it takes. */
   mediaStorage?: PluginMediaStorageOptions;
+  /** The page editor it draws, and what it edits. */
+  editor?: { title: string; kinds: PluginEditorKind[] };
   /** What the site's config chose for it, for its admin module. */
   options?: PluginOptions;
 }
@@ -376,6 +493,7 @@ export interface PluginProblem {
     | "no-admin"
     | "block-clash"
     | "bad-storage"
+    | "bad-editor"
     | "bad-options"
     | "not-approved";
   /** What's wrong, for the developer. */
@@ -486,6 +604,14 @@ export function pluginProblems(
         problem("bad-storage", `${name}'s largest file for media storage isn't a number of bytes.`);
       }
     }
+    if (plugin.editor) {
+      const { title, kinds } = plugin.editor;
+      if (!plugin.admin) problem("no-admin", `${name} has a page editor but no admin module to draw it.`);
+      const known = (kinds ?? []).every((kind) => PLUGIN_EDITOR_KINDS.includes(kind));
+      if (typeof title !== "string" || !title.trim() || (kinds !== undefined && !Array.isArray(kinds)) || !known) {
+        problem("bad-editor", `${name}'s page editor needs a title, and edits only ${PLUGIN_EDITOR_KINDS.join(", ")}.`);
+      }
+    }
     if (plugin.options !== undefined) {
       let json: string | undefined;
       try {
@@ -588,6 +714,7 @@ export function describePlugin(plugin: GoodfellowPlugin): PluginDescription {
     ...(plugin.mediaStorage && {
       mediaStorage: plugin.mediaStorage.maxBytes ? { maxBytes: plugin.mediaStorage.maxBytes } : {},
     }),
+    ...(plugin.editor && { editor: { title: plugin.editor.title, kinds: pluginEditorKinds(plugin.editor) } }),
     // A copy through JSON, so what the admin module gets is exactly what's published.
     ...(plugin.options && { options: JSON.parse(JSON.stringify(plugin.options)) as PluginOptions }),
   };
