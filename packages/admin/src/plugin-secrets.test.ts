@@ -27,6 +27,15 @@ describe("how a plugin's secrets are added", () => {
     expect(help?.steps[1]?.text).toContain("type S3_ACCESS_KEY_ID in Name");
   });
 
+  it("names Bitbucket's Pipelines variables, which are secured", () => {
+    const url = "https://bitbucket.org/parish/site/admin/pipelines/repository-variables";
+    const [help] = pluginSecretsHelp({ kind: "bitbucket", url }, plugin, t);
+    expect(help?.where).toBe("bitbucket");
+    expect(help?.link?.url).toBe(url);
+    expect(help?.steps[2]?.text).toContain("type S3_SECRET_ACCESS_KEY in Name");
+    expect(help?.steps[2]?.text).toContain("tick Secured");
+  });
+
   it("gives the lines of .env.local in the development servers", () => {
     const [help] = pluginSecretsHelp({ kind: "next-dev" }, plugin, t);
     expect(help?.where).toBe("development");

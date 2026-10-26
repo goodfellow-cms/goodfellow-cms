@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useAdmin } from "./admin-context.js";
 
 /**
- * The host outside GitHub and GitLab that builds the site, as its setup files
+ * The host outside GitHub, GitLab and Bitbucket that builds the site, as its setup files
  * say, such as Cloudflare Pages: `undefined` while they're read, `null` for none.
  * They're outside the folders the site's files are read from, so they're read
  * as version history reads files, at the loaded revision.

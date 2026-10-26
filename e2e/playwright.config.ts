@@ -79,7 +79,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 60_000,
     },
-    ...(["github", "gitlab", "demo", "content", "admin", "broker"] as const).map((name) => ({
+    ...(["github", "gitlab", "bitbucket", "demo", "content", "admin", "broker"] as const).map((name) => ({
       command: `node scripts/start-built-site.mjs ${name}`,
       url: `http://localhost:${builtSites[name].port}/admin/`,
       reuseExistingServer: false,

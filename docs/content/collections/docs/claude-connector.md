@@ -13,7 +13,7 @@ The Claude connector is an [MCP](https://modelcontextprotocol.io) server on Clou
 The connector is two things at one address: the MCP server, at `/mcp`, and the OAuth server Claude signs in with.
 
 1. Claude's first request to `/mcp` is answered with where to sign in. Claude registers itself, or names itself with a client ID metadata document, and opens `/authorize`.
-2. The editor signs in with GitHub or GitLab and chooses the sites Claude may work on.
+2. The editor signs in with GitHub or GitLab and chooses the sites Claude may work on. Sites on Bitbucket aren't offered yet; editors connect them through Claude Desktop or Claude Code with a token (see [Claude](/docs/claude#connect-claude)).
 3. Claude gets an access token, lasting an hour, and a refresh token, which works once, and renews them as it needs.
 4. With each request to `/mcp`, the connector signs in to the site's repository and runs Goodfellow's tools (`@goodfellow-cms/mcp`), the same ones that run on an editor's computer.
 

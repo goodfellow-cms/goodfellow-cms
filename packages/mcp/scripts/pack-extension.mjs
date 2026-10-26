@@ -73,13 +73,15 @@ const manifest = {
     site: {
       type: "string",
       title: "Site",
-      description: "The site's repository, such as github:your-name/your-site or gitlab:your-group/your-site.",
+      description:
+        "The site's repository, such as github:your-name/your-site, gitlab:your-group/your-site or bitbucket:your-workspace/your-site.",
       required: true,
     },
     token: {
       type: "string",
       title: "Token",
-      description: "A GitHub or GitLab token that can edit the site. It stays on this computer.",
+      description:
+        "A GitHub, GitLab or Bitbucket token that can edit the site (on Bitbucket, an access token, or your email address, a colon and an API token). It stays on this computer.",
       sensitive: true,
       required: true,
     },

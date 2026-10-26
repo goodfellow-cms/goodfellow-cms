@@ -211,7 +211,14 @@ function InviteForm({ busy, onInvite }: { busy: boolean; onInvite: (who: string,
       <h2 className="gfa-section-title">{t("editors.invite.title")}</h2>
       <TextField
         label={t(byEmail ? "editors.invite.fieldEmail" : "editors.invite.field", { host })}
-        hint={t(byEmail ? "editors.invite.hintEmail" : "editors.invite.hint", { host })}
+        hint={t(
+          byEmail
+            ? "editors.invite.hintEmail"
+            : editors?.membersOnly
+              ? "editors.invite.hintMembers"
+              : "editors.invite.hint",
+          { host },
+        )}
         value={who}
         autoComplete="off"
         onChange={setWho}

@@ -32,6 +32,17 @@ function helpFor(place: TaskSecretsPlace, names: readonly string[], t: Translate
         ],
         notes: [t("plugins.secrets.gitlab.who")],
       };
+    case "bitbucket":
+      return {
+        where: "bitbucket",
+        title: t("plugins.secrets.bitbucket.title"),
+        link: { url: place.url, label: t("plugins.secrets.bitbucket.link") },
+        steps: [
+          { text: t("plugins.secrets.bitbucket.open") },
+          ...names.map((name) => ({ text: t("plugins.secrets.bitbucket.add", { name }), code: name })),
+        ],
+        notes: [t("plugins.secrets.bitbucket.who")],
+      };
     case "goodfellow-dev":
     case "next-dev":
       return {

@@ -49,6 +49,11 @@ export interface EditorList {
 export interface SiteEditors {
   /** Whether invitations can go to an email address, and not only to an account name. */
   readonly invitesByEmail: boolean;
+  /**
+   * Whether only people already in the host's workspace can be added, who
+   * then edit at once, with no invitation to accept, as on Bitbucket.
+   */
+  readonly membersOnly?: boolean;
   list(): Promise<EditorList>;
   /** Invites someone by account name, or email address where `invitesByEmail`. */
   invite(who: string, role: Exclude<EditorRole, "viewer">): Promise<void>;

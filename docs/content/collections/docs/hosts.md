@@ -23,14 +23,24 @@ Its limits:
 - **New accounts may be asked to verify** a phone number or card before GitLab runs their first build.
 - **Editors' sign-in reaches every project they can change,** where GitHub's sign-in service gives a token for the site's repository alone, so keep editors' GitLab accounts to the sites they edit.
 
-GitHub suits a site whose editors already use GitHub, or one with a developer who prefers it.
+GitHub suits a site whose editors already use GitHub, or one with a developer who prefers it, and Bitbucket one whose organization already keeps its work there.
 
-| On the free plan | GitHub Free | GitLab Free |
-|---|---|---|
-| Free static hosting | GitHub Pages, public repositories only; or Cloudflare Pages, public or private | GitLab Pages or Cloudflare Pages, public or private |
-| Editors | Unlimited collaborators | Up to 5 users in a private group or account; unlimited if public |
-| Build minutes | Unlimited for public repositories, 2,000 a month for private | 400 a month (or build on Cloudflare Pages or Vercel instead) |
-| Sign-in | Personal access token (fine-grained, or classic for collaborators), or Sign in with GitHub with a [sign-in service](/docs/sign-in-service) you run | One-click sign-in (OAuth) or personal access token |
+| On the free plan | GitHub Free | GitLab Free | Bitbucket Free |
+|---|---|---|---|
+| Free static hosting | GitHub Pages, public repositories only; or Cloudflare Pages, public or private | GitLab Pages or Cloudflare Pages, public or private | Vercel only, for non-commercial sites |
+| Editors | Unlimited collaborators | Up to 5 users in a private group or account; unlimited if public | Up to 5 users in a workspace |
+| Build minutes | Unlimited for public repositories, 2,000 a month for private | 400 a month (or build on Cloudflare Pages or Vercel instead) | 50 a month for Pipelines (Vercel builds the site itself) |
+| Sign-in | Personal access token (fine-grained, or classic for collaborators), or Sign in with GitHub with a [sign-in service](/docs/sign-in-service) you run | One-click sign-in (OAuth) or personal access token | One-click sign-in (OAuth, about two hours at a time), repository access token or Atlassian API token |
+
+## Bitbucket
+
+Sites stored on [Bitbucket Cloud](https://bitbucket.org) are built and put online by Vercel: Bitbucket's own static websites have one address for each workspace and no domains of their own, and Cloudflare Pages doesn't build from Bitbucket. Bitbucket's free plan ([Bitbucket plans](https://www.atlassian.com/software/bitbucket/pricing)):
+
+- **Up to 5 users** in a workspace, each with their own Atlassian account.
+- **50 build minutes a month** for Bitbucket Pipelines, which run the nightly check for [updates](/docs/updates), plugins' [tasks](/docs/plugins#tasks) and writing `package-lock.json` when a plugin is installed. Vercel builds the site itself, so publishing uses none. The nightly check takes about a minute when nothing changed, so it fits; an hourly check for [scheduled changes](/docs/scheduling) would use about 720, so the free plan's scheduled changes go live with the nightly rebuild.
+- **Vercel's free plan is for non-commercial sites** (see below), so a business site on Bitbucket needs Vercel's paid plan.
+
+The [setup page](/new-site) doesn't offer Bitbucket; make the site with `npm create goodfellow@latest -- --bitbucket your-workspace/your-site` ([Put it online](/docs/put-it-online)).
 
 ## Cloudflare Pages
 

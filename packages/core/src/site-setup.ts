@@ -5,6 +5,7 @@
  */
 
 import { adminOrigin, vercelAdminHeaders, withAdminConfig, withVercelHeaders } from "./admin-domain.js";
+import { BITBUCKET_PIPELINES, bitbucketPipelines } from "./bitbucket-setup.js";
 import { cloudflareSetupFiles } from "./cloudflare-setup.js";
 import { CONTENT_REPOSITORY_DIR, INSTALLED_PLUGINS_FILE } from "./content/paths.js";
 import { CONTENT_FOLDERS } from "./content/store.js";
@@ -45,8 +46,11 @@ export type TemplateName = keyof typeof TEMPLATES;
 
 /** Where the site's repository is stored, which the admin panel publishes to. */
 export interface Backend {
-  host: "github" | "gitlab";
-  /** `owner/name` on GitHub, or the project's path on GitLab, such as `group/subgroup/site`. */
+  host: "github" | "gitlab" | "bitbucket";
+  /**
+   * `owner/name` on GitHub, the project's path on GitLab, such as
+   * `group/subgroup/site`, or `workspace/repository` on Bitbucket.
+   */
   repo: string;
 }
 
@@ -68,7 +72,7 @@ export const HOSTS = {
   vercel: {
     label: "Vercel",
     files: ["vercel.ts"],
-    note: "Works with GitHub and GitLab. The free plan is for non-commercial sites only.",
+    note: "Works with GitHub, GitLab and Bitbucket. The free plan is for non-commercial sites only.",
   },
   // Its setup files are written for the site by cloudflareSetupFiles(), in place of the other hosts'.
   "cloudflare-pages": {
@@ -80,10 +84,16 @@ export const HOSTS = {
 
 export type Host = keyof typeof HOSTS;
 
-/** The hosts that can serve a site stored with `backend`: GitHub Pages only builds GitHub repositories, and so on. */
+/**
+ * The hosts that can serve a site stored with `backend`: GitHub Pages only
+ * builds GitHub repositories, and so on. Bitbucket's own static websites have
+ * one address for each workspace and no custom domains, and Cloudflare Pages
+ * doesn't build from Bitbucket, so its sites are built by Vercel.
+ */
 export function hostsFor(backend: Backend["host"] | undefined): Host[] {
   if (backend === "github") return ["github-pages", "cloudflare-pages", "vercel"];
   if (backend === "gitlab") return ["gitlab-pages", "cloudflare-pages", "vercel"];
+  if (backend === "bitbucket") return ["vercel"];
   return ["github-pages", "gitlab-pages", "cloudflare-pages", "vercel"];
 }
 
@@ -123,17 +133,30 @@ export function sitePackageName(name: string): string {
   return cleaned.slice(0, 214) || "my-site";
 }
 
+/** Each host's addresses, which a repository's address starts with. */
+const REPO_PREFIXES: Record<Backend["host"], RegExp> = {
+  github: /^(?:https?:\/\/)?(?:www\.)?github\.com\//i,
+  gitlab: /^(?:https?:\/\/)?gitlab\.com\//i,
+  bitbucket: /^(?:https?:\/\/)?(?:[^@/]+@)?bitbucket\.org\//i,
+};
+
+/** What each host's repository paths look like: Bitbucket's workspace and repository names are lowercase. */
+const REPO_PATTERNS: Record<Backend["host"], RegExp> = {
+  github: /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/,
+  gitlab: /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9._-]+)+$/,
+  bitbucket: /^[a-z0-9][a-z0-9_-]*\/[a-z0-9_.-]+$/,
+};
+
 /**
  * Reads a repository from what someone typed: `owner/name`, or its address on
- * GitHub or GitLab. Returns `undefined` if it isn't one.
+ * GitHub, GitLab or Bitbucket. Returns `undefined` if it isn't one.
  */
 export function parseRepo(host: Backend["host"], input: string): string | undefined {
   let path = trimChars(input.trim().replace(/\.git$/, ""), "/", { start: false });
-  const prefix = host === "github" ? /^(?:https?:\/\/)?(?:www\.)?github\.com\//i : /^(?:https?:\/\/)?gitlab\.com\//i;
-  path = path.replace(prefix, "");
-  const pattern =
-    host === "github" ? /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/ : /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9._-]+)+$/;
-  return pattern.test(path) ? path : undefined;
+  path = path.replace(REPO_PREFIXES[host], "");
+  // Bitbucket's own pages for a repository add parts after it, such as /src/main/.
+  if (host === "bitbucket") path = path.split("/").slice(0, 2).join("/").toLowerCase();
+  return REPO_PATTERNS[host].test(path) ? path : undefined;
 }
 
 /** The template's `package.json`, named for the new site and with workspace links replaced by published versions. */
@@ -172,9 +195,9 @@ export function configureBackend(
   }
   const only = `${contentOnly ? ", contentOnly: true" : ""}${code ? `, code: ${JSON.stringify(code)}` : ""}`;
   const call =
-    backend.host === "github"
-      ? `github({ repo: ${JSON.stringify(backend.repo)}${only} })`
-      : `gitlab({ project: ${JSON.stringify(backend.repo)}${only} })`;
+    backend.host === "gitlab"
+      ? `gitlab({ project: ${JSON.stringify(backend.repo)}${only} })`
+      : `${backend.host}({ repo: ${JSON.stringify(backend.repo)}${only} })`;
   return config.replace(importLine, importLine.slice(3)).replace(backendLine, `$1backend: ${call},`);
 }
 
@@ -294,6 +317,21 @@ function adminReadmeSection(admin: string, cli: string, separate: boolean): stri
 `;
 }
 
+/** The README's section on a site stored on Bitbucket: what Vercel and Bitbucket Pipelines need. */
+function bitbucketReadmeSection(cli: string): string {
+  return `## Bitbucket and Vercel
+
+The site is stored on Bitbucket and built by Vercel, which builds and publishes it on every change to the main branch. \`${BITBUCKET_PIPELINES}\` has Bitbucket Pipelines keep it current. To set them up, once:
+
+1. In Vercel, import the repository from Bitbucket. \`vercel.ts\` already has the right settings. Under the project's **Settings → Git → Deploy Hooks**, create a hook for the main branch and copy its address.
+2. In the repository on Bitbucket, turn on Pipelines (**Repository settings → Pipelines → Settings**), and under **Repository settings → Pipelines → Repository variables**, add the hook's address as \`VERCEL_DEPLOY_HOOK\`, with **Secured** ticked.
+3. In the admin panel, open **Site Settings → Updates** and turn on updates: it adds a schedule that checks each night whether the site needs rebuilding or has fixes to install, which also puts pages and items scheduled to be shown or hidden live. Doing this needs the repository's Admin permission. Each check takes about a minute of Bitbucket's build minutes, of which the free plan has 50 a month.
+4. To have scheduled pages and items go live within the hour instead, add a schedule under **Pipelines → Schedules** that runs the \`scheduled\` pipeline on the main branch each hour. That uses about 720 build minutes a month, so it needs a paid Bitbucket plan.
+
+Plugins' tasks, such as S3 storage signing uploads, run in the same pipelines (\`npx ${cli} task\`), with the secrets they need added as secured repository variables.
+`;
+}
+
 /** Works out a new site's files from a template and the choices made for it. */
 export async function planSite({
   template,
@@ -310,11 +348,17 @@ export async function planSite({
   if (content && (!backend || !host)) {
     throw new Error("Keeping the content in a repository of its own needs both repositories and a host.");
   }
+  if (content && backend?.host === "bitbucket") {
+    throw new Error("Sites stored on Bitbucket can't keep their content in a repository of their own yet.");
+  }
   const adminUrl = admin === undefined ? undefined : adminOrigin({ url: admin });
   if (admin !== undefined && (!adminUrl || !allowsAdminAddress(host))) {
     throw new Error(
       "An admin address needs an https:// address of its own, and a host that serves a site at more than one address.",
     );
+  }
+  if (backend && host && !hostsFor(backend.host).includes(host)) {
+    throw new Error(`${HOSTS[host].label} can't build a site stored on ${backend.host}.`);
   }
   const files: SiteFiles = new Map();
   for (const [path, file] of template) {
@@ -378,7 +422,7 @@ export async function planSite({
     }
   }
 
-  if (content && backend && host) {
+  if (content && backend && backend.host !== "bitbucket" && host) {
     separateContent(files, name, { ...content, git: backend.host, code: backend.repo, host });
     // Vercel reads a content repository's vercel.ts before the code is cloned, so it gets the header rules written out.
     const vercel = files.get(`${CONTENT_REPOSITORY_DIR}/vercel.ts`);
@@ -390,15 +434,20 @@ export async function planSite({
     for (const [other, { files: setupFiles }] of Object.entries(HOSTS)) {
       if (other !== host) for (const file of setupFiles) files.delete(file);
     }
-    if (host === "cloudflare-pages") {
+    if (host === "cloudflare-pages" && backend?.host !== "bitbucket") {
       for (const [path, text] of cloudflareSetupFiles({ git: backend?.host, next: files.has("next.config.ts") })) {
         files.set(path, text);
       }
     }
     // Plugins' tasks run on the git host's CI, whoever builds the site.
-    if (backend?.host === "gitlab") files.delete(GITHUB_TASK_WORKFLOW);
-    if (backend?.host === "gitlab" && host === "vercel") {
-      files.set(".gitlab-ci.yml", gitlabTaskJob(files.has("next.config.ts") ? "goodfellow-next" : "goodfellow"));
+    const cli = files.has("next.config.ts") ? "goodfellow-next" : "goodfellow";
+    if (backend && backend.host !== "github") files.delete(GITHUB_TASK_WORKFLOW);
+    if (backend?.host === "gitlab" && host === "vercel") files.set(".gitlab-ci.yml", gitlabTaskJob(cli));
+    if (backend?.host === "bitbucket") {
+      files.set(BITBUCKET_PIPELINES, bitbucketPipelines(cli));
+      const readme = files.get("README.md");
+      if (readme !== undefined)
+        files.set("README.md", `${siteFileText(readme).trimEnd()}\n\n${bitbucketReadmeSection(cli)}`);
     }
   }
   return files;
@@ -411,7 +460,7 @@ export async function planSite({
 function separateContent(
   files: SiteFiles,
   name: string,
-  { repo, build, git, code, host }: SeparateContent & { git: Backend["host"]; code: string; host: Host },
+  { repo, build, git, code, host }: SeparateContent & { git: "github" | "gitlab"; code: string; host: Host },
 ): void {
   const setup = { git, host, build, code, content: repo, next: files.has("next.config.ts") };
   const vercel = files.get("vercel.ts");

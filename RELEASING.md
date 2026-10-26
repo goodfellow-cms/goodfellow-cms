@@ -49,7 +49,7 @@ A new published package goes in `.changeset/config.json`'s `fixed` group, so it 
 2. Give the new package a trusted publisher as in [Setting up](#setting-up-once), with `npm trust github <package> --file release.yml --repo goodfellow-cms/goodfellow-cms --allow-stage-publish --yes`, and add it to the list there.
 3. Run the **Release** workflow again from the Actions tab. npm now has every package, so it tags the release and deploys the docs.
 
-`@goodfellow-cms/mcp` was added this way in 0.2.0.
+`@goodfellow-cms/mcp` was added this way in 0.2.0, and `@goodfellow-cms/bitbucket` will be in its first release.
 
 ## The docs between releases
 
@@ -63,7 +63,7 @@ The docs site changes only with a release. To publish a fix to the docs sooner, 
    - **Trusted publishing**, with no secret: npm sets it up in each package's settings, so each package has to exist first. Make the first release from your computer (merge the version pull request as usual: the workflow will fail at publishing, then run `pnpm release:publish`). Then, shortly before the next release, give each of the 12 packages a trusted publisher that may only stage versions, with npm 11.15 or later:
 
      ```sh
-     for pkg in @goodfellow-cms/admin @goodfellow-cms/ai @goodfellow-cms/blocks @goodfellow-cms/core \
+     for pkg in @goodfellow-cms/admin @goodfellow-cms/ai @goodfellow-cms/bitbucket @goodfellow-cms/blocks @goodfellow-cms/core \
        @goodfellow-cms/github @goodfellow-cms/gitlab @goodfellow-cms/mcp @goodfellow-cms/next \
        @goodfellow-cms/react @goodfellow-cms/registry goodfellow create-goodfellow; do
        npm trust github "$pkg" --file release.yml --repo goodfellow-cms/goodfellow-cms --allow-stage-publish --yes

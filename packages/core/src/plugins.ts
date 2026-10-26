@@ -234,7 +234,7 @@ export interface PluginAdminApi {
  */
 export interface PluginSecretsHelp {
   /** Where they go: the development server's `.env.local`, a full-stack site's server, or GitHub's or GitLab's CI. */
-  where: "development" | "server" | "github" | "gitlab";
+  where: "development" | "server" | "github" | "gitlab" | "bitbucket";
   /** A heading for these steps, such as "On GitHub". */
   title: string;
   /** The page the secrets are added on, where there is one, and what to call the link. */

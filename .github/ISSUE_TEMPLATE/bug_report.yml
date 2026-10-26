@@ -36,7 +36,8 @@ body:
       options:
         - The admin panel
         - The site's pages or blocks
-        - Publishing, or signing in to GitHub or GitLab
+        - Publishing, or signing in to GitHub, GitLab or Bitbucket
+        - Sites on Bitbucket (Pipelines, schedules)
         - Sign in with GitHub (the sign-in service)
         - The admin address or the token broker
         - Building or putting the site online

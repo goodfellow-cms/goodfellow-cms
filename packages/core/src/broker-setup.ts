@@ -93,22 +93,31 @@ export function planBroker({ release, site, host, domain, name }: BrokerPlan): F
 
 /**
  * A new site's backend as its config makes it (`GitHost.source`), for its
- * broker's `broker.json`: `planSite()` writes `github({ repo })` or
- * `gitlab({ project })`.
+ * broker's `broker.json`: `planSite()` writes `github({ repo })`,
+ * `gitlab({ project })` or `bitbucket({ repo })`.
  */
 export function newSiteSource(
-  backend: { host: "github" | "gitlab"; repo: string },
+  backend: { host: "github" | "gitlab" | "bitbucket"; repo: string },
   /** For a site whose content is kept in a repository of its own: `backend` is then the content's. */
   separate?: { code: string },
 ): HostSource {
   const only = separate ? { contentOnly: true, code: separate.code } : {};
-  return backend.host === "github"
-    ? { package: "@goodfellow-cms/github", export: "github", options: { repo: backend.repo, ...only } }
-    : { package: "@goodfellow-cms/gitlab", export: "gitlab", options: { project: backend.repo, ...only } };
+  if (backend.host === "gitlab") {
+    return { package: "@goodfellow-cms/gitlab", export: "gitlab", options: { project: backend.repo, ...only } };
+  }
+  return {
+    package: `@goodfellow-cms/${backend.host}`,
+    export: backend.host,
+    options: { repo: backend.repo, ...only },
+  };
 }
 
-/** Where a broker for a site kept on this git host can go, the usual place first. */
-export function brokerHostsFor(git: "github" | "gitlab"): BrokerHost[] {
+/**
+ * Where a broker for a site kept on this git host can go, the usual place
+ * first. Bitbucket's sites, brokers included, are put online by Vercel.
+ */
+export function brokerHostsFor(git: "github" | "gitlab" | "bitbucket"): BrokerHost[] {
+  if (git === "bitbucket") return ["vercel"];
   return git === "github"
     ? ["github-pages", "cloudflare-pages", "vercel"]
     : ["gitlab-pages", "cloudflare-pages", "vercel"];

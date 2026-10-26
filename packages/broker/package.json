@@ -33,6 +33,7 @@
   "devDependencies": {
     "@goodfellow-cms/ai": "workspace:*",
     "@goodfellow-cms/core": "workspace:*",
+    "@goodfellow-cms/bitbucket": "workspace:*",
     "@goodfellow-cms/github": "workspace:*",
     "@goodfellow-cms/gitlab": "workspace:*",
     "happy-dom": "21.0.4",

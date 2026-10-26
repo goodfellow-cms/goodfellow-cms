@@ -29,7 +29,7 @@ export const TASK_INPUT_LIMIT = 32_000;
 export const TASK_OUTPUT_LIMIT = 512_000;
 /** Request ids: what the admin panel makes, which name branches and runs. */
 const REQUEST_ID = /^[a-z0-9]{8,40}$/;
-/** Where GitHub leaves a task's answer, on a branch of its own the admin panel deletes once read. */
+/** Where GitHub and Bitbucket leave a task's answer, on a branch of its own the admin panel deletes once read. */
 export const TASK_BRANCH_PREFIX = "goodfellow-task-";
 /** The file a task's answer is in, on that branch or as a GitLab job's artifact. */
 export const TASK_RESULT_FILE = "goodfellow-task-result.json";
@@ -171,13 +171,15 @@ export async function openTaskAnswer(text: string, privateKey: TaskPrivateKey): 
 /**
  * Where the secrets plugins' tasks get are kept, as the backend knows it, for
  * the admin panel to say how to add them: the page of a GitHub repository's
- * Actions secrets or a GitLab project's CI/CD variables, the development
+ * Actions secrets, a GitLab project's CI/CD variables or a Bitbucket
+ * repository's Pipelines variables, the development
  * server's `.env.local`, or a full-stack site's server, whose own tasks run in
  * the CI it names.
  */
 export type TaskSecretsPlace =
   | { kind: "github"; url: string }
   | { kind: "gitlab"; url: string }
+  | { kind: "bitbucket"; url: string }
   | { kind: "goodfellow-dev" | "next-dev" }
   | { kind: "server"; ci?: TaskSecretsPlace };
 

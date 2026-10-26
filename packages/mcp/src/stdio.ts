@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { bitbucket } from "@goodfellow-cms/bitbucket";
 /**
  * Goodfellow's tools on the editor's computer, for Claude Desktop (as an
  * extension) and Claude Code (`claude mcp add`). It signs in with a token,
@@ -7,7 +8,8 @@
  *   GOODFELLOW_SITE=github:owner/site GOODFELLOW_TOKEN=… npx @goodfellow-cms/mcp
  *
  * GitLab sites are `gitlab:group/site`, with `GITLAB_URL` for self-managed
- * GitLab. `GOODFELLOW_BROWSER` points screenshots at a browser other than
+ * GitLab, and Bitbucket sites `bitbucket:workspace/site`, with an access token
+ * or an API token after its account's email address (`email:token`). `GOODFELLOW_BROWSER` points screenshots at a browser other than
  * Chrome or Edge.
  */
 import type { GitBackend, StorageLike } from "@goodfellow-cms/core";
@@ -35,16 +37,23 @@ function fail(message: string): never {
 
 const siteId = process.env.GOODFELLOW_SITE?.trim() || process.argv[2];
 const token = process.env.GOODFELLOW_TOKEN?.trim();
-if (!siteId) fail("Set GOODFELLOW_SITE to the site's repository, such as github:owner/site or gitlab:group/site.");
+if (!siteId) {
+  fail(
+    "Set GOODFELLOW_SITE to the site's repository, such as github:owner/site, gitlab:group/site or bitbucket:workspace/site.",
+  );
+}
 const site = parseSiteId(siteId);
-if (!site) fail(`${siteId} isn't a site. Write it as github:owner/site or gitlab:group/site.`);
-if (!token) fail("Set GOODFELLOW_TOKEN to a GitHub or GitLab token that can edit the site.");
+if (!site)
+  fail(`${siteId} isn't a site. Write it as github:owner/site, gitlab:group/site or bitbucket:workspace/site.`);
+if (!token) fail("Set GOODFELLOW_TOKEN to a GitHub, GitLab or Bitbucket token that can edit the site.");
 
 const storage = { local: memoryStorage(), session: memoryStorage() };
 const host =
   site.host === "github"
     ? github({ repo: site.repo, signIn: false, storage })
-    : gitlab({ project: site.repo, ...(process.env.GITLAB_URL && { url: process.env.GITLAB_URL }), storage });
+    : site.host === "bitbucket"
+      ? bitbucket({ repo: site.repo, storage })
+      : gitlab({ project: site.repo, ...(process.env.GITLAB_URL && { url: process.env.GITLAB_URL }), storage });
 
 let signedIn: Promise<GitBackend> | undefined;
 const server = createGoodfellowServer({

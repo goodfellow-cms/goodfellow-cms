@@ -3,6 +3,7 @@ import { builtSites, starterFiles } from "../scripts/site.mjs";
 
 export const GITHUB_SITE = `http://localhost:${builtSites.github.port}`;
 export const GITLAB_SITE = `http://localhost:${builtSites.gitlab.port}`;
+export const BITBUCKET_SITE = `http://localhost:${builtSites.bitbucket.port}`;
 export const files = starterFiles as () => Record<string, string>;
 
 const CORS = {

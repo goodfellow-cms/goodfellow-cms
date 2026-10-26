@@ -13,15 +13,16 @@ export type { ConnectorContext, Screenshotter } from "./site.js";
 export { INSTRUCTIONS } from "./tools.js";
 
 /** A site's id for the tools: its host, then its repository, such as `github:parish/site`. */
-export type SiteId = `github:${string}` | `gitlab:${string}`;
+export type SiteId = `github:${string}` | `gitlab:${string}` | `bitbucket:${string}`;
 
 /** Splits a site's id into its host and repository, or `undefined` if it isn't one. */
-export function parseSiteId(id: string): { host: "github" | "gitlab"; repo: string } | undefined {
-  const match = /^(github|gitlab):([\w.-]+(?:\/[\w.-]+)+)$/.exec(id.trim());
+export function parseSiteId(id: string): { host: "github" | "gitlab" | "bitbucket"; repo: string } | undefined {
+  const match = /^(github|gitlab|bitbucket):([\w.-]+(?:\/[\w.-]+)+)$/.exec(id.trim());
   if (!match) return undefined;
   const [, host, repo] = match;
-  if (host === "github" && repo?.split("/").length !== 2) return undefined;
-  return { host: host as "github" | "gitlab", repo: repo ?? "" };
+  // GitHub's and Bitbucket's repositories are always an owner, then a name; GitLab's groups can nest.
+  if (host !== "gitlab" && repo?.split("/").length !== 2) return undefined;
+  return { host: host as "github" | "gitlab" | "bitbucket", repo: repo ?? "" };
 }
 
 /** An MCP server with Goodfellow's tools. Connect it to a transport. */

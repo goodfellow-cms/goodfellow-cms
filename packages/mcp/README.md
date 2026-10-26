@@ -2,7 +2,7 @@
 
 Work on a [Goodfellow](https://goodfellow-cms.github.io/goodfellow-cms/) site from Claude. An [MCP](https://modelcontextprotocol.io) server with Goodfellow's tools: Claude reads a site's pages, items and settings, sees what blocks it has, makes changes in a draft, takes screenshots, and publishes the draft or submits it for review.
 
-See [Work with Claude](https://goodfellow-cms.github.io/goodfellow-cms/docs/claude) for setting it up. This package runs the tools on your own computer, signed in with a GitHub or GitLab token that stays there.
+See [Work with Claude](https://goodfellow-cms.github.io/goodfellow-cms/docs/claude) for setting it up. This package runs the tools on your own computer, signed in with a GitHub, GitLab or Bitbucket token that stays there.
 
 ## Claude Code
 

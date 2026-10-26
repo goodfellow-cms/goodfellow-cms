@@ -10,6 +10,7 @@ await startBroker({
   root,
   config,
   hosts: {
+    "@goodfellow-cms/bitbucket": () => import("@goodfellow-cms/bitbucket"),
     "@goodfellow-cms/github": () => import("@goodfellow-cms/github"),
     "@goodfellow-cms/gitlab": () => import("@goodfellow-cms/gitlab"),
   },

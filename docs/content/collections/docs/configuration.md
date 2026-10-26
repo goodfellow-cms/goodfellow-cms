@@ -64,6 +64,18 @@ gitlab({ project: "group/site", clientId: "…" })
 - `contentOnly` and `code`: as for GitHub, with the code project's path.
 - `url`: for self-managed GitLab. Defaults to `https://gitlab.com`.
 
+## Bitbucket
+
+```tsx
+bitbucket({ repo: "workspace/site", clientId: "…" })
+```
+
+- `repo`: the repository, as `workspace/name`.
+- `clientId`: the Key of the workspace's OAuth consumer, for one-click **Sign in with Bitbucket**. Without it, editors sign in with a token.
+- `branch`: the branch the live site is built from.
+
+Bitbucket Cloud only; content kept in a repository of its own isn't offered on Bitbucket yet.
+
 ## AI services
 
 `ai.providers` takes these ids: `anthropic`, `openai`, `gemini`, `groq`, `mistral`, `openrouter`, `ovhcloud`, `custom` (any OpenAI-compatible service) and `manual` (copying the request into a chat app).

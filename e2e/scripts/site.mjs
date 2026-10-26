@@ -143,6 +143,11 @@ export const builtSites = {
     importLine: 'import { gitlab } from "@goodfellow-cms/gitlab";',
     backend: 'gitlab({ project: "parish/site", clientId: "test-client" })',
   },
+  bitbucket: {
+    port: 4414,
+    importLine: 'import { bitbucket } from "@goodfellow-cms/bitbucket";',
+    backend: 'bitbucket({ repo: "parish/site", clientId: "test-consumer" })',
+  },
   // A demo, which anyone can try without signing in.
   demo: { port: 4405, demo: true },
   // Its content in a repository of its own, in content-repository/, which content/ and public/media/ link to.

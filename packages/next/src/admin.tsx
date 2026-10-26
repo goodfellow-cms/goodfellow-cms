@@ -108,6 +108,7 @@ function useEditorRebuilds() {
  * dependencies are.
  */
 const HOSTS: Record<string, () => Promise<Record<string, unknown>>> = {
+  "@goodfellow-cms/bitbucket": () => import("@goodfellow-cms/bitbucket"),
   "@goodfellow-cms/github": () => import("@goodfellow-cms/github"),
   "@goodfellow-cms/gitlab": () => import("@goodfellow-cms/gitlab"),
 };
