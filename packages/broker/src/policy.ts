@@ -2,9 +2,14 @@ import {
   type BrokerConfirmKind,
   brokerChangeCheck,
   type FileChange,
+  type GitBackend,
   INSTALLED_PLUGINS_FILE,
   type InstalledPlugin,
+  limitsContent,
+  limitsFor,
+  outsideLimits,
   parseInstalledPlugins,
+  readPermissions,
 } from "@goodfellow-cms/core";
 
 /** A plugin a publish installs or updates, as its new record says, for the broker's dialog. */
@@ -26,7 +31,7 @@ export type BrokerQuestion =
 export type BrokerDecision =
   | { action: "allow" }
   | { action: "ask"; questions: BrokerQuestion[] }
-  | { action: "refuse"; paths: string[] };
+  | { action: "refuse"; paths: string[]; reason: "workflow" | "limits" };
 
 /** Calls that publish a set of changes, by their path in the backend. */
 const WRITES = new Set(["write", "draft.store.write"]);
@@ -61,7 +66,7 @@ async function questionsFor(
   read?: (path: string) => Promise<string | undefined>,
 ): Promise<BrokerDecision> {
   const check = brokerChangeCheck(changes, siteUrl);
-  if (check.refused.length > 0) return { action: "refuse", paths: check.refused };
+  if (check.refused.length > 0) return { action: "refuse", paths: check.refused, reason: "workflow" };
   const kinds = new Map<BrokerConfirmKind, string[]>();
   for (const { path, kind } of check.confirm) kinds.set(kind, [...(kinds.get(kind) ?? []), path]);
   const plugins = await pluginQuestion(changes, read);
@@ -70,6 +75,25 @@ async function questionsFor(
     ...[...kinds].map(([kind, paths]) => ({ kind, paths })),
   ];
   return questions.length > 0 ? { action: "ask", questions } : { action: "allow" };
+}
+
+/**
+ * Changes outside what an owner lets the signed-in person change
+ * (`content/permissions.json`), refused here as the admin panel would: a page
+ * of the site that reached the admin panel still can't publish them. Changes
+ * kept in a draft aren't live, so only publishing is checked.
+ */
+async function outsideTheirLimits(
+  backend: GitBackend | undefined,
+  changes: readonly FileChange[],
+): Promise<BrokerDecision | undefined> {
+  if (!backend) return undefined;
+  const limits = limitsFor(await readPermissions(backend), backend.user.login);
+  if (!limits) return undefined;
+  const outside = outsideLimits(await limitsContent(backend, changes), limits, changes);
+  return outside.length > 0
+    ? { action: "refuse", paths: outside.map((problem) => problem.path), reason: "limits" }
+    : undefined;
 }
 
 /** The target's `read`, where it has one: the backend, or a draft's store, as it is before the write. */
@@ -87,17 +111,26 @@ function who(editor: unknown): string {
 /**
  * Decides what the broker does with a call the admin panel asked for, by its
  * path in the backend (`serveBackend()`'s `check`). `changes` gives a draft's
- * changes, for `draft.publish`, which publishes them all at once.
+ * changes, for `draft.publish`, which publishes them all at once; `backend`,
+ * the signed-in person's, reads their limits.
  */
 export async function decide(
   call: { path: string; args: unknown[]; target: unknown },
   siteUrl: string | undefined,
+  backend?: GitBackend,
 ): Promise<BrokerDecision> {
   const { path, args, target } = call;
-  if (WRITES.has(path)) return questionsFor((args[0] ?? []) as FileChange[], siteUrl, readerOf(target));
+  if (WRITES.has(path)) {
+    const changes = (args[0] ?? []) as FileChange[];
+    if (path === "write") {
+      const refused = await outsideTheirLimits(backend, changes);
+      if (refused) return refused;
+    }
+    return questionsFor(changes, siteUrl, readerOf(target));
+  }
   if (path === "draft.publish") {
     const changes = await (target as { changes(): Promise<FileChange[]> }).changes();
-    return questionsFor(changes, siteUrl);
+    return (await outsideTheirLimits(backend, changes)) ?? questionsFor(changes, siteUrl);
   }
   if (path === "updates.start") return { action: "ask", questions: [{ kind: "update", release: String(args[0]) }] };
   if (path === "editors.invite" || path === "editors.setRole") {

@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { type ContentSource, loadSiteContent } from "./load.js";
 import {
   type EditorLimits,
+  limitsContent,
   limitsFor,
   mayChangeLayout,
   mayChangePage,
   outsideLimits,
   permissionsFileChange,
+  readPermissions,
   reviewersFor,
 } from "./permissions.js";
 import { serializeContent } from "./serialize.js";
@@ -29,30 +31,29 @@ const page = (title: string, extra: Record<string, unknown> = {}) => ({
 
 const menus = { version: 1, menus: { main: [{ label: "Home", href: "/" }] }, languages: { es: { main: [] } } };
 
-const site = () =>
-  loadSiteContent(
-    memorySource({
-      "content/site.json": { version: 1, title: "Parish", language: "en", languages: [{ code: "es" }] },
-      "content/pages/index.json": page("Home"),
-      "content/pages/news.json": page("News"),
-      "content/pages/news/2026.json": page("2026"),
-      "content/pages/about.json": page("About"),
-      "content/pages/es/noticias.json": page("Noticias", { translationOf: "/news" }),
-      "content/menus.json": menus,
-      "content/collections/events/_collection.json": {
-        version: 1,
-        name: "Events",
-        entryName: "Event",
-        fields: [{ name: "title", label: "Title", type: "text" }],
-      },
-      "content/collections/events/picnic.json": { version: 1, fields: { title: "Picnic" } },
-      "content/collections/events/picnic-es.json": { version: 1, inLanguage: "es", fields: { title: "Picnic" } },
-      "content/permissions.json": {
-        version: 1,
-        people: { Maria: { pages: ["/news"], collections: ["events"], menus: true, languages: ["en"] } },
-      },
-    }),
-  );
+const FILES = {
+  "content/site.json": { version: 1, title: "Parish", language: "en", languages: [{ code: "es" }] },
+  "content/pages/index.json": page("Home"),
+  "content/pages/news.json": page("News"),
+  "content/pages/news/2026.json": page("2026"),
+  "content/pages/about.json": page("About"),
+  "content/pages/es/noticias.json": page("Noticias", { translationOf: "/news" }),
+  "content/menus.json": menus,
+  "content/collections/events/_collection.json": {
+    version: 1,
+    name: "Events",
+    entryName: "Event",
+    fields: [{ name: "title", label: "Title", type: "text" }],
+  },
+  "content/collections/events/picnic.json": { version: 1, fields: { title: "Picnic" } },
+  "content/collections/events/picnic-es.json": { version: 1, inLanguage: "es", fields: { title: "Picnic" } },
+  "content/permissions.json": {
+    version: 1,
+    people: { Maria: { pages: ["/news"], collections: ["events"], menus: true, languages: ["en"] } },
+  },
+};
+
+const site = () => loadSiteContent(memorySource(FILES));
 
 const write = (path: string, value: unknown) => ({ path, content: serializeContent(value) });
 
@@ -141,6 +142,38 @@ describe("editors' permissions", () => {
     expect(
       outsideLimits(content, { pages: ["/"] } as EditorLimits, [write("content/menus.json", english)]),
     ).toHaveLength(1);
+  });
+
+  it("are checked the same from only the files changes touch", async () => {
+    const content = await site();
+    const source = memorySource(FILES);
+    const maria = limitsFor(await readPermissions(source), "Maria");
+    expect(maria).toEqual(limitsFor(content.permissions, "Maria"));
+    const changes = [
+      write("content/pages/news.json", page("News!")),
+      { path: "content/pages/news/2026.json", delete: true as const },
+      write("content/pages/past.json", page("2026")),
+      write("content/pages/es/noticias.json", page("Noticias!", { translationOf: "/news" })),
+      write("content/pages/about.json", page("About us")),
+      write("content/collections/events/picnic.json", { version: 1, inLanguage: "es", fields: { title: "Picnic" } }),
+      write("content/collections/events/picnic-es.json", { version: 1, inLanguage: "es", fields: { title: "x" } }),
+      write("content/menus.json", { ...menus, languages: { es: { main: [{ label: "Inicio", href: "/es" }] } } }),
+      write("content/layout/header.json", { version: 1, data: { root: {}, content: [] } }),
+      write("content/site.json", { version: 1, title: "Parish!" }),
+    ];
+    const read: string[] = [];
+    const counting: ContentSource = {
+      ...source,
+      read: (path) => {
+        read.push(path);
+        return source.read(path);
+      },
+    };
+    expect(outsideLimits(await limitsContent(counting, changes), maria, changes)).toEqual(
+      outsideLimits(content, maria, changes),
+    );
+    expect(read).not.toContain("content/pages/index.json");
+    expect(await readPermissions(memorySource({}))).toBeUndefined();
   });
 
   it("leave people without limits to change everything their role allows", async () => {

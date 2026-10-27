@@ -17,7 +17,13 @@ const FILES = {
 function fakeServerGit(repo: FakeRepo) {
   const authors = new Map<string, CommitAuthor>();
   const opened: string[] = [];
-  const reviews: { from?: string; changes: FileChange[]; title: string; author?: string }[] = [];
+  const reviews: {
+    from?: string;
+    changes: FileChange[];
+    title: string;
+    author?: string;
+    reviewers?: readonly string[];
+  }[] = [];
   const taskRuns: { request: PluginTaskRequest; author?: string }[] = [];
   const backend = (revision: string, author?: CommitAuthor): GitBackend => {
     const text = (path: string) => {
@@ -86,8 +92,13 @@ function fakeServerGit(repo: FakeRepo) {
             changes: async () => review.changes,
             paths: async () => review.changes.map((change) => change.path),
             publish: async () => ({ revision: "" }),
-            async submitForReview({ title }) {
-              reviews.push({ ...review, title, ...(author && { author: author.name }) });
+            async submitForReview({ title, reviewers }) {
+              reviews.push({
+                ...review,
+                title,
+                ...(author && { author: author.name }),
+                ...(reviewers && { reviewers }),
+              });
               return { url: "https://github.example/parish/site/pull/1" };
             },
             discard: async () => {},
@@ -323,7 +334,10 @@ describe("appApi", () => {
     expect(await direct.json()).toEqual({ error: "review-only" });
     const read = await call("version", { query: { path: "package.json", revision } });
     expect(await read.json()).toEqual({ content: '{"name":"secret"}' });
-    const outside = await post("review", { ...install, changes: [{ path: "content/site.json", content: "{}" }] });
+    const outside = await post("review", {
+      ...install,
+      changes: [...install.changes, { path: "goodfellow.config.tsx.bak", content: "" }],
+    });
     expect(outside.status).toBe(400);
     const answer = await post("review", install);
     expect(await answer.json()).toEqual({ url: "https://github.example/parish/site/pull/1" });
@@ -333,6 +347,50 @@ describe("appApi", () => {
         changes: install.changes,
         title: "Install the Guestbook plugin",
         author: "Owen Owner",
+      },
+    ]);
+  });
+
+  it("holds editors to their limits, and sends what's outside them to the site's reviewers", async () => {
+    const { repo, call, post, reviews } = setup();
+    repo.commit(
+      [
+        { path: "content/pages/about.json", content: '{"version":1,"data":{"root":{"props":{}},"content":[]}}' },
+        {
+          path: "content/permissions.json",
+          content: JSON.stringify({ version: 1, people: { Alice: { pages: ["/about"] } }, reviewers: ["owen"] }),
+        },
+      ],
+      "Limits",
+    );
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const page = (path: string) => ({
+      path,
+      content: '{"version":1,"data":{"root":{"props":{"title":"New"}},"content":[]}}',
+    });
+    const home = await post("write", {
+      changes: [page("content/pages/index.json")],
+      message: "Home",
+      expectedRevision: revision,
+    });
+    expect(home.status).toBe(403);
+    expect(await home.json()).toEqual({ error: "outside-limits", paths: ["content/pages/index.json"] });
+    const about = await post("write", {
+      changes: [page("content/pages/about.json")],
+      message: "About",
+      expectedRevision: revision,
+    });
+    expect(about.status).toBe(200);
+
+    const review = await post("review", { changes: [page("content/pages/index.json")], title: "Home", from: revision });
+    expect(review.status).toBe(200);
+    expect(reviews).toEqual([
+      {
+        from: revision,
+        changes: [page("content/pages/index.json")],
+        title: "Home",
+        author: "Alice Editor",
+        reviewers: ["owen"],
       },
     ]);
   });

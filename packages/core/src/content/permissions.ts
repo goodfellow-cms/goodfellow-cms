@@ -14,7 +14,14 @@
 import { z } from "zod";
 import type { Collection, Entry } from "./collections.js";
 import { entryLanguage, mainLanguage, pathLanguage } from "./languages.js";
-import { parseEntryFile, type SiteContent } from "./load.js";
+import {
+  type ContentSource,
+  type Page,
+  parseContentFile,
+  parseEntryFile,
+  readTextFiles,
+  type SiteContent,
+} from "./load.js";
 import {
   COLLECTION_SETTINGS_FILE,
   COLLECTIONS_DIR,
@@ -27,8 +34,9 @@ import {
   PAGES_DIR,
   PERMISSIONS_FILE,
   pageFileToPath,
+  SITE_FILE,
 } from "./paths.js";
-import { menusFileSchema } from "./schemas.js";
+import { collectionFileSchema, menusFileSchema, pageFileSchema, siteSettingsSchema } from "./schemas.js";
 import { serializeContent } from "./serialize.js";
 import type { FileChange } from "./store.js";
 
@@ -143,6 +151,9 @@ export function mayChangeMenus(
   return limits.menus === true && inLanguages(limits, language ?? mainLanguage(content.settings));
 }
 
+/** What checking changes against someone's limits reads of the site: the whole site, or `limitsContent()`'s part of it. */
+export type LimitsContent = Pick<SiteContent, "settings" | "pages" | "collections" | "menus" | "languageMenus">;
+
 /** What a change outside someone's limits touches, for saying so in words. */
 export type LimitProblem =
   | { path: string; kind: "page"; address: string }
@@ -173,7 +184,7 @@ function layoutFileLanguage(content: Pick<SiteContent, "settings">, path: string
 }
 
 /** The languages whose menus a new `content/menus.json` changes, or `undefined` where it can't be read. */
-function changedMenuLanguages(content: SiteContent, text: string | undefined): string[] | undefined {
+function changedMenuLanguages(content: LimitsContent, text: string | undefined): string[] | undefined {
   const parsed = menusFileSchema.safeParse(parsedJson(text));
   if (!parsed.success) return undefined;
   const file = parsed.data;
@@ -219,7 +230,7 @@ function changedEntry(
  * address is outside as a whole, rather than half done.
  */
 export function outsideLimits(
-  content: SiteContent,
+  content: LimitsContent,
   limits: EditorLimits | undefined,
   changes: readonly FileChange[],
 ): LimitProblem[] {
@@ -277,6 +288,76 @@ export function outsideLimits(
     problems.push({ path, kind: "other" });
   }
   return problems;
+}
+
+/** The site's permissions, read from its one file, or `undefined` where it has none. A file that can't be read limits nobody, as loading the site refuses it. */
+export async function readPermissions(source: ContentSource): Promise<Permissions | undefined> {
+  const text = await source.read(PERMISSIONS_FILE);
+  if (text === undefined) return undefined;
+  const parsed = parseContentFile("permissions", permissionsFileSchema, PERMISSIONS_FILE, text);
+  if (!parsed.ok) return undefined;
+  const { people, reviewers } = parsed.value;
+  return { people, ...(reviewers && { reviewers }) };
+}
+
+/**
+ * The part of the site `outsideLimits()` reads for `changes`: its settings,
+ * the pages and items they change as they are now, those items' collections'
+ * settings and the menus, read in one go where the source can, so checking a
+ * few changes never reads the whole site.
+ */
+export async function limitsContent(source: ContentSource, changes: readonly FileChange[]): Promise<LimitsContent> {
+  const items = new Map<string, Set<string>>();
+  for (const { path } of changes) {
+    const item = entryOf(path);
+    if (item) items.set(item.collection, (items.get(item.collection) ?? new Set()).add(path));
+  }
+  const settingsFiles = [...items.keys()].map((id) => `${COLLECTIONS_DIR}/${id}/${COLLECTION_SETTINGS_FILE}`);
+  const pageFiles = changes
+    .map((change) => change.path)
+    .filter((path) => path.startsWith(`${PAGES_DIR}/`) && path.endsWith(".json"));
+  const texts = await readTextFiles(source, [
+    SITE_FILE,
+    ...(changes.some((change) => change.path === MENUS_FILE) ? [MENUS_FILE] : []),
+    ...pageFiles,
+    ...settingsFiles,
+    ...[...items.values()].flatMap((paths) => [...paths]),
+  ]);
+  const read = <T>(result: { ok: true; value: T } | { ok: false }): T | undefined =>
+    result.ok ? result.value : undefined;
+  const siteText = texts.get(SITE_FILE);
+  const settings =
+    (siteText !== undefined && read(parseContentFile("site", siteSettingsSchema, SITE_FILE, siteText))) ||
+    siteSettingsSchema.parse({ version: 1 });
+  const pages = pageFiles.flatMap((file): Page[] => {
+    const text = texts.get(file);
+    const content = text === undefined ? undefined : read(parseContentFile("page", pageFileSchema, file, text));
+    return content ? [{ path: pageFileToPath(file), file, content }] : [];
+  });
+  const collections = [...items].flatMap(([id, paths]): Collection[] => {
+    const file = `${COLLECTIONS_DIR}/${id}/${COLLECTION_SETTINGS_FILE}`;
+    const text = texts.get(file);
+    const collection =
+      text === undefined ? undefined : read(parseContentFile("collection", collectionFileSchema, file, text));
+    if (!collection) return [];
+    const entries = [...paths].flatMap((path): Entry[] => {
+      const entry = texts.get(path);
+      const content = entry === undefined ? undefined : read(parseEntryFile(collection, path, entry));
+      const slug = entryOf(path)?.slug;
+      return content && slug ? [{ collection: id, slug, file: path, content }] : [];
+    });
+    return [{ id, file, settings: collection, entries }];
+  });
+  const menusText = texts.get(MENUS_FILE);
+  const menus =
+    menusText === undefined ? undefined : read(parseContentFile("menus", menusFileSchema, MENUS_FILE, menusText));
+  return {
+    settings,
+    pages,
+    collections,
+    menus: menus?.menus ?? {},
+    ...(menus?.languages && { languageMenus: menus.languages }),
+  };
 }
 
 /** Who reviews changes made outside someone's limits: those the file names, else every owner. */

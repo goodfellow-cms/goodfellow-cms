@@ -1,3 +1,4 @@
+import type { GitBackend } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
 import { decide } from "./policy.js";
 
@@ -65,6 +66,36 @@ describe("what the broker asks before making a call", () => {
     expect(await decide({ path: "write", args: [changes], target: {} }, SITE)).toEqual({
       action: "refuse",
       paths: [".github/workflows/deploy.yml"],
+      reason: "workflow",
+    });
+  });
+
+  it("refuses publishing what's outside the signed-in person's limits, but not keeping it in a draft", async () => {
+    const files: Record<string, string> = {
+      "content/site.json": '{"version":1,"title":"Parish"}',
+      "content/permissions.json": '{"version":1,"people":{"maria":{"pages":["/news"]}}}',
+      "content/pages/about.json": '{"version":1,"data":{"root":{"props":{}},"content":[]}}',
+    };
+    const backend = {
+      user: { login: "Maria" },
+      read: async (path: string) => files[path],
+      list: async () => [],
+    } as unknown as GitBackend;
+    const about = [{ path: "content/pages/about.json", content: '{"version":1,"data":{"root":{},"content":[]}}' }];
+    const news = [{ path: "content/pages/news.json", content: '{"version":1,"data":{"root":{},"content":[]}}' }];
+    expect(await decide({ path: "write", args: [about], target: backend }, SITE, backend)).toEqual({
+      action: "refuse",
+      paths: ["content/pages/about.json"],
+      reason: "limits",
+    });
+    expect(await decide({ path: "write", args: [news], target: backend }, SITE, backend)).toEqual({ action: "allow" });
+    expect(await decide({ path: "draft.store.write", args: [about], target: {} }, SITE, backend)).toEqual({
+      action: "allow",
+    });
+    const draft = { changes: async () => about };
+    expect(await decide({ path: "draft.publish", args: ["Publish all"], target: draft }, SITE, backend)).toMatchObject({
+      action: "refuse",
+      reason: "limits",
     });
   });
 

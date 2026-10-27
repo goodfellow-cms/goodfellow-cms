@@ -403,6 +403,8 @@ export {
   type EditorLimits,
   editorLimitsSchema,
   type LimitProblem,
+  type LimitsContent,
+  limitsContent,
   limitsFor,
   mayChangeCollection,
   mayChangeEntry,
@@ -415,6 +417,7 @@ export {
   type PermissionsFile,
   permissionsFileChange,
   permissionsFileSchema,
+  readPermissions,
   reviewersFor,
 } from "./content/permissions.js";
 export {

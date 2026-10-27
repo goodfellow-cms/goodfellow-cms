@@ -184,7 +184,7 @@ export function brokerChangeCheck(changes: readonly FileChange[], siteUrl: strin
 export class BrokerRefusedError extends Error {
   override name = "BrokerRefusedError";
   constructor(
-    readonly problem: "workflow" | "declined" | "not-here",
+    readonly problem: "workflow" | "declined" | "not-here" | "limits",
     message: string,
   ) {
     super(message);

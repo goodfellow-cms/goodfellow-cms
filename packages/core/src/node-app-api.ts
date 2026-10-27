@@ -12,10 +12,15 @@ import {
   isContentPath,
   isEditablePath,
   isSettingsPath,
+  limitsContent,
+  limitsFor,
   newDraftName,
+  outsideLimits,
   PluginTaskError,
   type PluginTaskRequest,
   pluginId,
+  readPermissions,
+  reviewersFor,
   type ServerGit,
   SignInError,
   taskRequestProblem,
@@ -114,6 +119,13 @@ function reviewPath(value: unknown): string {
   if (typeof value !== "string" || !isPluginInstallPath(value))
     throw new BadRequest("That file can't be changed here.");
   return value;
+}
+
+/** The files of `changes` outside what `login` may change, or none where they have no limits. */
+async function outsideLimitsAt(backend: GitBackend, login: string, changes: FileChange[]): Promise<string[]> {
+  const limits = limitsFor(await readPermissions(backend), login);
+  if (!limits) return [];
+  return outsideLimits(await limitsContent(backend, changes), limits, changes).map((problem) => problem.path);
 }
 
 /** A change as sent over JSON, where an upload's bytes are base64. */
@@ -245,26 +257,41 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       // Plugins are only ever added through a review, below.
       if (changes.some((change) => isInstalledPluginsPath(change.path))) return json(403, { error: "review-only" });
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
+      // An owner's limits for this person, held here too, since the browser can't be trusted to keep to them.
+      const outside = await outsideLimitsAt(backend, editor.login, changes);
+      if (outside.length > 0) return json(403, { error: "outside-limits", paths: outside });
       return json(200, await backend.write(changes, { message, expectedRevision }));
     }
     if (post && endpoint === "review") {
-      // Installing, updating or removing a plugin: a draft with the changes, submitted for a developer to accept.
-      if (editor.role !== "owner") return json(403, { error: "owners-only" });
-      if (options.git.contentOnly) throw new BadRequest("The site's code is kept in a repository of its own.");
+      // A draft with the changes, submitted for review: installing, updating or removing a plugin, for a developer to
+      // accept, or changes outside someone's limits, for the site's reviewers.
       const body = await readBody(request);
       const { title, description } = body;
       const from = revisionParam(body.from);
       if (!Array.isArray(body.changes) || body.changes.length === 0 || typeof title !== "string" || !title.trim()) {
         throw new BadRequest("That isn't a change to review.");
       }
-      const changes = body.changes.map((change) => toFileChange(change, reviewPath));
+      const plugins = body.changes.some((change) => {
+        const path = (change as { path?: unknown } | null)?.path;
+        return typeof path === "string" && (!isEditablePath(path) || isInstalledPluginsPath(path));
+      });
+      if (plugins && editor.role !== "owner") return json(403, { error: "owners-only" });
+      const changes = body.changes.map((change) => toFileChange(change, plugins ? reviewPath : editablePath));
+      if (options.git.contentOnly && changes.some((change) => !isContentPath(change.path))) {
+        throw new BadRequest("The site's code is kept in a repository of its own.");
+      }
       const backend = await options.git.at(from, { name: editor.name, email: editor.email });
       if (!backend.drafts) throw new BadRequest("This site's repository can't take changes for review.");
+      const reviewers = plugins ? [] : reviewersFor(await readPermissions(backend), []);
       const draft = await backend.drafts.create(newDraftName(), { from });
       await draft.store.write(changes, { message: title, expectedRevision: await draft.store.revision() });
       return json(
         200,
-        await draft.submitForReview({ title, ...(typeof description === "string" && description && { description }) }),
+        await draft.submitForReview({
+          title,
+          ...(typeof description === "string" && description && { description }),
+          ...(reviewers.length > 0 && { reviewers }),
+        }),
       );
     }
     if (get && endpoint === "task") {
