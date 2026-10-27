@@ -748,6 +748,8 @@ export const defaultStrings = {
 
   "domain.intro": "Connect a domain you own, such as example.org, so the site is at that address.",
   "domain.current": "The site is at {address} now.",
+  "domain.copy":
+    "This admin panel is a copy of the site's, such as a staging site, at {address}. That address is set where the copy is built, so the domain this screen connects is the main site's.",
   "domain.connected": "Connected to {domain}.",
   "domain.signIn":
     "Editors sign in by going to {host} and coming back here. Add {address} to the redirect URIs of the application they sign in with on {host}, or signing in will stop working once the site moves.",

@@ -43,4 +43,8 @@ describe("getPageHead", () => {
   it("keeps the 404 page out of search results", () => {
     expect(getPageHead(settings, page("/404", {})).noIndex).toBe(true);
   });
+
+  it("keeps every page out of search results on a copy of the site that asks", () => {
+    expect(getPageHead({ ...settings, noIndex: true }, page("/about", {})).noIndex).toBe(true);
+  });
 });

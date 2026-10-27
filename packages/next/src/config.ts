@@ -21,9 +21,9 @@ import {
 import {
   BUILD_DATES_DIR,
   BUILD_DATES_ENV,
+  builtSiteSource,
   contentRepositoryProblem,
   DEV_API_PREFIX,
-  fileSystemSource,
   handleDevApi,
   isLocalOrigin,
   localFileStore,
@@ -148,7 +148,7 @@ function redirectSource(path: string): string {
  * Content with a problem gives none, and the build reports the problem.
  */
 async function siteRedirects(root: string): Promise<Redirects> {
-  const content = await loadSiteContent(fileSystemSource(root)).then(shownContent, () => undefined);
+  const content = await loadSiteContent(builtSiteSource(root)).then(shownContent, () => undefined);
   if (!content?.redirects) return [];
   const taken = new Set(allPages(content).map((page) => page.path));
   const problems = redirectProblems(content.redirects);

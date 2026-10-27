@@ -90,6 +90,24 @@ describe("signing in", () => {
     });
   });
 
+  it("gives tokens to the site's other copies too, such as staging, which its build names", async () => {
+    const staging = "https://staging.parish.example";
+    const { call } = setup({
+      copies: [`${staging}/`, "https://localhost:4321", "http://plain.parish.example", "not an address"],
+    });
+    expect(await (await call("/github/check?repo=parish/site", { origin: staging })).json()).toEqual({ ok: true });
+    expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).toEqual({ ok: true });
+    // Never this computer, or an address without HTTPS.
+    for (const origin of ["https://localhost:4321", "http://plain.parish.example"]) {
+      expect((await (await call("/github/check?repo=parish/site", { origin })).json()).problem).not.toBe(undefined);
+    }
+    // A token broker still takes them over.
+    const withBroker = setup({ broker: "https://broker.parish.example", copies: [staging] });
+    expect(await (await withBroker.call("/github/check?repo=parish/site", { origin: staging })).json()).toEqual({
+      problem: "wrong-address",
+    });
+  });
+
   it("gives tokens only to the site's token broker, where its build names one", async () => {
     const broker = "https://broker.parish.example";
     const { call } = setup({ broker });

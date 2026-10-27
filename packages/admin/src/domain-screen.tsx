@@ -59,7 +59,7 @@ interface Progress {
 /** Connects a custom domain to a site published with its git host's own Pages, and follows it until it works. */
 export function DomainScreen() {
   const t = useStrings();
-  const { pages, account, demo, publish } = useAdmin();
+  const { pages, account, demo, publish, site: about } = useAdmin();
   const { content } = useSiteContent();
   const host = account?.hostName ?? "";
   const outside = useOutsideHost();
@@ -125,6 +125,7 @@ export function DomainScreen() {
       </div>
       <div className="gfa-form">
         <p>{t("domain.intro")}</p>
+        {about.copy?.url && <p className="gfa-hint">{t("domain.copy", { address: about.copy.url })}</p>}
         <OwnerTokenActive onForget={loadSite} />
         {body}
         {!demo && (pages || outside) && <AdminAddressSection outside={outside} />}

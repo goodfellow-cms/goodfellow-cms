@@ -77,6 +77,21 @@ describe("nightlyCheck", { timeout: GIT_TIMEOUT }, () => {
     expect(await check(built, ["1.2.3", "1.2.4"], "off")).toMatchObject({ build: false, update: false });
   });
 
+  it("reads a copy's build record from the copy's own address", async () => {
+    const { dir, commit } = await site();
+    const asked: string[] = [];
+    const record = { version: 1 as const, goodfellow: "1.2.3", commit, builtAt: "2026-11-01T04:17:00Z" };
+    const fetcher = (async (url: string | URL) => {
+      asked.push(String(url));
+      return new Response(serializeBuildRecord(record));
+    }) as typeof fetch;
+    const env = { GOODFELLOW_SITE_URL: "https://staging.parish.example.org" };
+    expect((await nightlyCheck({ root: dir, now, env, fetch: fetcher, fetchJson: releases("1.2.3") })).build).toBe(
+      false,
+    );
+    expect(asked).toEqual(["https://staging.parish.example.org/goodfellow-build.json"]);
+  });
+
   it("leaves updates out where content/updates.json turns them off", async () => {
     const { dir, commit } = await site();
     await writeFile(join(dir, "content/updates.json"), serializeContent({ version: 1, automatic: false, skip: [] }));

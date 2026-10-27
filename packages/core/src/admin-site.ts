@@ -8,6 +8,7 @@ import type { AdminAddress } from "./admin-domain.js";
 import type { BrokerAddress } from "./broker.js";
 import type { AiConfig } from "./config.js";
 import type { HostSource } from "./git.js";
+import type { SiteCopy } from "./site-copy.js";
 import type { SiteDescription } from "./site-description.js";
 
 export interface AdminSite {
@@ -25,4 +26,6 @@ export interface AdminSite {
   ai?: false | AiConfig;
   /** The config's `registries`. */
   registries?: Record<string, string>;
+  /** What the copy of the site this admin panel was built with has of its own, such as a staging site's address (`siteCopyFrom()`). */
+  copy?: SiteCopy;
 }

@@ -2,6 +2,7 @@ import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import {
   absoluteUrl,
+  adminSiteForCopy,
   applyBasePath,
   CLOUDFLARE_REDIRECTS_PATH,
   calendarFiles,
@@ -9,6 +10,7 @@ import {
   cloudflareRedirects,
   DEMO_CONTENT_PATH,
   demoContent,
+  describedForCopy,
   feedFiles,
   framedPlugins,
   loadSiteContent,
@@ -24,6 +26,7 @@ import {
   SITE_DESCRIPTION_PATH,
   type SiteProblem,
   shownContent,
+  siteCopyFrom,
   sitemapPages,
   sitePages,
   todayIn,
@@ -32,6 +35,7 @@ import {
 } from "@goodfellow-cms/core";
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import {
+  builtSiteSource,
   fileSystemSource,
   guardBuiltSite,
   runPluginBuildSteps,
@@ -151,7 +155,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const now = new Date();
     // Rendering pages reports when what they show by today's date changes, for the build record.
     resetDateChanges();
-    const loaded = await loadSiteContent(fileSystemSource(root));
+    const loaded = await loadSiteContent(builtSiteSource(root));
     const content = shownContent(loaded, now);
     const styles = await writeStylesEntries(root, config);
     const withAdmin = Boolean(config.backend || config.demo);
@@ -162,7 +166,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     if (withAdmin) Object.assign(input, { preview: styles.preview, admin: ADMIN_ENTRY });
     if (modules.size > 0) input.islands = ISLANDS_ENTRY;
     const viteConfig = baseViteConfig(root, configFile, modules);
-    const site = adminSite();
+    // A copy of the site, such as a staging site, says so to its admin panel, which stays at the copy's address.
+    const copy = siteCopyFrom(process.env);
+    const site = adminSiteForCopy(adminSite(), copy);
     const entries = adminEntryPlugin(configFile, { mode: "build", site });
     await viteBuild({
       ...viteConfig,
@@ -221,7 +227,10 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     }
 
     // What tools that edit the site without its code, such as the Claude connector, need to know about its blocks.
-    await writeFile(join(outDir, SITE_DESCRIPTION_PATH), `${JSON.stringify(describe(), null, 2)}\n`);
+    await writeFile(
+      join(outDir, SITE_DESCRIPTION_PATH),
+      `${JSON.stringify(describedForCopy(describe(), copy), null, 2)}\n`,
+    );
 
     const today = todayIn(content.settings.timeZone);
     const pages = sitePages(content, today, config.blocks);
@@ -303,8 +312,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     // Last, once every page is written: the index is made from the finished HTML.
     const searchIndexed = await writeSearchIndex(outDir);
     // Then, for a site with an admin address, every page starts with the script that keeps site pages off it.
-    if (config.admin) {
-      await guardBuiltSite(outDir, { admin: config.admin, siteUrl: content.settings.url, base, broker: config.broker });
+    if (site.admin) {
+      await guardBuiltSite(outDir, { admin: site.admin, siteUrl: content.settings.url, base, broker: config.broker });
     }
     const media = (await fileSystemSource(root).list(MEDIA_DIR)).map(
       (path) => `/media/${path.slice(MEDIA_DIR.length + 1)}`,

@@ -113,6 +113,12 @@ describe("block icons", () => {
 });
 
 describe("describeSite", () => {
+  it("names the site's other copies, where the sign-in service also signs editors in", () => {
+    const copies = ["https://staging.example.org"];
+    expect(describeSite({ blocks: { Plain: plain }, copies }).copies).toEqual(copies);
+    expect(describeSite({ blocks: { Plain: plain }, copies: [] }).copies).toBeUndefined();
+  });
+
   it("describes each block's fields as JSON, without their code", () => {
     const description = describeSite({
       blocks: {

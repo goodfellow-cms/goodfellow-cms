@@ -14,6 +14,7 @@ import { absoluteUrl } from "./head.js";
 import { builtFrom } from "./node-build-record.js";
 import { type SiteFile, siteFileChanges } from "./node-update.js";
 import type { FetchJson } from "./registry.js";
+import { siteCopyFrom } from "./site-copy.js";
 import {
   chooseUpdate,
   NIGHTLY_VARIABLE,
@@ -143,7 +144,7 @@ export async function nightlyCheck(options: NightlyOptions = {}): Promise<Nightl
 
   const now = options.now ?? new Date();
   const [live, update] = await Promise.all([
-    liveRecord(await siteUrl(root), options.fetch ?? fetch),
+    liveRecord(siteCopyFrom(env).url ?? (await siteUrl(root)), options.fetch ?? fetch),
     availableUpdate(root, options.siteFiles ?? [], options.fetchJson ?? fetchJsonFromNetwork),
   ]);
   const reasons: NightlyReason[] = [];

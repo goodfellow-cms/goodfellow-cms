@@ -3,8 +3,10 @@ import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve, sep } from "node:path";
 import {
+  adminSiteForCopy,
   CONTENT_DIR,
   ContentError,
+  describedForCopy,
   findRedirect,
   findSitePage,
   loadSiteContent,
@@ -13,9 +15,11 @@ import {
   redirectPage,
   SITE_DESCRIPTION_PATH,
   shownContent,
+  siteCopyFrom,
   todayIn,
 } from "@goodfellow-cms/core";
 import {
+  builtSiteSource,
   fileSystemSource,
   handleDevApi,
   localFileStore,
@@ -286,7 +290,7 @@ function devPlugin(
             const { admin } = await loadServerEntry(server);
             res.setHeader("Content-Type", "application/json");
             res.setHeader("Cache-Control", "no-cache");
-            res.end(JSON.stringify(admin()));
+            res.end(JSON.stringify(adminSiteForCopy(admin(), siteCopyFrom(process.env))));
             return;
           }
           const tasks = {
@@ -313,14 +317,14 @@ function devPlugin(
             const { describe } = await loadServerEntry(server);
             res.setHeader("Content-Type", "application/json");
             res.setHeader("Cache-Control", "no-cache");
-            res.end(JSON.stringify(describe(), null, 2));
+            res.end(JSON.stringify(describedForCopy(describe(), siteCopyFrom(process.env)), null, 2));
             return;
           }
           // Calendar files and feeds, as builds write them, from the content as it is now.
-          if (await sendBuildFile(fileSystemSource(root), url.pathname, res).catch(() => false)) return;
+          if (await sendBuildFile(builtSiteSource(root), url.pathname, res).catch(() => false)) return;
           if (/\.[a-z0-9]+$/i.test(url.pathname)) {
             // Old addresses such as /news.html send visitors on, as the built site's pages there do.
-            const content = await loadSiteContent(fileSystemSource(root)).then(shownContent, () => undefined);
+            const content = await loadSiteContent(builtSiteSource(root)).then(shownContent, () => undefined);
             const redirect = content && findRedirect(content, url.pathname);
             if (content && redirect) return void res.end(redirectPage(content, redirect.to));
             return next();
@@ -328,7 +332,7 @@ function devPlugin(
 
           try {
             // As a build now would show the site: pages and items scheduled for later are left out.
-            const content = shownContent(await loadSiteContent(fileSystemSource(root)));
+            const content = shownContent(await loadSiteContent(builtSiteSource(root)));
             const { config, renderPage } = await loadServerEntry(server);
             const match = findSitePage(content, todayIn(content.settings.timeZone), config.blocks, url.pathname);
             // Pages win over redirects, as in builds.

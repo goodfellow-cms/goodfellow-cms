@@ -276,6 +276,7 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
       admin: { url: config.admin.url, ...(config.admin.checked === true && { checked: true }) },
     }),
     ...(config.broker && { broker: { url: config.broker.url } }),
+    ...(config.copies?.length && { copies: [...config.copies] }),
     ...(config.claude?.publish === false && { claude: { publish: false } }),
     ...(config.plugins?.length && { plugins: config.plugins.map(describePlugin) }),
   };

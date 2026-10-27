@@ -44,6 +44,16 @@ export interface GoodfellowConfig {
    */
   broker?: BrokerAddress;
   /**
+   * The addresses of other copies of the site built from its repository, such
+   * as a staging site at `https://staging.example.org` built from a `staging`
+   * branch, with their admin addresses if they have their own. The sign-in
+   * service also signs editors in at these, as it does at the Site address.
+   * Each copy says what it has of its own where it's built, with
+   * `GOODFELLOW_SITE_URL` and `GOODFELLOW_NO_INDEX`; its branch is the
+   * backend's `branch`, such as `branch: process.env.SITE_BRANCH`.
+   */
+  copies?: readonly string[];
+  /**
    * Turns the admin panel into a demo anyone can try without signing in. It
    * starts from the site's content as last built, and keeps each visitor's
    * changes in their own browser: nothing is ever published, and `backend` is

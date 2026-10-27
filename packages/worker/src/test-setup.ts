@@ -31,6 +31,8 @@ export function setup(
     admin?: string;
     /** The token broker the site's build names there. */
     broker?: string;
+    /** The site's other copies, such as staging, that its build names there. */
+    copies?: string[];
   } = {},
 ) {
   const repositories = ["parish/site", ...(options.repositories ?? [])];
@@ -72,11 +74,12 @@ export function setup(
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
     if (url === `${SITE}/goodfellow-site.json`) {
-      if (!options.admin && !options.broker) return new Response("Not found", { status: 404 });
+      if (!options.admin && !options.broker && !options.copies) return new Response("Not found", { status: 404 });
       return Response.json({
         version: 1,
         ...(options.admin && { admin: { url: options.admin } }),
         ...(options.broker && { broker: { url: options.broker } }),
+        ...(options.copies && { copies: options.copies }),
       });
     }
     return fake.fetch(input, init);
