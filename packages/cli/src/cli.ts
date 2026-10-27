@@ -30,7 +30,9 @@ import {
   update,
 } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
+import { blockWorks, formatShadcnBlock, ShadcnBlockError, TYPESCRIPT_VERSION } from "@goodfellow-cms/core/shadcn";
 import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
+import { addBlock } from "./blocks.js";
 import { siteBackend } from "./broker.js";
 import { build } from "./build.js";
 import { dev } from "./dev.js";
@@ -62,6 +64,12 @@ Commands:
                                    from its export file (Tools → Export) or its address
   export    export wordpress [file]  writes this site as a WordPress export file, which
                                    WordPress imports with Tools → Import → WordPress
+  blocks    blocks add <item>      installs a shadcn registry item (button, @acme/hero, or
+                                   an item's address) with shadcn's own CLI, makes a block
+                                   of its component, with fields from its props, and says
+                                   what it couldn't do; with --registry <folder>, writes
+                                   the block into a block registry there instead. Needs
+                                   TypeScript ${TYPESCRIPT_VERSION} (npm install --save-dev typescript@${TYPESCRIPT_VERSION})
   broker    The site's token broker, a sign-in page on an address of its own:
             broker add [folder]    writes its repository into folder (default: beside
                                    the site, named after it with -signin), for --host
@@ -105,6 +113,8 @@ Options:
                   for due: add due=…
   --strict        For build: fail if the site checks find links to pages or media that don't exist
   --dry-run       For import: say what importing would bring across, and change nothing
+  --registry <dir>
+                  For blocks add: write the block into the block registry in dir
   -h, --help      Show this help
 `;
 
@@ -132,6 +142,7 @@ async function main(): Promise<void> {
       domain: { type: "string" },
       strict: { type: "boolean" },
       "dry-run": { type: "boolean" },
+      registry: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -231,6 +242,18 @@ async function main(): Promise<void> {
     case "nightly": {
       const result = await nightlyCheck({ root: values.root, ...(values.mode && { mode: values.mode }) });
       for (const line of await reportNightly(result, values.output ?? process.env.GITHUB_OUTPUT)) console.log(line);
+      return;
+    }
+    case "blocks": {
+      const [, action, item] = positionals;
+      if (action !== "add" || !item) {
+        console.error(`Say "blocks add" and the shadcn item, such as button or @acme/hero.\n\n${HELP}`);
+        process.exitCode = 1;
+        return;
+      }
+      const result = await addBlock({ root: values.root, item, ...(values.registry && { registry: values.registry }) });
+      console.log(formatShadcnBlock(result));
+      if (!blockWorks(result)) process.exitCode = 1;
       return;
     }
     case "broker": {
@@ -345,7 +368,8 @@ main().catch((error: unknown) => {
     error instanceof ContentRepositoryError ||
     error instanceof BrokerSetupError ||
     error instanceof AdminSetupError ||
-    error instanceof WordPressReadError
+    error instanceof WordPressReadError ||
+    error instanceof ShadcnBlockError
   ) {
     console.error(`\n${error.message}\n`);
   } else {

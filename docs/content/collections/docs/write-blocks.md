@@ -6,7 +6,7 @@ section: developers
 order: 2
 ---
 
-A block is a [Puck component](https://puckeditor.com/docs/integrating-puck/component-configuration): a React component plus the fields the editor shows for it. Add it to `blocks` in `goodfellow.config.tsx`.
+A block is a [Puck component](https://puckeditor.com/docs/integrating-puck/component-configuration): a React component plus the fields the editor shows for it. Add it to `blocks` in `goodfellow.config.tsx`. To start from a shadcn component, `goodfellow blocks add` writes the block for you, with fields from its props (see [Any shadcn component as a block](/docs/shadcn-components)).
 
 ```tsx
 // blocks/mass-times.tsx

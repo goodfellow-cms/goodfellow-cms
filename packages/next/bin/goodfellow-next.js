@@ -10,11 +10,12 @@
 // content is kept in a repository of its own.
 // `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
 // `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, as `goodfellow export` does.
+// `goodfellow-next blocks add <item> [--registry <folder>]` makes a block of a shadcn item, as `goodfellow blocks add` does.
 // `goodfellow-next admin add <address>|check|remove` sets the admin address, and `goodfellow-next broker use <address>|remove`
 // the token broker, in goodfellow.config.tsx, as `goodfellow admin` and `goodfellow broker` do.
 import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
-import { relative } from "node:path";
+import { relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { buildNotes, CLOUDFLARE_REDIRECTS_LIMIT, configAdmin, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
@@ -39,8 +40,10 @@ import {
   update,
 } from "@goodfellow-cms/core/node";
 import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
+import { addShadcnBlock, blockWorks, formatShadcnBlock, ShadcnBlockError } from "@goodfellow-cms/core/shadcn";
 import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import {
+  blockPageRender,
   buildFileFolders,
   builtPages,
   checkPages,
@@ -227,6 +230,30 @@ if (command === "export") {
     process.exit(0);
   }
 }
+if (command === "blocks") {
+  const { positionals, values } = parseArgs({
+    args: process.argv.slice(3),
+    allowPositionals: true,
+    options: { registry: { type: "string" } },
+  });
+  const [action, item] = positionals;
+  if (action === "add" && item) {
+    try {
+      const result = await addShadcnBlock({
+        root: process.cwd(),
+        item,
+        ...(values.registry && { registry: resolve(values.registry) }),
+        render: blockPageRender("."),
+      });
+      console.log(formatShadcnBlock(result));
+      process.exit(blockWorks(result) ? 0 : 1);
+    } catch (error) {
+      if (!(error instanceof ShadcnBlockError)) throw error;
+      console.error(error.message);
+      process.exit(1);
+    }
+  }
+}
 if (command !== "finish" && command !== "index") {
   console.error(
     [
@@ -239,6 +266,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next content link|copy [folder]",
       "       goodfellow-next import wordpress <file or address> [--dry-run]",
       "       goodfellow-next export wordpress [file]",
+      "       goodfellow-next blocks add <item> [--registry <folder>]",
       "       goodfellow-next admin add <address> | check | remove",
       "       goodfellow-next broker use <address> | remove",
       "",
@@ -269,6 +297,11 @@ if (command !== "finish" && command !== "index") {
       "        says what it would bring across and changes nothing.",
       "export  Writes this site as a WordPress export file (default: named after the site),",
       "        which WordPress imports with Tools → Import → WordPress.",
+      "blocks  Installs a shadcn registry item (button, @acme/hero, or an item's address) with",
+      "        shadcn's own CLI, makes a block of its component, with fields from its props, and",
+      "        says what it couldn't do. With --registry, writes the block into the block registry",
+      "        in folder instead. Needs TypeScript 7 as typescript-7, since Next.js builds with 5:",
+      "        npm install --save-dev typescript-7@npm:typescript@7.0.2",
       "admin   The admin panel's address of its own, such as admin.example.org, in",
       "        goodfellow.config.tsx: add names it; check checks it once the site has rebuilt with",
       "        it, then starts the admin panel only there; remove stops using it.",

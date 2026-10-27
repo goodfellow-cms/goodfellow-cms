@@ -43,6 +43,10 @@
       "types": "./dist/node-accessibility.d.ts",
       "import": "./dist/node-accessibility.js"
     },
+    "./shadcn": {
+      "types": "./dist/node-shadcn.d.ts",
+      "import": "./dist/node-shadcn.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -72,7 +76,8 @@
   "devDependencies": {
     "@puckeditor/core": "0.23.0",
     "@types/node": "^22.19.0",
-    "react": "19.3.0"
+    "react": "19.3.0",
+    "typescript": "7.0.2"
   },
   "engines": {
     "node": "^22.23.4 || ^24.22.1 || >=26.12.1"

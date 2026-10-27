@@ -44,19 +44,17 @@ export async function configHasPlugins(root: string): Promise<boolean> {
 }
 
 /**
- * The site's config, loaded in Node: bundled with Rolldown, with the
+ * A module of the site, loaded in Node: bundled with Rolldown, with the
  * packages it imports left for Node to load and stylesheets left out, then
- * imported. Only what plugins need is read from it.
+ * imported.
  */
-export async function loadSiteConfig(root: string): Promise<GoodfellowConfig> {
-  const configFile = findConfigFile(root);
-  if (!configFile) throw new Error(`No goodfellow.config.tsx in ${root}.`);
+export async function loadSiteModule(root: string, input: string): Promise<Record<string, unknown>> {
   const { build } = await import("rolldown");
   const outDir = join(root, "node_modules/.goodfellow");
   await mkdir(outDir, { recursive: true });
-  const file = join(outDir, `config-${process.pid}-${Date.now()}.mjs`);
+  const file = join(outDir, `module-${process.pid}-${Date.now()}.mjs`);
   await build({
-    input: configFile,
+    input,
     cwd: root,
     platform: "node",
     tsconfig: existsSync(join(root, "tsconfig.json")) ? join(root, "tsconfig.json") : false,
@@ -77,10 +75,17 @@ export async function loadSiteConfig(root: string): Promise<GoodfellowConfig> {
     output: { file, format: "esm", codeSplitting: false },
   });
   try {
-    return (await import(pathToFileURL(file).href)).default as GoodfellowConfig;
+    return (await import(pathToFileURL(file).href)) as Record<string, unknown>;
   } finally {
     await rm(file, { force: true });
   }
+}
+
+/** The site's config, loaded in Node with `loadSiteModule()`. Only what plugins and checks need is read from it. */
+export async function loadSiteConfig(root: string): Promise<GoodfellowConfig> {
+  const configFile = findConfigFile(root);
+  if (!configFile) throw new Error(`No goodfellow.config.tsx in ${root}.`);
+  return (await loadSiteModule(root, configFile)).default as GoodfellowConfig;
 }
 
 /** A plugin's admin module as the bundler imports it: a package's export, or a path from the site's root. */
