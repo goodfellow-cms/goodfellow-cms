@@ -20,6 +20,10 @@ describe("goodfellowPages", () => {
     expect(metadata.title).toEqual({ absolute: "Welcome to our new website | My site" });
   });
 
+  it("asks search engines not to list the admin panel", async () => {
+    expect((await site.adminMetadata()).robots).toEqual({ index: false });
+  });
+
   it("only writes a sitemap once the site's address is known", async () => {
     expect(await site.sitemap()).toEqual([]);
     expect(await site.robots()).toEqual({ rules: { userAgent: "*", allow: "/" } });

@@ -444,6 +444,14 @@ describe("a site with a plugin", () => {
       expect(page).toContain(
         '<link rel="license" href="/from-config/admin/plugins/goodfellow-plugin-hello/LICENSES.txt" />',
       );
+      // Search engines are asked not to list any of the admin panel's pages.
+      for (const file of [
+        "admin/index.html",
+        "admin/editor/index.html",
+        "admin/plugins/goodfellow-plugin-hello/index.html",
+      ]) {
+        expect(await readFile(join(out, file), "utf8"), file).toContain('<meta name="robots" content="noindex" />');
+      }
       const notices = await readFile(join(out, "admin/plugins/goodfellow-plugin-hello/LICENSES.txt"), "utf8");
       expect(notices).toMatch(
         /^- @goodfellow-cms\/core [\d.]+: MIT, source at https:\/\/github\.com\/goodfellow-cms\/goodfellow-cms\/tree\/HEAD\/packages\/core$/m,

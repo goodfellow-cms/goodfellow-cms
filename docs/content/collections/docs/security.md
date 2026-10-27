@@ -54,6 +54,18 @@ The setup in between, with the site's content in a [repository of its own](/docs
 - Leave **Install fixes automatically each night** on, so security fixes arrive without waiting for anyone.
 - On Cloudflare Pages or Vercel, give the admin panel an address of its own too, which a developer [finishes in the code](/docs/custom-domains#with-a-content-repository). With a broker, the admin panel holds no sign-in, so what it adds is small: the site's pages can't reach the admin panel's preferences, or any window of it they're given.
 
+## Why the admin panel is always at /admin
+
+Many systems let owners move their admin pages, such as WordPress's `/wp-admin`, to an address only they know, so that automated attacks don't find them. Goodfellow keeps its admin panel at `/admin`, because there's nothing there for such attacks to find:
+
+- **There's no password to guess.** The admin panel has no sign-in form of its own: editors sign in to GitHub, GitLab or Bitbucket, or paste a token for the site, so any guessing happens at the git host, which limits attempts and can ask for two-factor authentication.
+- **There's nothing behind it to break into.** `/admin` is static files, the same for every Goodfellow site and published openly with Goodfellow itself, with no server code or database behind them. Hiding them would hide nothing secret, and requests for them cost the site nothing.
+- **It's easy to find anyway.** Every site's build publishes `goodfellow-site.json`, which says it's a Goodfellow site, so a different address would only slow an attack for as long as it took to look.
+
+What does protect the admin panel is keeping the site's pages away from editors' sign-in, with [an admin address or a token broker](#for-owners-and-editors), and the git host's own protections: two-factor authentication, and tokens that reach the site's repository alone.
+
+Search engines are asked not to list the admin panel: its pages, the editor's frames and plugins' frames all say `noindex`, and sitemaps leave them out. `robots.txt` doesn't name `/admin`, since that would only point to it.
+
 ## Builds
 
 The site is built by GitHub Actions, GitLab CI, Cloudflare Pages or Vercel, from its repository, and on Bitbucket, Pipelines run its nightly update and plugins' tasks.
