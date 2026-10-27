@@ -806,7 +806,9 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       if (body.author_name && body.author_email) {
         commitAuthors.set(sha, { name: body.author_name, email: body.author_email });
       }
-      return json({ id: sha, message: body.commit_message }, 201);
+      // As GitLab answers: the new commit, with its parent.
+      const parent = repo.commitAt(sha)?.parent;
+      return json({ id: sha, message: body.commit_message, parent_ids: parent ? [parent] : [] }, 201);
     }
 
     if (rest === "/repository/commits" && request.method === "GET") {

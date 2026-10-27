@@ -61,10 +61,14 @@ const manifest = {
     entry_point: "server/index.js",
     mcp_config: {
       command: "node",
-      args: [`\${__dirname}/server/index.js`],
+      // Each folder chosen is an argument of its own.
+      args: [`\${__dirname}/server/index.js`, `\${user_config.folders}`],
       env: {
         GOODFELLOW_SITE: `\${user_config.site}`,
         GOODFELLOW_TOKEN: `\${user_config.token}`,
+        GOODFELLOW_GITHUB_TOKEN: `\${user_config.github_token}`,
+        GOODFELLOW_GITLAB_TOKEN: `\${user_config.gitlab_token}`,
+        GOODFELLOW_BITBUCKET_TOKEN: `\${user_config.bitbucket_token}`,
         GITLAB_URL: `\${user_config.gitlab_url}`,
       },
     },
@@ -72,18 +76,54 @@ const manifest = {
   user_config: {
     site: {
       type: "string",
-      title: "Site",
+      title: "Sites",
       description:
-        "The site's repository, such as github:your-name/your-site, gitlab:your-group/your-site or bitbucket:your-workspace/your-site.",
-      required: true,
+        "Each site's repository, separated by commas: github:your-name/your-site, gitlab:your-group/your-site or bitbucket:your-workspace/your-site. Leave it empty if you only use sites in folders on this computer.",
+      required: false,
+      default: "",
+    },
+    folders: {
+      type: "directory",
+      title: "Sites in folders on this computer",
+      description:
+        "Folders holding a site, such as a copy of its repository. Claude reads them through the site's development server (npm run dev), and publishing writes the changes into the folder.",
+      multiple: true,
+      required: false,
+      default: [],
+    },
+    github_token: {
+      type: "string",
+      title: "GitHub token",
+      description: "For sites on GitHub: a fine-grained token that can edit them. It stays on this computer.",
+      sensitive: true,
+      required: false,
+      default: "",
+    },
+    gitlab_token: {
+      type: "string",
+      title: "GitLab token",
+      description: "For sites on GitLab: a personal access token with the api scope. It stays on this computer.",
+      sensitive: true,
+      required: false,
+      default: "",
+    },
+    bitbucket_token: {
+      type: "string",
+      title: "Bitbucket token",
+      description:
+        "For sites on Bitbucket: a repository access token, or your email address, a colon and an API token. It stays on this computer.",
+      sensitive: true,
+      required: false,
+      default: "",
     },
     token: {
       type: "string",
-      title: "Token",
+      title: "Token (older setups)",
       description:
-        "A GitHub, GitLab or Bitbucket token that can edit the site (on Bitbucket, an access token, or your email address, a colon and an API token). It stays on this computer.",
+        "A token for every host, as earlier versions of the extension asked for. Leave it empty if you gave one above.",
       sensitive: true,
-      required: true,
+      required: false,
+      default: "",
     },
     gitlab_url: {
       type: "string",

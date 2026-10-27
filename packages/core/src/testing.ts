@@ -51,13 +51,57 @@ export class FakeConflictError extends Error {
   override name = "FakeConflictError";
 }
 
-function fakeHash(text: string, seed: number): string {
-  let hash = 2166136261 ^ seed;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
+/** SHA-1, in plain JavaScript so the fakes run anywhere, synchronously. */
+function sha1(bytes: Uint8Array): string {
+  const length = bytes.length;
+  const padded = new Uint8Array((((length + 8) >> 6) + 1) * 64);
+  padded.set(bytes);
+  padded[length] = 0x80;
+  const view = new DataView(padded.buffer);
+  view.setUint32(padded.length - 8, Math.floor((length * 8) / 2 ** 32));
+  view.setUint32(padded.length - 4, (length * 8) >>> 0);
+  const h = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
+  const w = new Uint32Array(80);
+  for (let block = 0; block < padded.length; block += 64) {
+    for (let i = 0; i < 16; i++) w[i] = view.getUint32(block + i * 4);
+    for (let i = 16; i < 80; i++) {
+      const x = (w[i - 3] ?? 0) ^ (w[i - 8] ?? 0) ^ (w[i - 14] ?? 0) ^ (w[i - 16] ?? 0);
+      w[i] = (x << 1) | (x >>> 31);
+    }
+    let [a, b, c, d, e] = h as [number, number, number, number, number];
+    for (let i = 0; i < 80; i++) {
+      const [f, k] =
+        i < 20
+          ? [(b & c) | (~b & d), 0x5a827999]
+          : i < 40
+            ? [b ^ c ^ d, 0x6ed9eba1]
+            : i < 60
+              ? [(b & c) | (b & d) | (c & d), 0x8f1bbcdc]
+              : [b ^ c ^ d, 0xca62c1d6];
+      const next = (((a << 5) | (a >>> 27)) + f + e + k + (w[i] ?? 0)) >>> 0;
+      e = d;
+      d = c;
+      c = ((b << 30) | (b >>> 2)) >>> 0;
+      b = a;
+      a = next;
+    }
+    h[0] = ((h[0] ?? 0) + a) >>> 0;
+    h[1] = ((h[1] ?? 0) + b) >>> 0;
+    h[2] = ((h[2] ?? 0) + c) >>> 0;
+    h[3] = ((h[3] ?? 0) + d) >>> 0;
+    h[4] = ((h[4] ?? 0) + e) >>> 0;
   }
-  return (hash >>> 0).toString(16).padStart(8, "0");
+  return h.map((word) => word.toString(16).padStart(8, "0")).join("");
+}
+
+/** Git's id for a file: the SHA-1 of `blob <size>\0` and its bytes, as hosts list them. */
+export function gitBlobSha(file: FakeFile): string {
+  const bytes = fakeFileBytes(file);
+  const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+  const data = new Uint8Array(header.length + bytes.length);
+  data.set(header);
+  data.set(bytes, header.length);
+  return sha1(data);
 }
 
 /** A pull or merge request opened in the fake host. */
@@ -86,10 +130,9 @@ export class FakeRepo {
     this.branches.set(defaultBranch, sha);
   }
 
-  /** A 40-character content hash, like git's blob ids. */
+  /** The file's id, as git gives it. */
   blobSha(content: FakeFile): string {
-    const key = fileKey(content) ?? "";
-    const sha = [1, 2, 3, 4, 5].map((seed) => fakeHash(key, seed)).join("");
+    const sha = gitBlobSha(content);
     this.blobs.set(sha, content);
     return sha;
   }

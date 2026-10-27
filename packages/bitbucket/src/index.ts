@@ -7,6 +7,7 @@ import {
   type ServerGitOptions,
   SignInError,
   type StorageLike,
+  withRateLimits,
 } from "@goodfellow-cms/core";
 import {
   type ApiOptions,
@@ -96,7 +97,10 @@ function randomState(): string {
 
 /** Sign-in and storage for a site whose repository is on Bitbucket Cloud. */
 export function bitbucket(options: BitbucketOptions): GitHost {
-  const fetcher = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  // Many changes in a row, such as Claude's, can reach the host's limits: wait for them rather than fail.
+  const fetcher: typeof fetch = withRateLimits(options.fetch ?? ((input, init) => globalThis.fetch(input, init)), {
+    host: "Bitbucket",
+  });
   const storage = credentialStorage(`goodfellow:bitbucket:${options.repo}`, options.storage);
   const pending = credentialStorage(`goodfellow:bitbucket:pending:${options.repo}`, options.storage);
   const location = () => options.location ?? browserLocation();
