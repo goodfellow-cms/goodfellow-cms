@@ -125,6 +125,8 @@ export function PluginEditorFrame({
   const latest = useRef({ target, data, onOpen, onChange, content, description, services, code, themeCss });
   latest.current = { target, data, onOpen, onChange, content, description, services, code, themeCss };
   const opening = useRef<Data | undefined>(undefined);
+  // Until it says it's open, which can take a while for an editor as big as Gutenberg, it shows it's on its way.
+  const [ready, setReady] = useState(false);
 
   const hooks = useMemo<PluginEditorHooks>(
     () => ({
@@ -132,9 +134,11 @@ export function PluginEditorFrame({
         const { target, data, content, description } = latest.current;
         const opened = data();
         opening.current = opened;
+        setReady(false);
         return editorOpen(target, opened, content, description);
       },
       onOpened: (opened: PluginFrameEditorOpened, channel: Channel) => {
+        setReady(true);
         latest.current.onOpen(editorHandle(opened, channel), opening.current ?? latest.current.data());
       },
       onChange: ({ data, state }) => {
@@ -170,7 +174,17 @@ export function PluginEditorFrame({
   const { failed, frameProps } = usePluginFrame(plugin, host, "editor", undefined, hooks);
   const name = plugin.editor?.title ?? plugin.title;
   if (failed) return <ErrorMessage message={t("editor.plugin.failed", { editor: name })} />;
-  return <iframe className="gfa-editor-frame" title={t("editor.frame", { title: target.title })} {...frameProps} />;
+  return (
+    <div className="gfa-plugin-editor-wrap">
+      <iframe className="gfa-editor-frame" title={t("editor.frame", { title: target.title })} {...frameProps} />
+      {!ready && (
+        <div className="gfa-editor-loading" role="status">
+          <span className="gfa-spinner" aria-hidden="true" />
+          {t("editor.plugin.loading", { editor: name })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** What the header asks the editor's frame for, as far as it said it can. */

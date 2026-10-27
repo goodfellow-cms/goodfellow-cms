@@ -1130,6 +1130,47 @@ body,
   background: var(--gfa-bg);
 }
 
+/* An editor plugin's frame, with what shows over it until the editor has opened. */
+.gfa-plugin-editor-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.gfa-editor-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--gfa-bg);
+  color: var(--gfa-muted);
+}
+
+.gfa-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--gfa-border);
+  border-top-color: var(--gfa-accent);
+  border-radius: 50%;
+  animation: gfa-spin 0.8s linear infinite;
+}
+
+@keyframes gfa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gfa-spinner {
+    animation-duration: 2.4s;
+  }
+}
+
 /* The frames that run the site's code: the editor fills its page, and its canvas can be a phone's width. */
 :root.gfa-frame,
 .gfa-frame body {
