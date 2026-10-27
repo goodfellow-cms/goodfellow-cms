@@ -39,7 +39,7 @@ describe("signing in", () => {
     await redirect("maria");
     const { response, body } = await signIn();
     expect(response.status).toBe(200);
-    const { checks: _, statuses: __, ...older } = PERMISSIONS.edit;
+    const { checks: _, statuses: __, pull_requests: ___, ...older } = PERMISSIONS.edit;
     expect(fake.issued.find((item) => item.token === body.token)?.permissions).toEqual(older);
   });
 

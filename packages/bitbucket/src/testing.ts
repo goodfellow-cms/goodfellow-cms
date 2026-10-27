@@ -424,16 +424,26 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
           description?: string;
           source: { branch: { name: string } };
           destination?: { branch: { name: string } };
+          reviewers?: Array<{ account_id?: string }>;
         };
         const open = target.reviews.find(
           (review) => review.branch === body.source.branch.name && review.state === "open",
         );
         if (open) return error(400, "There are no changes to be pulled");
+        const reviewers = (body.reviewers ?? []).map((reviewer) => {
+          const member = [...members.values()].find((found) => `account-${found.nickname}` === reviewer.account_id);
+          return member?.nickname;
+        });
+        // Bitbucket refuses the pull request where it can't find a reviewer, or the author is one.
+        if (reviewers.some((nickname) => !nickname || nickname === user.nickname)) {
+          return error(400, "Reviewers must be workspace members other than the author.");
+        }
         const review = target.openReview(
           body.source.branch.name,
           body.title,
           body.description ?? "",
           body.destination?.branch.name,
+          reviewers.filter((nickname): nickname is string => nickname !== undefined),
         );
         return json(
           { id: review.number, links: { html: { href: `${web}/${name}/pull-requests/${review.number}` } } },
@@ -442,15 +452,26 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
       }
       const source = filterValue(url.searchParams.get("q"), "source.branch.name");
       const found = target.reviews.filter(
-        (review) => review.state === "open" && (!source || review.branch === source.value),
+        (review) =>
+          review.state === "open" &&
+          (!source || (source.op === "~" ? review.branch.includes(source.value) : review.branch === source.value)),
       );
       return page(
         url,
         found.map((review) => ({
           id: review.number,
+          title: review.title,
+          source: { branch: { name: review.branch } },
           links: { html: { href: `${web}/${name}/pull-requests/${review.number}` } },
         })),
       );
+    }
+    const decline = rest.match(/^\/pullrequests\/(\d+)\/decline$/);
+    if (decline && method === "POST") {
+      const review = target.reviews.find((found) => found.number === Number(decline[1]));
+      if (!review) return error(404, "No such pull request");
+      review.state = "closed";
+      return json({ id: review.number, state: "DECLINED" });
     }
 
     // Everything below needs Admin, as Bitbucket's settings do.

@@ -1103,9 +1103,33 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       return json(
         found.map((review) => ({
           number: review.number,
+          title: review.title,
           html_url: `https://github.com/${options.repo}/pull/${review.number}`,
+          head: { ref: review.branch, repo: { full_name: options.repo } },
         })),
       );
+    }
+    const pull = rest.match(/^\/pulls\/(\d+)(\/requested_reviewers)?$/);
+    if (pull) {
+      const review = repo.reviews.find((found) => found.number === Number(pull[1]));
+      if (!review) return json({ message: "Not Found" }, 404);
+      if (user.bot && user.permissions?.pull_requests !== "write") {
+        return json({ message: "Resource not accessible by integration" }, 403);
+      }
+      if (pull[2] && request.method === "POST") {
+        const body = (await request.json()) as { reviewers?: string[] };
+        // GitHub refuses the one who opened it, and anyone who isn't a collaborator.
+        if ((body.reviewers ?? []).some((login) => login === user.login || login.startsWith("not-"))) {
+          return json({ message: "Reviews may only be requested from collaborators." }, 422);
+        }
+        review.reviewers.push(...(body.reviewers ?? []));
+        return json({ number: review.number }, 201);
+      }
+      if (!pull[2] && request.method === "PATCH") {
+        const body = (await request.json()) as { state?: string };
+        if (body.state === "closed") review.state = "closed";
+        return json({ number: review.number, state: review.state });
+      }
     }
 
     if (rest === "/pages" && request.method === "GET") {

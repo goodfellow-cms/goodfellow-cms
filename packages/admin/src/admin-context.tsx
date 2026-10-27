@@ -8,7 +8,9 @@ import {
   type DeployStatus,
   type Draft,
   DraftError,
+  type DraftReview,
   describedConfig,
+  type EditorLimits,
   type FileChange,
   type GitBackend,
   type GitUser,
@@ -16,17 +18,21 @@ import {
   goodfellowRegistryUrl,
   isDemoStore,
   keptDrafts,
+  type LimitProblem,
+  limitsFor,
   loadSiteContent,
   MEDIA_DIR,
   type MediaStorage,
   newDraftName,
   type OwnerAccess,
+  outsideLimits,
   type PagesDomains,
   PluginTaskError,
   type PluginTaskRequest,
   type PluginTasks,
   type RegistrySources,
   type RepositoryVisibility,
+  reviewersFor,
   type ScheduledBuilds,
   ScheduledBuildsError,
   type SetupHost,
@@ -53,6 +59,7 @@ import {
   frameSiteCode,
   SiteCodeFrame,
 } from "./frame/host.js";
+import { LimitsDialog } from "./limits-dialog.js";
 import { allMedia, mediaUrl } from "./media.js";
 import { MediaPickerDialog } from "./media-library.js";
 import { createMediaPreviews, type MediaPreviews } from "./media-previews.js";
@@ -112,6 +119,8 @@ export interface DraftsValue {
   kept: boolean;
   /** The drafts there are, newest first: other editors' and Claude's too. */
   names: string[];
+  /** The drafts submitted for review that are still waiting, newest first. */
+  reviews: DraftReview[];
   /** The draft being worked in, which every publish goes into, with the files it has changed. */
   current?: { name: string; paths: string[] };
   /** Works in a draft, or on the live site again without one. Returns `false` where the draft has gone. */
@@ -157,6 +166,12 @@ export interface Account {
 export interface AdminContextValue {
   /** What the admin panel knows about the site without its code. */
   site: AdminSite;
+  /**
+   * What the signed-in person may change, where an owner has limited it
+   * (`content/permissions.json`); screens show the rest read-only, and
+   * publishing it goes to review instead.
+   */
+  limits?: EditorLimits;
   /** The site's blocks as far as their fields go, for finding links in content. */
   blocks: Record<string, ComponentConfig>;
   /** The site's own code, run in a frame of its own, for the pages blocks add and the checks that render pages. */
@@ -318,6 +333,14 @@ export function AdminProvider({
     content: SiteContent;
     decide: (publish: boolean) => void;
   }>();
+  // Changes outside the signed-in person's limits, waiting for them to submit them for review or go back.
+  const [limiting, setLimiting] = useState<{
+    problems: LimitProblem[];
+    content: SiteContent;
+    submit?: () => Promise<{ url?: string }>;
+    done: () => void;
+  }>();
+  const [draftReviews, setDraftReviews] = useState<DraftReview[]>([]);
   const blocks = useMemo(
     () => describedConfig(site.description, "template").components as Record<string, ComponentConfig>,
     [site.description],
@@ -456,12 +479,14 @@ export function AdminProvider({
 
   const refreshDrafts = useCallback(
     async (current: Draft | undefined) => {
-      const [names, paths] = await Promise.all([
+      const [names, paths, reviews] = await Promise.all([
         siteDrafts.list().catch((): string[] => []),
         current ? current.paths().catch((): string[] => []) : [],
+        siteDrafts.reviews().catch((): DraftReview[] => []),
       ]);
       setDraftNames(names);
       setDraftPaths(paths);
+      setDraftReviews(reviews);
     },
     [siteDrafts],
   );
@@ -477,6 +502,30 @@ export function AdminProvider({
     return go;
   }, []);
 
+  // What the signed-in person may change, where an owner has limited it.
+  const limits = useMemo(
+    () => (state.status === "ready" ? limitsFor(state.content.permissions, account?.user.login) : undefined),
+    [state, account],
+  );
+
+  /** Who's asked to review: those the permissions name, else every owner, never the one asking. */
+  const reviewers = useCallback(async (): Promise<string[]> => {
+    const owners = await editors
+      ?.list()
+      .then((list) => list.editors.flatMap((editor) => (editor.role === "owner" && editor.login ? [editor.login] : [])))
+      .catch((): string[] => []);
+    const self = account?.user.login.toLowerCase();
+    const permissions = state.status === "ready" ? state.content.permissions : undefined;
+    return reviewersFor(permissions, owners ?? []).filter((login) => login.toLowerCase() !== self);
+  }, [editors, account, state]);
+
+  /** Shows what's outside someone's limits, and lets them submit it for review where the site can take one. */
+  const askLimits = useCallback(
+    (problems: LimitProblem[], shown: SiteContent, submit?: () => Promise<{ url?: string }>) =>
+      new Promise<void>((done) => setLimiting({ problems, content: shown, ...(submit && { submit }), done })),
+    [],
+  );
+
   const publish = useCallback(
     async (
       changes: FileChange[],
@@ -484,6 +533,31 @@ export function AdminProvider({
       options?: { checks?: boolean; draft?: boolean },
     ): Promise<PublishResult> => {
       if (state.status !== "ready") return { ok: false, reason: "error", error: new Error("The site isn't loaded.") };
+      // Changes going into a draft don't reach the live site, so limits are checked when it's published.
+      const outside = draft || options?.draft ? [] : outsideLimits(state.content, limits, changes);
+      if (outside.length > 0) {
+        const from = state.revision;
+        const description = [t("draft.reviewDescription"), "", ...changes.map((change) => `- \`${change.path}\``)].join(
+          "\n",
+        );
+        const submit = backendDrafts
+          ? async () => {
+              const review = await siteDrafts.create(newDraftName(), { from });
+              await writeChanges(review.store, changes, { message, expectedRevision: await review.store.revision() });
+              const { url } = await review.submitForReview({
+                title: message,
+                description,
+                reviewers: await reviewers(),
+              });
+              void refreshDrafts(undefined);
+              return { url };
+            }
+          : account?.review
+            ? () => account.review?.(changes, { title: message, description, from }) ?? Promise.resolve({})
+            : undefined;
+        await askLimits(outside, state.content, submit);
+        return { ok: false, reason: "checks", error: undefined };
+      }
       const checks =
         options?.checks === false ? undefined : await checkPublish(content, state, changes, { blocks, code });
       if (!(await confirmChecks(checks))) return { ok: false, reason: "checks", error: undefined };
@@ -525,6 +599,12 @@ export function AdminProvider({
       refreshDrafts,
       loadFrom,
       onSignInError,
+      limits,
+      backendDrafts,
+      account,
+      askLimits,
+      reviewers,
+      t,
     ],
   );
 
@@ -557,6 +637,23 @@ export function AdminProvider({
       return { ok: false, reason: "error", error };
     }
     if (live.status !== "ready") return { ok: false, reason: "error", error: live.status === "error" && live.error };
+    const outside = outsideLimits(live.content, limitsFor(live.content.permissions, account?.user.login), changes);
+    if (outside.length > 0) {
+      const current = draft;
+      const submit = backendDrafts
+        ? async () => {
+            const paths = changes.map((change) => change.path);
+            return current.submitForReview({
+              title: t("draft.reviewTitle", { name: current.name }),
+              description: [t("draft.reviewDescription"), "", ...paths.map((path) => `- \`${path}\``)].join("\n"),
+              reviewers: await reviewers(),
+            });
+          }
+        : undefined;
+      await askLimits(outside, live.content, submit);
+      void refreshDrafts(current);
+      return { ok: false, reason: "checks", error: undefined };
+    }
     // Every file in the draft, against the live site as it is now.
     if (!(await confirmChecks(await checkPublish(store, live, changes, { blocks, code })))) {
       return { ok: false, reason: "checks", error: undefined };
@@ -573,7 +670,21 @@ export function AdminProvider({
     views.current++;
     setDraft(undefined);
     return { ok: true };
-  }, [draft, store, blocks, code, key, t, confirmChecks, onSignInError]);
+  }, [
+    draft,
+    store,
+    blocks,
+    code,
+    key,
+    t,
+    confirmChecks,
+    onSignInError,
+    account,
+    backendDrafts,
+    askLimits,
+    reviewers,
+    refreshDrafts,
+  ]);
 
   const submitDraft = useCallback(async () => {
     if (!draft) return { ok: false as const, error: new Error("There's no draft open.") };
@@ -582,12 +693,14 @@ export function AdminProvider({
       const { url } = await draft.submitForReview({
         title: t("draft.reviewTitle", { name: draft.name }),
         description: [t("draft.reviewDescription"), "", ...paths.map((path) => `- \`${path}\``)].join("\n"),
+        reviewers: await reviewers(),
       });
+      void refreshDrafts(draft);
       return { ok: true as const, url };
     } catch (error) {
       return { ok: false as const, error };
     }
-  }, [draft, t]);
+  }, [draft, t, reviewers, refreshDrafts]);
 
   const discardDraft = useCallback(async () => {
     if (!draft) return { ok: true as const };
@@ -606,13 +719,14 @@ export function AdminProvider({
     () => ({
       kept: backendDrafts === undefined,
       names: draftNames,
+      reviews: draftReviews,
       ...(draft && { current: { name: draft.name, paths: draftPaths } }),
       open: openDraft,
       publishAll,
       submit: submitDraft,
       discard: discardDraft,
     }),
-    [backendDrafts, draftNames, draft, draftPaths, openDraft, publishAll, submitDraft, discardDraft],
+    [backendDrafts, draftNames, draftReviews, draft, draftPaths, openDraft, publishAll, submitDraft, discardDraft],
   );
 
   // Where the host builds the site at each scheduled time (GitLab's pipeline schedules), keeps its builds in step
@@ -677,6 +791,7 @@ export function AdminProvider({
   const value = useMemo(
     () => ({
       site,
+      ...(limits && { limits }),
       blocks,
       code,
       preview,
@@ -710,6 +825,7 @@ export function AdminProvider({
     }),
     [
       site,
+      limits,
       blocks,
       code,
       preview,
@@ -768,6 +884,17 @@ export function AdminProvider({
           children
         )}
         {checking && <ChecksDialog checks={checking.checks} content={checking.content} onDecide={checking.decide} />}
+        {limiting && (
+          <LimitsDialog
+            problems={limiting.problems}
+            content={limiting.content}
+            {...(limiting.submit && { onSubmit: limiting.submit })}
+            onClose={() => {
+              setLimiting(undefined);
+              limiting.done();
+            }}
+          />
+        )}
       </StringsProvider>
     </AdminContext.Provider>
   );

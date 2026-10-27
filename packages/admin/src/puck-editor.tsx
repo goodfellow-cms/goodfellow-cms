@@ -21,6 +21,7 @@ import { storedData } from "./changes.js";
 import { applyEditorChange, findBlock } from "./editor-change.js";
 import { type FrameClient, useFrame, useFrameUpdates } from "./frame/host.js";
 import type { EditorChange, EditorOpen, EditorState } from "./frame/protocol.js";
+import { useMayChange } from "./limits.js";
 import {
   type PluginEditorChange,
   PluginEditorFrame,
@@ -106,6 +107,16 @@ export function PuckEditor({
 }: PuckEditorProps) {
   const t = useStrings();
   const { site, publish, reload, drafts } = useAdmin();
+  const editable = useMayChange(
+    kind === "page"
+      ? { kind, path }
+      : kind === "entry"
+        ? { kind, collection: collection?.id ?? "", entry: entry ?? "" }
+        : kind === "template"
+          ? { kind, collection: collection?.id ?? "" }
+          : { kind, ...(language && { language }) },
+  );
+  const readOnly = !editable;
   // An editor plugin chosen in this browser, for what it edits, in place of Puck.
   const editors = useEditorChoice(site.description, kind);
   const plugin = editors.chosen;
@@ -137,8 +148,9 @@ export function PuckEditor({
       ...(collection && { collection: collection.id }),
       ...(entry && { entry }),
       ...(language && { language }),
+      ...(readOnly && { readOnly }),
     }),
-    [kind, path, title, data, collection, entry, language],
+    [kind, path, title, data, collection, entry, language, readOnly],
   );
   const onConnect = useCallback(
     async (client: FrameClient) => {
@@ -321,6 +333,7 @@ export function PuckEditor({
   return (
     <div className={cx("gfa-editor", `gfa-editor-for-${kind}`)}>
       {notice && <div className="gfa-editor-notice">{notice}</div>}
+      {readOnly && <div className="gfa-editor-notice">{t("limits.readOnly")}</div>}
       <div className="gfa-editor-header">
         <div className="gfa-editor-tools" hidden={Boolean(plugin)}>
           <Button
@@ -403,7 +416,7 @@ export function PuckEditor({
               {t("ai.label")}
             </Button>
           )}
-          {!drafts.current && (
+          {!drafts.current && !readOnly && (
             <Button
               title={t("draft.addHint")}
               disabled={!state || status.type === "publishing"}
@@ -412,9 +425,15 @@ export function PuckEditor({
               {t("draft.add")}
             </Button>
           )}
-          <Button variant="primary" disabled={!state || status.type === "publishing"} onClick={() => void onPublish()}>
-            {t("publish.button")}
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="primary"
+              disabled={!state || status.type === "publishing"}
+              onClick={() => void onPublish()}
+            >
+              {t("publish.button")}
+            </Button>
+          )}
           {status.type === "done" && <PublishedNotice onHide={hidePublished} />}
         </div>
       </div>

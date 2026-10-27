@@ -25,13 +25,18 @@ import {
   isOtherLanguage,
   isReservedPagePath,
   layoutFileChange,
+  limitsContent,
+  limitsFor,
   mainLanguage,
   menusFileChange,
   menusFileSchema,
   newDraftName,
+  outsideLimits,
   pageFileChange,
   pageFileToPath,
   RateLimitError,
+  readPermissions,
+  reviewersFor,
   SignInError,
   siteLanguages,
   siteSettingsFileChange,
@@ -219,6 +224,32 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
   /** Where to read from: a draft, or the live site. */
   async function reading(site: OpenedSite, name: string | undefined): Promise<ContentSource> {
     return name ? (await draftOf(site, name)).store : site.backend;
+  }
+
+  /**
+   * The draft's changes outside what an owner lets the connected person change
+   * (`content/permissions.json`), in words, or none where they have no limits.
+   * Only the files the changes touch are read.
+   */
+  async function outsideTheirLimits(site: OpenedSite, draft: Draft): Promise<string[]> {
+    const limits = limitsFor(await readPermissions(site.backend), site.backend.user.login);
+    if (!limits) return [];
+    const changes = await draft.changes();
+    return outsideLimits(await limitsContent(site.backend, changes), limits, changes).map((problem) =>
+      problem.kind === "page" ? `the page ${problem.address}` : problem.path,
+    );
+  }
+
+  /** Who's asked to review: the people the site's permissions name, else its owners where the sign-in can list them. */
+  async function reviewersOf(site: OpenedSite): Promise<string[]> {
+    const owners = await site.backend.editors
+      ?.list()
+      .then((list) => list.editors.flatMap((editor) => (editor.role === "owner" && editor.login ? [editor.login] : [])))
+      .catch((): string[] => []);
+    const self = site.backend.user.login.toLowerCase();
+    return reviewersFor(await readPermissions(site.backend), owners ?? []).filter(
+      (login) => login.toLowerCase() !== self,
+    );
   }
 
   async function save(draft: Draft, changes: FileChange[], message: string): Promise<void> {
@@ -752,6 +783,12 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       // Read from what the site's own build published, which only its code can change.
       if (site.description.claude?.publish === false) throw new ToolError(NO_PUBLISHING);
       const draft = await draftOf(site, name);
+      const outside = await outsideTheirLimits(site, draft);
+      if (outside.length > 0) {
+        throw new ToolError(
+          `An owner has limited what you can change on this site, and this draft changes things outside it: ${outside.join(", ")}. Submit it for review instead (submit_for_review), and a reviewer publishes it.`,
+        );
+      }
       try {
         await draft.publish(message);
       } catch (error) {
@@ -784,7 +821,12 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     async ({ site: given, draft: name, title, description }) => {
       const site = await open(given);
       const draft = await draftOf(site, name);
-      const review = await draft.submitForReview({ title, ...(description && { description }) });
+      const reviewers = await reviewersOf(site);
+      const review = await draft.submitForReview({
+        title,
+        ...(description && { description }),
+        ...(reviewers.length > 0 && { reviewers }),
+      });
       return text({ submitted: true, review: review.url });
     },
   );

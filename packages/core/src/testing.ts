@@ -112,6 +112,8 @@ export interface FakeReview {
   title: string;
   description: string;
   state: "open" | "merged" | "closed";
+  /** Who was asked to review it, by sign-in name. */
+  reviewers: string[];
 }
 
 export class FakeRepo {
@@ -223,10 +225,24 @@ export class FakeRepo {
   }
 
   /** Opens a pull or merge request, or gives the open one from the same branch. */
-  openReview(branch: string, title: string, description: string, target = this.defaultBranch): FakeReview {
+  openReview(
+    branch: string,
+    title: string,
+    description: string,
+    target = this.defaultBranch,
+    reviewers: readonly string[] = [],
+  ): FakeReview {
     const open = this.reviews.find((review) => review.branch === branch && review.state === "open");
     if (open) return open;
-    const review: FakeReview = { number: this.reviews.length + 1, branch, target, title, description, state: "open" };
+    const review: FakeReview = {
+      number: this.reviews.length + 1,
+      branch,
+      target,
+      title,
+      description,
+      state: "open",
+      reviewers: [...reviewers],
+    };
     this.reviews.push(review);
     return review;
   }

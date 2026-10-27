@@ -29,6 +29,8 @@ export interface FakeGitLabOptions {
    * Pages: a commit status with no pipeline the project lists.
    */
   external?: boolean;
+  /** A paid plan, whose merge requests take several reviewers; the free plan takes one. */
+  premium?: boolean;
   /** The job the update runs in, which `addUpdateRun()` logs: `pages` by default, as in the starters, or a code project's `update`. */
   updateJob?: string;
   /** Groups the users belong to, which new projects can be created in. */
@@ -706,9 +708,26 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       return json(
         found.map((review) => ({
           iid: review.number,
+          title: review.title,
+          source_branch: review.branch,
           web_url: `${webUrl}/${options.project}/-/merge_requests/${review.number}`,
         })),
       );
+    }
+    const mergeRequest = rest.match(/^\/merge_requests\/(\d+)$/);
+    if (mergeRequest && request.method === "PUT") {
+      if (accessLevel < 30) return json({ message: "403 Forbidden" }, 403);
+      const review = repo.reviews.find((found) => found.number === Number(mergeRequest[1]));
+      if (!review) return json({ message: "404 Not found" }, 404);
+      const body = (await request.json()) as { reviewer_ids?: number[]; state_event?: string };
+      if (body.reviewer_ids) {
+        // GitLab's free plan takes one reviewer.
+        if (body.reviewer_ids.length > 1 && !options.premium) return json({ message: "Too many reviewers" }, 400);
+        const names = new Map([...accounts].map(([username, id]) => [id, username]));
+        review.reviewers = body.reviewer_ids.flatMap((id) => names.get(id) ?? []);
+      }
+      if (body.state_event === "close") review.state = "closed";
+      return json({ iid: review.number, state: review.state === "open" ? "opened" : review.state });
     }
 
     if (rest === "/repository/tree") {

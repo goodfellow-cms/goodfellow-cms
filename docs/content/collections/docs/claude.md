@@ -76,8 +76,10 @@ On GitHub, Claude works on sites through the connector's GitHub App, **Goodfello
 Claude never changes the live site straight away. The first change it makes starts a **draft**, a copy of the site that visitors don't see, and every later change goes into the same draft until you're happy with it. The site's editors see it in the admin panel too, where it can be finished like a [draft started there](/docs/publishing#drafts). Then ask Claude to:
 
 - **Publish** it, which puts every change on the live site at once, as the admin panel's **Publish** does. The site is rebuilt and the changes go live in a minute or two.
-- **Submit it for review**, so someone else checks it first. On GitHub and Bitbucket this opens a pull request, and on GitLab a merge request; whoever reviews it publishes it there.
+- **Submit it for review**, so someone else checks it first. On GitHub and Bitbucket this opens a pull request, and on GitLab a merge request, asking the site's reviewers to look; whoever reviews it publishes it there, or in the admin panel.
 - **Throw it away**.
+
+Where an owner has [limited what you can change](/docs/sign-in#limiting-what-editors-can-change), Claude keeps to the same limits: it won't publish a draft that changes anything outside them, and submits it for review instead.
 
 If someone publishes changes to the same pages in the admin panel while Claude's draft is open, publishing the draft stops rather than overwriting them, and Claude says so. It can make its changes again on top of theirs in a new draft.
 

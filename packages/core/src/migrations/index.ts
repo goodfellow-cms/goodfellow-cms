@@ -10,7 +10,8 @@ export type ContentKind =
   | "redirects"
   | "media"
   | "theme"
-  | "storage";
+  | "storage"
+  | "permissions";
 
 /** The version this release of Goodfellow writes for each kind of file. */
 export const CURRENT_VERSION: Record<ContentKind, number> = {
@@ -25,6 +26,7 @@ export const CURRENT_VERSION: Record<ContentKind, number> = {
   media: 1,
   theme: 1,
   storage: 1,
+  permissions: 1,
 };
 
 /** Upgrades a file from version `from` to `from + 1`. */
@@ -48,6 +50,7 @@ export const migrations: MigrationRegistry = {
   media: [],
   theme: [],
   storage: [],
+  permissions: [],
 };
 
 export class MigrationError extends Error {

@@ -106,7 +106,9 @@ plain("finishes a draft started elsewhere, such as from Claude, and submits it f
   // Going back to the live site leaves the draft for later, and the editor shows the live page.
   await banner.getByRole("button", { name: "Back to the live site" }).click();
   await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible();
-  await expect(banner).toContainText("is waiting to be published");
+  // Now in review, it's offered as waiting for review, with the review beside it.
+  await expect(banner).toContainText("A draft is waiting for review: Draft 20261020-claude");
+  await expect(banner.getByRole("link", { name: "See it" })).toBeVisible();
 });
 
 plain("won't publish a draft over someone else's change to the same page, and throws it away", async ({ page }) => {

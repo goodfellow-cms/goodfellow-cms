@@ -581,6 +581,23 @@ describe("drafts", () => {
     ]);
   });
 
+  it("asks reviewers it finds for their review, lists drafts waiting for it, and closes it when the draft is published", async () => {
+    const { fake, draft, drafts } = await withDraft();
+    await draft.submitForReview({ title: "New About page", reviewers: ["editor", "nobody"] });
+    expect(fake.repo.reviews[0]?.reviewers).toEqual(["editor"]);
+    expect(await drafts.reviews()).toEqual([
+      {
+        name: "20261014-abc123",
+        url: "https://gitlab.com/parish/web/site/-/merge_requests/1",
+        title: "New About page",
+      },
+    ]);
+    // GitLab keeps a merge request open when its branch goes, so publishing closes it.
+    await draft.publish("Update About");
+    expect(fake.repo.reviews[0]?.state).toBe("closed");
+    expect(await drafts.reviews()).toEqual([]);
+  });
+
   it("discards a draft, and refuses names it doesn't have", async () => {
     const { fake, draft, drafts } = await withDraft();
     await expect(drafts.create("20261014-abc123")).rejects.toMatchObject({ problem: "exists" });

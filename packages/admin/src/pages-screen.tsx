@@ -20,6 +20,7 @@ import {
   pageTitle,
   slugify,
 } from "./changes.js";
+import { mayChange } from "./limits.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
 import { navigate, pageEditorHref } from "./router.js";
 import { ComingUp, ScheduleFields, ScheduleStatus, scheduleSettingsChanges } from "./schedule.js";
@@ -264,7 +265,7 @@ type DialogState =
 
 export function PagesScreen() {
   const t = useStrings();
-  const { siteUrl } = useAdmin();
+  const { siteUrl, limits } = useAdmin();
   const { content } = useSiteContent();
   const [dialog, setDialog] = useState<DialogState>(null);
   const close = () => setDialog(null);
@@ -294,58 +295,68 @@ export function PagesScreen() {
             </tr>
           </thead>
           <tbody>
-            {content.pages.map((page) => (
-              <tr key={page.path}>
-                <td>
-                  <a href={pageEditorHref(page.path)} className="gfa-link-strong">
-                    {pageTitle(page)}
-                  </a>
-                  <ScheduleStatus schedule={page.content} content={content} />
-                  <PageTranslations page={page} />
-                </td>
-                <td>
-                  <code>{page.path}</code>
-                </td>
-                <td className="gfa-row-actions">
-                  <a className="gfa-button gfa-button-secondary" href={pageEditorHref(page.path)}>
-                    {t("pages.edit")}
-                  </a>
-                  <a
-                    className="gfa-button gfa-button-ghost"
-                    href={`${siteUrl.replace(/\/$/, "")}${page.path}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {t("pages.view")}
-                  </a>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setDialog({ type: "move", page })}
-                    disabled={page.path === "/"}
-                  >
-                    {t("pages.move")}
-                  </Button>
-                  <Button variant="ghost" onClick={() => setDialog({ type: "duplicate", page })}>
-                    {t("pages.duplicate")}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setDialog({ type: "schedule", page })}
-                    disabled={page.path === "/"}
-                  >
-                    {t("pages.schedule")}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setDialog({ type: "delete", page })}
-                    disabled={page.path === "/"}
-                    title={page.path === "/" ? t("pages.homeCantDelete") : undefined}
-                  >
-                    {t("pages.delete")}
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {content.pages.map((page) => {
+              // Pages outside what someone may change open to be looked at, without the rest.
+              const changeable = mayChange(content, limits, { kind: "page", path: page.path });
+              return (
+                <tr key={page.path}>
+                  <td>
+                    <a href={pageEditorHref(page.path)} className="gfa-link-strong">
+                      {pageTitle(page)}
+                    </a>
+                    <ScheduleStatus schedule={page.content} content={content} />
+                    <PageTranslations page={page} />
+                  </td>
+                  <td>
+                    <code>{page.path}</code>
+                  </td>
+                  <td className="gfa-row-actions">
+                    <a className="gfa-button gfa-button-secondary" href={pageEditorHref(page.path)}>
+                      {t(changeable ? "pages.edit" : "pages.look")}
+                    </a>
+                    <a
+                      className="gfa-button gfa-button-ghost"
+                      href={`${siteUrl.replace(/\/$/, "")}${page.path}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t("pages.view")}
+                    </a>
+                    {changeable && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => setDialog({ type: "move", page })}
+                        disabled={page.path === "/"}
+                      >
+                        {t("pages.move")}
+                      </Button>
+                    )}
+                    <Button variant="ghost" onClick={() => setDialog({ type: "duplicate", page })}>
+                      {t("pages.duplicate")}
+                    </Button>
+                    {changeable && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setDialog({ type: "schedule", page })}
+                          disabled={page.path === "/"}
+                        >
+                          {t("pages.schedule")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setDialog({ type: "delete", page })}
+                          disabled={page.path === "/"}
+                          title={page.path === "/" ? t("pages.homeCantDelete") : undefined}
+                        >
+                          {t("pages.delete")}
+                        </Button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

@@ -277,6 +277,31 @@ describe("changing a site", () => {
     expect(fake.repo.reviews[0]).toMatchObject({ title: "New About page", branch: `goodfellow-draft-${draft}` });
   });
 
+  it("keeps the connected person to their limits, sending the rest to the site's reviewers", async () => {
+    const files = {
+      ...starterFiles(),
+      "content/permissions.json": JSON.stringify({
+        version: 1,
+        people: { editor: { pages: ["/news"] } },
+        reviewers: ["owner", "editor"],
+      }),
+    };
+    const { call, fake } = await connect({ files });
+    const { draft } = (await call("save_page", { address: "/about", blocks: [heading("About")] })).json();
+    const refused = await call("publish", { draft, message: "New About page" });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("the page /about");
+    expect((await call("get_page", { address: "/about" })).text).toContain("About us");
+    expect((await call("submit_for_review", { draft, title: "New About page" })).json()).toMatchObject({
+      submitted: true,
+    });
+    // Never the person themselves, whom hosts won't ask.
+    expect(fake.repo.reviews[0]?.reviewers).toEqual(["owner"]);
+
+    const news = (await call("save_page", { address: "/news", blocks: [heading("News")] })).json();
+    expect((await call("publish", { draft: news.draft, message: "News" })).json()).toMatchObject({ published: true });
+  });
+
   it("refuses to publish over someone else's change to the same page", async () => {
     const { call, fake } = await connect();
     const { draft } = (await call("save_page", { address: "/about", blocks: [heading("Mine")] })).json();

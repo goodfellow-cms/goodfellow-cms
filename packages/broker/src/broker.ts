@@ -264,9 +264,12 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
       const services = new MessageChannel();
       stop = serveBackend(backendChannel.port1, signedIn, {
         async check(call) {
-          const decision = await decide(call, where.siteUrl);
+          const decision = await decide(call, where.siteUrl, signedIn);
           if (decision.action === "refuse") {
-            throw new BrokerRefusedError("workflow", t("refusedWorkflow", { paths: decision.paths.join(", ") }));
+            const paths = decision.paths.join(", ");
+            throw decision.reason === "limits"
+              ? new BrokerRefusedError("limits", t("refusedLimits", { paths }))
+              : new BrokerRefusedError("workflow", t("refusedWorkflow", { paths }));
           }
           if (decision.action === "ask" && !(await confirm(decision.questions))) {
             throw new BrokerRefusedError("declined", t("declined"));

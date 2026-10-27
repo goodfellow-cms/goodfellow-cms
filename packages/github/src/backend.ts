@@ -210,6 +210,11 @@ export class GitHubBackend implements GitBackend {
   private draftHost(): DraftHost {
     const base = `/repos/${this.repo}`;
     const ref = (branch: string) => `${base}/git/refs/heads/${encodeURIComponent(branch)}`;
+    const openPulls = (branch: string) => {
+      const owner = decodeURIComponent(this.repo).split("/")[0];
+      const query = new URLSearchParams({ head: `${owner}:${branch}`, state: "open" });
+      return githubJson<Array<{ number: number; html_url: string }>>(this.api, `${base}/pulls?${query}`);
+    };
     return {
       liveBranch: this.branch,
       branchStore: (branch) => new GitHubBackend({ ...this.options, branch }),
@@ -241,22 +246,50 @@ export class GitHubBackend implements GitBackend {
         );
         return refs.map((found) => found.ref.replace(/^refs\/heads\//, ""));
       },
-      openReview: async ({ branch, title, description }) => {
+      openReview: async ({ branch, title, description, reviewers = [] }) => {
         const response = await githubRequest(this.api, `${base}/pulls`, {
           method: "POST",
           body: { title, head: branch, base: this.branch, body: description },
           allow: [403, 404, 422],
         });
-        if (response.ok) return { url: ((await response.json()) as { html_url: string }).html_url };
-        if (response.status !== 422) {
+        let review: { number: number; html_url: string } | undefined;
+        if (response.ok) review = (await response.json()) as { number: number; html_url: string };
+        else if (response.status !== 422) {
           throw new DraftError("no-reviews", "This sign-in can't open pull requests on the site's repository.");
+        } else {
+          // One is open already: give its address.
+          [review] = await openPulls(branch);
+          if (!review) throw new GitApiError(422, "GitHub couldn't open the pull request.");
         }
-        // One is open already: give its address.
-        const owner = decodeURIComponent(this.repo).split("/")[0];
-        const query = new URLSearchParams({ head: `${owner}:${branch}`, state: "open" });
-        const [open] = await githubJson<Array<{ html_url: string }>>(this.api, `${base}/pulls?${query}`);
-        if (!open) throw new GitApiError(422, "GitHub couldn't open the pull request.");
-        return { url: open.html_url };
+        // GitHub refuses the whole request where one person can't review, such as the one who opened it, so each is asked alone.
+        for (const reviewer of reviewers) {
+          await githubRequest(this.api, `${base}/pulls/${review.number}/requested_reviewers`, {
+            method: "POST",
+            body: { reviewers: [reviewer] },
+            allow: [403, 404, 422],
+          });
+        }
+        return { url: review.html_url };
+      },
+      listReviews: async (prefix) => {
+        const pulls = await githubJson<
+          Array<{ html_url: string; title: string; head: { ref: string; repo?: { full_name?: string } | null } }>
+        >(this.api, `${base}/pulls?${new URLSearchParams({ state: "open", per_page: "100" })}`);
+        const repo = decodeURIComponent(this.repo).toLowerCase();
+        return pulls
+          .filter(
+            (pull) => pull.head.ref.startsWith(prefix) && (pull.head.repo?.full_name ?? repo).toLowerCase() === repo,
+          )
+          .map((pull) => ({ branch: pull.head.ref, url: pull.html_url, title: pull.title }));
+      },
+      closeReview: async (branch) => {
+        for (const pull of await openPulls(branch)) {
+          await githubRequest(this.api, `${base}/pulls/${pull.number}`, {
+            method: "PATCH",
+            body: { state: "closed" },
+            allow: [403, 404, 422],
+          });
+        }
       },
     };
   }

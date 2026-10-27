@@ -2180,3 +2180,16 @@ body,
 .gfa-drawer-item [class*="_DrawerItem-draggable_"] > :last-child:not([class*="_DrawerItem-name_"]) {
   display: none;
 }
+
+.gfa-fieldset {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+
+.gfa-fieldset legend {
+  margin-bottom: 6px;
+  font-weight: 600;
+}

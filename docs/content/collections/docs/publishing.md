@@ -64,15 +64,15 @@ Then choose **Restore the site as it was** to put everything back in one publish
 To publish changes to several pages together, with one rebuild, keep them in a **draft** first. In an editor, **Add to draft**, beside **Publish**, starts a draft with your change instead of publishing it. While you're working in a draft, a bar at the top of every screen says so, and every **Publish** button says **Add to draft**: pages, items, the header and footer, Site Settings and the media library all save into the draft. Visitors don't see any of it until it's published. The bar has:
 
 - **Publish all**, which runs the [site checks](#site-checks) over everything in the draft, then publishes it in one change, with one rebuild. If someone else has published changes to the same pages or settings since the draft started, it stops rather than overwriting them, and the draft is kept: submit it for review, or throw it away and make the changes again.
-- **Submit for review**, so someone else checks it first. On GitHub and Bitbucket this opens a pull request, and on GitLab a merge request; whoever reviews it publishes it there.
+- **Submit for review**, so someone else checks it first. On GitHub and Bitbucket this opens a pull request, and on GitLab a merge request, asking the site's reviewers to look: every owner, unless [Limits](/docs/sign-in#limiting-what-editors-can-change) names some people. The bar then says the draft is submitted, with **See it** for the review on the host.
 - **Throw away**, which deletes the draft and leaves the live site as it is.
 - **Back to the live site**, which leaves the draft for later.
 
-A draft stays when you close the tab, and the admin panel opens it again next time. Other editors see it too: when there's a draft, the bar says so and offers to open it, including drafts [Claude](/docs/claude#drafts) started, which can be finished in the admin panel.
+A draft stays when you close the tab, and the admin panel opens it again next time. Other editors see it too: when there's a draft, the bar says so and offers to open it, including drafts [Claude](/docs/claude#drafts) started, which can be finished in the admin panel. Drafts waiting for review come first, for owners: the bar names the one waiting, with **See it**. A reviewer can publish it on the host, or open it here and **Publish all** or **Throw away**, which also closes its review.
 
 Drafts are kept on branches of the site's repository named `goodfellow-draft-…`, which the starters' setups never build. Cloudflare Pages and Vercel build previews of every branch unless told not to, so their [setup steps](/docs/put-it-online#3-choose-a-host) turn previews off.
 
-On a [full-stack Next.js site](/docs/full-stack-nextjs), in a [demo](/docs/demo-mode) and when the site runs on your own computer, there are no branches to keep it on, so the draft is kept in your browser instead: it stays when the tab closes, but other editors don't see it, it can't be submitted for review, and another browser or computer doesn't have it.
+On a [full-stack Next.js site](/docs/full-stack-nextjs), in a [demo](/docs/demo-mode) and when the site runs on your own computer, there are no branches to keep it on, so the draft is kept in your browser instead: it stays when the tab closes, but other editors don't see it, it can't be submitted for review, and another browser or computer doesn't have it. A full-stack site's server can still take changes outside someone's [limits](/docs/sign-in#limiting-what-editors-can-change) for review.
 
 ## Unpublished changes
 

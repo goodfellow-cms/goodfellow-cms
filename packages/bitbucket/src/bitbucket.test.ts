@@ -299,6 +299,25 @@ describe("drafts", () => {
     ]);
   });
 
+  it("asks workspace members for their review, lists drafts waiting for it, and declines it when the draft is thrown away", async () => {
+    const context = await signedIn({ members: ["olivia"] });
+    const drafts = context.backend.drafts;
+    if (!drafts) throw new Error("No drafts");
+    const draft = await drafts.create("20261014-abc123");
+    await draft.store.write([{ path: "content/pages/about.json", content: about("About us") }], {
+      message: "Draft changes",
+      expectedRevision: await draft.store.revision(),
+    });
+    // Its author, and people outside the workspace, aren't asked.
+    await draft.submitForReview({ title: "New About page", reviewers: ["olivia", "editor", "stranger"] });
+    expect(context.fake.repo.reviews[0]?.reviewers).toEqual(["olivia"]);
+    expect(await drafts.reviews()).toEqual([
+      { name: "20261014-abc123", url: "https://bitbucket.org/parish/site/pull-requests/1", title: "New About page" },
+    ]);
+    await draft.discard();
+    expect(context.fake.repo.reviews[0]?.state).toBe("closed");
+  });
+
   it("discards a draft, and refuses names it has already", async () => {
     const { fake, draft, drafts } = await withDraft();
     await expect(drafts.create("20261014-abc123")).rejects.toMatchObject({ problem: "exists" });

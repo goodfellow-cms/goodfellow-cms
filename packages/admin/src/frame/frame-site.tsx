@@ -138,6 +138,7 @@ export function FrameProviders({
       drafts: {
         kept: true,
         names: [],
+        reviews: [],
         open: async () => refused(),
         publishAll: async () => refused(),
         submit: async () => refused(),

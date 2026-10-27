@@ -184,7 +184,7 @@ export function brokerChangeCheck(changes: readonly FileChange[], siteUrl: strin
 export class BrokerRefusedError extends Error {
   override name = "BrokerRefusedError";
   constructor(
-    readonly problem: "workflow" | "declined" | "not-here",
+    readonly problem: "workflow" | "declined" | "not-here" | "limits",
     message: string,
   ) {
     super(message);
@@ -236,7 +236,7 @@ const BACKEND: Shape = {
         nightly: { methods: ["supported", "get", "set"] },
       },
     },
-    drafts: { methods: ["create", "open", "list"], returns: { create: DRAFT, open: DRAFT } },
+    drafts: { methods: ["create", "open", "list", "reviews"], returns: { create: DRAFT, open: DRAFT } },
     scheduledBuilds: { methods: ["timing", "sync"] },
     tasks: { methods: ["supported", "secretsPlace", "run"] },
   },

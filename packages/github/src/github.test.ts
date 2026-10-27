@@ -651,6 +651,28 @@ describe("drafts", () => {
     expect(fake.repo.reviews).toHaveLength(1);
   });
 
+  it("asks reviewers for their review, leaving out those GitHub won't ask, and lists drafts waiting for it", async () => {
+    const { fake, draft, drafts } = await withDraft();
+    await draft.submitForReview({ title: "New About page", reviewers: ["olivia", "editor", "not-a-collaborator"] });
+    expect(fake.repo.reviews[0]?.reviewers).toEqual(["olivia"]);
+    expect(await drafts.reviews()).toEqual([
+      { name: "20261014-abc123", url: "https://github.com/parish/site/pull/1", title: "New About page" },
+    ]);
+  });
+
+  it("closes a draft's review when it's published or thrown away", async () => {
+    const { fake, draft, drafts } = await withDraft();
+    await draft.submitForReview({ title: "New About page" });
+    await draft.publish("Update About");
+    expect(fake.repo.reviews[0]?.state).toBe("closed");
+    expect(await drafts.reviews()).toEqual([]);
+
+    const other = await drafts.create("20261015-def456");
+    await other.submitForReview({ title: "Another" });
+    await other.discard();
+    expect(fake.repo.reviews[1]?.state).toBe("closed");
+  });
+
   it("discards a draft", async () => {
     const { fake, draft, drafts } = await withDraft();
     await draft.discard();

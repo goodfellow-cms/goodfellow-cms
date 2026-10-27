@@ -12,7 +12,7 @@ Editors sign in at `/admin` on the live site with their own GitHub, GitLab or Bi
 
 **Site Settings → Editors** lists everyone who can edit the site, and the invitations they haven't accepted yet. There are two roles:
 
-- **Editors** change and publish everything in the admin panel.
+- **Editors** change and publish everything in the admin panel, unless an owner [limits what they can change](#limiting-what-editors-can-change).
 - **Owners** can also invite and remove editors, change their roles, and connect a domain.
 
 Owners invite people by their GitHub, GitLab or Bitbucket username, and on GitLab by email address too, in which case GitLab helps them make an account if they don't have one. GitHub and GitLab email each person an invitation, which they accept before they can sign in. Invitations can be withdrawn until they're accepted. Nobody can remove themselves or change their own role, so a site always keeps its owner.
@@ -20,6 +20,21 @@ Owners invite people by their GitHub, GitLab or Bitbucket username, and on GitLa
 - **On GitHub,** everyday sign-in can't change who edits the site, since that needs GitHub's Administration permission, which can also delete the repository. The Editors screen asks owners for a second token, an **owner token**, made from a link that fills in the permissions it needs, for that browser tab only. The Domain and Updates screens use it too, for GitHub Pages settings and running the site's update. On a site with a [sign-in service](#signing-in-with-github), owners can **Sign in as an owner with GitHub** instead, with the service's second app, the owners' app. Either is kept only until the browser tab closes.
 - **On GitLab,** owners are Maintainers in the site's project, and editors are Developers. GitLab only lets Maintainers publish to the main branch at first, so the Editors screen offers **Let editors publish**, which lets Developers publish too, while still stopping anyone from rewriting the site's history. People in a GitLab group that has the project are listed too, but are changed in the group on GitLab.
 - **On Bitbucket,** owners have the repository's Admin permission, and editors Write. Bitbucket only gives a repository's permissions to people already in its workspace, so owners add someone to the workspace on Bitbucket first; then the Editors screen gives them access by their Bitbucket username, straight away, with no invitation to accept. Seeing and changing everyone's permissions needs Admin, so an editor's own sign-in only shows themselves, and an owner who signed in with a token that can't do it uses an **owner token**, a repository access token with admin permission, for that browser tab only. The Updates screen uses the same, for Bitbucket Pipelines' settings and schedules.
+
+## Limiting what editors can change
+
+Owners can limit what someone changes, under **Site Settings → Editors → Limits**. Type their username, choose **Limit what they can change**, and tick what they may change:
+
+- **Pages,** by section: `/news` covers the News page, every page under it, such as `/news/2026`, and their translations. **Every page** covers them all.
+- **Collections' items,** collection by collection. A collection's settings and design stay the owners'.
+- **The media library,** **the header and footer** and **the menus**.
+- **Languages,** on a site in [several languages](/docs/languages): only pages, items, headers, footers and menus in the languages ticked.
+
+Everything else they can look at, read-only, and the Pages screen offers **Look** instead of **Edit**. Anyone the list doesn't name can change everything their role allows, so a site without limits works as before. The limits are kept in `content/permissions.json`, which only owners change.
+
+When a change goes outside someone's limits, such as moving their page, which also changes the links to it in the menus, publishing says what's outside and offers **Submit for review**. Their changes go into a [draft](/docs/publishing#drafts) for a reviewer to publish, or not, and the live site stays as it is. The site's reviewers are every owner, unless **Who reviews changes outside someone's limits** names some people; GitHub, GitLab and Bitbucket ask them to look, and the admin panel shows owners what's waiting for their review. GitLab's free plan asks only the first reviewer.
+
+**Where limits hold.** On GitHub, GitLab and Bitbucket, anyone who can publish to a site can change any of its files there. The admin panel, the [token broker](/docs/token-broker) and [Claude](/docs/claude) keep people to their limits, so nobody changes the wrong page by mistake, but someone who goes to the repository themselves can still change other files. Only a [full-stack site](/docs/full-stack-nextjs), whose server holds the only way in, holds everyone to them, whatever they try. For a site that needs that on GitHub or GitLab, give the people with limits no access of their own, and protect the main branch so changes need an owner's review.
 
 ## GitHub
 

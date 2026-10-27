@@ -21,10 +21,12 @@ import {
   MEDIA_STORAGE_FILE,
   MENUS_FILE,
   PAGES_DIR,
+  PERMISSIONS_FILE,
   pageFileToPath,
   REDIRECTS_FILE,
   SITE_FILE,
 } from "./paths.js";
+import { type Permissions, permissionsFileSchema } from "./permissions.js";
 import { type Redirect, redirectProblems, redirectsFileSchema } from "./redirects.js";
 import {
   type CollectionFile,
@@ -111,6 +113,8 @@ export interface SiteContent {
   credits?: Record<string, PhotoCredit>;
   /** The media a plugin keeps outside the repository (`content/media-storage.json`). Missing means none. */
   mediaStorage?: MediaStorage;
+  /** What each editor may change, and who reviews the rest (`content/permissions.json`). Missing means no limits. */
+  permissions?: Permissions;
 }
 
 export interface SiteCode {
@@ -196,6 +200,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     redirectsFile,
     mediaFile,
     storageFile,
+    permissionsFile,
     header,
     footer,
     customCss,
@@ -209,6 +214,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     loadOptional("redirects", redirectsFileSchema, REDIRECTS_FILE, { version: 1, redirects: [] }),
     loadOptional("media", mediaFileSchema, MEDIA_FILE, { version: 1, credits: {} }),
     loadOptional("storage", mediaStorageFileSchema.optional(), MEDIA_STORAGE_FILE, undefined),
+    loadOptional("permissions", permissionsFileSchema.optional(), PERMISSIONS_FILE, undefined),
     loadOptional("layout", layoutFileSchema, HEADER_FILE, EMPTY_LAYOUT),
     loadOptional("layout", layoutFileSchema, FOOTER_FILE, EMPTY_LAYOUT),
     source.read(CUSTOM_CSS_FILE),
@@ -333,6 +339,12 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     credits: mediaFile.credits,
     ...(storageFile && {
       mediaStorage: { plugin: storageFile.plugin, url: storageFile.url, files: storageFile.files },
+    }),
+    ...(permissionsFile && {
+      permissions: {
+        people: permissionsFile.people,
+        ...(permissionsFile.reviewers && { reviewers: permissionsFile.reviewers }),
+      },
     }),
   };
 }
