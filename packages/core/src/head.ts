@@ -69,7 +69,7 @@ export function getPageHead(settings: SiteSettings, page: Page): PageHead {
     canonicalUrl: settings.url ? absoluteUrl(settings.url, page.path) : undefined,
     favicon: settings.favicon,
     socialImage: readString(props, "image") || settings.socialImage,
-    noIndex: neverIndexed(page.path) || props?.noIndex === true,
+    noIndex: settings.noIndex === true || neverIndexed(page.path) || props?.noIndex === true,
   };
 }
 

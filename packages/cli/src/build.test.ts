@@ -4,7 +4,7 @@ import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { startsWithGuard, vercelAdminHeaders, withAdminConfig } from "@goodfellow-cms/core";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "./build.js";
 
 const fixture = resolve(import.meta.dirname, "../test/fixtures/site");
@@ -373,6 +373,43 @@ describe("a site with an admin address", () => {
   });
 });
 
+describe("a copy of the site, such as staging", () => {
+  it("is built at its own address, out of search engines, without the main site's admin address", async () => {
+    const site = await mkdtemp(join(import.meta.dirname, "../test/.copy-"));
+    const out = join(site, "dist");
+    try {
+      await cp(fixture, site, { recursive: true, filter: (path) => !path.includes("node_modules") });
+      const configFile = join(site, "goodfellow.config.tsx");
+      const config = withAdminConfig(await readFile(configFile, "utf8"), {
+        url: "https://admin.example.org",
+        checked: true,
+      });
+      await writeFile(configFile, config ?? "");
+      const settings = await readFile(join(site, "content/site.json"), "utf8");
+      vi.stubEnv("GOODFELLOW_SITE_URL", "https://staging.example.org/site");
+      vi.stubEnv("GOODFELLOW_NO_INDEX", "true");
+      try {
+        await build({ root: site, outDir: out });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      const html = await readFile(join(out, "news/index.html"), "utf8");
+      expect(html).toContain('<link rel="canonical" href="https://staging.example.org/site/news"/>');
+      expect(html).toContain('<meta name="robots" content="noindex"/>');
+      expect(await readFile(join(out, "sitemap.xml"), "utf8")).not.toContain("<loc>");
+      expect(await readFile(join(out, "robots.txt"), "utf8")).toContain("https://staging.example.org/site/sitemap.xml");
+      // Its admin panel stays at its own address, so the main site's guards aren't there.
+      expect(startsWithGuard(html, "html")).toBe(false);
+      expect(JSON.parse(await readFile(join(out, "goodfellow-site.json"), "utf8")).admin).toBeUndefined();
+      // And nothing of the copy's reaches content.
+      expect(await readFile(join(site, "content/site.json"), "utf8")).toBe(settings);
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("a site with a plugin", () => {
   it("builds the plugin's admin frame with its policy, and runs its build step held to what it declared", async () => {
     // Inside the package, so the site's imports find its packages.
@@ -444,6 +481,14 @@ describe("a site with a plugin", () => {
       expect(page).toContain(
         '<link rel="license" href="/from-config/admin/plugins/goodfellow-plugin-hello/LICENSES.txt" />',
       );
+      // Search engines are asked not to list any of the admin panel's pages.
+      for (const file of [
+        "admin/index.html",
+        "admin/editor/index.html",
+        "admin/plugins/goodfellow-plugin-hello/index.html",
+      ]) {
+        expect(await readFile(join(out, file), "utf8"), file).toContain('<meta name="robots" content="noindex" />');
+      }
       const notices = await readFile(join(out, "admin/plugins/goodfellow-plugin-hello/LICENSES.txt"), "utf8");
       expect(notices).toMatch(
         /^- @goodfellow-cms\/core [\d.]+: MIT, source at https:\/\/github\.com\/goodfellow-cms\/goodfellow-cms\/tree\/HEAD\/packages\/core$/m,

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { fileSystemSource } from "./node-fs-source.js";
+import { builtSiteSource, fileSystemSource } from "./node-fs-source.js";
 
 describe("fileSystemSource", () => {
   let root: string;
@@ -15,6 +15,7 @@ describe("fileSystemSource", () => {
       await writeFile(join(root, file), "{}");
     }
     await writeFile(join(root, "public/media/note.txt"), "hello\n");
+    await writeFile(join(root, "content/site.json"), '{\n  "version": 1,\n  "url": "https://example.org"\n}\n');
   });
 
   afterAll(() => rm(root, { recursive: true, force: true }));
@@ -35,5 +36,16 @@ describe("fileSystemSource", () => {
 
   it("reads files as text", async () => {
     expect(await fileSystemSource(root).read("public/media/note.txt")).toBe("hello\n");
+  });
+
+  it("reads a copy's address and search engine setting only where asked, for builds", async () => {
+    const env = { GOODFELLOW_SITE_URL: "https://staging.example.org/", GOODFELLOW_NO_INDEX: "true" };
+    const built = JSON.parse((await builtSiteSource(root, env).read("content/site.json")) ?? "");
+    expect(built).toEqual({ version: 1, url: "https://staging.example.org", noIndex: true });
+    // What the admin panel's local store writes through keeps the file's own.
+    expect(JSON.parse((await fileSystemSource(root).read("content/site.json")) ?? "").url).toBe("https://example.org");
+    expect(await builtSiteSource(root, {}).read("content/site.json")).toBe(
+      '{\n  "version": 1,\n  "url": "https://example.org"\n}\n',
+    );
   });
 });

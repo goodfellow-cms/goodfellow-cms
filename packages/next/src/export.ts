@@ -36,7 +36,7 @@ import {
 import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import {
   BUILD_DATES_DIR,
-  fileSystemSource,
+  builtSiteSource,
   guardBuiltSite,
   reportedDate,
   runPluginBuildSteps,
@@ -55,7 +55,7 @@ export { NEXT_SITE_FILES } from "./site-files.js";
  * how many it wrote.
  */
 export async function writeCalendarFiles(outDir: string, root = process.cwd()): Promise<number> {
-  const files = calendarFiles(shownContent(await loadSiteContent(fileSystemSource(resolve(root)))));
+  const files = calendarFiles(shownContent(await loadSiteContent(builtSiteSource(resolve(root)))));
   for (const file of files) {
     const target = join(outDir, file.path.slice(1));
     await mkdir(dirname(target), { recursive: true });
@@ -69,7 +69,7 @@ export async function writeCalendarFiles(outDir: string, root = process.cwd()): 
  * build` does. Returns how many it wrote: none without the site's address.
  */
 export async function writeFeedFiles(outDir: string, root = process.cwd()): Promise<number> {
-  const files = feedFiles(shownContent(await loadSiteContent(fileSystemSource(resolve(root)))));
+  const files = feedFiles(shownContent(await loadSiteContent(builtSiteSource(resolve(root)))));
   for (const file of files) {
     const target = join(outDir, file.path.slice(1));
     await mkdir(dirname(target), { recursive: true });
@@ -84,7 +84,7 @@ export async function writeFeedFiles(outDir: string, root = process.cwd()): Prom
  * code, such as `es/feeds/`.
  */
 export async function buildFileFolders(root = process.cwd()): Promise<string[]> {
-  const { settings } = await loadSiteContent(fileSystemSource(resolve(root)));
+  const { settings } = await loadSiteContent(builtSiteSource(resolve(root)));
   return siteLanguages(settings).flatMap((language) =>
     [CALENDARS_DIR, FEEDS_DIR].map((dir) => `${language.prefix.slice(1)}${language.prefix ? "/" : ""}${dir}`),
   );
@@ -155,7 +155,7 @@ export interface FontsWritten {
  * subfolder (`rootRobotsUrl()`).
  */
 export async function writeFontFiles(outDir: string, root = process.cwd()): Promise<FontsWritten> {
-  const { settings } = await loadSiteContent(fileSystemSource(resolve(root)));
+  const { settings } = await loadSiteContent(builtSiteSource(resolve(root)));
   const fonts = await selfHostFonts(outDir, settings.theme, { base: await exportBasePath(root) });
   const robotsElsewhere = rootRobotsUrl(settings.url);
   return {
@@ -173,7 +173,7 @@ export async function writeFontFiles(outDir: string, root = process.cwd()): Prom
  */
 export async function writeBuildRecordFile(outDir: string, root = process.cwd()): Promise<string | undefined> {
   const dir = resolve(root);
-  const content = await loadSiteContent(fileSystemSource(dir));
+  const content = await loadSiteContent(builtSiteSource(dir));
   const date = await reportedDate(join(dir, ".next", BUILD_DATES_DIR));
   const record = await writeBuildRecord(outDir, { root: dir, content, now: new Date(), ...(date && { date }) });
   return record.currentUntil;
@@ -195,7 +195,7 @@ export interface RedirectsWritten {
  */
 export async function writeRedirectFiles(outDir: string, root = process.cwd()): Promise<RedirectsWritten> {
   const dir = resolve(root);
-  const content = shownContent(await loadSiteContent(fileSystemSource(dir)));
+  const content = shownContent(await loadSiteContent(builtSiteSource(dir)));
   const base = await exportBasePath(dir);
   const files = redirectFiles(content, { taken: allPages(content).map((page) => page.path), base });
   const written: Redirect[] = [];
@@ -228,7 +228,7 @@ export async function guardExport(outDir: string, root = process.cwd()): Promise
   const admin = parsed?.ok ? parsed.description.admin : undefined;
   if (!admin) return undefined;
   const dir = resolve(root);
-  const content = await loadSiteContent(fileSystemSource(dir));
+  const content = await loadSiteContent(builtSiteSource(dir));
   return guardBuiltSite(outDir, {
     admin,
     ...(parsed?.ok && parsed.description.broker && { broker: parsed.description.broker }),
@@ -315,7 +315,7 @@ function withPageLanguage(html: string, language: string): string {
  */
 export async function writePageLanguages(outDir: string | undefined, root = process.cwd()): Promise<number> {
   const dir = resolve(root);
-  const { settings } = await loadSiteContent(fileSystemSource(dir));
+  const { settings } = await loadSiteContent(builtSiteSource(dir));
   if (!hasLanguages(settings)) return 0;
   const base = outDir ?? join(dir, ".next/server/app");
   const files = (await readdir(base, { recursive: true }))
@@ -406,7 +406,7 @@ function contentFile(pages: readonly Page[], path: string): string | undefined {
  * Pages that aren't the site's, such as Next.js's own, are left out.
  */
 export async function checkPages(pages: readonly BuiltPage[], root = process.cwd()): Promise<SiteProblem[]> {
-  const known = allPages(shownContent(await loadSiteContent(fileSystemSource(resolve(root)))));
+  const known = allPages(shownContent(await loadSiteContent(builtSiteSource(resolve(root)))));
   return checkBuiltPages(
     pages.flatMap((page) => {
       const path = page.url.replace(/(.)\/$/, "$1");

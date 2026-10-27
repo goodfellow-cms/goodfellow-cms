@@ -362,7 +362,8 @@ export function createWorker(options: WorkerOptions = {}) {
     /**
      * The addresses tokens may go to: the Site address in the site's settings
      * (`content/site.json`), read with an installation token, and the admin
-     * address the site's build names there, if it has one. Empty without a Site address.
+     * address and the site's other copies, such as staging, that the site's
+     * build names there, if it has them. Empty without a Site address.
      */
     async function siteAddresses(repo: string, token: string): Promise<string[]> {
       let url: string | undefined;
@@ -378,20 +379,22 @@ export function createWorker(options: WorkerOptions = {}) {
       }
       const site = url && originOf(url);
       if (!url || !site) return [];
-      const { admin, broker } = await describedAddresses(url);
+      const { admin, broker, copies = [] } = await describedAddresses(url);
       // A site with a token broker signs in only there, so its tokens never reach the site's own pages.
       if (broker) return [broker];
-      return admin ? [site, admin] : [site];
+      return [...new Set([site, ...(admin ? [admin] : []), ...copies])];
     }
 
     /**
-     * The admin address and token broker in the site's description
-     * (`goodfellow-site.json`, which builds write from the site's config) at
-     * the Site address, where editors sign in when the site has them. Tokens
-     * already go to the Site address, so what it serves names no address
-     * editors couldn't.
+     * The admin address, token broker and other copies of the site in its
+     * description (`goodfellow-site.json`, which builds write from the site's
+     * config) at the Site address, where editors sign in when the site has
+     * them. Tokens already go to the Site address, so what it serves names no
+     * address editors couldn't.
      */
-    async function describedAddresses(siteUrl: string): Promise<{ admin?: string; broker?: string }> {
+    async function describedAddresses(
+      siteUrl: string,
+    ): Promise<{ admin?: string; broker?: string; copies?: string[] }> {
       try {
         const response = await config.fetch(new URL("goodfellow-site.json", siteUrl.replace(/\/?$/, "/")).href, {
           redirect: "error",
@@ -400,6 +403,7 @@ export function createWorker(options: WorkerOptions = {}) {
         const description = JSON.parse(await response.text()) as {
           admin?: { url?: unknown };
           broker?: { url?: unknown };
+          copies?: unknown;
         };
         const address = (url: unknown) => {
           const origin = typeof url === "string" ? originOf(url) : undefined;
@@ -407,13 +411,16 @@ export function createWorker(options: WorkerOptions = {}) {
         };
         const admin = address(description.admin?.url);
         const broker = address(description.broker?.url);
-        return { ...(admin && { admin }), ...(broker && { broker }) };
+        const copies = (Array.isArray(description.copies) ? description.copies : [])
+          .map(address)
+          .filter((origin): origin is string => origin !== undefined);
+        return { ...(admin && { admin }), ...(broker && { broker }), ...(copies.length > 0 && { copies }) };
       } catch {
         return {};
       }
     }
 
-    /** Checks that the app is installed on the repository and that `origin` is the site's own address, its admin address, or its token broker's. */
+    /** Checks that the app is installed on the repository and that `origin` is the site's own address, its admin address, another copy's, or its token broker's. */
     async function checkSite(purpose: Purpose, repo: string, origin: string | undefined): Promise<number> {
       if (!origin || !originOf(origin) || isLocalAddress(origin)) throw new Problem("local-address", 403);
       const app = appFor(purpose);

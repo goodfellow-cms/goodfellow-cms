@@ -170,6 +170,13 @@ Content files are the product's data format; treat changes to them like API chan
 - **Code tokens:** on GitHub, `github({ code })` asks the sign-in worker for a token for the code repository with each one for the site (`IssuedToken.code`, renewed together by `renewingToken()`). The worker gives one only where Goodfellow is installed there, the code's `goodfellow.config.tsx` names the site's repository, and the person can see it (owners: publish to it), with `CODE_PERMISSIONS`: Actions and Contents read, or for owners Actions write, never anything that changes code. Signing in works without one. The owners' app asks for Secrets for the setup page; where an installation hasn't accepted it, the setup token is made without it.
 - **Tests:** `content-repository.spec.ts` runs a production build of the starter (`e2e/.site-content`) whose content is linked from `content-repository/`, with a content-only GitHub backend whose code repository the fake adds with `addRepo()`. `site-setup.spec.ts` creates sites in two repositories on both hosts; the fakes keep deploy keys and opened secrets (`FakeCreatedRepo`), and job token allowlists and schedules (`FakeCreatedProject`).
 
+## Copies of a site
+
+- **What it is:** a copy of a site, such as staging, is built from another branch of the same repository with the same config. The backend's `branch` comes from the build's environment in the config, and what else differs is set where it's built, never in content, so merging the copy's branch brings nothing of the copy's with it: `GOODFELLOW_SITE_URL` (`SITE_URL_VARIABLE`) for its address and `GOODFELLOW_NO_INDEX` (`NO_INDEX_VARIABLE`) to keep every page out of search engines (`settings.noIndex`, which `getPageHead()` reads). `siteCopyFrom()` in core's `site-copy.ts` reads them, and throws in words for values it can't use. `docs/content/collections/docs/staging.md` says how to set one up.
+- **Only builds see them:** `builtSiteSource()` in `@goodfellow-cms/core/node` is `fileSystemSource()` with `content/site.json` read as the copy is built (`withSiteCopy()`). Use it wherever pages, feeds, calendar files, sitemaps, redirects or the build record are made (`goodfellow build` and `dev`, Next.js's `loadSite()`, `siteRedirects()` and every export helper), and never where content is saved: the local backend's `localFileStore()` keeps the plain `fileSystemSource()`, or Site Settings would save the copy's address. The nightly check reads the copy's address from the environment too.
+- **The admin panel** gets the copy's details as `AdminSite.copy`, only to show them (the Domain screen's note). A copy at an address of its own leaves out the config's admin address (`adminSiteForCopy()`, `describedForCopy()`, used by both builds and the Next.js adapter's `admin()` and `siteDescription()`), since the main site's would send its admin panel there; guards follow the admin site that's left.
+- **Sign-in:** the config's `copies` lists the copies' addresses, which `describeSite()` puts in `goodfellow-site.json`; the sign-in worker reads them from the main site's (`describedAddresses()`), and gives tokens to them as to the admin address: `https://` only, never `isLocalAddress()`, and not at all with a token broker.
+
 ## Puck
 
 - Use `@puckeditor/core`. `@measured/puck` is the old package name; don't import it.
@@ -475,6 +482,7 @@ Use these terms consistently in code, UI and docs.
 | Publish | Commit changes to the site's main branch |
 | Draft | Unpublished changes kept to publish together, from the admin panel's Add to draft or from Claude: on a branch until they're published, submitted for review or thrown away, or in the browser where the backend has no drafts |
 | Content repository | A repository holding only a site's content and media, for a site that keeps them apart from its code |
+| Copy | The same site built from another branch, such as staging, at an address of its own set where it's built |
 
 <!-- BEGIN:turborepo-agent-rules -->
 

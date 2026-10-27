@@ -1,10 +1,12 @@
 import {
   type AdminSite,
   absoluteUrl,
+  adminSiteForCopy,
   colorSchemeMeta,
   colorSchemeScript,
   contentForPage,
   demoContent,
+  describedForCopy,
   feedLinks,
   findRedirect,
   fontPreloads,
@@ -17,6 +19,7 @@ import {
   pageHead,
   type SiteContent,
   shownContent,
+  siteCopyFrom,
   languageMap as siteLanguageMap,
   siteLanguages,
   sitemapPages,
@@ -28,6 +31,7 @@ import {
 } from "@goodfellow-cms/core";
 import {
   BUILD_DATES_ENV,
+  builtSiteSource,
   fileSystemSource,
   fontStandIns,
   readMediaSizes,
@@ -91,7 +95,7 @@ export interface PageProps {
  */
 export const loadSite = cache(
   async (root: string = process.cwd()): Promise<SiteContent> =>
-    shownContent(await loadSiteContent(fileSystemSource(root))),
+    shownContent(await loadSiteContent(builtSiteSource(root))),
 );
 
 function pathOf(segments: string[] | undefined): string {
@@ -223,7 +227,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
      * editor's frames, at `app/admin/editor/page.tsx`.
      */
     admin(): AdminSite {
-      return adminSite(config);
+      return adminSiteForCopy(adminSite(config), siteCopyFrom(process.env));
     },
 
     /** For `app/admin/layout.tsx`: the admin panel's title, kept out of search engines, with the site's icon. */
@@ -377,7 +381,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
      * edit its content without its code, such as the Claude connector.
      */
     siteDescription(): Response {
-      return Response.json(describeSite(config));
+      return Response.json(describedForCopy(describeSite(config), siteCopyFrom(process.env)));
     },
 
     /** For `app/robots.ts`: lets search engines in, and points them at the sitemap once the site's address is set. */

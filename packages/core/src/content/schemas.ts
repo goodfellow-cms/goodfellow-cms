@@ -122,6 +122,12 @@ export const siteSettingsSchema = z.object({
   description: z.string().default(""),
   /** The site's public address, such as `https://example.org`. Used for the sitemap and link previews. */
   url: z.url({ protocol: /^https?$/ }).optional(),
+  /**
+   * Asks search engines not to list any of the site's pages. Usually set only
+   * where a copy of the site is built, such as a staging site, with
+   * `GOODFELLOW_NO_INDEX` (`site-copy.ts`), so it never reaches the main site.
+   */
+  noIndex: z.boolean().optional(),
   /** The site's main language, whose pages are at the root of its address. */
   language: z.string().default("en"),
   /** The main language's name as visitors see it in a language switch, such as "English". Worked out from its code if left out. */

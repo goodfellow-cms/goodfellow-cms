@@ -915,6 +915,16 @@ export {
   type SetupWarning,
 } from "./setup-host.js";
 export {
+  adminSiteForCopy,
+  describedForCopy,
+  isSiteCopy,
+  NO_INDEX_VARIABLE,
+  SITE_URL_VARIABLE,
+  type SiteCopy,
+  siteCopyFrom,
+  withSiteCopy,
+} from "./site-copy.js";
+export {
   type BlockDescription,
   describedConfig,
   GOODFELLOW_VERSION,
