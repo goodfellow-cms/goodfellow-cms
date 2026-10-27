@@ -27,7 +27,7 @@ export default defineConfig({
 | Option | What it does |
 |---|---|
 | `blocks` | The blocks the editor offers, keyed by the name content files store. Never rename a key once pages use it. |
-| `categories` | Groups for the editor's block list, as in Puck: `{ id: { title, components } }`. |
+| `categories` | Groups for the editor's block list, as in Puck: `{ id: { title, components } }`. The built-in groups start open where they fit what's edited (`OPEN_CATEGORIES` in `@goodfellow-cms/react`); your own start open unless you set `defaultExpanded: false`. |
 | `backend` | Where the site is stored: `github({ … })` or `gitlab({ … })`. Builds include the admin panel at `/admin` only when this or `demo` is set. |
 | `base` | The address the site is served from, for hosts that use a subfolder, such as `/my-repo/`. Defaults to `/`. See [Commands](/docs/commands). |
 | `styles` | The site's stylesheet. Defaults to `src/styles.css`. |

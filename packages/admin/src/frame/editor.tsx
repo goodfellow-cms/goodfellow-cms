@@ -46,6 +46,7 @@ import { showMediaInPreview } from "../media-previews.js";
 import { SETTINGS_SECTIONS } from "../router.js";
 import { SharePreview } from "../share-preview.js";
 import { useDarkMode } from "../theme.js";
+import { BlockSearch, searchableBlocks } from "./block-search.js";
 import { useCanvasStyles } from "./canvas-styles.js";
 import type { Channel } from "./channel.js";
 import { entryConfig } from "./entry-fields.js";
@@ -354,9 +355,11 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
   }, [described, migrated, onOpened]);
 
   const ui = useMemo(() => ({ ...(kind === "entry" ? ENTRY_UI : {}), ...open.ui }), [kind, open.ui]);
+  const searchable = useMemo(() => searchableBlocks(config, siteConfig), [config, siteConfig]);
   const overrides = useMemo(
     () => ({
       header: () => <Bridge channel={client.channel} settings={settings} />,
+      drawer: ({ children }: { children?: ReactNode }) => <BlockSearch blocks={searchable}>{children}</BlockSearch>,
       fieldTypes: { text: TextFieldWithMedia },
       // A page's own settings end with how links to it look when shared.
       ...(kind === "page" &&
@@ -369,7 +372,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
           ),
         }),
     }),
-    [client, settings, kind, path],
+    [client, settings, kind, path, searchable],
   );
 
   return (

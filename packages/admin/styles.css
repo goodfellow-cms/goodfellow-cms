@@ -1013,6 +1013,39 @@ body,
   min-height: 0;
 }
 
+/* The search box at the top of Puck's block list, and what it finds. */
+.gfa-block-search-box {
+  padding: 12px 16px 4px;
+}
+
+.gfa-block-search-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--gfa-input-border);
+  border-radius: 6px;
+  background: var(--gfa-surface);
+  color: var(--gfa-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.gfa-block-search-input:focus-visible {
+  outline: 2px solid var(--gfa-accent);
+  outline-offset: 1px;
+}
+
+.gfa-block-search-results {
+  padding: 8px 16px 16px;
+}
+
+.gfa-block-search-none {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--gfa-muted);
+  font-size: 14px;
+}
+
 /* The editor's header, outside the frame that runs the site's code. */
 .gfa-editor-header {
   display: flex;

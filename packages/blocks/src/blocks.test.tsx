@@ -7,12 +7,12 @@ import {
   type SiteContent,
   siteSettingsSchema,
 } from "@goodfellow-cms/core";
-import { createPuckConfig, SiteProvider } from "@goodfellow-cms/react";
+import { blockKeywords, createPuckConfig, SiteProvider } from "@goodfellow-cms/react";
 import { createPageRenderer } from "@goodfellow-cms/react/server";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CODE_THEME_LOADERS } from "./highlight.js";
-import { blocks, categories, listedEntries } from "./index.js";
+import { BLOCK_KEYWORDS, blocks, categories, listedEntries } from "./index.js";
 
 const renderPage = createPageRenderer({ blocks, categories });
 
@@ -96,6 +96,15 @@ describe("built-in blocks", () => {
   it("lists every block in a category", () => {
     const categorized = Object.values(categories).flatMap((category) => category.components);
     expect(categorized.sort()).toEqual(Object.keys(blocks).sort());
+  });
+
+  it("gives every block other words to find it by in the block list, lowercase", () => {
+    for (const [name, block] of Object.entries(blocks)) {
+      const keywords = blockKeywords(block) ?? [];
+      expect(keywords.length, name).toBeGreaterThan(0);
+      for (const keyword of keywords) expect(keyword, name).toBe(keyword.toLowerCase());
+    }
+    expect(Object.keys(BLOCK_KEYWORDS).sort()).toEqual(Object.keys(blocks).sort());
   });
 
   it("renders a section with nested columns and applies CSS classes to the block itself", async () => {

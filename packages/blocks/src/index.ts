@@ -1,3 +1,4 @@
+import { withKeywords } from "@goodfellow-cms/react";
 import type { Config } from "@puckeditor/core";
 import { AddToCalendar, Calendar } from "./calendar.js";
 import { Code } from "./code.js";
@@ -7,6 +8,7 @@ import { Button, Heading, Image, Text } from "./content.js";
 import { DarkModeSwitch } from "./dark-mode-switch.js";
 import { CollectionNav, EntryPager, OnThisPage } from "./docs.js";
 import { Form } from "./form.js";
+import { BLOCK_KEYWORDS } from "./keywords.js";
 import { LanguageSwitch } from "./language-switch.js";
 import { Flex, Grid, Section, Space } from "./layout.js";
 import { CollectionLoop } from "./loop.js";
@@ -65,6 +67,7 @@ export {
   highlightCode,
   loadHighlighter,
 } from "./highlight.js";
+export { BLOCK_KEYWORDS } from "./keywords.js";
 export { LanguageSwitch, type LanguageSwitchProps } from "./language-switch.js";
 export {
   Flex,
@@ -162,24 +165,23 @@ export const blocks = {
   PageList,
 };
 
-/** Groups for the editor's block list. */
+for (const [name, keywords] of Object.entries(BLOCK_KEYWORDS)) {
+  const block = (blocks as Record<string, object>)[name];
+  if (block) withKeywords(block, keywords);
+}
+
+/**
+ * Groups for the editor's block list, which the editor opens for what's
+ * edited (`OPEN_CATEGORIES` in `@goodfellow-cms/react`): all but Navigation
+ * and Collections for pages, Layout and Navigation for the header and footer.
+ */
 export const categories = {
   layout: { title: "Layout", components: ["Section", "Grid", "Flex", "Space", "Separator", "MediaText", "Details"] },
   content: {
-    title: "Content",
-    components: [
-      "Heading",
-      "Text",
-      "Button",
-      "Pullquote",
-      "Table",
-      "Preformatted",
-      "Verse",
-      "Code",
-      "Form",
-      "ContactDetails",
-    ],
+    title: "Text",
+    components: ["Heading", "Text", "Pullquote", "Table", "Preformatted", "Verse", "Code"],
   },
+  forms: { title: "Buttons and forms", components: ["Button", "Form", "ContactDetails"] },
   media: {
     title: "Media",
     components: ["Image", "Gallery", "Video", "Audio", "File"],

@@ -12,7 +12,7 @@ Open `/admin` on the site and sign in. The **Pages** screen lists every page wit
 
 Click **Edit** beside a page. The editor shows the page with the site's own header, footer, colors and fonts, exactly as visitors will see it.
 
-- **Add a block** by dragging it from the list on the left onto the page. Blocks are grouped: layout, content, navigation, collections, and any [added to the site](/docs/add-blocks).
+- **Add a block** by dragging it from the list on the left onto the page. Blocks are grouped: layout, text, buttons and forms, media, navigation, collections, and any [added to the site](/docs/add-blocks). The groups that fit what you're editing start open, such as navigation in the header and footer, and the rest open with a click. To find a block without looking through the groups, type in **Search blocks** at the top of the list: it finds blocks by their names and by other words for them, such as "divider", "columns" or "picture", and WordPress's names for its blocks, such as "Cover". Drag a block from what it finds as from the list; Escape shows the groups again.
 - **Change a block** by clicking it: its settings appear on the right. Text in headings and text blocks can also be typed straight onto the page.
 - **Move a block** by dragging its handle, and remove it from its toolbar.
 - **Undo and redo** with the buttons above the page, or Ctrl+Z and Ctrl+Shift+Z.

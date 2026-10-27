@@ -39,6 +39,7 @@ export {
 export {
   adminSite,
   type BlockParts,
+  blockKeywords,
   blockParts,
   classNameField,
   createPuckConfig,
@@ -48,12 +49,14 @@ export {
   type MediaFieldKind,
   mediaField,
   mediaFieldKind,
+  OPEN_CATEGORIES,
   type PuckConfigKind,
   type TableCells,
   tableCells,
   tableField,
   templateOnly,
   withClassName,
+  withKeywords,
   withParts,
 } from "./puck-config.js";
 export { CurrentPathProvider, useCurrentPath } from "./site-context.js";
