@@ -18,13 +18,17 @@ export const MAX_EDITED_DATA = 2_000_000;
 export interface EditedDataProblem {
   path: string;
   message: string;
+  /** The block it's in, by its label (else its name), for saying where in words; none for the page's settings. */
+  block?: string;
+  /** The block's or page's setting it's about, by its label (else its name), where it's about one. */
+  field?: string;
 }
 
 export type EditedData = { ok: true; data: Data } | { ok: false; problems: EditedDataProblem[] };
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type JsonObject = { [key: string]: Json };
-type FieldJson = { type?: unknown; options?: unknown; arrayFields?: unknown; objectFields?: unknown };
+type FieldJson = { type?: unknown; label?: unknown; options?: unknown; arrayFields?: unknown; objectFields?: unknown };
 
 function isObject(value: unknown): value is JsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -41,8 +45,13 @@ function optionValues(field: FieldJson): unknown[] {
     : [];
 }
 
-/** Notes where a value doesn't fit its field. Fields whose values can't be told from JSON take anything. */
-function misfit(field: FieldJson, value: Json, path: string, problems: EditedDataProblem[]): void {
+/**
+ * Notes where a value doesn't fit its field. Fields whose values can't be told
+ * from JSON take anything; with `resolves`, for a block whose fields change
+ * with what it's set to, a choice can be any plain value, since the choices
+ * its description lists are only those it starts with.
+ */
+function misfit(field: FieldJson, value: Json, path: string, problems: EditedDataProblem[], resolves = false): void {
   const problem = (message: string) => problems.push({ path, message });
   switch (field.type) {
     case "text":
@@ -56,9 +65,8 @@ function misfit(field: FieldJson, value: Json, path: string, problems: EditedDat
     case "select":
     case "radio": {
       const offered = optionValues(field);
-      if (
-        offered.length > 0 ? !offered.some((option) => same(option, value)) : isObject(value) || Array.isArray(value)
-      ) {
+      const plain = !isObject(value) && !Array.isArray(value);
+      if (offered.length > 0 && !resolves ? !offered.some((option) => same(option, value)) : !plain) {
         problem("isn't one of the field's choices");
       }
       return;
@@ -71,7 +79,7 @@ function misfit(field: FieldJson, value: Json, path: string, problems: EditedDat
       const fields = isObject(field.arrayFields) ? (field.arrayFields as Record<string, FieldJson>) : {};
       value.forEach((item, index) => {
         if (!isObject(item)) problems.push({ path: `${path}[${index}]`, message: "should be a set of values" });
-        else checkValues(fields, item, `${path}[${index}]`, problems);
+        else checkValues(fields, item, `${path}[${index}]`, problems, resolves);
       });
       return;
     }
@@ -83,6 +91,7 @@ function misfit(field: FieldJson, value: Json, path: string, problems: EditedDat
           value,
           path,
           problems,
+          resolves,
         );
       return;
     default:
@@ -97,10 +106,11 @@ function checkValues(
   values: JsonObject,
   path: string,
   problems: EditedDataProblem[],
+  resolves: boolean,
 ) {
   for (const [name, value] of Object.entries(values)) {
     const field = fields[name];
-    if (field && isObject(field)) misfit(field, value, `${path}.${name}`, problems);
+    if (field && isObject(field)) misfit(field, value, `${path}.${name}`, problems, resolves);
   }
 }
 
@@ -113,13 +123,17 @@ interface Context {
   problems: EditedDataProblem[];
 }
 
-/** Props a block, or the page's settings, may have: declared ones fitting their fields, others only as they were. */
+/**
+ * Props a block, or the page's settings, may have: declared ones fitting their
+ * fields or as they were when the editor opened, others only as they were.
+ */
 function checkProps(
   fields: Record<string, FieldJson>,
   props: JsonObject,
   before: Record<string, unknown> | undefined,
   path: string,
   context: Context,
+  resolves = false,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(props)) {
@@ -131,7 +145,10 @@ function checkProps(
       if (!Array.isArray(value)) context.problems.push({ path: at, message: "should be a list of blocks" });
       else result[name] = checkBlocks(value, at, context);
     } else if (field && isObject(field)) {
-      misfit(field, value, at, context.problems);
+      // What Puck saved is the site's own: a value the editor left alone stays, whatever the field says now.
+      if (!(before && Object.hasOwn(before, name) && same(before[name], value))) {
+        misfit(field, value, at, context.problems, resolves);
+      }
       result[name] = value;
     } else if (before && Object.hasOwn(before, name) && same(before[name], value)) {
       result[name] = value;
@@ -140,6 +157,28 @@ function checkProps(
     }
   }
   return result;
+}
+
+/**
+ * Names the block and setting of the problems found since `from` that don't
+ * have them yet, which those in its slots' blocks already do.
+ */
+function nameProblems(
+  context: Context,
+  from: number,
+  propsPath: string,
+  fields: Record<string, FieldJson>,
+  block?: string,
+): void {
+  for (const problem of context.problems.slice(from)) {
+    if (problem.block !== undefined || problem.field !== undefined) continue;
+    if (block !== undefined) problem.block = block;
+    if (!problem.path.startsWith(`${propsPath}.`)) continue;
+    const name = /^[^.[]+/.exec(problem.path.slice(propsPath.length + 1))?.[0];
+    if (!name || name === "id") continue;
+    const label = Object.hasOwn(fields, name) ? fields[name]?.label : undefined;
+    problem.field = typeof label === "string" && label ? label : name;
+  }
 }
 
 function checkBlocks(list: Json[], path: string, context: Context): ComponentData[] {
@@ -165,13 +204,17 @@ function checkBlocks(list: Json[], path: string, context: Context): ComponentDat
       return;
     }
     context.ids.add(id);
+    const from = context.problems.length;
+    const fields = block.fields as Record<string, FieldJson>;
     const props = checkProps(
-      block.fields as Record<string, FieldJson>,
+      fields,
       item.props,
       context.opened.get(id),
       `${at}.props`,
       context,
+      block.resolvesFields === true,
     );
+    nameProblems(context, from, `${at}.props`, fields, block.label || item.type);
     result.push({ type: item.type, props: props as ComponentData["props"] });
   });
   return result;
@@ -231,6 +274,7 @@ export function checkEditedData(
   }
   const rootFields =
     kind === "header" || kind === "footer" ? {} : (description.root.fields as Record<string, FieldJson>);
+  const rootFrom = context.problems.length;
   const rootProps = checkProps(
     rootFields,
     isObject(rootGiven) ? rootGiven : {},
@@ -238,6 +282,7 @@ export function checkEditedData(
     "root.props",
     context,
   );
+  nameProblems(context, rootFrom, "root.props", rootFields);
   const content = checkBlocks(data.content, "content", context);
   // Puck's older drop zones aren't edited outside Puck: they stay as they were.
   if (data.zones !== undefined && !same(data.zones, opened.zones ?? {})) {

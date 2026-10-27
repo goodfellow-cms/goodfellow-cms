@@ -268,6 +268,7 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
             ...(block && blockParts(block) && { parts: { ...blockParts(block) } }),
             ...(block && blockKeywords(block) && { keywords: [...(blockKeywords(block) ?? [])] }),
             ...(block && blockIcon(block) && { icon: blockIcon(block) }),
+            ...(component.resolveFields && { resolvesFields: true }),
           },
         ];
       }),
