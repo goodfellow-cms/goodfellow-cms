@@ -31,6 +31,7 @@ import {
   newDraftName,
   pageFileChange,
   pageFileToPath,
+  RateLimitError,
   SignInError,
   siteLanguages,
   siteSettingsFileChange,
@@ -132,6 +133,14 @@ function explain(error: unknown): CallToolResult {
       "Someone changed the same part of the site while this was being saved. Read it again (with the draft), then make the change again.",
     );
   }
+  if (error instanceof RateLimitError) {
+    const when = error.resetsAt
+      ? ` It can carry on after ${error.resetsAt.toISOString().replace(/\.\d+Z$/, "Z")}`
+      : " It can carry on in a few minutes";
+    return failure(
+      `The site's host is limiting how many requests Claude can make.${when}: what's saved so far stays in the draft. Fewer, larger changes help, such as one save_page with every block rather than one for each.`,
+    );
+  }
   if (error instanceof SignInError) {
     return failure(
       error.problem === "cant-publish"
@@ -177,8 +186,11 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     );
   }
 
+  /** Sites' addresses found on their hosts' Pages, where Site settings has none. */
+  const addresses = new Map<string, string>();
+
   async function open(given: string | undefined): Promise<OpenedSite> {
-    return openSite(context, await siteId(given));
+    return openSite(context, await siteId(given), addresses);
   }
 
   async function draftOf(site: OpenedSite, name: string): Promise<Draft> {
@@ -190,8 +202,18 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
   async function changing(site: OpenedSite, name: string | undefined): Promise<Draft> {
     if (site.versionProblem) throw new ToolError(site.versionProblem);
     if (name) return draftOf(site, name);
-    if (!site.backend.drafts) throw new ToolError("This site's host can't keep drafts, which Claude's changes need.");
-    return site.backend.drafts.create(newDraftName(now()));
+    const drafts = site.backend.drafts;
+    if (!drafts) throw new ToolError("This site's host can't keep drafts, which Claude's changes need.");
+    try {
+      return await drafts.create(newDraftName(now()));
+    } catch (error) {
+      // A site on this computer keeps one draft at a time.
+      if (!(error instanceof DraftError) || error.problem !== "exists") throw error;
+      const [open] = await drafts.list();
+      throw new ToolError(
+        `There's a draft already, ${open ?? "started earlier"}: pass it as "draft" to add to it, or publish or discard it first.`,
+      );
+    }
   }
 
   /** Where to read from: a draft, or the live site. */
@@ -742,7 +764,9 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       }
       return text({
         published: true,
-        note: "The site is being rebuilt with the changes, which usually takes a minute or two.",
+        note: site.id.startsWith("local:")
+          ? "The changes are in the site's folder on this computer now. Publish them as you would any change to the site's files, such as by committing and pushing them."
+          : "The site is being rebuilt with the changes, which usually takes a minute or two.",
         address: site.url,
       });
     },

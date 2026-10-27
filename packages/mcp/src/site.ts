@@ -22,6 +22,12 @@ export interface ConnectorContext {
   sites(): Promise<Array<{ id: string; label?: string }>>;
   /** Signs in to a site's repository. Throws `ToolError` for a site this connection may not edit. */
   backend(site: string): Promise<GitBackend>;
+  /**
+   * Where a site is served, where that isn't its address in Site settings:
+   * a site in a folder on this computer is read from its development server.
+   * Throws `ToolError` where it isn't being served.
+   */
+  served?(site: string): Promise<string | undefined>;
   /** Fetches the live site's description. Defaults to the global `fetch`. */
   fetch?: typeof fetch;
   /** Takes screenshots, where this server can. */
@@ -69,26 +75,61 @@ const VERSION_PROBLEMS = {
     `The site was built with Goodfellow ${site}, which is newer than this connector (${GOODFELLOW_VERSION}). Update the connector to change it; reading it still works.`,
 };
 
-export async function openSite(context: ConnectorContext, id: string): Promise<OpenedSite> {
-  const backend = await context.backend(id);
-  await backend.revision();
-  const settings = await readSettings(backend);
-  if (!settings.url) {
-    throw new ToolError(
-      "The site doesn't have its address in Site settings yet, and Claude needs it to see what blocks the site has. Set it in the admin panel's Site settings.",
-    );
-  }
-  const url = settings.url.replace(/\/+$/, "");
+/** The site's description, from its address, or `undefined` where it can't be read there. */
+async function readDescription(context: ConnectorContext, url: string): Promise<SiteDescription | undefined> {
   const response = await (context.fetch ?? fetch)(`${url}/${SITE_DESCRIPTION_PATH}`, {
     headers: { accept: "application/json" },
   }).catch(() => undefined);
   const result = response?.ok ? parseSiteDescription(await response.text()) : { ok: false as const };
-  if (!result.ok) {
+  return result.ok ? result.description : undefined;
+}
+
+/** Where the host's own Pages publishes the site: its custom domain first, then its address there, such as `name.gitlab.io`. */
+async function pagesAddresses(backend: GitBackend): Promise<string[]> {
+  const found = await backend.pages?.site().catch(() => undefined);
+  return [found?.domain && `https://${found.domain}`, found?.url].filter((url): url is string => Boolean(url));
+}
+
+/**
+ * Opens a site. Its blocks come from the description its build published, so
+ * it's read from the site's address in Site settings, or, where that's empty,
+ * from where the host's Pages publishes it. `addresses` remembers what was
+ * found, by site, so the host is asked once.
+ */
+export async function openSite(
+  context: ConnectorContext,
+  id: string,
+  addresses: Map<string, string> = new Map(),
+): Promise<OpenedSite> {
+  const backend = await context.backend(id);
+  await backend.revision();
+  const settings = await readSettings(backend);
+  const served = await context.served?.(id);
+  const own = (served ?? settings.url)?.replace(/\/+$/, "");
+  const known = addresses.get(id);
+  const candidates = own
+    ? [own]
+    : known
+      ? [known]
+      : (await pagesAddresses(backend)).map((url) => url.replace(/\/+$/, ""));
+  if (candidates.length === 0) {
+    throw new ToolError(
+      "Claude needs the site's address to see what blocks it has, and the site doesn't have one in Site settings, nor does its host say where it's published. Set it in the admin panel: Site settings, General → Site address.",
+    );
+  }
+  let url = candidates[0] ?? "";
+  let description: SiteDescription | undefined;
+  for (const candidate of candidates) {
+    description = await readDescription(context, candidate);
+    url = candidate;
+    if (description) break;
+  }
+  if (!description) {
     throw new ToolError(
       `Claude couldn't read what blocks the site has from ${url}/${SITE_DESCRIPTION_PATH}. The site may not be online yet, or was built before Goodfellow could work with Claude: publish any change in the admin panel to rebuild it.`,
     );
   }
-  const { description } = result;
+  if (!own) addresses.set(id, url);
   const problem = siteVersionProblem(description);
   return {
     id,

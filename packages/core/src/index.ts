@@ -843,6 +843,13 @@ export {
   withPlugins,
 } from "./plugins.js";
 export {
+  MAX_RATE_LIMIT_WAIT_MS,
+  RateLimitError,
+  type RateLimitOptions,
+  rateLimitWait,
+  withRateLimits,
+} from "./rate-limits.js";
+export {
   type AvailableBlock,
   availableBlocks,
   type BlockChange,

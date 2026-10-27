@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { blocks } from "@goodfellow-cms/blocks";
 import type { StorageLike } from "@goodfellow-cms/core";
@@ -9,6 +10,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import { createGoodfellowServer, type Screenshotter } from "./index.js";
+import { LOCAL_DRAFT_FILE, localBackend, parseLocalSite, servedAt } from "./local.js";
 
 const starter = resolve(import.meta.dirname, "../../../templates/starter");
 
@@ -348,5 +350,148 @@ describe("screenshots", () => {
     expect((await call("screenshot", { address: "/media/../admin/x.png" })).text).toContain("isn't an image");
     expect((await call("screenshot", { address: "/media/notes.pdf" })).text).toContain("isn't an image");
     expect(taken).toHaveLength(1);
+  });
+});
+
+/** A server for the context given, with a client to call its tools. */
+async function serve(context: Parameters<typeof createGoodfellowServer>[0]) {
+  const server = createGoodfellowServer({ now: () => new Date("2026-10-14T12:00:00Z"), ...context });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  const client = new Client({ name: "test", version: "1" });
+  await client.connect(clientTransport);
+  return async (name: string, args: Record<string, unknown> = {}) => {
+    const result = (await client.callTool({ name, arguments: args })) as {
+      isError?: boolean;
+      content: Array<{ type: string; text?: string }>;
+    };
+    const text = result.content[0]?.text ?? "";
+    return { isError: result.isError === true, text, json: () => JSON.parse(text) };
+  };
+}
+
+describe("finding sites", () => {
+  const description = describeSite({ blocks });
+  const describedAt = (address: string) => async (input: RequestInfo | URL) =>
+    String(input) === `${address}/goodfellow-site.json`
+      ? Response.json(description)
+      : new Response("Not found", { status: 404 });
+
+  it("reads the site from where its host's Pages publishes it, when Site settings has no address", async () => {
+    const files = starterFiles();
+    const settings = JSON.parse(files["content/site.json"] ?? "{}");
+    delete settings.url;
+    files["content/site.json"] = `${JSON.stringify(settings, null, 2)}\n`;
+    const fake = fakeGitHub({ repo: "parish/site", files, pages: true });
+    const host = github({
+      repo: "parish/site",
+      signIn: false,
+      fetch: fake.fetch,
+      storage: { local: memoryStorage(), session: memoryStorage() },
+    });
+    const backend = host.signInWithToken("test-token", false);
+    const call = await serve({
+      sites: async () => [{ id: "github:parish/site" }],
+      backend: () => backend,
+      fetch: describedAt("https://parish.github.io/site"),
+    });
+    expect((await call("get_site")).json()).toMatchObject({ address: "https://parish.github.io/site" });
+    // Asked once: what was found is remembered.
+    const asked = () => fake.requests.filter((request) => new URL(request.url).pathname.endsWith("/pages")).length;
+    const once = asked();
+    await call("get_page", { address: "/" });
+    expect(asked()).toBe(once);
+  });
+
+  it("works on several sites, each named in every call", async () => {
+    const hosts = Object.fromEntries(
+      ["parish/site", "parish/school"].map((repo) => {
+        const fake = fakeGitHub({ repo, files: starterFiles() });
+        return [
+          `github:${repo}`,
+          github({
+            repo,
+            signIn: false,
+            fetch: fake.fetch,
+            storage: { local: memoryStorage(), session: memoryStorage() },
+          }),
+        ];
+      }),
+    );
+    const call = await serve({
+      sites: async () => Object.keys(hosts).map((id) => ({ id })),
+      backend: async (id) => (hosts[id] ?? hosts["github:parish/site"])?.signInWithToken("test-token", false) as never,
+      fetch: describedAt("https://parish.example"),
+    });
+    expect((await call("list_sites")).json()).toEqual([
+      { site: "github:parish/site" },
+      { site: "github:parish/school" },
+    ]);
+    expect((await call("get_site")).text).toContain("Say which site: github:parish/site, github:parish/school");
+    expect((await call("get_site", { site: "github:parish/school" })).json()).toMatchObject({
+      site: "github:parish/school",
+    });
+  });
+});
+
+describe("a site in a folder on this computer", () => {
+  async function folderSite() {
+    const folder = mkdtempSync(join(tmpdir(), "goodfellow-local-"));
+    cpSync(join(starter, "content"), join(folder, "content"), { recursive: true });
+    const site = parseLocalSite(folder);
+    if (!site) throw new Error("not a folder");
+    const backend = localBackend(folder);
+    const description = describeSite({ blocks });
+    const fetcher = (async (input: RequestInfo | URL) =>
+      String(input) === "http://localhost:4321/goodfellow-site.json"
+        ? Response.json(description)
+        : new Response("Not found", { status: 404 })) as typeof fetch;
+    const call = await serve({
+      sites: async () => [{ id: site.id }],
+      backend: async () => backend,
+      served: async () => servedAt(site, fetcher),
+      fetch: fetcher,
+    });
+    return { folder, site, call };
+  }
+
+  it("is found by its full path, and read through its development server", async () => {
+    expect(parseLocalSite("C:\\Sites\\parish@http://localhost:4400/")).toMatchObject({
+      address: "http://localhost:4400",
+    });
+    expect(parseLocalSite("github:parish/site")).toBeUndefined();
+    const { call, site } = await folderSite();
+    expect((await call("get_site")).json()).toMatchObject({ site: site.id, address: "http://localhost:4321" });
+  });
+
+  it("keeps changes in a draft until they're published into the folder", async () => {
+    const { call, folder } = await folderSite();
+    const saved = (
+      await call("save_page", { address: "/fair", settings: { title: "Summer fair" }, blocks: [heading("Fair")] })
+    ).json();
+    expect(existsSync(join(folder, "content/pages/fair.json"))).toBe(false);
+    expect(existsSync(join(folder, LOCAL_DRAFT_FILE))).toBe(true);
+    // One draft at a time, which Claude is told the name of.
+    const second = await call("save_page", { address: "/other", settings: { title: "Other" }, blocks: [] });
+    expect(second.text).toContain(`There's a draft already, ${saved.draft}`);
+    expect((await call("get_page", { address: "/fair", draft: saved.draft })).json().settings.title).toBe(
+      "Summer fair",
+    );
+
+    const published = (await call("publish", { draft: saved.draft, message: "Summer fair" })).json();
+    expect(published.note).toContain("folder on this computer");
+    expect(JSON.parse(readFileSync(join(folder, "content/pages/fair.json"), "utf8")).data.root.props.title).toBe(
+      "Summer fair",
+    );
+    expect(existsSync(join(folder, LOCAL_DRAFT_FILE))).toBe(false);
+  });
+
+  it("says how to start the development server when it isn't running", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "goodfellow-local-"));
+    const site = parseLocalSite(folder);
+    if (!site) throw new Error("not a folder");
+    await expect(servedAt(site, (async () => new Response("", { status: 404 })) as typeof fetch)).rejects.toThrow(
+      "npm run dev",
+    );
   });
 });

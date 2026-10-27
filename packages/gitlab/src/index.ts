@@ -8,6 +8,7 @@ import {
   type ServerGitOptions,
   SignInError,
   type StorageLike,
+  withRateLimits,
 } from "@goodfellow-cms/core";
 import { type ApiOptions, gitlabJson } from "./api.js";
 import { GitLabBackend } from "./backend.js";
@@ -84,7 +85,10 @@ function browserLocation(): BrowserLocation {
 export function gitlab(options: GitLabOptions): GitHost {
   const webUrl = (options.url ?? "https://gitlab.com").replace(/\/$/, "");
   const apiUrl = `${webUrl}/api/v4`;
-  const fetcher = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  // Many changes in a row, such as Claude's, can reach the host's limits: wait for them rather than fail.
+  const fetcher: typeof fetch = withRateLimits(options.fetch ?? ((input, init) => globalThis.fetch(input, init)), {
+    host: "GitLab",
+  });
   const storage = credentialStorage(`goodfellow:gitlab:${webUrl}:${options.project}`, options.storage);
   const pending = credentialStorage(`goodfellow:gitlab:pending:${options.project}`, options.storage);
   const location = () => options.location ?? browserLocation();

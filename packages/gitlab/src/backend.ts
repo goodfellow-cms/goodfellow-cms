@@ -60,6 +60,24 @@ export interface GitLabBackendOptions {
   contentOnly?: boolean;
   /** The code project, for a project that holds only content, where the site's updates run. */
   code?: { project: string; webUrl: string };
+  /** What's read at each commit, shared with the backends of the project's other branches (drafts), since commits never change. */
+  caches?: GitLabCaches;
+}
+
+/** Path → blob id for the editable files at each commit, and each blob's text, by id. */
+interface GitLabCaches {
+  trees: Map<string, Promise<Map<string, string>>>;
+  blobs: Map<string, Promise<string>>;
+}
+
+/** Git's id for a file's contents (the SHA-1 of `blob <size>\0` and them), as GitLab's tree lists it. */
+async function gitBlobId(bytes: Uint8Array): Promise<string> {
+  const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+  const data = new Uint8Array(header.length + bytes.length);
+  data.set(header);
+  data.set(bytes, header.length);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", data));
+  return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /** The files under a folder of a tree, in order. */
@@ -106,8 +124,9 @@ export class GitLabBackend implements GitBackend {
   private readonly branch: string;
   private readonly onSignOut: () => void;
   private pinned?: string;
-  private readonly trees = new Map<string, Promise<Map<string, string>>>();
-  private readonly blobs = new Map<string, Promise<string>>();
+  private readonly caches: GitLabCaches;
+  private readonly trees: GitLabCaches["trees"];
+  private readonly blobs: GitLabCaches["blobs"];
 
   constructor(options: GitLabBackendOptions) {
     this.options = options;
@@ -117,6 +136,9 @@ export class GitLabBackend implements GitBackend {
     this.user = options.user;
     this.onSignOut = options.onSignOut;
     this.pinned = options.revision;
+    this.caches = options.caches ?? { trees: new Map(), blobs: new Map() };
+    this.trees = this.caches.trees;
+    this.blobs = this.caches.blobs;
     this.pages = gitlabPages(this.api, options.project);
     this.editors = gitlabEditors(this.api, options.project, this.branch, this.user.login);
     this.contentOnly = options.contentOnly === true;
@@ -159,7 +181,7 @@ export class GitLabBackend implements GitBackend {
     const project = `/projects/${this.project}`;
     return {
       liveBranch: this.branch,
-      branchStore: (branch) => new GitLabBackend({ ...this.options, branch }),
+      branchStore: (branch) => new GitLabBackend({ ...this.options, branch, caches: this.caches }),
       createBranch: async (branch, revision) => {
         const response = await gitlabRequest(
           this.api,
@@ -426,7 +448,7 @@ export class GitLabBackend implements GitBackend {
     if (toApply.length === 0) return { revision: expectedRevision };
 
     try {
-      const commit = await gitlabJson<{ id: string }>(this.api, this.repo("/commits"), {
+      const commit = await gitlabJson<{ id: string; parent_ids?: string[] }>(this.api, this.repo("/commits"), {
         method: "POST",
         body: {
           branch: this.branch,
@@ -439,6 +461,11 @@ export class GitLabBackend implements GitBackend {
         },
       });
       this.pinned = commit.id;
+      // Straight on top of the commit listed, its files are that listing with these changes, so the next
+      // save, such as Claude's next change to a draft, needn't list every folder and read the files again.
+      if (commit.parent_ids?.length === 1 && commit.parent_ids[0] === expectedRevision) {
+        await this.carryTree(existing, commit.id, changes).catch(() => {});
+      }
       return { revision: commit.id };
     } catch (error) {
       if (!(error instanceof GitApiError)) throw error;
@@ -448,6 +475,24 @@ export class GitLabBackend implements GitBackend {
       if (fileConflict || (await this.revision()) !== expectedRevision) throw new ConflictError();
       throw error;
     }
+  }
+
+  /** Lists `revision`'s editable files as `before`'s with `changes` made, keeping the text written. */
+  private async carryTree(before: Map<string, string>, revision: string, changes: FileChange[]): Promise<void> {
+    if (this.trees.has(revision) || !globalThis.crypto?.subtle) return;
+    const tree = new Map(before);
+    for (const change of changes) {
+      if (!EDITABLE_FOLDERS.some((folder) => change.path.startsWith(`${folder}/`))) continue;
+      if ("delete" in change) {
+        tree.delete(change.path);
+        continue;
+      }
+      const bytes = "bytes" in change ? change.bytes : new TextEncoder().encode(change.content);
+      const id = await gitBlobId(bytes);
+      tree.set(change.path, id);
+      if ("content" in change && !this.blobs.has(id)) this.blobs.set(id, Promise.resolve(change.content));
+    }
+    this.trees.set(revision, Promise.resolve(tree));
   }
 
   async history(path: string, { page = 1, perPage = 20 }: HistoryOptions = {}): Promise<FileVersion[]> {

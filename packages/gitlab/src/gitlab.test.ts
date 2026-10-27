@@ -1,4 +1,11 @@
-import { CodeChangeError, ConflictError, loadSiteContent, type StorageLike, writeChanges } from "@goodfellow-cms/core";
+import {
+  CodeChangeError,
+  ConflictError,
+  EDITABLE_FOLDERS,
+  loadSiteContent,
+  type StorageLike,
+  writeChanges,
+} from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
 import { GitLabBackend } from "./backend.js";
 import { type BrowserLocation, gitlab, redirectUri } from "./index.js";
@@ -213,6 +220,52 @@ describe("publishing", () => {
     });
     expect(fake.repo.files().get("content/site.json")).toBe("mine");
     expect(fake.repo.files().get("content/pages/index.json")).toBe("theirs");
+  });
+
+  it("lists and reads its own commits from what it wrote, rather than asking GitLab again", async () => {
+    const fake = fakeGitLab({ project: "parish/web/site", files: FILES });
+    const asked: string[] = [];
+    const host = gitlab({
+      project: "parish/web/site",
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+        asked.push(String(input));
+        return fake.fetch(input, init);
+      }) as typeof fetch,
+      storage: { local: memoryStorage(), session: memoryStorage() },
+    });
+    const drafts = (await host.signInWithToken("test-token", false)).drafts;
+    if (!drafts) throw new Error("GitLab keeps drafts");
+    const draft = await drafts.create("goodfellow-draft-carry");
+    for (const title of ["One", "Two", "Three"]) {
+      await writeChanges(
+        draft.store,
+        [
+          { path: `content/pages/${title.toLowerCase()}.json`, content: `{"title":"${title}"}` },
+          { path: "content/pages/about.json", delete: true },
+          { path: "public/media/dot.png", bytes: new Uint8Array([0x89, 0x50, title.length]) },
+        ],
+        { message: title, expectedRevision: await draft.store.revision() },
+      );
+    }
+    // The folders were listed once, for the draft's first save, and nothing written was read back.
+    const listings = () => asked.filter((url) => url.includes("/repository/tree?")).length;
+    const once = listings();
+    expect(once).toBe(EDITABLE_FOLDERS.length);
+    const reads = () => asked.filter((url) => /\/blobs\/[0-9a-f]+\/raw/.test(url)).length;
+    const read = reads();
+    expect(await draft.store.read("content/pages/two.json")).toBe('{"title":"Two"}');
+    expect(reads()).toBe(read);
+    expect(listings()).toBe(once);
+    // What it lists is what GitLab lists.
+    const other = await gitlab({
+      project: "parish/web/site",
+      fetch: fake.fetch,
+      storage: { local: memoryStorage(), session: memoryStorage() },
+    }).signInWithToken("test-token", false);
+    const fresh = other.drafts?.open("goodfellow-draft-carry");
+    const listed = await (await fresh)?.store.list("content/pages");
+    expect(await draft.store.list("content/pages")).toEqual(listed);
+    expect(await draft.store.readBytes("public/media/dot.png")).toEqual(new Uint8Array([0x89, 0x50, 5]));
   });
 
   it("reports deploys from the commit's pipeline", async () => {

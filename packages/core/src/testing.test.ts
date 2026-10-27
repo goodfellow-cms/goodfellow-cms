@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FakeConflictError, FakeRepo, fakeFileBytes, fakeFileFromBytes } from "./testing.js";
+import { FakeConflictError, FakeRepo, fakeFileBytes, fakeFileFromBytes, gitBlobSha } from "./testing.js";
 
 describe("FakeRepo", () => {
   it("records commits, history and changed paths", () => {
@@ -39,5 +39,15 @@ describe("binary files", () => {
     const again = repo.commit([{ path: "public/media/a.png", bytes: new Uint8Array(image) }], "Same");
     expect(repo.changedPaths(sha, again)).toEqual([]);
     expect(fakeFileFromBytes(image)).toBe(image);
+  });
+});
+
+describe("blob ids", () => {
+  it("are git's", () => {
+    // `printf 'hello\n' | git hash-object --stdin` and an empty file's.
+    expect(gitBlobSha("hello\n")).toBe("ce013625030ba8dba906f756967f9e9ca394464a");
+    expect(gitBlobSha("")).toBe("e69de29bb2d1d6434b8b29ae775ad8c2e48c5391");
+    expect(gitBlobSha(new TextEncoder().encode("hello\n"))).toBe("ce013625030ba8dba906f756967f9e9ca394464a");
+    expect(gitBlobSha("x".repeat(1000))).toBe("14c7dfdd4258dec5c0e9d2e919bd249bd674be1f");
   });
 });

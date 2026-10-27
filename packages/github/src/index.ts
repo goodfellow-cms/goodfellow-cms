@@ -9,6 +9,7 @@ import {
   type ServerGitOptions,
   SignInError,
   type StorageLike,
+  withRateLimits,
 } from "@goodfellow-cms/core";
 import { type ApiOptions, githubJson, githubRequest, repoPath } from "./api.js";
 import { GitHubBackend } from "./backend.js";
@@ -137,7 +138,10 @@ export function github(options: GitHubOptions): GitHost {
   const links = githubTokenLinks(options.repo, options.webUrl);
   const storage = credentialStorage(`goodfellow:github:${options.repo}`, options.storage);
   const pending = credentialStorage(`goodfellow:github:pending:${options.repo}`, options.storage);
-  const fetcher: typeof fetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  // Many changes in a row, such as Claude's, can reach the host's limits: wait for them rather than fail.
+  const fetcher: typeof fetch = withRateLimits(options.fetch ?? ((input, init) => globalThis.fetch(input, init)), {
+    host: "GitHub",
+  });
   const location = options.location ?? browserLocation();
   const signInUrl = options.signIn;
   // Never on this computer: the worker doesn't give tokens there, and `goodfellow dev` doesn't need one.

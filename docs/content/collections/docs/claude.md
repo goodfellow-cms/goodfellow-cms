@@ -12,18 +12,51 @@ It works with the sites' own blocks and settings, as the admin panel does: Claud
 
 ## Connect Claude
 
-Claude Desktop and Claude Code run Goodfellow's tools on your computer, signed in with a token that stays there. Screenshots use the Google Chrome or Microsoft Edge you have.
+Claude Desktop and Claude Code run Goodfellow's tools on your computer, signed in with tokens that stay there. One connection can work on several sites, on any of the hosts, and on sites in folders on your computer. Screenshots use the Google Chrome or Microsoft Edge you have.
 
-The token needs to be able to change the site's files and, for submitting for review, open pull requests (GitHub and Bitbucket) or merge requests (GitLab). [Editors and sign-in](/docs/sign-in#signing-in-with-a-token) explains making one; on GitHub, give it **Pull requests: Read and write** too.
+### 1. Make a token
 
-- **Claude Desktop:** download the [Goodfellow extension](https://goodfellow-cms.github.io/goodfellow-cms/goodfellow.mcpb), open it, and choose **Install**. Claude asks for the site, such as `github:your-name/your-site`, `gitlab:your-group/your-site` or `bitbucket:your-workspace/your-site`, and the token.
-- **Claude Code:**
+Claude needs a token for each host your sites are on, which can change the sites' files and, for submitting for review, open pull requests or merge requests. One token can cover several sites on the same host.
 
-  ```sh
-  claude mcp add goodfellow --env GOODFELLOW_SITE=github:your-name/your-site --env GOODFELLOW_TOKEN=your-token -- npx -y @goodfellow-cms/mcp
-  ```
+- **GitHub:** a [fine-grained token](https://github.com/settings/personal-access-tokens/new). Under **Repository access**, choose **Only select repositories** and pick the sites. Under **Permissions**, give it **Contents: Read and write** and **Pull requests: Read and write**, and **Pages: Read-only** for Claude to find a site's address on GitHub Pages by itself.
+- **GitLab:** a [personal access token](https://gitlab.com/-/user_settings/personal_access_tokens) with the **api** scope. You need the Developer role or higher on each site's project.
+- **Bitbucket:** a repository access token, made under the repository's **Repository settings → Access tokens**, with **Repositories: Write** and **Pull requests: Write**; or an API token, written as your email address, a colon, then the token. A repository access token covers one site only.
 
-  For a GitLab of your own, add `--env GITLAB_URL=https://gitlab.example.org`.
+[Editors and sign-in](/docs/sign-in#signing-in-with-a-token) says more about each kind of token.
+
+### 2. Add Goodfellow to Claude
+
+**Claude Desktop:**
+
+1. Download the [Goodfellow extension](https://goodfellow-cms.github.io/goodfellow-cms/goodfellow.mcpb), `goodfellow.mcpb`.
+2. In Claude Desktop, open **Settings → Extensions**. Drag `goodfellow.mcpb` into that window, or choose **Advanced settings → Install Extension…** and pick the file. (Opening the file from your downloads may do the same.)
+3. Claude shows what the extension is. Choose **Install**.
+4. Fill in its settings, then choose **Save**:
+   - **Sites**: each site's repository, separated by commas, such as `github:your-name/your-site, gitlab:your-group/other-site`. The repository is its address on the host after `github.com/`, `gitlab.com/` or `bitbucket.org/`.
+   - **Sites in folders on this computer**: folders holding a site, if you work on one there (see [Sites on your computer](#sites-on-your-computer)).
+   - **GitHub token**, **GitLab token**, **Bitbucket token**: the tokens from step 1, for the hosts your sites are on. Leave the others empty.
+   - **GitLab address**: only for a GitLab of your own, such as `https://gitlab.example.org`.
+5. Make sure the extension is turned on, then start a new conversation and ask Claude something like "What pages does my site have?"
+
+Claude Desktop runs the extension itself, so there's nothing else to install. To change the sites or a token later, open **Settings → Extensions**, choose **Goodfellow**, then **Configure**.
+
+**Claude Code:**
+
+```sh
+claude mcp add goodfellow --env GOODFELLOW_SITE="github:your-name/your-site, gitlab:your-group/other-site" --env GOODFELLOW_GITHUB_TOKEN=your-github-token --env GOODFELLOW_GITLAB_TOKEN=your-gitlab-token -- npx -y @goodfellow-cms/mcp
+```
+
+Give the token for each host your sites are on: `GOODFELLOW_GITHUB_TOKEN`, `GOODFELLOW_GITLAB_TOKEN` or `GOODFELLOW_BITBUCKET_TOKEN`, or `GOODFELLOW_TOKEN` for all of them. For a GitLab of your own, add `--env GITLAB_URL=https://gitlab.example.org`.
+
+With several sites, Claude asks which one you mean, or you can say: "add a page to the school's site".
+
+### Sites on your computer
+
+Claude can work on a site in a folder on your computer, such as a copy of its repository you're developing, without a token. Name the folder in the extension's **Sites in folders on this computer**, or in Claude Code as a site of its own, its full path, such as `GOODFELLOW_SITE=C:\Sites\parish` or `local:/home/you/parish`.
+
+Claude sees the site through its development server, so start it first in that folder (`npm run dev`). Claude looks for it at `http://localhost:4321`, where `goodfellow dev` runs, and `http://localhost:3000`, where `next dev` runs; if yours runs somewhere else, add `@` and its address after the folder, such as `C:\Sites\parish@http://localhost:4400`.
+
+Changes wait in a draft, one at a time, kept beside the site's packages. Publishing writes them into the folder, where you commit and push them as you would any change, and the site's development server shows them straight away. Submitting for review isn't available for these sites.
 
 ### Through a connector service
 
@@ -62,7 +95,7 @@ Once the site has been rebuilt with it, which publishing anything does, Claude c
 
 Claude can look at a page as visitors see it, at a phone's or a computer's width, light or, on sites with dark mode, dark, live or with its draft's changes. Screenshots of drafts use a preview page in the site's admin panel, which shows the draft's files without publishing them. Claude can look at the photos and pictures in the media library the same way, to choose ones that fit.
 
-On your computer, screenshots use your own browser. A connector service uses Cloudflare's browsers, which Cloudflare's free plan allows for a few minutes a day for everyone using it. When they're used up, Claude says screenshots aren't available until later; everything else keeps working.
+On your computer, screenshots use your own browser, Chrome or else Edge, without a window. If it closes while taking a picture, Claude tries again, with the other browser where you have both, then says what the browser said. Security software that stops browsers running without a window, or an update waiting for the browser to restart, can cause that. A connector service uses Cloudflare's browsers, which Cloudflare's free plan allows for a few minutes a day for everyone using it. When they're used up, Claude says screenshots aren't available until later; everything else keeps working.
 
 ## What Claude can do
 
@@ -75,11 +108,17 @@ Claude can't upload new photos, add or remove blocks from block registries, chan
 
 ## Sites it works with
 
-Claude needs the site's address in **Site settings**, since it reads what blocks the site has from the published site. Sites published before Goodfellow could work with Claude need publishing once more, which any change in the admin panel does. Claude works with sites made with the same or the previous minor version of Goodfellow, and asks the site's owner to update older ones on the [Updates](/docs/updates) screen.
+Claude reads what blocks the site has from the published site (its `goodfellow-site.json`, which every build writes), since the blocks are in the site's code, not its content. It finds the site at the address in **Site settings** (General → Site address), or, where that's empty, where GitHub Pages or GitLab Pages publishes it: the custom domain if it has one, otherwise its `github.io` or `gitlab.io` address. On GitHub that needs the token's **Pages: Read-only** permission, and on GitLab the Maintainer role or higher; otherwise, and on other hosts, put the address in Site settings. Screenshots of the live site use the same address.
+
+Sites published before Goodfellow could work with Claude need publishing once more, which any change in the admin panel does. Claude works with sites made with the same or the previous minor version of Goodfellow, and asks the site's owner to update older ones on the [Updates](/docs/updates) screen.
+
+### Many changes at once
+
+Hosts limit how many requests a token can make in a minute. When Claude reaches the limit, it waits and carries on where the wait is short, and otherwise says when it can carry on; what it saved so far stays in the draft. Asking for fewer, larger changes, such as a whole page at once rather than a block at a time, uses fewer requests.
 
 ## What's kept
 
-On your computer, the token stays in Claude's settings there, and Goodfellow keeps nothing.
+On your computer, the tokens stay in Claude's settings there, and Goodfellow keeps nothing but the draft of a site in a folder, in that folder's `node_modules/.goodfellow/`.
 
 A connector service keeps nothing about you or your sites either. Who you are and which sites you chose are sealed inside the sign-in Claude keeps, with a key only the connector has, so they can't be read or changed. The one thing it stores is a number for each connection, so a stolen sign-in can't be renewed.
 
