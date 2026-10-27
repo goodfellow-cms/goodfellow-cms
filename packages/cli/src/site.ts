@@ -1,7 +1,15 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { type AdminSite, CUSTOM_CSS_FILE, type GoodfellowConfig, type SiteDescription } from "@goodfellow-cms/core";
+import {
+  type AdminSite,
+  CUSTOM_CSS_FILE,
+  type GoodfellowConfig,
+  type Page,
+  type SiteContent,
+  type SiteDescription,
+} from "@goodfellow-cms/core";
+import type { ContentApiFile } from "@goodfellow-cms/core/content-api";
 import type { PageRenderer } from "@goodfellow-cms/react/server";
 import tailwindcss from "@tailwindcss/vite";
 import type { InlineConfig, Plugin, ViteDevServer } from "vite";
@@ -32,12 +40,13 @@ function serverEntryPlugin(configFile: string): Plugin {
       id === RESOLVED_SERVER_ENTRY
         ? [
             `import config from ${JSON.stringify(configFile)};`,
-            `import { createPageRenderer } from "@goodfellow-cms/react/server";`,
+            `import { contentApi, createPageRenderer } from "@goodfellow-cms/react/server";`,
             `import { adminSite, describeSite } from "@goodfellow-cms/react";`,
             "export { config, createPageRenderer };",
             "export const renderPage = createPageRenderer(config);",
             "export const describe = () => describeSite(config);",
             "export const admin = () => adminSite(config);",
+            "export const api = (content, pages, options) => contentApi(config, content, pages, options);",
           ].join("\n")
         : undefined,
   };
@@ -52,6 +61,8 @@ export interface ServerEntry {
   describe: () => SiteDescription;
   /** What the admin panel's page knows about the site, which never loads its config. */
   admin: () => AdminSite;
+  /** The content API's files (`contentApi()`), none where the config turns it off. */
+  api: (content: SiteContent, pages: readonly Page[], options?: { base?: string }) => Promise<ContentApiFile[]>;
 }
 
 export function loadServerEntry(server: ViteDevServer): Promise<ServerEntry> {

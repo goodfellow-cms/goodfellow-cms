@@ -156,6 +156,17 @@ describe("build", () => {
     expect(await read("talks/hope/index.html")).toContain('"@type":"Article","inLanguage":"en","headline":"On hope"');
   });
 
+  it("writes the content API: each page as it's shown, the site, and a manifest of them", async () => {
+    const manifest = JSON.parse(await read("api/manifest.json"));
+    expect(manifest.base).toBe("/from-config/");
+    expect(manifest.pages.map((page: { path: string }) => page.path)).toContain("/talks/hope");
+    const talk = JSON.parse(await read("api/pages/talks/hope.json"));
+    expect(talk).toMatchObject({ path: "/talks/hope", entry: { collection: "talks", slug: "hope" } });
+    // Addresses are from the site's root, without the base path, which the manifest gives.
+    expect(await read("api/site.json")).not.toContain("/from-config/");
+    expect(JSON.parse(await read("api/site.json")).settings.title).toBe("Fixture");
+  });
+
   it("builds the starter template", async () => {
     const starterOut = await mkdtemp(join(tmpdir(), "goodfellow-starter-"));
     try {
@@ -367,6 +378,25 @@ describe("a site with an admin address", () => {
       expect(JSON.parse(await readFile(join(out, "goodfellow-site.json"), "utf8")).admin).toEqual({
         url: "https://admin.example.org",
       });
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a site without the content API", () => {
+  it("leaves it out of the build", async () => {
+    const site = await mkdtemp(join(import.meta.dirname, "../test/.no-api-"));
+    try {
+      await cp(fixture, site, { recursive: true, filter: (path) => !path.includes("node_modules") });
+      const configFile = join(site, "goodfellow.config.tsx");
+      await writeFile(
+        configFile,
+        (await readFile(configFile, "utf8")).replace("defineConfig({", "defineConfig({\n  api: false,"),
+      );
+      const result = await build({ root: site, outDir: join(site, "dist") });
+      expect(result.apiPages).toBeUndefined();
+      expect(existsSync(join(site, "dist/api"))).toBe(false);
     } finally {
       await rm(site, { recursive: true, force: true });
     }

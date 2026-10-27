@@ -35,6 +35,10 @@
       "types": "./dist/wordpress.d.ts",
       "import": "./dist/wordpress.js"
     },
+    "./content-api": {
+      "types": "./dist/content-api.d.ts",
+      "import": "./dist/content-api.js"
+    },
     "./search-index": {
       "types": "./dist/node-search.d.ts",
       "import": "./dist/node-search.js"

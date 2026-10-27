@@ -53,6 +53,7 @@ import {
   NEXT_SITE_FILES,
   writeBuildRecordFile,
   writeCalendarFiles,
+  writeContentApi,
   writeEditorPolicy,
   writeFeedFiles,
   writeFontFiles,
@@ -83,6 +84,8 @@ if (command === "finish" && dir === "--server") {
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files, in public/calendars`);
   const feeds = await writeFeedFiles("public");
   if (feeds > 0) console.log(`Wrote ${feeds} feeds, in public/feeds`);
+  const api = await writeContentApi("public");
+  if (api !== undefined) console.log(`Wrote the content API, with ${api} pages, in public/api`);
   // Before the pages are read, so the search index and the checks see each page's language.
   const languages = await writePageLanguages(undefined);
   if (languages > 0) console.log(`Marked ${languages} pages with their language`);
@@ -321,6 +324,8 @@ if (command === "finish") {
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files`);
   const feeds = await writeFeedFiles(dir);
   if (feeds > 0) console.log(`Wrote ${feeds} feeds`);
+  const api = await writeContentApi(dir);
+  if (api !== undefined) console.log(`Wrote the content API, with ${api} pages, in api/`);
   const languages = await writePageLanguages(dir);
   if (languages > 0) console.log(`Marked ${languages} pages with their language`);
   // Before the redirects' pages, which aren't the site's.
