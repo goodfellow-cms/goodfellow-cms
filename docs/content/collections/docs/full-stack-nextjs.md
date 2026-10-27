@@ -84,6 +84,8 @@ The content still lives in the site's repository, so the site is still rebuilt w
 
 The admin panel hides what editors can't change, and the server refuses it whatever a browser sends. Moving a page doesn't offer an editor a redirect from its old address, since redirects are part of Site Settings.
 
+Owners can also [limit what each person changes](/docs/sign-in#limiting-what-editors-can-change), by their `login`. The server checks every publish against their limits too, and takes changes outside them for review: a pull request or merge request asking the people the limits name as reviewers, since the server can't tell which of the app's people are owners on the git host.
+
 Signing in and out stay the app's own: the admin panel sends people to `signIn`, and its Sign out button goes to `signOut`, if there is one.
 
 ## AI keys on the server

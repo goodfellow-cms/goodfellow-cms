@@ -15,6 +15,7 @@ Everything the admin panel edits is a file in `content/` or `public/media/`, in 
 | `content/redirects.json` | Redirects: old addresses, and where they send visitors |
 | `content/media.json` | Credits for media files, such as photos the AI assistant found, by address |
 | `content/media-storage.json` | Where a [plugin keeps media](/docs/media#media-kept-in-a-storage-service): the plugin, the public address it keeps files at, and each file it keeps by its `/media/` address, with its size |
+| `content/permissions.json` | What [editors with limits](/docs/sign-in#limiting-what-editors-can-change) may change, by username, and who reviews the rest |
 | `content/layout/header.json`, `footer.json` | The header and footer, as Puck data |
 | `content/pages/about.json` | The page at `/about`, as Puck data; `index.json` is a folder's own page |
 | `content/collections/<id>/_collection.json` | A collection's settings, fields and page design |
@@ -30,6 +31,25 @@ Every JSON file has a `version`, and is written with two-space indentation, keys
 A collection's `_collection.json` has its `name`, `entryName` (what one item is called), its `fields`, an optional `path` such as `/events/{slug}` for items' pages, an optional `sort`, and its `template`, the page design. Every collection has a text field named `title`. A field's `name` is what content refers to, so it never changes once items use it.
 
 An item's JSON file holds `{ "version": 1, "fields": { … } }`. A choice field (`select`) holds one of its `options`' values, and a tags field (`tags`) a list of them, such as `["music", "youth"]`.
+
+## Editors' limits
+
+`content/permissions.json` names each person with limits by their sign-in name, which compares without case, and what they may change. People it doesn't name have no limits. `reviewers` is who's asked to review changes outside someone's limits; without it, every owner is.
+
+```json
+{
+  "version": 1,
+  "people": {
+    "maria": { "pages": ["/news"], "collections": ["events"], "media": true, "languages": ["en"] }
+  },
+  "reviewers": ["owen"]
+}
+```
+
+- **`pages`:** page sections by address, each with the pages under it and their translations; `/` is every page.
+- **`collections`:** collections by their folder's name: their items, not their settings.
+- **`media`, `layout`, `menus`:** the media library, the header and footer, and the menus.
+- **`languages`:** only pages, items, headers, footers and menus in these languages. Without it, every language.
 
 ## Pages' settings
 

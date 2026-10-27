@@ -16,6 +16,7 @@ Whoever runs code in the admin panel's frame can ask the broker for anything the
 
 - **Only what the admin panel uses:** it answers reads, publishes, version history, the live site's updates, drafts, domains, editors and updates, and never the git host's API for anything else.
 - **Never workflows:** it refuses to publish `.github/` or `.gitlab-ci.yml`, which run with the repository's secrets.
+- **Editors' limits:** it refuses to publish changes outside what an owner [lets the editor change](/docs/sign-in#limiting-what-editors-can-change), so code in the admin panel's frame can't either. They can still go into a draft, for review.
 - **Asks first, in its own part of the page,** outside the admin panel's frame, before publishing the site's code (installed blocks, `goodfellow.config.tsx`, `package.json` and anything else outside `content/` and `public/media/`), the site's own code that runs on its pages (`content/code/`), a new Site address (which is where it shows the admin panel from), installing a release of Goodfellow, or giving someone access to the site.
 - **Owner tokens in its own dialog:** where a screen needs an owner token, the broker asks for it itself, and keeps it in memory only.
 - **Only its own frame:** it talks only to the admin panel at the Site address (or a checked admin address), read from the repository, and refuses to be shown inside another page.
@@ -66,4 +67,5 @@ To set one up by hand instead, the broker is released as `@goodfellow-cms/broker
 
 - **The site's pages** have no Content Security Policy, so code pasted into Site Settings can still do anything on them, such as change what visitors see. What the broker keeps from it is editors' tokens and AI keys.
 - **The admin panel's own requests:** whoever controls code in the admin panel's frame can still read and publish content through the broker while an editor is signed in. The broker's questions cover what runs code; content changes are in the site's version history.
+- **Editors' own access:** editors sign in to the broker with their own GitHub, GitLab or Bitbucket account, which can change any of the site's files on the host itself. The broker keeps the admin panel to their limits, not the editors: only a full-stack site's server holds everyone to them.
 - **Full-stack Next.js sites** don't use a broker: their server keeps the repository's token, and editors sign in with the app's own sign-in (see [Full-stack Next.js sites](/docs/full-stack-nextjs)).

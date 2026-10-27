@@ -162,8 +162,8 @@ export const defaultStrings = {
   "draft.leave": "Back to the live site",
   "draft.waiting": "A draft started {date} is waiting to be published.",
   "draft.waitingMany": "{count} drafts are waiting to be published.",
-  "draft.reviewWaiting": "A draft is waiting for your review: {title}.",
-  "draft.reviewWaitingMany": "{count} drafts are waiting for your review.",
+  "draft.reviewWaiting": "A draft is waiting for review: {title}.",
+  "draft.reviewWaitingMany": "{count} drafts are waiting for review.",
   "draft.inReview": "Submitted for review.",
   "draft.choose": "Draft to open",
   "draft.started": "Started {date}",
@@ -1434,7 +1434,7 @@ export const defaultStrings = {
   "updates.error.other": "Something went wrong. Try again in a moment.",
   "editors.intro": "The people who can edit this site.",
   "editors.roles":
-    "Editors can change and publish everything in the admin panel. Owners can also invite and remove editors, and connect a domain.",
+    "Editors can change and publish everything in the admin panel, unless their limits below say otherwise. Owners can also invite and remove editors, limit what they can change, and connect a domain.",
   "editors.local":
     "Editors are invited in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
   "editors.demo": "Editors can't be invited in a demo.",
