@@ -67,6 +67,8 @@ export interface EditorOpen {
   language?: string;
   /** Puck's sidebars, as the editor last left them. */
   ui?: Partial<UiState>;
+  /** Shown without editing, where it's outside what the signed-in person may change. */
+  readOnly?: boolean;
 }
 
 /** What the editor tells the admin panel about itself once it's open. */

@@ -1,7 +1,8 @@
 import { type EditorList, type EditorRole, EditorsError, type SiteEditor } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useState } from "react";
-import { useAdmin } from "./admin-context.js";
+import { useAdmin, useCanChangeSettings } from "./admin-context.js";
 import { OwnerTokenActive, OwnerTokenForm } from "./owner-token.js";
+import { PermissionsSection } from "./permissions-section.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, Field, TextField } from "./ui.js";
 
@@ -21,7 +22,9 @@ function problemText(error: unknown): StringKey {
 /** Who edits the site: inviting people, changing what they can do, and removing them. */
 export function EditorsScreen() {
   const t = useStrings();
-  const { editors, demo } = useAdmin();
+  const { editors, demo, limits } = useAdmin();
+  // Limits are site settings: people who can't change those, or who have limits of their own, only see them at work.
+  const owner = useCanChangeSettings() && !limits;
 
   return (
     <div className="gfa-screen">
@@ -32,6 +35,7 @@ export function EditorsScreen() {
         <p>{t("editors.intro")}</p>
         {demo ? <p>{t("editors.demo")}</p> : editors ? <EditorsPanel /> : <p>{t("editors.local")}</p>}
       </div>
+      {owner && <PermissionsSection />}
     </div>
   );
 }

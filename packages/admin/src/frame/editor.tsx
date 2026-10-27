@@ -222,6 +222,9 @@ const ENTRY_UI: Partial<UiState> = { leftSideBarVisible: false, rightSideBarWidt
 const entryPlugins = [legacySideBarPlugin()];
 
 /** Puck, set up for one page, header, footer, template or item: site context, previews and the bridge. */
+/** Puck's permissions for something shown without editing: nothing can be changed, added, moved or removed. */
+const READ_ONLY = { drag: false, duplicate: false, delete: false, edit: false, insert: false };
+
 export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (opened: EditorOpened) => void }) {
   const client = useAdminClient();
   const { config: siteConfig, pageConfig, layoutConfig, templateConfig } = useFrameCode();
@@ -403,6 +406,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
           iframe={{ enabled: false }}
           ui={ui}
           {...(kind === "entry" && { plugins: entryPlugins })}
+          {...(open.readOnly && { permissions: READ_ONLY })}
           overrides={overrides}
           onChange={updateView}
         />

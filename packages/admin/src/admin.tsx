@@ -288,7 +288,7 @@ function DemoBanner() {
  */
 function DraftBanner() {
   const t = useStrings();
-  const { drafts, state } = useAdmin();
+  const { drafts, state, limits } = useAdmin();
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [chosen, setChosen] = useState<string>();
@@ -345,13 +345,27 @@ function DraftBanner() {
       if (!result.ok) setNotice({ type: "error", message: "draft.discardError", error: result.error });
     });
 
-  const waiting = names.filter((name) => name !== current?.name);
+  const reviewed = new Map(drafts.reviews.map((review) => [review.name, review]));
+  const others = names.filter((name) => name !== current?.name);
+  // Those who can publish everything are asked first about drafts waiting for their review.
+  const forReview = limits ? [] : others.filter((name) => reviewed.has(name));
+  const waiting = forReview.length > 0 ? forReview : others;
   const selected = chosen && waiting.includes(chosen) ? chosen : waiting[0];
+  const currentReview = current ? reviewed.get(current.name) : undefined;
+  const selectedReview = selected ? reviewed.get(selected) : undefined;
   return (
     <section className="gfa-draft-banner" aria-label={t("draft.label")}>
       {current ? (
         <>
           <span>{t(kept ? "draft.bannerKept" : "draft.banner", { date: draftStarted(current.name) })}</span>
+          {currentReview && (
+            <span>
+              {t("draft.inReview")}{" "}
+              <a href={currentReview.url} target="_blank" rel="noreferrer">
+                {t("draft.seeReview")}
+              </a>
+            </span>
+          )}
           {current.paths.length > 0 && (
             <span className="gfa-draft-count">
               {current.paths.length === 1
@@ -378,9 +392,13 @@ function DraftBanner() {
         waiting.length > 0 && (
           <>
             <span>
-              {waiting.length === 1
-                ? t("draft.waiting", { date: draftStarted(waiting[0] ?? "") })
-                : t("draft.waitingMany", { count: String(waiting.length) })}
+              {forReview.length > 0
+                ? waiting.length === 1
+                  ? t("draft.reviewWaiting", { title: selectedReview?.title ?? "" })
+                  : t("draft.reviewWaitingMany", { count: String(waiting.length) })
+                : waiting.length === 1
+                  ? t("draft.waiting", { date: draftStarted(waiting[0] ?? "") })
+                  : t("draft.waitingMany", { count: String(waiting.length) })}
             </span>
             {waiting.length > 1 && (
               <select
@@ -390,7 +408,7 @@ function DraftBanner() {
               >
                 {waiting.map((name) => (
                   <option key={name} value={name}>
-                    {t("draft.started", { date: draftStarted(name) })}
+                    {reviewed.get(name)?.title ?? t("draft.started", { date: draftStarted(name) })}
                   </option>
                 ))}
               </select>
@@ -398,6 +416,11 @@ function DraftBanner() {
             <Button disabled={busy} onClick={() => void switchTo(selected)}>
               {t("draft.open")}
             </Button>
+            {forReview.length > 0 && selectedReview && (
+              <a href={selectedReview.url} target="_blank" rel="noreferrer">
+                {t("draft.seeReview")}
+              </a>
+            )}
           </>
         )
       )}

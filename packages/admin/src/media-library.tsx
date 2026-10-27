@@ -12,6 +12,7 @@ import {
 import { createContext, type ReactNode, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { withoutCredits } from "./changes.js";
+import { useMayChange } from "./limits.js";
 import {
   allMedia,
   extensionOf,
@@ -644,6 +645,7 @@ export function MediaScreen() {
   // What moving media to its storage, or back, did: shown here, since moving back can end the storage section.
   const [moved, setMoved] = useState<string>();
   const searchId = useId();
+  const mayChange = useMayChange({ kind: "media" });
 
   // A file dropped beside the drop area would otherwise open in place of the admin panel.
   useEffect(() => {
@@ -674,13 +676,20 @@ export function MediaScreen() {
     <div className="gfa-screen gfa-screen-wide">
       <div className="gfa-screen-header">
         <h1>{t("media.title")}</h1>
-        <UploadButton
-          label={t("media.upload")}
-          disabled={status.type === "uploading"}
-          onFiles={(files) => void run(files)}
-        />
+        {mayChange && (
+          <UploadButton
+            label={t("media.upload")}
+            disabled={status.type === "uploading"}
+            onFiles={(files) => void run(files)}
+          />
+        )}
       </div>
       <p className="gfa-hint">{t("media.intro")}</p>
+      {!mayChange && (
+        <p className="gfa-notice" role="note">
+          {t("limits.mediaReadOnly")}
+        </p>
+      )}
       {cloudflareVideos && (
         <p className="gfa-notice" role="note">
           {t("media.cloudflareVideo")}{" "}
@@ -689,7 +698,7 @@ export function MediaScreen() {
           </a>
         </p>
       )}
-      <StorageSection onDone={setMoved} />
+      {mayChange && <StorageSection onDone={setMoved} />}
       {moved && (
         <p className="gfa-notice gfa-notice-success" role="status">
           {moved}
@@ -712,7 +721,7 @@ export function MediaScreen() {
         </div>
       )}
 
-      <DropZone onFiles={(files) => void run(files)}>
+      <DropZone onFiles={(files) => void (mayChange && run(files))}>
         {media.length === 0 ? (
           <p>{t("media.empty")}</p>
         ) : urls.length === 0 ? (
@@ -741,16 +750,20 @@ export function MediaScreen() {
                   >
                     {copied === url ? t("media.copied") : t("media.copy")}
                   </Button>
-                  <UploadButton
-                    label={t("media.replace")}
-                    variant="secondary"
-                    multiple={false}
-                    disabled={status.type === "uploading"}
-                    onFiles={(files) => void run(files.slice(0, 1), mediaPath(url))}
-                  />
-                  <Button variant="ghost" onClick={() => setDeleting(url)}>
-                    {t("media.delete")}
-                  </Button>
+                  {mayChange && (
+                    <>
+                      <UploadButton
+                        label={t("media.replace")}
+                        variant="secondary"
+                        multiple={false}
+                        disabled={status.type === "uploading"}
+                        onFiles={(files) => void run(files.slice(0, 1), mediaPath(url))}
+                      />
+                      <Button variant="ghost" onClick={() => setDeleting(url)}>
+                        {t("media.delete")}
+                      </Button>
+                    </>
+                  )}
                 </div>
               </li>
             ))}

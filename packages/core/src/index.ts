@@ -610,6 +610,7 @@ export {
   DraftError,
   type DraftHost,
   type DraftProblem,
+  type DraftReview,
   isDraftName,
   newDraftName,
   type SiteDrafts,
