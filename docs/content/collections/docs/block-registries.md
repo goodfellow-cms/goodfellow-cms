@@ -6,7 +6,7 @@ section: developers
 order: 8
 ---
 
-Goodfellow's blocks built with component libraries come from block registries: [shadcn registries](https://ui.shadcn.com/docs/registry) whose items are Goodfellow blocks. Goodfellow publishes one for shadcn/ui, `@goodfellow-cms/registry`. Anyone can publish one for another library in the same format: build it with `npx shadcn build` and host the files anywhere that allows requests from browsers (CORS), such as GitHub Pages or npm through jsDelivr.
+Goodfellow's blocks built with component libraries come from block registries: [shadcn registries](https://ui.shadcn.com/docs/registry) whose items are Goodfellow blocks. Goodfellow publishes one for shadcn/ui, `@goodfellow-cms/registry`. Anyone can publish one for another library in the same format: build it with `npx shadcn build` and host the files anywhere that allows requests from browsers (CORS), such as GitHub Pages or npm through jsDelivr. `goodfellow blocks add <item> --registry <folder>` writes blocks made from shadcn components into one (see [Any shadcn component as a block](/docs/shadcn-components#as-a-registry)).
 
 ## Items
 

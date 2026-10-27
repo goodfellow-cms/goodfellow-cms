@@ -12,6 +12,7 @@ import {
   editorPolicy,
   FEEDS_DIR,
   feedFiles,
+  type GoodfellowConfig,
   hasLanguages,
   loadSiteContent,
   type Page,
@@ -45,7 +46,8 @@ import {
   taskSecretsFrom,
   writeBuildRecord,
 } from "@goodfellow-cms/core/node";
-import { buildPluginFrames, configHasPlugins, loadSiteConfig } from "./plugins.js";
+import type { PageRender } from "@goodfellow-cms/core/shadcn";
+import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule } from "./plugins.js";
 
 export { NEXT_SITE_FILES } from "./site-files.js";
 
@@ -443,4 +445,21 @@ export async function writeTaskResult(
   const sealed = await sealTaskAnswer(answer, request.key);
   await writeFile(resolve(root, out), `${JSON.stringify(sealed)}\n`);
   return sealed;
+}
+
+/**
+ * Renders a page with a block from its own file as well as the site's config's,
+ * for `goodfellow-next blocks add`'s check that a block it made renders: both
+ * loaded in Node, as `goodfellow-next finish` loads the config.
+ */
+export function blockPageRender(root: string): PageRender {
+  return async (page, block) => {
+    const site = resolve(root);
+    const config = await loadSiteConfig(site);
+    const entry = (await loadSiteModule(site, join(site, block.entry))).default as GoodfellowConfig["blocks"][string];
+    const { createPageRenderer } = await import("@goodfellow-cms/react/server");
+    const render = createPageRenderer({ ...config, blocks: { ...config.blocks, [block.name]: entry } });
+    const content = await loadSiteContent(builtSiteSource(site));
+    return render(content, { path: "/", file: "content/pages/index.json", content: page });
+  };
 }

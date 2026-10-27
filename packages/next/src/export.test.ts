@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { startsWithGuard } from "@goodfellow-cms/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  blockPageRender,
   checkPages,
   exportedPages,
   fixSegmentFiles,
@@ -196,5 +197,33 @@ describe("writePluginFiles", () => {
     out = await mkdtemp(join(tmpdir(), "goodfellow-export-"));
     await writeFile(join(out, "goodfellow.config.tsx"), "throw new Error('loaded');\n");
     expect(await writePluginFiles("out", out)).toEqual({ frames: [], steps: [] });
+  });
+});
+
+describe("blockPageRender", () => {
+  it("renders a page with a block from its own file and the site's config's, as blocks add checks it", async () => {
+    const site = await mkdtemp(join(import.meta.dirname, "../.block-site-"));
+    out = join(site, "out");
+    try {
+      await mkdir(join(site, "blocks/installed/greeting"), { recursive: true });
+      await mkdir(join(site, "content/pages"), { recursive: true });
+      await writeFile(join(site, "package.json"), '{ "name": "block-site", "type": "module" }');
+      await writeFile(join(site, "content/site.json"), '{ "version": 1, "title": "St. Joseph" }\n');
+      await writeFile(
+        join(site, "goodfellow.config.tsx"),
+        'import { defineConfig } from "@goodfellow-cms/core";\nexport default defineConfig({ blocks: {} });\n',
+      );
+      await writeFile(
+        join(site, "blocks/installed/greeting/block.tsx"),
+        "export default { fields: {}, render: ({ name }: { name: string }) => <p>Hello, {name}</p> };\n",
+      );
+      const html = await blockPageRender(site)(
+        { version: 1, data: { root: { props: {} }, content: [{ type: "greeting", props: { id: "g", name: "Ann" } }] } },
+        { name: "greeting", entry: "blocks/installed/greeting/block.tsx" },
+      );
+      expect(html).toContain("<p>Hello, <!-- -->Ann</p>");
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
   });
 });

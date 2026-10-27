@@ -34,7 +34,7 @@ function serverEntryPlugin(configFile: string): Plugin {
             `import config from ${JSON.stringify(configFile)};`,
             `import { createPageRenderer } from "@goodfellow-cms/react/server";`,
             `import { adminSite, describeSite } from "@goodfellow-cms/react";`,
-            "export { config };",
+            "export { config, createPageRenderer };",
             "export const renderPage = createPageRenderer(config);",
             "export const describe = () => describeSite(config);",
             "export const admin = () => adminSite(config);",
@@ -46,6 +46,8 @@ function serverEntryPlugin(configFile: string): Plugin {
 export interface ServerEntry {
   config: GoodfellowConfig;
   renderPage: PageRenderer;
+  /** The renderer, from the same modules as the config's blocks, for pages with blocks the config doesn't list yet. */
+  createPageRenderer: (config: GoodfellowConfig) => PageRenderer;
   /** What the site says about its blocks, for tools such as the Claude connector (`SITE_DESCRIPTION_PATH`). */
   describe: () => SiteDescription;
   /** What the admin panel's page knows about the site, which never loads its config. */

@@ -14,9 +14,9 @@ export default defineConfig([
     define: { __GOODFELLOW_VERSION__: JSON.stringify(version) },
   },
   {
-    // Node only: reads and writes the site's files on disk, and (each on its own, since they run Pagefind and
-    // axe-core) indexes built sites and checks their pages.
-    entry: ["src/node.ts", "src/node-search.ts", "src/node-accessibility.ts"],
+    // Node only: reads and writes the site's files on disk, and (each on its own, since they run Pagefind,
+    // axe-core and TypeScript) indexes built sites, checks their pages and makes blocks of shadcn components.
+    entry: ["src/node.ts", "src/node-search.ts", "src/node-accessibility.ts", "src/node-shadcn.ts"],
     format: "esm",
     dts: true,
     platform: "node",

@@ -8,3 +8,4 @@ packages/next/src/generated/
 packages/registry/r/
 packages/broker/site/
 .wrangler/
+packages/cli/test/.sites/
