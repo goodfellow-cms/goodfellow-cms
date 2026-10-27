@@ -1,4 +1,4 @@
-import { withKeywords } from "@goodfellow-cms/react";
+import { withIcon, withKeywords } from "@goodfellow-cms/react";
 import type { Config } from "@puckeditor/core";
 import { AddToCalendar, Calendar } from "./calendar.js";
 import { Code } from "./code.js";
@@ -8,6 +8,7 @@ import { Button, Heading, Image, Text } from "./content.js";
 import { DarkModeSwitch } from "./dark-mode-switch.js";
 import { CollectionNav, EntryPager, OnThisPage } from "./docs.js";
 import { Form } from "./form.js";
+import { BLOCK_ICONS } from "./icons.js";
 import { BLOCK_KEYWORDS } from "./keywords.js";
 import { LanguageSwitch } from "./language-switch.js";
 import { Flex, Grid, Section, Space } from "./layout.js";
@@ -67,6 +68,7 @@ export {
   highlightCode,
   loadHighlighter,
 } from "./highlight.js";
+export { BLOCK_ICONS } from "./icons.js";
 export { BLOCK_KEYWORDS } from "./keywords.js";
 export { LanguageSwitch, type LanguageSwitchProps } from "./language-switch.js";
 export {
@@ -168,6 +170,11 @@ export const blocks = {
 for (const [name, keywords] of Object.entries(BLOCK_KEYWORDS)) {
   const block = (blocks as Record<string, object>)[name];
   if (block) withKeywords(block, keywords);
+}
+
+for (const [name, icon] of Object.entries(BLOCK_ICONS)) {
+  const block = (blocks as Record<string, object>)[name];
+  if (block) withIcon(block, icon);
 }
 
 /**

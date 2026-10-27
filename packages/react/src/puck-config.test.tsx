@@ -1,12 +1,14 @@
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
 import {
+  blockIcon,
   blockKeywords,
   classNameField,
   createPuckConfig,
   describeSite,
   templateOnly,
   withClassName,
+  withIcon,
   withKeywords,
 } from "./puck-config.js";
 
@@ -92,6 +94,21 @@ describe("block keywords", () => {
       Divider: { keywords: ["line", "rule"] },
     });
     expect(describeSite({ blocks: { Plain: plain } }).blocks.Plain?.keywords).toBeUndefined();
+  });
+});
+
+describe("block icons", () => {
+  it("are kept on the block, cleaned, and carried in the site's description", () => {
+    const Divider = withIcon({ ...plain }, [
+      ["path", { d: "M5 12h14", key: "1ays0h" }],
+      ["image", { href: "https://example.org/a.png" }],
+    ]);
+    expect(blockIcon(Divider)).toEqual([["path", { d: "M5 12h14" }]]);
+    expect(describeSite({ blocks: { Divider, Plain: plain } }).blocks).toMatchObject({
+      Divider: { icon: [["path", { d: "M5 12h14" }]] },
+    });
+    expect(describeSite({ blocks: { Plain: plain } }).blocks.Plain?.icon).toBeUndefined();
+    expect(blockIcon(withIcon({ ...plain }, "not an icon"))).toBeUndefined();
   });
 });
 

@@ -7,6 +7,7 @@
  */
 import type { Config } from "@puckeditor/core";
 import { z } from "zod";
+import { type BlockIcon, blockIconSchema } from "./block-icons.js";
 import { type ContentKind, CURRENT_VERSION } from "./migrations/index.js";
 import type { PluginDescription } from "./plugins.js";
 
@@ -30,6 +31,8 @@ export interface BlockDescription {
   parts?: Record<string, string>;
   /** Other words the editor's block list finds it by, besides its label, name and group. */
   keywords?: string[];
+  /** What the editor's block list, and editor plugins', show beside its name (`block-icons.ts`). */
+  icon?: BlockIcon;
 }
 
 export interface SiteDescription {
@@ -96,6 +99,7 @@ const descriptionSchema = z.object({
       templateOnly: z.boolean().optional(),
       parts: z.record(z.string(), z.string()).optional(),
       keywords: z.array(z.string()).optional(),
+      icon: blockIconSchema,
     }),
   ),
   admin: z.object({ url: z.string(), checked: z.boolean().optional() }).optional(),

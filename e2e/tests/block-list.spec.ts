@@ -54,3 +54,18 @@ test("finds blocks by other words for them, and adds one found from the search",
   const saved = readJson("content/pages/about.json") as { data: { content: { type: string }[] } };
   expect(JSON.stringify(saved.data.content).match(/"type":"Section"/g)?.length).toBe(2);
 });
+
+test("shows each block's own icon, in the list and in what the search finds", async ({ page }) => {
+  await openPageEditor(page, "/about", "About us");
+  const icon = (name: string) => editor(page).getByTestId(`drawer-item:${name}`).first().locator("svg.gfa-block-icon");
+  // Lucide's Heading and Pilcrow, drawn from the shapes the blocks carry.
+  await expect(icon("Heading").locator("path").first()).toHaveAttribute("d", "M6 12h12");
+  await expect(icon("Text").locator("path").first()).toHaveAttribute("d", "M13 4v16");
+  await expect(icon("Heading")).toBeVisible();
+  // A block of the site's own without one has a plain box.
+  await expect(icon("Counter")).toHaveClass(/lucide-box/);
+
+  await search(page).fill("quote");
+  const found = editor(page).getByLabel("Blocks found").getByTestId("drawer-item:Pullquote");
+  await expect(found.locator("svg.gfa-block-icon path")).toHaveCount(2);
+});

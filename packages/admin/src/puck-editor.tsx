@@ -216,11 +216,21 @@ export function PuckEditor({
     });
   }, []);
 
-  /** Changes editor, keeping what's edited: from an editor plugin, only what the site can publish. */
+  /**
+   * Changes editor, keeping what's edited: from Puck, as it is when the choice is made, even if its frame hasn't
+   * said so yet; from an editor plugin, only what the site can publish, and where some of it can't be, only once
+   * the editor has agreed to leave those changes behind.
+   */
   const chooseEditor = async (name: string | undefined) => {
     if (plugin && pluginEditor) {
       const checked = await pluginData(pluginEditor, latest.current.data);
+      if (!checked.ok) {
+        const problems = checked.problems.map((problem) => `${problem.path}: ${problem.message}`).join("\n");
+        if (!window.confirm(t("editor.plugin.switchLoses", { editor: editorName, problems }))) return;
+      }
       latest.current.data = checked.ok ? checked.data : pluginEditor.opened;
+    } else if (!plugin && client) {
+      latest.current.data = await client.call("editor.data").catch(() => latest.current.data);
     }
     setPluginEditor(undefined);
     editors.choose(name);

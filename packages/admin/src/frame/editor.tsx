@@ -5,6 +5,7 @@
  */
 import {
   allPages,
+  type BlockIcon,
   contentInLanguage,
   findEntry,
   hasLanguages,
@@ -21,6 +22,7 @@ import {
 import {
   type AdminLinkProps,
   type AdminPlace,
+  blockIcon,
   mediaFieldKind,
   type SiteContextValue,
   SiteProvider,
@@ -46,6 +48,7 @@ import { showMediaInPreview } from "../media-previews.js";
 import { SETTINGS_SECTIONS } from "../router.js";
 import { SharePreview } from "../share-preview.js";
 import { useDarkMode } from "../theme.js";
+import { drawerItemWithIcon } from "./block-icon.js";
 import { BlockSearch, searchableBlocks } from "./block-search.js";
 import { useCanvasStyles } from "./canvas-styles.js";
 import type { Channel } from "./channel.js";
@@ -356,10 +359,23 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
 
   const ui = useMemo(() => ({ ...(kind === "entry" ? ENTRY_UI : {}), ...open.ui }), [kind, open.ui]);
   const searchable = useMemo(() => searchableBlocks(config, siteConfig), [config, siteConfig]);
+  const drawerItem = useMemo(() => {
+    const icons = new Map<string, BlockIcon>();
+    for (const [name, block] of Object.entries(siteConfig.blocks)) {
+      const icon = blockIcon(block);
+      if (icon) icons.set(name, icon);
+    }
+    return drawerItemWithIcon(icons);
+  }, [siteConfig]);
   const overrides = useMemo(
     () => ({
       header: () => <Bridge channel={client.channel} settings={settings} />,
-      drawer: ({ children }: { children?: ReactNode }) => <BlockSearch blocks={searchable}>{children}</BlockSearch>,
+      drawer: ({ children }: { children?: ReactNode }) => (
+        <BlockSearch blocks={searchable} item={drawerItem}>
+          {children}
+        </BlockSearch>
+      ),
+      drawerItem,
       fieldTypes: { text: TextFieldWithMedia },
       // A page's own settings end with how links to it look when shared.
       ...(kind === "page" &&
@@ -372,7 +388,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
           ),
         }),
     }),
-    [client, settings, kind, path, searchable],
+    [client, settings, kind, path, searchable, drawerItem],
   );
 
   return (
