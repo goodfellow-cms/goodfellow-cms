@@ -18,6 +18,10 @@ const description: Pick<SiteDescription, "blocks" | "root"> = {
     Section: { fields: { content: { type: "slot" }, padding: { type: "number" } } },
     Cards: { fields: { cards: { type: "array", arrayFields: { title: { type: "text" } } } } },
     EntryField: { fields: { field: { type: "text" } }, templateOnly: true },
+    List: {
+      fields: { dateField: { type: "select", options: [{ value: "" }] }, limit: { type: "number" } },
+      resolvesFields: true,
+    },
   },
 };
 
@@ -101,6 +105,28 @@ describe("checkEditedData", () => {
       "content[1].props.cards[0].title",
       "content[1].props.cards[1]",
     ]);
+    // Named in words, for saying where: the block, and its setting.
+    expect(result.problems.map(({ block, field }) => [block, field])).toEqual([
+      [undefined, "title"],
+      [undefined, "noIndex"],
+      ["Section", "padding"],
+      ["Heading", "level"],
+      ["Cards", "cards"],
+      ["Cards", "cards"],
+    ]);
+  });
+
+  it("keeps choices blocks fill in themselves, and values left as they were", () => {
+    // A list's choice of its collection's fields comes from `resolveFields`, which the description can't list.
+    const list = { type: "List", props: { id: "l1", dateField: "date", limit: 3 } };
+    expect(check({ ...copy(opened), content: [...copy(opened).content, list] }).ok).toBe(true);
+    const nested = { ...list, props: { ...list.props, dateField: { field: "date" } } };
+    expect(check({ ...copy(opened), content: [nested] }).ok).toBe(false);
+    // A choice the site no longer offers, as Puck saved it, stays when it isn't changed.
+    const before = copy(opened);
+    at(at(before.content, 0).props.content, 0).props.level = "h1";
+    const kept = checkEditedData(copy(before), { description, kind: "page", opened: before });
+    expect(kept.ok).toBe(true);
   });
 
   it("refuses settings a block doesn't have unless they were there already, unchanged", () => {

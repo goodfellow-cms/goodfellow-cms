@@ -8,6 +8,7 @@ import {
   type Collection,
   checkEditedData,
   describedConfig,
+  type EditedDataProblem,
   type FileChange,
   type PluginEditorKind,
   serializeContent,
@@ -29,7 +30,7 @@ import {
   useEditorChoice,
 } from "./plugin-editor.js";
 import { useUnsavedChanges } from "./router.js";
-import { useStrings } from "./strings.js";
+import { type Translate, useStrings } from "./strings.js";
 import { Button, ErrorMessage, PublishedNotice } from "./ui.js";
 
 /** Pages and templates are shown between the header and footer; items show their page. */
@@ -57,6 +58,14 @@ export interface PuckEditorProps {
 }
 
 /** Where the editors' sidebars' widths are remembered: items' fields have a wider one of their own. */
+/** One thing an editor plugin gave back that the site can't keep, in words: the block and setting, then what's wrong. */
+function problemLine(t: Translate, problem: EditedDataProblem): string {
+  const where = problem.block ?? t("editor.plugin.pageSettings");
+  return problem.field
+    ? t("editor.plugin.problemField", { block: where, field: problem.field, message: problem.message })
+    : t("editor.plugin.problem", { block: where, message: problem.message });
+}
+
 const WIDTHS_KEY = "goodfellow-editor-sidebar-widths";
 const ENTRY_WIDTHS_KEY = "goodfellow-entry-sidebar-widths";
 
@@ -237,7 +246,7 @@ export function PuckEditor({
     if (plugin && pluginEditor) {
       const checked = await pluginData(pluginEditor, latest.current.data);
       if (!checked.ok) {
-        const problems = checked.problems.map((problem) => `${problem.path}: ${problem.message}`).join("\n");
+        const problems = checked.problems.map((problem) => problemLine(t, problem)).join("\n");
         if (!window.confirm(t("editor.plugin.switchLoses", { editor: editorName, problems }))) return;
       }
       latest.current.data = checked.ok ? checked.data : pluginEditor.opened;
@@ -259,7 +268,7 @@ export function PuckEditor({
         setStatus({
           type: "invalid",
           message: t("editor.plugin.invalid", { editor: editorName }),
-          details: checked.problems.map((problem) => `${problem.path}: ${problem.message}`).join("\n"),
+          details: checked.problems.map((problem) => problemLine(t, problem)).join("\n"),
         });
         return;
       }

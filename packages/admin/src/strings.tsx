@@ -130,6 +130,9 @@ export const defaultStrings = {
   "editor.standard": "Standard editor",
   "editor.plugin.switchLoses":
     "Some of what you changed in {editor} can't be kept in the other editor, so switching now leaves behind everything you changed since you opened {editor}. Switch anyway?\n\n{problems}",
+  "editor.plugin.pageSettings": "The page's settings",
+  "editor.plugin.problem": "{block}: {message}",
+  "editor.plugin.problemField": "{block}, {field}: {message}",
   "editor.plugin.failed": "{editor} didn't start. Choose the standard editor to keep editing.",
   "editor.plugin.invalid":
     "{editor} gave back something this site can't publish, so nothing was published. Try again, or choose the standard editor.",

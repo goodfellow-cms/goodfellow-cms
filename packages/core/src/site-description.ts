@@ -33,6 +33,12 @@ export interface BlockDescription {
   keywords?: string[];
   /** What the editor's block list, and editor plugins', show beside its name (`block-icons.ts`). */
   icon?: BlockIcon;
+  /**
+   * Its fields change with what it's set to (Puck's `resolveFields`), such as
+   * a list's choice of the collection's fields, so the choices `fields` lists
+   * aren't all it can hold.
+   */
+  resolvesFields?: boolean;
 }
 
 export interface SiteDescription {
@@ -102,6 +108,7 @@ const descriptionSchema = z.object({
       parts: z.record(z.string(), z.string()).optional(),
       keywords: z.array(z.string()).optional(),
       icon: blockIconSchema,
+      resolvesFields: z.boolean().optional(),
     }),
   ),
   admin: z.object({ url: z.string(), checked: z.boolean().optional() }).optional(),
