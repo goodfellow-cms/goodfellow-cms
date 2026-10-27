@@ -45,7 +45,10 @@ test("finds blocks by other words for them, and adds one found from the search",
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(from.x + from.width / 2 + 20, from.y + from.height / 2, { steps: 5 });
-  await page.mouse.move(to.x + to.width / 2, to.y + 2, { steps: 20 });
+  // Let go only once Puck shows the line where the block will go, as a person would: Puck finds the place a
+  // moment after the pointer arrives, and dropping before that drops nothing.
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  await expect(editor(page).locator('[class*="_DropZone-linePlaceholder_"]')).toBeVisible();
   await page.mouse.up();
   await expect(canvas(page).locator("[data-puck-component]")).toHaveCount(blocksBefore + 1, { timeout: 10_000 });
 
