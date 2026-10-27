@@ -150,8 +150,39 @@ export function blockParts(component: object): BlockParts | undefined {
   return (component as { [PARTS]?: BlockParts })[PARTS];
 }
 
+const KEYWORDS = Symbol.for("goodfellow.keywords");
+
+/**
+ * Other words people might search the block list with, such as "divider" for
+ * a Separator or WordPress's "Cover" for a Section: the block's label, name
+ * and group are searched anyway.
+ */
+export function withKeywords<T extends object>(component: T, keywords: readonly string[]): T {
+  return Object.assign(component, { [KEYWORDS]: [...keywords] });
+}
+
+/** The words a block's searched by besides its label, from `withKeywords()`. */
+export function blockKeywords(component: object): readonly string[] | undefined {
+  return (component as { [KEYWORDS]?: readonly string[] })[KEYWORDS];
+}
+
 /** Pages; the header and footer; or a collection's template, which is a page that can also show the entry's fields. */
 export type PuckConfigKind = "page" | "layout" | "template";
+
+/**
+ * The built-in blocks' groups that start open in each editor, by their key in
+ * `categories` from `@goodfellow-cms/blocks`: the rest of those start closed.
+ * Groups of a site's own, and installed blocks', start open, as do any whose
+ * `defaultExpanded` the site's config sets.
+ */
+export const OPEN_CATEGORIES: Readonly<Record<PuckConfigKind, readonly string[]>> = {
+  page: ["layout", "content", "forms", "media"],
+  layout: ["layout", "navigation"],
+  template: ["layout", "content", "collections"],
+};
+
+/** The built-in blocks' groups, which `OPEN_CATEGORIES` opens and closes. */
+const BUILT_IN_CATEGORIES = new Set(["layout", "content", "forms", "media", "navigation", "collections"]);
 
 /**
  * Turns a site's Goodfellow config into the Puck config for pages, for the
@@ -169,7 +200,12 @@ export function createPuckConfig(config: GoodfellowConfig, kind: PuckConfigKind)
     Object.fromEntries(
       Object.entries(config.categories).map(([key, category]) => [
         key,
-        { ...category, components: category.components?.filter((name) => names.has(String(name))) },
+        {
+          ...category,
+          components: category.components?.filter((name) => names.has(String(name))),
+          ...(category.defaultExpanded === undefined &&
+            BUILT_IN_CATEGORIES.has(key) && { defaultExpanded: OPEN_CATEGORIES[kind].includes(key) }),
+        },
       ]),
     );
 
@@ -211,6 +247,7 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
             ...(component.defaultProps && { defaultProps: asJson(component.defaultProps) }),
             ...(block && isTemplateOnly(block) && { templateOnly: true }),
             ...(block && blockParts(block) && { parts: { ...blockParts(block) } }),
+            ...(block && blockKeywords(block) && { keywords: [...(blockKeywords(block) ?? [])] }),
           },
         ];
       }),

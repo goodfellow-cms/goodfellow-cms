@@ -1,0 +1,43 @@
+/**
+ * Other words the editor's block list finds the built-in blocks by, besides
+ * their labels, names and groups: what people coming from elsewhere may call
+ * them, WordPress's names for its blocks among them.
+ */
+export const BLOCK_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
+  Section: ["cover", "group", "container", "hero", "banner", "background"],
+  Grid: ["columns", "cards", "tiles"],
+  Flex: ["row", "stack", "buttons", "side by side"],
+  Space: ["spacer", "gap", "padding"],
+  Separator: ["divider", "line", "rule"],
+  MediaText: ["media and text", "picture beside text", "image and text"],
+  Details: ["accordion", "toggle", "collapse", "faq", "show more"],
+  Heading: ["title", "subheading", "h1", "h2"],
+  Text: ["paragraph", "rich text", "words", "list"],
+  Button: ["link", "call to action", "cta"],
+  Pullquote: ["quote", "blockquote", "testimonial"],
+  Table: ["rows", "columns", "spreadsheet"],
+  Preformatted: ["monospace", "plain text"],
+  Verse: ["poem", "poetry", "lyrics"],
+  Code: ["snippet", "programming", "syntax"],
+  Form: ["contact form", "survey", "sign up", "questions"],
+  ContactDetails: ["address", "phone", "email", "contact"],
+  Image: ["picture", "photo", "logo"],
+  Gallery: ["pictures", "photos", "images", "slideshow"],
+  Video: ["youtube", "vimeo", "embed", "movie"],
+  Audio: ["sound", "podcast", "music", "recording"],
+  File: ["download", "pdf", "document", "attachment"],
+  Menu: ["navigation", "links", "nav"],
+  SiteBrand: ["site title", "site logo", "logo", "name", "tagline"],
+  Search: ["find"],
+  DarkModeSwitch: ["dark mode", "theme", "light"],
+  LanguageSwitch: ["languages", "translation", "translate"],
+  CollectionNav: ["contents", "sidebar"],
+  PageList: ["pages", "sitemap", "child pages"],
+  CollectionList: ["latest posts", "posts", "news", "query loop", "list"],
+  CollectionLoop: ["query loop", "repeat", "posts"],
+  Calendar: ["events", "dates", "schedule"],
+  EntryField: ["post content", "field"],
+  AddToCalendar: ["event", "ics"],
+  EntryPager: ["next", "previous", "post navigation"],
+  OnThisPage: ["table of contents", "toc", "contents"],
+};

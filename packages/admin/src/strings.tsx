@@ -124,6 +124,9 @@ export const defaultStrings = {
   "editor.failed": "The editor stopped working. Reload the page to start it again.",
   "editor.frame": "Editing {title}",
   "editor.choose": "Editor",
+  "editor.blockSearch": "Search blocks",
+  "editor.blockSearchNone": 'No blocks match. Try another word, such as "picture" or "columns".',
+  "editor.blockSearchFound": "Blocks found",
   "editor.standard": "Standard editor",
   "editor.plugin.failed": "{editor} didn't start. Choose the standard editor to keep editing.",
   "editor.plugin.invalid":

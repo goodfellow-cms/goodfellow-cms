@@ -1,6 +1,14 @@
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
-import { classNameField, createPuckConfig, describeSite, templateOnly, withClassName } from "./puck-config.js";
+import {
+  blockKeywords,
+  classNameField,
+  createPuckConfig,
+  describeSite,
+  templateOnly,
+  withClassName,
+  withKeywords,
+} from "./puck-config.js";
 
 const plain: ComponentConfig<{ text: string }> = {
   fields: { text: { type: "text" } },
@@ -52,6 +60,38 @@ describe("createPuckConfig", () => {
     expect(page.categories?.all?.components).toEqual(["Plain"]);
     expect(Object.keys(template.components)).toEqual(["Plain", "Field"]);
     expect(Object.keys(template.root?.fields ?? {})).toContain("title");
+  });
+
+  it("opens the built-in groups that fit what's edited, and leaves the site's own and its choices as they are", () => {
+    const config = {
+      blocks: { Plain: plain },
+      categories: {
+        layout: { title: "Layout", components: ["Plain"] },
+        navigation: { title: "Navigation", components: [] },
+        collections: { title: "Collections", components: [], defaultExpanded: true },
+        mine: { title: "Mine", components: [] },
+      },
+    };
+    const open = (kind: "page" | "layout" | "template") =>
+      Object.fromEntries(
+        Object.entries(createPuckConfig(config, kind).categories ?? {}).map(([key, category]) => [
+          key,
+          category?.defaultExpanded,
+        ]),
+      );
+    expect(open("page")).toEqual({ layout: true, navigation: false, collections: true, mine: undefined });
+    expect(open("layout")).toEqual({ layout: true, navigation: true, collections: true, mine: undefined });
+  });
+});
+
+describe("block keywords", () => {
+  it("are kept on the block and carried in the site's description", () => {
+    const Divider = withKeywords({ ...plain }, ["line", "rule"]);
+    expect(blockKeywords(Divider)).toEqual(["line", "rule"]);
+    expect(describeSite({ blocks: { Divider, Plain: plain } }).blocks).toMatchObject({
+      Divider: { keywords: ["line", "rule"] },
+    });
+    expect(describeSite({ blocks: { Plain: plain } }).blocks.Plain?.keywords).toBeUndefined();
   });
 });
 

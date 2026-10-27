@@ -28,6 +28,8 @@ export interface BlockDescription {
   templateOnly?: boolean;
   /** The named parts it renders, such as `gf-card-title`, each with what owners call it, for themes' classes. */
   parts?: Record<string, string>;
+  /** Other words the editor's block list finds it by, besides its label, name and group. */
+  keywords?: string[];
 }
 
 export interface SiteDescription {
@@ -93,6 +95,7 @@ const descriptionSchema = z.object({
       defaultProps: record.optional(),
       templateOnly: z.boolean().optional(),
       parts: z.record(z.string(), z.string()).optional(),
+      keywords: z.array(z.string()).optional(),
     }),
   ),
   admin: z.object({ url: z.string(), checked: z.boolean().optional() }).optional(),
