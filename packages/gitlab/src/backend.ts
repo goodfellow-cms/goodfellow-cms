@@ -179,6 +179,34 @@ export class GitLabBackend implements GitBackend {
   /** Drafts on branches of the project, with merge requests for review. */
   private draftHost(): DraftHost {
     const project = `/projects/${this.project}`;
+    const openRequests = (branch: string) =>
+      gitlabJson<Array<{ iid: number; web_url: string }>>(
+        this.api,
+        `${project}/merge_requests?${new URLSearchParams({ source_branch: branch, state: "opened" })}`,
+      );
+    /**
+     * Asks people to review a merge request, by their usernames. GitLab's free
+     * plan takes one reviewer, so where it refuses them all, the first is asked.
+     */
+    const askReviewers = async (iid: number, usernames: readonly string[]) => {
+      const ids: number[] = [];
+      for (const username of usernames) {
+        const [found] = await gitlabJson<Array<{ id: number }>>(
+          this.api,
+          `/users?${new URLSearchParams({ username })}`,
+        ).catch(() => []);
+        if (found) ids.push(found.id);
+      }
+      for (const reviewerIds of ids.length > 1 ? [ids, ids.slice(0, 1)] : [ids]) {
+        if (reviewerIds.length === 0) return;
+        const response = await gitlabRequest(this.api, `${project}/merge_requests/${iid}`, {
+          method: "PUT",
+          body: { reviewer_ids: reviewerIds },
+          allow: [400, 403, 404, 422],
+        });
+        if (response.ok) return;
+      }
+    };
     return {
       liveBranch: this.branch,
       branchStore: (branch) => new GitLabBackend({ ...this.options, branch, caches: this.caches }),
@@ -209,21 +237,43 @@ export class GitLabBackend implements GitBackend {
         const branches = await gitlabJson<Array<{ name: string }>>(this.api, this.repo(`/branches?${query}`));
         return branches.map((found) => found.name).filter((name) => name.startsWith(prefix));
       },
-      openReview: async ({ branch, title, description }) => {
+      openReview: async ({ branch, title, description, reviewers = [] }) => {
         const response = await gitlabRequest(this.api, `${project}/merge_requests`, {
           method: "POST",
           body: { source_branch: branch, target_branch: this.branch, title, description, remove_source_branch: true },
           allow: [403, 404, 409],
         });
-        if (response.ok) return { url: ((await response.json()) as { web_url: string }).web_url };
-        if (response.status !== 409) {
+        let review: { iid: number; web_url: string } | undefined;
+        if (response.ok) review = (await response.json()) as { iid: number; web_url: string };
+        else if (response.status !== 409) {
           throw new DraftError("no-reviews", "This sign-in can't open merge requests on the site's project.");
+        } else {
+          // One is open already: give its address.
+          [review] = await openRequests(branch);
+          if (!review) throw new GitApiError(409, "GitLab couldn't open the merge request.");
         }
-        // One is open already: give its address.
-        const query = new URLSearchParams({ source_branch: branch, state: "opened" });
-        const [open] = await gitlabJson<Array<{ web_url: string }>>(this.api, `${project}/merge_requests?${query}`);
-        if (!open) throw new GitApiError(409, "GitLab couldn't open the merge request.");
-        return { url: open.web_url };
+        await askReviewers(review.iid, reviewers);
+        return { url: review.web_url };
+      },
+      listReviews: async (prefix) => {
+        const query = new URLSearchParams({ state: "opened", per_page: "100" });
+        const requests = await gitlabJson<Array<{ source_branch: string; web_url: string; title: string }>>(
+          this.api,
+          `${project}/merge_requests?${query}`,
+        );
+        return requests
+          .filter((request) => request.source_branch.startsWith(prefix))
+          .map((request) => ({ branch: request.source_branch, url: request.web_url, title: request.title }));
+      },
+      // GitLab keeps a merge request open when its branch is deleted, so it's closed first.
+      closeReview: async (branch) => {
+        for (const request of await openRequests(branch)) {
+          await gitlabRequest(this.api, `${project}/merge_requests/${request.iid}`, {
+            method: "PUT",
+            body: { state_event: "close" },
+            allow: [403, 404],
+          });
+        }
       },
     };
   }

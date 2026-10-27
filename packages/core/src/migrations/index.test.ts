@@ -16,6 +16,7 @@ const registry: MigrationRegistry = {
   media: [],
   theme: [],
   storage: [],
+  permissions: [],
 };
 
 describe("migrateContent", () => {

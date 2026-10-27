@@ -49,8 +49,21 @@ export interface DraftHost {
   deleteBranch(branch: string): Promise<void>;
   /** The newest commit that the live branch and `branch` share. Throws `DraftError` (`not-found`) without the branch. */
   mergeBase(branch: string): Promise<string>;
-  /** Opens a pull or merge request from `branch` to the live branch, or gives the open one. */
-  openReview(options: { branch: string; title: string; description: string }): Promise<{ url: string }>;
+  /**
+   * Opens a pull or merge request from `branch` to the live branch, or gives
+   * the open one, asking `reviewers` (sign-in names on the host) to review it
+   * where the host can find them; someone it can't find is left out.
+   */
+  openReview(options: {
+    branch: string;
+    title: string;
+    description: string;
+    reviewers?: readonly string[];
+  }): Promise<{ url: string }>;
+  /** The open pull or merge requests from branches whose names start with `prefix`. */
+  listReviews(prefix: string): Promise<Array<{ branch: string; url: string; title: string }>>;
+  /** Closes the open pull or merge request from `branch`, if there is one, without merging it. */
+  closeReview(branch: string): Promise<void>;
   /** The branches whose names start with `prefix`. */
   listBranches(prefix: string): Promise<string[]>;
 }
@@ -70,8 +83,15 @@ export interface Draft {
    * live site meanwhile; the draft is kept.
    */
   publish(message: string): Promise<{ revision: string }>;
-  /** Asks for the draft to be reviewed before it's published: a pull or merge request. */
-  submitForReview(options: { title: string; description?: string }): Promise<{ url: string }>;
+  /**
+   * Asks for the draft to be reviewed before it's published: a pull or merge
+   * request, which asks `reviewers` (sign-in names on the host) to review it.
+   */
+  submitForReview(options: {
+    title: string;
+    description?: string;
+    reviewers?: readonly string[];
+  }): Promise<{ url: string }>;
   /** Removes the draft and its changes. */
   discard(): Promise<void>;
 }
@@ -90,6 +110,17 @@ export interface SiteDrafts {
    * date (`newDraftName()`), whoever started them: in the admin panel or from Claude.
    */
   list(): Promise<string[]>;
+  /** The drafts submitted for review that are still waiting, newest first, with where they're reviewed. */
+  reviews(): Promise<DraftReview[]>;
+}
+
+/** A draft waiting for review. */
+export interface DraftReview {
+  /** The draft's name. */
+  name: string;
+  /** The pull or merge request, on the host. */
+  url: string;
+  title: string;
 }
 
 /** A name for a new draft: the date, then random letters, such as `20261014-k3x9qa`. */
@@ -107,6 +138,15 @@ function checkName(name: string): string {
 
 /** Drafts on a backend's branches, publishing to `live`, the backend for the live branch. */
 export function branchDrafts(live: ContentStore, host: DraftHost): SiteDrafts {
+  /** Closes a draft's review once it's published or thrown away: GitLab keeps it open when the branch goes. */
+  async function closeReview(branch: string): Promise<void> {
+    try {
+      await host.closeReview(branch);
+    } catch {
+      // The draft is published or gone either way; a review left open says so on the host.
+    }
+  }
+
   function draft(name: string, branch: string): Draft {
     const store = host.branchStore(branch);
 
@@ -141,13 +181,15 @@ export function branchDrafts(live: ContentStore, host: DraftHost): SiteDrafts {
           changed.length > 0
             ? await writeChanges(live, changed, { message, expectedRevision: base })
             : { revision: await live.revision() };
+        await closeReview(branch);
         await host.deleteBranch(branch);
         return result;
       },
-      async submitForReview({ title, description = "" }) {
-        return host.openReview({ branch, title, description });
+      async submitForReview({ title, description = "", reviewers }) {
+        return host.openReview({ branch, title, description, ...(reviewers?.length && { reviewers }) });
       },
       async discard() {
+        await closeReview(branch);
         await host.deleteBranch(branch);
       },
     };
@@ -172,6 +214,17 @@ export function branchDrafts(live: ContentStore, host: DraftHost): SiteDrafts {
         .filter(isDraftName)
         .sort()
         .reverse();
+    },
+    async reviews() {
+      const reviews = await host.listReviews(DRAFT_BRANCH_PREFIX);
+      return reviews
+        .map((review) => ({
+          name: review.branch.slice(DRAFT_BRANCH_PREFIX.length),
+          url: review.url,
+          title: review.title,
+        }))
+        .filter((review) => isDraftName(review.name))
+        .sort((a, b) => b.name.localeCompare(a.name));
     },
   };
 }

@@ -181,5 +181,9 @@ export function keptDrafts(live: ContentStore, keeper: DraftKeeper): SiteDrafts 
       const kept = await keeper.load();
       return kept ? [kept.name] : [];
     },
+    // Drafts kept in a browser can't be submitted for review, so none is waiting.
+    async reviews() {
+      return [];
+    },
   };
 }

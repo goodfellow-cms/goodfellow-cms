@@ -100,6 +100,8 @@ export type SignInProblem =
 export const PERMISSIONS: Record<Purpose, Permissions> = {
   edit: {
     contents: "write",
+    // Submitting a draft for review opens a pull request.
+    pull_requests: "write",
     metadata: "read",
     deployments: "read",
     actions: "read",
@@ -132,7 +134,7 @@ export const PERMISSIONS: Record<Purpose, Permissions> = {
  * made without them, and the admin panel does without what they're for.
  */
 export const LATER_PERMISSIONS: Partial<Record<Purpose, string[]>> = {
-  edit: ["checks", "statuses"],
+  edit: ["checks", "statuses", "pull_requests"],
   owner: ["variables"],
   setup: ["secrets"],
 };

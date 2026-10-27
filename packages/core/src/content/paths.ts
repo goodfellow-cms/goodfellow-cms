@@ -24,6 +24,8 @@ export const HEAD_CODE_FILE = "content/code/head.html";
 export const BODY_CODE_FILE = "content/code/body.html";
 /** Whether Goodfellow's fixes install on their own, and releases they never install. */
 export const UPDATES_FILE = "content/updates.json";
+/** What each editor may change, and who reviews changes outside it. */
+export const PERMISSIONS_FILE = "content/permissions.json";
 export const MEDIA_DIR = "public/media";
 export const COLLECTIONS_DIR = "content/collections";
 /** Where blocks installed from block registries go, with the record of what's installed and the list the config imports. */

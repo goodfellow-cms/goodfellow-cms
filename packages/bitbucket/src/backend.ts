@@ -197,6 +197,27 @@ export class BitbucketBackend implements GitBackend {
       if (!response.ok) return undefined;
       return ((await response.json()) as { target: { hash: string } }).target.hash;
     };
+    const openRequests = async (branch: string) => {
+      const query = new URLSearchParams({ q: `source.branch.name = ${quoted(branch)} AND state = "OPEN"` });
+      const open = await bitbucketJson<Paged<{ id: number; links: { html: { href: string } } }>>(
+        this.api,
+        this.path(`/pullrequests?${query}`),
+      );
+      return open.values;
+    };
+    /** Reviewers as Bitbucket names them, by account id, from the workspace's members; people it doesn't have are left out. */
+    const reviewerAccounts = async (nicknames: readonly string[]) => {
+      const workspace = this.repo.split("/")[0] ?? "";
+      const members = await allPages<{ user: { account_id?: string; nickname?: string } }>(
+        this.api,
+        `/workspaces/${workspace}/members?pagelen=100`,
+        10,
+      ).catch(() => []);
+      return nicknames.flatMap((nickname) => {
+        const found = members.find((member) => member.user.nickname?.toLowerCase() === nickname.toLowerCase());
+        return found?.user.account_id ? [{ account_id: found.user.account_id }] : [];
+      });
+    };
     return {
       liveBranch: this.branch,
       branchStore: (branch) => new BitbucketBackend({ ...this.options, branch, revision: undefined }),
@@ -226,31 +247,61 @@ export class BitbucketBackend implements GitBackend {
         const branches = await allPages<{ name: string }>(this.api, this.path(`/refs/branches?${query}`), 5);
         return branches.map((found) => found.name).filter((name) => name.startsWith(prefix));
       },
-      openReview: async ({ branch, title: name, description }) => {
-        const response = await bitbucketRequest(this.api, this.path("/pullrequests"), {
-          body: {
-            title: name,
-            description,
-            source: { branch: { name: branch } },
-            destination: { branch: { name: this.branch } },
-            close_source_branch: true,
-          },
-          allow: [400, 403, 404],
-        });
+      openReview: async ({ branch, title: name, description, reviewers = [] }) => {
+        const open = (people: Array<{ account_id: string }>) =>
+          bitbucketRequest(this.api, this.path("/pullrequests"), {
+            body: {
+              title: name,
+              description,
+              source: { branch: { name: branch } },
+              destination: { branch: { name: this.branch } },
+              close_source_branch: true,
+              ...(people.length > 0 && { reviewers: people }),
+            },
+            allow: [400, 403, 404],
+          });
+        // The one who opens it can't review it.
+        const people = await reviewerAccounts(
+          reviewers.filter((login) => login.toLowerCase() !== this.user.login.toLowerCase()),
+        );
+        let response = await open(people);
+        // Bitbucket refuses the whole pull request over a reviewer it won't take, so it's opened without them.
+        if (response.status === 400 && people.length > 0) response = await open([]);
         if (response.ok)
           return { url: ((await response.json()) as { links: { html: { href: string } } }).links.html.href };
         if (response.status !== 400) {
           throw new DraftError("no-reviews", "This sign-in can't open pull requests on the site's repository.");
         }
         // Bitbucket refuses a second pull request from the same branch: give the open one's address.
-        const query = new URLSearchParams({ q: `source.branch.name = ${quoted(branch)} AND state = "OPEN"` });
-        const open = await bitbucketJson<Paged<{ links: { html: { href: string } } }>>(
-          this.api,
-          this.path(`/pullrequests?${query}`),
-        );
-        const found = open.values[0];
+        const [found] = await openRequests(branch);
         if (!found) throw new DraftError("no-reviews", "Bitbucket couldn't open the pull request.");
         return { url: found.links.html.href };
+      },
+      listReviews: async (prefix) => {
+        const query = new URLSearchParams({
+          q: `source.branch.name ~ ${quoted(prefix)} AND state = "OPEN"`,
+          pagelen: "50",
+        });
+        const open = await allPages<{
+          title: string;
+          source: { branch: { name: string } };
+          links: { html: { href: string } };
+        }>(this.api, this.path(`/pullrequests?${query}`), 5);
+        return open
+          .filter((request) => request.source.branch.name.startsWith(prefix))
+          .map((request) => ({
+            branch: request.source.branch.name,
+            url: request.links.html.href,
+            title: request.title,
+          }));
+      },
+      closeReview: async (branch) => {
+        for (const request of await openRequests(branch)) {
+          await bitbucketRequest(this.api, this.path(`/pullrequests/${request.id}/decline`), {
+            body: {},
+            allow: [400, 403, 404],
+          });
+        }
       },
     };
   }

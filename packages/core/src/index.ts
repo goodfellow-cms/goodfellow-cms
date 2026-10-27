@@ -388,6 +388,7 @@ export {
   MENUS_FILE,
   normalizePagePath,
   PAGES_DIR,
+  PERMISSIONS_FILE,
   pageFileToPath,
   pageOutputFile,
   pagePathToFile,
@@ -398,6 +399,24 @@ export {
   THEME_FILE,
   UPDATES_FILE,
 } from "./content/paths.js";
+export {
+  type EditorLimits,
+  editorLimitsSchema,
+  type LimitProblem,
+  limitsFor,
+  mayChangeCollection,
+  mayChangeEntry,
+  mayChangeLayout,
+  mayChangeMedia,
+  mayChangeMenus,
+  mayChangePage,
+  outsideLimits,
+  type Permissions,
+  type PermissionsFile,
+  permissionsFileChange,
+  permissionsFileSchema,
+  reviewersFor,
+} from "./content/permissions.js";
 export {
   CLOUDFLARE_REDIRECTS_LIMIT,
   CLOUDFLARE_REDIRECTS_PATH,

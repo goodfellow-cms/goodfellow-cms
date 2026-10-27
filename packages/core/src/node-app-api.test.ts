@@ -97,6 +97,7 @@ function fakeServerGit(repo: FakeRepo) {
           throw new Error("no drafts");
         },
         list: async () => [],
+        reviews: async () => [],
       },
     };
   };
@@ -445,6 +446,7 @@ describe("isSettingsPath", () => {
       "content/site.json",
       "content/redirects.json",
       "content/updates.json",
+      "content/permissions.json",
       "content/styles/custom.css",
       "content/code/head.html",
       "content/collections/news/_collection.json",

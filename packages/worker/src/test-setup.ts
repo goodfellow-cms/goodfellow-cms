@@ -25,7 +25,7 @@ export function setup(
     repositories?: string[];
     /** The owners' app as it was before it asked for the Secrets permission. */
     withoutSecrets?: boolean;
-    /** The everyday app as it was before it asked for the Checks and Commit statuses permissions. */
+    /** The everyday app as it was before it asked for the Checks, Commit statuses and Pull requests permissions. */
     withoutChecks?: boolean;
     /** The admin address the site's build names, in the `goodfellow-site.json` the Site address serves. */
     admin?: string;
@@ -36,7 +36,12 @@ export function setup(
   } = {},
 ) {
   const repositories = ["parish/site", ...(options.repositories ?? [])];
-  const { checks: _checks, statuses: _statuses, ...olderEditPermissions } = kit.apps.edit.permissions;
+  const {
+    checks: _checks,
+    statuses: _statuses,
+    pull_requests: _pullRequests,
+    ...olderEditPermissions
+  } = kit.apps.edit.permissions;
   const editApp: FakeGitHubApp = {
     ...kit.apps.edit,
     ...(options.withoutChecks && { permissions: olderEditPermissions }),

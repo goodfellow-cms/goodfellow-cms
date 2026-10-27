@@ -71,6 +71,7 @@ export async function testSignIn(
       pages: "read",
       checks: "read",
       statuses: "read",
+      pull_requests: "write",
     } as Record<string, "read" | "write">,
     installations: options.edit ?? [],
   };

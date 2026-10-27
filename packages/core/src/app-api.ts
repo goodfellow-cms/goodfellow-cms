@@ -6,6 +6,7 @@ import {
   HOOKS_DIR,
   INSTALLED_BLOCKS_DIR,
   LIB_DIR,
+  PERMISSIONS_FILE,
   REDIRECTS_FILE,
   SITE_FILE,
   UPDATES_FILE,
@@ -61,11 +62,12 @@ export type AppSession =
     };
 
 /**
- * Files only owners may change: Site Settings, redirects and updates, custom
- * CSS and code, collections' settings and templates, and installed blocks' code.
+ * Files only owners may change: Site Settings, redirects and updates, editors'
+ * permissions, custom CSS and code, collections' settings and templates, and
+ * installed blocks' code.
  */
 export function isSettingsPath(path: string): boolean {
-  if (path === SITE_FILE || path === REDIRECTS_FILE || path === UPDATES_FILE) return true;
+  if (path === SITE_FILE || path === REDIRECTS_FILE || path === UPDATES_FILE || path === PERMISSIONS_FILE) return true;
   if (path.startsWith(`${CONTENT_DIR}/styles/`) || path.startsWith(`${CONTENT_DIR}/code/`)) return true;
   if (path.startsWith(`${COLLECTIONS_DIR}/`) && path.endsWith(`/${COLLECTION_SETTINGS_FILE}`)) return true;
   return [INSTALLED_BLOCKS_DIR, COMPONENTS_DIR, LIB_DIR, HOOKS_DIR].some((dir) => path.startsWith(`${dir}/`));
