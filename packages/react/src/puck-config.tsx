@@ -1,6 +1,8 @@
 import {
   type AdminSite,
+  type BlockIcon,
   CURRENT_VERSION,
+  cleanBlockIcon,
   describePlugin,
   GOODFELLOW_VERSION,
   type GoodfellowConfig,
@@ -166,6 +168,23 @@ export function blockKeywords(component: object): readonly string[] | undefined 
   return (component as { [KEYWORDS]?: readonly string[] })[KEYWORDS];
 }
 
+const ICON = Symbol.for("goodfellow.icon");
+
+/**
+ * The block's icon in the block list, here and in editor plugins: SVG shapes
+ * on a 24-unit grid with a 2-unit stroke, as Lucide's icon data is (`import {
+ * Heading } from "lucide"`). Only plain shapes are kept (`cleanBlockIcon()`).
+ */
+export function withIcon<T extends object>(component: T, icon: unknown): T {
+  const clean = cleanBlockIcon(icon);
+  return clean ? Object.assign(component, { [ICON]: clean }) : component;
+}
+
+/** The block's icon, from `withIcon()`. */
+export function blockIcon(component: object): BlockIcon | undefined {
+  return (component as { [ICON]?: BlockIcon })[ICON];
+}
+
 /** Pages; the header and footer; or a collection's template, which is a page that can also show the entry's fields. */
 export type PuckConfigKind = "page" | "layout" | "template";
 
@@ -248,6 +267,7 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
             ...(block && isTemplateOnly(block) && { templateOnly: true }),
             ...(block && blockParts(block) && { parts: { ...blockParts(block) } }),
             ...(block && blockKeywords(block) && { keywords: [...(blockKeywords(block) ?? [])] }),
+            ...(block && blockIcon(block) && { icon: blockIcon(block) }),
           },
         ];
       }),

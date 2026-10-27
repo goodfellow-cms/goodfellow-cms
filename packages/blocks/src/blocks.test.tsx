@@ -7,12 +7,12 @@ import {
   type SiteContent,
   siteSettingsSchema,
 } from "@goodfellow-cms/core";
-import { blockKeywords, createPuckConfig, SiteProvider } from "@goodfellow-cms/react";
+import { blockIcon, blockKeywords, createPuckConfig, SiteProvider } from "@goodfellow-cms/react";
 import { createPageRenderer } from "@goodfellow-cms/react/server";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CODE_THEME_LOADERS } from "./highlight.js";
-import { BLOCK_KEYWORDS, blocks, categories, listedEntries } from "./index.js";
+import { BLOCK_ICONS, BLOCK_KEYWORDS, blocks, categories, listedEntries } from "./index.js";
 
 const renderPage = createPageRenderer({ blocks, categories });
 
@@ -105,6 +105,13 @@ describe("built-in blocks", () => {
       for (const keyword of keywords) expect(keyword, name).toBe(keyword.toLowerCase());
     }
     expect(Object.keys(BLOCK_KEYWORDS).sort()).toEqual(Object.keys(blocks).sort());
+  });
+
+  it("gives every block an icon for the block list", () => {
+    for (const [name, block] of Object.entries(blocks)) {
+      expect(blockIcon(block)?.length, name).toBeGreaterThan(0);
+    }
+    expect(Object.keys(BLOCK_ICONS).sort()).toEqual(Object.keys(blocks).sort());
   });
 
   it("renders a section with nested columns and applies CSS classes to the block itself", async () => {

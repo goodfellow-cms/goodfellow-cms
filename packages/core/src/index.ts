@@ -45,6 +45,14 @@ export {
   VERCEL_DEPLOY_HOOK,
 } from "./bitbucket-setup.js";
 export {
+  type BlockIcon,
+  blockIconSchema,
+  cleanBlockIcon,
+  ICON_ATTRIBUTES,
+  ICON_SHAPES,
+  type IconShape,
+} from "./block-icons.js";
+export {
   BROKER_AI_ADDRESS,
   BROKER_CONNECT_MESSAGE,
   BROKER_READY_MESSAGE,

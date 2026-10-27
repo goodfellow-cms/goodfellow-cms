@@ -1,4 +1,4 @@
-import { canvas, expect, publishInEditor, readSiteFile, test, writeSiteFile } from "./helpers";
+import { canvas, expect, field, publishInEditor, readSiteFile, test, writeSiteFile } from "./helpers";
 
 /** A page for the Outline plugin's editor (`e2e/fixtures/plugins/outline`) to edit. */
 const outlinePage = {
@@ -68,6 +68,51 @@ test("an editor plugin edits a page in place of Puck, in a sandboxed frame, and 
   });
   await page.locator(".gfa-editor-header").getByLabel("Editor").selectOption({ label: "Standard editor" });
   await expect(canvas(page).getByRole("heading", { name: "Hello" })).toBeVisible({ timeout: 20_000 });
+});
+
+test("switching editors keeps what's unpublished, and asks before leaving behind what the site can't keep", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  writeSiteFile("content/pages/outlined.json", `${JSON.stringify(outlinePage, null, 2)}\n`);
+  await page.goto(editorAddress);
+  await expect(canvas(page).getByRole("heading", { name: "Welcome" })).toBeVisible({ timeout: 20_000 });
+  const choice = page.locator(".gfa-editor-header").getByLabel("Editor");
+  const outline = page.frameLocator("iframe.gfa-editor-frame");
+
+  // From Puck, as it is when the choice is made.
+  await canvas(page).locator("[data-puck-component]").filter({ hasText: "Welcome" }).last().click();
+  await field(page, "text").fill("Changed in Puck");
+  await choice.selectOption({ label: "Outline editor" });
+  await expect(outline.getByLabel("Heading 1")).toHaveValue("Changed in Puck", { timeout: 20_000 });
+
+  // From the plugin, back to Puck.
+  await outline.getByLabel("Heading 1").fill("Changed in the outline");
+  await outline.getByLabel("Heading 1").press("Tab");
+  await choice.selectOption({ label: "Standard editor" });
+  await expect(canvas(page).getByRole("heading", { name: "Changed in the outline" })).toBeVisible({ timeout: 20_000 });
+
+  // A change the site can't publish: the editor is asked, and staying keeps everything.
+  await choice.selectOption({ label: "Outline editor" });
+  await expect(outline.getByLabel("Heading 1")).toHaveValue("Changed in the outline", { timeout: 20_000 });
+  await outline.getByRole("button", { name: "Add a script" }).click();
+  const asked: string[] = [];
+  page.once("dialog", (dialog) => {
+    asked.push(dialog.message());
+    void dialog.dismiss();
+  });
+  await choice.selectOption({ label: "Standard editor" });
+  await expect.poll(() => asked.length).toBe(1);
+  expect(asked[0]).toContain("can't be kept in the other editor");
+  await expect(choice).not.toHaveValue("");
+  await expect(outline.getByLabel("Heading 1")).toHaveValue("Changed in the outline");
+  // Agreeing leaves behind only what was changed since the plugin opened.
+  await outline.getByLabel("Heading 1").fill("Changed again");
+  await outline.getByLabel("Heading 1").press("Tab");
+  page.once("dialog", (dialog) => void dialog.accept());
+  await choice.selectOption({ label: "Standard editor" });
+  await expect(canvas(page).getByRole("heading", { name: "Changed in the outline" })).toBeVisible({ timeout: 20_000 });
+  expect(JSON.parse(readSiteFile("content/pages/outlined.json"))).toEqual(outlinePage);
 });
 
 test("an editor plugin has blocks drawn by the site's code, with their slots left for it to fill", async ({ page }) => {

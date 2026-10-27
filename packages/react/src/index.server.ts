@@ -39,6 +39,7 @@ export {
 export {
   adminSite,
   type BlockParts,
+  blockIcon,
   blockKeywords,
   blockParts,
   classNameField,
@@ -56,6 +57,7 @@ export {
   tableField,
   templateOnly,
   withClassName,
+  withIcon,
   withKeywords,
   withParts,
 } from "./puck-config.js";

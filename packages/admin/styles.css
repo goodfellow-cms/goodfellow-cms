@@ -2156,3 +2156,27 @@ body,
   padding: 0;
   border: 0;
 }
+
+/* Blocks' icons in the block list, in place of Puck's drag handle, which every block shares. */
+.gfa-drawer-item {
+  position: relative;
+}
+
+.gfa-drawer-item .gfa-block-icon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  flex-shrink: 0;
+  color: var(--gfa-muted);
+  pointer-events: none;
+}
+
+.gfa-drawer-item [class*="_DrawerItem-draggable_"] {
+  justify-content: flex-start;
+  padding-left: 34px;
+}
+
+.gfa-drawer-item [class*="_DrawerItem-draggable_"] > :last-child:not([class*="_DrawerItem-name_"]) {
+  display: none;
+}

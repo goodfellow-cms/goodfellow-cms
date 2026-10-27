@@ -7,7 +7,7 @@
 import type { GoodfellowConfig } from "@goodfellow-cms/core";
 import { blockKeywords } from "@goodfellow-cms/react";
 import { type Config, Drawer } from "@puckeditor/core";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactElement, type ReactNode, useId, useState } from "react";
 import { useStrings } from "../strings.js";
 
 /** What a block is found by. */
@@ -77,7 +77,16 @@ export function searchBlocks(query: string, blocks: readonly SearchableBlock[]):
 }
 
 /** Puck's `drawer` override: the search box, then Puck's own list or what's found. */
-export function BlockSearch({ blocks, children }: { blocks: readonly SearchableBlock[]; children: ReactNode }) {
+export function BlockSearch({
+  blocks,
+  item,
+  children,
+}: {
+  blocks: readonly SearchableBlock[];
+  /** How each block found is drawn, as in the list (`drawerItemWithIcon()`). */
+  item?: (props: { children: ReactNode; name: string }) => ReactElement;
+  children: ReactNode;
+}) {
   const t = useStrings();
   const [query, setQuery] = useState("");
   const id = useId();
@@ -107,8 +116,10 @@ export function BlockSearch({ blocks, children }: { blocks: readonly SearchableB
       ) : (
         <section className="gfa-block-search-results" aria-label={t("editor.blockSearchFound")}>
           <Drawer>
-            {found.map((block, index) => (
-              <Drawer.Item key={block.name} name={block.name} label={block.label} index={index} />
+            {found.map((block) => (
+              <Drawer.Item key={block.name} name={block.name} label={block.label}>
+                {item}
+              </Drawer.Item>
             ))}
           </Drawer>
         </section>

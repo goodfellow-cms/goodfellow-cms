@@ -37,7 +37,8 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "update-icons": "node scripts/icons.mjs"
   },
   "dependencies": {
     "@goodfellow-cms/core": "workspace:*",
@@ -52,6 +53,7 @@
     "@puckeditor/core": "0.23.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "lucide-react": "1.52.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
