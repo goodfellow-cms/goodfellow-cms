@@ -44,7 +44,7 @@ GOODFELLOW_SITE_URL=https://staging.example.org GOODFELLOW_NO_INDEX=true npm run
 
 Both apply to `goodfellow build` and `goodfellow dev`. On a Next.js site, set them for `next build` and `goodfellow-next finish` alike, since both read the Site address. Without them, a build is the live site's.
 
-The admin panel never saves either one: editing Site Settings on staging saves the live site's address, as it should, and the Domain screen says the staging site's address is set where it's built. A search engine setting asks politely. To keep staging private, also put it behind your host's protection, such as Vercel's or Cloudflare Access.
+The admin panel never saves either one: editing Site Settings on staging saves the live site's address, as it should, and the Domain screen says the staging site's address is set where it's built. A search engine setting asks politely. To keep staging private, also put it behind your host's protection, such as Vercel's or Cloudflare Access, all the more if you list it in `copies` (see below), which makes its address public.
 
 ## Signing in to the staging site
 
@@ -58,6 +58,8 @@ export default defineConfig({
 ```
 
 Builds publish `copies` in `goodfellow-site.json`, and the service reads it from the live site, so it takes effect once the live site has been built with it. Each address must be `https://`, and never this computer.
+
+**Listing a copy makes its address public.** Anyone can read the live site's `goodfellow-site.json` and its admin panel's page at `/admin`, and both name every address in `copies`. Treat the staging site as found: protect it with your host's sign-in, as below, rather than relying on nobody knowing where it is. Without `copies`, nothing the live site publishes names the staging site, since its address is only in the staging build's environment. If the repository is public, set `GOODFELLOW_SITE_URL` in your host's or CI's settings rather than in a workflow file, or anyone reading the repository will see it there too.
 
 On GitLab, add the staging site's admin panel, such as `https://staging.example.org/admin/`, to the redirect URIs of the application editors sign in with. A Bitbucket OAuth consumer has only one callback URL, so give staging a consumer of its own and take `clientId` from the environment too. A consumer's key isn't a secret.
 
