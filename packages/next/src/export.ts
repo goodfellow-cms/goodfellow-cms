@@ -29,12 +29,15 @@ import {
   sealTaskAnswer,
   shownContent,
   siteLanguages,
+  sitePages,
   TASK_RESULT_FILE,
   type TaskAnswer,
   type TaskResultFile,
   taskRequestProblem,
+  todayIn,
 } from "@goodfellow-cms/core";
 import { checkBuiltPages } from "@goodfellow-cms/core/accessibility";
+import { CONTENT_API_DIR } from "@goodfellow-cms/core/content-api";
 import {
   BUILD_DATES_DIR,
   builtSiteSource,
@@ -78,6 +81,30 @@ export async function writeFeedFiles(outDir: string, root = process.cwd()): Prom
     await writeFile(target, file.content);
   }
   return files.length;
+}
+
+/**
+ * Writes the content API (`/api/`) into the export, as `goodfellow build`
+ * does: the site's content as JSON, each page as it's shown, prepared in Node
+ * with the site's config as `goodfellow build` prepares it, so both write the
+ * same files. Returns how many pages it has, or `undefined` where the
+ * config's `api` is `false`.
+ */
+export async function writeContentApi(outDir: string, root = process.cwd()): Promise<number | undefined> {
+  const dir = resolve(root);
+  const config = await loadSiteConfig(dir);
+  if (config.api === false) return undefined;
+  const { contentApi } = await import("@goodfellow-cms/react/server");
+  const content = shownContent(await loadSiteContent(builtSiteSource(dir)));
+  const pages = sitePages(content, todayIn(content.settings.timeZone), config.blocks);
+  const files = await contentApi(config, content, pages, { base: await exportBasePath(dir) });
+  await rm(join(outDir, CONTENT_API_DIR), { recursive: true, force: true });
+  for (const file of files) {
+    const target = join(outDir, file.path.slice(1));
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, file.content);
+  }
+  return pages.length;
 }
 
 /**

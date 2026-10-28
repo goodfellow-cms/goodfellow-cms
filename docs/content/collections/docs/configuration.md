@@ -38,6 +38,7 @@ export default defineConfig({
 | `copies` | The addresses of the site's other copies, such as a staging site built from another branch, where the [sign-in service](/docs/sign-in-service) signs editors in too: `["https://staging.example.org"]`. Each copy is built with its own address and search engine setting; see [Staging and production](/docs/staging). The live site publishes these addresses in `goodfellow-site.json` and its admin panel, so anyone can find them. |
 | `claude` | What Claude can do through the Claude connector: `{ publish: false }` stops it publishing, so it can only submit its changes for review. It takes effect once the site has been rebuilt. See [Work with Claude](/docs/claude#turning-off-publishing). |
 | `demo` | `true` makes the admin panel a [demo](/docs/demo-mode) anyone can try. |
+| `api` | `false` leaves the [content API](/docs/content-api), the site's content as JSON at `/api/`, out of builds. It's on by default. |
 | `plugins` | [Plugins](/docs/plugins), such as `[...installedPlugins, s3({ … })]`, where `installedPlugins` (from `./plugins/installed`) lists those installed from the admin panel, which add screens and code in the admin panel, steps in the build and routes on full-stack sites' servers, as well as blocks, which are added to `blocks`. Each gets only the permissions it declares, where Goodfellow can enforce them. |
 
 ## GitHub

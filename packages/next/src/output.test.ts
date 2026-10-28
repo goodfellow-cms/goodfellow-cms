@@ -75,6 +75,16 @@ describe("the Next.js template's static export", () => {
     expect(exported).toEqual(built);
   });
 
+  it("writes the same content API as goodfellow build", async () => {
+    const names = await files(join(starter, "dist", "api"));
+    expect(names).toContain("manifest.json");
+    expect(names).toContain("pages/news/welcome.json");
+    expect(await files(join(next, "out", "api"))).toEqual(names);
+    for (const name of names) {
+      expect(await read(`api/${name}`), name).toBe(await readFile(join(starter, "dist", "api", name), "utf8"));
+    }
+  });
+
   it("fills in entries' titles and the site's theme", async () => {
     const html = await read("news/welcome/index.html");
     expect(html).toContain("<title>Welcome to our new website | My site</title>");

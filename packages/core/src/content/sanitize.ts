@@ -20,6 +20,8 @@ function createFilter() {
   }
   allowList.source = ["src", "srcset", "type", "media", "sizes"];
   allowList.a = [...(allowList.a ?? []), "rel"];
+  // Where a numbered list starts, as Markdown's lists say.
+  allowList.ol = [...(allowList.ol ?? []), "start", "reversed"];
   allowList.img = [...(allowList.img ?? []), "srcset", "sizes", "loading"];
   return new xss.FilterXSS({
     allowList,

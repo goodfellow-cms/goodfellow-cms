@@ -3,8 +3,10 @@ node_modules/
 out/
 next-env.d.ts
 *.tsbuildinfo
-# A full-stack site's calendar files and search index, written after each build.
+# A full-stack site's calendar files, feeds, content API and search index, written after each build.
 public/calendars/
+public/feeds/
+public/api/
 public/pagefind/
 # Secrets for trying plugins on this computer, which never leave it.
 .env*.local

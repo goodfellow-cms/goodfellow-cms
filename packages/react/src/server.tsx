@@ -153,3 +153,5 @@ export function createPageRenderer(config: GoodfellowConfig) {
 }
 
 export type PageRenderer = ReturnType<typeof createPageRenderer>;
+
+export { contentApi, prepareContentApi } from "./content-api.js";

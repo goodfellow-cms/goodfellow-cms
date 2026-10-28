@@ -61,6 +61,13 @@ export interface GoodfellowConfig {
    */
   demo?: boolean;
   /**
+   * The content API, which builds write at `/api/`: the site's content as
+   * static JSON, each page as it's shown, so apps and other sites can show it
+   * without a server. On by default, since it shows nothing the pages don't;
+   * `false` leaves it out, for sites that don't want their content read as data.
+   */
+  api?: false;
+  /**
    * The AI assistant in the editor, which drafts and rewrites content with an
    * AI service each editor chooses. On by default; `false` removes it.
    */

@@ -88,6 +88,8 @@ export interface BuildResult {
   sitemap?: string;
   /** The plugins' build steps that ran, as `plugin: step`. */
   pluginSteps?: string[];
+  /** How many pages the content API has, at `/api/`, unless the config turns it off. */
+  apiPages?: number;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -149,7 +151,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
   });
 
   try {
-    const { config, renderPage, describe, admin: adminSite } = await loadServerEntry(server);
+    const { config, renderPage, describe, admin: adminSite, api } = await loadServerEntry(server);
     const base = normalizeBase(options.base ?? config.base);
     // The site as visitors see it now: pages and items scheduled for later, or hidden again, are left out.
     const now = new Date();
@@ -252,6 +254,14 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       await writeFile(target, file.content);
     }
 
+    // The content API: the site's content as JSON, each page as it's shown, for apps and other sites.
+    const apiFiles = await api(content, pages, { base });
+    for (const file of apiFiles) {
+      const target = join(outDir, file.path.slice(1));
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, file.content);
+    }
+
     // A page at each old address that sends visitors on. Pages, and files in public/, win over redirects.
     const redirected: Redirect[] = [];
     for (const file of redirectFiles(content, { taken: pages.map((page) => page.path), base })) {
@@ -332,6 +342,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       ...(cloudflare.left > 0 && { redirectsLeft: cloudflare.left }),
       ...(fonts && { fonts }),
       ...(pluginSteps.length > 0 && { pluginSteps }),
+      ...(apiFiles.length > 0 && { apiPages: pages.length }),
       ...(robotsElsewhere && { robotsElsewhere }),
       ...(url && { sitemap: absoluteUrl(url, "/sitemap.xml") }),
     };

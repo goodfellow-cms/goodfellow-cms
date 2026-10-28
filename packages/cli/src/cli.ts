@@ -178,6 +178,7 @@ async function main(): Promise<void> {
         `Built ${result.pages.length} page${result.pages.length === 1 ? "" : "s"} into ${result.outDir} in ${seconds}s`,
       );
       if (result.searchIndexed !== undefined) console.log(`Indexed ${result.searchIndexed} pages for search`);
+      if (result.apiPages !== undefined) console.log(`Wrote the content API, with ${result.apiPages} pages, in api/`);
       if (result.nextChange) {
         const { kind, title, path, time } = result.nextChange;
         console.log(
