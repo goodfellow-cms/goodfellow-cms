@@ -1,5 +1,38 @@
 # @goodfellow-cms/blocks
 
+## 0.7.0
+
+### Minor Changes
+
+- c6afe19: Every block in the editor's block list has its own icon, in place of the drag handle every block shared, and so do the blocks the search finds. Blocks get one with `withIcon()`, from Lucide-style icon data, which the site's description carries for editor plugins; the built-in blocks have Lucide's, and blocks without one show a box. Switching between the standard editor and an editor plugin now takes the latest changes along, and asks first when the other editor can't keep some of them.
+- a8e3581: The editor's block list has a search box, which finds blocks by their names, their groups and other words for them, such as "divider", "columns" or WordPress's "Cover", and blocks found are dragged onto the page as from the list. Blocks declare those words with `withKeywords()`, which the site's description carries. The groups that fit what's edited start open, such as Navigation in the header and footer, and the built-in Content group is now two, Text and Buttons and forms.
+- 45a692b: Apps with Expo: `@goodfellow-cms/expo` shows a Goodfellow site natively in an Expo app for iPhone and Android from its content API, with no server. The app reads the manifest when it starts and when it comes back to the front, downloads only what changed and keeps it with its pictures, so it works offline; large sites choose which pages it keeps ahead. It stays on the copy it has when the site's content is newer than it reads. Every built-in block has a version for apps, `nativeBlocks` from `@goodfellow-cms/blocks/native`, sharing its props and what it shows with the website's, and blocks the app has no version of show a placeholder, or the app's own fallback, such as an Expo DOM component. `goodfellow blocks add --native <app>` also makes a block's version for the app with shadcn-tamagui-codemod. The content API's manifest now lists the site's redirects, which the app follows as the website does, and its pages carry their blocks' default props and the page's links to its translations, and the Form block has messages for the app to show once answers are sent or when they couldn't be.
+- eaf61e7: Blocks' **Style** applies in apps: their Tailwind classes become React Native styles while the app runs, read with twrnc in the site's theme colors, corners and fonts, with breakpoints' classes on wider screens and `dark:` ones where the site shows dark. Each block is drawn in a box with its space, background and corners, and its text takes its alignment, size and color, which the blocks in its slots inherit, as on the web. Blocks that put their Style on one part of themselves mark it with `stylesItself()` and read `useBlockStyle()`, as Button does; `classStyle()` turns any classes into styles.
+- ede249f: Six more blocks in Goodfellow's registry, built with Tailwind alone: **News feed** (another site's RSS or Atom feed, read when the site is built), **Map** (a Google map of an address, or from Google Maps' embed code, with no API key), **Social links**, **Panel** (a box with a colored title bar), **Slideshow with quick links** (with a stop button, and still for visitors who ask for less motion) and **Content with section links** (a page's blocks beside the other pages in its part of the menu).
+  
+  The Menu block has two more settings: **Colors**, which puts it in a bar of the theme's primary or secondary color with see-through dropdowns to match, and **Show the pages under each submenu link**, which opens a submenu link's own pages as a third level. Dropdowns near the menu's right end now open leftwards, so they stay on the page, and dropdowns set their own text color, so a color given to the menu doesn't make them hard to read.
+
+### Patch Changes
+
+- Updated dependencies [c6afe19]
+- Updated dependencies [a8e3581]
+- Updated dependencies [48366cf]
+- Updated dependencies [8f7fa14]
+- Updated dependencies [4f79454]
+- Updated dependencies [3bb8c96]
+- Updated dependencies [cedcb3a]
+- Updated dependencies [42cf54b]
+- Updated dependencies [45a692b]
+- Updated dependencies [45a692b]
+- Updated dependencies [eaf61e7]
+- Updated dependencies [db58e5d]
+- Updated dependencies [a52b217]
+- Updated dependencies [dd3da3e]
+- Updated dependencies [6701c92]
+  - @goodfellow-cms/react@0.7.0
+  - @goodfellow-cms/core@0.7.0
+  - @goodfellow-cms/expo@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

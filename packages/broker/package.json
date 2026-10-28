@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/broker",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Goodfellow's token broker: a page of its own that keeps editors' sign-in and AI keys, and shows the site's admin panel in a frame.",
   "keywords": [
     "goodfellow",

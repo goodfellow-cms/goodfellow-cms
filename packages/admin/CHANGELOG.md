@@ -1,5 +1,42 @@
 # @goodfellow-cms/admin
 
+## 0.7.0
+
+### Minor Changes
+
+- c6afe19: Every block in the editor's block list has its own icon, in place of the drag handle every block shared, and so do the blocks the search finds. Blocks get one with `withIcon()`, from Lucide-style icon data, which the site's description carries for editor plugins; the built-in blocks have Lucide's, and blocks without one show a box. Switching between the standard editor and an editor plugin now takes the latest changes along, and asks first when the other editor can't keep some of them.
+- a8e3581: The editor's block list has a search box, which finds blocks by their names, their groups and other words for them, such as "divider", "columns" or WordPress's "Cover", and blocks found are dragged onto the page as from the list. Blocks declare those words with `withKeywords()`, which the site's description carries. The groups that fit what's edited start open, such as Navigation in the header and footer, and the built-in Content group is now two, Text and Buttons and forms.
+- 48366cf: Every block's look can be set without code: its CSS classes setting is now **Style**, which the editor shows as controls for text alignment, text size, text and background colors (the theme's, or your own), space inside and around it, each side or all at once, and rounded corners, with a note when text may be hard to read on its background. They're kept as Tailwind classes in the block's `className` (`readBlockStyle()` and `withBlockStyle()` in `@goodfellow-cms/core`), beside any other classes, which **Other CSS classes** keeps, so content files, themes' parts, the Gutenberg plugin and the AI assistant work with them as before. Blocks with an alignment setting of their own keep it.
+- cedcb3a: Editor plugins' frames are the editor's alone: they keep the admin panel's colors and font but no longer get a screen's spacing or plain element styles, which reached the site's blocks drawn in them. Their policy lets them load the theme's Google Fonts, as the standard editor's frames do, and `session.styles()` gives the fonts' stylesheet as `fonts`.
+- 42cf54b: Owners can limit what each editor changes, on the Editors screen's Limits section: page sections with their translations, collections' items, the media library, the header and footer, the menus, and languages, kept in `content/permissions.json`. Everything else is read-only to them, and publishing changes outside their limits offers Submit for review, which asks the site's reviewers (every owner, unless the file names some) on GitHub, GitLab and Bitbucket. Owners see drafts waiting for their review in the draft bar, and publishing or throwing away a draft closes its review. The token broker and the Claude connector keep to the same limits, and full-stack sites' servers refuse writes outside them. The sign-in service's everyday app now asks for Pull requests, which submitting for review needs.
+- a52b217: Staging copies of a site: a build with `GOODFELLOW_SITE_URL` uses that address in place of the Site address, and `GOODFELLOW_NO_INDEX=true` keeps every page out of search engines, without either one reaching content. The config's `copies` lists them for the sign-in service, through `goodfellow-site.json`. A copy at an address of its own keeps its admin panel there, and the Domain screen says where it is.
+
+### Patch Changes
+
+- a50ae8f: An editor plugin's page editor shows a spinner, with "Opening …", until it has opened, rather than an empty space.
+- 45a692b: A page's address can no longer end in `/index`. Such a page was stored in the file of the page above it, so making `/index` replaced the home page, and `/news/index` the page at `/news`. The admin panel now says the address can't be used, and the Claude connector, imports and items' addresses refuse it too.
+- 45a692b: Site Settings no longer says there are unpublished changes when nothing was changed, on sites whose settings or redirects were written with values the form tidies when it saves, such as a switch stored as off or an empty contact detail.
+- dd3da3e: Switching from an editor plugin back to Puck keeps what was edited where a block fills in its own choices, such as Collection list's choice of its collection's fields: the site's description says which blocks do (`resolvesFields`), and values left as the editor opened them are kept. Anything that still can't be kept is named by its block and setting, not its place in the page's data.
+- Updated dependencies [c6afe19]
+- Updated dependencies [a8e3581]
+- Updated dependencies [48366cf]
+- Updated dependencies [8f7fa14]
+- Updated dependencies [4f79454]
+- Updated dependencies [3bb8c96]
+- Updated dependencies [cedcb3a]
+- Updated dependencies [42cf54b]
+- Updated dependencies [45a692b]
+- Updated dependencies [45a692b]
+- Updated dependencies [ede249f]
+- Updated dependencies [db58e5d]
+- Updated dependencies [a52b217]
+- Updated dependencies [dd3da3e]
+- Updated dependencies [6701c92]
+  - @goodfellow-cms/react@0.7.0
+  - @goodfellow-cms/core@0.7.0
+  - @goodfellow-cms/ai@0.7.0
+  - @goodfellow-cms/registry@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes
