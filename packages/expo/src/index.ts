@@ -1,4 +1,5 @@
 export { GoodfellowApp, type GoodfellowAppProps } from "./app.js";
+export { type ClassStyle, classStyle } from "./classes.js";
 export {
   BLOCK_GAP,
   Blocks,
@@ -13,6 +14,8 @@ export {
   RichText,
   SiteButton,
   SiteText,
+  stylesItself,
+  useBlockStyle,
   useBlocks,
   useWide,
 } from "./kit.js";

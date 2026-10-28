@@ -1492,6 +1492,138 @@ body,
   margin-top: 8px;
 }
 
+/* A block's Style field in the editor (frame/style-field.tsx). */
+.gfa-style-field {
+  display: grid;
+  gap: 14px;
+  padding: 0 16px 16px;
+  font:
+    14px / 1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+.gfa-style-title {
+  font-weight: 600;
+}
+
+.gfa-style-group {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.gfa-style-choice {
+  display: grid;
+  gap: 4px;
+}
+
+.gfa-style-label {
+  padding: 0;
+  color: var(--gfa-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gfa-style-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.gfa-style-segment {
+  padding: 4px 8px;
+  border: 1px solid var(--gfa-input-border);
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-surface);
+  color: var(--gfa-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gfa-style-segment[aria-pressed="true"] {
+  border-color: var(--gfa-accent);
+  background: var(--gfa-accent);
+  color: var(--gfa-accent-text);
+}
+
+.gfa-style-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gfa-style-swatch {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--gfa-input-border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.gfa-style-swatch[aria-pressed="true"] {
+  outline: 2px solid var(--gfa-accent);
+  outline-offset: 2px;
+}
+
+/* "As the block has it": a struck-through swatch. */
+.gfa-style-swatch-none {
+  background: linear-gradient(
+    135deg,
+    var(--gfa-surface) 45%,
+    var(--gfa-muted) 45%,
+    var(--gfa-muted) 55%,
+    var(--gfa-surface) 55%
+  );
+}
+
+/* A color of the editor's own: the browser's color picker, filling the swatch. */
+.gfa-style-swatch-own {
+  background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+}
+
+.gfa-style-swatch-own input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.gfa-style-swatch:disabled,
+.gfa-style-segment:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.gfa-style-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gfa-style-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.gfa-style-warning {
+  padding: 6px 8px;
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-warning-bg);
+  color: var(--gfa-warning-text);
+}
+
 .gfa-media-chooser .gfa-button {
   min-height: 30px;
   padding: 0 10px;

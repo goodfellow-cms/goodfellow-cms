@@ -48,7 +48,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@goodfellow-cms/core": "workspace:*"
+    "@goodfellow-cms/core": "workspace:*",
+    "twrnc": "4.16.0"
   },
   "peerDependencies": {
     "expo-file-system": "*",

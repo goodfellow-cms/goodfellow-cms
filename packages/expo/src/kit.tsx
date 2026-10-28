@@ -1,5 +1,16 @@
 import type { RichTextBlock, RichTextInline } from "@goodfellow-cms/core/content-api";
-import { Children, type ComponentRef, Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Children,
+  type ComponentRef,
+  createContext,
+  Fragment,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Image,
   type ImageStyle,
@@ -12,7 +23,8 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { NativeSiteProvider, useNativeSite, useSiteRoot } from "./site.js";
+import { type ClassStyle, classStyle, hasStyle } from "./classes.js";
+import { type NativeBlock, NativeSiteProvider, useNativeSite, useSiteRoot } from "./site.js";
 import { TEXT } from "./theme.js";
 
 /** A link: the site's pages open in the app, anything else in the phone's browser. */
@@ -41,7 +53,39 @@ export function NativeLink({
   );
 }
 
-/** Text in the site's body font and colors. */
+interface BlockStyleValue {
+  /** What text in the block shows, from its Style and those of the blocks it's in, as the web's text inherits. */
+  text: TextStyle;
+  /** The block's own Style, for a block that applies it itself. */
+  own: ClassStyle;
+}
+
+const NO_STYLE: BlockStyleValue = { text: {}, own: { view: {}, text: {} } };
+const BlockStyleContext = createContext<BlockStyleValue>(NO_STYLE);
+
+/**
+ * The block's Style settings (its `className`'s Tailwind classes) as React
+ * Native styles: `view` for its box and `text` for its text. Blocks are drawn
+ * in a box with `view` and their text takes `text`, by themselves; a block
+ * marked with `stylesItself()` applies them where it wants them instead, such
+ * as a button's colors on the button.
+ */
+export function useBlockStyle(): ClassStyle {
+  return useContext(BlockStyleContext).own;
+}
+
+const STYLES_ITSELF = Symbol.for("goodfellow.stylesItself");
+
+/**
+ * Marks a native block that applies its own Style (`useBlockStyle()`), so it
+ * isn't drawn in a box with it, as a button, whose colors are the button's.
+ */
+export function stylesItself<Block extends NativeBlock>(block: Block): Block {
+  (block as unknown as Record<symbol, boolean>)[STYLES_ITSELF] = true;
+  return block;
+}
+
+/** Text in the site's body font and colors, and those of the Style of the blocks it's in. */
 export function SiteText({
   children,
   style,
@@ -59,6 +103,9 @@ export function SiteText({
 }) {
   const { theme } = useNativeSite();
   const font = heading ? theme.fonts.heading : theme.fonts.body;
+  const { text } = useContext(BlockStyleContext);
+  // Muted text keeps its color, as on the web, where it names its own.
+  const { color, ...shown } = text;
   return (
     <Text
       {...rest}
@@ -66,6 +113,7 @@ export function SiteText({
       style={[
         { color: muted ? theme.colors.mutedForeground : theme.colors.foreground, fontSize: TEXT.base, lineHeight: 24 },
         font ? { fontFamily: font } : undefined,
+        muted ? shown : text,
         style,
       ]}
     >
@@ -212,6 +260,7 @@ export function SiteButton({
   size = "md",
   disabled,
   style,
+  textStyle,
 }: {
   label: string;
   href?: string;
@@ -220,6 +269,7 @@ export function SiteButton({
   size?: keyof typeof BUTTON_HEIGHTS;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 }) {
   const site = useNativeSite();
   const { colors, radius } = site.theme;
@@ -258,6 +308,7 @@ export function SiteButton({
         style={[
           { color: text, fontWeight: "500", fontSize: size === "sm" ? TEXT.sm : size === "lg" ? TEXT.lg : TEXT.base },
           variant === "link" && { textDecorationLine: "underline" },
+          textStyle,
         ]}
       >
         {label}
@@ -346,11 +397,36 @@ export function useBlocks(items: unknown): ReactNode[] {
     const Block = blocks[block.type];
     const key = block.props.id ?? `${block.type}-${index}`;
     return Block ? (
-      <Block key={key} {...block.props} />
+      <Styled key={key} className={block.props.className} itself={isStyledItself(Block)}>
+        <Block {...block.props} />
+      </Styled>
     ) : (
       <MissingBlock key={key} type={block.type} props={block.props} />
     );
   });
+}
+
+function isStyledItself(block: NativeBlock): boolean {
+  return (block as unknown as Record<symbol, boolean>)[STYLES_ITSELF] === true;
+}
+
+/** A block with its Style: in a box with it, unless it applies it itself, and its text taking it. */
+function Styled({ className, itself, children }: { className: unknown; itself: boolean; children: ReactNode }) {
+  const site = useNativeSite();
+  const { width } = useWindowDimensions();
+  const outer = useContext(BlockStyleContext);
+  const own = useMemo(
+    () => classStyle(className, { settings: site.settings, theme: site.theme, width }),
+    [className, site.settings, site.theme, width],
+  );
+  const value = useMemo(() => {
+    const styled = hasStyle(own.text) || hasStyle(own.view);
+    if (!styled && outer.own === NO_STYLE.own) return outer;
+    // The blocks in this one take its text, but not its own Style.
+    return { text: { ...outer.text, ...own.text }, own: styled ? own : NO_STYLE.own };
+  }, [outer, own]);
+  const shown = itself || !hasStyle(own.view) ? children : <View style={own.view}>{children}</View>;
+  return value === outer ? shown : <BlockStyleContext.Provider value={value}>{shown}</BlockStyleContext.Provider>;
 }
 
 /** The space between blocks one under another, in points. */

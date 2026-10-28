@@ -145,12 +145,12 @@ describe("describeSite", () => {
           text: { type: "text", label: "Text" },
           size: { type: "select", label: "Size", options: [{ label: "Large", value: "lg" }] },
           when: { type: "custom", label: "Date", metadata: { ai: { type: "date" } } },
-          className: { type: "text", label: "CSS classes" },
+          className: { type: "text", label: "Style", metadata: { style: true } },
         },
         defaultProps: { text: "Heading", size: "lg" },
       },
       Field: {
-        fields: { field: { type: "text" }, className: { type: "text", label: "CSS classes" } },
+        fields: { field: { type: "text" }, className: { type: "text", label: "Style", metadata: { style: true } } },
         templateOnly: true,
       },
     });

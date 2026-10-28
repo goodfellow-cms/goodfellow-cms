@@ -45,6 +45,7 @@ export {
   classNameField,
   createPuckConfig,
   describeSite,
+  isStyleField,
   isTableField,
   isTemplateOnly,
   type MediaFieldKind,

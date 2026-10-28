@@ -6,7 +6,7 @@ export type ClassValue = string | false | null | undefined;
 /**
  * A block's part's classes: its name (`gf-card-title`), then the block's own
  * classes, then the theme's for that part, then what an editor chose, such as
- * an alignment and the classes typed into "CSS classes", so a theme changes a
+ * an alignment and the classes chosen in "Style", so a theme changes a
  * block's look and an editor's choices still win over it.
  */
 export type PartClasses = (name: string, own?: ClassValue | ClassValue[], ...chosen: ClassValue[]) => string;

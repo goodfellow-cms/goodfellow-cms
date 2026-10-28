@@ -13,11 +13,23 @@ import {
 import type { ComponentConfig, Config, CustomField, Fields, TextField } from "@puckeditor/core";
 import type { ReactNode } from "react";
 
-/** The field every block gets for adding CSS classes, such as Tailwind utilities. */
+/**
+ * The field every block gets for its look: alignment, font size, colors,
+ * spacing and rounded corners, kept as Tailwind classes with any others an
+ * editor adds (`readBlockStyle()` in `@goodfellow-cms/core`). It's a text
+ * field everywhere but the admin panel's editor, which draws it as a style's
+ * controls (`isStyleField()`).
+ */
 export const classNameField: TextField = {
   type: "text",
-  label: "CSS classes",
+  label: "Style",
+  metadata: { style: true },
 };
+
+/** Whether a field is a block's style (`classNameField`). */
+export function isStyleField(field: { metadata?: unknown } | undefined): boolean {
+  return (field?.metadata as { style?: unknown } | undefined)?.style === true;
+}
 
 /** What kind of media a field holds, for the admin panel to offer its media library. */
 export type MediaFieldKind = "image" | "video" | "audio" | "file";
@@ -80,7 +92,7 @@ const pageRootFields: Fields = {
 type AnyComponentConfig = ComponentConfig<any>;
 
 /**
- * Gives a block a "CSS classes" field. Blocks that declare their own
+ * Gives a block a Style field (`classNameField`). Blocks that declare their own
  * `className` field apply it themselves; any other block is wrapped in a
  * `<div>` carrying the classes, but only when some are set.
  */

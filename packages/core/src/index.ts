@@ -53,6 +53,25 @@ export {
   type IconShape,
 } from "./block-icons.js";
 export {
+  type BlockStyle,
+  blockStyleClasses,
+  colorSlug,
+  customLength,
+  FONT_SIZES,
+  isCustomColor,
+  isCustomLength,
+  RADII,
+  readBlockStyle,
+  SIDES,
+  type Side,
+  type Sides,
+  SPACING_STEPS,
+  TEXT_ALIGNS,
+  type TextAlign,
+  themeColorOf,
+  withBlockStyle,
+} from "./block-style.js";
+export {
   BROKER_AI_ADDRESS,
   BROKER_CONNECT_MESSAGE,
   BROKER_READY_MESSAGE,

@@ -1,5 +1,6 @@
 import {
   canvas,
+  editor,
   expect,
   expectSandboxed,
   field,
@@ -41,7 +42,7 @@ test("styles Tailwind classes typed in the editor before the site is rebuilt", a
   const heading = canvas(page).getByRole("heading", { name: "About us" });
   await heading.click();
   // An arbitrary value no content file uses, so only the in-browser Tailwind can have generated it.
-  await field(page, "className").fill("text-[rgb(200,30,30)]");
+  await editor(page).locator(".gfa-style-field:visible").getByLabel("Other CSS classes").fill("text-[rgb(200,30,30)]");
   await expect(heading).toHaveCSS("color", "rgb(200, 30, 30)");
 });
 
@@ -177,4 +178,43 @@ test("asks before leaving a page with unpublished changes", async ({ page }) => 
 test("runs the site's blocks in a sandbox in goodfellow dev too, away from the files on disk", async ({ page }) => {
   await openPageEditor(page, "/about", "About us");
   await expectSandboxed(page);
+});
+
+test("styles a block with its Style settings, kept as Tailwind classes beside its own", async ({ page }) => {
+  await openPageEditor(page, "/", "Welcome to my site");
+  // At its corner, in its own padding, since its middle is its blocks'.
+  await canvas(page)
+    .locator('[data-puck-component="Section-features"]')
+    .click({ position: { x: 4, y: 4 } });
+  const style = editor(page).locator(".gfa-style-field:visible");
+  await style.getByLabel("Other CSS classes").fill("shadow");
+  await style.getByRole("button", { name: "Centered" }).click();
+  await style
+    .getByRole("group", { name: "Background color" })
+    .getByRole("button", { name: "Subtle background" })
+    .click();
+  await style.getByRole("group", { name: "Space inside" }).getByLabel("All sides").selectOption("custom");
+  await style
+    .getByRole("group", { name: "Space inside" })
+    .getByPlaceholder(/Your own size/)
+    .fill("13px");
+  await style.getByRole("group", { name: "Space around" }).getByLabel("Set each side").check();
+  await style.getByRole("group", { name: "Space around" }).getByLabel("Top").selectOption("8");
+  await style.getByLabel("Rounded corners").selectOption("xl");
+
+  const section = canvas(page).locator('[data-puck-component="Section-features"]').locator("section").first();
+  await expect(section).toHaveClass(/\bbg-muted\b/);
+  await expect(section).toHaveCSS("padding-left", "13px");
+  await publishInEditor(page);
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readSiteFile("content/pages/index.json")).toContain(
+    '"className": "shadow text-center bg-muted p-[13px] mt-8 rounded-xl"',
+  );
+
+  // A block with its own alignment keeps it, so its style offers none.
+  await canvas(page).locator('[data-puck-component="Heading-features"]').click();
+  await expect(editor(page).locator(".gfa-style-field:visible").getByText("Text size")).toBeVisible();
+  await expect(editor(page).locator(".gfa-style-field:visible").getByRole("button", { name: "Centered" })).toHaveCount(
+    0,
+  );
 });
