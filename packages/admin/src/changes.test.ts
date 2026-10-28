@@ -93,6 +93,9 @@ describe("checkPageAddress", () => {
   it("refuses invalid, reserved and taken addresses", () => {
     expect(checkPageAddress("/Bad Name", pages)).toEqual({ ok: false, problem: "invalid" });
     expect(checkPageAddress("/admin/x", pages)).toEqual({ ok: false, problem: "reserved" });
+    // Its file would be the home page's, and replace it.
+    expect(checkPageAddress("/index", pages)).toEqual({ ok: false, problem: "reserved" });
+    expect(checkPageAddress("events/index", pages)).toEqual({ ok: false, problem: "reserved" });
     expect(checkPageAddress("/about", pages)).toEqual({ ok: false, problem: "taken" });
   });
 

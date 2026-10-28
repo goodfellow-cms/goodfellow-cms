@@ -7,6 +7,8 @@ import {
   GOODFELLOW_VERSION,
   type GoodfellowConfig,
   type SiteDescription,
+  type TableCells,
+  tableCells,
 } from "@goodfellow-cms/core";
 import type { ComponentConfig, Config, CustomField, Fields, TextField } from "@puckeditor/core";
 import type { ReactNode } from "react";
@@ -34,8 +36,7 @@ export function mediaFieldKind(field: { metadata?: unknown } | undefined): Media
   return media === "image" || media === "video" || media === "audio" || media === "file" ? media : undefined;
 }
 
-/** A table's cells, row by row, as plain text. */
-export type TableCells = string[][];
+export { type TableCells, tableCells };
 
 /**
  * A field for a table's cells, row by row. The admin panel's editor shows it
@@ -57,16 +58,6 @@ export function tableField(label: string): CustomField<TableCells> {
 /** Whether a field holds a table's cells (`tableField()`). */
 export function isTableField(field: { metadata?: unknown } | undefined): boolean {
   return (field?.metadata as { table?: unknown } | undefined)?.table === true;
-}
-
-/** Cells as they're kept: rows of text, every row as long as the longest, never empty. */
-export function tableCells(value: unknown): TableCells {
-  const rows = Array.isArray(value)
-    ? value.map((row) => (Array.isArray(row) ? row.map((cell) => (typeof cell === "string" ? cell : "")) : []))
-    : [];
-  const width = Math.max(1, ...rows.map((row) => row.length));
-  const filled = rows.map((row) => [...row, ...Array<string>(width - row.length).fill("")]);
-  return filled.length > 0 ? filled : [Array<string>(width).fill("")];
 }
 
 /** Settings on the page itself (the root of the page's Puck data). */

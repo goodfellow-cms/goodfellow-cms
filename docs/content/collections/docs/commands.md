@@ -22,13 +22,13 @@ order: 5
 | `goodfellow broker use <address>` | Signs editors in at the token broker from then on, once the site has rebuilt; `goodfellow broker remove` stops it |
 | `goodfellow admin add <address>` | Names the admin panel's [address of its own](/docs/custom-domains#an-admin-address), such as `admin.example.org`, in `goodfellow.config.tsx`, for sites whose config the admin panel can't publish, such as those whose [content is in a repository of its own](/docs/custom-domains#with-a-content-repository) |
 | `goodfellow admin check` | Once the site has rebuilt with it, checks that the site's pages at the admin address leave it before running anything, then marks it checked, from which the admin panel opens only there; `goodfellow admin remove` stops using it |
-| `goodfellow blocks add <item>` | Installs a shadcn registry item (`button`, `@acme/hero`, or an item's address) with shadcn's own CLI and makes a block of its component, with fields from its props, then typechecks and renders it and lists what it couldn't do (see [Any shadcn component as a block](/docs/shadcn-components)). With `--registry <folder>`, writes the block into a block registry there instead. Needs TypeScript 7 in the site |
+| `goodfellow blocks add <item>` | Installs a shadcn registry item (`button`, `@acme/hero`, or an item's address) with shadcn's own CLI and makes a block of its component, with fields from its props, then typechecks and renders it and lists what it couldn't do (see [Any shadcn component as a block](/docs/shadcn-components)). With `--registry <folder>`, writes the block into a block registry there instead; with `--native <folder>`, also makes its version for the [Expo app](/docs/apps#cross-platform-blocks-from-shadcn-components) in that folder, with shadcn-tamagui-codemod. Needs TypeScript 7 in the site |
 | `goodfellow import wordpress <file or address>` | Brings a WordPress site's pages, posts, categories, tags, menus and media into the site, from its export file or its address (see [Move from WordPress](/docs/move-from-wordpress)). `--dry-run` says what would come across and changes nothing |
 | `goodfellow export wordpress [file]` | Writes the site as a WordPress export file, at `file` or in a file named after the site, which WordPress imports with **Tools → Import → WordPress** (see [Move from WordPress](/docs/move-from-wordpress#moving-to-wordpress)) |
 
 Next.js sites have the same `update`, `due`, `nightly`, `task`, `content`, `blocks`, `admin`, `import` and `export` commands as `goodfellow-next update`, `goodfellow-next due`, `goodfellow-next nightly`, `goodfellow-next task`, `goodfellow-next content`, `goodfellow-next blocks`, `goodfellow-next admin`, `goodfellow-next import` and `goodfellow-next export`, and `goodfellow-next broker use` and `remove`.
 
-Options: `--root <dir>`, `--out <dir>`, `--port <port>`, `--base <path>`, for `import`, `--dry-run`, and for `blocks add`, `--registry <folder>`.
+Options: `--root <dir>`, `--out <dir>`, `--port <port>`, `--base <path>`, for `import`, `--dry-run`, and for `blocks add`, `--registry <folder>` and `--native <folder>`.
 
 ## Site checks
 

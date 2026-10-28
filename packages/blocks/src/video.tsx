@@ -1,49 +1,15 @@
-import {
-  type EmbedProblem,
-  embedPlayerUrl,
-  type PlayerOptions,
-  vimeoPlayerUrl,
-  vimeoVideo,
-  withBase,
-  youtubePlayerUrl,
-  youtubeVideo,
-} from "@goodfellow-cms/core";
+import { withBase } from "@goodfellow-cms/core";
 import { classNameField, cx, mediaField, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Fields } from "@puckeditor/core";
 import type { ReactNode } from "react";
 import { options, yesNo } from "./options.js";
 import { VIDEO_PARTS } from "./parts.js";
+import { playerAddress, type VideoProps, type VideoShape, type VideoSource } from "./video-data.js";
 
-type Source = "upload" | "youtube" | "vimeo" | "embed";
-type Shape = "auto" | "wide" | "landscape" | "square" | "tall";
-
-export interface VideoProps {
-  source: Source;
-  /** An uploaded video's address, such as `/media/welcome.mp4`. */
-  file: string;
-  /** For an uploaded video: the picture shown before it plays, and its captions (a WebVTT file). */
-  poster: string;
-  captions: string;
-  captionsLabel: string;
-  /** A YouTube video's ID or any of its addresses. */
-  youtube: string;
-  /** A Vimeo video's number or any of its addresses. */
-  vimeo: string;
-  /** Another site's player: its embed address, or the embed code that site gives. */
-  embed: string;
-  /** What the video is, for screen readers. */
-  title: string;
-  shape: Shape;
-  autoplay: boolean;
-  muted: boolean;
-  loop: boolean;
-  caption: string;
-  rounded: boolean;
-  className: string;
-}
+export type { VideoProps } from "./video-data.js";
 
 /** Players' shapes. An uploaded video's own shape is its own; players have none, so they're wide. */
-const shapeClasses: Record<Shape, string> = {
+const shapeClasses: Record<VideoShape, string> = {
   auto: "aspect-video",
   wide: "aspect-video",
   landscape: "aspect-[4/3]",
@@ -62,48 +28,10 @@ const ALLOW =
  */
 const EMBED_SANDBOX = "allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox";
 
-const embedProblems: Record<EmbedProblem, string> = {
-  "not-an-address": "Paste the player's embed address, or the embed code the other site gives, starting with https://.",
-  "not-secure": "The player's address must start with https://, or browsers won't show it on a secure site.",
-  "same-site": "A player on this site's own address, or on this computer, can't be shown: it could reach the editor.",
-};
-
 function Notice({ text, className }: { text: string; className: string }) {
   return (
     <p className={cx("rounded-md border border-dashed border-border p-4 text-muted-foreground", className)}>{text}</p>
   );
-}
-
-function hostOf(url: string | undefined): string | undefined {
-  try {
-    return url ? new URL(url).hostname : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The player's address, or why there isn't one. */
-function playerAddress(props: VideoProps, siteUrl: string | undefined): { url: string } | { problem: string } {
-  const playback: PlayerOptions = { autoplay: props.autoplay, muted: props.muted, loop: props.loop };
-  if (props.source === "youtube") {
-    const video = youtubeVideo(props.youtube);
-    if (video) return { url: youtubePlayerUrl(video, playback) };
-    return {
-      problem: props.youtube.trim()
-        ? "This isn't a YouTube video's address or ID."
-        : "Paste a YouTube video's address.",
-    };
-  }
-  if (props.source === "vimeo") {
-    const video = vimeoVideo(props.vimeo);
-    if (video) return { url: vimeoPlayerUrl(video, playback) };
-    return { problem: props.vimeo.trim() ? "This isn't a Vimeo video's address." : "Paste a Vimeo video's address." };
-  }
-  // In the editor, the page is the admin panel's own address, which a player mustn't share either.
-  const here = typeof window === "undefined" ? undefined : window.location.hostname;
-  const found = embedPlayerUrl(props.embed, [hostOf(siteUrl), here]);
-  if ("url" in found) return found;
-  return { problem: props.embed.trim() ? embedProblems[found.problem] : "Paste the player's embed address or code." };
 }
 
 function VideoView({ isEditing, ...props }: VideoProps & { isEditing: boolean }) {
@@ -143,7 +71,11 @@ function VideoView({ isEditing, ...props }: VideoProps & { isEditing: boolean })
       </video>
     );
   } else {
-    const address = playerAddress(props, settings.url);
+    const address = playerAddress(
+      props,
+      settings.url,
+      typeof window === "undefined" ? undefined : window.location.hostname,
+    );
     if ("problem" in address) return isEditing ? <Notice text={address.problem} className={className} /> : null;
     player = (
       <iframe
@@ -242,13 +174,13 @@ export const Video: ComponentConfig<VideoProps> = withParts(
     },
     resolveFields: ({ props }, { fields }) => {
       const resolved: Partial<Fields<VideoProps>> = { ...fields };
-      const keep: Record<Source, Array<keyof VideoProps>> = {
+      const keep: Record<VideoSource, Array<keyof VideoProps>> = {
         upload: ["file", "poster", "captions", "captionsLabel"],
         youtube: ["youtube"],
         vimeo: ["vimeo"],
         embed: ["embed"],
       };
-      for (const [source, names] of Object.entries(keep) as Array<[Source, Array<keyof VideoProps>]>) {
+      for (const [source, names] of Object.entries(keep) as Array<[VideoSource, Array<keyof VideoProps>]>) {
         if (source !== props.source) for (const name of names) delete resolved[name];
       }
       if (props.source === "upload" && !props.captions) delete resolved.captionsLabel;

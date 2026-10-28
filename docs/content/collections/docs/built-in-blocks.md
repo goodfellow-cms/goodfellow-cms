@@ -6,7 +6,7 @@ section: editors
 order: 7
 ---
 
-Every site has these blocks. Sites can also have [blocks from block registries](/docs/add-blocks) and blocks of their own.
+Every site has these blocks. Sites can also have [blocks from block registries](/docs/add-blocks) and blocks of their own. Each built-in block also has a version for the site's [app](/docs/apps), if it has one, which draws it natively on phones.
 
 | Block | What it's for |
 |---|---|

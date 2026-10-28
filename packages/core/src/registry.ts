@@ -286,7 +286,8 @@ export async function hashText(text: string): Promise<string> {
 
 /** The record of installed blocks, from `blocks/installed/installed.json`, or an empty one if there's none. */
 export function parseInstalledRecord(text: string | undefined): InstalledRecord {
-  if (text === undefined) return EMPTY_RECORD;
+  // A new record each time: callers add to it, and the empty one is shared.
+  if (text === undefined) return { version: 1, blocks: {} };
   return installedRecordSchema.parse(JSON.parse(text));
 }
 

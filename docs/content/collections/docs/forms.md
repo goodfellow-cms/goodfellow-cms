@@ -39,6 +39,8 @@ The emails show each answer under its question's wording. The first email addres
 
 **Page visitors see after sending** is one of the site's pages, such as `/thank-you`, or a full address on another site. Make the page first, as any other page. Without one, visitors see the form service's own thank-you page, since a form that works without JavaScript can't show its own message. The form service sends visitors there once their answers are on their way, so it needs the full address, which comes from the **Site address** in Site Settings: until that's set, visitors see the service's own thank-you page. They also see it on Formspree's free plan, and on Web3Forms' free plan when the thank-you page is on another site or the form isn't on the Site address (see [Choose a form service](#choose-a-form-service)).
 
+In the site's [app](/docs/apps), the form sends the answers itself and then opens the thank-you page, or shows **In the site's app: what it says once the answers are sent** where there's none, and **what it says when the answers couldn't be sent** when they couldn't, such as with no connection.
+
 **The form's name** is the subject of the emails answers arrive in, so give each form its own, such as "Prayer request" or "Volunteer sign-up".
 
 ## Spam

@@ -1,0 +1,79 @@
+{
+  "name": "@goodfellow-cms/expo",
+  "version": "0.6.0",
+  "description": "Shows a Goodfellow site's content natively in an Expo app, from its content API, offline too.",
+  "keywords": [
+    "goodfellow",
+    "cms",
+    "expo",
+    "react-native"
+  ],
+  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/apps",
+  "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goodfellow-cms/goodfellow-cms.git",
+    "directory": "packages/expo"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "react-native": "./dist/index.js",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./sync": {
+      "types": "./dist/sync.d.ts",
+      "react-native": "./dist/sync.js",
+      "import": "./dist/sync.js",
+      "default": "./dist/sync.js"
+    },
+    "./file-system": {
+      "types": "./dist/file-system.d.ts",
+      "react-native": "./dist/file-system.js",
+      "import": "./dist/file-system.js",
+      "default": "./dist/file-system.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@goodfellow-cms/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "expo-file-system": "*",
+    "react": "^19.0.0",
+    "react-native": "*",
+    "react-native-webview": "*"
+  },
+  "peerDependenciesMeta": {
+    "expo-file-system": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-web": "0.21.4",
+    "react-native-webview": "14.0.1"
+  },
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

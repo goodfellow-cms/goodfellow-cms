@@ -983,6 +983,7 @@ export {
   type TemplateName,
   withoutRepositoryNotes,
 } from "./site-setup.js";
+export { type TableCells, tableCells } from "./table-cells.js";
 export { GITLAB_TASK_RULE, githubTaskWorkflow, gitlabTaskJob, type SiteCli } from "./task-setup.js";
 export {
   CODE_THEMES,

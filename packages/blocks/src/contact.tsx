@@ -1,5 +1,6 @@
 import { classNameField, cx, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
+import { phoneHref } from "./links.js";
 import { options, yesNo } from "./options.js";
 import { CONTACT_PARTS } from "./parts.js";
 
@@ -9,11 +10,6 @@ export interface ContactDetailsProps {
   email: boolean;
   layout: "stacked" | "inline";
   className: string;
-}
-
-/** A phone number as a `tel:` link: digits and a leading plus only. */
-function phoneHref(phone: string): string {
-  return `tel:${phone.replace(/(?!^\+)[^\d]/g, "")}`;
 }
 
 /** The site's contact details (from Site Settings), so they're kept in one place however often they're shown. */

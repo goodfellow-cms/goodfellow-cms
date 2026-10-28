@@ -63,3 +63,7 @@ shadcn drops `"use client"` from what it installs where `components.json` says `
 ## As a registry
 
 With `--registry <folder>`, the command writes the block into a [block registry](/docs/block-registries) in that folder rather than into the site: its file, and the item's own code, in the registry's `registry.json` with `meta.goodfellow`. That way an organization can make its own components into blocks once, for every site's Blocks screen. The item's shadcn dependencies stay dependencies, so sites need the registries they come from (`@shadcn` for shadcn/ui's) in their config's `registries`. Packages beyond the ones sites have can't be installed from the admin panel (see [Packages](/docs/block-registries#packages)).
+
+## In apps
+
+Blocks need a version of their own for an [app made with Expo](/docs/apps), which draws pages with React Native rather than HTML. [shadcn-tamagui-codemod](https://www.npmjs.com/package/shadcn-tamagui-codemod) rewrites components styled with Tailwind into Tamagui components that run on the web and on phones alike, and `--native <folder>` runs it for you: it makes the block's version in the Expo app in that folder as well as the site's block, and says what the codemod couldn't convert (see [Cross-platform blocks from shadcn components](/docs/apps#cross-platform-blocks-from-shadcn-components)).

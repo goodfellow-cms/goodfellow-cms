@@ -240,6 +240,7 @@ describe("contentApiFiles", () => {
       mainLanguage: "en",
       blocks: ["Cards", "EntryField", "Section", "Text"],
     });
+    expect(manifest).not.toHaveProperty("redirects");
     expect(manifest.languages.es?.site.file).toBe("es/site.json");
     expect(manifest.pages.map(({ path, file, language }) => ({ path, file, language }))).toEqual([
       { path: "/", file: "pages/index.json", language: "en" },
@@ -294,6 +295,36 @@ describe("contentApiFiles", () => {
     expect(notes?.entries[0]?.fields.body).toBe("<p>Hello <strong>there</strong>.</p>\n");
     expect(byPath["/api/es/site.json"]).toMatchObject({ language: "es", settings: { language: "es" } });
     expect(byPath["/api/site.json"].pages).toEqual([{ path: "/", title: "Home" }]);
+  });
+
+  it("lists the redirects builds send, leaving out old addresses pages have", async () => {
+    const content = await loadSiteContent(
+      memorySource({
+        "content/site.json": { version: 1, title: "St. Joseph" },
+        "content/pages/index.json": { version: 1, data: { root: { props: { title: "Home" } } } },
+        "content/pages/about.json": { version: 1, data: { root: { props: { title: "About" } } } },
+        "content/redirects.json": {
+          version: 1,
+          redirects: [
+            { from: "/who-we-are/", to: "/about#history" },
+            { from: "https://old.example.org/visit", to: " https://example.org/visit " },
+            // The page wins, so visitors never reach this one.
+            { from: "/about", to: "/" },
+          ],
+        },
+      }),
+    );
+    const pages = content.pages.map((page) => ({
+      page,
+      head: pageHead(content, page),
+      data: { root: { props: {} }, content: [] },
+    }));
+    const files = await contentApiFiles({ content, description, pages, layouts: [] });
+    const manifest = JSON.parse(files.find((file) => file.path === "/api/manifest.json")?.content ?? "{}");
+    expect((manifest as ApiManifest).redirects).toEqual([
+      { from: "/who-we-are", to: "/about#history" },
+      { from: "/visit", to: "https://example.org/visit" },
+    ]);
   });
 
   it("names pages' files from their addresses", () => {

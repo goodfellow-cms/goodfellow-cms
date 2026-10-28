@@ -68,7 +68,9 @@ Commands:
                                    an item's address) with shadcn's own CLI, makes a block
                                    of its component, with fields from its props, and says
                                    what it couldn't do; with --registry <folder>, writes
-                                   the block into a block registry there instead. Needs
+                                   the block into a block registry there instead; with
+                                   --native <folder>, also makes its version for the Expo
+                                   app there, with shadcn-tamagui-codemod. Needs
                                    TypeScript ${TYPESCRIPT_VERSION} (npm install --save-dev typescript@${TYPESCRIPT_VERSION})
   broker    The site's token broker, a sign-in page on an address of its own:
             broker add [folder]    writes its repository into folder (default: beside
@@ -115,6 +117,7 @@ Options:
   --dry-run       For import: say what importing would bring across, and change nothing
   --registry <dir>
                   For blocks add: write the block into the block registry in dir
+  --native <dir>  For blocks add: also make the block's version for the Expo app in dir
   -h, --help      Show this help
 `;
 
@@ -143,6 +146,7 @@ async function main(): Promise<void> {
       strict: { type: "boolean" },
       "dry-run": { type: "boolean" },
       registry: { type: "string" },
+      native: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -252,7 +256,12 @@ async function main(): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      const result = await addBlock({ root: values.root, item, ...(values.registry && { registry: values.registry }) });
+      const result = await addBlock({
+        root: values.root,
+        item,
+        ...(values.registry && { registry: values.registry }),
+        ...(values.native && { native: values.native }),
+      });
       console.log(formatShadcnBlock(result));
       if (!blockWorks(result)) process.exitCode = 1;
       return;

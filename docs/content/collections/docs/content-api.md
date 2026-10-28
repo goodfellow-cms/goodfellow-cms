@@ -6,7 +6,7 @@ section: developers
 order: 4.5
 ---
 
-`goodfellow build` and `goodfellow-next finish` write the site's content as JSON files at `/api/`, beside its pages, so an app or another site can show it without a server. It's what visitors see, not the [content files](/docs/content-files) as they're stored:
+`goodfellow build` and `goodfellow-next finish` write the site's content as JSON files at `/api/`, beside its pages, so an app or another site can show it without a server. [`@goodfellow-cms/expo`](/docs/apps) makes an app for iPhone and Android of it. It's what visitors see, not the [content files](/docs/content-files) as they're stored:
 
 - Pages and items that aren't [scheduled](/docs/scheduling) to show yet are left out, as they are from the site.
 - Each page has its blocks as the page renders them: after every block's preparation (`resolveData`), with an item's values filled into its collection's template.
@@ -19,7 +19,7 @@ Start with `/api/manifest.json`. Every other file's address in it is relative to
 
 | File | What it holds |
 |---|---|
-| `manifest.json` | The Goodfellow release (`goodfellow`), the version of each kind of content file the site reads (`content`), `base`, `url`, `mainLanguage`, each language's files (`languages`), every page with its file and hash (`pages`), and the blocks the site's pages, headers and footers use (`blocks`). |
+| `manifest.json` | The Goodfellow release (`goodfellow`), the version of each kind of content file the site reads (`content`), `base`, `url`, `mainLanguage`, each language's files (`languages`), every page with its file and hash (`pages`), the blocks the site's pages, headers and footers use (`blocks`), and the site's [redirects](/docs/layout-and-settings#redirects) (`redirects`). |
 | `pages/….json` | One page, named from its address: `/` is `pages/index.json`, `/news/fair` is `pages/news/fair.json` and Spanish's home page is `pages/es.json`. It holds its `path`, `language`, `head` (the title as the browser shows it, description, social image, `noIndex`, the canonical address and translations), `entry` on an item's page, `view` on a page a block adds, such as a calendar's month, `data` (its blocks, as Puck stores them), `richText` (see below) and `credits` for the photos it shows. |
 | `site.json` | The site's settings, menus and pages (the same list the Page list block shows), as blocks read them with `useSite()`. |
 | `collections.json` | Every collection's settings, without its template, and its items' values. |
@@ -30,6 +30,8 @@ A site in [several languages](/docs/languages) has `site.json`, `collections.jso
 Addresses in the files, such as links and pictures (`/about`, `/media/photo.jpg`), are from the site's root, without the path a site in a subfolder is served from. That path is the manifest's `base`. Add it, and the site's domain, before loading a picture or opening a link.
 
 The manifest's `pages` includes pages that blocks add, such as a list's second page (`added: true`), and items' pages (`entry`).
+
+Its `redirects` lists each old address (`from`, spelled without a trailing slash) and where it sends visitors (`to`: a page's address, which can end in `#…`, or another site's `https://` one), as the website sends them: an address with a page is never redirected, since pages win. A redirect can lead to an address that's redirected again, so follow them until one has a page. The manifest leaves `redirects` out when the site has none.
 
 ## Rich text
 

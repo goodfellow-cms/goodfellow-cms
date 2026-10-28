@@ -201,6 +201,37 @@ test("won't publish invalid settings", async ({ page }) => {
   expect(readSiteFile("content/site.json")).toBe(before);
 });
 
+test("has nothing to publish until something changes, whatever the files' spelling", async ({ page }) => {
+  // Values the form tidies when it saves, as themes, imports and hand edits can leave them.
+  const settings = readJson("content/site.json");
+  writeSiteFile(
+    "content/site.json",
+    `${JSON.stringify({ ...settings, externalLinksInNewTab: false, contact: { phone: "" } }, null, 2)}\n`,
+  );
+  writeSiteFile(
+    "content/redirects.json",
+    `${JSON.stringify({ version: 1, redirects: [{ from: "/old-page/", to: "/about" }] }, null, 2)}\n`,
+  );
+  await page.goto("/admin#/settings/redirects");
+  await expect(page.getByLabel("Old address")).toHaveValue("/old-page/");
+  await expect(page.getByRole("button", { name: "Publish" })).toBeDisabled();
+  await page.goto("/admin#/settings/general");
+  await expect(page.getByLabel("Site name")).toHaveValue(settings.title as string);
+  await expect(page.getByRole("button", { name: "Publish" })).toBeDisabled();
+  let asked = false;
+  page.on("dialog", (dialog) => {
+    asked = true;
+    void dialog.dismiss();
+  });
+  await page.getByRole("link", { name: "Pages", exact: true }).click();
+  await expect(page).toHaveURL(/#\/pages$/);
+  expect(asked).toBe(false);
+
+  await page.goto("/admin#/settings/general");
+  await page.getByLabel("Site name").fill("Another name");
+  await expect(page.getByRole("button", { name: "Publish" })).toBeEnabled();
+});
+
 test("saves the site's contact details, leaving out empty ones", async ({ page }) => {
   await page.goto("/admin#/settings/general");
   await page.getByLabel("Address", { exact: true }).fill("100 Church Street\nAnytown");

@@ -99,7 +99,11 @@ test("refuses addresses that can't be used", async ({ page }) => {
   await expect(page.getByText("Another page already uses this address.")).toBeVisible();
 
   await address.fill("/admin");
-  await expect(page.getByText("This address is used by the admin panel.")).toBeVisible();
+  await expect(page.getByText(/This address can't be used: the admin panel uses it/)).toBeVisible();
+
+  // It would be stored in the file of the page above it, the home page here.
+  await address.fill("/index");
+  await expect(page.getByText(/This address can't be used: the admin panel uses it/)).toBeVisible();
 
   await address.fill("/Not Valid");
   await expect(page.getByText(/Use lowercase letters, numbers and hyphens/)).toBeVisible();

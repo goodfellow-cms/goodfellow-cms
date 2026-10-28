@@ -6,10 +6,12 @@
  */
 
 import type { PageCredit } from "../content/credits.js";
+import type { LanguageLink } from "../content/language-map.js";
 import { contentInLanguage, languagePrefix, mainLanguage, siteLanguages } from "../content/languages.js";
 import type { Page, SiteContent } from "../content/load.js";
 import { markdownToHtml } from "../content/markdown.js";
 import { type PageLink, pageLinks } from "../content/page-links.js";
+import { redirectFrom, redirectTarget } from "../content/redirects.js";
 import { sanitizeHtml } from "../content/sanitize.js";
 import { isAddedPage, type PageView } from "../content/site-pages.js";
 import { setLinkTargets } from "../external-links.js";
@@ -62,6 +64,8 @@ export interface ApiPageFile {
   richText: ApiRichText;
   /** The credits of the photos the page shows, which their licenses ask for, as the page lists them. */
   credits?: PageCredit[];
+  /** On a site in several languages, the page in each: its translation, or the language's home page. */
+  languages?: LanguageLink[];
 }
 
 /** The header or footer in a language, as `/api/header.json` and `/api/footer.json` have it. */
@@ -128,6 +132,19 @@ export interface ApiManifest {
   >;
   /** The blocks the site's pages, headers and footers use, by name. */
   blocks: string[];
+  /**
+   * The site's redirects, as builds send them: old addresses spelled one way
+   * (`/about-us`, without a trailing slash), never one a page has, since pages
+   * win, and where each goes, a page's address or another site's (`https://`).
+   * Left out where the site has none.
+   */
+  redirects?: ApiRedirect[];
+}
+
+/** An old address and where it sends visitors, in the manifest's `redirects`. */
+export interface ApiRedirect {
+  from: string;
+  to: string;
 }
 
 /** A page, prepared as it's shown. */
@@ -138,6 +155,7 @@ export interface ContentApiPage {
   data: ApiData;
   head: PageHead;
   credits?: PageCredit[];
+  languages?: LanguageLink[];
 }
 
 /** What a renderer gives `contentApiFiles()`: the site as shown, its pages and layouts prepared. */
@@ -184,6 +202,11 @@ function isBlockList(value: unknown): value is Array<{ type: string; props: Reco
   );
 }
 
+/** A block's default props, without its slots' defaults, which a block saved before a slot existed shows empty. */
+function withoutSlots(defaults: Record<string, unknown>, fields: Fields): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(defaults).filter(([name]) => fields[name]?.type !== "slot"));
+}
+
 /** Reads prepared data for rich text and the blocks it uses, sanitizing rich text as pages do. */
 class DataReader {
   readonly richText: ApiRichText = {};
@@ -205,9 +228,12 @@ class DataReader {
     return blocks.map((block) => {
       if (!isRecord(block) || typeof block.type !== "string" || !isRecord(block.props)) return block;
       this.used.add(block.type);
-      const fields = (this.description.blocks[block.type]?.fields ?? {}) as Fields;
+      const described = this.description.blocks[block.type];
+      const fields = (described?.fields ?? {}) as Fields;
       const id = typeof block.props.id === "string" ? block.props.id : block.type;
-      return { ...block, props: this.props(block.props, fields, id) };
+      // Blocks saved before a setting existed don't have it, so they get the block's default, as its web code gives it.
+      const props = { ...withoutSlots(described?.defaultProps ?? {}, fields), ...block.props };
+      return { ...block, props: this.props(props, fields, id) };
     });
   }
 
@@ -287,6 +313,18 @@ function collectionsFile(content: SiteContent, language: string): ApiCollections
   };
 }
 
+/** The redirects builds write pages for: from addresses no page has, each once. */
+function apiRedirects(content: SiteContent, pages: ReadonlySet<string>): ApiRedirect[] {
+  const seen = new Set<string>();
+  return (content.redirects ?? []).flatMap(({ from, to }) => {
+    const path = redirectFrom(from);
+    const target = redirectTarget(to);
+    if (!path.ok || !target || pages.has(path.path) || seen.has(path.path)) return [];
+    seen.add(path.path);
+    return [{ from: path.path, to: target }];
+  });
+}
+
 /**
  * The content API's files: each page as it's shown (`pages/…json`), each
  * language's site settings, menus and pages (`site.json`), collections
@@ -321,6 +359,7 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
       data,
       richText: reader.richText,
       ...(prepared.credits && prepared.credits.length > 0 && { credits: prepared.credits }),
+      ...(prepared.languages && prepared.languages.length > 0 && { languages: prepared.languages }),
     };
     pages.push({
       path: page.path,
@@ -357,6 +396,7 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
     };
   }
 
+  const redirects = apiRedirects(content, new Set(pages.map((page) => page.path)));
   const manifest: ApiManifest = {
     version: 1,
     goodfellow: description.goodfellow,
@@ -367,6 +407,7 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
     languages,
     pages,
     blocks: [...used].sort(),
+    ...(redirects.length > 0 && { redirects }),
   };
   files.push({ path: CONTENT_API_MANIFEST, content: json(manifest) });
   return files;

@@ -10,7 +10,8 @@
 // content is kept in a repository of its own.
 // `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
 // `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, as `goodfellow export` does.
-// `goodfellow-next blocks add <item> [--registry <folder>]` makes a block of a shadcn item, as `goodfellow blocks add` does.
+// `goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]` makes a block of a shadcn item, as
+// `goodfellow blocks add` does, and with --native its version for an Expo app.
 // `goodfellow-next admin add <address>|check|remove` sets the admin address, and `goodfellow-next broker use <address>|remove`
 // the token broker, in goodfellow.config.tsx, as `goodfellow admin` and `goodfellow broker` do.
 import { existsSync, readFileSync } from "node:fs";
@@ -237,7 +238,7 @@ if (command === "blocks") {
   const { positionals, values } = parseArgs({
     args: process.argv.slice(3),
     allowPositionals: true,
-    options: { registry: { type: "string" } },
+    options: { registry: { type: "string" }, native: { type: "string" } },
   });
   const [action, item] = positionals;
   if (action === "add" && item) {
@@ -246,6 +247,7 @@ if (command === "blocks") {
         root: process.cwd(),
         item,
         ...(values.registry && { registry: resolve(values.registry) }),
+        ...(values.native && { native: resolve(values.native) }),
         render: blockPageRender("."),
       });
       console.log(formatShadcnBlock(result));
@@ -269,7 +271,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next content link|copy [folder]",
       "       goodfellow-next import wordpress <file or address> [--dry-run]",
       "       goodfellow-next export wordpress [file]",
-      "       goodfellow-next blocks add <item> [--registry <folder>]",
+      "       goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]",
       "       goodfellow-next admin add <address> | check | remove",
       "       goodfellow-next broker use <address> | remove",
       "",

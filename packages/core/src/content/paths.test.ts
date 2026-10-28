@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { InvalidPathError, normalizePagePath, pageFileToPath, pageOutputFile, pagePathToFile } from "./paths.js";
+import {
+  InvalidPathError,
+  isReservedPagePath,
+  normalizePagePath,
+  pageFileToPath,
+  pageOutputFile,
+  pagePathToFile,
+} from "./paths.js";
 
 describe("page paths", () => {
   it.each([
@@ -22,6 +29,18 @@ describe("page paths", () => {
 
   it.each(["about", "/About", "/my_page", "/a--b", "/-a", "/a b", "/../secret"])("rejects %s", (path) => {
     expect(() => pagePathToFile(path)).toThrow(InvalidPathError);
+  });
+
+  // An address ending in "index" would be stored in the file of the page above it, and replace that page.
+  it.each(["/index", "/news/index"])("refuses %s, whose file is another page's", (path) => {
+    expect(() => pagePathToFile(path)).toThrow(InvalidPathError);
+    expect(isReservedPagePath(path)).toBe(true);
+  });
+
+  it("keeps addresses that only have index in them", () => {
+    expect(isReservedPagePath("/index/about")).toBe(false);
+    expect(isReservedPagePath("/indexes")).toBe(false);
+    expect(pagePathToFile("/index/about")).toBe("content/pages/index/about.json");
   });
 
   it("rejects files outside the pages folder", () => {

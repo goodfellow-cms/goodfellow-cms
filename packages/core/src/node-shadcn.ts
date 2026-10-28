@@ -6,12 +6,14 @@
  * for the developer to do rather than calling the block finished.
  *
  * TypeScript is loaded only here, from the site's `node_modules`, so sites
- * that never run the command don't download it.
+ * that never run the command don't download it. With `native`, it also makes
+ * the block's version for an Expo app, with shadcn-tamagui-codemod.
  */
 import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -22,6 +24,8 @@ import {
   type ComponentProp,
   componentBlockSource,
   componentDefaults,
+  componentNativeBlockSource,
+  nativeBlocksIndex,
   propLabel,
 } from "./component-blocks.js";
 import {
@@ -38,13 +42,27 @@ import {
 } from "./index.js";
 
 export type { ComponentInfo, ComponentProp, PropShape } from "./component-blocks.js";
-export { componentBlockSource, componentDefaults } from "./component-blocks.js";
+export {
+  componentBlockSource,
+  componentDefaults,
+  componentNativeBlockSource,
+  nativeBlocksIndex,
+} from "./component-blocks.js";
 
 /** The shadcn CLI the command runs, a release tried with it. */
 export const SHADCN_VERSION = "4.21.4";
 
 /** The TypeScript the command reads components with, whose API it was written for. */
 export const TYPESCRIPT_VERSION = "7.0.2";
+
+/** The codemod that makes blocks' versions for apps, a release tried with it. */
+export const CODEMOD_VERSION = "0.1.0";
+
+/** Where in an Expo app `--native` writes blocks' versions for it, each in a folder of its own, with an index. */
+export const NATIVE_BLOCKS_DIR = "goodfellow-blocks";
+
+/** Runs shadcn-tamagui-codemod in the app's folder, with the files it converts and its options. */
+export type CodemodRunner = (args: string[], options: { cwd: string }) => Promise<string>;
 
 /** Runs shadcn's CLI in the site: `view` for what an item is, `add` to install it, which may ask the developer. */
 export type ShadcnRunner = (args: string[], options: { cwd: string; interactive: boolean }) => Promise<string>;
@@ -66,6 +84,13 @@ export interface AddShadcnBlockOptions {
   shadcn?: ShadcnRunner;
   /** Renders a page, for the check that the block renders. Without one, it isn't rendered. */
   render?: PageRender;
+  /**
+   * Also makes the block's version for apps, in this folder: an Expo app's,
+   * made with `@goodfellow-cms/expo`, which has Tamagui (see the docs' Apps page).
+   */
+  native?: string;
+  /** Runs shadcn-tamagui-codemod. Defaults to `npx shadcn-tamagui-codemod@CODEMOD_VERSION`. */
+  codemod?: CodemodRunner;
 }
 
 /** Something the command did, or left for the developer, by kind, in words for the terminal. */
@@ -82,7 +107,8 @@ export interface ShadcnNote {
     | "license"
     | "accessibility"
     | "typecheck"
-    | "render";
+    | "render"
+    | "native";
   text: string;
 }
 
@@ -101,6 +127,8 @@ export interface ShadcnBlockResult {
   notes: ShadcnNote[];
   /** Where it was written as a registry item, with `registry`. */
   registry?: string;
+  /** With `native`, the app's folder, and its version of the block and the files written for it, from that folder. */
+  native?: { app: string; entry: string; files: string[] };
 }
 
 /** Notes that mean the block doesn't work yet. Others are left to the developer to judge. */
@@ -167,6 +195,17 @@ export const npxShadcn: ShadcnRunner = async (args, { cwd, interactive }) => {
     child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`exited with code ${code}`))));
   });
   return "";
+};
+
+/** shadcn-tamagui-codemod from npm, at the release the command was tried with. */
+export const npxCodemod: CodemodRunner = async (args, { cwd }) => {
+  const command = process.platform === "win32" ? "npx.cmd" : "npx";
+  const { stdout } = await execFileAsync(command, ["--yes", `shadcn-tamagui-codemod@${CODEMOD_VERSION}`, ...args], {
+    cwd,
+    maxBuffer: 64 * 1024 * 1024,
+    shell: process.platform === "win32",
+  });
+  return stdout;
 };
 
 /** The parts of a registry item the command reads. */
@@ -801,6 +840,18 @@ export async function addShadcnBlock(options: AddShadcnBlockOptions): Promise<Sh
       fields: [...props.map((prop) => prop.name), ...(children ? ["children"] : [])],
       notes: final,
     };
+    if (options.native) {
+      const native = await writeNativeBlock({
+        root,
+        app: options.native,
+        info,
+        main: main.file,
+        ownCode,
+        codemod: options.codemod ?? npxCodemod,
+      });
+      result.notes.push(...native.notes);
+      if (native.written) result.native = native.written;
+    }
     if (options.registry) {
       return {
         ...result,
@@ -818,6 +869,113 @@ export async function addShadcnBlock(options: AddShadcnBlockOptions): Promise<Sh
   } finally {
     reader.close();
   }
+}
+
+/** The site's own modules a file imports through `@/`, such as `@/components/ui/button`. */
+function siteImports(code: string): string[] {
+  return [...code.matchAll(/from\s+["']@\/([^"']+)["']/g)].map((match) => match[1] ?? "").filter(Boolean);
+}
+
+/** A module's file in a folder, by its import path without an extension. */
+function moduleFile(dir: string, path: string): string | undefined {
+  return [".tsx", ".ts", ".jsx", ".js", "/index.tsx", "/index.ts"]
+    .map((ending) => `${path}${ending}`)
+    .find((candidate) => existsSync(join(dir, candidate)));
+}
+
+/** What shadcn-tamagui-codemod's report says, as far as the command tells the developer. */
+interface CodemodReport {
+  totals?: { diagnostics?: Partial<Record<"todo" | "warning" | "info", number>> };
+  icons?: { command?: string | null };
+}
+
+/**
+ * Makes the block's version for an Expo app in `app`: copies the item's own
+ * code into `goodfellow-blocks/<name>/`, and the site's components it uses
+ * that the app doesn't have yet into the app at the same paths, converts
+ * them with shadcn-tamagui-codemod, writes the block, which takes the site's
+ * block's props, and the index of the app's blocks. It changes nothing in
+ * the site, and never stops the site's block being made: problems are notes.
+ */
+async function writeNativeBlock(options: {
+  root: string;
+  app: string;
+  info: ComponentInfo;
+  main: string;
+  ownCode: string[];
+  codemod: CodemodRunner;
+}): Promise<{ notes: ShadcnNote[]; written?: ShadcnBlockResult["native"] }> {
+  const { root, app, info, main, ownCode } = options;
+  const notes: ShadcnNote[] = [];
+  const folder = `${NATIVE_BLOCKS_DIR}/${info.name}`;
+  const entry = `${folder}/block.tsx`;
+  if (existsSync(join(app, entry))) {
+    return {
+      notes: [{ kind: "native", text: `The app already has ${entry}, so its version wasn't made again.` }],
+    };
+  }
+  // The item's own code goes in the block's folder; what it imports from the site goes where the app imports it from.
+  const copies = new Map<string, string>();
+  for (const file of ownCode) copies.set(file, `${folder}/${basename(file)}`);
+  const pending = [...ownCode];
+  while (pending.length > 0) {
+    const file = pending.pop() as string;
+    for (const path of siteImports(await readFile(join(root, file), "utf8"))) {
+      const found = moduleFile(root, path);
+      if (!found || copies.has(found) || moduleFile(app, path)) continue;
+      copies.set(found, found);
+      pending.push(found);
+    }
+  }
+  for (const [from, to] of copies) {
+    await mkdir(dirname(join(app, to)), { recursive: true });
+    await writeFile(join(app, to), await readFile(join(root, from), "utf8"));
+  }
+
+  const reports = await mkdtemp(join(tmpdir(), "goodfellow-codemod-"));
+  try {
+    const report = join(reports, "report");
+    try {
+      await options.codemod([...copies.values(), "--write", "--report", report], { cwd: app });
+    } catch (error) {
+      notes.push({
+        kind: "native",
+        text: `shadcn-tamagui-codemod didn't finish, so ${folder} has the site's code as it is: ${(error as Error).message}`,
+      });
+    }
+    const said = JSON.parse(await readFile(`${report}.json`, "utf8").catch(() => "{}")) as CodemodReport;
+    const todos = said.totals?.diagnostics?.todo ?? 0;
+    if (todos > 0) {
+      notes.push({
+        kind: "native",
+        text: `The codemod couldn't convert ${todos} ${todos === 1 ? "part" : "parts"} of the app's version: look for // TODO(native) in ${[...copies.values()].join(", ")}.`,
+      });
+    }
+    if (said.icons?.command) {
+      notes.push({ kind: "native", text: `The app's version needs its icons made, in the app: ${said.icons.command}` });
+    }
+  } finally {
+    await rm(reports, { recursive: true, force: true });
+  }
+
+  // The component, from its copy in the block's folder, or from where the app has the site's component.
+  const own = copies.get(main);
+  const from = own?.startsWith(`${folder}/`)
+    ? `./${basename(own).replace(/\.[jt]sx?$/, "")}`
+    : `@/${main.replace(/\.[jt]sx?$/, "")}`;
+  await writeFile(join(app, entry), componentNativeBlockSource(info, from));
+  const names = (await readdir(join(app, NATIVE_BLOCKS_DIR), { withFileTypes: true }))
+    .filter((item) => item.isDirectory() && existsSync(join(app, NATIVE_BLOCKS_DIR, item.name, "block.tsx")))
+    .map((item) => item.name);
+  await writeFile(join(app, NATIVE_BLOCKS_DIR, "index.ts"), nativeBlocksIndex(names));
+  notes.push({
+    kind: "native",
+    text: `The app needs Tamagui for its version (withTamagui in metro.config.js, TamaguiProvider around the app), and installedNativeBlocks from ${NATIVE_BLOCKS_DIR}/index.ts given to <GoodfellowSite> beside nativeBlocks.`,
+  });
+  return {
+    notes,
+    written: { app, entry, files: [...new Set([entry, `${NATIVE_BLOCKS_DIR}/index.ts`, ...copies.values()])].sort() },
+  };
 }
 
 /** A registry's `registry.json`, as far as the command changes it. */
@@ -884,6 +1042,9 @@ export function formatShadcnBlock(result: ShadcnBlockResult): string {
       ? `Wrote the block ${result.name} into ${result.registry}.`
       : `Made the block ${result.name} (${result.title}) in ${result.entry}. Restart goodfellow dev to see it.`,
     result.fields.length > 0 ? `Its fields: ${result.fields.join(", ")}.` : "It has no fields.",
+    ...(result.native
+      ? [`Made its version for apps in ${join(result.native.app, result.native.entry)}, with shadcn-tamagui-codemod.`]
+      : []),
     ...result.notes.filter((note) => DONE.has(note.kind)).map((note) => note.text),
   ];
   const list = (title: string, notes: ShadcnNote[]) => {

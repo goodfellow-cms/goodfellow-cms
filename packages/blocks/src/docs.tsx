@@ -1,13 +1,9 @@
-import { type Collection, type Entry, entryTitle, markdownHeadings } from "@goodfellow-cms/core";
+import { type Collection, entryTitle, markdownHeadings } from "@goodfellow-cms/core";
 import { classNameField, SiteLink, templateOnly, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Fields } from "@puckeditor/core";
+import { chosenCollection, navGroups } from "./docs-data.js";
 import { options } from "./options.js";
 import { COLLECTION_NAV_PARTS, ENTRY_PAGER_PARTS, ON_THIS_PAGE_PARTS } from "./parts.js";
-
-/** The collection a block is about: the one it names, or else the entry's own. */
-function chosenCollection(id: string, collections: Collection[], own: Collection | undefined): Collection | undefined {
-  return id ? collections.find((collection) => collection.id === id) : own;
-}
 
 function collectionChoices(collections: Collection[] | undefined) {
   return [
@@ -28,22 +24,6 @@ export interface CollectionNavProps {
   groupBy: string;
   heading: string;
   className: string;
-}
-
-/** Entries in the collection's order, grouped by a choice field in the order of its choices, then the ungrouped. */
-function navGroups(collection: Collection, groupBy: string): Array<{ label: string; entries: Entry[] }> {
-  const field = collection.settings.fields.find(
-    (candidate) => candidate.name === groupBy && candidate.type === "select",
-  );
-  if (!field) return [{ label: "", entries: collection.entries }];
-  const groups = (field.options ?? []).map((option) => ({
-    label: option.label,
-    entries: collection.entries.filter((entry) => entry.content.fields[field.name] === option.value),
-  }));
-  const rest = collection.entries.filter(
-    (entry) => !field.options?.some((option) => option.value === entry.content.fields[field.name]),
-  );
-  return [...groups, { label: "", entries: rest }].filter((group) => group.entries.length > 0);
 }
 
 function CollectionNavView({ collection: id, groupBy, heading, className }: CollectionNavProps) {

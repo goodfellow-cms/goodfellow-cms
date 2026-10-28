@@ -11,6 +11,7 @@ export {
   type ApiLayoutFile,
   type ApiManifest,
   type ApiPageFile,
+  type ApiRedirect,
   type ApiRichText,
   type ApiSiteFile,
   apiPageFile,
