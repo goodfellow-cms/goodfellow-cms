@@ -2,7 +2,7 @@ import { type MenuItem, type PageTree, pageTree } from "@goodfellow-cms/core";
 import { NativeImage, NativeLink, OnColor, SiteText, TEXT, useNativeSite, useWide } from "@goodfellow-cms/expo";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { isCurrentLink, subpageLinks } from "./links.js";
+import { hasSubmenus, isCurrentLink, subpageLinks } from "./links.js";
 import type { MenuProps, PageListProps, SiteBrandProps } from "./navigation.js";
 
 function MenuLinks({
@@ -44,32 +44,52 @@ function MenuLinks({
 }
 
 /**
- * One of the site's menus. Down the screen, it's a list; across, it's a row
- * on wider screens and a button that opens the list on phones.
+ * One of the site's menus. Down the screen, it's a list; across, it's a row,
+ * or a button that opens the list where the website's menu has its menu
+ * button. A row can't open submenus, so a menu with them that never has the
+ * button on the website still gets it on phones here.
  */
-export function Menu({ menu, orientation, colors = "page", subpages = false }: MenuProps) {
+export function Menu({
+  menu,
+  orientation,
+  colors = "page",
+  subpages = false,
+  menuButton = "never",
+  buttonLabel,
+}: MenuProps) {
   const site = useNativeSite();
-  if (colors === "page") return <MenuShown menu={menu} orientation={orientation} subpages={subpages} />;
+  const shown = { menu, orientation, subpages, menuButton, buttonLabel };
+  if (colors === "page") return <MenuShown {...shown} />;
   // A bar of a theme color, its text in the color that goes on it.
   const background = site.theme.colors[colors];
   const foreground = site.theme.colors[colors === "primary" ? "primaryForeground" : "secondaryForeground"];
   return (
     <View style={{ backgroundColor: background }}>
       <OnColor foreground={foreground}>
-        <MenuShown menu={menu} orientation={orientation} subpages={subpages} />
+        <MenuShown {...shown} />
       </OnColor>
     </View>
   );
 }
 
-function MenuShown({ menu, orientation, subpages }: Pick<MenuProps, "menu" | "orientation" | "subpages">) {
+function MenuShown({
+  menu,
+  orientation,
+  subpages,
+  menuButton,
+  buttonLabel,
+}: Pick<MenuProps, "menu" | "orientation" | "subpages" | "menuButton" | "buttonLabel">) {
   const { menus, path, theme } = useNativeSite();
-  const wide = useWide("md");
+  const breakpoint = menuButton === "sm" || menuButton === "lg" ? menuButton : "md";
+  const wide = useWide(breakpoint);
   const [open, setOpen] = useState(false);
   const items = menus[menu] ?? [];
   if (items.length === 0) return null;
-  if (orientation === "vertical") return <MenuLinks items={items} path={path} subpages={subpages} />;
-  if (wide) {
+  const button =
+    menuButton === "always" ||
+    (!wide && (menuButton === "sm" || menuButton === "md" || menuButton === "lg" || hasSubmenus(items)));
+  if (!button && orientation === "vertical") return <MenuLinks items={items} path={path} subpages={subpages} />;
+  if (!button) {
     return (
       <View accessibilityRole="menubar" style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
         {items.map((item) => (
@@ -88,7 +108,7 @@ function MenuShown({ menu, orientation, subpages }: Pick<MenuProps, "menu" | "or
     <View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={menu}
+        accessibilityLabel={buttonLabel?.trim() || menu}
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(!open)}
         style={{ alignSelf: "flex-start", padding: 8, borderRadius: theme.radius }}

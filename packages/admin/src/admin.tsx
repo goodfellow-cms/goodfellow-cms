@@ -8,7 +8,8 @@ import {
   type GitHost,
   HEADER_FILE,
 } from "@goodfellow-cms/core";
-import { useMemo, useState } from "react";
+import { Menu as MenuIcon, Moon, Sun, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AdminProvider, type PreviewOptions, useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import { forgetAiKeys } from "./ai-settings.js";
@@ -40,7 +41,7 @@ import { SignInGate } from "./sign-in.js";
 import { SiteHistoryScreen } from "./site-history-screen.js";
 import { isPreviewAddress, SitePreview } from "./site-preview.js";
 import { defaultStrings, type StringKey, type Strings, StringsProvider, useStrings } from "./strings.js";
-import { setThemeChoice, type ThemeChoice, useApplyThemeChoice, useThemeChoice } from "./theme.js";
+import { setDarkMode, useApplyThemeChoice, useDarkMode } from "./theme.js";
 import { ThemesScreen } from "./themes-screen.js";
 import { Button, Dialog, ErrorMessage } from "./ui.js";
 import { UpdatesScreen } from "./updates-screen.js";
@@ -469,22 +470,68 @@ function AccountMenu() {
   );
 }
 
-/** Light, dark, or the computer's setting, remembered in this browser. */
-function ThemeMenu() {
+/**
+ * Dark mode on or off, remembered in this browser. A switch takes less room
+ * in the header than a list, which phones need for the menu button.
+ */
+function DarkModeSwitch() {
   const t = useStrings();
-  const choice = useThemeChoice();
+  const dark = useDarkMode();
   return (
-    <select
-      className="gfa-theme-menu"
-      aria-label={t("appearance.choice")}
-      value={choice}
-      onChange={(event) => setThemeChoice(event.target.value as ThemeChoice)}
+    <button
+      type="button"
+      role="switch"
+      className="gfa-dark-switch"
+      aria-checked={dark}
+      aria-label={t("appearance.darkMode")}
+      title={t("appearance.darkMode")}
+      onClick={() => setDarkMode(!dark)}
     >
-      <option value="system">{t("appearance.system")}</option>
-      <option value="light">{t("appearance.light")}</option>
-      <option value="dark">{t("appearance.dark")}</option>
-    </select>
+      <span className="gfa-dark-switch-thumb" aria-hidden="true">
+        {dark ? <Moon size={12} /> : <Sun size={12} />}
+      </span>
+    </button>
   );
+}
+
+/**
+ * The header's links, the site's address and the account, which narrow
+ * windows show under a menu button: closed again by choosing a link, pressing
+ * Escape or clicking elsewhere.
+ */
+function useTopbarMenu() {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const here = useRoute().segments.join("/");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another screen, such as after Back, closes it
+  useEffect(() => setOpen(false), [here]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      button.current?.focus();
+    };
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!panel.current?.contains(target) && !button.current?.contains(target)) setOpen(false);
+    };
+    // Choosing a link closes it, even the one to the screen already shown.
+    const onChoose = (event: MouseEvent) => {
+      if ((event.target as Element).closest("a")) setOpen(false);
+    };
+    const shown = panel.current;
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    shown?.addEventListener("click", onChoose);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+      shown?.removeEventListener("click", onChoose);
+    };
+  }, [open]);
+  return { open, setOpen, button, panel };
 }
 
 /** The part of the admin panel a file's Version history belongs to. */
@@ -498,6 +545,7 @@ function Shell() {
   const { state, siteUrl, contentOnly } = useAdmin();
   const owner = useCanChangeSettings();
   const { segments, params } = useRoute();
+  const menu = useTopbarMenu();
   const [section] = segments;
   const current =
     section === "versions"
@@ -514,36 +562,49 @@ function Shell() {
     <div className="gfa-app">
       <header className="gfa-topbar">
         <span className="gfa-brand">{state.status === "ready" ? state.content.settings.title : t("app.title")}</span>
-        <nav className="gfa-nav" aria-label={t("app.title")}>
-          <AppLink href="#/pages" aria-current={current === "pages" ? "page" : undefined}>
-            {t("nav.pages")}
-          </AppLink>
-          <AppLink href="#/collections" aria-current={current === "collections" ? "page" : undefined}>
-            {t("nav.collections")}
-          </AppLink>
-          <AppLink href="#/media" aria-current={current === "media" ? "page" : undefined}>
-            {t("nav.media")}
-          </AppLink>
-          <AppLink href="#/layout/header" aria-current={current === "layout" ? "page" : undefined}>
-            {t("nav.layout")}
-          </AppLink>
-          {owner && !contentOnly && (
-            <AppLink href="#/blocks" aria-current={current === "blocks" ? "page" : undefined}>
-              {t("nav.blocks")}
+        <div id="gfa-topbar-menu" className="gfa-topbar-menu" data-open={menu.open || undefined} ref={menu.panel}>
+          <nav className="gfa-nav" aria-label={t("app.title")}>
+            <AppLink href="#/pages" aria-current={current === "pages" ? "page" : undefined}>
+              {t("nav.pages")}
             </AppLink>
-          )}
-          {owner && (
-            <AppLink href="#/settings/general" aria-current={current === "settings" ? "page" : undefined}>
-              {t("nav.settings")}
+            <AppLink href="#/collections" aria-current={current === "collections" ? "page" : undefined}>
+              {t("nav.collections")}
             </AppLink>
-          )}
-        </nav>
+            <AppLink href="#/media" aria-current={current === "media" ? "page" : undefined}>
+              {t("nav.media")}
+            </AppLink>
+            <AppLink href="#/layout/header" aria-current={current === "layout" ? "page" : undefined}>
+              {t("nav.layout")}
+            </AppLink>
+            {owner && !contentOnly && (
+              <AppLink href="#/blocks" aria-current={current === "blocks" ? "page" : undefined}>
+                {t("nav.blocks")}
+              </AppLink>
+            )}
+            {owner && (
+              <AppLink href="#/settings/general" aria-current={current === "settings" ? "page" : undefined}>
+                {t("nav.settings")}
+              </AppLink>
+            )}
+          </nav>
+          <a className="gfa-topbar-link" href={siteUrl} target="_blank" rel="noreferrer">
+            {t("app.viewSite")}
+          </a>
+          <AccountMenu />
+        </div>
         <DeployIndicator />
-        <a className="gfa-topbar-link" href={siteUrl} target="_blank" rel="noreferrer">
-          {t("app.viewSite")}
-        </a>
-        <ThemeMenu />
-        <AccountMenu />
+        <DarkModeSwitch />
+        <button
+          type="button"
+          ref={menu.button}
+          className="gfa-menu-button"
+          aria-expanded={menu.open}
+          aria-controls="gfa-topbar-menu"
+          aria-label={t("nav.menu")}
+          onClick={() => menu.setOpen(!menu.open)}
+        >
+          {menu.open ? <X size={20} aria-hidden="true" /> : <MenuIcon size={20} aria-hidden="true" />}
+        </button>
       </header>
       <DemoBanner />
       <DraftBanner />

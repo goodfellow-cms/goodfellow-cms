@@ -32,7 +32,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Form | A form whose answers a form service emails to you, or a Google form (see [Forms](/docs/forms)) |
 | Code | Code with syntax highlighting, an optional title and a copy button |
 | Contact details | The address, phone number and email address from Site Settings |
-| Menu | One of the site's menus, with dropdowns for submenus. **Colors** puts it in a bar of the theme's primary or secondary color, its dropdowns see-through in the same color, and **Show the pages under each submenu link** opens a submenu link's own pages as a third level, so a section's pages need no menu entries of their own |
+| Menu | One of the site's menus, with dropdowns for submenus. **Colors** puts it in a bar of the theme's primary or secondary color, its dropdowns see-through in the same color, **Show the pages under each submenu link** opens a submenu link's own pages as a third level, so a section's pages need no menu entries of their own, and **Show the links behind a menu button (☰)** puts every link, every level of them, under a menu button on phones, on phones and small tablets, on phones and tablets, always or never (see [Menus on phones](#menus-on-phones)) |
 | Site name and logo | The site's logo and name, linking home, with the site's description under the name if you like |
 | Search | A search box for the whole site, with results as you type |
 | Dark mode switch | Lets visitors choose light or dark colors, on sites with dark mode |
@@ -73,12 +73,24 @@ A Section with a background picture can be a cover, like WordPress's Cover block
 
 The Code block highlights code when the site is built, so visitors' browsers don't have to. It knows Bash, CSS, diffs, HTML, JavaScript, JSON, JSX, Markdown, Python, TSX, TypeScript and YAML, in colors like the page's (light, or dark when the site's [dark mode](/docs/layout-and-settings#dark-mode) shows it dark), or always light or dark. Which colors those are is a site setting, [Code colors](/docs/layout-and-settings#code-colors). The copy button's label is the block's to set, so sites in other languages can translate it; leave it empty for no button.
 
+## Menus on phones
+
+A menu across the page opens its submenus when the pointer is over them, which phones and tablets don't have, and a long menu runs onto several lines on a narrow screen. **Show the links behind a menu button (☰)** shows a button there instead, which opens every link in a panel, each submenu's links indented under it, with the pages under them where **Show the pages under each submenu link** is on:
+
+- **On phones:** screens narrower than 640 pixels.
+- **On phones and small tablets:** narrower than 768 pixels, which suits most headers.
+- **On phones and tablets:** narrower than 1024 pixels, for a long menu.
+- **Always**, at every width.
+- **Never**, for menus that fit on a phone as they are, such as a footer's menu down the page.
+
+A menu across the page that has submenus and never shows the button says so in the editor, since its submenus' links can't be reached on phones. **Menu button's name, for screen readers** is what screen readers call the button; translate it on a site in [several languages](/docs/languages). The button needs no JavaScript, so it works for visitors without it too. In apps made with [Expo](/docs/apps) the menu follows the same choice, except that a menu with submenus has the button on phones whatever it's set to, since an app can't open them otherwise.
+
 ## Dark mode switch
 
 On a site with [dark mode](/docs/layout-and-settings#dark-mode), the Dark mode switch lets visitors choose light or dark colors instead of following their computer's setting. **Show as** chooses:
 
 - **A switch between light and dark**, with a sun or a moon on it, and the words **Light** and **Dark** beside it if **Words beside the switch** is **Show**.
-- **A menu**, like the admin panel's: **Light**, **Dark** or **Follow my computer**, which goes back to following the computer's setting.
+- **A menu:** **Light**, **Dark** or **Follow my computer**, which goes back to following the computer's setting.
 
 The visitor's choice is kept in their browser and put back at the start of every page, before it shows, so pages never flash the other colors first. Every word is the block's to set, so sites in other languages can translate them. On a site without dark mode, the switch isn't shown, and the editor says where to turn dark mode on.
 
@@ -114,7 +126,7 @@ Every part of a built-in block has a name, which is on the part as a class, and 
 - **Image:** `gf-image` (Image and caption), `gf-image-picture` (Picture), `gf-image-caption` (Caption).
 - **Language switch:** `gf-language-switch` (Language switch), `gf-language-list` (Languages), `gf-language-link` (Language), `gf-language-current` (Current language).
 - **Media and text:** `gf-media-text` (Media and text), `gf-media-text-media` (Picture), `gf-media-text-content` (Text beside it).
-- **Menu:** `gf-menu` (Menu), `gf-menu-list` (Menu's links), `gf-menu-item` (Menu item), `gf-menu-link` (Menu link), `gf-menu-submenu` (Submenu).
+- **Menu:** `gf-menu` (Menu), `gf-menu-list` (Menu's links), `gf-menu-item` (Menu item), `gf-menu-link` (Menu link), `gf-menu-submenu` (Submenu), `gf-menu-toggle` (Menu button and its links), `gf-menu-button` (Menu button), `gf-menu-panel` (Links under the menu button).
 - **On this page:** `gf-on-this-page` (On this page), `gf-on-this-page-heading` (Heading), `gf-on-this-page-links` (Links), `gf-on-this-page-link` (Link).
 - **Page list:** `gf-page-list` (Page list), `gf-page-list-item` (Page), `gf-page-list-link` (Page's link), `gf-page-list-children` (Pages under it).
 - **Preformatted text:** `gf-preformatted` (Preformatted text).

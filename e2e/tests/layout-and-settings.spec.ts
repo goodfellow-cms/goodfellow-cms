@@ -291,8 +291,10 @@ test("shows the admin panel light or dark, following the computer unless an edit
   await page.goto("/admin#/pages");
   await expect.poll(background).toBe("rgb(248, 250, 252)");
 
-  const menu = page.getByRole("combobox", { name: "Colors of the admin panel" });
-  await menu.selectOption({ label: "Dark" });
+  const dark = page.getByRole("switch", { name: "Dark mode" });
+  await expect(dark).not.toBeChecked();
+  await dark.click();
+  await expect(dark).toBeChecked();
   await expect.poll(background).toBe("rgb(11, 17, 32)");
   // Puck's own colors follow.
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/about")}`);
@@ -300,15 +302,50 @@ test("shows the admin panel light or dark, following the computer unless an edit
   const sidebar = editor(page).locator('[class*="_Sidebar--right_"]');
   await expect.poll(() => sidebar.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(17, 24, 39)");
 
-  // Remembered in this browser.
+  // Remembered in this browser, whatever the computer says.
   await page.reload();
-  await expect(menu).toHaveValue("dark");
+  await expect(dark).toBeChecked();
   await expect.poll(background).toBe("rgb(11, 17, 32)");
 
-  await menu.selectOption({ label: "Match my computer" });
+  // Turning it off, which is what the computer shows, follows the computer again.
+  await dark.click();
   await expect.poll(background).toBe("rgb(248, 250, 252)");
   await page.emulateMedia({ colorScheme: "dark" });
   await expect.poll(background).toBe("rgb(11, 17, 32)");
+  await expect(dark).toBeChecked();
+});
+
+test("puts the header's links under a menu button in narrow windows", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("/admin#/pages");
+  await expect(page.getByRole("heading", { name: "Pages", level: 1 })).toBeVisible();
+  const header = page.locator(".gfa-topbar");
+  const button = header.getByRole("button", { name: "Menu" });
+  const media = header.getByRole("link", { name: "Media" });
+  await expect(button).toHaveAttribute("aria-expanded", "false");
+  await expect(media).toBeHidden();
+
+  await button.click();
+  await expect(button).toHaveAttribute("aria-expanded", "true");
+  await expect(media).toBeVisible();
+  // Every link is wide enough to read and tap.
+  expect((await media.boundingBox())?.width).toBeGreaterThan(200);
+  await expect(header.getByRole("link", { name: "View site" })).toBeVisible();
+  await media.click();
+  await expect(page.getByRole("heading", { name: "Media", level: 1 })).toBeVisible();
+  await expect(media).toBeHidden();
+
+  // Escape closes it too, and gives the button its focus back.
+  await button.click();
+  await expect(media).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(media).toBeHidden();
+  await expect(button).toBeFocused();
+
+  // Wide windows show the links in the header, with no button.
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await expect(button).toBeHidden();
+  await expect(media).toBeVisible();
 });
 
 test("shows the site's icon in the admin panel's tab, and a new one once it's published", async ({ page }) => {
