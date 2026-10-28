@@ -60,6 +60,57 @@
       "meta": { "goodfellow": { "category": "Page sections", "recommended": true } }
     },
     {
+      "name": "feed-list",
+      "type": "registry:block",
+      "title": "News feed",
+      "description": "The latest items of another site's RSS or Atom feed, read when the site is built: titles linking to them, with optional dates.",
+      "files": [{ "path": "site/blocks/installed/feed-list/block.tsx", "type": "registry:block" }],
+      "meta": { "goodfellow": { "category": "Page sections" } }
+    },
+    {
+      "name": "map",
+      "type": "registry:block",
+      "title": "Map",
+      "description": "A Google map of an address or place, or one from Google Maps' embed code. No API key needed.",
+      "files": [{ "path": "site/blocks/installed/map/block.tsx", "type": "registry:block" }],
+      "meta": { "goodfellow": { "category": "Page sections" } }
+    },
+    {
+      "name": "social-links",
+      "type": "registry:block",
+      "title": "Social links",
+      "description": "Links to social networks, each shown as the network's mark in the text's color.",
+      "files": [{ "path": "site/blocks/installed/social-links/block.tsx", "type": "registry:block" }],
+      "meta": { "goodfellow": { "category": "Page sections" } }
+    },
+    {
+      "name": "panel",
+      "type": "registry:block",
+      "title": "Panel",
+      "description": "A box with its title in a colored bar, other blocks inside it, and an optional button at its foot.",
+      "files": [{ "path": "site/blocks/installed/panel/block.tsx", "type": "registry:block" }],
+      "meta": { "goodfellow": { "category": "Page sections" } }
+    },
+    {
+      "name": "slideshow-hero",
+      "type": "registry:block",
+      "title": "Slideshow with quick links",
+      "description": "Full-width pictures that fade from one to the next, with a badge and a column of quick links over them.",
+      "files": [
+        { "path": "site/blocks/installed/slideshow-hero/block.tsx", "type": "registry:block" },
+        { "path": "site/blocks/installed/slideshow-hero/slideshow-pictures.tsx", "type": "registry:component" }
+      ],
+      "meta": { "goodfellow": { "category": "Interactive" } }
+    },
+    {
+      "name": "section-links",
+      "type": "registry:block",
+      "title": "Content with section links",
+      "description": "A page's blocks with a sidebar of links to the other pages in its part of the menu.",
+      "files": [{ "path": "site/blocks/installed/section-links/block.tsx", "type": "registry:block" }],
+      "meta": { "goodfellow": { "category": "Navigation" } }
+    },
+    {
       "name": "custom-html",
       "type": "registry:block",
       "title": "Custom HTML",
