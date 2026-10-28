@@ -43,6 +43,7 @@ import {
   type PluginPageRequests,
 } from "./frame/plugin-protocol.js";
 import { MEDIA_URL_PREFIX } from "./media.js";
+import { pluginServerAddress } from "./plugin-server.js";
 import type { ThemeChoice } from "./theme.js";
 
 /** What plugins' frames may ask for, which the admin panel gives each only within what it declared. */
@@ -176,9 +177,8 @@ function pluginHandlers(
       const base = host().server;
       if (!plugin.server || !base) throw new RefusedError(`${plugin.title} has no server here.`);
       const path = params?.path;
-      if (typeof path !== "string" || path.includes("..") || /^[a-z]+:/i.test(path)) {
-        throw new RefusedError("That isn't one of the plugin's addresses.");
-      }
+      const address = typeof path === "string" ? pluginServerAddress(base, plugin.id, path) : undefined;
+      if (!address) throw new RefusedError("That isn't one of the plugin's addresses.");
       const method = typeof params.method === "string" ? params.method.toUpperCase() : "GET";
       const headers = Object.fromEntries(
         Object.entries(params.headers ?? {}).filter(
@@ -186,16 +186,13 @@ function pluginHandlers(
             typeof value === "string" && /^(content-type|accept|x-goodfellow-plugin-[\w-]+)$/i.test(name),
         ),
       );
-      const response = await fetch(
-        `${base.replace(/\/+$/, "")}/${encodeURIComponent(plugin.id)}/${path.replace(/^\/+/, "")}`,
-        {
-          method,
-          headers: { ...headers, [APP_API_HEADER]: "1" },
-          ...(typeof params.body === "string" && method !== "GET" && method !== "HEAD" && { body: params.body }),
-          credentials: "same-origin",
-          cache: "no-store",
-        },
-      );
+      const response = await fetch(address, {
+        method,
+        headers: { ...headers, [APP_API_HEADER]: "1" },
+        ...(typeof params.body === "string" && method !== "GET" && method !== "HEAD" && { body: params.body }),
+        credentials: "same-origin",
+        cache: "no-store",
+      });
       return { status: response.status, body: await response.text() };
     },
     navigate: (href) => {
