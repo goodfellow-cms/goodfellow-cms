@@ -52,6 +52,22 @@ test("moves between pages with next/link, keeping the header and marking the cur
   await expect(menu.getByRole("link", { name: "Home" })).not.toHaveAttribute("data-current", "");
 });
 
+test("puts the header's menu under a button on phones, closed again after moving to another page", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto(`${SITE}/`);
+  const button = page.locator("header summary.gf-menu-button");
+  const news = page.locator("header .gf-menu-panel").getByRole("link", { name: "News" });
+  // The links across the header give way to the button.
+  await expect(page.locator("header ul.gf-menu-list").last()).toBeHidden();
+  await expect(news).toBeHidden();
+  await button.click();
+  await news.click();
+  await expect(page.getByRole("heading", { name: "News", level: 1 })).toBeVisible();
+  // The layout keeps the header, so the panel would stay open without CurrentMenuLinks.
+  await expect(news).toBeHidden();
+  await expect(page.locator("header details.gf-menu-toggle")).not.toHaveAttribute("open", "");
+});
+
 test("shows the site's own page for addresses that don't exist", async ({ page }) => {
   const response = await page.goto(`${SITE}/no-such-page/`);
   expect(response?.status()).toBe(404);

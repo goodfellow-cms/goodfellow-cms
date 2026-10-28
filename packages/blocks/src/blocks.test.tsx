@@ -196,6 +196,59 @@ describe("built-in blocks", () => {
     }
   });
 
+  it("shows every level behind a menu button below the breakpoint chosen, and the links above it", async () => {
+    const saved = content.pages;
+    const page = (path: string, title: string) =>
+      ({ path, file: "", content: { version: 1, data: { root: { props: { title } }, content: [] } } }) as Page;
+    content.pages = [page("/about/staff", "Staff"), page("/about/staff/pastor", "Our pastor")];
+    try {
+      const props = { id: "m", menu: "main", orientation: "horizontal", subpages: true, className: "" };
+      const plain = await render([{ type: "Menu", props }]);
+      expect(plain).not.toContain("<details");
+
+      const html = await render([{ type: "Menu", props: { ...props, menuButton: "md", buttonLabel: "Site menu" } }]);
+      expect(html).toMatch(/<details class="gf-menu-toggle group\/menu relative md:hidden">/);
+      expect(html).toContain('<span class="sr-only">Site menu</span>');
+      // The panel lists the submenu's link and the page under it, which a tap couldn't open.
+      const panel = html.slice(html.indexOf("gf-menu-panel"), html.indexOf("</details>"));
+      expect(panel).toContain(">About</a>");
+      expect(panel).toMatch(/href="\/about\/staff" class="[^"]*" data-current="" aria-current="page">Staff/);
+      expect(panel).toContain(">Our pastor</a>");
+      expect(html).toMatch(/<ul class="gf-menu-list [^"]*max-md:hidden">/);
+
+      const always = await render([{ type: "Menu", props: { ...props, menuButton: "always" } }]);
+      expect(always).toMatch(/<details class="gf-menu-toggle group\/menu relative">/);
+      expect(always).toContain('<span class="sr-only">Menu</span>');
+      expect(always).not.toContain("max-md:hidden");
+      expect(always.match(/class="gf-menu-list/g)).toHaveLength(1);
+    } finally {
+      content.pages = saved;
+    }
+  });
+
+  it("tells editors when phones can't reach a menu's submenus", () => {
+    const settings = siteSettingsSchema.parse({ version: 1, title: "Test" });
+    const shown = (props: Record<string, unknown>, isEditing = true) =>
+      renderToStaticMarkup(
+        <SiteProvider value={{ settings, menus: content.menus, path: "/", collections: [] }}>
+          {blocks.Menu.render({
+            id: "m",
+            menu: "main",
+            orientation: "horizontal",
+            className: "",
+            ...props,
+            puck: { isEditing, renderDropZone: () => null, dragRef: null, metadata: {} },
+            editMode: false,
+          } as never)}
+        </SiteProvider>,
+      );
+    expect(shown({ menuButton: "never" })).toContain("Choose when to show the menu button");
+    expect(shown({})).toContain("Choose when to show the menu button");
+    expect(shown({ menuButton: "never" }, false)).not.toContain("Choose when");
+    expect(shown({ menuButton: "md" })).not.toContain("Choose when");
+    expect(shown({ menuButton: "never", orientation: "vertical" })).not.toContain("Choose when");
+  });
+
   it("renders nothing for a menu that doesn't exist", async () => {
     const html = await render([
       { type: "Menu", props: { id: "m", menu: "missing", orientation: "horizontal", className: "" } },

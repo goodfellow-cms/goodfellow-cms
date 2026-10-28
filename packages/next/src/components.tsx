@@ -30,7 +30,8 @@ function trimSlash(path: string): string {
  * Marks the current page's links in the site's menus (`data-current`, and
  * `aria-current` for the page itself), as Menu does when it knows the page. The
  * layout's header and footer are shared by every page, so they can't know it;
- * this runs in the browser after every navigation instead.
+ * this runs in the browser after every navigation instead, and closes a menu
+ * button's links, which would otherwise stay open on the new page.
  */
 export function CurrentMenuLinks({ basePath = "" }: { basePath?: string }) {
   const pathname = usePathname();
@@ -46,6 +47,10 @@ export function CurrentMenuLinks({ basePath = "" }: { basePath?: string }) {
       link.toggleAttribute("data-current", exact || (local && target !== home && here.startsWith(`${target}/`)));
       if (exact) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
+    }
+    // A menu button's links stay open in the shared header otherwise.
+    for (const panel of document.querySelectorAll<HTMLDetailsElement>("[data-gf-menu] details[open]")) {
+      panel.open = false;
     }
   }, [pathname, basePath]);
   return null;

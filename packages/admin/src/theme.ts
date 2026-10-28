@@ -51,6 +51,16 @@ function subscribe(listener: () => void) {
   };
 }
 
+/**
+ * Makes the admin panel dark or light, as its dark mode switch does. Choosing
+ * what the computer's setting already gives follows that setting again, so
+ * the admin panel changes with the computer, as it did before anyone chose.
+ */
+export function setDarkMode(dark: boolean) {
+  const computer = matchMedia("(prefers-color-scheme: dark)").matches;
+  setThemeChoice(dark === computer ? "system" : dark ? "dark" : "light");
+}
+
 /** The choice, kept in this browser. */
 export function useThemeChoice(): ThemeChoice {
   return useSyncExternalStore(subscribe, choice, () => "system" as const);

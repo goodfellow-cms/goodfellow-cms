@@ -20,6 +20,24 @@ test("lists the site's pages", async ({ page }) => {
   }
 });
 
+test("shows the header's links under a menu button on phones, and across the header on wider screens", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("/");
+  const button = page.locator("header summary.gf-menu-button");
+  const panel = page.locator("header .gf-menu-panel");
+  await expect(panel).toBeHidden();
+  await button.click();
+  await expect(panel.getByRole("link", { name: "About" })).toBeVisible();
+  await panel.getByRole("link", { name: "About" }).click();
+  await expect(page.getByRole("heading", { name: "About us", level: 1 })).toBeVisible();
+
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await expect(page.locator("header summary.gf-menu-button")).toBeHidden();
+  await expect(page.locator("header ul.gf-menu-list").last().getByRole("link", { name: "News" })).toBeVisible();
+});
+
 test("edits and publishes a page", async ({ page, request }) => {
   await openPageEditor(page, "/about", "About us");
   await canvas(page).getByRole("heading", { name: "About us" }).click();

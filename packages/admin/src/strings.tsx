@@ -14,6 +14,7 @@ export const defaultStrings = {
   "nav.blocks": "Blocks",
   "nav.layout": "Header & Footer",
   "nav.settings": "Site Settings",
+  "nav.menu": "Menu",
 
   loading: "Loading…",
 
@@ -802,10 +803,7 @@ export const defaultStrings = {
   "ai.error.service": "{service} reported a problem. Try again in a moment.",
 
   "settings.title": "Site Settings",
-  "appearance.choice": "Colors of the admin panel",
-  "appearance.system": "Match my computer",
-  "appearance.light": "Light",
-  "appearance.dark": "Dark",
+  "appearance.darkMode": "Dark mode",
   "settings.tab.general": "General",
   "settings.tab.languages": "Languages",
   "settings.tab.theme": "Colors & fonts",

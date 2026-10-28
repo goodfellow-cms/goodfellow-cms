@@ -31,8 +31,10 @@
                     "type": "Menu",
                     "props": {
                       "id": "Menu-main",
+                      "buttonLabel": "Menu",
                       "className": "",
                       "menu": "main",
+                      "menuButton": "md",
                       "orientation": "horizontal"
                     }
                   },

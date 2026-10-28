@@ -54,6 +54,9 @@ export const MENU_PARTS: BlockParts = {
   "gf-menu-item": "Menu item",
   "gf-menu-link": "Menu link",
   "gf-menu-submenu": "Submenu",
+  "gf-menu-toggle": "Menu button and its links",
+  "gf-menu-button": "Menu button",
+  "gf-menu-panel": "Links under the menu button",
 };
 
 export const SITE_BRAND_PARTS: BlockParts = {
