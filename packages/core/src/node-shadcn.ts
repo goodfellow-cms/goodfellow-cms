@@ -335,37 +335,37 @@ class ComponentReader {
     private readonly root: string,
   ) {
     this.configFile = this.path("tsconfig.json");
-    this.api = new ts.sync.API({ cwd: root });
-    const snapshot = this.api.updateSnapshot({ openProjects: [this.configFile] });
-    this.use(snapshot);
+    this.api = this.start();
   }
 
-  /** Reads the site again once files are written: TypeScript sees new files only when told they were made. */
-  refresh(created: readonly string[] = [], deleted: readonly string[] = []): void {
-    const absolute = (files: readonly string[]) => files.map((file) => this.path(file));
-    this.use(
-      this.api.updateSnapshot({
-        openProjects: [this.configFile],
-        fileChanges: { created: absolute(created), deleted: absolute(deleted) },
-      }),
-    );
-  }
-
-  private use(snapshot: Sync.Snapshot): void {
+  /** TypeScript's server, with the site's project as the disk has it now. */
+  private start(): Sync.API {
+    const api = new this.ts.sync.API({ cwd: this.root });
+    const snapshot = api.updateSnapshot({ openProjects: [this.configFile] });
     const project = snapshot.getProject(this.configFile) ?? snapshot.getProjects()[0];
-    if (!project) throw new ShadcnBlockError({ code: "typescript" });
+    if (!project) {
+      api.close();
+      throw new ShadcnBlockError({ code: "typescript" });
+    }
     this.project = project;
+    return api;
+  }
+
+  /**
+   * Reads the site again once files are written, with a new server: one told
+   * which files were made didn't take them in on Windows, and one told to read
+   * everything again only reads the files it had.
+   */
+  refresh(): void {
+    this.api.close();
+    this.api = this.start();
   }
 
   close(): void {
     this.api.close();
   }
 
-  /**
-   * A file in the site by its full path, with forward slashes: TypeScript's
-   * server names files that way on Windows too, and doesn't find new files by
-   * paths with backslashes.
-   */
+  /** A file in the site by its full path, with forward slashes, as TypeScript names files on Windows too. */
   private path(file: string): string {
     return join(this.root, file).replaceAll("\\", "/");
   }
@@ -722,7 +722,7 @@ export async function addShadcnBlock(options: AddShadcnBlockOptions): Promise<Sh
         await mkdir(join(root, dirname(file)), { recursive: true });
         await writeFile(join(root, file), `"use client";\n\n${code.replace(/^\s*["']use client["'];?\s*/, "")}`);
         await rm(join(root, example), { force: true });
-        reader.refresh([file]);
+        reader.refresh();
         components = reader.components(file);
         ownCode = [...ownCode, file];
         section = false;
@@ -817,7 +817,7 @@ export async function addShadcnBlock(options: AddShadcnBlockOptions): Promise<Sh
     await write(notes);
 
     // It must typecheck and render before it's any use.
-    reader.refresh([entry]);
+    reader.refresh();
     for (const problem of reader.problems(entry)) notes.push({ kind: "typecheck", text: `${entry}: ${problem}` });
     if (options.render) {
       try {
