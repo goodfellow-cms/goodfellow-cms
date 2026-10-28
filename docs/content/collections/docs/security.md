@@ -41,7 +41,7 @@ On Bitbucket, whose sites Vercel hosts, the same two: an admin address, which Ve
 
 On GitHub, one repository, with the [sign-in service](/docs/sign-in-service) and a [token broker](/docs/token-broker):
 
-- **The sign-in service** gives the admin panel tokens for the site's repository alone, for an hour, with only the permissions it needs, and revokes the editor's own GitHub token as soon as it knows who they are. It's a Cloudflare Worker you run yourself; without it, fine-grained tokens limited to the site's repository are almost as narrow, but editors make and renew them themselves.
+- **The sign-in service** gives the admin panel tokens for the site's repository alone, for an hour, with only the permissions it needs, and revokes the editor's own GitHub token as soon as it knows who they are. It's a Cloudflare Worker you run yourself; without it, fine-grained tokens limited to the site's repository are almost as narrow, but editors make and renew them themselves. List the site's addresses in the service's `ALLOWED_ORIGINS` setting (the Site address, and its admin address and token broker if it has them): otherwise the service gives tokens to whatever addresses the site's own files name, which any editor can change, so an editor could send an owner's sign-in to an address of their own.
 - **The token broker** keeps those tokens away from the admin panel, and asks before anything but content is published. On GitHub Pages, it needs a domain of its own, such as `signin.example.org`.
 
 ### Most secure
