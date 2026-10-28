@@ -83,10 +83,7 @@ function makePage(content: unknown[], rootProps: Record<string, unknown> = {}, p
 
 const renderPage = createPageRenderer(config);
 
-/** The first page rendered loads React's and Puck's renderers, which can take seconds on Windows while many tests run at once. */
-const RENDER_TIMEOUT = 30_000;
-
-describe("renderPage", { timeout: RENDER_TIMEOUT }, () => {
+describe("renderPage", () => {
   it("renders a complete document with head tags and theme", async () => {
     const html = await renderPage(
       makeContent(),

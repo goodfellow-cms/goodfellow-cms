@@ -1,16 +1,20 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { defineConfig, mergeConfig } from "vitest/config";
+import shared from "../../vitest.shared.ts";
 
-export default defineConfig({
-  resolve: {
-    // The native blocks' tests draw React Native's parts in a browser's DOM with react-native-web.
-    alias: {
-      "react-native-webview": fileURLToPath(new URL("./test/webview.tsx", import.meta.url)),
-      "react-native": "react-native-web",
+export default mergeConfig(
+  shared,
+  defineConfig({
+    resolve: {
+      // The native blocks' tests draw React Native's parts in a browser's DOM with react-native-web.
+      alias: {
+        "react-native-webview": fileURLToPath(new URL("./test/webview.tsx", import.meta.url)),
+        "react-native": "react-native-web",
+      },
     },
-  },
-  test: {
-    // twrnc's modules import each other without file extensions, which only bundlers follow.
-    server: { deps: { inline: ["twrnc"] } },
-  },
-});
+    test: {
+      // twrnc's modules import each other without file extensions, which only bundlers follow.
+      server: { deps: { inline: ["twrnc"] } },
+    },
+  }),
+);
