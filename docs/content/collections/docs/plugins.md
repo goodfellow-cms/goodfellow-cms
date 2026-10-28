@@ -147,7 +147,7 @@ export default definePluginAdmin({
 - `read(paths)` and `readBytes(path)`: files the plugin declared, as the site is loaded.
 - `list(folder)`: the files the plugin declared under a folder, such as `public/media/`.
 - `publish(changes, message)`: changes to files the plugin declared, in one publish, after the same checks as any publish, answering whether it was published. A change is `{ path, text }`, `{ path, bytes }` or `{ path, delete: true }`.
-- `server(path, request)`: the plugin's server module on a full-stack site, signed in as the editor.
+- `server(path, request)`: the plugin's server module on a full-stack site, signed in as the editor. `path` is under the plugin's own address, so paths that would leave it (`..`, in any spelling) are refused.
 - `task(id, input)`: one of the plugin's [tasks](#tasks), run in the site's CI, answering with what it returned. It takes about a minute.
 - `secretsHelp()`: how the site's owner adds the secrets the plugin declared, for this site as it's set up, in the admin panel's words: on GitHub, the form for a new Actions secret and what to type in it; on GitLab, the CI/CD variables; on Bitbucket, the repository variables; in `goodfellow dev` and `next dev`, the lines of `.env.local`; on a full-stack site, the server's environment, then the CI. Show its steps as they are.
 - `openSecretsLink(url)`: opens one of the links `secretsHelp()` gave in a new tab, which the frame's sandbox can't do itself.

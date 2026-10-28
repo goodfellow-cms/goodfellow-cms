@@ -172,10 +172,17 @@ export function brokerChangeCheck(changes: readonly FileChange[], siteUrl: strin
     if (isWorkflowPath(path) || path.startsWith("/") || path.split("/").includes("..")) check.refused.push(path);
     else if (path.startsWith(`${CONTENT_DIR}/code/`)) check.confirm.push({ path, kind: "custom-code" });
     else if (!isContentPath(path)) check.confirm.push({ path, kind: "code" });
-    else if (path === `${CONTENT_DIR}/site.json` && "content" in change) {
+    else if (path === `${CONTENT_DIR}/site.json`) {
+      // Written as text or as bytes, which every backend publishes alike; deleting it takes the address away.
+      const text =
+        "content" in change
+          ? change.content
+          : "bytes" in change
+            ? new TextDecoder("utf-8", { fatal: false }).decode(change.bytes)
+            : undefined;
       let url: unknown;
       try {
-        url = (JSON.parse(change.content) as { url?: unknown }).url;
+        url = text === undefined ? undefined : (JSON.parse(text) as { url?: unknown }).url;
       } catch {
         url = undefined;
       }
