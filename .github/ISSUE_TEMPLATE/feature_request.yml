@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Check the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap) and the [open issues](https://github.com/goodfellow-cms/goodfellow-cms/issues) first: it may be planned already. If so, a comment there about how you'd use it helps.
+        Check the [documentation](https://goodfellow-cms.github.io/goodfellow-cms/) and the [open issues](https://github.com/goodfellow-cms/goodfellow-cms/issues) first: it may be there or planned already. If so, a comment there about how you'd use it helps.
   - type: textarea
     id: problem
     attributes:

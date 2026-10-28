@@ -36,7 +36,7 @@ Goodfellow started with small organizations, but nothing in it limits a site to 
 
 - **Sign-in kept away from the site's code.** Blocks and previews run in a sandbox that can't reach editors' sign-in, and an admin address or a [token broker](/docs/token-broker) keeps it away from the site's pages too. See [Security](/docs/security).
 
-Some of what larger teams ask for is still on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap): publishing several pages at once and submitting them for review from the admin panel, limiting what each editor may change, and plugins, which owners will install only on sites with an admin address or a token broker.
+Larger teams can publish several pages at once and submit them for review in a [draft](/docs/publishing#drafts), [limit what each editor may change](/docs/sign-in#limiting-what-editors-can-change), and add [plugins](/docs/plugins), which owners install only on sites with an admin address or a token broker.
 
 ## How Goodfellow compares
 
@@ -67,7 +67,7 @@ The other differences are about who it's for. Tina's content model, its collecti
 
 ## What Goodfellow can't do (yet)
 
-- **It's early.** Goodfellow is new, and some features, such as plugins and limiting what each editor may change, are still on the [roadmap](https://github.com/goodfellow-cms/goodfellow-cms#roadmap). Moving from WordPress, and back to it, [works already](/docs/move-from-wordpress).
+- **It's early.** Goodfellow is new, so it has fewer themes, plugins and ready-made blocks than older systems, and fewer people who know it. Moving from WordPress, and back to it, [works already](/docs/move-from-wordpress).
 - **Sites are static.** Shops, member logins and comments need a service of their own, or a developer who makes the site part of a [Next.js app with a server](/docs/full-stack-nextjs). Contact forms work through a form service; see [Forms](/docs/forms).
 - **Publishing takes a minute or two**, while the host rebuilds the site. The editor shows changes at once, but visitors see them after the rebuild.
 - **Editors need a GitHub, GitLab or Bitbucket account** with permission to change the site's repository, except on [full-stack Next.js sites](/docs/full-stack-nextjs), where they sign in with the app's own accounts.

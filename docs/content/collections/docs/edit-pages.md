@@ -25,7 +25,7 @@ Nothing changes on the live site until you **Publish**.
 
 ## Create, move and delete pages
 
-- **New page** asks for a title and suggests an address from it, such as `/mass-times` for "Mass Times". Addresses use lowercase letters, numbers and hyphens, and folders such as `/about/staff` are fine.
+- **New page** asks for a title and suggests an address from it, such as `/mass-times` for "Mass Times". Addresses use lowercase letters, numbers and hyphens, and folders such as `/about/staff` are fine. An address can't end in `/index` or be inside `/admin`: `/about/index` would be stored as the file of `/about` itself.
 - **Duplicate** makes a new page from a copy of one that's already there, with the same blocks and settings, so a page much like another needn't start from scratch. It suggests the title with "(copy)" after it, and an address beside the page it copies, which you can change. The copy is shown on the site at once, even if the page it copies is scheduled, and it isn't a translation of anything.
 - **Change address** moves a page. Every link to it on the site, in menus, buttons, text and items alike, changes to the new address in the same publish, and a [redirect](/docs/layout-and-settings#redirects) keeps the old address working for links from other websites.
 - **Delete** removes a page. The home page can't be deleted, and a page other pages or menus link to can't be deleted until those links are changed (see [Site checks](/docs/publishing#site-checks)).

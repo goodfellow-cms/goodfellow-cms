@@ -6,7 +6,7 @@ section: developers
 order: 4.5
 ---
 
-`goodfellow build` and `goodfellow-next finish` write the site's content as JSON files at `/api/`, beside its pages, so an app or another site can show it without a server. It's what visitors see, not the [content files](/docs/content-files) as they're stored:
+`goodfellow build` and `goodfellow-next finish` write the site's content as JSON files at `/api/`, beside its pages, so an app or another site can show it without a server. [`@goodfellow-cms/expo`](/docs/apps) makes an app for iPhone and Android of it. It's what visitors see, not the [content files](/docs/content-files) as they're stored:
 
 - Pages and items that aren't [scheduled](/docs/scheduling) to show yet are left out, as they are from the site.
 - Each page has its blocks as the page renders them: after every block's preparation (`resolveData`), with an item's values filled into its collection's template.

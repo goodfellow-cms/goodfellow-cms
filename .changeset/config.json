@@ -10,6 +10,7 @@
       "@goodfellow-cms/blocks",
       "@goodfellow-cms/broker",
       "@goodfellow-cms/core",
+      "@goodfellow-cms/expo",
       "@goodfellow-cms/github",
       "@goodfellow-cms/gitlab",
       "@goodfellow-cms/mcp",

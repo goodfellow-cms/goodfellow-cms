@@ -2,7 +2,13 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { parseInstalledRecord } from "@goodfellow-cms/core";
-import { blockWorks, formatShadcnBlock, ShadcnBlockError, type ShadcnRunner } from "@goodfellow-cms/core/shadcn";
+import {
+  blockWorks,
+  type CodemodRunner,
+  formatShadcnBlock,
+  ShadcnBlockError,
+  type ShadcnRunner,
+} from "@goodfellow-cms/core/shadcn";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { addBlock } from "./blocks.js";
 
@@ -168,6 +174,35 @@ function fakeShadcn(known: Record<string, FakeItem>, calls: string[][]): ShadcnR
   };
 }
 
+/**
+ * shadcn-tamagui-codemod as far as the command uses it: it converts the files
+ * it's given in place, as the codemod would, and writes its report.
+ */
+function fakeCodemod(calls: string[][]): CodemodRunner {
+  return async (args, { cwd }) => {
+    calls.push(args);
+    const report = args[args.indexOf("--report") + 1];
+    const files = args.filter((arg, index) => !arg.startsWith("--") && args[index - 1] !== "--report");
+    for (const file of files) {
+      const code = await readFile(join(cwd, file), "utf8");
+      await writeFile(
+        join(cwd, file),
+        `import { html } from "@tamagui/tailwind";\n${code.replace(/<(\/?)(section|h2|p|a|img)\b/g, "<$1html.$2")}`.replace(
+          "<html.img",
+          "{/* TODO(native): give the picture a size */}\n      <html.img",
+        ),
+      );
+    }
+    if (report) {
+      await writeFile(
+        `${report}.json`,
+        JSON.stringify({ totals: { diagnostics: { todo: 1, warning: 2, info: 0 } }, icons: { command: null } }),
+      );
+    }
+    return "";
+  };
+}
+
 async function makeSite(name: string): Promise<string> {
   const root = join(sites, name);
   await rm(root, { recursive: true, force: true });
@@ -320,6 +355,42 @@ describe("goodfellow blocks add", () => {
     );
     expect(result.notes.some((note) => note.kind === "typecheck")).toBe(true);
     expect(formatShadcnBlock(result)).toContain("It doesn't work yet:");
+  }, 60_000);
+
+  it("makes the block's version for an Expo app with shadcn-tamagui-codemod, leaving the site's as it is", async () => {
+    const site = await makeSite("blocks-native");
+    const app = join(sites, "app");
+    await rm(app, { recursive: true, force: true });
+    const codemodCalls: string[][] = [];
+    const result = await addBlock({
+      root: site,
+      item: "@parish/hero",
+      native: app,
+      shadcn: fakeShadcn(known, calls),
+      codemod: fakeCodemod(codemodCalls),
+    });
+    expect(blockWorks(result)).toBe(true);
+    expect(result.native).toEqual({
+      app,
+      entry: "goodfellow-blocks/hero/block.tsx",
+      files: ["goodfellow-blocks/hero/block.tsx", "goodfellow-blocks/hero/hero.tsx", "goodfellow-blocks/index.ts"],
+    });
+    expect(codemodCalls).toEqual([["goodfellow-blocks/hero/hero.tsx", "--write", "--report", expect.any(String)]]);
+    const converted = await readFile(join(app, "goodfellow-blocks/hero/hero.tsx"), "utf8");
+    expect(converted).toContain("<html.section");
+    // The site's own code and block are as they were.
+    expect(await readFile(join(site, "components/hero.tsx"), "utf8")).toBe(HERO);
+    expect(await readFile(join(site, "blocks/installed/hero/block.tsx"), "utf8")).not.toContain("html.");
+    const block = await readFile(join(app, "goodfellow-blocks/hero/block.tsx"), "utf8");
+    expect(block).toContain('import { Hero } from "./hero";');
+    expect(block).toContain(
+      "return <Hero heading={heading} description={description} link={link} image={image} tone={tone} />;",
+    );
+    expect(await readFile(join(app, "goodfellow-blocks/index.ts"), "utf8")).toContain('"hero": block0,');
+    const notes = result.notes.filter((note) => note.kind === "native").map((note) => note.text);
+    expect(notes).toContainEqual(expect.stringContaining("couldn't convert 1 part of the app's version"));
+    expect(notes).toContainEqual(expect.stringContaining("The app needs Tamagui"));
+    expect(formatShadcnBlock(result)).toContain("Made its version for apps in");
   }, 60_000);
 
   it("writes the block into a block registry instead, with the item's own code", async () => {

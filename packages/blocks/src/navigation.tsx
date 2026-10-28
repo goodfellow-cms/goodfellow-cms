@@ -1,6 +1,7 @@
 import { type PageTree, pageTree } from "@goodfellow-cms/core";
 import { classNameField, SiteImage, SiteLink, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
+import { isCurrentLink } from "./links.js";
 import { options, yesNo } from "./options.js";
 import { MENU_PARTS, PAGE_LIST_PARTS, SITE_BRAND_PARTS } from "./parts.js";
 
@@ -8,10 +9,6 @@ export interface MenuProps {
   menu: string;
   orientation: "horizontal" | "vertical";
   className: string;
-}
-
-function isCurrent(href: string, path: string): boolean {
-  return href === path || (href !== "/" && path.startsWith(`${href}/`));
 }
 
 /**
@@ -41,7 +38,7 @@ function MenuView({ menu, orientation, className }: MenuProps) {
             <SiteLink
               href={item.href}
               className={linkClass}
-              data-current={isCurrent(item.href, path) ? "" : undefined}
+              data-current={isCurrentLink(item.href, path) ? "" : undefined}
               aria-current={item.href === path ? "page" : undefined}
             >
               {item.label}
@@ -60,7 +57,7 @@ function MenuView({ menu, orientation, className }: MenuProps) {
                     <SiteLink
                       href={child.href}
                       className={linkClass}
-                      data-current={isCurrent(child.href, path) ? "" : undefined}
+                      data-current={isCurrentLink(child.href, path) ? "" : undefined}
                       aria-current={child.href === path ? "page" : undefined}
                     >
                       {child.label}

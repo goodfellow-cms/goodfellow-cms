@@ -6,6 +6,7 @@
  */
 
 import type { PageCredit } from "../content/credits.js";
+import type { LanguageLink } from "../content/language-map.js";
 import { contentInLanguage, languagePrefix, mainLanguage, siteLanguages } from "../content/languages.js";
 import type { Page, SiteContent } from "../content/load.js";
 import { markdownToHtml } from "../content/markdown.js";
@@ -62,6 +63,8 @@ export interface ApiPageFile {
   richText: ApiRichText;
   /** The credits of the photos the page shows, which their licenses ask for, as the page lists them. */
   credits?: PageCredit[];
+  /** On a site in several languages, the page in each: its translation, or the language's home page. */
+  languages?: LanguageLink[];
 }
 
 /** The header or footer in a language, as `/api/header.json` and `/api/footer.json` have it. */
@@ -138,6 +141,7 @@ export interface ContentApiPage {
   data: ApiData;
   head: PageHead;
   credits?: PageCredit[];
+  languages?: LanguageLink[];
 }
 
 /** What a renderer gives `contentApiFiles()`: the site as shown, its pages and layouts prepared. */
@@ -184,6 +188,11 @@ function isBlockList(value: unknown): value is Array<{ type: string; props: Reco
   );
 }
 
+/** A block's default props, without its slots' defaults, which a block saved before a slot existed shows empty. */
+function withoutSlots(defaults: Record<string, unknown>, fields: Fields): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(defaults).filter(([name]) => fields[name]?.type !== "slot"));
+}
+
 /** Reads prepared data for rich text and the blocks it uses, sanitizing rich text as pages do. */
 class DataReader {
   readonly richText: ApiRichText = {};
@@ -205,9 +214,12 @@ class DataReader {
     return blocks.map((block) => {
       if (!isRecord(block) || typeof block.type !== "string" || !isRecord(block.props)) return block;
       this.used.add(block.type);
-      const fields = (this.description.blocks[block.type]?.fields ?? {}) as Fields;
+      const described = this.description.blocks[block.type];
+      const fields = (described?.fields ?? {}) as Fields;
       const id = typeof block.props.id === "string" ? block.props.id : block.type;
-      return { ...block, props: this.props(block.props, fields, id) };
+      // Blocks saved before a setting existed don't have it, so they get the block's default, as its web code gives it.
+      const props = { ...withoutSlots(described?.defaultProps ?? {}, fields), ...block.props };
+      return { ...block, props: this.props(props, fields, id) };
     });
   }
 
@@ -321,6 +333,7 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
       data,
       richText: reader.richText,
       ...(prepared.credits && prepared.credits.length > 0 && { credits: prepared.credits }),
+      ...(prepared.languages && prepared.languages.length > 0 && { languages: prepared.languages }),
     };
     pages.push({
       path: page.path,

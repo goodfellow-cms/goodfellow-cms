@@ -285,3 +285,70 @@ export function componentBlockSource(info: ComponentInfo): string {
     "",
   ].join("\n");
 }
+
+/**
+ * A block's version for apps, `goodfellow-blocks/<name>/block.tsx` in an Expo
+ * app made with `@goodfellow-cms/expo`: the component as shadcn-tamagui-codemod
+ * converted it, given the same props as the site's block, which the content
+ * API gives it. `from` is where the app imports the converted component from.
+ */
+export function componentNativeBlockSource(info: ComponentInfo, from: string): string {
+  const props = info.props.map((prop) => prop.name);
+  const imported = info.isDefault ? info.component : `{ ${info.component} }`;
+  const own = props.map((name) => JSON.stringify(name)).join(" | ");
+  const type = [
+    ...(own ? [`Pick<ComponentProps<typeof ${info.component}>, ${own}>`] : []),
+    ...(info.children === "text" ? ["{ children: string }"] : []),
+    ...(info.children === "slot" ? ["{ children?: unknown }"] : []),
+  ].join(" & ");
+  const passed = props.map((name) => `${name}={${name}}`);
+  const open = `${info.component}${passed.length ? ` ${passed.join(" ")}` : ""}`;
+  const element =
+    info.children === "slot"
+      ? [`<${open}>`, "  <Blocks items={children} />", `</${info.component}>`]
+      : info.children === "text"
+        ? [`<${open}>{children}</${info.component}>`]
+        : [`<${open} />`];
+  const destructured = [...props, ...(info.children ? ["children"] : [])];
+  const notes = info.notes?.length ? ["//", "// Left to do by hand:", ...info.notes.map((note) => `// - ${note}`)] : [];
+  return [
+    ...(info.children === "slot" ? ['import { Blocks } from "@goodfellow-cms/expo";'] : []),
+    ...(own ? ['import type { ComponentProps } from "react";'] : []),
+    `import ${imported} from ${JSON.stringify(from)};`,
+    "",
+    `// ${info.title} for apps, made by \`goodfellow blocks add --native\` from ${info.component} as shadcn-tamagui-codemod`,
+    "// converted it. It takes the props the site's block has, as the content API gives them. Change it as you like:",
+    "// the command doesn't write it again.",
+    ...notes,
+    "",
+    ...(type ? [`type Props = ${type};`, ""] : []),
+    `export default function ${pascalName(info.name)}Block(${destructured.length ? `{ ${destructured.join(", ")} }: Props` : ""}) {`,
+    element.length === 1
+      ? `  return ${element[0]};`
+      : ["  return (", ...element.map((line) => `    ${line}`), "  );"].join("\n"),
+    "}",
+    "",
+  ].join("\n");
+}
+
+function pascalName(name: string): string {
+  return name
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join("")
+    .replace(/^(\d)/, "Block$1");
+}
+
+/** The app's `goodfellow-blocks/index.ts`: every block `goodfellow blocks add --native` made for it, by name. */
+export function nativeBlocksIndex(names: readonly string[]): string {
+  const sorted = [...names].sort();
+  return [
+    "// Written by `goodfellow blocks add --native`. Don't edit it by hand: it lists the folders beside it.",
+    'import type { NativeBlocks } from "@goodfellow-cms/expo";',
+    ...sorted.map((name, index) => `import block${index} from ${JSON.stringify(`./${name}/block`)};`),
+    "",
+    `export const installedNativeBlocks: NativeBlocks = {${sorted.length ? `\n${sorted.map((name, index) => `  ${JSON.stringify(name)}: block${index},`).join("\n")}\n` : ""}};`,
+    "",
+  ].join("\n");
+}

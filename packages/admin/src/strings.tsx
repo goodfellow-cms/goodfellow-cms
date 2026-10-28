@@ -327,7 +327,8 @@ export const defaultStrings = {
   "deletePage.message": 'Delete page "{title}"',
 
   "address.invalid": "Use lowercase letters, numbers and hyphens, with / between parts, such as /about-us.",
-  "address.reserved": "This address is used by the admin panel. Choose another.",
+  "address.reserved":
+    "This address can't be used: the admin panel uses it, or it ends in /index, which is the page above it. Choose another.",
   "address.taken": "Another page already uses this address.",
   "field.required": "This can't be empty.",
 
@@ -420,7 +421,8 @@ export const defaultStrings = {
   "newEntry.addressHint": "The last part of the page's address, as in {example}.",
   "newEntry.message": 'Add {entry} "{title}"',
   "entryName.invalid": "Use lowercase letters, numbers and hyphens only, such as easter-vigil.",
-  "entryName.reserved": "This address is used by the admin panel. Choose another.",
+  "entryName.reserved":
+    "This address can't be used: the admin panel uses it, or it ends in /index, which is the page above it. Choose another.",
   "entryName.taken": "Something else on the site already uses this address.",
 
   "moveEntry.message": 'Move {entry} "{title}" from {from} to {to}',

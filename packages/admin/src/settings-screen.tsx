@@ -257,6 +257,20 @@ function validate(draft: SiteSettings): { settings?: SiteSettings; errors: Recor
   return { errors: Object.fromEntries(result.error.issues.map((issue) => [issue.path.join("."), issue.message])) };
 }
 
+/**
+ * The loaded settings and redirects as the form would save them, serialized
+ * to compare with. Settings the form can't save as they are stay as loaded.
+ */
+function loadedForm(content: Pick<SiteContent, "settings" | "redirects">): {
+  settings: string;
+  redirects: string;
+} {
+  return {
+    settings: serializeContent(validate(content.settings).settings ?? content.settings),
+    redirects: serializeContent(storedRedirects(filledRedirects(content.redirects ?? []))),
+  };
+}
+
 /** The time zones this browser knows, such as `America/New_York`. */
 function timeZones(current: string): string[] {
   const known = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
@@ -734,13 +748,16 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
   const formsError = useMemo(() => formsProblem(t, settings.forms), [t, settings.forms]);
   // Rows left empty aren't saved.
   const savedRedirects = useMemo(() => storedRedirects(filledRedirects(redirects)), [redirects]);
+  // What's loaded, as the form would save it, so values it tidies (an empty
+  // address, a switch stored as off, a theme's or an import's spelling) aren't changes.
+  const loaded = useMemo(() => loadedForm(content), [content]);
   const redirectsInvalid = useMemo(() => redirectProblems(savedRedirects).some(Boolean), [savedRedirects]);
   // Addresses with pages, as builds have them, which win over redirects.
   const pages = useSitePages(content);
   const taken = useMemo(() => pages.map((page) => page.path), [pages]);
   const changes = useMemo(() => {
     const result: FileChange[] = [];
-    if (validation.settings && serializeContent(validation.settings) !== serializeContent(content.settings)) {
+    if (validation.settings && serializeContent(validation.settings) !== loaded.settings) {
       result.push(siteSettingsFileChange(validation.settings));
     }
     if (
@@ -750,7 +767,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
       result.push(menusFileChange({ menus, languageMenus }));
     }
     if (
-      serializeContent(savedRedirects) !== serializeContent(content.redirects ?? []) ||
+      serializeContent(savedRedirects) !== loaded.redirects ||
       redirectMessage.trim() !== (content.redirectMessage ?? "").trim()
     ) {
       result.push(redirectsFileChange({ redirects: savedRedirects, message: redirectMessage }));
@@ -758,7 +775,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     if (storedCss(css) !== storedCss(content.customCss)) result.push(customCssFileChange(css));
     result.push(...codeFileChanges(code, content.code));
     return result;
-  }, [validation, menus, languageMenus, savedRedirects, redirectMessage, css, code, content]);
+  }, [validation, loaded, menus, languageMenus, savedRedirects, redirectMessage, css, code, content]);
 
   const dirty = changes.length > 0 || !validation.settings;
   // "Published." goes after a few seconds, or as soon as anything changes.

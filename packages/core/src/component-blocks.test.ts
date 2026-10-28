@@ -4,6 +4,8 @@ import {
   choiceLabel,
   componentBlockSource,
   componentDefaults,
+  componentNativeBlockSource,
+  nativeBlocksIndex,
   propLabel,
 } from "./component-blocks.js";
 
@@ -136,5 +138,39 @@ describe("componentBlockSource", () => {
     expect(source).toContain(
       '<Panel className={part("gf-panel", undefined, className)}>\n          <Children />\n        </Panel>',
     );
+  });
+});
+
+describe("native blocks", () => {
+  it("gives the converted component the site's block's props, with its words as its children", () => {
+    const source = componentNativeBlockSource(button, "@/components/ui/button");
+    expect(source).toContain('import { Button } from "@/components/ui/button";');
+    expect(source).toContain(
+      'type Props = Pick<ComponentProps<typeof Button>, "variant" | "size"> & { children: string };',
+    );
+    expect(source).toContain("export default function ButtonBlock({ variant, size, children }: Props) {");
+    expect(source).toContain("return <Button variant={variant} size={size}>{children}</Button>;");
+    expect(source).not.toContain("className");
+  });
+
+  it("draws a slot's blocks with the app's blocks", () => {
+    const source = componentNativeBlockSource(
+      { ...hero, name: "panel-2", component: "Panel", isDefault: true, props: [], children: "slot" },
+      "./panel",
+    );
+    expect(source).toContain('import { Blocks } from "@goodfellow-cms/expo";');
+    expect(source).toContain('import Panel from "./panel";');
+    expect(source).toContain("export default function Panel2Block({ children }: Props) {");
+    expect(source).toContain("<Panel>\n      <Blocks items={children} />\n    </Panel>");
+  });
+
+  it("lists the app's blocks by name", () => {
+    const index = nativeBlocksIndex(["hero", "button"]);
+    expect(index).toContain('import block0 from "./button/block";');
+    expect(index).toContain('import block1 from "./hero/block";');
+    expect(index).toContain(
+      'export const installedNativeBlocks: NativeBlocks = {\n  "button": block0,\n  "hero": block1,\n};',
+    );
+    expect(nativeBlocksIndex([])).toContain("export const installedNativeBlocks: NativeBlocks = {};");
   });
 });

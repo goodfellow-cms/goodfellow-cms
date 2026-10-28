@@ -59,6 +59,7 @@ body:
         - The AI assistant
         - Claude (the Claude connector or extension)
         - Next.js sites
+        - The content API, or apps made with Expo
         - The documentation
         - Something else
     validations:

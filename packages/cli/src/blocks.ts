@@ -3,6 +3,7 @@ import { type GoodfellowConfig, loadSiteContent } from "@goodfellow-cms/core";
 import { builtSiteSource } from "@goodfellow-cms/core/node";
 import {
   addShadcnBlock,
+  type CodemodRunner,
   type PageRender,
   type ShadcnBlockResult,
   type ShadcnRunner,
@@ -20,6 +21,10 @@ export interface AddBlockOptions {
   registry?: string;
   /** Runs shadcn's CLI, for tests. */
   shadcn?: ShadcnRunner;
+  /** Also makes the block's version for the Expo app in this folder, with shadcn-tamagui-codemod. */
+  native?: string;
+  /** Runs shadcn-tamagui-codemod, for tests. */
+  codemod?: CodemodRunner;
 }
 
 /**
@@ -58,6 +63,8 @@ export function addBlock(options: AddBlockOptions): Promise<ShadcnBlockResult> {
     item: options.item,
     ...(options.registry && { registry: resolve(options.registry) }),
     ...(options.shadcn && { shadcn: options.shadcn }),
+    ...(options.native && { native: resolve(options.native) }),
+    ...(options.codemod && { codemod: options.codemod }),
     render: viteRender(root),
   });
 }

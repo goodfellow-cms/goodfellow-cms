@@ -80,8 +80,13 @@ export function isAddressSegment(text: string): boolean {
 /** Addresses used by Goodfellow itself, which pages can't use. */
 export const RESERVED_PAGE_PATHS = ["/admin"];
 
-/** Whether a page path is, or is inside, an address Goodfellow reserves. */
+/**
+ * Whether a page path is, or is inside, an address Goodfellow reserves, or
+ * ends in `index`: `/about/index` would be stored as `content/pages/about/index.json`,
+ * which is `/about`'s file, so it would replace that page (and `/index` the home page).
+ */
 export function isReservedPagePath(path: string): boolean {
+  if (path.split("/").filter(Boolean).at(-1) === "index") return true;
   return RESERVED_PAGE_PATHS.some((reserved) => path === reserved || path.startsWith(`${reserved}/`));
 }
 
@@ -93,6 +98,10 @@ export function normalizePagePath(path: string): string {
 /** The content file for a page: `"/"` → `content/pages/index.json`, `"/about"` → `content/pages/about.json`. */
 export function pagePathToFile(path: string): string {
   const segments = pathSegments(path);
+  // `index.json` is its folder's page, so an address ending in `index` would be another page's file.
+  if (segments.at(-1) === "index") {
+    throw new InvalidPathError(`"${path}" can't be a page's address: it would be the page above it.`);
+  }
   return segments.length === 0 ? `${PAGES_DIR}/index.json` : `${PAGES_DIR}/${segments.join("/")}.json`;
 }
 
