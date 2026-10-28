@@ -41,10 +41,16 @@ function body(html: string): string {
     });
 }
 
+/** The files in a folder and the ones in it, with `/` between folders on Windows too. */
 async function files(dir: string): Promise<string[]> {
   return (await readdir(dir, { recursive: true, withFileTypes: true }))
     .filter((entry) => entry.isFile())
-    .map((entry) => join(entry.parentPath, entry.name).slice(dir.length + 1))
+    .map((entry) =>
+      join(entry.parentPath, entry.name)
+        .slice(dir.length + 1)
+        .split("\\")
+        .join("/"),
+    )
     .sort();
 }
 
