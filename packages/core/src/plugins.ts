@@ -378,6 +378,17 @@ export interface PluginEditorSession {
   /** The site's pages in the language edited, for links. */
   pages: PageLink[];
   /**
+   * The admin panel shows the site's media in the frame's page itself, as in
+   * Puck's: `/media/…` addresses in images, links, posters and inline styles,
+   * as drawn blocks have them, are shown from where each file is now (the
+   * site's folder on a site in one, the browser's memory for an upload not
+   * yet published, or the storage a plugin keeps media in), except in text
+   * edited in place (`contenteditable`), so what's read back from it stays as
+   * content has it. Leave the addresses as they are. Releases before this one
+   * leave it out, and change nothing.
+   */
+  showsMedia?: true;
+  /**
    * Tells the admin panel what's edited now, whenever it changes, so it knows
    * there's something to publish: with whether there's something to undo and
    * redo, and the block selected, by its id, for the AI assistant.
@@ -799,21 +810,30 @@ export function pluginFrameUrl(editorUrl: string, id: string): string {
  * so the policy limits what it can send while it's there without sealing it.
  * An editor plugin's frame may also load the theme's Google Fonts, as the
  * editor's frames do, to show the site's blocks in them
- * (`PluginEditorStyles.fonts`).
+ * (`PluginEditorStyles.fonts`), and show images, video and sound from
+ * `media`, the origins the site keeps media at outside the repository
+ * (`mediaStorageOrigins()` in `@goodfellow-cms/core/node`), as its pages do.
  */
-export function pluginPolicy(permissions: PluginPermissions, options: { editor?: boolean } = {}): string {
+export function pluginPolicy(
+  permissions: PluginPermissions,
+  options: { editor?: boolean; media?: readonly string[] } = {},
+): string {
   const connect = (permissions.connect ?? []).filter(isPluginOrigin);
   const reach = connect.length > 0 ? ` ${connect.join(" ")}` : "";
   const fonts = options.editor
     ? { style: " https://fonts.googleapis.com", font: " https://fonts.gstatic.com" }
     : undefined;
+  const media = options.editor
+    ? (options.media ?? []).filter(isPluginOrigin).filter((origin) => !connect.includes(origin))
+    : [];
+  const shown = `${reach}${media.length > 0 ? ` ${media.join(" ")}` : ""}`;
   return [
     "default-src 'none'",
     "script-src 'self'",
     `style-src 'self' 'unsafe-inline'${fonts?.style ?? ""}`,
     `font-src 'self'${fonts?.font ?? ""} data:`,
-    `img-src 'self' data: blob:${reach}`,
-    `media-src 'self' blob:${reach}`,
+    `img-src 'self' data: blob:${shown}`,
+    `media-src 'self' blob:${shown}`,
     `connect-src ${connect.length > 0 ? connect.join(" ") : "'none'"}`,
     "base-uri 'none'",
     "form-action 'none'",
@@ -837,12 +857,14 @@ export function pluginFramePage(options: {
   licenses?: string;
   /** Whether the plugin draws a page editor (`editor`), whose frame may load the theme's fonts. */
   editor?: boolean;
+  /** For an editor plugin: the origins the site keeps media at outside the repository, whose files its frame shows. */
+  media?: readonly string[];
 }): string {
   return [
     "<!DOCTYPE html>",
     '<html lang="en">',
     "  <head>",
-    `    <meta http-equiv="Content-Security-Policy" content="${escapeAttribute(pluginPolicy(options.permissions, { editor: options.editor }))}" />`,
+    `    <meta http-equiv="Content-Security-Policy" content="${escapeAttribute(pluginPolicy(options.permissions, { editor: options.editor, media: options.media }))}" />`,
     '    <meta charset="utf-8" />',
     '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
     '    <meta name="robots" content="noindex" />',

@@ -7,6 +7,7 @@
  * written it.
  */
 import type {
+  MediaStorage,
   PluginDescription,
   PluginEditorBlock,
   PluginEditorData,
@@ -27,7 +28,7 @@ export type PluginFrameMode = "service" | "screen" | "editor";
 /** What an editor plugin's frame opens: its session, without the functions, which the frame's runtime adds. */
 export type PluginFrameEditorOpen = Omit<
   PluginEditorSession,
-  "change" | "chooseMedia" | "sharePreview" | "draw" | "styles"
+  "change" | "chooseMedia" | "sharePreview" | "draw" | "styles" | "showsMedia"
 >;
 
 /** What an editor plugin's frame says it can do once it's open, for the admin panel's header. */
@@ -49,6 +50,8 @@ export interface PluginFrameInit {
   /** The live site's address. */
   siteUrl: string;
   theme: "system" | "light" | "dark";
+  /** For an editor plugin: the files a plugin keeps outside the repository, which its frame shows from their storage. */
+  mediaStorage?: MediaStorage;
 }
 
 /** A file change as it crosses the port. */
@@ -76,6 +79,10 @@ export interface PluginFrameRequests {
   "editor.set"(data: PluginEditorData): void;
   "editor.undo"(): void;
   "editor.redo"(): void;
+  /** For an editor plugin: a file shown from memory, such as an upload the live site doesn't have yet. */
+  "media.remember"(file: { url: string; bytes: Uint8Array }): void;
+  /** For an editor plugin: the files kept outside the repository, as they are now. */
+  "media.storage"(storage: MediaStorage | null): void;
 }
 
 /** A file for media storage as it crosses the port, its contents a `Blob`, so a long video isn't read into memory first. */
@@ -115,4 +122,6 @@ export interface PluginPageRequests {
   "editor.draw"(params: { block: PluginEditorBlock }): string;
   /** The site's styles, for drawn blocks. Only editor frames may. */
   "editor.styles"(): PluginEditorStyles;
+  /** A media file the live site doesn't have yet, read from the repository, to show. Only editor frames may. */
+  "media.bytes"(url: string): Uint8Array | null;
 }

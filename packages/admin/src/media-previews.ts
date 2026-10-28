@@ -112,10 +112,17 @@ const MEDIA_IN_STYLE = /url\((['"]?)(\/media\/[^'")]+)\1\)/g;
 /**
  * Keeps media in a preview document showing: rewrites `/media/…` addresses in
  * images, links and inline styles as the preview changes, and if an image
- * still doesn't load, reads it from the repository instead.
+ * still doesn't load, reads it from the repository instead. Elements inside
+ * `keep` (a selector) are left as they are, such as text edited in place,
+ * whose HTML is read back into content.
  */
-export function showMediaInPreview(doc: Document, previews: MediaPreviews): () => void {
+export function showMediaInPreview(
+  doc: Document,
+  previews: MediaPreviews,
+  { keep }: { keep?: string } = {},
+): () => void {
   const fix = (element: Element) => {
+    if (keep && element.closest(keep)) return;
     for (const attribute of URL_ATTRIBUTES) {
       const value = element.getAttribute(attribute);
       if (!value?.startsWith(MEDIA_URL_PREFIX)) continue;
@@ -159,6 +166,7 @@ export function showMediaInPreview(doc: Document, previews: MediaPreviews): () =
     if (image?.tagName !== "IMG") return;
     const original = image.getAttribute("data-gf-src") ?? image.getAttribute("src") ?? "";
     if (!original.startsWith(MEDIA_URL_PREFIX) || image.hasAttribute("data-gf-loaded")) return;
+    if (keep && image.closest(keep)) return;
     image.setAttribute("data-gf-loaded", "");
     void previews.load(original).then((url) => {
       if (url) {

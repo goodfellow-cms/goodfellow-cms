@@ -155,6 +155,22 @@ describe("a plugin's admin frame", () => {
     const page = pluginFramePage({ permissions: {}, scripts: ["plugin.js"], stylesheets: [], editor: true });
     expect(page).toContain("https://fonts.gstatic.com");
   });
+
+  it("shows media from where the site keeps it only in a page editor's frame, and reaches nothing there", () => {
+    const media = ["https://media.example.org", "javascript:alert(1)"];
+    const editor = pluginPolicy({}, { editor: true, media });
+    expect(editor).toContain("img-src 'self' data: blob: https://media.example.org;");
+    expect(editor).toContain("media-src 'self' blob: https://media.example.org;");
+    expect(editor).toContain("connect-src 'none'");
+    expect(editor).not.toContain("javascript");
+    expect(pluginPolicy({}, { media })).not.toContain("media.example.org");
+    // An origin the plugin may already reach isn't named twice.
+    expect(pluginPolicy(storage.permissions, { editor: true, media: ["https://storage.example.com"] })).toContain(
+      "img-src 'self' data: blob: https://storage.example.com;",
+    );
+    const page = pluginFramePage({ permissions: {}, scripts: [], stylesheets: [], editor: true, media });
+    expect(page).toContain("https://media.example.org");
+  });
 });
 
 describe("a plugin in the site's description", () => {

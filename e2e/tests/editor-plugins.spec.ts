@@ -171,6 +171,29 @@ test("an editor plugin has blocks drawn by the site's code, with their slots lef
   await expect(outline.locator("li").first()).toHaveCSS("margin-bottom", "0px");
 });
 
+test("an editor plugin's frame shows a picture uploaded from it straight away, before the site has it", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  writeSiteFile("content/pages/outlined.json", `${JSON.stringify(outlinePage, null, 2)}\n`);
+  await page.goto(editorAddress);
+  await page.locator(".gfa-editor-header").getByLabel("Editor").selectOption({ label: "Outline editor" });
+  const outline = page.frameLocator("iframe.gfa-editor-frame");
+  await outline.getByRole("button", { name: "Choose a picture" }).click();
+  const dialog = page.getByRole("dialog", { name: "Choose an image" });
+  const picture = '<svg xmlns="http://www.w3.org/2000/svg" width="3" height="2"><rect width="3" height="2"/></svg>';
+  await dialog
+    .locator('input[type="file"]')
+    .setInputFiles({ name: "Bell.svg", mimeType: "image/svg+xml", buffer: Buffer.from(picture) });
+  await expect(dialog).toBeHidden();
+  await expect(outline.getByRole("status")).toHaveText("Chose /media/bell.svg");
+  // The plugin wrote content's address; the frame shows the upload from memory, as Puck's canvas does.
+  const shown = outline.getByRole("img", { name: "Chosen" });
+  await expect(shown).toHaveAttribute("data-gf-src", "/media/bell.svg");
+  await expect(shown).toHaveAttribute("src", /^blob:/);
+  await expect.poll(() => shown.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(3);
+});
+
 test("an editor plugin is offered only for what it edits, and edits the header", async ({ page }) => {
   await page.goto("/admin#/layout/header");
   const choice = page.locator(".gfa-editor-header").getByLabel("Editor");

@@ -5,12 +5,20 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
+import { mediaStorageFileSchema } from "./content/media-storage.js";
+import { MEDIA_STORAGE_FILE } from "./content/paths.js";
 import { TASK_OUTPUT_LIMIT, type TaskAnswer } from "./plugin-tasks.js";
-import type { GoodfellowPlugin, PluginBuildContext, PluginServerEditor, PluginTaskContext } from "./plugins.js";
+import {
+  type GoodfellowPlugin,
+  isPluginOrigin,
+  type PluginBuildContext,
+  type PluginServerEditor,
+  type PluginTaskContext,
+} from "./plugins.js";
 
 /**
  * A plugin's server module's default export: answers a request to
@@ -325,4 +333,23 @@ export async function runPluginTask(options: PluginTaskOptions): Promise<TaskAns
       }
     });
   });
+}
+
+/**
+ * The origins the site at `root` keeps media at outside the repository
+ * (`content/media-storage.json`), for editor plugins' frames to show its files
+ * from (`pluginFramePage()`'s `media`), as the site's pages do: none without
+ * one, or where the file can't be read.
+ */
+export async function mediaStorageOrigins(root: string): Promise<string[]> {
+  const text = await readFile(join(root, MEDIA_STORAGE_FILE), "utf8").catch(() => undefined);
+  if (text === undefined) return [];
+  try {
+    const parsed = mediaStorageFileSchema.safeParse(JSON.parse(text));
+    if (!parsed.success) return [];
+    const origin = new URL(parsed.data.url).origin;
+    return isPluginOrigin(origin) ? [origin] : [];
+  } catch {
+    return [];
+  }
 }

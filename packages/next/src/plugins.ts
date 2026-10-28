@@ -19,7 +19,7 @@ import {
   pluginFramePage,
   pluginId,
 } from "@goodfellow-cms/core";
-import { LICENSES_FILE, licensesPlugin } from "@goodfellow-cms/core/node";
+import { LICENSES_FILE, licensesPlugin, mediaStorageOrigins } from "@goodfellow-cms/core/node";
 
 const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
 const FRAME_ENTRY = "\0goodfellow:plugin-frame";
@@ -131,6 +131,8 @@ export async function buildPluginFrame(
         stylesheets: ["plugin.css"],
         licenses: LICENSES_FILE,
         editor: Boolean(plugin.editor),
+        // Where the site keeps media outside the repository, as the page is written, for its editor to show.
+        ...(plugin.editor && { media: await mediaStorageOrigins(root) }),
       }),
     );
   };

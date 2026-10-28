@@ -96,7 +96,10 @@ export default definePluginAdmin({
           change({ ...data, content: [...data.content, { type: "Script", props: { id: "Script-1" } }] }),
         ),
         button("Choose a picture", async () => {
-          status.textContent = `Chose ${(await session.chooseMedia("image")) ?? "nothing"}`;
+          const chosen = await session.chooseMedia("image");
+          status.textContent = `Chose ${chosen ?? "nothing"}`;
+          // As content has it: the admin panel shows it from wherever the file is now.
+          if (chosen) drawn.innerHTML = `<img alt="Chosen" src="${chosen}">`;
         }),
         button("Preview a shared link", async () => {
           const preview = await session.sharePreview(data.root);

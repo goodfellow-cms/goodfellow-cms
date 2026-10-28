@@ -2,7 +2,13 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PluginBuildError, runPluginBuildSteps, runPluginTask, taskSecretsFrom } from "./node-plugins.js";
+import {
+  mediaStorageOrigins,
+  PluginBuildError,
+  runPluginBuildSteps,
+  runPluginTask,
+  taskSecretsFrom,
+} from "./node-plugins.js";
 import { definePlugin } from "./plugins.js";
 
 /** A build step that tries everything it shouldn't, and writes down what it could do. */
@@ -178,5 +184,25 @@ describe("plugins' tasks", { timeout: NODE_TIMEOUT }, () => {
     const env: NodeJS.ProcessEnv = { GOODFELLOW_SECRETS: '{"A":"1"}', B: "2" };
     expect(taskSecretsFrom(env)).toEqual({ A: "1", B: "2" });
     expect(env).not.toHaveProperty("GOODFELLOW_SECRETS");
+  });
+});
+
+describe("where a site keeps media outside the repository", () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "goodfellow-storage-"));
+    await mkdir(join(root, "content"), { recursive: true });
+  });
+  afterEach(() => rm(root, { recursive: true, force: true }));
+
+  it("is the storage's origin, for editor plugins' frames to show its files", async () => {
+    expect(await mediaStorageOrigins(root)).toEqual([]);
+    const storage = { version: 1, plugin: "goodfellow-plugin-s3", url: "https://media.example.org/parish/", files: {} };
+    await writeFile(join(root, "content/media-storage.json"), JSON.stringify(storage));
+    expect(await mediaStorageOrigins(root)).toEqual(["https://media.example.org"]);
+    await writeFile(join(root, "content/media-storage.json"), JSON.stringify({ ...storage, url: "ftp://media" }));
+    expect(await mediaStorageOrigins(root)).toEqual([]);
+    await writeFile(join(root, "content/media-storage.json"), "{");
+    expect(await mediaStorageOrigins(root)).toEqual([]);
   });
 });

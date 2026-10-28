@@ -22,7 +22,7 @@ import {
   themeToCss,
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import type { Channel } from "./frame/channel.js";
 import { useFrameServices } from "./frame/host.js";
@@ -158,6 +158,9 @@ export function PluginEditorFrame({
         }
         return code.drawBlock(content, { kind: target.kind, path: target.path, block });
       },
+      mediaBytes: (url) => latest.current.services.mediaPreviews.bytes(url),
+      onRemember: (listener) => latest.current.services.mediaPreviews.onRemember(listener),
+      mediaStorage: () => latest.current.content.mediaStorage,
       // As the site's last build compiled them, with the theme and custom CSS as they are now, which may not be published yet.
       styles: async () => {
         const { services, content, themeCss } = latest.current;
@@ -171,7 +174,12 @@ export function PluginEditorFrame({
     }),
     [],
   );
-  const { failed, frameProps } = usePluginFrame(plugin, host, "editor", undefined, hooks);
+  const { channel, failed, frameProps } = usePluginFrame(plugin, host, "editor", undefined, hooks);
+  // Files a plugin keeps outside the repository, which the frame shows from their storage, as they change.
+  const storage = content.mediaStorage;
+  useEffect(() => {
+    void channel?.call("media.storage", storage ?? null).catch(() => {});
+  }, [channel, storage]);
   const name = plugin.editor?.title ?? plugin.title;
   if (failed) return <ErrorMessage message={t("editor.plugin.failed", { editor: name })} />;
   return (

@@ -60,6 +60,7 @@ export {
   reportNightly,
 } from "./node-nightly.js";
 export {
+  mediaStorageOrigins,
   PluginBuildError,
   type PluginBuildOptions,
   type PluginBuildStepRunInfo,
