@@ -48,7 +48,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 
 The blocks from Separator to File in the list match WordPress's own blocks of the same names, so [moving from WordPress](/docs/move-from-wordpress) keeps them as they are, and [exporting to WordPress](/docs/move-from-wordpress) makes them WordPress's again.
 
-Blocks use the site's colors, fonts and corner rounding. Every block accepts extra CSS classes, which override the block's own styles: `py-4` on a Section replaces its default padding. Every part of a block also has a name, which the site's theme can give classes to (see [Named parts](#named-parts)).
+Blocks use the site's colors, fonts and corner rounding. Every block's **Style** setting changes its look, as Tailwind classes that override the block's own styles: **Space inside** on a Section replaces its default padding (see [A block's look](/docs/edit-pages#a-blocks-look)). Every part of a block also has a name, which the site's theme can give classes to (see [Named parts](#named-parts)).
 
 ## Video
 

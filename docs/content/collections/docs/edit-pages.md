@@ -19,9 +19,22 @@ Click **Edit** beside a page. The editor shows the page with the site's own head
 - **Phones and tablets:** **Tablet** and **Phone** above the page show it as wide as one, and **Full width** goes back.
 - **Another editor:** where the site has a [plugin with a page editor of its own](/docs/plugins#a-page-editor-of-its-own), **Editor** above the page chooses it or the standard editor, and your browser remembers your choice. What you've changed so far comes with you when you switch. If the other editor can't keep something you changed, such as a block the site doesn't have, you're asked first, since switching would leave those changes behind.
 - **Light or dark:** the admin panel follows your computer's setting. To choose for yourself, use the menu at the top right; your browser remembers it.
-- **CSS classes**: every block has a "CSS classes" setting for [Tailwind](https://tailwindcss.com) classes, such as `mt-8` or `text-center`, which override the block's own styles, and for classes of your own that [Custom CSS](/docs/layout-and-settings#site-settings) styles. Both show in the editor at once.
+- **Style:** every block, and the page itself, has a **Style** setting for how it looks, which shows in the editor at once (see [A block's look](#a-blocks-look)).
 
 Nothing changes on the live site until you **Publish**.
+
+## A block's look
+
+Select a block, and its **Style** settings are at the end of its settings:
+
+- **Text alignment:** left, centered, right or justified. Blocks with an alignment setting of their own, such as Heading and Text, use theirs instead.
+- **Text size:** from Extra small to Enormous, or your own size, such as `18px`.
+- **Text color** and **Background color:** the site's theme colors, which follow the theme when it changes (and its dark colors, where the site has [dark mode](/docs/layout-and-settings#dark-mode)), or a color of your own. A note says when the text may be hard to read on the background.
+- **Space inside** and **Space around:** the same on every side, or **Set each side** for each, in steps from 4px to 96px or your own size.
+- **Rounded corners:** from Square to Round, the middle one being the theme's own rounding.
+- **Other CSS classes:** any other [Tailwind](https://tailwindcss.com) classes, such as `shadow-lg` or `md:p-12`, and classes of your own that [Custom CSS](/docs/layout-and-settings#site-settings) styles.
+
+**Back to the block's own look** clears them all. They're kept as Tailwind classes in the block's `className`, such as `text-center bg-muted p-6 rounded-lg`, and come after the block's own and its [theme parts'](/docs/layout-and-settings#blocks-parts), so they win. Blocks that change their own size at wider screens, as headings do, keep doing so there. The site's build turns the classes into CSS, as it does every class the site's content uses.
 
 ## Create, move and delete pages
 

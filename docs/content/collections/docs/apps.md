@@ -74,7 +74,7 @@ Most blocks look and work as they do on the website. A few can't:
 - **Video** plays uploads with the phone's own player, and YouTube's, Vimeo's and other sites' players in a frame of their own.
 - **Code** shows the colors the site's build gave it, and can be selected to copy.
 - **Menu** across the top is a button that opens the menu on a phone, and a row on a tablet.
-- Theme parts' classes (`theme.parts`) and blocks' CSS classes don't apply in apps, since there's no CSS.
+- Theme parts' classes (`theme.parts`) and blocks' **Style** (their CSS classes) don't apply in apps, since there's no CSS.
 
 ## Blocks of the site's own
 

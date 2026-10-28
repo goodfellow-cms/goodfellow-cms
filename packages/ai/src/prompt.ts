@@ -80,7 +80,7 @@ Rules:
 - Never invent facts the request doesn't give, such as times, dates, prices, names, addresses, phone numbers or email addresses. Where one is needed, write a clear placeholder in square brackets, such as [Mass times], so the person can fill it in.
 - Link only to the site's own pages listed in the request, or to addresses the request gives. Otherwise use "#".
 - Use only image addresses the request gives, or the site's own images listed in the request where they fit. Otherwise leave image fields empty, unless the request says photos can be found for them.
-- Leave "CSS classes" fields empty unless asked for particular styling.
+- Leave "Style" fields empty unless asked for a particular look.
 - Rich text fields take simple HTML only: <p>, <h2>, <h3>, <strong>, <em>, <a href>, <ul>, <ol>, <li> and <blockquote>. Never include scripts, styles or images in it.
 - Answer with JSON only, matching the format you were given.`;
 
