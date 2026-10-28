@@ -1,12 +1,23 @@
 import { type MenuItem, type PageTree, pageTree } from "@goodfellow-cms/core";
-import { NativeImage, NativeLink, SiteText, TEXT, useNativeSite, useWide } from "@goodfellow-cms/expo";
+import { NativeImage, NativeLink, OnColor, SiteText, TEXT, useNativeSite, useWide } from "@goodfellow-cms/expo";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { isCurrentLink } from "./links.js";
+import { isCurrentLink, subpageLinks } from "./links.js";
 import type { MenuProps, PageListProps, SiteBrandProps } from "./navigation.js";
 
-function MenuLinks({ items, path, depth = 0 }: { items: MenuItem[]; path: string; depth?: number }) {
-  const { colors, radius } = useNativeSite().theme;
+function MenuLinks({
+  items,
+  path,
+  depth = 0,
+  subpages = false,
+}: {
+  items: MenuItem[];
+  path: string;
+  depth?: number;
+  subpages?: boolean;
+}) {
+  const { theme, pages } = useNativeSite();
+  const { colors, radius } = theme;
   return (
     <View style={{ gap: 2, marginLeft: depth * 16 }}>
       {items.map((item) => {
@@ -18,8 +29,12 @@ function MenuLinks({ items, path, depth = 0 }: { items: MenuItem[]; path: string
                 {item.label}
               </SiteText>
             </NativeLink>
-            {item.children && item.children.length > 0 && (
-              <MenuLinks items={item.children} path={path} depth={depth + 1} />
+            {item.children && item.children.length > 0 ? (
+              <MenuLinks items={item.children} path={path} depth={depth + 1} subpages={subpages} />
+            ) : (
+              // A submenu link's own pages, as the website's menu shows them.
+              subpages &&
+              depth === 1 && <MenuLinks items={subpageLinks(item.href, pages)} path={path} depth={depth + 1} />
             )}
           </View>
         );
@@ -32,13 +47,28 @@ function MenuLinks({ items, path, depth = 0 }: { items: MenuItem[]; path: string
  * One of the site's menus. Down the screen, it's a list; across, it's a row
  * on wider screens and a button that opens the list on phones.
  */
-export function Menu({ menu, orientation }: MenuProps) {
+export function Menu({ menu, orientation, colors = "page", subpages = false }: MenuProps) {
+  const site = useNativeSite();
+  if (colors === "page") return <MenuShown menu={menu} orientation={orientation} subpages={subpages} />;
+  // A bar of a theme color, its text in the color that goes on it.
+  const background = site.theme.colors[colors];
+  const foreground = site.theme.colors[colors === "primary" ? "primaryForeground" : "secondaryForeground"];
+  return (
+    <View style={{ backgroundColor: background }}>
+      <OnColor foreground={foreground}>
+        <MenuShown menu={menu} orientation={orientation} subpages={subpages} />
+      </OnColor>
+    </View>
+  );
+}
+
+function MenuShown({ menu, orientation, subpages }: Pick<MenuProps, "menu" | "orientation" | "subpages">) {
   const { menus, path, theme } = useNativeSite();
   const wide = useWide("md");
   const [open, setOpen] = useState(false);
   const items = menus[menu] ?? [];
   if (items.length === 0) return null;
-  if (orientation === "vertical") return <MenuLinks items={items} path={path} />;
+  if (orientation === "vertical") return <MenuLinks items={items} path={path} subpages={subpages} />;
   if (wide) {
     return (
       <View accessibilityRole="menubar" style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
@@ -65,7 +95,7 @@ export function Menu({ menu, orientation }: MenuProps) {
       >
         <SiteText style={{ fontSize: TEXT.xl }}>{open ? "✕" : "☰"}</SiteText>
       </Pressable>
-      {open && <MenuLinks items={items} path={path} />}
+      {open && <MenuLinks items={items} path={path} subpages={subpages} />}
     </View>
   );
 }

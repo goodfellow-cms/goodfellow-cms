@@ -32,7 +32,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Form | A form whose answers a form service emails to you, or a Google form (see [Forms](/docs/forms)) |
 | Code | Code with syntax highlighting, an optional title and a copy button |
 | Contact details | The address, phone number and email address from Site Settings |
-| Menu | One of the site's menus, with dropdowns for submenus |
+| Menu | One of the site's menus, with dropdowns for submenus. **Colors** puts it in a bar of the theme's primary or secondary color, its dropdowns see-through in the same color, and **Show the pages under each submenu link** opens a submenu link's own pages as a third level, so a section's pages need no menu entries of their own |
 | Site name and logo | The site's logo and name, linking home, with the site's description under the name if you like |
 | Search | A search box for the whole site, with results as you type |
 | Dark mode switch | Lets visitors choose light or dark colors, on sites with dark mode |

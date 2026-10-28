@@ -164,6 +164,38 @@ describe("built-in blocks", () => {
     expect(html).not.toMatch(/href="\/" class="[^"]*" data-current/);
   });
 
+  it("shows a submenu link's own pages as another level, and a bar of a theme color", async () => {
+    const saved = content.pages;
+    const page = (path: string, title: string) =>
+      ({ path, file: "", content: { version: 1, data: { root: { props: { title } }, content: [] } } }) as Page;
+    content.pages = [
+      page("/about/staff", "Staff"),
+      page("/about/staff/pastor", "Our pastor"),
+      page("/about/staff/deacons", "Deacons"),
+    ];
+    try {
+      const props = { id: "m", menu: "main", orientation: "horizontal", className: "" };
+      const plain = await render([{ type: "Menu", props }]);
+      expect(plain).not.toContain("Our pastor");
+      const html = await render(
+        [{ type: "Menu", props: { ...props, colors: "primary", subpages: true } }],
+        "/about/staff/pastor",
+      );
+      expect(html).toContain(
+        '<nav aria-label="main" class="gf-menu bg-primary text-primary-foreground" data-gf-menu="">',
+      );
+      expect(html).toMatch(/href="\/about\/staff\/deacons" class="[^"]*">Deacons<\/a>/);
+      expect(html).toMatch(
+        /href="\/about\/staff\/pastor" class="[^"]*" data-current="" aria-current="page">Our pastor/,
+      );
+      // "About" is the last item, so its submenu opens leftwards, and its pages too.
+      expect(html).toMatch(/class="gf-menu-submenu [^"]*bg-primary\/90[^"]* right-0"/);
+      expect(html).toMatch(/class="gf-menu-submenu [^"]*right-full"/);
+    } finally {
+      content.pages = saved;
+    }
+  });
+
   it("renders nothing for a menu that doesn't exist", async () => {
     const html = await render([
       { type: "Menu", props: { id: "m", menu: "missing", orientation: "horizontal", className: "" } },

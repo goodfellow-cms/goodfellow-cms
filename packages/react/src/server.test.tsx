@@ -7,6 +7,7 @@ import {
   siteSettingsSchema,
 } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
+import { lazy, Suspense } from "react";
 import { describe, expect, it } from "vitest";
 import { createPageRenderer } from "./server.js";
 import { useSite } from "./site-context.js";
@@ -104,6 +105,32 @@ describe("renderPage", () => {
       '<main class="gf-main page-about" data-pagefind-body=""><div><h1>About us</h1></div></main>',
     );
     expect(html).not.toContain("<header");
+  });
+
+  it("writes a long page whole, with what a block waited for in its place, never moved to the end", async () => {
+    // A component that loads a moment later, as Puck's rich text does.
+    const Late = lazy(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Over 500 bytes, which React would move.
+      return { default: () => <p>Loaded late. {"Text that came later. ".repeat(40)}</p> };
+    });
+    const Waits: ComponentConfig = {
+      render: () => (
+        <Suspense fallback={null}>
+          <Late />
+        </Suspense>
+      ),
+    };
+    const render = createPageRenderer({ blocks: { ...config.blocks, Waits } });
+    // Past React's 12.8 kB chunks, after which it would move the late part to the end of the page.
+    const long = Array.from({ length: 40 }, (_, index) => ({
+      type: "Heading",
+      props: { id: `h${index}`, text: "A heading long enough to make the page long. ".repeat(10) },
+    }));
+    const html = await render(makeContent(), makePage([...long, { type: "Waits", props: { id: "w" } }]));
+    expect(html.length).toBeGreaterThan(20_000);
+    expect(html).not.toContain('hidden id="S:');
+    expect(html.indexOf("Loaded late")).toBeLessThan(html.indexOf("</main>"));
   });
 
   it("lists the credits of the photos a page shows at the end of its content", async () => {

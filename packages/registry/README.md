@@ -71,7 +71,7 @@ A block is a `registry:block` item with `meta.goodfellow`:
 
 ### Packages
 
-The admin panel can't install npm packages, so every site includes the same set and blocks can use only those. Besides `react`, `@goodfellow-cms/react` and `@puckeditor/core`, which every site has, they are `class-variance-authority`, `clsx`, `cn`, `embla-carousel-react`, `lucide-react`, `radix-ui`, `tailwind-merge` and `tw-animate-css`. An item whose `dependencies` name anything else can't be added. To suggest a package for the list, open an issue.
+The admin panel can't install npm packages, so every site includes the same set and blocks can use only those. Besides `react`, `@goodfellow-cms/core`, `@goodfellow-cms/react` and `@puckeditor/core`, which every site has, they are `class-variance-authority`, `clsx`, `cn`, `embla-carousel-react`, `lucide-react`, `radix-ui`, `tailwind-merge` and `tw-animate-css`. An item whose `dependencies` name anything else can't be added. To suggest a package for the list, open an issue.
 
 ### Writing the blocks
 

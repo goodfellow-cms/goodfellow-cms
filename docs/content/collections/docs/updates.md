@@ -13,7 +13,7 @@ Goodfellow gets fixes and new releases. Sites made from a starter install fixes 
 Free plans count build minutes and builds, so each night the site is rebuilt only when visitors would see something new. A short check, `goodfellow nightly`, rebuilds it when:
 
 - Goodfellow has fixes the site's settings allow, which it installs first, as below;
-- something the site shows by today's date has changed since it was built: an event's next date, a calendar's upcoming events or today on a month at a time, a list of what's coming up, or a page scheduled to be shown or hidden. A calendar that shows [another calendar's events](/docs/calendars#calendars-kept-elsewhere) counts as changed every night, since its changes can't be known ahead;
+- something the site shows by today's date has changed since it was built: an event's next date, a calendar's upcoming events or today on a month at a time, a list of what's coming up, or a page scheduled to be shown or hidden. A calendar that shows [another calendar's events](/docs/calendars#calendars-kept-elsewhere) counts as changed every night, since its changes can't be known ahead, as does a [News feed](/docs/add-blocks) block;
 - the live site isn't the newest build, such as after one that didn't work, or the check can't tell, because the live site can't be read.
 
 Every build writes `goodfellow-build.json` beside the site, saying what it was built from and when what it shows next changes, which is how the check knows. On GitHub, the [hourly check for scheduled changes](/docs/scheduling) also rebuilds the site the first hour after that time, so dates go current within the hour.
