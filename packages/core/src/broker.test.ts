@@ -75,6 +75,24 @@ describe("what the broker publishes without asking", () => {
       { path: "content/site.json", kind: "site-address" },
     ]);
   });
+
+  it("asks about a new Site address however the settings are written, and when they're deleted", () => {
+    const moved = [{ path: "content/site.json", kind: "site-address" }];
+    const bytes = (url: string): FileChange => ({
+      path: "content/site.json",
+      bytes: new TextEncoder().encode(JSON.stringify({ version: 1, url })),
+    });
+    expect(brokerChangeCheck([bytes("https://evil.example/")], "https://example.org/").confirm).toEqual(moved);
+    expect(brokerChangeCheck([bytes("https://example.org/")], "https://example.org/").confirm).toEqual([]);
+    expect(brokerChangeCheck([{ path: "content/site.json", delete: true }], "https://example.org/").confirm).toEqual(
+      moved,
+    );
+    // Bytes that aren't settings take the address away too.
+    expect(
+      brokerChangeCheck([{ path: "content/site.json", bytes: new Uint8Array([0xff, 0xfe]) }], "https://example.org/")
+        .confirm,
+    ).toEqual(moved);
+  });
 });
 
 /** A backend that keeps files in memory, with drafts and editors, as the broker's own would be. */

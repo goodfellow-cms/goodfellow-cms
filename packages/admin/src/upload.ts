@@ -65,32 +65,137 @@ async function resized(file: File, extension: string): Promise<Blob | undefined>
   return blob && (scale < 1 || blob.size < file.size) ? blob : undefined;
 }
 
-const UNSAFE_SVG_ELEMENTS = ["script", "foreignObject", "iframe", "embed", "object", "audio", "video"];
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+/** Namespaces an SVG's attributes may be in, besides none. */
+const SVG_ATTRIBUTE_NAMESPACES = new Set([
+  "http://www.w3.org/1999/xlink",
+  "http://www.w3.org/XML/1998/namespace",
+  "http://www.w3.org/2000/xmlns/",
+]);
+/** The SVG elements uploads keep: drawing, text, links, styles and animation, but nothing that loads a page or runs code. */
+const SVG_ELEMENTS = new Set([
+  "svg",
+  "g",
+  "defs",
+  "symbol",
+  "use",
+  "title",
+  "desc",
+  "switch",
+  "view",
+  "path",
+  "rect",
+  "circle",
+  "ellipse",
+  "line",
+  "polyline",
+  "polygon",
+  "text",
+  "tspan",
+  "textPath",
+  "image",
+  "a",
+  "style",
+  "clipPath",
+  "mask",
+  "pattern",
+  "marker",
+  "linearGradient",
+  "radialGradient",
+  "stop",
+  "filter",
+  "feBlend",
+  "feColorMatrix",
+  "feComponentTransfer",
+  "feComposite",
+  "feConvolveMatrix",
+  "feDiffuseLighting",
+  "feDisplacementMap",
+  "feDistantLight",
+  "feDropShadow",
+  "feFlood",
+  "feFuncA",
+  "feFuncB",
+  "feFuncG",
+  "feFuncR",
+  "feGaussianBlur",
+  "feImage",
+  "feMerge",
+  "feMergeNode",
+  "feMorphology",
+  "feOffset",
+  "fePointLight",
+  "feSpecularLighting",
+  "feSpotLight",
+  "feTile",
+  "feTurbulence",
+  "animate",
+  "animateMotion",
+  "animateTransform",
+  "mpath",
+]);
+/** Addresses links and images may have: within the file, on the web, relative ones, and pictures. */
+const SAFE_SVG_ADDRESS = /^(#|https?:|data:image\/(png|jpeg|gif|webp)[;,]|(?![a-z][a-z\d+.-]*:))/;
+
+/** An attribute's value as a browser reads an address: without the spaces and control characters it skips. */
+function normalized(value: string): string {
+  return value.replace(/[\s\p{Cc}]/gu, "").toLowerCase();
+}
+
+function isLink(name: string): boolean {
+  return name === "href" || name === "xlink:href";
+}
+
+/** Whether an element can stay, once its attributes are cleaned. */
+function keepsElement(element: Element): boolean {
+  if (element.namespaceURI !== SVG_NAMESPACE || !SVG_ELEMENTS.has(element.localName)) return false;
+  if (element.localName.startsWith("animate")) {
+    // Animating a link or an event handler sets it after the file's been cleaned.
+    const name = normalized(element.getAttribute("attributeName") ?? "");
+    if (isLink(name) || name.startsWith("on")) return false;
+  }
+  return true;
+}
+
+function cleanElement(element: Element): void {
+  for (const attribute of [...element.attributes]) {
+    const value = normalized(attribute.value);
+    if (
+      (attribute.namespaceURI !== null && !SVG_ATTRIBUTE_NAMESPACES.has(attribute.namespaceURI)) ||
+      (attribute.name.includes(":") && !/^(xlink|xml|xmlns):/.test(attribute.name)) ||
+      attribute.localName.toLowerCase().startsWith("on") ||
+      value.includes("javascript:") ||
+      value.includes("vbscript:") ||
+      (isLink(attribute.name.toLowerCase()) && !SAFE_SVG_ADDRESS.test(value))
+    ) {
+      element.removeAttributeNode(attribute);
+    }
+  }
+  for (const child of [...element.childNodes]) {
+    if (child.nodeType === Node.ELEMENT_NODE) {
+      if (keepsElement(child as Element)) cleanElement(child as Element);
+      else child.remove();
+    } else if (child.nodeType !== Node.TEXT_NODE && child.nodeType !== Node.CDATA_SECTION_NODE) {
+      child.remove();
+    }
+  }
+}
 
 /**
- * Removes anything from an SVG that could run code if someone opens the
- * file directly: scripts, embedded pages, event handlers, and javascript:, vbscript:
- * and data: links other than images.
+ * Keeps only what an SVG needs to draw itself, so it can't run code if someone
+ * opens the file directly: SVG's own drawing elements, with no scripts,
+ * embedded pages, elements from other namespaces, event handlers, processing
+ * instructions (an XSL stylesheet could write a page), or javascript:, vbscript:
+ * and other addresses than the web's, the file's own and pictures.
  */
 export function cleanSvg(text: string): string | undefined {
   const doc = new DOMParser().parseFromString(text, "image/svg+xml");
-  if (doc.querySelector("parsererror") || doc.documentElement.nodeName.toLowerCase() !== "svg") return undefined;
-  for (const name of UNSAFE_SVG_ELEMENTS) {
-    for (const element of [...doc.getElementsByTagName(name)]) element.remove();
+  const root = doc.documentElement;
+  if (doc.querySelector("parsererror") || root.namespaceURI !== SVG_NAMESPACE || root.localName !== "svg") {
+    return undefined;
   }
-  for (const element of [doc.documentElement, ...doc.documentElement.querySelectorAll("*")]) {
-    for (const attribute of [...element.attributes]) {
-      const value = attribute.value.trim().toLowerCase();
-      if (
-        attribute.name.toLowerCase().startsWith("on") ||
-        value.startsWith("javascript:") ||
-        value.startsWith("vbscript:") ||
-        (value.startsWith("data:") && !value.startsWith("data:image/"))
-      ) {
-        element.removeAttribute(attribute.name);
-      }
-    }
-  }
+  for (const child of [...doc.childNodes]) if (child !== root) child.remove();
+  cleanElement(root);
   return new XMLSerializer().serializeToString(doc);
 }
 
