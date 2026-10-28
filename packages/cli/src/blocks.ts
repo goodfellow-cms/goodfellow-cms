@@ -9,7 +9,7 @@ import {
   type ShadcnRunner,
 } from "@goodfellow-cms/core/shadcn";
 import { createServer } from "vite";
-import { type ClientModules, slashes } from "./islands.js";
+import type { ClientModules } from "./islands.js";
 import { baseViteConfig, findConfigFile, loadServerEntry } from "./site.js";
 
 export interface AddBlockOptions {
@@ -43,8 +43,7 @@ function viteRender(root: string): PageRender {
     try {
       // The renderer comes with the config, so the blocks and it share one copy of the site's context.
       const { config, createPageRenderer } = await loadServerEntry(server);
-      // With forward slashes, as Vite writes module ids on Windows too.
-      const { default: entry } = (await server.ssrLoadModule(slashes(join(root, block.entry)))) as {
+      const { default: entry } = (await server.ssrLoadModule(join(root, block.entry))) as {
         default: GoodfellowConfig["blocks"][string];
       };
       const render = createPageRenderer({ ...config, blocks: { ...config.blocks, [block.name]: entry } });

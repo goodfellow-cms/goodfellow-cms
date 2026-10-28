@@ -1,5 +1,5 @@
 ---
-"goodfellow": patch
+"@goodfellow-cms/core": patch
 ---
 
-`goodfellow blocks add` loads the new block through Vite by a path with forward slashes, as Vite names modules on Windows too.
+`goodfellow blocks add` works on Windows: it gives TypeScript the block's files by paths with forward slashes, since TypeScript 7 didn't find new files by paths with backslashes.

@@ -334,7 +334,7 @@ class ComponentReader {
     private readonly ts: { sync: typeof Sync; ast: typeof Ast },
     private readonly root: string,
   ) {
-    this.configFile = join(root, "tsconfig.json");
+    this.configFile = this.path("tsconfig.json");
     this.api = new ts.sync.API({ cwd: root });
     const snapshot = this.api.updateSnapshot({ openProjects: [this.configFile] });
     this.use(snapshot);
@@ -342,7 +342,7 @@ class ComponentReader {
 
   /** Reads the site again once files are written: TypeScript sees new files only when told they were made. */
   refresh(created: readonly string[] = [], deleted: readonly string[] = []): void {
-    const absolute = (files: readonly string[]) => files.map((file) => join(this.root, file));
+    const absolute = (files: readonly string[]) => files.map((file) => this.path(file));
     this.use(
       this.api.updateSnapshot({
         openProjects: [this.configFile],
@@ -361,8 +361,17 @@ class ComponentReader {
     this.api.close();
   }
 
+  /**
+   * A file in the site by its full path, with forward slashes: TypeScript's
+   * server names files that way on Windows too, and doesn't find new files by
+   * paths with backslashes.
+   */
+  private path(file: string): string {
+    return join(this.root, file).replaceAll("\\", "/");
+  }
+
   sourceFile(file: string): Ast.SourceFile | undefined {
-    return this.project.program.getSourceFile(join(this.root, file));
+    return this.project.program.getSourceFile(this.path(file));
   }
 
   /** The PascalCase functions a file exports, with their first parameter's properties. */
@@ -462,7 +471,7 @@ class ComponentReader {
 
   /** What TypeScript finds wrong with a file, in its own words. */
   problems(file: string): string[] {
-    const diagnostics = this.project.program.getSemanticDiagnostics(join(this.root, file));
+    const diagnostics = this.project.program.getSemanticDiagnostics(this.path(file));
     return diagnostics.map((diagnostic) => diagnosticText(diagnostic));
   }
 }
