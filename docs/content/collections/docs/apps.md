@@ -10,7 +10,7 @@ order: 4.6
 
 - **Up to date and offline.** The app reads the site's manifest when it starts and whenever it comes back to the front, downloads only the files whose hash changed, and keeps them, with the pictures they show. Opened offline, it shows the copy it kept.
 - **Native blocks.** Every [built-in block](/docs/built-in-blocks) has a version for apps, `nativeBlocks` from `@goodfellow-cms/blocks/native`, by the same name, with the same settings.
-- **Links.** The site's own pages open in the app; anything else opens in the phone's browser, and email addresses and phone numbers in its apps.
+- **Links.** The site's own pages open in the app, and old addresses go where the site's [redirects](/docs/layout-and-settings#redirects) send them, as on the website; anything else opens in the phone's browser, and email addresses and phone numbers in its apps.
 - **Its theme.** Blocks use the site's colors, corners and fonts, in dark colors where the site has [dark mode](/docs/layout-and-settings) and the phone is set to dark.
 
 ## Making the app

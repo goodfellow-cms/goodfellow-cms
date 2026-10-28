@@ -11,6 +11,7 @@ import { contentInLanguage, languagePrefix, mainLanguage, siteLanguages } from "
 import type { Page, SiteContent } from "../content/load.js";
 import { markdownToHtml } from "../content/markdown.js";
 import { type PageLink, pageLinks } from "../content/page-links.js";
+import { redirectFrom, redirectTarget } from "../content/redirects.js";
 import { sanitizeHtml } from "../content/sanitize.js";
 import { isAddedPage, type PageView } from "../content/site-pages.js";
 import { setLinkTargets } from "../external-links.js";
@@ -131,6 +132,19 @@ export interface ApiManifest {
   >;
   /** The blocks the site's pages, headers and footers use, by name. */
   blocks: string[];
+  /**
+   * The site's redirects, as builds send them: old addresses spelled one way
+   * (`/about-us`, without a trailing slash), never one a page has, since pages
+   * win, and where each goes, a page's address or another site's (`https://`).
+   * Left out where the site has none.
+   */
+  redirects?: ApiRedirect[];
+}
+
+/** An old address and where it sends visitors, in the manifest's `redirects`. */
+export interface ApiRedirect {
+  from: string;
+  to: string;
 }
 
 /** A page, prepared as it's shown. */
@@ -299,6 +313,18 @@ function collectionsFile(content: SiteContent, language: string): ApiCollections
   };
 }
 
+/** The redirects builds write pages for: from addresses no page has, each once. */
+function apiRedirects(content: SiteContent, pages: ReadonlySet<string>): ApiRedirect[] {
+  const seen = new Set<string>();
+  return (content.redirects ?? []).flatMap(({ from, to }) => {
+    const path = redirectFrom(from);
+    const target = redirectTarget(to);
+    if (!path.ok || !target || pages.has(path.path) || seen.has(path.path)) return [];
+    seen.add(path.path);
+    return [{ from: path.path, to: target }];
+  });
+}
+
 /**
  * The content API's files: each page as it's shown (`pages/…json`), each
  * language's site settings, menus and pages (`site.json`), collections
@@ -370,6 +396,7 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
     };
   }
 
+  const redirects = apiRedirects(content, new Set(pages.map((page) => page.path)));
   const manifest: ApiManifest = {
     version: 1,
     goodfellow: description.goodfellow,
@@ -380,6 +407,7 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
     languages,
     pages,
     blocks: [...used].sort(),
+    ...(redirects.length > 0 && { redirects }),
   };
   files.push({ path: CONTENT_API_MANIFEST, content: json(manifest) });
   return files;

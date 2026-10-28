@@ -281,10 +281,44 @@ export async function readSiteFiles(
   return site && collections && header && footer ? { site, collections, header, footer } : undefined;
 }
 
-/** The manifest's page for an address, ignoring a trailing slash; "Page not found" (`/404`) for one it doesn't have. */
+/** An address's path, without its `?…`, `#…` or trailing slash. */
+function pathOf(href: string): string {
+  const path = href.split(/[?#]/)[0] ?? "";
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+}
+
+/** The longest chain of redirects followed, in case a site's lead in a circle. */
+const MAX_REDIRECTS = 5;
+
+/**
+ * Where an old address sends visitors, by the manifest's redirects, as the
+ * website would: a page's address (with its `?…` and `#…`) or another site's.
+ * `undefined` where the address has a page, or isn't redirected.
+ */
+export function redirectFor(manifest: ApiManifest, href: string): string | undefined {
+  let path = pathOf(href);
+  let target: string | undefined;
+  for (let hop = 0; hop < MAX_REDIRECTS; hop++) {
+    if (manifest.pages.some((page) => page.path === path)) break;
+    const redirect = manifest.redirects?.find((candidate) => candidate.from === path);
+    if (!redirect) break;
+    target = redirect.to;
+    if (!target.startsWith("/")) break;
+    path = pathOf(target);
+  }
+  return target;
+}
+
+/**
+ * The manifest's page for an address, ignoring its `?…`, `#…` and a trailing
+ * slash, and following redirects to the site's pages; "Page not found"
+ * (`/404`) for one it doesn't have.
+ */
 export function findPage(manifest: ApiManifest, path: string): ManifestPage | undefined {
-  const wanted = path.length > 1 ? path.replace(/\/+$/, "") : path;
-  return manifest.pages.find((page) => page.path === wanted) ?? manifest.pages.find((page) => page.path === "/404");
+  const wanted = pathOf(path);
+  const redirected = redirectFor(manifest, wanted);
+  const shown = redirected?.startsWith("/") ? pathOf(redirected) : wanted;
+  return manifest.pages.find((page) => page.path === shown) ?? manifest.pages.find((page) => page.path === "/404");
 }
 
 /**

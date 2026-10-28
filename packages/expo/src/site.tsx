@@ -29,6 +29,7 @@ import {
   type ManifestPage,
   MEDIA_FOLDER,
   readSiteFiles,
+  redirectFor,
   type SiteFiles,
   type SyncResult,
   siteAddress,
@@ -355,7 +356,12 @@ export function useNativeSiteValue(
     richText,
     open: (href) => {
       if (href.startsWith("#")) return void scrollToAnchor(scroll, href.slice(1));
-      if (isPageAddress(href)) return root.navigate(href);
+      if (isPageAddress(href)) {
+        // An old address goes where the site's redirects send it, as on the website.
+        const redirected = manifest && redirectFor(manifest, href);
+        if (redirected && !redirected.startsWith("/")) return void Linking.openURL(redirected);
+        return root.navigate(redirected ?? href);
+      }
       const url = href.startsWith("/") ? siteAddress(root.site, manifest, href) : href;
       if (/^(https?:|mailto:|tel:|webcal:)/i.test(url)) Linking.openURL(url);
     },

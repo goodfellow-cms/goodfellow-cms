@@ -8,6 +8,7 @@ import {
   mediaAddresses,
   memoryStorage,
   readsContent,
+  redirectFor,
   siteAddress,
   syncSite,
 } from "./sync.js";
@@ -178,6 +179,36 @@ describe("the app's copy", () => {
     const manifest = { pages } as ApiManifest;
     expect(findPage(manifest, "/about/")?.file).toBe("pages/about.json");
     expect(findPage(manifest, "/missing")?.file).toBe("pages/404.json");
+  });
+
+  it("follows the site's redirects, as the website does", () => {
+    const pages = [
+      { path: "/", file: "pages/index.json", hash: "a", language: "en" },
+      { path: "/about", file: "pages/about.json", hash: "b", language: "en" },
+      { path: "/404", file: "pages/404.json", hash: "c", language: "en" },
+    ];
+    const manifest = {
+      pages,
+      redirects: [
+        { from: "/who-we-are", to: "/about-us#history" },
+        { from: "/about-us", to: "/about" },
+        { from: "/visit", to: "https://example.org/visit" },
+        { from: "/round", to: "/and-round" },
+        { from: "/and-round", to: "/round" },
+      ],
+    } as ApiManifest;
+    // An old address opens the page it leads to, through a redirect that moved again.
+    expect(findPage(manifest, "/who-we-are/")?.file).toBe("pages/about.json");
+    expect(redirectFor(manifest, "/who-we-are?from=mail")).toBe("/about");
+    expect(redirectFor(manifest, "/about-us")).toBe("/about");
+    // Another site's address is the app's to open in the browser.
+    expect(redirectFor(manifest, "/visit")).toBe("https://example.org/visit");
+    expect(findPage(manifest, "/visit")?.file).toBe("pages/404.json");
+    // Pages, and addresses that aren't redirected, stay as they are, and a circle ends.
+    expect(redirectFor(manifest, "/about")).toBeUndefined();
+    expect(redirectFor(manifest, "/missing")).toBeUndefined();
+    expect(findPage(manifest, "/round")?.file).toBe("pages/404.json");
+    expect(findPage({ pages } as ApiManifest, "/who-we-are")?.file).toBe("pages/404.json");
   });
 
   it("keeps the pictures a file shows, never other media", () => {
