@@ -42,8 +42,8 @@ const releases =
 
 const now = new Date("2026-11-02T04:17:00Z");
 
-/** Tests that run git, which can take seconds to start on Windows while many tests run at once. */
-const GIT_TIMEOUT = 60_000;
+/** Tests that run git, each start of which can take seconds on Windows while many tests run at once, so a test can take a minute. */
+const GIT_TIMEOUT = 180_000;
 
 describe("nightlyCheck", { timeout: GIT_TIMEOUT }, () => {
   it("builds only when something has changed since the live site was built", async () => {

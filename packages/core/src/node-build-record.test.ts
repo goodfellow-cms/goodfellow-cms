@@ -34,8 +34,8 @@ async function site(): Promise<string> {
 
 const git = (cwd: string, ...args: string[]) => spawnSync("git", args, { cwd, encoding: "utf8" });
 
-/** Tests that run git, which can take seconds to start on Windows while many tests run at once. */
-const GIT_TIMEOUT = 60_000;
+/** Tests that run git, each start of which can take seconds on Windows while many tests run at once, so a test can take a minute. */
+const GIT_TIMEOUT = 180_000;
 
 describe("currentUntil", () => {
   it("is the earliest date reported, at midnight in the site's time zone, or the next scheduled change", async () => {

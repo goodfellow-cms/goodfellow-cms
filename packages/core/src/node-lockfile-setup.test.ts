@@ -13,8 +13,8 @@ import {
 
 const ROOT = join(import.meta.dirname, "../../..");
 
-/** Tests that start Node processes, which can take seconds to start on Windows while many tests run at once. */
-const NODE_TIMEOUT = 60_000;
+/** Tests that start Node processes, each of which can take seconds to start on Windows while many tests run at once, so a test can take a minute. */
+const NODE_TIMEOUT = 180_000;
 
 describe("the lockfile check", { timeout: NODE_TIMEOUT }, () => {
   async function check(site: unknown, lock?: unknown): Promise<boolean> {
