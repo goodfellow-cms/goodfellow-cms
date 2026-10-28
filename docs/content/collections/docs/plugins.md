@@ -191,7 +191,7 @@ Each step runs in a Node process of its own with Node's permission model on: it 
 
 ## Tasks
 
-A task is work the admin module asks the site's CI to do with secrets the admin panel must never hold, such as signing uploads to a storage service with its keys. The admin module calls `api.task(id, input)`; the admin panel starts the task with a key pair it makes for that request alone, and the site's CI runs `goodfellow task` (`goodfellow-next task` in Next.js sites), which loads the site's config, runs the task, and seals its answer to that request's public key, so only the admin panel that asked can read it. It takes about a minute.
+A task is work the admin module asks the site's CI to do with secrets the admin panel must never hold, such as signing uploads to a storage service with its keys. The admin module calls `api.task(id, input)`; the admin panel starts the task with a key pair it makes for that request alone, and the site's CI runs `goodfellow task` (`goodfellow-next task` in Next.js sites), which loads the site's config in a process of its own that's given none of the job's secrets, runs the task, and seals its answer to that request's public key, so only the admin panel that asked can read it. It takes about a minute.
 
 ```js
 // goodfellow-plugin-gallery/publish-album
@@ -310,7 +310,7 @@ Its default export gets the request and `{ path, editor }`: the path after its i
 ## What can't be enforced
 
 - **A server module** runs with everything the site's server has, its token and secrets included. Only a review backs what it declares.
-- **A build step's or task's network requests** aren't limited: Node's permission model covers files, processes and workers, not the network. The packages it loads share its process and what it was given.
+- **A build step's or task's network requests** aren't limited: Node's permission model covers files, processes and workers, not the network. The packages it loads share its process and what it was given. Node calls its permission model a seat belt, not a sandbox: it keeps a step or task to what it declared by mistake, not one written to get around it.
 - **Blocks on the site's pages** run with everything visitors' browsers allow, like any block, since pages have no Content Security Policy.
 - **A sandboxed frame can leave for another address**, so a plugin's policy limits what its admin module can send while it's there without sealing it. Its sandbox is what keeps it from the admin panel's sign-in.
 

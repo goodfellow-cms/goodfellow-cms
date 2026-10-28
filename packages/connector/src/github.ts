@@ -26,6 +26,8 @@ export { PERMISSIONS };
 
 /** How many of the app's installations are looked through for sites. */
 const MAX_INSTALLATIONS = 20;
+/** How many pages of an installation's repositories are read, 100 to a page. */
+const MAX_LIST_PAGES = 3;
 
 export function installUrl(config: GitHubConfig, app: App, state: string): string {
   return `${config.web}/apps/${encodeURIComponent(app.slug)}/installations/new?${new URLSearchParams({ state })}`;
@@ -51,18 +53,31 @@ export async function signedInSites(
 ) {
   const tokens = await userTokens(config, app, grant, now);
   const auth = { bearer: tokens.access };
+  /** Every page of a list, 100 at a time, up to `most` pages, since Workers make only so many requests. */
+  async function pages<T>(path: (page: number) => string, key: string, most = MAX_LIST_PAGES): Promise<T[]> {
+    const all: T[] = [];
+    for (let page = 1; page <= most; page++) {
+      const found = ((await githubJson<Record<string, T[] | undefined>>(config, path(page), { auth }))[key] ??
+        []) as T[];
+      all.push(...found);
+      if (found.length < 100) break;
+    }
+    return all;
+  }
   try {
     const user = await githubJson<{ login: string; id: number; name?: string | null }>(config, "/user", { auth });
-    const { installations = [] } = await githubJson<{ installations?: Array<{ id: number }> }>(
-      config,
-      "/user/installations?per_page=100",
-      { auth },
+    const installations = await pages<{ id: number }>(
+      (page) => `/user/installations?per_page=100&page=${page}`,
+      "installations",
+      Math.ceil(MAX_INSTALLATIONS / 100),
     );
     const sites: GitHubSite[] = [];
     for (const installation of installations.slice(0, MAX_INSTALLATIONS)) {
-      const { repositories = [] } = await githubJson<{
-        repositories?: Array<{ full_name: string; default_branch?: string; permissions?: { push?: boolean } }>;
-      }>(config, `/user/installations/${installation.id}/repositories?per_page=100`, { auth });
+      const repositories = await pages<{
+        full_name: string;
+        default_branch?: string;
+        permissions?: { push?: boolean };
+      }>((page) => `/user/installations/${installation.id}/repositories?per_page=100&page=${page}`, "repositories");
       for (const repository of repositories) {
         if (!repository.permissions?.push) continue;
         sites.push({

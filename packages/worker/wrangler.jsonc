@@ -8,7 +8,10 @@
   "vars": {
     "EDIT_APP_SLUG": "goodfellow-cms",
     "OWNER_APP_SLUG": "goodfellow-cms-owner",
-    "SETUP_ORIGINS": "https://goodfellow-cms.github.io"
+    "SETUP_ORIGINS": "https://goodfellow-cms.github.io",
+    // The only addresses tokens may go to, separated by commas, such as "https://example.org,https://admin.example.org".
+    // Empty gives tokens to the addresses the site's own files name, which its editors can change.
+    "ALLOWED_ORIGINS": ""
   }
   // `pnpm run setup` sets these and the secrets, which `npx wrangler secret put NAME` can also set: EDIT_APP_ID,
   // EDIT_CLIENT_ID, EDIT_CLIENT_SECRET, EDIT_PRIVATE_KEY, OWNER_APP_ID, OWNER_CLIENT_ID, OWNER_CLIENT_SECRET,

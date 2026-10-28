@@ -11,12 +11,17 @@ export interface GrantStore {
   rotate(id: string, generation: number, expires: number, now: number): Promise<boolean>;
   /** Ends a connection. */
   revoke(id: string): Promise<void>;
+  /** Whether a connection hasn't ended or lapsed, which every request with its access tokens checks. */
+  active(id: string, now: number): Promise<boolean>;
 }
 
 /** The part of D1's binding the connector uses. */
 export interface D1Like {
   prepare(query: string): {
-    bind(...values: unknown[]): { run(): Promise<{ meta: { changes: number } }> };
+    bind(...values: unknown[]): {
+      run(): Promise<{ meta: { changes: number } }>;
+      first(): Promise<unknown>;
+    };
   };
 }
 
@@ -43,6 +48,9 @@ export function d1Grants(db: D1Like): GrantStore {
     async revoke(id) {
       await db.prepare("DELETE FROM grants WHERE id = ?").bind(id).run();
     },
+    async active(id, now) {
+      return (await db.prepare("SELECT 1 FROM grants WHERE id = ? AND expires_at > ?").bind(id, now).first()) !== null;
+    },
   };
 }
 
@@ -65,6 +73,10 @@ export function memoryGrants(): GrantStore & { rows: Map<string, { generation: n
     },
     async revoke(id) {
       rows.delete(id);
+    },
+    async active(id, now) {
+      const row = rows.get(id);
+      return row !== undefined && row.expires > now;
     },
   };
 }

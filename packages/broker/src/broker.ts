@@ -52,6 +52,11 @@ function element<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+/** Which plugin's task a question is about, so allowing it once covers its later runs. */
+function taskKey(question: { plugin: string; task: string }): string {
+  return JSON.stringify([question.plugin, question.task]);
+}
+
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -255,6 +260,7 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
     );
 
     let stop: (() => void) | undefined;
+    const allowedTasks = new Set<string>();
     const onMessage = (event: MessageEvent) => {
       // Only the admin panel, in this page's own frame, at its own address.
       if (event.source !== frame.contentWindow || event.origin !== frameOrigin) return;
@@ -269,11 +275,18 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
             const paths = decision.paths.join(", ");
             throw decision.reason === "limits"
               ? new BrokerRefusedError("limits", t("refusedLimits", { paths }))
-              : new BrokerRefusedError("workflow", t("refusedWorkflow", { paths }));
+              : decision.reason === "unknown"
+                ? new BrokerRefusedError("not-here", t("refusedUnknown", { paths }))
+                : new BrokerRefusedError("workflow", t("refusedWorkflow", { paths }));
           }
-          if (decision.action === "ask" && !(await confirm(decision.questions))) {
-            throw new BrokerRefusedError("declined", t("declined"));
-          }
+          if (decision.action !== "ask") return;
+          // A plugin's task, once allowed, runs again unasked while this page is open, as uploads to storage do.
+          const questions = decision.questions.filter(
+            (question) => question.kind !== "task" || !allowedTasks.has(taskKey(question)),
+          );
+          if (questions.length === 0) return;
+          if (!(await confirm(questions))) throw new BrokerRefusedError("declined", t("declined"));
+          for (const question of questions) if (question.kind === "task") allowedTasks.add(taskKey(question));
         },
         extra: {
           signOut,
@@ -392,6 +405,22 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
               : t("confirmEditorsPublish"),
           ),
         );
+      } else if (question.kind === "editors-remove") {
+        body.push(element("p", {}, t("confirmEditorsRemove", { who: question.who })));
+      } else if (question.kind === "domain") {
+        const key =
+          question.change === "connect"
+            ? "confirmDomainConnect"
+            : question.change === "secure"
+              ? "confirmDomainSecure"
+              : "confirmDomainDisconnect";
+        body.push(element("p", {}, t(key, { domain: question.domain })));
+      } else if (question.kind === "task") {
+        body.push(element("p", {}, t("confirmTask", { plugin: question.plugin, task: question.task })));
+      } else if (question.kind === "updates-setup") {
+        body.push(element("p", {}, t("confirmUpdatesSetup")));
+      } else if (question.kind === "discard-draft") {
+        body.push(element("p", {}, t("confirmDiscardDraft", { name: question.name })));
       } else {
         publishes = true;
         const intro =
@@ -406,7 +435,8 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
         );
       }
     }
-    return dialog(t("confirmTitle"), body, [
+    if (!publishes) body[0] = element("p", {}, t("confirmAskIntro"));
+    return dialog(t(publishes ? "confirmTitle" : "confirmAskTitle"), body, [
       { label: t("cancel"), value: false },
       { label: t(publishes ? "confirmPublish" : "confirmAllow"), value: true, primary: true },
     ]);

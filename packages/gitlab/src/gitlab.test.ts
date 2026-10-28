@@ -815,6 +815,20 @@ describe("scheduled builds", () => {
     expect(fake.updateSettings.schedules.map((schedule) => schedule.id)).toEqual([99, 2]);
   });
 
+  it("removes a schedule it couldn't give its variable, which would run the nightly update", async () => {
+    const fake = fakeGitLab({ project: "parish/site", files: { ...FILES, ".gitlab-ci.yml": "pages: {}\n" } });
+    const failing: typeof fetch = async (input, init) => {
+      const request = new Request(input, init);
+      if (request.method === "POST" && new URL(request.url).pathname.endsWith("/variables")) {
+        return new Response("Server error", { status: 500 });
+      }
+      return fake.fetch(request);
+    };
+    const backend = await gitlab({ project: "parish/site", fetch: failing }).signInWithToken("test-token", false);
+    await expect(backend.scheduledBuilds?.sync?.([new Date("2099-11-29T14:00:00Z")])).rejects.toThrow();
+    expect(fake.updateSettings.schedules).toEqual([]);
+  });
+
   it("says when a site has no pipeline to build it", async () => {
     expect(await (await site("test-token", {})).builds?.timing()).toBe("none");
   });

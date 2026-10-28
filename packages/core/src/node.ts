@@ -60,6 +60,7 @@ export {
   reportNightly,
 } from "./node-nightly.js";
 export {
+  type ConfigLoader,
   mediaStorageOrigins,
   PluginBuildError,
   type PluginBuildOptions,
@@ -70,6 +71,7 @@ export {
   resolvePluginModule,
   runPluginBuildSteps,
   runPluginTask,
+  sitePluginsApart,
   taskSecretsFrom,
 } from "./node-plugins.js";
 export { localRegistryDir } from "./node-registry.js";

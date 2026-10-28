@@ -46,6 +46,7 @@ import {
   runPluginBuildSteps,
   runPluginTask,
   selfHostFonts,
+  sitePluginsApart,
   taskSecretsFrom,
   writeBuildRecord,
 } from "@goodfellow-cms/core/node";
@@ -448,8 +449,8 @@ export async function checkPages(pages: readonly BuiltPage[], root = process.cwd
 /**
  * Runs one of a plugin's tasks for the admin panel, as `goodfellow task`
  * does for other sites, with the site's config loaded in Node, and writes its
- * answer sealed to the request's key, even when the task fails. Secrets are
- * taken out of the environment before the config loads.
+ * answer sealed to the request's key, even when the task fails. The config
+ * loads in a process of its own, with none of the job's secrets.
  */
 export async function writeTaskResult(
   root: string,
@@ -461,8 +462,8 @@ export async function writeTaskResult(
   if (problem) throw new Error(problem);
   let answer: TaskAnswer;
   try {
-    const config = await loadSiteConfig(resolve(root));
-    const plugin = (config.plugins ?? []).find((candidate) => pluginId(candidate.name) === request.plugin);
+    const plugins = await sitePluginsApart(resolve(root), { module: import.meta.url, export: "loadTaskConfig" });
+    const plugin = plugins.find((candidate) => pluginId(candidate.name) === request.plugin);
     answer = plugin
       ? await runPluginTask({ root: resolve(root), plugin, task: request.task, input: request.input, secrets })
       : { ok: false, error: `The site has no plugin ${request.plugin}.` };
@@ -472,6 +473,11 @@ export async function writeTaskResult(
   const sealed = await sealTaskAnswer(answer, request.key);
   await writeFile(resolve(root, out), `${JSON.stringify(sealed)}\n`);
   return sealed;
+}
+
+/** The site's config, loaded in Node, for `writeTaskResult()`'s process that loads it apart from the job's secrets. */
+export function loadTaskConfig(root: string): Promise<GoodfellowConfig> {
+  return loadSiteConfig(root);
 }
 
 /**

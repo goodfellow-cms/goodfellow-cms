@@ -37,7 +37,7 @@ function browser(site: ReturnType<typeof setup>, start = `${SITE}/admin/#/pages`
 
   /** Follows GitHub's sign-in, as `login`, from where the admin panel sent the browser back to the admin panel. */
   async function signInOnGitHub(login: string) {
-    const started = await site.worker.fetch(new Request(href), site.env);
+    const started = await site.confirmed(await site.worker.fetch(new Request(href), site.env));
     const authorize = new URL(started.headers.get("location") ?? "");
     const code = site.fake.authorize(login, authorize.searchParams.get("client_id") ?? "");
     const state = authorize.searchParams.get("state") ?? "";
@@ -50,7 +50,7 @@ function browser(site: ReturnType<typeof setup>, start = `${SITE}/admin/#/pages`
 
   /** Follows GitHub's install page, as `login` choosing `repositories`, back to the admin panel, signed in. */
   async function installOnGitHub(login: string, repositories: string[]) {
-    const started = await site.worker.fetch(new Request(href), site.env);
+    const started = await site.confirmed(await site.worker.fetch(new Request(href), site.env));
     const install = new URL(started.headers.get("location") ?? "");
     const slug = install.pathname.split("/")[2] ?? "";
     const { code, installation } = site.fake.install(slug, login, repositories);

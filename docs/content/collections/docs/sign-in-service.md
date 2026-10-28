@@ -18,7 +18,7 @@ The service gives the admin panel tokens from its GitHub App, which GitHub only 
 
 ## What it keeps
 
-Nothing. GitHub gives the service the editor's own token when they sign in, which it uses only to check who they are and that they can edit the site, then revokes straight away. The session the browser keeps says only who the editor is and which site it's for, sealed with a key only the service has, so it can't be changed or made up. Removing someone as an editor on GitHub stops their session working within the hour.
+Nothing. GitHub gives the service the editor's own token when they sign in, which it uses only to check who they are and that they can edit the site, then revokes straight away. The session the browser keeps says only who the editor is and which site it's for, sealed with a key only the service has, so it can't be changed or made up. Removing someone as an editor on GitHub stops their session working within the hour, and a session ends 12 hours after signing in (30 days with **Stay signed in**), however often it's used.
 
 The setup page is the one exception: creating a repository needs the person's own token, so the setup page's session keeps it, sealed, until the repository exists (both of them, for a site whose content has a repository of its own) or half an hour has passed, whichever is first.
 
@@ -35,6 +35,8 @@ Editors' tokens can't change workflows or the repository's settings. Commits mad
 ## Where it works
 
 The service gives tokens only to the address in the site's settings, to the admin panel's [own address](/docs/custom-domains#an-admin-address) where the site's `goodfellow-site.json` names one, and to the site's other copies it names, such as a [staging site](/docs/staging), or, where it names a [token broker](/docs/token-broker), only to the broker, and never to this computer (`localhost`), where `goodfellow dev` and `next dev` need no sign-in. When the address changes, as connecting a domain does, sign-in follows the site there once the new address is published. Other copies of the admin panel, such as a preview on Vercel, sign in with a token.
+
+Editors can change the files those addresses come from: `content/site.json`, and the config the site's build writes `goodfellow-site.json` from. GitHub signs in someone who has approved the app before without asking, so an owner's sign-in first shows a page of the service's own, naming the address the owner token would go to, and goes on to GitHub only from there. To rule out addresses the site's files could add, list the only ones the service may give tokens to in its `ALLOWED_ORIGINS` setting (in `wrangler.jsonc`'s `vars`, separated by commas, such as `https://example.org,https://admin.example.org`): an address the site's files name then gets tokens only if it's listed there too, and owners' sign-ins to a listed address skip the page.
 
 ## Limits
 

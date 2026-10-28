@@ -46,13 +46,25 @@ export const STRINGS = {
   pluginNothing: "Nothing more",
   confirmEditors: "Giving {who} access to edit the site{role}.",
   confirmEditorsPublish: "Letting the site's editors publish to it.",
+  confirmAskTitle: "Allow this?",
+  confirmAskIntro:
+    "The admin panel asked to do something that needs you to say so here, where nothing it runs can say so for you:",
+  confirmEditorsRemove: "Taking away {who}'s access to the site.",
+  confirmDomainConnect: "Connecting the domain {domain} to the site.",
+  confirmDomainSecure: "Turning on HTTPS for {domain}, and serving the site from it.",
+  confirmDomainDisconnect: "Removing the domain {domain} from the site.",
+  confirmTask:
+    "Running the plugin {plugin}'s task {task} with the secrets it was given. Allowing it lets it run again while this page is open.",
+  confirmUpdatesSetup: "Changing the site's settings on its host so it can install updates by itself.",
+  confirmDiscardDraft: "Throwing away the draft {name}, which can't be undone.",
   confirmPublish: "Publish",
   confirmAllow: "Allow",
   cancel: "Cancel",
   refusedLimits:
     "An owner has limited what you can change on this site, and this publish changes things outside it: {paths}. Submit it for review instead.",
   refusedWorkflow: "The token broker never changes the site's workflows, which run with its secrets: {paths}.",
-  declined: "You chose not to publish this.",
+  refusedUnknown: "The token broker doesn't make this call for the admin panel: {paths}.",
+  declined: "You chose not to do this.",
   ownerTitle: "Owner token",
   ownerIntro:
     "Create a token that can manage the site, then paste it here. This page keeps it for as long as it's open, and the admin panel never sees it.",

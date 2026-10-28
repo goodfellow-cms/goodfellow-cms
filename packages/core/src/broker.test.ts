@@ -62,10 +62,11 @@ describe("what the broker publishes without asking", () => {
         { path: "package.json", content: "{}" },
         { path: ".github/workflows/deploy.yml", content: "" },
         { path: ".gitlab-ci.yml", content: "" },
+        { path: "bitbucket-pipelines.yml", content: "" },
       ],
       "https://example.org/",
     );
-    expect(check.refused).toEqual([".github/workflows/deploy.yml", ".gitlab-ci.yml"]);
+    expect(check.refused).toEqual([".github/workflows/deploy.yml", ".gitlab-ci.yml", "bitbucket-pipelines.yml"]);
     expect(check.confirm).toEqual([
       { path: "content/code/head.html", kind: "custom-code" },
       { path: "blocks/installed/faq/block.tsx", kind: "code" },

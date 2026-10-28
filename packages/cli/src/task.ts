@@ -1,17 +1,13 @@
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
-  type GoodfellowConfig,
   pluginId,
   sealTaskAnswer,
   type TaskAnswer,
   type TaskResultFile,
   taskRequestProblem,
 } from "@goodfellow-cms/core";
-import { runPluginTask, taskSecretsFrom } from "@goodfellow-cms/core/node";
-import { createServer } from "vite";
-import type { ClientModules } from "./islands.js";
-import { baseViteConfig, findConfigFile, loadServerEntry } from "./site.js";
+import { runPluginTask, sitePluginsApart, taskSecretsFrom } from "@goodfellow-cms/core/node";
 
 export interface TaskOptions {
   root?: string;
@@ -28,27 +24,12 @@ export interface TaskOptions {
   out: string;
 }
 
-/** The site's config, loaded as `goodfellow build` loads it. */
-async function siteConfig(root: string): Promise<GoodfellowConfig> {
-  const modules: ClientModules = new Map();
-  const server = await createServer({
-    ...baseViteConfig(root, findConfigFile(root), modules),
-    appType: "custom",
-    server: { middlewareMode: true, hmr: false, ws: false, watch: null },
-  });
-  try {
-    return (await loadServerEntry(server)).config;
-  } finally {
-    await server.close();
-  }
-}
-
 /**
  * Runs one of a plugin's tasks for the admin panel, as the starters' task
  * workflow and pipeline do, and writes its answer sealed to the request's
- * key, even when the task fails, so the admin panel can say why. Secrets are
- * taken out of the environment first, so loading the site's config never
- * sees them; the task gets only those its plugin declared.
+ * key, even when the task fails, so the admin panel can say why. The site's
+ * config loads in a process of its own, with none of the job's secrets; the
+ * task gets only those its plugin declared.
  */
 export async function runTask(options: TaskOptions): Promise<TaskResultFile> {
   const root = resolve(options.root ?? ".");
@@ -63,8 +44,11 @@ export async function runTask(options: TaskOptions): Promise<TaskResultFile> {
   if (problem) throw new Error(problem);
   let answer: TaskAnswer;
   try {
-    const config = await siteConfig(root);
-    const plugin = (config.plugins ?? []).find((candidate) => pluginId(candidate.name) === options.plugin);
+    const plugins = await sitePluginsApart(root, {
+      module: new URL("./task-config.js", import.meta.url).href,
+      export: "loadTaskConfig",
+    });
+    const plugin = plugins.find((candidate) => pluginId(candidate.name) === options.plugin);
     answer = plugin
       ? await runPluginTask({
           root,

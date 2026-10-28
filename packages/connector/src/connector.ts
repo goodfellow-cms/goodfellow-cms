@@ -546,6 +546,8 @@ export function createConnector(options: ConnectorOptions = {}) {
         json({ error: "invalid_token", error_description: "Connect Goodfellow again." }, 401, {
           "www-authenticate": `Bearer resource_metadata="${resourceMetadata}", error="invalid_token"`,
         });
+      // A connection that's been revoked, or whose code or refresh token was used twice, ends at once, not when its access token lapses.
+      if (!grants || !(await grants.active(access.grant, now()))) return reconnect();
       let end = async () => {};
       let backend: (site: string) => Promise<GitBackend>;
       if (connection.host === "github") {
