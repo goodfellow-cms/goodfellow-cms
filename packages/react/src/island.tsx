@@ -114,7 +114,11 @@ async function renderIsland(component: ComponentType, props: object, site: SiteC
       <InsideIsland.Provider value={true}>{createElement(component, props)}</InsideIsland.Provider>
     </SiteProvider>
   );
-  const { prelude } = await prerender(element, { identifierPrefix: identifierPrefix(id) });
+  const { prelude } = await prerender(element, {
+    identifierPrefix: identifierPrefix(id),
+    // Written whole, as pages are (`WHOLE_PAGE` in server.tsx).
+    progressiveChunkSize: Number.MAX_SAFE_INTEGER,
+  });
   return new Response(prelude).text();
 }
 

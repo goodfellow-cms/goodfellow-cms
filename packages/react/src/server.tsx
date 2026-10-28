@@ -141,7 +141,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
       </html>
     );
 
-    const { prelude } = await prerender(document);
+    const { prelude } = await prerender(document, { progressiveChunkSize: WHOLE_PAGE });
     // React writes the doctype itself when the root element is <html>.
     let html = fillSlots(await new Response(prelude).text());
     if (assets.islands && html.includes(`<${ISLAND_TAG} `)) {
@@ -153,5 +153,13 @@ export function createPageRenderer(config: GoodfellowConfig) {
 }
 
 export type PageRenderer = ReturnType<typeof createPageRenderer>;
+
+/**
+ * React moves what a Suspense boundary shows to the end of a long page, for a
+ * script to put back, so a page streams sooner. Built pages aren't streamed,
+ * and visitors without JavaScript, search engines and the site checks would
+ * find that content hidden outside `<main>`, so every page is written whole.
+ */
+const WHOLE_PAGE = Number.MAX_SAFE_INTEGER;
 
 export { contentApi, prepareContentApi } from "./content-api.js";
