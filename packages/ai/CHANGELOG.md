@@ -1,5 +1,28 @@
 # @goodfellow-cms/ai
 
+## 0.7.0
+
+### Minor Changes
+
+- 48366cf: Every block's look can be set without code: its CSS classes setting is now **Style**, which the editor shows as controls for text alignment, text size, text and background colors (the theme's, or your own), space inside and around it, each side or all at once, and rounded corners, with a note when text may be hard to read on its background. They're kept as Tailwind classes in the block's `className` (`readBlockStyle()` and `withBlockStyle()` in `@goodfellow-cms/core`), beside any other classes, which **Other CSS classes** keeps, so content files, themes' parts, the Gutenberg plugin and the AI assistant work with them as before. Blocks with an alignment setting of their own keep it.
+
+### Patch Changes
+
+- Updated dependencies [c6afe19]
+- Updated dependencies [a8e3581]
+- Updated dependencies [48366cf]
+- Updated dependencies [8f7fa14]
+- Updated dependencies [4f79454]
+- Updated dependencies [3bb8c96]
+- Updated dependencies [cedcb3a]
+- Updated dependencies [42cf54b]
+- Updated dependencies [45a692b]
+- Updated dependencies [45a692b]
+- Updated dependencies [db58e5d]
+- Updated dependencies [a52b217]
+- Updated dependencies [dd3da3e]
+  - @goodfellow-cms/core@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

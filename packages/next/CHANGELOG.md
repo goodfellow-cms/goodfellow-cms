@@ -1,5 +1,40 @@
 # @goodfellow-cms/next
 
+## 0.7.0
+
+### Minor Changes
+
+- 3bb8c96: Builds write a content API at `/api/`: the site's content as static JSON, each page as it's shown after preparation, with each language's settings, menus, collections, header and footer, and a manifest listing every file with a hash, so apps and other sites can show the site without a server. Rich text and Markdown are written as sanitized HTML, as pages have them, and also as a simple structure an app can draw without an HTML renderer. `goodfellow build` and `goodfellow-next finish` write the same files, and the config's `api: false` leaves them out. Numbered lists that start past 1 keep their start when rich text is sanitized.
+- cedcb3a: Editor plugins' frames are the editor's alone: they keep the admin panel's colors and font but no longer get a screen's spacing or plain element styles, which reached the site's blocks drawn in them. Their policy lets them load the theme's Google Fonts, as the standard editor's frames do, and `session.styles()` gives the fonts' stylesheet as `fonts`.
+- 45a692b: Apps with Expo: `@goodfellow-cms/expo` shows a Goodfellow site natively in an Expo app for iPhone and Android from its content API, with no server. The app reads the manifest when it starts and when it comes back to the front, downloads only what changed and keeps it with its pictures, so it works offline; large sites choose which pages it keeps ahead. It stays on the copy it has when the site's content is newer than it reads. Every built-in block has a version for apps, `nativeBlocks` from `@goodfellow-cms/blocks/native`, sharing its props and what it shows with the website's, and blocks the app has no version of show a placeholder, or the app's own fallback, such as an Expo DOM component. `goodfellow blocks add --native <app>` also makes a block's version for the app with shadcn-tamagui-codemod. The content API's manifest now lists the site's redirects, which the app follows as the website does, and its pages carry their blocks' default props and the page's links to its translations, and the Form block has messages for the app to show once answers are sent or when they couldn't be.
+- db58e5d: `goodfellow blocks add <item>` (and `goodfellow-next blocks add`) installs any shadcn registry item with shadcn's own CLI and makes a block of its component. Its fields come from the component's props, read with TypeScript 7, and its defaults from the component's code. The command then typechecks and renders the block, and lists what it couldn't do. With `--registry <folder>`, it writes the block into a block registry instead. The new `@goodfellow-cms/core/shadcn` entry does the work.
+  
+  New sites' `components.json` says `"rsc": true`, since with `false` shadcn drops `"use client"` from what it installs, and interactive components never run in the browser. The command fixes older sites' when it runs.
+- a52b217: Staging copies of a site: a build with `GOODFELLOW_SITE_URL` uses that address in place of the Site address, and `GOODFELLOW_NO_INDEX=true` keeps every page out of search engines, without either one reaching content. The config's `copies` lists them for the sign-in service, through `goodfellow-site.json`. A copy at an address of its own keeps its admin panel there, and the Domain screen says where it is.
+
+### Patch Changes
+
+- Updated dependencies [c6afe19]
+- Updated dependencies [a8e3581]
+- Updated dependencies [48366cf]
+- Updated dependencies [8f7fa14]
+- Updated dependencies [4f79454]
+- Updated dependencies [3bb8c96]
+- Updated dependencies [cedcb3a]
+- Updated dependencies [a50ae8f]
+- Updated dependencies [42cf54b]
+- Updated dependencies [45a692b]
+- Updated dependencies [45a692b]
+- Updated dependencies [45a692b]
+- Updated dependencies [db58e5d]
+- Updated dependencies [a52b217]
+- Updated dependencies [dd3da3e]
+- Updated dependencies [6701c92]
+  - @goodfellow-cms/admin@0.7.0
+  - @goodfellow-cms/react@0.7.0
+  - @goodfellow-cms/core@0.7.0
+  - @goodfellow-cms/ai@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

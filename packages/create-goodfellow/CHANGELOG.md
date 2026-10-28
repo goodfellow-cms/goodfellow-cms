@@ -1,5 +1,27 @@
 # create-goodfellow
 
+## 0.7.0
+
+### Patch Changes
+
+- db58e5d: `goodfellow blocks add <item>` (and `goodfellow-next blocks add`) installs any shadcn registry item with shadcn's own CLI and makes a block of its component. Its fields come from the component's props, read with TypeScript 7, and its defaults from the component's code. The command then typechecks and renders the block, and lists what it couldn't do. With `--registry <folder>`, it writes the block into a block registry instead. The new `@goodfellow-cms/core/shadcn` entry does the work.
+  
+  New sites' `components.json` says `"rsc": true`, since with `false` shadcn drops `"use client"` from what it installs, and interactive components never run in the browser. The command fixes older sites' when it runs.
+- Updated dependencies [c6afe19]
+- Updated dependencies [a8e3581]
+- Updated dependencies [48366cf]
+- Updated dependencies [8f7fa14]
+- Updated dependencies [4f79454]
+- Updated dependencies [3bb8c96]
+- Updated dependencies [cedcb3a]
+- Updated dependencies [42cf54b]
+- Updated dependencies [45a692b]
+- Updated dependencies [45a692b]
+- Updated dependencies [db58e5d]
+- Updated dependencies [a52b217]
+- Updated dependencies [dd3da3e]
+  - @goodfellow-cms/core@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

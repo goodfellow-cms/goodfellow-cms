@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/gitlab",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Edit a Goodfellow site stored on GitLab, straight from the browser.",
   "keywords": [
     "goodfellow",
