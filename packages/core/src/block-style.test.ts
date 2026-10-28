@@ -22,14 +22,16 @@ describe("block styles", () => {
   });
 
   it("reads lengths of an editor's own, and leaves classes it doesn't cover alone", () => {
-    expect(readBlockStyle("text-[18px] p-[13px] rounded-[3px] text-white bg-[url(x)] mx-auto -mt-4 rounded")).toEqual({
-      style: {
-        fontSize: "18px",
-        padding: { top: "13px", right: "13px", bottom: "13px", left: "13px" },
-        radius: "3px",
+    expect(readBlockStyle("text-[18px] p-[13px] rounded-[3px] text-white bg-[var(--x)] mx-auto -mt-4 rounded")).toEqual(
+      {
+        style: {
+          fontSize: "18px",
+          padding: { top: "13px", right: "13px", bottom: "13px", left: "13px" },
+          radius: "3px",
+        },
+        other: ["text-white", "bg-[var(--x)]", "mx-auto", "-mt-4", "rounded"],
       },
-      other: ["text-white", "bg-[url(x)]", "mx-auto", "-mt-4", "rounded"],
-    });
+    );
     expect(readBlockStyle(undefined)).toEqual({ style: {}, other: [] });
   });
 
