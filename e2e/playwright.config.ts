@@ -108,6 +108,43 @@ function serversFor(args: string[]): Server[] {
   return SERVERS.filter(({ usedBy }) => !usedBy || specs.some((text) => usedBy.test(text))).map(({ server }) => server);
 }
 
+/** The most servers, besides the `goodfellow dev` site, that a group of specs starts at once. */
+const GROUP_SERVERS = 4;
+
+/**
+ * The spec files in groups that each start at most `GROUP_SERVERS` servers besides the `goodfellow dev` site,
+ * for `scripts/test-groups.mjs` to run one after another: starting every server at once took more memory than
+ * CI's runners have. Specs that use the most servers are placed first, each in the group whose servers it adds
+ * fewest to, so specs that share a server mostly run where it's already started.
+ */
+export function specGroups(): string[][] {
+  const specs = readdirSync(new URL("tests/", import.meta.url))
+    .filter((name) => name.endsWith(".spec.ts"))
+    .sort()
+    .map((name) => {
+      const text = readFileSync(new URL(`tests/${name}`, import.meta.url), "utf8");
+      const used = SERVERS.flatMap(({ usedBy }, index) => (usedBy?.test(text) ? [index] : []));
+      return { name, used };
+    })
+    .sort((a, b) => b.used.length - a.used.length);
+  const groups: { servers: Set<number>; specs: string[] }[] = [];
+  for (const spec of specs) {
+    const fits = groups
+      .map((group) => ({ group, added: spec.used.filter((index) => !group.servers.has(index)).length }))
+      .filter(({ group, added }) => group.servers.size + added <= GROUP_SERVERS)
+      // Fewest servers added, then the group with fewest servers, so specs needing only the dev site spread out.
+      .sort((a, b) => a.added - b.added || a.group.servers.size - b.group.servers.size);
+    let group = fits[0]?.group;
+    if (!group) {
+      group = { servers: new Set(), specs: [] };
+      groups.push(group);
+    }
+    for (const index of spec.used) group.servers.add(index);
+    group.specs.push(spec.name);
+  }
+  return groups.map((group) => group.specs.sort());
+}
+
 export default defineConfig({
   testDir: "tests",
   // Every test edits the same site on disk, so they run one at a time.
