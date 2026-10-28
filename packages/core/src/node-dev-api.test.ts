@@ -9,7 +9,13 @@ import { localFileStore } from "./node-local-files.js";
 import { newTaskRequestId, openTaskAnswer, taskKeys } from "./plugin-tasks.js";
 import { definePlugin } from "./plugins.js";
 
-describe("handleDevApi", () => {
+/**
+ * Tests that start servers and Node processes, which can take seconds to start
+ * on Windows while many tests run at once.
+ */
+const NODE_TIMEOUT = 60_000;
+
+describe("handleDevApi", { timeout: NODE_TIMEOUT }, () => {
   let root: string;
   let server: Server;
   let base: string;
@@ -23,8 +29,8 @@ describe("handleDevApi", () => {
     server = createServer(async (req, res) => {
       if (!(await handleDevApi(store, req, res, { registryDir }))) res.writeHead(418).end();
     });
-    await new Promise<void>((done) => server.listen(0, done));
-    base = `http://localhost:${(server.address() as AddressInfo).port}${DEV_API_PREFIX}`;
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}${DEV_API_PREFIX}`;
   });
 
   afterAll(async () => {
@@ -143,9 +149,6 @@ describe("isLocalOrigin", () => {
   });
 });
 
-/** Tests that start Node processes, which can take seconds to start on Windows while many tests run at once. */
-const NODE_TIMEOUT = 60_000;
-
 describe("handleDevApi's plugins' tasks", { timeout: NODE_TIMEOUT }, () => {
   let root: string;
   let server: Server;
@@ -170,8 +173,8 @@ describe("handleDevApi's plugins' tasks", { timeout: NODE_TIMEOUT }, () => {
       const tasks = { root, plugins: async () => [plugin], server: "goodfellow-dev" as const };
       if (!(await handleDevApi(store, req, res, { tasks }))) res.writeHead(418).end();
     });
-    await new Promise<void>((done) => server.listen(0, done));
-    base = `http://localhost:${(server.address() as AddressInfo).port}${DEV_API_PREFIX}`;
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}${DEV_API_PREFIX}`;
   });
 
   afterAll(async () => {
