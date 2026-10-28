@@ -1,5 +1,5 @@
 import { addDays, changesOn, todayIn } from "@goodfellow-cms/core";
-import { classNameField, SiteLink, useParts, withParts } from "@goodfellow-cms/react";
+import { classNameField, SiteLink, useParts, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 
 export interface FeedItem {
@@ -203,4 +203,4 @@ const FeedList: ComponentConfig<FeedListProps> = withParts(
   },
 );
 
-export default FeedList;
+export default withKeywords(FeedList, ["rss", "atom", "feed", "news", "podcast", "headlines"]);

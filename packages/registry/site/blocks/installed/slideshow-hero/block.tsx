@@ -1,4 +1,12 @@
-import { classNameField, mediaField, SiteImage, SiteLink, useParts, withParts } from "@goodfellow-cms/react";
+import {
+  classNameField,
+  mediaField,
+  SiteImage,
+  SiteLink,
+  useParts,
+  withKeywords,
+  withParts,
+} from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import { SlideshowPictures } from "./slideshow-pictures";
 
@@ -157,4 +165,4 @@ const SlideshowHero: ComponentConfig<SlideshowHeroProps> = withParts(
   },
 );
 
-export default SlideshowHero;
+export default withKeywords(SlideshowHero, ["slideshow", "slider", "hero", "banner", "quick links", "pictures"]);

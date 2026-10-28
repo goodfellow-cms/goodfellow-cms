@@ -1,4 +1,4 @@
-import { classNameField, useParts, withParts } from "@goodfellow-cms/react";
+import { classNameField, useParts, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 
 export interface MapProps {
@@ -80,4 +80,4 @@ const MapBlock: ComponentConfig<MapProps> = withParts(
   { "gf-map": "Map" },
 );
 
-export default MapBlock;
+export default withKeywords(MapBlock, ["map", "google maps", "address", "location", "directions"]);

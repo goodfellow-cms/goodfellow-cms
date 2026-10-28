@@ -1,4 +1,4 @@
-import { classNameField, SiteLink, useParts, withParts } from "@goodfellow-cms/react";
+import { classNameField, SiteLink, useParts, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Slot } from "@puckeditor/core";
 
 export interface PanelProps {
@@ -87,4 +87,4 @@ const Panel: ComponentConfig<PanelProps> = withParts(
   },
 );
 
-export default Panel;
+export default withKeywords(Panel, ["panel", "box", "card", "title bar", "sidebar"]);

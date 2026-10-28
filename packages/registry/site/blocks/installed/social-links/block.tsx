@@ -1,4 +1,4 @@
-import { classNameField, SiteLink, useParts, withParts } from "@goodfellow-cms/react";
+import { classNameField, SiteLink, useParts, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 
 type Network = "facebook" | "instagram" | "youtube" | "x";
@@ -87,4 +87,4 @@ const SocialLinks: ComponentConfig<SocialLinksProps> = withParts(
   { "gf-social-links": "Social links", "gf-social-links-link": "Link" },
 );
 
-export default SocialLinks;
+export default withKeywords(SocialLinks, ["social", "facebook", "instagram", "youtube", "x", "twitter", "icons"]);

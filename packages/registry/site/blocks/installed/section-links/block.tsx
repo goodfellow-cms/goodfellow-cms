@@ -1,5 +1,5 @@
 import { pageTree } from "@goodfellow-cms/core";
-import { classNameField, SiteLink, useParts, useSite, withParts } from "@goodfellow-cms/react";
+import { classNameField, SiteLink, useParts, useSite, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Slot } from "@puckeditor/core";
 
 export interface SectionLinksProps {
@@ -120,4 +120,4 @@ const SectionLinks: ComponentConfig<SectionLinksProps> = withParts(
   },
 );
 
-export default SectionLinks;
+export default withKeywords(SectionLinks, ["sidebar", "section", "subpages", "navigation", "submenu"]);
