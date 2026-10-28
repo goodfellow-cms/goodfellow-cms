@@ -31,8 +31,8 @@ export default async function step(context) {
 }
 `;
 
-/** Tests that start Node processes, which can take seconds to start on Windows while many tests run at once. */
-const NODE_TIMEOUT = 60_000;
+/** Tests that start Node processes, each of which can take seconds to start on Windows while many tests run at once, so a test can take a minute. */
+const NODE_TIMEOUT = 180_000;
 
 describe("plugins' build steps", { timeout: NODE_TIMEOUT }, () => {
   let root: string;

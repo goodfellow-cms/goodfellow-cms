@@ -37,8 +37,8 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-/** Tests that run git, which can take seconds to start on Windows while many tests run at once. */
-const GIT_TIMEOUT = 60_000;
+/** Tests that run git, each start of which can take seconds on Windows while many tests run at once, so a test can take a minute. */
+const GIT_TIMEOUT = 180_000;
 
 describe("addBroker", { timeout: GIT_TIMEOUT }, () => {
   it("writes the broker's repository beside the site, with broker.json naming it", async () => {

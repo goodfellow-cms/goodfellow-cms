@@ -10,10 +10,10 @@ import { newTaskRequestId, openTaskAnswer, taskKeys } from "./plugin-tasks.js";
 import { definePlugin } from "./plugins.js";
 
 /**
- * Tests that start servers and Node processes, which can take seconds to start
- * on Windows while many tests run at once.
+ * Tests that start servers and Node processes, each of which can take seconds
+ * to start on Windows while many tests run at once, so a test can take a minute.
  */
-const NODE_TIMEOUT = 60_000;
+const NODE_TIMEOUT = 180_000;
 
 describe("handleDevApi", { timeout: NODE_TIMEOUT }, () => {
   let root: string;
