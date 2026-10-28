@@ -8,7 +8,7 @@ import {
   pluginFramePage,
   pluginId,
 } from "@goodfellow-cms/core";
-import { LICENSES_FILE, licensesPlugin } from "@goodfellow-cms/core/node";
+import { LICENSES_FILE, licensesPlugin, mediaStorageOrigins } from "@goodfellow-cms/core/node";
 import { type Plugin, type Rolldown, build as viteBuild } from "vite";
 import { findEntry, type Manifest } from "./manifest.js";
 
@@ -68,6 +68,8 @@ export async function buildPluginFrame(
         stylesheets: stylesheets.map((file) => `${base}${file}`),
         licenses: `${base}${dir}${LICENSES_FILE}`,
         editor: Boolean(plugin.editor),
+        // Where the site keeps media outside the repository, as the page is written, for its editor to show.
+        ...(plugin.editor && { media: await mediaStorageOrigins(root) }),
       }),
     );
   };

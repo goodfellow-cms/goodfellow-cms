@@ -5,13 +5,15 @@
  * `@goodfellow-cms/core`), whose Content Security Policy reaches only the
  * addresses the plugin declared.
  */
-import type {
-  PluginAdmin,
-  PluginAdminApi,
-  PluginEditorControls,
-  PluginEditorData,
-  PluginEditorSession,
-  PluginFileChange,
+import {
+  MEDIA_DIR,
+  type MediaStorage,
+  type PluginAdmin,
+  type PluginAdminApi,
+  type PluginEditorControls,
+  type PluginEditorData,
+  type PluginEditorSession,
+  type PluginFileChange,
 } from "@goodfellow-cms/core";
 import { type Channel, CONNECT_MESSAGE, createChannel } from "./frame/channel.js";
 import {
@@ -20,6 +22,8 @@ import {
   type PluginFrameInit,
   type PluginFrameMediaFile,
 } from "./frame/plugin-protocol.js";
+import { mediaUrl } from "./media.js";
+import { createMediaPreviews, showMediaInPreview } from "./media-previews.js";
 
 /** Shows the admin panel's light or dark choice, as the admin panel's stylesheet reads it. */
 function applyTheme(choice: PluginFrameInit["theme"]) {
@@ -48,6 +52,35 @@ function adminApi(channel: Channel, init: PluginFrameInit): PluginAdminApi {
   };
 }
 
+/**
+ * Shows the site's media in an editor's frame as Puck's frame does: `/media/…`
+ * addresses from the site's folder, from memory for uploads the live site
+ * doesn't have yet (which the page sends, or reads from the repository when
+ * an image doesn't load), or from the storage a plugin keeps them in. Text
+ * edited in place keeps its addresses, since editors read its HTML back into
+ * content.
+ */
+function showEditorMedia(channel: Channel, init: PluginFrameInit): () => void {
+  let storage: MediaStorage | undefined = init.mediaStorage;
+  const previews = createMediaPreviews(
+    {
+      readBytes: async (path) => {
+        if (!path.startsWith(`${MEDIA_DIR}/`)) return undefined;
+        return (await channel.call("media.bytes", mediaUrl(path))) ?? undefined;
+      },
+    },
+    init.siteUrl,
+    () => storage,
+  );
+  channel.handle("media.remember", (file: { url: string; bytes: Uint8Array }) => {
+    if (typeof file?.url === "string" && file.bytes instanceof Uint8Array) previews.remember(file.url, file.bytes);
+  });
+  channel.handle("media.storage", (given: MediaStorage | null) => {
+    storage = given ?? undefined;
+  });
+  return showMediaInPreview(document, previews, { keep: '[contenteditable]:not([contenteditable="false"])' });
+}
+
 /** Opens an editor plugin's editor in the frame, giving the admin panel's page what it can do. */
 async function openEditor(
   admin: PluginAdmin,
@@ -69,11 +102,16 @@ async function openEditor(
     sharePreview: (root) => channel.call("editor.sharePreview", { root }),
     draw: (block) => channel.call("editor.draw", { block }),
     styles: () => channel.call("editor.styles"),
+    showsMedia: true,
   };
   // The editor fills the frame, which the admin panel's page sizes.
   document.documentElement.classList.add("gfa-plugin-editor");
+  const stopShowingMedia = showEditorMedia(channel, init);
   const controls = (await admin.editor.mount(element, session, api)) ?? {};
-  window.addEventListener("pagehide", () => controls.destroy?.());
+  window.addEventListener("pagehide", () => {
+    controls.destroy?.();
+    stopShowingMedia();
+  });
   return {
     opened: { set: typeof controls.set === "function", undo: Boolean(controls.undo && controls.redo) },
     controls,

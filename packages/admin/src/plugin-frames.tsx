@@ -6,6 +6,7 @@
 import {
   APP_API_HEADER,
   type FileChange,
+  type MediaStorage,
   newTaskRequestId,
   openTaskAnswer,
   type PluginDescription,
@@ -41,6 +42,7 @@ import {
   type PluginFrameMode,
   type PluginPageRequests,
 } from "./frame/plugin-protocol.js";
+import { MEDIA_URL_PREFIX } from "./media.js";
 import type { ThemeChoice } from "./theme.js";
 
 /** What plugins' frames may ask for, which the admin panel gives each only within what it declared. */
@@ -116,6 +118,12 @@ export interface PluginEditorHooks {
   /** Draws a block of what's edited, which the page checks is one the editor may use. */
   draw(block: PluginEditorBlock): Promise<string>;
   styles(): Promise<PluginEditorStyles>;
+  /** A media file the live site doesn't have yet, from memory or the repository, for the frame to show. */
+  mediaBytes(url: string): Promise<Uint8Array | undefined>;
+  /** Calls `listener` with each file shown from memory, those already remembered first; answers how to stop. */
+  onRemember(listener: (url: string, bytes: Uint8Array) => void): () => void;
+  /** The files a plugin keeps outside the repository, as the site has them now. */
+  mediaStorage(): MediaStorage | undefined;
 }
 
 const MEDIA_KINDS = new Set(["image", "video", "audio", "file"]);
@@ -251,6 +259,11 @@ function pluginHandlers(
       return hooks.draw(block);
     },
     "editor.styles": () => editing("read the site's styles").styles(),
+    "media.bytes": async (url) => {
+      const hooks = editing("show media");
+      if (typeof url !== "string" || !url.startsWith(MEDIA_URL_PREFIX) || url.includes("..")) return null;
+      return (await hooks.mediaBytes(url)) ?? null;
+    },
     task: async (params) => {
       const id = params?.id;
       if (typeof id !== "string" || !plugin.tasks?.some((task) => task.id === id)) {
@@ -310,10 +323,13 @@ export function usePluginFrame(
     let current: Channel | undefined;
     let connections = 0;
     let stopped = false;
+    let stopRemembering: (() => void) | undefined;
     const onMessage = (event: MessageEvent) => {
       const frame = element.current?.contentWindow;
       if (!frame || event.source !== frame || event.data !== PLUGIN_READY_MESSAGE) return;
       current?.close();
+      stopRemembering?.();
+      stopRemembering = undefined;
       setChannel(undefined);
       connections += 1;
       if (connections > MAX_CONNECTIONS) {
@@ -343,6 +359,8 @@ export function usePluginFrame(
         siteUrl: latest.current.siteUrl,
         theme: latest.current.theme,
       };
+      const storage = mode === "editor" ? latestEditor.current?.mediaStorage() : undefined;
+      if (storage) init.mediaStorage = storage;
       next.call("init", init).then(
         (opened: unknown) => {
           if (stopped || current !== next) return;
@@ -350,6 +368,10 @@ export function usePluginFrame(
           if (mode === "editor") {
             const said = (opened ?? {}) as Partial<PluginFrameEditorOpened>;
             latestEditor.current?.onOpened({ set: said.set === true, undo: said.undo === true }, next);
+            // Files shown from memory, such as uploads the live site doesn't have yet, show in the editor too.
+            stopRemembering = latestEditor.current?.onRemember((url, bytes) => {
+              void next.call("media.remember", { url, bytes }).catch(() => {});
+            });
           }
         },
         () => {
@@ -361,6 +383,7 @@ export function usePluginFrame(
     return () => {
       stopped = true;
       window.removeEventListener("message", onMessage);
+      stopRemembering?.();
       current?.close();
     };
   }, [plugin, mode, screen]);
