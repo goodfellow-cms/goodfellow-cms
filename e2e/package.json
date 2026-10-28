@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/test-groups.mjs",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
