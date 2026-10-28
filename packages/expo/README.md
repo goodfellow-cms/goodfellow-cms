@@ -14,7 +14,7 @@ export default function App() {
 }
 ```
 
-It also has what blocks for apps are made of: `useNativeSite()`, `SiteText`, `NativeLink`, `NativeImage`, `RichText`, `Blocks`, `Columns` and more.
+It also has what blocks for apps are made of: `useNativeSite()`, `SiteText`, `NativeLink`, `NativeImage`, `RichText`, `Blocks`, `Columns` and more. Blocks' Style settings, which are Tailwind classes, become the phone's styles with [twrnc](https://github.com/jaredh159/tailwind-react-native-classnames).
 
 [Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab or Bitbucket repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellow-cms.github.io/goodfellow-cms/) for everything else.
 

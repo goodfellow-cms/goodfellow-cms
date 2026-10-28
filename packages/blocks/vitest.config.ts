@@ -9,4 +9,8 @@ export default defineConfig({
       "react-native": "react-native-web",
     },
   },
+  test: {
+    // twrnc's modules import each other without file extensions, which only bundlers follow.
+    server: { deps: { inline: ["twrnc"] } },
+  },
 });

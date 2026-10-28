@@ -74,7 +74,8 @@ Most blocks look and work as they do on the website. A few can't:
 - **Video** plays uploads with the phone's own player, and YouTube's, Vimeo's and other sites' players in a frame of their own.
 - **Code** shows the colors the site's build gave it, and can be selected to copy.
 - **Menu** across the top is a button that opens the menu on a phone, and a row on a tablet.
-- Theme parts' classes (`theme.parts`) and blocks' **Style** (their CSS classes) don't apply in apps, since there's no CSS.
+- Blocks' **Style** applies in apps too: their Tailwind classes become the phone's styles while the app runs, with [twrnc](https://github.com/jaredh159/tailwind-react-native-classnames), in the theme's colors, corners and fonts, and those for wider screens (`md:`) on tablets and dark ones (`dark:`) where the site shows dark. A block's text takes its text size and color, as on the website, where text inherits them; text a block shows at a size of its own, such as a card's title, takes the Style's size too. Classes phones have nothing like, such as grids, `hover:` and Custom CSS's classes of your own, are left out.
+- Theme parts' classes (`theme.parts`) don't apply in apps yet.
 
 ## Blocks of the site's own
 
@@ -98,7 +99,9 @@ function Notice({ id, title }: { id: string; title: string }) {
 const blocks = { ...nativeBlocks, Notice };
 ```
 
-`@goodfellow-cms/expo` has what blocks are made of: `SiteText`, `NativeLink`, `NativeImage` (from the app's copy), `RichText`, `Blocks` (a slot's blocks), `Columns`, `Disclosure`, `SiteButton`, `MediaPlayer` and `WebFrame`, and `useNativeSite()` for the site's settings, menus, collections, the page's item and the theme. The built-in blocks' own logic, such as which items a list shows, is shared with the website's and imports none of its code: see `packages/blocks/src/*-data.ts`.
+`@goodfellow-cms/expo` has what blocks are made of: `SiteText`, `NativeLink`, `NativeImage` (from the app's copy), `RichText`, `Blocks` (a slot's blocks), `Columns`, `Disclosure`, `SiteButton`, `MediaPlayer` and `WebFrame`, and `useNativeSite()` for the site's settings, menus, collections, the page's item and the theme.
+
+Each block is drawn in a box with its Style (space, background, corners), and `SiteText` in it takes the Style's text alignment, size and color. A block whose Style belongs on one part of it, as a button's colors belong on the button, marks itself with `stylesItself()` and applies `useBlockStyle()`'s `view` and `text` there; `classStyle()` turns any classes into styles. The built-in blocks' own logic, such as which items a list shows, is shared with the website's and imports none of its code: see `packages/blocks/src/*-data.ts`.
 
 ### Blocks without a version for apps
 

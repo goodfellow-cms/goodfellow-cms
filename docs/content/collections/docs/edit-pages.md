@@ -34,7 +34,7 @@ Select a block, and its **Style** settings are at the end of its settings:
 - **Rounded corners:** from Square to Round, the middle one being the theme's own rounding.
 - **Other CSS classes:** any other [Tailwind](https://tailwindcss.com) classes, such as `shadow-lg` or `md:p-12`, and classes of your own that [Custom CSS](/docs/layout-and-settings#site-settings) styles.
 
-**Back to the block's own look** clears them all. They're kept as Tailwind classes in the block's `className`, such as `text-center bg-muted p-6 rounded-lg`, and come after the block's own and its [theme parts'](/docs/layout-and-settings#blocks-parts), so they win. Blocks that change their own size at wider screens, as headings do, keep doing so there. The site's build turns the classes into CSS, as it does every class the site's content uses.
+**Back to the block's own look** clears them all. They're kept as Tailwind classes in the block's `className`, such as `text-center bg-muted p-6 rounded-lg`, and come after the block's own and its [theme parts'](/docs/layout-and-settings#blocks-parts), so they win. Blocks that change their own size at wider screens, as headings do, keep doing so there. The site's build turns the classes into CSS, as it does every class the site's content uses, and the site's [app](/docs/apps#how-blocks-differ-in-apps) turns them into the phone's styles.
 
 ## Create, move and delete pages
 
