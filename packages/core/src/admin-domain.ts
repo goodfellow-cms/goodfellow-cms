@@ -353,12 +353,16 @@ export function vercelAdminRedirects(admin: AdminAddress, siteUrl: string | unde
 
 /**
  * Headers every file of a site gets where the host sends headers: browsers
- * never guess a file's type from what's in it, and other sites a visitor goes
- * to are told the site's address, not the page they came from.
+ * never guess a file's type from what's in it, other sites a visitor goes to
+ * are told the site's address, not the page they came from, and pages can't
+ * load plugins or point their links elsewhere with `<base>`. Scripts, styles
+ * and frames aren't limited, since custom code and embeds need them.
  */
 export const SITE_HEADERS: Readonly<Record<string, string>> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
+  // Only what no block or custom code needs: plugins (`<object>`, `<embed>`) and a `<base>` sending links elsewhere.
+  "Content-Security-Policy": "object-src 'none'; base-uri 'self'",
 };
 
 /**
