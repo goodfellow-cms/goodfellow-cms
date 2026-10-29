@@ -1,6 +1,6 @@
 # @goodfellow-cms/registry
 
-Goodfellow's block registry: blocks built with [shadcn/ui](https://ui.shadcn.com), which a site's admins add and remove on the admin panel's **Blocks** screen, with no developer. It's also the reference for anyone publishing a registry of Goodfellow blocks built with another component library.
+Goodfellow's block registry: blocks built with [shadcn/ui](https://ui.shadcn.com), and a few built with Tailwind alone for some sites only, which a site's admins add and remove on the admin panel's **Blocks** screen, with no developer. It's also the reference for anyone publishing a registry of Goodfellow blocks built with another component library.
 
 | Block | Category | Recommended |
 |---|---|---|
@@ -12,7 +12,13 @@ Goodfellow's block registry: blocks built with [shadcn/ui](https://ui.shadcn.com
 | Pricing table | Page sections | |
 | FAQ | Interactive | Yes |
 | Tabs | Interactive | Yes |
+| News feed | Page sections | |
+| Map | Page sections | |
+| Social links | Page sections | |
+| Panel | Page sections | |
 | Image carousel | Interactive | |
+| Slideshow with quick links | Interactive | |
+| Content with section links | Navigation | |
 | Custom HTML | Advanced | |
 
 New sites made with `create-goodfellow` start with the recommended blocks unless the admin chooses "Built-in blocks only".

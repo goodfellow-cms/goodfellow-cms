@@ -101,6 +101,7 @@ Options:
   --out <dir>     Build output folder (default: dist); for task, the answer's file
   --base <path>   Serve the site from a subfolder, such as /my-repo/ (also GOODFELLOW_BASE)
   --port <port>   Port for dev or preview
+  --network       For preview: let other computers on the network see it
   --to <release>  For update: fixes (the default), automatic (fixes, unless
                   content/updates.json turns them off), latest, or a release
                   such as 0.5.0; an older one goes back to it and skips this one
@@ -144,6 +145,7 @@ async function main(): Promise<void> {
       host: { type: "string" },
       domain: { type: "string" },
       strict: { type: "boolean" },
+      network: { type: "boolean" },
       "dry-run": { type: "boolean" },
       registry: { type: "string" },
       native: { type: "string" },
@@ -360,7 +362,7 @@ async function main(): Promise<void> {
       return;
     }
     case "preview":
-      await preview({ root: values.root, outDir: values.out, base, port });
+      await preview({ root: values.root, outDir: values.out, base, port, ...(values.network && { network: true }) });
       return;
     default:
       console.error(`Unknown command "${command}".\n\n${HELP}`);

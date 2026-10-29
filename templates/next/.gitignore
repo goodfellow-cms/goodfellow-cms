@@ -8,6 +8,7 @@ public/calendars/
 public/feeds/
 public/api/
 public/pagefind/
-# Secrets for trying plugins on this computer, which never leave it, and any other environment files.
+# Secrets, which never leave this computer: those for trying plugins, and a full-stack site's server's.
 .env
-.env*.local
+.env.*
+!.env.example

@@ -9,6 +9,13 @@ export interface PreviewOptions {
   outDir?: string;
   base?: string;
   port?: number;
+  /** Let other computers on the network see the preview, which by default only this one can. */
+  network?: boolean;
+}
+
+/** Whether a request comes from this computer. */
+function fromThisComputer(address: string | undefined): boolean {
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
 }
 
 const TYPES: Record<string, string> = {
@@ -49,6 +56,11 @@ export async function preview(options: PreviewOptions = {}): Promise<Server> {
   const port = options.port ?? 4322;
 
   const server = createServer(async (req, res) => {
+    // A preview may show what isn't published yet, so others on the network see it only when asked.
+    if (!options.network && !fromThisComputer(req.socket.remoteAddress)) {
+      res.writeHead(403, { "Content-Type": "text/plain" }).end("This preview is only for this computer.");
+      return;
+    }
     let pathname: string;
     try {
       pathname = decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname);
