@@ -27,7 +27,9 @@ Pages carry structured data, in the [schema.org](https://schema.org) vocabulary 
 - **Events** in a [calendar collection](/docs/calendars) are described as events, with when they happen in the site's time zone (the next time, for ones that repeat), where, and their summary.
 - **Dated items**, such as news, in a collection with a date field, are described as articles, with the date, the summary and the first picture.
 
-Other pages, and pages hidden from search engines, have none. There's nothing to set: it's worked out from the site's settings and the collections' fields when the site is built.
+- **Breadcrumbs:** a page with the [Breadcrumbs](/docs/built-in-blocks#breadcrumbs) block describes the way to it from the home page, which search engines can show in place of the page's address.
+
+Other pages, and pages hidden from search engines, have none of the first three. There's nothing to set: it's worked out from the site's settings and the collections' fields when the site is built.
 
 On a site in [several languages](/docs/languages), each page also links to its translations with `hreflang`, and the sitemap lists them with each page, so search engines show people the page in their own language. Each language's home page describes the site in that language.
 

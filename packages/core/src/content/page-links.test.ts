@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { contentInLanguage } from "./languages.js";
 import type { Page, SiteContent } from "./load.js";
-import { pageLinks, pageTree } from "./page-links.js";
+import { breadcrumbs, pageLinks, pageTree } from "./page-links.js";
 import { siteSettingsSchema } from "./schemas.js";
 
 function page(path: string, title = ""): Page {
@@ -59,5 +59,58 @@ describe("pageTree", () => {
     expect(pageTree(links, "/about").map((node) => node.path)).toEqual(["/about/staff"]);
     expect(pageTree(links, "/about/")[0]?.children.map((node) => node.path)).toEqual(["/about/staff/clergy"]);
     expect(pageTree(links, "/nowhere")).toEqual([]);
+  });
+});
+
+describe("breadcrumbs", () => {
+  const pages = [
+    { path: "/", title: "Welcome" },
+    { path: "/about", title: "About us" },
+    { path: "/about/history/1900s", title: "The 1900s" },
+    { path: "/news", title: "News" },
+    { path: "/es", title: "Bienvenidos" },
+    { path: "/es/acerca", title: "Acerca de" },
+  ];
+
+  it("leads from the home page through the pages above, skipping addresses that aren't pages", () => {
+    expect(breadcrumbs(pages, { path: "/about/history/1900s" })).toEqual({
+      links: [
+        { path: "/", title: "Welcome" },
+        { path: "/about", title: "About us" },
+      ],
+      current: "The 1900s",
+    });
+    expect(breadcrumbs(pages, { path: "/" })).toEqual({ links: [], current: "Welcome" });
+  });
+
+  it("calls an item's page by its title, under its collection's page", () => {
+    expect(breadcrumbs(pages, { path: "/news/fair", title: "The parish fair" })).toEqual({
+      links: [
+        { path: "/", title: "Welcome" },
+        { path: "/news", title: "News" },
+      ],
+      current: "The parish fair",
+    });
+  });
+
+  it("starts from the home page of the page's language", () => {
+    expect(breadcrumbs(pages, { path: "/es/acerca", home: "/es" })).toEqual({
+      links: [{ path: "/es", title: "Bienvenidos" }],
+      current: "Acerca de",
+    });
+  });
+
+  it("puts a page a block adds after the page it's on", () => {
+    expect(breadcrumbs(pages, { path: "/news/page/2", view: { path: "/news", title: "Page 2" } })).toEqual({
+      links: [
+        { path: "/", title: "Welcome" },
+        { path: "/news", title: "News" },
+      ],
+      current: "Page 2",
+    });
+    expect(breadcrumbs(pages, { path: "/2026-11", view: { path: "/", title: "November 2026" } })).toEqual({
+      links: [{ path: "/", title: "Welcome" }],
+      current: "November 2026",
+    });
   });
 });

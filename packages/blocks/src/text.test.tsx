@@ -153,6 +153,46 @@ describe("Page list", () => {
   });
 });
 
+describe("Breadcrumbs", () => {
+  const crumbs = (props: Record<string, unknown> = {}) => [
+    {
+      type: "Breadcrumbs",
+      props: {
+        id: "c",
+        homeLabel: "Home",
+        separator: "chevron",
+        current: true,
+        label: "Breadcrumbs",
+        className: "",
+        ...props,
+      },
+    },
+  ];
+
+  it("leads from the home page through the pages above to this one, marked for search engines", async () => {
+    const html = await render(crumbs({ homeLabel: "Parish" }), "/about/staff/clergy");
+    const names = [...html.matchAll(/itemProp="name"[^>]*>([^<]+)</g)].map((match) => match[1]);
+    expect(names).toEqual(["Parish", "About us", "Staff", "Clergy"]);
+    expect(html).toContain('<nav aria-label="Breadcrumbs" class="gf-breadcrumbs text-sm">');
+    expect(html).toContain('itemScope="" itemType="https://schema.org/BreadcrumbList"');
+    expect(html).toContain('<a href="/about" itemProp="item"');
+    expect(html).toContain('<meta itemProp="position" content="4"/>');
+    expect(html).toMatch(/<span itemProp="name" aria-current="page"[^>]*>Clergy<\/span>/);
+    expect([...html.matchAll(/aria-hidden="true"[^>]*>›</g)]).toHaveLength(3);
+  });
+
+  it("can leave out this page, and shows nothing on the home page", async () => {
+    const html = await render(crumbs({ current: false, separator: "slash", homeLabel: "" }), "/about/staff");
+    const names = [...html.matchAll(/itemProp="name"[^>]*>([^<]+)</g)].map((match) => match[1]);
+    expect(names).toEqual(["Home", "About us"]);
+    expect([...html.matchAll(/aria-hidden="true"[^>]*>\/</g)]).toHaveLength(1);
+    expect(html).not.toContain("aria-current");
+    expect(await render(crumbs(), "/")).not.toContain("gf-breadcrumbs");
+    // Nor without the page, as in a Next.js site's shared header.
+    expect(await render(crumbs(), "")).not.toContain("gf-breadcrumbs");
+  });
+});
+
 describe("Site name and logo", () => {
   it("shows the site's description under its name when asked", async () => {
     const html = await render([{ type: "SiteBrand", props: { id: "b", show: "title", tagline: true, className: "" } }]);
