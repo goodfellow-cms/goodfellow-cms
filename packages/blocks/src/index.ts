@@ -13,10 +13,11 @@ import { BLOCK_KEYWORDS } from "./keywords.js";
 import { LanguageSwitch } from "./language-switch.js";
 import { Flex, Grid, Section, Space } from "./layout.js";
 import { CollectionLoop } from "./loop.js";
-import { Audio, File, Gallery, MediaText } from "./media.js";
+import { Audio, Document, File, Gallery, MediaText } from "./media.js";
 import { Breadcrumbs, Menu, PageList, SiteBrand } from "./navigation.js";
 import { Newsletter } from "./newsletter.js";
 import { Search } from "./search.js";
+import { Donate, ShareButtons } from "./share.js";
 import { Details, Preformatted, Pullquote, Separator, Table, Verse } from "./text.js";
 import { Video } from "./video.js";
 
@@ -92,6 +93,8 @@ export { CollectionLoop, type CollectionLoopProps } from "./loop.js";
 export {
   Audio,
   type AudioProps,
+  Document,
+  type DocumentProps,
   File,
   type FileProps,
   Gallery,
@@ -118,6 +121,7 @@ export {
   newsletterTarget,
 } from "./newsletter.js";
 export { Search, type SearchProps } from "./search.js";
+export { Donate, type DonateProps, ShareButtons, type ShareButtonsProps, type ShareSite } from "./share.js";
 export {
   Details,
   type DetailsProps,
@@ -177,6 +181,9 @@ export const blocks = {
   Gallery,
   PageList,
   Breadcrumbs,
+  Document,
+  ShareButtons,
+  Donate,
 };
 
 for (const [name, keywords] of Object.entries(BLOCK_KEYWORDS)) {
@@ -200,10 +207,13 @@ export const categories = {
     title: "Text",
     components: ["Heading", "Text", "Pullquote", "Table", "Preformatted", "Verse", "Code"],
   },
-  forms: { title: "Buttons and forms", components: ["Button", "Form", "Newsletter", "ContactDetails"] },
+  forms: {
+    title: "Buttons and forms",
+    components: ["Button", "Donate", "ShareButtons", "Form", "Newsletter", "ContactDetails"],
+  },
   media: {
     title: "Media",
-    components: ["Image", "Gallery", "Video", "Audio", "File"],
+    components: ["Image", "Gallery", "Video", "Audio", "File", "Document"],
   },
   navigation: {
     title: "Navigation",

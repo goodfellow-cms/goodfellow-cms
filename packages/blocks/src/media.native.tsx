@@ -13,6 +13,7 @@ import {
 } from "@goodfellow-cms/expo";
 import { View } from "react-native";
 import type { AudioProps, FileProps, GalleryProps, MediaTextProps } from "./media.js";
+import { type DocumentProps, documentAddress } from "./media-data.js";
 
 /** A link to a file, such as a PDF, which opens in the phone's browser or viewer, with an optional button. */
 export function File({ file, label, button, buttonLabel }: FileProps) {
@@ -26,6 +27,19 @@ export function File({ file, label, button, buttonLabel }: FileProps) {
         <SiteText style={{ textDecorationLine: "underline" }}>{label || fileName(file)}</SiteText>
       </NativeLink>
       {button ? <SiteButton label={buttonLabel || "Download"} href={address} size="sm" /> : null}
+    </View>
+  );
+}
+
+/** A PDF, which the phone's own viewer opens: apps' web views can't show one on Android. */
+export function Document({ file, title, linkLabel }: DocumentProps) {
+  const site = useNativeSite();
+  const address = documentAddress(file);
+  if (!address) return null;
+  return (
+    <View style={{ alignItems: "flex-start", gap: 8, marginVertical: 16 }}>
+      {title ? <SiteText>{title}</SiteText> : null}
+      <SiteButton label={linkLabel || "Open the document"} href={site.address(address)} size="sm" />
     </View>
   );
 }

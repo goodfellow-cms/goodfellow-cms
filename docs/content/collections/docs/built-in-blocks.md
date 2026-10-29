@@ -29,10 +29,13 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Video | A video from the media library, YouTube, Vimeo or another site's player |
 | Audio | A sound file from the media library, such as a homily, with the browser's own player |
 | File | A link to a file from the media library, such as a PDF, with an optional download button |
+| Document viewer | A PDF from the media library shown on the page, such as a bulletin or a newsletter, with a link to open it (see [Documents](#documents)) |
 | Form | A form whose answers a form service emails to you, or a Google form (see [Forms](/docs/forms)) |
 | Newsletter signup | An email box that signs visitors up to a newsletter on Mailchimp, Buttondown or Kit, or through the site's form service |
 | Code | Code with syntax highlighting, an optional title and a copy button |
 | Contact details | The address, phone number and email address from Site Settings |
+| Donate button | A button to your giving page, such as a Stripe payment link or a PayPal donate button, with an optional heading and text (see [Giving and sharing](#giving-and-sharing)) |
+| Share buttons | Links that share the page on Facebook, X, Bluesky, LinkedIn or WhatsApp, or by email (see [Giving and sharing](#giving-and-sharing)) |
 | Menu | One of the site's menus, with dropdowns for submenus. **Colors** puts it in a bar of the theme's primary or secondary color, its dropdowns see-through in the same color, **Show the pages under each submenu link** opens a submenu link's own pages as a third level, so a section's pages need no menu entries of their own, and **Show the links behind a menu button (☰)** puts every link, every level of them, under a menu button on phones, on phones and small tablets, on phones and tablets, always or never (see [Menus on phones](#menus-on-phones)) |
 | Site name and logo | The site's logo and name, linking home, with the site's description under the name if you like |
 | Search | A search box for the whole site, with results as you type |
@@ -62,6 +65,16 @@ The Video block shows a video from one of four places, chosen in **Video from**:
 - **Another site's player**: paste the player's embed address, or the whole embed code the other site gives. It's shown in a sandbox, with only what players need, and only from a secure (`https://`) address on another site.
 
 Give every video a description for screen readers. It can also have a caption below it, a shape (the video's own, wide, landscape, square, or tall for videos made on phones), and play on its own without sound, start with the sound off, or play again when it ends. Players load only when they're scrolled near, so they don't slow down the top of the page.
+
+## Documents
+
+The Document viewer shows a PDF from the media library on the page, in the browser's own viewer, as tall as **Height in pixels** says. Below it, a link opens the document on its own, which phones need: their browsers show only a PDF's first page inside a page. Give it a description for screen readers if its file name isn't clear. Only PDFs can be shown this way; link other files with the File block. In the editor, the viewer is a box with the document's name: the site shows the document there.
+
+## Giving and sharing
+
+The **Donate button** links to your giving page, such as a Stripe payment link, a PayPal donate button's address, or Givebutter, Donorbox, Tithe.ly or Pushpay's. People give on that service's secure page, so no card details reach your site, and the button only takes an address that starts with `https://`. Under the button, it can say where people give ("You'll give on Stripe's secure page."). The page loads nothing from the service until someone clicks.
+
+**Share buttons** link to share the page on Facebook, X, Bluesky, LinkedIn or WhatsApp, or by email, with the page's title, in the order you list them, as buttons or plain links. They're only links, so the page loads nothing from those sites and they can't follow visitors. They need the **Site address** in Site Settings, which says where the page is.
 
 ## Table
 
@@ -160,6 +173,9 @@ Every part of a built-in block has a name, which is on the part as a class, and 
 - **Separator:** `gf-separator` (Separator).
 - **Site name and logo:** `gf-site-brand` (Site name and logo), `gf-site-brand-logo` (Logo), `gf-site-brand-name` (Site name), `gf-site-brand-text` (Name and tagline), `gf-site-brand-tagline` (Tagline).
 - **Space:** `gf-space` (Space).
+- **Document viewer:** `gf-document` (Document and link), `gf-document-frame` (Viewer), `gf-document-caption` (Below the viewer), `gf-document-link` (Link to the document).
+- **Donate button:** `gf-donate` (Donate), `gf-donate-heading` (Heading), `gf-donate-text` (Text), `gf-donate-button` (Button), `gf-donate-note` (Where people give).
+- **Share buttons:** `gf-share` (Share buttons), `gf-share-label` (Words before the buttons), `gf-share-list` (Buttons), `gf-share-link` (Button).
 - **Table:** `gf-table` (Table and caption), `gf-table-grid` (Table), `gf-table-caption` (Caption), `gf-table-row` (Row), `gf-table-header-cell` (Heading cell), `gf-table-cell` (Cell).
 - **Text:** `gf-text` (Text).
 - **Verse:** `gf-verse` (Verse).

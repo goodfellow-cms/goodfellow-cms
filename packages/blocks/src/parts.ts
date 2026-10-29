@@ -249,6 +249,28 @@ export const TABLE_PARTS: BlockParts = {
   "gf-table-cell": "Cell",
 };
 
+export const DOCUMENT_PARTS: BlockParts = {
+  "gf-document": "Document and link",
+  "gf-document-frame": "Viewer",
+  "gf-document-caption": "Below the viewer",
+  "gf-document-link": "Link to the document",
+};
+
+export const SHARE_PARTS: BlockParts = {
+  "gf-share": "Share buttons",
+  "gf-share-label": "Words before the buttons",
+  "gf-share-list": "Buttons",
+  "gf-share-link": "Button",
+};
+
+export const DONATE_PARTS: BlockParts = {
+  "gf-donate": "Donate",
+  "gf-donate-heading": "Heading",
+  "gf-donate-text": "Text",
+  "gf-donate-button": "Button",
+  "gf-donate-note": "Where people give",
+};
+
 export const FILE_PARTS: BlockParts = {
   "gf-file": "File",
   "gf-file-link": "File's link",
