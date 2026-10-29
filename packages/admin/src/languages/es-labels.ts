@@ -5,6 +5,11 @@
  * as it is.
  */
 export const labels: Record<string, string> = {
+  "Social post": "Publicación de redes sociales",
+  "Height in pixels (leave at 0 for the usual height)": "Altura en píxeles (deja 0 para la altura habitual)",
+  "What the post is, for screen readers": "Qué es la publicación, para lectores de pantalla",
+  "The post's address, or the embed code its site gives (Bluesky, Mastodon, Instagram, X, Spotify, SoundCloud)":
+    "La dirección de la publicación, o el código para insertar que da su sitio (Bluesky, Mastodon, Instagram, X, Spotify, SoundCloud)",
   '"Add to calendar" link (leave empty for none)': "Enlace «Añadir al calendario» (vacío para ninguno)",
   '"Subscribe" link (leave empty for none)': "Enlace «Suscribirse» (vacío para ninguno)",
   "A page for each choice of": "Una página para cada opción de",

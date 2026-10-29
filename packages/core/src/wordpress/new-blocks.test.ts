@@ -384,3 +384,68 @@ describe("WordPress's own blocks exported", () => {
     });
   });
 });
+
+describe("Posts from social sites", () => {
+  const EMBEDS = `
+<!-- wp:embed {"url":"https://twitter.com/jack/status/20","type":"rich","providerNameSlug":"twitter"} -->
+<figure class="wp-block-embed is-type-rich is-provider-twitter wp-block-embed-twitter"><div class="wp-block-embed__wrapper">
+https://twitter.com/jack/status/20
+</div><figcaption class="wp-element-caption">Our first post</figcaption></figure>
+<!-- /wp:embed -->
+
+<!-- wp:embed {"url":"https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M","type":"rich","providerNameSlug":"spotify"} -->
+<figure class="wp-block-embed is-type-rich is-provider-spotify wp-block-embed-spotify"><div class="wp-block-embed__wrapper">
+https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
+</div></figure>
+<!-- /wp:embed -->
+`;
+
+  it("come across as Social post blocks", () => {
+    const blocks = blocksOf(EMBEDS).filter((block) => block.type === "Embed");
+    expect(blocks.map((block) => props([block], "Embed"))).toEqual([
+      { post: "https://twitter.com/jack/status/20", title: "", height: 0, caption: "Our first post" },
+      { post: "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M", title: "", height: 0, caption: "" },
+    ]);
+  });
+
+  it("come across as links on sites without the block, and in posts", () => {
+    const text = JSON.stringify(blocksOf(EMBEDS, IMPORT_BLOCKS));
+    expect(text).not.toContain('"type":"Embed"');
+    expect(text).toContain('href=\\"https://twitter.com/jack/status/20\\">Our first post</a>');
+    const markdown = partsMarkdown(itemParts({ content: EMBEDS, rendered: false }, context), context.link);
+    expect(markdown).toContain("[Our first post](https://twitter.com/jack/status/20)");
+    expect(markdown).toContain("<https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M>");
+  });
+
+  it("are exported as WordPress's embeds, by the post's own address", async () => {
+    const page = {
+      version: 1,
+      data: {
+        root: { props: { title: "News" } },
+        content: [
+          {
+            type: "Embed",
+            props: { id: "Embed-1", post: "https://x.com/jack/status/20?s=20", caption: "Our first post" },
+          },
+          { type: "Embed", props: { id: "Embed-2", post: "https://mastodon.social/@parish/123", caption: "" } },
+        ],
+      },
+    };
+    const files: Record<string, string> = {
+      "content/site.json": JSON.stringify({ version: 1, title: "St. Joseph", url: "https://parish.example" }),
+      "content/pages/news.json": JSON.stringify(page),
+    };
+    const source: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    const { xml } = wordPressExport(await loadSiteContent(source));
+    expect(xml).toContain(
+      '<!-- wp:embed {"url":"https://x.com/jack/status/20","type":"rich","providerNameSlug":"twitter","responsive":true} -->',
+    );
+    expect(xml).toContain(
+      '<!-- wp:embed {"url":"https://mastodon.social/@parish/123","type":"rich","responsive":true} -->',
+    );
+    expect(xml).toContain('<figcaption class="wp-element-caption">Our first post</figcaption>');
+  });
+});

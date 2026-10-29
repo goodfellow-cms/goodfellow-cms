@@ -13,6 +13,7 @@ import { ContactDetails } from "./contact.native.js";
 import { Button, Heading, Image, Text } from "./content.native.js";
 import { DarkModeSwitch } from "./dark-mode-switch.native.js";
 import { CollectionNav, EntryPager, OnThisPage } from "./docs.native.js";
+import { Embed } from "./embed.native.js";
 import { Form } from "./form.native.js";
 import { LanguageSwitch } from "./language-switch.native.js";
 import { Flex, Grid, Section, Space } from "./layout.native.js";
@@ -37,6 +38,7 @@ export const nativeBlocks = {
   Button,
   Image,
   Video,
+  Embed,
   Form,
   Code,
   ContactDetails,

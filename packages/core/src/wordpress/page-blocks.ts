@@ -48,6 +48,7 @@ export const WORDPRESS_BLOCKS = [
   "MediaText",
   "Gallery",
   "PageList",
+  "Embed",
 ];
 
 export interface PageBlocksOptions {
@@ -224,6 +225,10 @@ export function partBlocks(parts: Part[], writer: BlockWriter, options: PageBloc
     }
     if (part.kind === "audio" && !has("Audio")) {
       text += link(part.url, part.caption || decodeURIComponent(part.url.split("/").pop() ?? part.url));
+      continue;
+    }
+    if (part.kind === "post" && !has("Embed")) {
+      text += link(part.link, part.caption || part.url);
       continue;
     }
     if (part.kind === "details" && !has("Details")) {
@@ -405,6 +410,9 @@ export function partBlocks(parts: Part[], writer: BlockWriter, options: PageBloc
         break;
       case "video":
         out.push(videoBlock(writer, part.url, part.caption));
+        break;
+      case "post":
+        out.push(writer.block("Embed", { post: part.url, title: "", height: 0, caption: part.caption }));
         break;
       case "code":
         out.push(writer.block("Code", { code: part.code, colors: "page", copyLabel: "", language: "text", title: "" }));
