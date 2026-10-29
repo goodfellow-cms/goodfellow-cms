@@ -17,9 +17,10 @@ import { Form } from "./form.native.js";
 import { LanguageSwitch } from "./language-switch.native.js";
 import { Flex, Grid, Section, Space } from "./layout.native.js";
 import { CollectionLoop } from "./loop.native.js";
-import { Audio, File, Gallery, MediaText } from "./media.native.js";
+import { Audio, Document, File, Gallery, MediaText } from "./media.native.js";
 import { Breadcrumbs, Menu, PageList, SiteBrand } from "./navigation.native.js";
 import { Search } from "./search.native.js";
+import { Donate, ShareButtons } from "./share.native.js";
 import { Details, Preformatted, Pullquote, Separator, Table, Verse } from "./text.native.js";
 import { Video } from "./video.native.js";
 
@@ -65,4 +66,7 @@ export const nativeBlocks = {
   Gallery,
   PageList,
   Breadcrumbs,
+  Document,
+  ShareButtons,
+  Donate,
 };

@@ -76,7 +76,8 @@ export type Part =
   /** Text kept as it's typed: WordPress's Preformatted block, or its Verse block. */
   | { kind: "preformatted"; text: string; verse: boolean }
   | { kind: "details"; summary: string; open: boolean; parts: Part[] }
-  | { kind: "file"; href: string; label: string; button: boolean; buttonLabel: string }
+  /** A link to a file, and with `preview`, its height in pixels, WordPress showing the PDF on the page too. */
+  | { kind: "file"; href: string; label: string; button: boolean; buttonLabel: string; preview?: number }
   | { kind: "audio"; url: string; caption: string }
   | {
       kind: "media-text";
@@ -782,6 +783,10 @@ function blockElementParts(element: Element, context: ConvertContext): Part[] {
     const link = links.find((candidate) => candidate !== button) ?? button;
     const href = link ? context.link(attribute(link, "href")) : "";
     if (!href) return [];
+    const viewer = findElement(element, (candidate) => hasClass(candidate, "wp-block-file__embed"));
+    const height = viewer
+      ? Number.parseFloat(/height\s*:\s*([\d.]+)px/.exec(attribute(viewer, "style"))?.[1] ?? "")
+      : Number.NaN;
     return [
       {
         kind: "file",
@@ -789,6 +794,7 @@ function blockElementParts(element: Element, context: ConvertContext): Part[] {
         label: link && link !== button ? collapsed(textOf(link)) : "",
         button: Boolean(button),
         buttonLabel: button ? collapsed(textOf(button)) : "",
+        ...(viewer && { preview: Number.isFinite(height) && height >= 200 ? Math.round(height) : 800 }),
       },
     ];
   }
