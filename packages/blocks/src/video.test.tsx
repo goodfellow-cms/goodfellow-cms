@@ -43,7 +43,7 @@ describe("Video", () => {
     const html = await render({ source: "youtube", youtube: "https://youtu.be/dQw4w9WgXcQ" }, asks);
     expect(html).toContain('data-gf-consent-src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0"');
     expect(html).not.toMatch(/<iframe[^>]* src=/);
-    expect(html).toContain('<button type="button" data-gf-consent-accept="">Allow and show it</button>');
+    expect(html).toContain('<button type="button" data-gf-consent-accept="content">Allow and show it</button>');
     // An uploaded video is the site's own, so it plays as ever.
     expect(await render({ source: "upload", file: "/media/welcome.mp4" }, asks)).toContain('src="/media/welcome.mp4"');
   });

@@ -1,5 +1,7 @@
 import {
   CONSENT_CODE_ATTRIBUTE,
+  CONSENT_KIND_ATTRIBUTE,
+  type ConsentKind,
   endsHeldTemplate,
   type HeadElement,
   headElementHtml,
@@ -26,6 +28,11 @@ const REACT_NAMES: Record<string, string> = {
 /** Attributes that are on when present, which React takes as `true`. */
 const BOOLEAN = new Set(["async", "defer", "nomodule", "disabled"]);
 
+/** The kind code held back waits for, where `true` is other sites' content. */
+function heldKind(held: true | ConsentKind): ConsentKind {
+  return held === true ? "content" : held;
+}
+
 function headElement({ tag, attributes, content }: HeadElement, index: number) {
   const props: Record<string, unknown> = { key: index };
   for (const [name, value] of attributes) {
@@ -41,11 +48,19 @@ function headElement({ tag, attributes, content }: HeadElement, index: number) {
  * Code that doesn't belong in the head is left out; the admin panel won't
  * publish it. `held`, for a site that asks visitors first, keeps scripts,
  * `noscript` and links to other sites than `siteUrl` in a template until they
- * agree, and leaves out code that would end that template early
- * (`endsHeldTemplate()`). Never render this in the admin panel, where it would
- * run with the editor's sign-in.
+ * allow its kind (`heldCode()`; `true` is other sites' content), and leaves
+ * out code that would end that template early (`endsHeldTemplate()`). Never
+ * render this in the admin panel, where it would run with the editor's sign-in.
  */
-export function HeadCode({ code, held = false, siteUrl }: { code?: string; held?: boolean; siteUrl?: string }) {
+export function HeadCode({
+  code,
+  held = false,
+  siteUrl,
+}: {
+  code?: string;
+  held?: boolean | ConsentKind;
+  siteUrl?: string;
+}) {
   if (!code?.trim()) return null;
   let elements: HeadElement[];
   try {
@@ -64,7 +79,7 @@ export function HeadCode({ code, held = false, siteUrl }: { code?: string; held?
     <>
       {kept}
       <template
-        {...{ [CONSENT_CODE_ATTRIBUTE]: "head" }}
+        {...{ [CONSENT_CODE_ATTRIBUTE]: "head", [CONSENT_KIND_ATTRIBUTE]: heldKind(held) }}
         // The consent script marks it done once it has added the code.
         suppressHydrationWarning
         // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel
@@ -76,16 +91,17 @@ export function HeadCode({ code, held = false, siteUrl }: { code?: string; held?
 
 /**
  * The site's code for the end of the `<body>` (`content/code/body.html`), as it
- * was written, or in a template until visitors agree where the site asks (`held`),
- * leaving it out if it would end that template early. Never render this in the admin panel.
+ * was written, or in a template until visitors allow its kind where the site asks
+ * (`held`, as for `HeadCode`), leaving it out if it would end that template early.
+ * Never render this in the admin panel.
  */
-export function BodyCode({ code, held = false }: { code?: string; held?: boolean }) {
+export function BodyCode({ code, held = false }: { code?: string; held?: boolean | ConsentKind }) {
   if (!code?.trim()) return null;
   if (held) {
     if (endsHeldTemplate(code)) return null;
     return (
       <template
-        {...{ [CONSENT_CODE_ATTRIBUTE]: "body" }}
+        {...{ [CONSENT_CODE_ATTRIBUTE]: "body", [CONSENT_KIND_ATTRIBUTE]: heldKind(held) }}
         // The consent script marks it done once it has added the code after it.
         suppressHydrationWarning
         // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel

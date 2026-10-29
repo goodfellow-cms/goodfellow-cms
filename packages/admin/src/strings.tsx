@@ -1646,6 +1646,14 @@ export const defaultStrings = {
   "consent.policy": "Privacy page",
   "consent.policyHint": "The page that says what the site and the sites it shows content from do, such as /privacy.",
   "consent.policyLabel": "Words of the link to it",
+  "consent.choose": "Button that shows the choices",
+  "consent.save": "Button that keeps the choices",
+  "consent.kind.content": "Choice for content from other sites",
+  "consent.kind.statistics": "Choice for statistics",
+  "consent.kind.marketing": "Choice for advertising",
+  "consent.days": "Ask again after this many days",
+  "consent.daysHint":
+    "Visitors' answers last this long, then the notice asks again. 180 days, about six months, is common; regulators in Europe accept up to 395, 13 months.",
   "forms.formspree": "Formspree form address",
   "forms.formspreeHint":
     "Make a form in Formspree and copy its address, such as https://formspree.io/f/xyzabcde. On Formspree's free plan, visitors see Formspree's own thank-you page.",
@@ -1793,6 +1801,14 @@ export const defaultStrings = {
     "A sign-in page or an admin address of its own, on the Security tab, keeps their sign-in out of its reach.",
   "code.head": "In the page head",
   "code.headHint": "Script, style, link, meta and noscript tags, such as the ones Google Analytics gives you.",
+  "code.purpose.head": "What the code in the page head is for",
+  "code.purpose.body": "What the code at the end of the page is for",
+  "code.purposeHint":
+    "Visitors choose which kinds to allow. Code needed for the site to work loads for everyone without asking, so choose it only for code that doesn't follow visitors.",
+  "code.purpose.needed": "Needed for the site to work: loads without asking",
+  "code.purpose.content": "Content from other sites, such as a chat widget",
+  "code.purpose.statistics": "Statistics, such as Google Analytics",
+  "code.purpose.marketing": "Advertising",
   "code.body": "At the end of the page",
   "code.bodyHint": "Any HTML, such as a chat widget, added just before the end of every page.",
   "code.error.text":

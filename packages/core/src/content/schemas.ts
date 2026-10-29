@@ -129,6 +129,14 @@ const consentWords = {
   show: z.string(),
   /** The words of the link to the privacy page. */
   policyLabel: z.string(),
+  /** The button that shows the choices, one for each kind of content the site asks about. */
+  choose: z.string(),
+  /** The button that keeps the choices made. */
+  save: z.string(),
+  /** Each kind's choice (`CONSENT_KINDS`). */
+  content: z.string(),
+  statistics: z.string(),
+  marketing: z.string(),
 };
 
 /** The notice's words until an owner changes them, in English. */
@@ -140,6 +148,11 @@ export const CONSENT_DEFAULTS = {
   held: "This comes from {site}, which can set cookies.",
   show: "Allow and show it",
   policyLabel: "Privacy",
+  choose: "Choose",
+  save: "Save my choices",
+  content: "Videos, maps, forms and other content from other sites",
+  statistics: "Statistics that count visits, to improve the site",
+  marketing: "Advertising",
 } as const;
 
 export type ConsentWords = { [Word in keyof typeof CONSENT_DEFAULTS]: string };
@@ -154,6 +167,11 @@ const CONSENT_DEFAULTS_IN: Record<string, ConsentWords> = {
     held: "Esto viene de {site}, que puede guardar cookies.",
     show: "Permitir y mostrarlo",
     policyLabel: "Privacidad",
+    choose: "Elegir",
+    save: "Guardar mis elecciones",
+    content: "Vídeos, mapas, formularios y otros contenidos de otros sitios",
+    statistics: "Estadísticas que cuentan las visitas, para mejorar el sitio",
+    marketing: "Publicidad",
   },
 };
 
@@ -183,6 +201,28 @@ export function consentInLanguage<Settings extends ConsentWords>(
   };
 }
 
+/**
+ * What visitors can allow one at a time: other sites' content (players,
+ * maps, forms and their scripts), statistics and advertising. Other sites'
+ * content is always asked about; the others only where the site's code is for them.
+ */
+export const CONSENT_KINDS = ["content", "statistics", "marketing"] as const;
+
+export type ConsentKind = (typeof CONSENT_KINDS)[number];
+
+/** What the site's code (Site Settings → Code) is for: one of `CONSENT_KINDS`, or `needed`, which loads without asking. */
+export const CODE_PURPOSES = ["needed", ...CONSENT_KINDS] as const;
+
+export type CodePurpose = (typeof CODE_PURPOSES)[number];
+
+/** How many days a visitor's answer lasts until a site that doesn't say asks again: about six months. */
+export const CONSENT_DAYS = 180;
+
+/** The longest a visitor's answer may last: 13 months, the most European regulators accept. */
+export const MAX_CONSENT_DAYS = 395;
+
+const codePurpose = z.enum(CODE_PURPOSES).default("content");
+
 export const consentSchema = z.object({
   message: consentWords.message.default(CONSENT_DEFAULTS.message),
   accept: consentWords.accept.default(CONSENT_DEFAULTS.accept),
@@ -192,9 +232,34 @@ export const consentSchema = z.object({
   /** The site's privacy page, such as `/privacy`, which the notice links to. */
   policy: z.string().optional(),
   policyLabel: consentWords.policyLabel.default(CONSENT_DEFAULTS.policyLabel),
+  choose: consentWords.choose.default(CONSENT_DEFAULTS.choose),
+  save: consentWords.save.default(CONSENT_DEFAULTS.save),
+  content: consentWords.content.default(CONSENT_DEFAULTS.content),
+  statistics: consentWords.statistics.default(CONSENT_DEFAULTS.statistics),
+  marketing: consentWords.marketing.default(CONSENT_DEFAULTS.marketing),
+  /** How many days a visitor's answer lasts before they're asked again. */
+  days: z.number().int().min(1).max(MAX_CONSENT_DAYS).default(CONSENT_DAYS),
+  /** What the site's code in the page head and at the end of the page is for. */
+  code: z.object({ head: codePurpose, body: codePurpose }).default({ head: "content", body: "content" }),
 });
 
 export type ConsentSettings = z.output<typeof consentSchema>;
+
+/**
+ * What the site asks visitors about, in `CONSENT_KINDS`' order: other sites'
+ * content always, and the kinds its code is for.
+ */
+export function consentKinds(consent: ConsentSettings): ConsentKind[] {
+  const used = new Set<string>(["content", consent.code.head, consent.code.body]);
+  return CONSENT_KINDS.filter((kind) => used.has(kind));
+}
+
+/** What a part of the site's code waits for visitors to allow: its kind, or `false` where it loads without asking. */
+export function heldCode(consent: ConsentSettings | undefined, part: "head" | "body"): ConsentKind | false {
+  if (!consent) return false;
+  const purpose = consent.code[part];
+  return purpose === "needed" ? false : purpose;
+}
 
 const settingsTranslation = z.object({
   title: z.string().optional(),

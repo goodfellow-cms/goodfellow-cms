@@ -34,7 +34,7 @@ function heldHtml(html: string, consent: ConsentSettings): string {
   const words = src
     ? consent.held.replaceAll("{site}", consentSource(src.startsWith("//") ? `https:${src}` : src))
     : consent.message;
-  return `<template ${CONSENT_CODE_ATTRIBUTE}="body">${html}</template><div class="gf-consent-placeholder gf-consent-inline" ${CONSENT_PLACEHOLDER_ATTRIBUTE}=""><p>${escapeText(words)}</p><button type="button" ${CONSENT_ACCEPT_ATTRIBUTE}="">${escapeText(consent.show)}</button></div>`;
+  return `<template ${CONSENT_CODE_ATTRIBUTE}="body">${html}</template><div class="gf-consent-placeholder gf-consent-inline" ${CONSENT_PLACEHOLDER_ATTRIBUTE}=""><p>${escapeText(words)}</p><button type="button" ${CONSENT_ACCEPT_ATTRIBUTE}="content">${escapeText(consent.show)}</button></div>`;
 }
 
 /**
