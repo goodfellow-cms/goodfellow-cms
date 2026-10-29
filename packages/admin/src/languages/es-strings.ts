@@ -1639,6 +1639,20 @@ export const strings: Strings = {
   "forms.captcha": "Pedir a los visitantes que demuestren que no son robots (hCaptcha)",
   "forms.captchaHint":
     "Añade el hCaptcha de Web3Forms y su script a las páginas con un formulario. Para rechazar las respuestas sin él, activa también hCaptcha para el formulario en una cuenta de Web3Forms.",
+  "consent.title": "Consentimiento de los visitantes",
+  "consent.ask": "Preguntar a los visitantes antes de mostrar contenido de otros sitios",
+  "consent.hint":
+    "Los vídeos de YouTube y Vimeo, los formularios y mapas de Google, hCaptcha y el código de la pestaña Código esperan a que los visitantes acepten, con un aviso al pie de la página que se lo pregunta. Su respuesta se guarda en su navegador. Los enlaces a #consent, como en un menú, vuelven a abrir el aviso.",
+  "consent.message": "Lo que dice el aviso",
+  "consent.accept": "Botón para aceptar",
+  "consent.decline": "Botón para no aceptar",
+  "consent.held": "Lo que se muestra en lugar de un vídeo o formulario",
+  "consent.heldHint": "{site} es de dónde viene, como youtube-nocookie.com.",
+  "consent.show": "Botón que lo muestra ahí",
+  "consent.policy": "Página de privacidad",
+  "consent.policyHint":
+    "La página que explica qué hacen el sitio y los sitios de los que muestra contenido, como /privacidad.",
+  "consent.policyLabel": "Texto del enlace a ella",
   "forms.formspree": "Dirección del formulario de Formspree",
   "forms.formspreeHint":
     "Crea un formulario en Formspree y copia su dirección, como https://formspree.io/f/xyzabcde. En el plan gratuito de Formspree, los visitantes ven la página de agradecimiento del propio Formspree.",
