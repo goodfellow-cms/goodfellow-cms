@@ -33,6 +33,8 @@ export function setup(
     broker?: string;
     /** The site's other copies, such as staging, that its build names there. */
     copies?: string[];
+    /** GitHub fails to give the site's settings, as when it's having trouble. */
+    settingsFail?: boolean;
   } = {},
 ) {
   const repositories = ["parish/site", ...(options.repositories ?? [])];
@@ -78,6 +80,9 @@ export function setup(
   // The site itself, at its address, serves its description, naming its admin address if it has one.
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
+    if (options.settingsFail && url.includes("/contents/content/site.json")) {
+      return new Response("Server error", { status: 500 });
+    }
     if (url === `${SITE}/goodfellow-site.json`) {
       if (!options.admin && !options.broker && !options.copies) return new Response("Not found", { status: 404 });
       return Response.json({
@@ -102,6 +107,15 @@ export function setup(
   const post = (path: string, body: unknown, origin = SITE) =>
     call(path, { method: "POST", body: JSON.stringify(body), origin, headers: { "content-type": "text/plain" } });
 
+  /** Continues from the page an owner's sign-in shows first, as the person would, with the cookie it set. */
+  async function confirmed(response: Response): Promise<Response> {
+    if (response.status !== 200) return response;
+    const html = await response.text();
+    const next = /href="([^"]+)"/.exec(html)?.[1]?.replaceAll("&#38;", "&") ?? "";
+    const set = response.headers.get("set-cookie")?.split(";")[0] ?? "";
+    return call(next.replace(WORKER, ""), { headers: { cookie: set } });
+  }
+
   /** Goes through GitHub's sign-in as `login`, as the admin panel's redirect does, and returns the grant it comes back with. */
   async function redirect(login: string, purpose = "edit", back = `${SITE}/admin/#/pages`) {
     const verifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
@@ -112,7 +126,7 @@ export function setup(
       challenge: await challengeFor(verifier),
       remember: "1",
     });
-    const start = await call(`/github/start?${query}`);
+    const start = await confirmed(await call(`/github/start?${query}`));
     expect(start.status).toBe(302);
     const authorize = new URL(start.headers.get("location") ?? "");
     expect(authorize.origin + authorize.pathname).toBe("https://github.com/login/oauth/authorize");
@@ -141,6 +155,7 @@ export function setup(
     call,
     post,
     redirect,
+    confirmed,
     signIn,
     tick: (ms: number) => {
       clock += ms;

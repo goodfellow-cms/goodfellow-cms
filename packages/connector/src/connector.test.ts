@@ -499,6 +499,26 @@ describe("working on sites", () => {
     expect(response.headers.get("www-authenticate")).toContain('error="invalid_token"');
   });
 
+  it("ends access tokens as soon as their connection is revoked", async () => {
+    const { connectGitHub, visit, post } = setup();
+    const { clientId, tokens } = await connectGitHub();
+    const list = () =>
+      visit("/mcp", {
+        method: "POST",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+        headers: {
+          authorization: `Bearer ${tokens.access_token}`,
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+        },
+      });
+    expect((await list()).status).toBe(200);
+    await post("/revoke", { token: tokens.refresh_token, client_id: clientId });
+    const response = await list();
+    expect(response.status).toBe(401);
+    expect(response.headers.get("www-authenticate")).toContain('error="invalid_token"');
+  });
+
   it("takes screenshots where it can", async () => {
     const taken: string[] = [];
     const { connectGitHub, mcp } = setup({

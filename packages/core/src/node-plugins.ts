@@ -230,11 +230,63 @@ const TASK_RUNNER = [
 ].join("\n");
 
 /**
+ * Loads a site's config and sends back its plugins without their blocks, as
+ * plain data, since only that crosses a process's edge.
+ */
+const PLUGINS_LOADER = [
+  "const [root, module, name] = process.argv.slice(1);",
+  "let answer;",
+  "try {",
+  "  const config = await (await import(module))[name](root);",
+  "  const plugins = (config.plugins ?? []).map(({ blocks, categories, ...plugin }) => plugin);",
+  "  answer = { ok: true, plugins: JSON.parse(JSON.stringify(plugins)) };",
+  "} catch (error) {",
+  "  answer = { ok: false, error: error instanceof Error ? error.message : String(error) };",
+  "}",
+  "process.send(answer, () => process.exit(0));",
+].join("\n");
+
+/** Where `sitePluginsApart()` loads a site's config from: a module's address, and the function it exports for it. */
+export interface ConfigLoader {
+  module: string;
+  export: string;
+}
+
+/**
+ * A site's plugins as its config lists them, without their blocks, loaded in
+ * a Node process of its own whose environment has only what Node needs
+ * (`PASSED_ON`), so neither the config nor anything it loads can read the
+ * secrets a task's job was given, from `process.env` or the process's
+ * environment as it started. A task runs only once it's known, held as
+ * `runPluginTask()` holds it.
+ */
+export async function sitePluginsApart(root: string, loader: ConfigLoader): Promise<GoodfellowPlugin[]> {
+  const env = Object.fromEntries(
+    PASSED_ON.flatMap((name) => (process.env[name] === undefined ? [] : [[name, process.env[name] as string]])),
+  );
+  const args = ["--input-type=module", "-e", PLUGINS_LOADER, resolve(root), loader.module, loader.export];
+  return await new Promise<GoodfellowPlugin[]>((done, fail) => {
+    let answer: { ok: true; plugins: GoodfellowPlugin[] } | { ok: false; error: string } | undefined;
+    const child = spawn(process.execPath, args, { cwd: root, env, stdio: ["ignore", "inherit", "inherit", "ipc"] });
+    child.on("message", (message) => {
+      answer = message as typeof answer;
+    });
+    child.on("error", fail);
+    child.on("exit", (code) => {
+      if (answer?.ok) done(answer.plugins);
+      else fail(new Error(answer?.error ?? `The site's config couldn't be loaded (exit code ${code}).`));
+    });
+  });
+}
+
+/**
  * The secrets CI gave the task's job: its environment, and on GitHub every
  * repository secret as JSON in `GOODFELLOW_SECRETS` (`toJSON(secrets)`), since
- * a workflow can't name secrets it doesn't know. Call it before loading the
- * site's config, which takes `GOODFELLOW_SECRETS` out of the environment so
- * no code the config loads sees the secrets the task didn't declare.
+ * a workflow can't name secrets it doesn't know. It takes
+ * `GOODFELLOW_SECRETS` out of `process.env`, but the process's environment as
+ * it started still has it, as it has every variable GitLab and Bitbucket give
+ * a job, so load the site's config with `sitePluginsApart()`, never in the
+ * process holding them.
  */
 export function taskSecretsFrom(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const all: Record<string, string> = {};

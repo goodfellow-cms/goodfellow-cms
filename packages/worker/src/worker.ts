@@ -42,7 +42,7 @@ import {
   type UserTokens,
   userTokens,
 } from "./github.js";
-import { challengeFor, createSealer, type Sealer } from "./seal.js";
+import { base64UrlEncode, challengeFor, createSealer, type Sealer } from "./seal.js";
 
 export interface WorkerEnv {
   /** For GitHub Enterprise and tests. Defaults to `https://api.github.com`. */
@@ -65,6 +65,14 @@ export interface WorkerEnv {
   SESSION_KEY?: string;
   /** Addresses of setup pages allowed to create sites, separated by commas, such as `https://goodfellow-cms.github.io`. */
   SETUP_ORIGINS?: string;
+  /**
+   * The only addresses tokens may go to, separated by commas, such as
+   * `https://example.org,https://admin.example.org`. Where it's set, an address
+   * the site's files name gets tokens only if it's listed here too, since
+   * editors can change those files; owners' sign-ins to listed addresses also
+   * skip the page that asks first.
+   */
+  ALLOWED_ORIGINS?: string;
 }
 
 export interface WorkerOptions {
@@ -188,6 +196,8 @@ interface StateData {
 interface SessionData {
   purpose: Purpose;
   repo?: string;
+  /** When the person signed in, after which the session lasts no longer than its lifetime, however often it's used. */
+  signedInAt?: number;
   /** The only address the session's tokens go to. */
   origin: string;
   remember: boolean;
@@ -261,8 +271,50 @@ function page(problem: SignInProblem, status = 400): Response {
   const message = PAGE_MESSAGES[problem] ?? PAGE_MESSAGES.unavailable;
   return new Response(
     `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Couldn't sign in</title><main style="font: 16px/1.5 system-ui, sans-serif; max-width: 36rem; margin: 4rem auto; padding: 0 1rem"><h1>Couldn't sign in</h1><p>${message}</p></main></html>`,
-    { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+    { status, headers: PAGE_HEADERS },
   );
+}
+
+/** Headers for the worker's own pages, which nothing may show in a frame. */
+const PAGE_HEADERS = {
+  "content-type": "text/html; charset=utf-8",
+  "cache-control": "no-store",
+  "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+  "x-frame-options": "DENY",
+};
+
+/** The cookie that shows an owner's sign-in was continued from the worker's own page, in the same browser. */
+const CONFIRM_COOKIE = "__Host-goodfellow_confirm";
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+}
+
+/**
+ * The page an owner's sign-in shows before going to GitHub, which may sign
+ * them in without asking: an editor can change the addresses the site's files
+ * name, so the owner sees where the token would go, and continues only from
+ * here, with a cookie a link from elsewhere can't set.
+ */
+function confirmPage(url: URL, repo: string, origin: string, nonce: string): Response {
+  const next = new URL(url);
+  next.searchParams.set("confirm", nonce);
+  const body = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in as an owner?</title><main style="font: 16px/1.5 system-ui, sans-serif; max-width: 36rem; margin: 4rem auto; padding: 0 1rem"><h1>Sign in as an owner?</h1><p>You're signing in with GitHub as an owner of <strong>${escapeHtml(repo)}</strong>, so the admin panel at <strong>${escapeHtml(origin)}</strong> can manage the site's editors, domain and updates.</p><p>Only continue if you opened the admin panel at that address yourself. If a link brought you here, close this page.</p><p><a href="${escapeHtml(next.href)}" style="display: inline-block; padding: 0.5rem 1rem; border-radius: 0.375rem; background: #1f2937; color: #fff; text-decoration: none">Continue to GitHub</a></p></main></html>`;
+  return new Response(body, {
+    status: 200,
+    headers: {
+      ...PAGE_HEADERS,
+      "set-cookie": `${CONFIRM_COOKIE}=${nonce}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=600`,
+    },
+  });
+}
+
+function cookie(request: Request, name: string): string | undefined {
+  for (const part of (request.headers.get("cookie") ?? "").split(";")) {
+    const [key, ...value] = part.trim().split("=");
+    if (key === name) return value.join("=");
+  }
+  return undefined;
 }
 
 export function createWorker(options: WorkerOptions = {}) {
@@ -291,10 +343,13 @@ export function createWorker(options: WorkerOptions = {}) {
       web: (env.GITHUB_WEB ?? "https://github.com").replace(/\/$/, ""),
       fetch: options.fetch ?? ((input, init) => fetch(input, init)),
     };
-    const setupOrigins = (env.SETUP_ORIGINS ?? "")
-      .split(",")
-      .map((origin) => origin.trim().replace(/\/$/, ""))
-      .filter(Boolean);
+    const origins = (list: string | undefined) =>
+      (list ?? "")
+        .split(",")
+        .map((origin) => origin.trim().replace(/\/$/, ""))
+        .filter(Boolean);
+    const setupOrigins = origins(env.SETUP_ORIGINS);
+    const allowedOrigins = origins(env.ALLOWED_ORIGINS);
 
     const apps: Partial<Record<"edit" | "owner", App>> = {};
     if (env.EDIT_APP_ID && env.EDIT_CLIENT_ID && env.EDIT_CLIENT_SECRET && env.EDIT_PRIVATE_KEY) {
@@ -405,8 +460,8 @@ export function createWorker(options: WorkerOptions = {}) {
       if (!url || !site) return [];
       const { admin, broker, copies = [] } = await describedAddresses(url);
       // A site with a token broker signs in only there, so its tokens never reach the site's own pages.
-      if (broker) return [broker];
-      return [...new Set([site, ...(admin ? [admin] : []), ...copies])];
+      const addresses = broker ? [broker] : [...new Set([site, ...(admin ? [admin] : []), ...copies])];
+      return allowedOrigins.length > 0 ? addresses.filter((address) => allowedOrigins.includes(address)) : addresses;
     }
 
     /**
@@ -453,8 +508,12 @@ export function createWorker(options: WorkerOptions = {}) {
         installation,
         reader: await installationToken(config, jwt, installation, repo, { contents: "read", metadata: "read" }),
       }));
-      const addresses = await siteAddresses(repo, reader.token);
-      await revoke(reader.token);
+      let addresses: string[];
+      try {
+        addresses = await siteAddresses(repo, reader.token);
+      } finally {
+        await revoke(reader.token);
+      }
       if (addresses.length === 0) throw new Problem("no-address", 409);
       if (!addresses.includes(origin)) throw new Problem("wrong-address", 403);
       return installation;
@@ -486,6 +545,7 @@ export function createWorker(options: WorkerOptions = {}) {
       return session;
     }
 
+    /** A session sealed again, lasting until its lifetime since the person signed in, never longer. */
     async function sealSession(session: SessionData): Promise<string> {
       const lifetime =
         session.purpose === "setup"
@@ -493,7 +553,11 @@ export function createWorker(options: WorkerOptions = {}) {
           : session.remember
             ? REMEMBERED_SESSION_LIFETIME
             : SESSION_LIFETIME;
-      return (await sealer()).seal("session", session, lifetime);
+      // Sessions from before `signedInAt` count from now.
+      const signedInAt = session.signedInAt ?? now();
+      const left = signedInAt + lifetime - now();
+      if (left <= 0) throw new Problem("invalid", 401);
+      return (await sealer()).seal("session", { ...session, signedInAt }, left);
     }
 
     /** What the person may do on the repository, as GitHub says. */
@@ -646,9 +710,17 @@ export function createWorker(options: WorkerOptions = {}) {
     }
 
     async function userInstallations(token: string) {
-      const { installations: found = [] } = await githubJson<{
-        installations?: Array<{ id: number; account: { login: string; type: string }; repository_selection: string }>;
-      }>(config, "/user/installations?per_page=100", { auth: { bearer: token } });
+      type Installation = { id: number; account: { login: string; type: string }; repository_selection: string };
+      const found: Installation[] = [];
+      for (let page = 1; page <= 10; page++) {
+        const { installations = [] } = await githubJson<{ installations?: Installation[] }>(
+          config,
+          `/user/installations?per_page=100&page=${page}`,
+          { auth: { bearer: token } },
+        );
+        found.push(...installations);
+        if (installations.length < 100) break;
+      }
       return found;
     }
 
@@ -692,6 +764,13 @@ export function createWorker(options: WorkerOptions = {}) {
         } catch (error) {
           if (error instanceof Problem) return page(error.problem, error.status);
           throw error;
+        }
+        if (purpose === "owner" && !allowedOrigins.includes(origin)) {
+          const nonce = cookie(request, CONFIRM_COOKIE);
+          if (!nonce || params.get("confirm") !== nonce) {
+            const fresh = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
+            return confirmPage(url, repo ?? "", origin, fresh);
+          }
         }
         const state: StateData = {
           purpose,
@@ -757,6 +836,7 @@ export function createWorker(options: WorkerOptions = {}) {
             repo: state.repo,
             origin: new URL(state.return).origin,
             remember: state.remember,
+            signedInAt: now(),
             challenge: state.challenge,
             user: {
               id: found.id,

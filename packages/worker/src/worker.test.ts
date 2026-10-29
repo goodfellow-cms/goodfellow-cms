@@ -208,6 +208,88 @@ describe("staying signed in", () => {
   });
 });
 
+describe("sessions", () => {
+  it("end their lifetime after signing in, however often they're renewed", async () => {
+    const { signIn, post, tick } = setup();
+    let { body } = await signIn();
+    for (let day = 0; day < 29; day++) {
+      tick(24 * 3_600_000);
+      const renewed = await post("/github/token", { session: body.session });
+      expect(renewed.status).toBe(200);
+      body = (await renewed.json()) as typeof body;
+    }
+    tick(2 * 24 * 3_600_000);
+    const expired = await post("/github/token", { session: body.session });
+    expect(expired.status).toBe(401);
+    expect(await expired.json()).toEqual({ problem: "invalid" });
+  });
+});
+
+describe("checking an address", () => {
+  it("revokes the token it reads the site with, even when reading fails", async () => {
+    const { fake, call } = setup({ settingsFail: true });
+    const response = await call("/github/check?repo=parish/site", { origin: SITE });
+    expect(response.status).toBe(502);
+    const readers = fake.issued.filter((item) => item.kind === "installation");
+    expect(readers.length).toBeGreaterThan(0);
+    expect(readers.every((item) => item.revoked)).toBe(true);
+  });
+
+  it("gives tokens only to addresses the worker's own settings list, where they list any", async () => {
+    const staging = "https://staging.parish.example";
+    const { call } = setup({ copies: [staging], env: { ALLOWED_ORIGINS: `${SITE}/` } });
+    expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).toEqual({ ok: true });
+    // An editor can add a copy to the site's config; the worker's settings can't be changed from the site.
+    expect(await (await call("/github/check?repo=parish/site", { origin: staging })).json()).toEqual({
+      problem: "wrong-address",
+    });
+  });
+});
+
+describe("owners' sign-ins", () => {
+  async function start(call: ReturnType<typeof setup>["call"], extra: Record<string, string> = {}, cookie?: string) {
+    const query = new URLSearchParams({
+      purpose: "owner",
+      repo: "parish/site",
+      return: `${SITE}/admin/#/settings/editors`,
+      challenge: await challengeFor("x".repeat(43)),
+      ...extra,
+    });
+    return call(`/github/start?${query}`, { headers: cookie ? { cookie } : {} });
+  }
+
+  it("say where the token goes before going to GitHub, and continue only from that page", async () => {
+    const { call, confirmed } = setup();
+    const shown = await start(call);
+    expect(shown.status).toBe(200);
+    expect(shown.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    const cookie = shown.headers.get("set-cookie") ?? "";
+    expect(cookie).toMatch(/^__Host-goodfellow_confirm=[\w-]+; Path=\/; Secure; HttpOnly; SameSite=Strict/);
+    const html = await shown.clone().text();
+    expect(html).toContain(SITE);
+    expect(html).toContain("parish/site");
+
+    // A link made elsewhere, even with a value copied from the page, comes back to the page.
+    const nonce = /confirm=([\w-]+)/.exec(html)?.[1] ?? "";
+    expect((await start(call, { confirm: nonce })).status).toBe(200);
+    expect((await start(call, { confirm: "made-up" }, cookie.split(";")[0])).status).toBe(200);
+
+    const continued = await confirmed(shown);
+    expect(continued.status).toBe(302);
+    expect(continued.headers.get("location")).toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize\?/);
+  });
+
+  it("go straight to GitHub for an address the worker's own settings list", async () => {
+    const { call } = setup({ env: { ALLOWED_ORIGINS: SITE } });
+    expect((await start(call)).status).toBe(302);
+  });
+
+  it("aren't asked about on the way to the editors' sign-in", async () => {
+    const { redirect } = setup();
+    expect((await redirect("maria")).back.searchParams.get("goodfellow_sign_in")).toBeTruthy();
+  });
+});
+
 describe("installing while signing in", () => {
   it("sends the person to GitHub's install page, and checks where to come back to once Goodfellow can read the site", async () => {
     const { fake, call, post } = setup({ installed: false });

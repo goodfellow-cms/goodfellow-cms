@@ -25,16 +25,81 @@ export type BrokerQuestion =
   /** Installing another release of Goodfellow, which changes the site's packages. */
   | { kind: "update"; release: string }
   /** Giving someone access to the site, or more of it. */
-  | { kind: "editors"; who: string; role?: string };
+  | { kind: "editors"; who: string; role?: string }
+  /** Taking someone's access away. */
+  | { kind: "editors-remove"; who: string }
+  /** Connecting, securing or removing a domain on the site's host. */
+  | { kind: "domain"; change: "connect" | "secure" | "disconnect"; domain: string }
+  /** Running an installed plugin's task in the site's CI, with the secrets it declared. */
+  | { kind: "task"; plugin: string; task: string }
+  /** Turning on what the site's host needs for updates. */
+  | { kind: "updates-setup" }
+  /** Throwing away a draft, whoever made it. */
+  | { kind: "discard-draft"; name: string };
 
 /** What the broker does with a call: makes it, asks first, or refuses it. */
 export type BrokerDecision =
   | { action: "allow" }
   | { action: "ask"; questions: BrokerQuestion[] }
-  | { action: "refuse"; paths: string[]; reason: "workflow" | "limits" };
+  | { action: "refuse"; paths: string[]; reason: "workflow" | "limits" | "unknown" };
 
 /** Calls that publish a set of changes, by their path in the backend. */
 const WRITES = new Set(["write", "draft.store.write"]);
+
+const READS = ["revision", "read", "readBytes", "list", "readFiles", "fileSizes", "changedPaths"];
+
+/**
+ * Calls the broker makes without asking: reads, and changes that publish
+ * nothing, take nothing away and give no one more. Every other call is asked
+ * about or refused, so a method added to what the broker offers later is
+ * refused until it's listed here or given a question.
+ */
+const UNASKED = new Set([
+  ...READS,
+  "deployStatus",
+  "history",
+  "readAt",
+  "repositoryVisibility",
+  "signOut",
+  "filesAt.read",
+  "filesAt.readBytes",
+  "filesAt.list",
+  "pages.site",
+  "pages.records",
+  "pages.status",
+  "editors.list",
+  // The broker's own sign-in and dialog, never the admin panel's.
+  "ownerAccess.forget",
+  "ownerAccess.startRedirect",
+  "ownerAccess.requestToken",
+  "updates.lastRun",
+  "updates.rebuild",
+  "updates.code.read",
+  "updates.code.history",
+  "updates.code.readAt",
+  "updates.nightly.supported",
+  "updates.nightly.get",
+  "updates.nightly.set",
+  "drafts.create",
+  "drafts.open",
+  "drafts.list",
+  "drafts.reviews",
+  "draft.changes",
+  "draft.paths",
+  "draft.submitForReview",
+  ...READS.map((read) => `draft.store.${read}`),
+  "scheduledBuilds.timing",
+  // Schedules follow what's published, whoever asks.
+  "scheduledBuilds.sync",
+  "tasks.supported",
+  "tasks.secretsPlace",
+]);
+
+const DOMAIN_CHANGES: Record<string, "connect" | "secure" | "disconnect"> = {
+  "pages.connect": "connect",
+  "pages.secure": "secure",
+  "pages.disconnect": "disconnect",
+};
 
 /**
  * What a publish does to the plugins installed from the admin panel, from
@@ -104,8 +169,12 @@ function readerOf(target: unknown): ((path: string) => Promise<string | undefine
 
 function who(editor: unknown): string {
   if (typeof editor === "string") return editor;
-  const login = (editor as { login?: unknown } | null)?.login;
-  return typeof login === "string" ? login : "";
+  const { login, email } = (editor ?? {}) as { login?: unknown; email?: unknown };
+  return typeof login === "string" ? login : typeof email === "string" ? email : "";
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 /**
@@ -137,5 +206,20 @@ export async function decide(
     return { action: "ask", questions: [{ kind: "editors", who: who(args[0]), role: String(args[1]) }] };
   }
   if (path === "editors.letEditorsPublish") return { action: "ask", questions: [{ kind: "editors", who: "" }] };
-  return { action: "allow" };
+  if (path === "editors.remove") return { action: "ask", questions: [{ kind: "editors-remove", who: who(args[0]) }] };
+  const change = DOMAIN_CHANGES[path];
+  if (change) return { action: "ask", questions: [{ kind: "domain", change, domain: text(args[0]) }] };
+  if (path === "tasks.run") {
+    const request = (args[0] ?? {}) as { plugin?: unknown; task?: unknown };
+    return { action: "ask", questions: [{ kind: "task", plugin: text(request.plugin), task: text(request.task) }] };
+  }
+  if (path === "updates.setup" || path === "updates.enable") {
+    return { action: "ask", questions: [{ kind: "updates-setup" }] };
+  }
+  if (path === "draft.discard") {
+    const name = (target as { name?: unknown } | null)?.name;
+    return { action: "ask", questions: [{ kind: "discard-draft", name: text(name) }] };
+  }
+  if (UNASKED.has(path)) return { action: "allow" };
+  return { action: "refuse", paths: [path], reason: "unknown" };
 }

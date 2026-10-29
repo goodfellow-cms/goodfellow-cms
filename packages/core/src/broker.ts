@@ -150,7 +150,12 @@ export interface BrokerChangeCheck {
 
 /** Whether a path is one of the git host's workflows, which run with the repository's secrets. */
 export function isWorkflowPath(path: string): boolean {
-  return path.startsWith(".github/") || path === ".gitlab-ci.yml" || path.startsWith(".gitlab/");
+  return (
+    path.startsWith(".github/") ||
+    path === ".gitlab-ci.yml" ||
+    path.startsWith(".gitlab/") ||
+    path === "bitbucket-pipelines.yml"
+  );
 }
 
 /**
@@ -248,6 +253,25 @@ const BACKEND: Shape = {
     tasks: { methods: ["supported", "secretsPlace", "run"] },
   },
 };
+
+/**
+ * Every call the broker offers, by the path `check()` names it with, such as
+ * `draft.publish` or `filesAt.read`, so its policy can be tested against all of them.
+ */
+export function brokerCalls(): string[] {
+  const calls: string[] = [];
+  const walk = (shape: Shape, prefix: string) => {
+    for (const method of shape.methods ?? []) calls.push(`${prefix}${method}`);
+    for (const [method, inner] of Object.entries(shape.sync ?? {})) {
+      for (const then of inner.methods ?? []) calls.push(`${prefix}${method}.${then}`);
+    }
+    for (const [key, inner] of Object.entries(shape.objects ?? {})) walk(inner, `${prefix}${key}.`);
+    for (const [method, inner] of Object.entries(shape.returns ?? {}))
+      walk(inner, `${inner.name ?? `${prefix}${method}`}.`);
+  };
+  walk(BACKEND, "");
+  return [...new Set(calls)];
+}
 
 /** What the admin panel learns of an object: its values, the methods it has, and the objects within it. */
 interface Description {

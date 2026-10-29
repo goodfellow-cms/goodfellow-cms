@@ -1,12 +1,14 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   mediaStorageOrigins,
   PluginBuildError,
   runPluginBuildSteps,
   runPluginTask,
+  sitePluginsApart,
   taskSecretsFrom,
 } from "./node-plugins.js";
 import { definePlugin } from "./plugins.js";
@@ -184,6 +186,64 @@ describe("plugins' tasks", { timeout: NODE_TIMEOUT }, () => {
     const env: NodeJS.ProcessEnv = { GOODFELLOW_SECRETS: '{"A":"1"}', B: "2" };
     expect(taskSecretsFrom(env)).toEqual({ A: "1", B: "2" });
     expect(env).not.toHaveProperty("GOODFELLOW_SECRETS");
+  });
+});
+
+describe("loading a site's plugins for a task", () => {
+  it("loads the config in a process that has none of the job's secrets, even as it started", async () => {
+    const root = await mkdtemp(join(tmpdir(), "goodfellow-apart-"));
+    try {
+      await writeFile(
+        join(root, "load.mjs"),
+        `import { existsSync, readFileSync } from "node:fs";
+export async function load(root) {
+  const environ = existsSync("/proc/self/environ") ? readFileSync("/proc/self/environ", "utf8") : "";
+  const saw = String(Boolean(process.env.GOODFELLOW_SECRETS || process.env.STORAGE_KEY || environ.includes("hush")));
+  return {
+    plugins: [{
+      name: "goodfellow-plugin-storage",
+      title: saw,
+      root,
+      permissions: { secrets: ["STORAGE_KEY"] },
+      tasks: [{ id: "sign", module: "./sign.mjs" }],
+      blocks: { Thing: { render: () => null } },
+    }],
+  };
+}
+`,
+      );
+      process.env.GOODFELLOW_SECRETS = JSON.stringify({ STORAGE_KEY: "hush" });
+      process.env.STORAGE_KEY = "hush";
+      const plugins = await sitePluginsApart(root, {
+        module: pathToFileURL(join(root, "load.mjs")).href,
+        export: "load",
+      });
+      expect(plugins).toEqual([
+        {
+          name: "goodfellow-plugin-storage",
+          title: "false",
+          root,
+          permissions: { secrets: ["STORAGE_KEY"] },
+          tasks: [{ id: "sign", module: "./sign.mjs" }],
+        },
+      ]);
+    } finally {
+      delete process.env.GOODFELLOW_SECRETS;
+      delete process.env.STORAGE_KEY;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("says why the config couldn't be loaded", async () => {
+    const root = await mkdtemp(join(tmpdir(), "goodfellow-apart-"));
+    try {
+      await writeFile(join(root, "load.mjs"), 'export async function load() { throw new Error("No config here."); }\n');
+      await expect(
+        sitePluginsApart(root, { module: pathToFileURL(join(root, "load.mjs")).href, export: "load" }),
+      ).rejects.toThrow("No config here.");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 
