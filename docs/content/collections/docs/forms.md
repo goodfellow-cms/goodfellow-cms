@@ -49,6 +49,10 @@ Every form has a field that people never see, which robots fill in. Services thr
 
 With Web3Forms, **Ask visitors to show they aren't robots (hCaptcha)** adds Web3Forms' hCaptcha to every form. It needs Web3Forms' script on pages with a form, so it's off by default, and the editor shows where the hCaptcha will go rather than loading it. Web3Forms only turns away answers without it when hCaptcha is also turned on for the form in a Web3Forms account. On a site that [asks visitors first](/docs/layout-and-settings#visitors-consent), the script loads once a visitor agrees, and until then the form says so, with a button that agrees; Google forms wait the same way. Web3Forms serves the script from its own address, without a version, so it runs as Web3Forms changes it, on every page with such a form (never in the admin panel); turn hCaptcha on only if you trust Web3Forms with that.
 
+## Newsletters
+
+To sign people up to a newsletter on Mailchimp, Buttondown or Kit, use the [Newsletter signup](/docs/built-in-blocks#newsletter-signup) block, which sends their address straight to the newsletter service. It can also use the site's form service, which emails you each signup.
+
 ## Google Forms
 
 Longer forms, such as surveys and sign-up sheets, can be made in [Google Forms](https://forms.google.com), whose answers go to a Google spreadsheet. Set the Form block's **Questions** to **A Google form**, then in Google Forms choose **Send**, the **<>** tab, and copy the embed code into the block. The form shows on the page, as tall as the embed code says. Short `forms.gle` links can't be shown, since the block can't find out which form they open; use the embed code instead.

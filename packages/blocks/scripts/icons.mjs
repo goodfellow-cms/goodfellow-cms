@@ -24,6 +24,7 @@ const ICONS = {
   Verse: "scroll-text",
   Code: "code-xml",
   Form: "clipboard-list",
+  Newsletter: "mail-plus",
   ContactDetails: "contact",
   Image: "image",
   Gallery: "images",

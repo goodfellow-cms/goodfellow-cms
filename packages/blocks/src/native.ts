@@ -19,6 +19,7 @@ import { Flex, Grid, Section, Space } from "./layout.native.js";
 import { CollectionLoop } from "./loop.native.js";
 import { Audio, File, Gallery, MediaText } from "./media.native.js";
 import { Breadcrumbs, Menu, PageList, SiteBrand } from "./navigation.native.js";
+import { Newsletter } from "./newsletter.native.js";
 import { Search } from "./search.native.js";
 import { Details, Preformatted, Pullquote, Separator, Table, Verse } from "./text.native.js";
 import { Video } from "./video.native.js";
@@ -38,6 +39,7 @@ export const nativeBlocks = {
   Image,
   Video,
   Form,
+  Newsletter,
   Code,
   ContactDetails,
   Menu,

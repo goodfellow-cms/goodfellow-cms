@@ -118,6 +118,18 @@ export const FORM_PARTS: BlockParts = {
   "gf-form-submit": "Send button",
 };
 
+export const NEWSLETTER_PARTS: BlockParts = {
+  "gf-newsletter": "Newsletter signup",
+  "gf-newsletter-heading": "Heading",
+  "gf-newsletter-text": "Text",
+  "gf-newsletter-form": "Form",
+  "gf-newsletter-field": "Field",
+  "gf-newsletter-label": "Field's label",
+  "gf-newsletter-input": "Email box",
+  "gf-newsletter-submit": "Subscribe button",
+  "gf-newsletter-note": "Words under the form",
+};
+
 export const ENTRY_FIELD_PARTS: BlockParts = {
   "gf-entry-field": "Entry field",
   "gf-entry-field-link": "Field's link",

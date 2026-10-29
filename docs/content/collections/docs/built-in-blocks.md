@@ -30,6 +30,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Audio | A sound file from the media library, such as a homily, with the browser's own player |
 | File | A link to a file from the media library, such as a PDF, with an optional download button |
 | Form | A form whose answers a form service emails to you, or a Google form (see [Forms](/docs/forms)) |
+| Newsletter signup | An email box that signs visitors up to a newsletter on Mailchimp, Buttondown or Kit, or through the site's form service |
 | Code | Code with syntax highlighting, an optional title and a copy button |
 | Contact details | The address, phone number and email address from Site Settings |
 | Menu | One of the site's menus, with dropdowns for submenus. **Colors** puts it in a bar of the theme's primary or secondary color, its dropdowns see-through in the same color, **Show the pages under each submenu link** opens a submenu link's own pages as a third level, so a section's pages need no menu entries of their own, and **Show the links behind a menu button (☰)** puts every link, every level of them, under a menu button on phones, on phones and small tablets, on phones and tablets, always or never (see [Menus on phones](#menus-on-phones)) |
@@ -109,6 +110,19 @@ On a site in [several languages](/docs/languages), the Language switch links to 
 
 The Search block searches the whole site in the visitor's browser, with [Pagefind](https://pagefind.app), so no search service is needed. When a site has a Search block, its build makes a search index of every page's main content; headers, footers and "Page not found" are left out. Search only works on the built site, so in the editor the box says so. See [Search](/docs/search) for details.
 
+## Newsletter signup
+
+The Newsletter signup block is an email box and a button that sign visitors up to your newsletter. Choose the **Newsletter service** and paste its signup form:
+
+- **Mailchimp:** in Mailchimp, open **Audience**, then **Signup forms**, then **Embedded forms**, and copy the code there.
+- **Buttondown:** your Buttondown username, or the embed code from Buttondown's sharing settings.
+- **Kit (ConvertKit):** open the form in Kit, choose **Publish**, then **HTML**, and copy the code there.
+- **The site's form service:** the one in Site Settings, under Forms (see [Forms](/docs/forms)), which emails you each signup, for a list you keep yourself.
+
+The block keeps only where the form sends signups, so it looks like the rest of the site, and it's a plain form that posts straight to the service: it works without JavaScript, and pages load nothing from the service until someone signs up. The service then shows its own page, such as Mailchimp's "Almost finished" page asking people to confirm by email; with the site's form service, **Page visitors see after signing up** can be one of the site's pages. **Ask for a first name too** adds a box for it (Buttondown takes only the address). **Button beside the box** hides the boxes' labels, which screen readers still read, behind their placeholders. Until the form can sign anyone up, the block isn't shown on the site, and the editor says what's missing.
+
+In the site's app, signups through the site's form service are sent from the app itself; with a newsletter service, the button opens the page on the website.
+
 ## Named parts
 
 Every part of a built-in block has a name, which is on the part as a class, and which [Blocks' parts](/docs/layout-and-settings#blocks-parts) gives classes to and custom CSS can style. Names are never renamed or removed, so a theme that uses one keeps working; new ones may be added. Some parts are in more than one block, such as a list's page links.
@@ -128,6 +142,7 @@ Every part of a built-in block has a name, which is on the part as a class, and 
 - **Entry field:** `gf-entry-field` (Entry field), `gf-entry-field-link` (Field's link), `gf-code` (Code), `gf-code-title` (Code's title), `gf-code-copy` (Copy button).
 - **File:** `gf-file` (File), `gf-file-link` (File's link), `gf-file-button` (Download button).
 - **Form:** `gf-form` (Form), `gf-form-embed` (Google Form), `gf-form-questions` (Questions), `gf-form-question` (Question), `gf-form-label` (Question's wording), `gf-form-hint` (Help text), `gf-form-input` (Answer field), `gf-form-choice` (Choice), `gf-form-check` (Checkbox or option), `gf-form-required` (Required mark), `gf-form-submit` (Send button).
+- **Newsletter signup:** `gf-newsletter` (Newsletter signup), `gf-newsletter-heading` (Heading), `gf-newsletter-text` (Text), `gf-newsletter-form` (Form), `gf-newsletter-field` (Field), `gf-newsletter-label` (Field's label), `gf-newsletter-input` (Email box), `gf-newsletter-submit` (Subscribe button), `gf-newsletter-note` (Words under the form).
 - **Gallery:** `gf-gallery` (Gallery), `gf-gallery-items` (Pictures), `gf-gallery-item` (Picture and caption), `gf-gallery-picture` (Picture), `gf-gallery-item-caption` (Picture's caption), `gf-gallery-caption` (Gallery's caption).
 - **Heading:** `gf-heading` (Heading).
 - **Image:** `gf-image` (Image and caption), `gf-image-picture` (Picture), `gf-image-caption` (Caption).
