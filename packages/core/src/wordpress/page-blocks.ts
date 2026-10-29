@@ -49,6 +49,7 @@ export const WORDPRESS_BLOCKS = [
   "Gallery",
   "PageList",
   "Embed",
+  "Document",
 ];
 
 export interface PageBlocksOptions {
@@ -300,6 +301,17 @@ export function partBlocks(parts: Part[], writer: BlockWriter, options: PageBloc
         );
         break;
       case "file":
+        if (part.preview && has("Document") && /\.pdf$/i.test(part.href.split(/[?#]/)[0] ?? "")) {
+          out.push(
+            writer.block("Document", {
+              file: part.href,
+              title: part.label,
+              height: part.preview,
+              linkLabel: "Open the document",
+            }),
+          );
+          break;
+        }
         out.push(
           writer.block("File", {
             button: part.button,

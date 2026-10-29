@@ -385,6 +385,65 @@ describe("WordPress's own blocks exported", () => {
   });
 });
 
+describe("PDFs and giving pages", () => {
+  const VIEWER = `
+<!-- wp:file {"id":12,"href":"https://parish.example/wp-content/uploads/2026/05/bulletin.pdf","displayPreview":true,"previewHeight":700} -->
+<div class="wp-block-file"><object class="wp-block-file__embed" data="https://parish.example/wp-content/uploads/2026/05/bulletin.pdf" type="application/pdf" style="width:100%;height:700px" aria-label="Embed of This week's bulletin."></object><a id="wp-block-file--media-1" href="https://parish.example/wp-content/uploads/2026/05/bulletin.pdf">This week's bulletin</a></div>
+<!-- /wp:file -->
+`;
+
+  it("bring a PDF WordPress shows on the page across as a Document viewer", () => {
+    expect(props(blocksOf(VIEWER), "Document")).toEqual({
+      file: "/wp-content/uploads/2026/05/bulletin.pdf",
+      title: "This week's bulletin",
+      height: 700,
+      linkLabel: "Open the document",
+    });
+    expect(blocksOf(VIEWER, IMPORT_BLOCKS).some((block) => block.type === "Document")).toBe(false);
+  });
+
+  it("export the Document viewer and Donate button as WordPress's File and Buttons blocks", async () => {
+    const page = {
+      version: 1,
+      data: {
+        root: { props: { title: "Give" } },
+        content: [
+          {
+            type: "Document",
+            props: { id: "Document-1", file: "/media/bulletin.pdf", title: "Bulletin", height: 600 },
+          },
+          {
+            type: "Donate",
+            props: {
+              id: "Donate-1",
+              heading: "Support us",
+              text: "Every gift helps.",
+              url: "https://donate.stripe.com/test_1",
+              buttonLabel: "Give",
+              align: "center",
+            },
+          },
+          { type: "ShareButtons", props: { id: "Share-1", label: "Share", sites: [{ site: "email" }] } },
+        ],
+      },
+    };
+    const files: Record<string, string> = {
+      "content/site.json": JSON.stringify({ version: 1, title: "St. Joseph", url: "https://parish.example" }),
+      "content/pages/give.json": JSON.stringify(page),
+    };
+    const source: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    const { xml, notes } = wordPressExport(await loadSiteContent(source));
+    expect(xml).toContain('"displayPreview":true,"previewHeight":600');
+    expect(xml).toContain('<object class="wp-block-file__embed"');
+    expect(xml).toContain('href="https://donate.stripe.com/test_1" target="_blank" rel="noreferrer noopener">Give</a>');
+    expect(xml).toContain("Every gift helps.");
+    expect(JSON.stringify(notes)).toContain("ShareButtons");
+  });
+});
+
 describe("Posts from social sites", () => {
   const EMBEDS = `
 <!-- wp:embed {"url":"https://twitter.com/jack/status/20","type":"rich","providerNameSlug":"twitter"} -->

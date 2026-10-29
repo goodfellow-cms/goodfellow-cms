@@ -1662,6 +1662,14 @@ export const strings: Strings = {
   "consent.policyHint":
     "La página que explica qué hacen el sitio y los sitios de los que muestra contenido, como /privacidad.",
   "consent.policyLabel": "Texto del enlace a ella",
+  "consent.choose": "Botón que muestra las opciones",
+  "consent.save": "Botón que guarda las opciones",
+  "consent.kind.content": "Opción para el contenido de otros sitios",
+  "consent.kind.statistics": "Opción para las estadísticas",
+  "consent.kind.marketing": "Opción para la publicidad",
+  "consent.days": "Volver a preguntar después de estos días",
+  "consent.daysHint":
+    "Las respuestas de los visitantes duran este tiempo; después, el aviso vuelve a preguntar. Lo habitual son 180 días, unos seis meses; los reguladores europeos aceptan hasta 395, 13 meses.",
   "forms.formspree": "Dirección del formulario de Formspree",
   "forms.formspreeHint":
     "Crea un formulario en Formspree y copia su dirección, como https://formspree.io/f/xyzabcde. En el plan gratuito de Formspree, los visitantes ven la página de agradecimiento del propio Formspree.",
@@ -1809,6 +1817,14 @@ export const strings: Strings = {
     "Una página de inicio de sesión o una dirección de administración propia, en la pestaña Seguridad, deja las sesiones fuera de su alcance.",
   "code.head": "En la cabecera de la página",
   "code.headHint": "Etiquetas script, style, link, meta y noscript, como las que da Google Analytics.",
+  "code.purpose.head": "Para qué es el código de la cabecera de la página",
+  "code.purpose.body": "Para qué es el código del final de la página",
+  "code.purposeHint":
+    "Los visitantes eligen qué tipos permitir. El código necesario para que el sitio funcione se carga para todos sin preguntar, así que elígelo solo para código que no siga a los visitantes.",
+  "code.purpose.needed": "Necesario para que el sitio funcione: se carga sin preguntar",
+  "code.purpose.content": "Contenido de otros sitios, como un chat",
+  "code.purpose.statistics": "Estadísticas, como Google Analytics",
+  "code.purpose.marketing": "Publicidad",
   "code.body": "Al final de la página",
   "code.bodyHint": "Cualquier HTML, como un widget de chat, añadido justo antes del final de cada página.",
   "code.error.text":

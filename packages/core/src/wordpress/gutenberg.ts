@@ -178,14 +178,22 @@ export function textTable(
   );
 }
 
-export function file(href: string, label: string, button: string | undefined): string {
+/** A link to a file, with WordPress's download button, and its viewer on the page for a PDF with `preview`'s height. */
+export function file(href: string, label: string, button: string | undefined, preview?: number): string {
   const download = button
     ? `<a href="${escapeAttribute(href)}" class="wp-block-file__button wp-element-button" download>${escapeText(button)}</a>`
     : "";
+  const viewer = preview
+    ? `<object class="wp-block-file__embed" data="${escapeAttribute(href)}" type="application/pdf" style="width:100%;height:${preview}px" aria-label="${escapeAttribute(label)}"></object>`
+    : "";
   return wpBlock(
     "file",
-    { href, ...(!button && { showDownloadButton: false }) },
-    `<div class="wp-block-file"><a href="${escapeAttribute(href)}">${escapeText(label)}</a>${download}</div>`,
+    {
+      href,
+      ...(preview && { displayPreview: true, previewHeight: preview }),
+      ...(!button && { showDownloadButton: false }),
+    },
+    `<div class="wp-block-file">${viewer}<a href="${escapeAttribute(href)}">${escapeText(label)}</a>${download}</div>`,
   );
 }
 

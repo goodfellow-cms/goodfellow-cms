@@ -1,11 +1,29 @@
-import { type ConsentSettings, consentDefaults } from "@goodfellow-cms/core";
+import {
+  CONSENT_DAYS,
+  CONSENT_KINDS,
+  type ConsentSettings,
+  consentDefaults,
+  consentKinds,
+  consentSchema,
+  MAX_CONSENT_DAYS,
+} from "@goodfellow-cms/core";
 import { useState } from "react";
 import { sectionId } from "./router.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Field, TextField } from "./ui.js";
 
 /** The consent notice's words, which each of the site's languages can have its own of. */
-export const CONSENT_WORDS = ["message", "accept", "decline", "held", "show", "policyLabel"] as const;
+export const CONSENT_WORDS = [
+  "message",
+  "accept",
+  "decline",
+  "held",
+  "show",
+  "policyLabel",
+  "choose",
+  "save",
+  ...CONSENT_KINDS,
+] as const;
 
 export type ConsentWord = (typeof CONSENT_WORDS)[number];
 
@@ -17,7 +35,24 @@ const WORD_STRINGS: Record<ConsentWord, { label: StringKey; hint?: StringKey }> 
   held: { label: "consent.held", hint: "consent.heldHint" },
   show: { label: "consent.show" },
   policyLabel: { label: "consent.policyLabel" },
+  choose: { label: "consent.choose" },
+  save: { label: "consent.save" },
+  content: { label: "consent.kind.content" },
+  statistics: { label: "consent.kind.statistics" },
+  marketing: { label: "consent.kind.marketing" },
 };
+
+/**
+ * The words the notice shows: the choices' only where the site asks about
+ * more than one kind, since the code is for statistics or advertising, and
+ * then each kind's it asks about.
+ */
+export function shownConsentWords(consent: ConsentSettings): ConsentWord[] {
+  const kinds = consentKinds(consent);
+  const choices = new Set<ConsentWord>(kinds.length > 1 ? ["choose", "save", ...kinds] : []);
+  const choiceWords = new Set<ConsentWord>(["choose", "save", ...CONSENT_KINDS]);
+  return CONSENT_WORDS.filter((word) => !choiceWords.has(word) || choices.has(word));
+}
 
 /**
  * Consent settings without empty words or ones left as they come in the
@@ -34,7 +69,13 @@ export function cleanConsent(
     return value && value !== defaults[word] ? [[word, value]] : [];
   });
   const policy = consent.policy?.trim();
-  return { ...Object.fromEntries(words), ...(policy && { policy }) };
+  const code = consent.code.head !== "content" || consent.code.body !== "content";
+  return {
+    ...Object.fromEntries(words),
+    ...(policy && { policy }),
+    ...(consent.days !== CONSENT_DAYS && { days: consent.days }),
+    ...(code && { code: consent.code }),
+  };
 }
 
 /** One of the notice's words, written in a text box or, for the notice's text, a bigger one. */
@@ -100,7 +141,7 @@ export function ConsentSection({
           checked={consent !== undefined}
           onChange={(event) => {
             if (event.target.checked) {
-              onChange(kept ?? { ...defaults });
+              onChange(kept ?? consentSchema.parse({ ...defaults }));
             } else {
               setKept(consent);
               onChange(undefined);
@@ -112,15 +153,17 @@ export function ConsentSection({
       <p className="gfa-hint">{t("consent.hint")}</p>
       {consent && (
         <>
-          {CONSENT_WORDS.filter((word) => word !== "policyLabel").map((word) => (
-            <ConsentWordField
-              key={word}
-              word={word}
-              placeholder={defaults[word]}
-              value={consent[word]}
-              onChange={(value) => onChange({ ...consent, [word]: value })}
-            />
-          ))}
+          {shownConsentWords(consent)
+            .filter((word) => word !== "policyLabel")
+            .map((word) => (
+              <ConsentWordField
+                key={word}
+                word={word}
+                placeholder={defaults[word]}
+                value={consent[word]}
+                onChange={(value) => onChange({ ...consent, [word]: value })}
+              />
+            ))}
           <TextField
             label={t("consent.policy")}
             hint={t("consent.policyHint")}
@@ -134,6 +177,22 @@ export function ConsentSection({
             value={consent.policyLabel}
             onChange={(policyLabel) => onChange({ ...consent, policyLabel })}
           />
+          <Field label={t("consent.days")} hint={t("consent.daysHint")}>
+            {(props) => (
+              <input
+                {...props}
+                className="gfa-input"
+                type="number"
+                min={1}
+                max={MAX_CONSENT_DAYS}
+                value={consent.days}
+                onChange={(event) => {
+                  const days = Math.round(Number(event.target.value));
+                  if (days >= 1) onChange({ ...consent, days: Math.min(days, MAX_CONSENT_DAYS) });
+                }}
+              />
+            )}
+          </Field>
         </>
       )}
     </>

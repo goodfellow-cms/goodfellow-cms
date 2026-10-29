@@ -104,6 +104,8 @@ const LEFT_OUT = new Set([
   "EntryField",
   "CollectionLoop",
   "Breadcrumbs",
+  // Share links point at the page, which WordPress would give an address of its own.
+  "ShareButtons",
 ]);
 
 /** The Space block's sizes, in pixels. */
@@ -288,6 +290,23 @@ function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string[] {
         if (!href) return [];
         const label = text(props.label).trim() || decodeURIComponent(href.slice(href.lastIndexOf("/") + 1));
         return [file(href, label, props.button === false ? undefined : text(props.buttonLabel) || "Download")];
+      }
+      case "Document": {
+        const href = context.link(text(props.file));
+        if (!href) return [];
+        const label = text(props.title).trim() || decodeURIComponent(href.slice(href.lastIndexOf("/") + 1));
+        const height = Number(props.height);
+        return [file(href, label, undefined, Number.isFinite(height) && height >= 200 ? Math.round(height) : 800)];
+      }
+      case "Donate": {
+        const href = text(props.url).trim();
+        if (!/^https:\/\//i.test(href)) return [];
+        const shown = text(props.heading).trim();
+        return [
+          ...(shown ? [heading(shown, 2, text(props.align))] : []),
+          ...(text(props.text).trim() ? [paragraph(escapeText(text(props.text).trim()))] : []),
+          buttons([{ label: text(props.buttonLabel) || "Give", href, outline: false, newTab: true }]),
+        ];
       }
       case "Audio": {
         const src = context.media(text(props.src));
