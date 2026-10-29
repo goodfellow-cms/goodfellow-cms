@@ -2,14 +2,18 @@
 // versions share it.
 import { type FormProblem, type FormSettings, formTarget } from "@goodfellow-cms/core";
 
-/** The newsletter services the block knows, and the site's own form service. */
-export const NEWSLETTER_SERVICES = ["mailchimp", "buttondown", "kit", "forms"] as const;
+/**
+ * The newsletter services the block knows by name, any other service whose
+ * signup form is plain HTML, and the site's own form service.
+ */
+export const NEWSLETTER_SERVICES = ["mailchimp", "buttondown", "kit", "other", "forms"] as const;
 export type NewsletterService = (typeof NEWSLETTER_SERVICES)[number];
 
 export const NEWSLETTER_SERVICE_NAMES: Record<NewsletterService, string> = {
   mailchimp: "Mailchimp",
   buttondown: "Buttondown",
   kit: "Kit (ConvertKit)",
+  other: "Another service (its signup form's HTML)",
   forms: "The site's form service, from Site Settings",
 };
 
@@ -55,6 +59,10 @@ export interface NewsletterTarget {
   honeypot?: { name: string; type: "text" | "checkbox" };
   /** Whether the site's form service shows Web3Forms' hCaptcha. */
   captcha: boolean;
+  /** How the form sends, where another service's form says `get`. */
+  method?: "get";
+  /** How many of another service's questions the block leaves out, such as which lists to join. */
+  leftOut?: number;
 }
 
 /** Why the form can't sign anyone up yet. */
@@ -140,6 +148,85 @@ function kit(input: string): NewsletterTarget | undefined {
   };
 }
 
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", "#39": "'" };
+
+/** An attribute's value as the browser reads it, with the entities forms' HTML uses. */
+function decoded(value: string): string {
+  return value.replace(/&(amp|lt|gt|quot|apos|#39);/g, (_, name: string) => ENTITIES[name] ?? "");
+}
+
+/** A tag's attributes, by lowercase name. */
+function attributesOf(tag: string): Map<string, string> {
+  const attributes = new Map<string, string>();
+  for (const match of tag.matchAll(/\s([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'<>`=]+)))?/g)) {
+    const name = match[1]?.toLowerCase();
+    if (name && !attributes.has(name)) attributes.set(name, decoded(match[2] ?? match[3] ?? match[4] ?? ""));
+  }
+  return attributes;
+}
+
+const EMAIL_NAME = /e-?mail/i;
+const FIRST_NAME = /first|fname/i;
+const UNSEEN = new Set(["hidden", "submit", "button", "image", "reset"]);
+
+/**
+ * Another service's signup form, from the HTML its embed code has: where it
+ * sends signups (only an `https://` address), its email box, its first
+ * name's box, its hidden fields, and a box hidden from people that only bots
+ * fill in (`tabindex="-1"`, as Mailchimp's and others' are). The block draws
+ * its own form with those names, so it looks like the rest of the site and
+ * runs none of the service's code. Its other questions are left out and
+ * counted. Forms that need a script or a frame can't be read this way.
+ */
+export function htmlSignupForm(input: string): NewsletterTarget | undefined {
+  const start = /<form\b[^>]*>/i.exec(input);
+  if (!start) return undefined;
+  const form = attributesOf(start[0]);
+  const url = secureUrl((form.get("action") ?? "").trim());
+  if (!url) return undefined;
+  const method = (form.get("method") ?? "get").toLowerCase();
+  if (method !== "post" && method !== "get") return undefined;
+  const end = input.toLowerCase().indexOf("</form", start.index);
+  const body = input.slice(start.index + start[0].length, end === -1 ? undefined : end);
+  const named = [...body.matchAll(/<input\b[^>]*>/gi)]
+    .map((match) => attributesOf(match[0]))
+    .filter((field) => field.get("name"));
+  const typeOf = (field: Map<string, string>) => (field.get("type") || "text").toLowerCase();
+  const email =
+    named.find((field) => typeOf(field) === "email") ??
+    named.find((field) => typeOf(field) === "text" && EMAIL_NAME.test(field.get("name") ?? ""));
+  if (!email) return undefined;
+  const isHoneypot = (field: Map<string, string>) =>
+    field !== email && field.get("tabindex") === "-1" && !UNSEEN.has(typeOf(field));
+  const honeypot = named.find(isHoneypot);
+  const firstName = named.find(
+    (field) =>
+      field !== email && typeOf(field) === "text" && !isHoneypot(field) && FIRST_NAME.test(field.get("name") ?? ""),
+  );
+  const hidden = named
+    .filter((field) => typeOf(field) === "hidden")
+    .map((field) => ({ name: field.get("name") ?? "", value: field.get("value") ?? "" }));
+  const kept = new Set([email, firstName, honeypot]);
+  const leftOut =
+    named.filter((field) => !kept.has(field) && !UNSEEN.has(typeOf(field))).length +
+    (body.match(/<(select|textarea)\b/gi)?.length ?? 0);
+  const honeypotName = honeypot?.get("name");
+  return {
+    service: "other",
+    action: url.href,
+    ...(method === "get" && { method: "get" as const }),
+    email: email.get("name") ?? "",
+    ...(firstName && { name: firstName.get("name") }),
+    hidden,
+    ...(honeypot &&
+      honeypotName && {
+        honeypot: { name: honeypotName, type: typeOf(honeypot) === "checkbox" ? "checkbox" : "text" },
+      }),
+    captcha: false,
+    ...(leftOut > 0 && { leftOut }),
+  };
+}
+
 /**
  * Where the block posts, or why it can't. The newsletter services are read
  * from their embed codes or addresses, and only ever post to the service's
@@ -166,7 +253,7 @@ export function newsletterTarget(
   }
   const input = (props.form ?? "").trim();
   if (!input) return { problem: "no-form" };
-  const target = service === "mailchimp" ? mailchimp(input) : service === "buttondown" ? buttondown(input) : kit(input);
+  const target = { mailchimp, buttondown, kit, other: htmlSignupForm }[service](input);
   return target ?? { problem: "bad-form" };
 }
 
@@ -176,10 +263,14 @@ export function newsletterProblem(service: NewsletterService, problem: Newslette
     mailchimp: "In Mailchimp, open Audience, then Signup forms, then Embedded forms, and copy the code there.",
     buttondown: "Paste your Buttondown username, or the embed code from Buttondown's Sharing settings.",
     kit: "In Kit, open the form, choose Publish, then HTML, and copy the code there.",
+    other: "Copy the signup form's HTML from the service's embed or sharing settings.",
   };
   switch (problem) {
     case "no-form":
     case "bad-form": {
+      if (problem === "bad-form" && service === "other") {
+        return "This isn't a signup form the block can read: it needs the form's HTML, sending to an https:// address, with an email box. If the service gives a script or a frame instead, use the Custom HTML block.";
+      }
       const lead =
         problem === "no-form"
           ? "Paste the signup form so visitors can sign up."

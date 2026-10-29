@@ -3,6 +3,7 @@ import { createPageRenderer } from "@goodfellow-cms/react/server";
 import { describe, expect, it } from "vitest";
 import { blocks, categories } from "./index.js";
 import { type NewsletterProps, newsletterTarget } from "./newsletter.js";
+import { htmlSignupForm } from "./newsletter-data.js";
 
 const renderPage = createPageRenderer({ blocks, categories });
 
@@ -177,5 +178,69 @@ describe("Newsletter", () => {
     expect(await render(site({ accessKey: KEY }), { service: "forms", thankYou: "/thanks" })).toContain(
       '<input type="hidden" name="redirect" value="https://parish.example.org/thanks"/>',
     );
+  });
+});
+
+describe("Another service's signup form", () => {
+  const LISTS = `<div class="signup"><form method="post" action="https://lists.example.org/subscribe?list=parish&amp;src=site" class="form">
+  <label for="e">Email</label><input id="e" type="email" name="field_email" required placeholder="you@example.org">
+  <input type="text" name="FirstName" placeholder="First name">
+  <input type="hidden" name="list_id" value="a1&amp;b2">
+  <input type="hidden" name="list_id" value="c3">
+  <div aria-hidden="true" style="position:absolute;left:-5000px"><input type="text" name="hp_9f" tabindex="-1" value=""></div>
+  <label><input type="checkbox" name="interest[news]" value="1"> News</label>
+  <select name="country"><option>Elsewhere</option></select>
+  <input type="submit" value="Subscribe">
+</form></div>`;
+
+  it("reads where it sends, its email and first name boxes, hidden fields and the box only bots fill in", () => {
+    expect(htmlSignupForm(LISTS)).toEqual({
+      service: "other",
+      action: "https://lists.example.org/subscribe?list=parish&src=site",
+      email: "field_email",
+      name: "FirstName",
+      hidden: [
+        { name: "list_id", value: "a1&b2" },
+        { name: "list_id", value: "c3" },
+      ],
+      honeypot: { name: "hp_9f", type: "text" },
+      captcha: false,
+      leftOut: 2,
+    });
+  });
+
+  it("keeps a form that sends with GET, and finds an email box by its name", () => {
+    expect(htmlSignupForm('<form action="https://news.example/join"><input name="EMAIL" type="text"></form>')).toEqual({
+      service: "other",
+      action: "https://news.example/join",
+      method: "get",
+      email: "EMAIL",
+      hidden: [],
+      captcha: false,
+    });
+  });
+
+  it("refuses forms that aren't secure, have no email box, or are only a script or a frame", () => {
+    for (const code of [
+      '<form action="http://news.example/join" method="post"><input type="email" name="email"></form>',
+      '<form action="javascript:alert(1)" method="post"><input type="email" name="email"></form>',
+      '<form action="https://news.example/join" method="post"><input type="text" name="name"></form>',
+      '<form action="https://news.example/join" method="dialog"><input type="email" name="email"></form>',
+      '<script src="https://news.example/embed.js" data-form="123"></script>',
+      '<iframe src="https://news.example/embed"></iframe>',
+    ]) {
+      expect(htmlSignupForm(code), code).toBeUndefined();
+    }
+  });
+
+  it("draws the block's own form with the service's names, and tells the editor what it leaves out", async () => {
+    const html = await render(site(), { service: "other", form: LISTS, askName: true });
+    expect(html).toContain('action="https://lists.example.org/subscribe?list=parish&amp;src=site" method="post"');
+    expect(html).toMatch(/<input id="news-email" [^>]*name="field_email"/);
+    expect(html).toMatch(/<input id="news-name" [^>]*name="FirstName"/);
+    expect(html).toContain('<input type="hidden" name="list_id" value="a1&amp;b2"/>');
+    expect(html).not.toContain("interest[news]");
+    expect(html).not.toContain("more questions");
+    expect(await render(site(), { service: "other", form: "<script></script>" })).not.toContain("gf-newsletter");
   });
 });

@@ -51,7 +51,7 @@ With Web3Forms, **Ask visitors to show they aren't robots (hCaptcha)** adds Web3
 
 ## Newsletters
 
-To sign people up to a newsletter on Mailchimp, Buttondown or Kit, use the [Newsletter signup](/docs/built-in-blocks#newsletter-signup) block, which sends their address straight to the newsletter service. It can also use the site's form service, which emails you each signup.
+To sign people up to a newsletter, use the [Newsletter signup](/docs/built-in-blocks#newsletter-signup) block, which sends their address straight to the newsletter service: Mailchimp, Buttondown, Kit, or any other whose signup form is HTML. Services whose form is a script or a frame can go in a Custom HTML block instead. It can also use the site's form service, which emails you each signup.
 
 ## Google Forms
 

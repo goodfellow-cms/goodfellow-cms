@@ -31,7 +31,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | File | A link to a file from the media library, such as a PDF, with an optional download button |
 | Document viewer | A PDF from the media library shown on the page, such as a bulletin or a newsletter, with a link to open it (see [Documents](#documents)) |
 | Form | A form whose answers a form service emails to you, or a Google form (see [Forms](/docs/forms)) |
-| Newsletter signup | An email box that signs visitors up to a newsletter on Mailchimp, Buttondown or Kit, or through the site's form service |
+| Newsletter signup | An email box that signs visitors up to a newsletter on Mailchimp, Buttondown, Kit or another service whose signup form is HTML, or through the site's form service (see [Newsletter signup](#newsletter-signup)) |
 | Code | Code with syntax highlighting, an optional title and a copy button |
 | Contact details | The address, phone number and email address from Site Settings |
 | Donate button | A button to your giving page, such as a Stripe payment link or a PayPal donate button, with an optional heading and text (see [Giving and sharing](#giving-and-sharing)) |
@@ -130,9 +130,12 @@ The Newsletter signup block is an email box and a button that sign visitors up t
 - **Mailchimp:** in Mailchimp, open **Audience**, then **Signup forms**, then **Embedded forms**, and copy the code there.
 - **Buttondown:** your Buttondown username, or the embed code from Buttondown's sharing settings.
 - **Kit (ConvertKit):** open the form in Kit, choose **Publish**, then **HTML**, and copy the code there.
+- **Another service:** most email list services give their signup form as HTML in their embed or sharing settings, often under a name such as **Embedded form** or **HTML form**. Copy that HTML into the block. The block reads where the form sends signups, its email box, its first name box, its hidden fields and the box that catches spam, and leaves out its other questions, such as which lists to join; the editor says when it leaves any out.
 - **The site's form service:** the one in Site Settings, under Forms (see [Forms](/docs/forms)), which emails you each signup, for a list you keep yourself.
 
 The block keeps only where the form sends signups, so it looks like the rest of the site, and it's a plain form that posts straight to the service: it works without JavaScript, and pages load nothing from the service until someone signs up. The service then shows its own page, such as Mailchimp's "Almost finished" page asking people to confirm by email; with the site's form service, **Page visitors see after signing up** can be one of the site's pages. **Ask for a first name too** adds a box for it (Buttondown takes only the address). **Button beside the box** hides the boxes' labels, which screen readers still read, behind their placeholders. Until the form can sign anyone up, the block isn't shown on the site, and the editor says what's missing.
+
+Some services give no HTML form, only a script or a frame that draws their own, and some forms need questions the block leaves out. For those, add the **Custom HTML** block from the Blocks screen (see [Add blocks](/docs/add-blocks)), paste the service's embed code into it, and set **Make it safe** to **No: use it exactly as written**, since making it safe takes out scripts, frames and forms. The form then looks as the service draws it, and loads the service's code on the page; on a site that [asks visitors first](/docs/layout-and-settings#visitors-consent), it waits until they agree.
 
 In the site's app, signups through the site's form service are sent from the app itself; with a newsletter service, the button opens the page on the website.
 

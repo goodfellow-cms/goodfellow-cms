@@ -72,6 +72,11 @@ function NewsletterView({ isEditing, id, ...stored }: NewsletterProps & { isEdit
           link={props.service === "forms" ? adminLink?.("forms-settings") : undefined}
         />
       )}
+      {isEditing && "leftOut" in target && target.leftOut && (
+        <Notice
+          text={`The service's form asks ${target.leftOut === 1 ? "one more question" : `${target.leftOut} more questions`}, such as which lists to join, which this block leaves out. If the service needs them, use the Custom HTML block with its form instead.`}
+        />
+      )}
       {props.heading && (
         <h2 className={part("gf-newsletter-heading", "font-heading text-2xl font-semibold")}>{props.heading}</h2>
       )}
@@ -82,11 +87,14 @@ function NewsletterView({ isEditing, id, ...stored }: NewsletterProps & { isEdit
           cx("flex w-full max-w-md gap-2 text-left", row ? "flex-col sm:flex-row sm:items-end" : "flex-col"),
         )}
         {...(onSite && "action" in target
-          ? { action: target.action, method: "post" }
+          ? { action: target.action, method: target.method ?? "post" }
           : { onSubmit: (event: { preventDefault(): void }) => event.preventDefault() })}
       >
         {"hidden" in target &&
-          target.hidden.map((field) => <input key={field.name} type="hidden" name={field.name} value={field.value} />)}
+          target.hidden.map((field, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: a form can send the same name twice
+            <input key={index} type="hidden" name={field.name} value={field.value} />
+          ))}
         {"honeypot" in target && target.honeypot && (
           // Hidden from people, so only bots fill it in.
           <input
@@ -219,6 +227,12 @@ export const Newsletter: ComponentConfig<NewsletterProps> = withParts(
       if (service === "buttondown" || !props.askName) delete resolved.nameLabel;
       if (service === "buttondown") {
         resolved.form = { type: "textarea", label: "Your Buttondown username, or its embed code" };
+      }
+      if (service === "other") {
+        resolved.form = {
+          type: "textarea",
+          label: "The service's signup form: its HTML, from its embed or sharing settings",
+        };
       }
       return resolved as Fields<NewsletterProps>;
     },

@@ -5,6 +5,9 @@
  * as it is.
  */
 export const labels: Record<string, string> = {
+  "Another service (its signup form's HTML)": "Otro servicio (el HTML de su formulario de suscripción)",
+  "The service's signup form: its HTML, from its embed or sharing settings":
+    "El formulario de suscripción del servicio: su HTML, de sus opciones para insertar o compartir",
   "Words before the buttons": "Texto antes de los botones",
   "Where it can be shared": "Dónde se puede compartir",
   Where: "Dónde",
