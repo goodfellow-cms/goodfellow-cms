@@ -148,3 +148,18 @@ test("replaces a file, keeping its address", async ({ page }) => {
   expect(readSiteFile("public/media/logo.svg")).toContain("<circle");
   expect(existsSync(join(site, "public/media/new-logo.svg"))).toBe(false);
 });
+
+test("won't replace a file with another kind of file, which would be saved under its name", async ({ page }) => {
+  await page.goto("/admin#/media");
+  const before = readSiteFile("public/media/logo.svg");
+  const input = page.locator(".gfa-media-card", { hasText: "logo.svg" }).locator('input[type="file"]');
+  await expect(input).toHaveAttribute("accept", ".svg");
+  // An SVG with a script, chosen as a text file: replacing logo.svg with it would make it the site's logo.
+  await input.setInputFiles({
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+  });
+  await expect(page.getByRole("alert").first()).toContainText("notes.txt is a different kind of file from logo.svg");
+  expect(readSiteFile("public/media/logo.svg")).toBe(before);
+});

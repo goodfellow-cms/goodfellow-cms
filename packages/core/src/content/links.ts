@@ -10,6 +10,7 @@
  * are filled in for each item, so they're left alone.
  */
 import type { ComponentConfig, Field } from "@puckeditor/core";
+import { isScriptUrl } from "../external-links.js";
 import type { Collection } from "./collections.js";
 import { allPages, type SiteContent } from "./load.js";
 import { markdownToHtml } from "./markdown.js";
@@ -113,10 +114,20 @@ function hasPlaceholder(value: string): boolean {
   return /\{[a-z][a-z0-9-]*\}/.test(value);
 }
 
+/**
+ * Whether a whole value is a link the checks look at: an address on the site,
+ * or one that would run code (`isScriptUrl()`), which they refuse. Values with
+ * spaces are words, such as a heading that starts "Data:"; tabs and line
+ * breaks aren't, since browsers leave them out of addresses.
+ */
+function isCheckedLink(value: string): boolean {
+  return isSiteAddress(value) || (!value.trim().includes(" ") && isScriptUrl(value));
+}
+
 /** A text value that may be an address itself, or HTML with addresses in it. */
 function mapText(value: string, whole: boolean, visitor: LinkVisitor): string {
   if (hasPlaceholder(value)) return value;
-  if (whole && isSiteAddress(value)) return visitor.link(value);
+  if (whole && isCheckedLink(value)) return visitor.link(value);
   return mapHtml(value, visitor.link);
 }
 
@@ -212,7 +223,7 @@ function mapEntryFields(
     const value = fields[field.name];
     if (typeof value !== "string" || value === "") continue;
     if (field.type === "link" || field.type === "image") {
-      out[field.name] = isSiteAddress(value) ? visitor.link(value) : value;
+      out[field.name] = isSiteAddress(value) || isScriptUrl(value) ? visitor.link(value) : value;
     } else if (collection.settings.markdown?.body === field.name) {
       out[field.name] = visitor.markdown ? visitor.markdown(value) : mapMarkdown(value, visitor.link);
     } else {

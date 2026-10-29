@@ -681,7 +681,7 @@ export {
   type SiteEditor,
   type SiteEditors,
 } from "./editors.js";
-export { isExternalLink, type LinkTargetOptions, NEW_TAB, setLinkTargets } from "./external-links.js";
+export { isExternalLink, isScriptUrl, type LinkTargetOptions, NEW_TAB, setLinkTargets } from "./external-links.js";
 export {
   buildNotes,
   FONTS_DIR,
