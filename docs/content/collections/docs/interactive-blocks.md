@@ -71,6 +71,12 @@ export default defineConfig({
 });
 ```
 
+To try one build with React without changing the config, such as to find out whether a problem is Preact's, run `goodfellow build --react`, or set `GOODFELLOW_REACT=1` where the site is built, which works on hosts whose build command you'd rather not change. The build says what it used, and why:
+
+```
+Client Components run with React, as GOODFELLOW_REACT says
+```
+
 `goodfellow dev` always uses React, so try a site that uses Preact with `goodfellow build` and `goodfellow preview` before publishing it. Next.js sites always use React too.
 
 ## What islands can't do

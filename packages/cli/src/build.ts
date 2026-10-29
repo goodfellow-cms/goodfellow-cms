@@ -65,7 +65,28 @@ export interface BuildOptions {
   outDir?: string;
   /** Overrides the config's `base`. */
   base?: string;
+  /**
+   * Runs the site's Client Components with React even where every one says it
+   * works with Preact, as `goodfellow build --react` does, such as to find out
+   * whether a problem is Preact's. Without it, `GOODFELLOW_REACT` can say so.
+   */
+  react?: boolean;
 }
+
+/** The environment variable that has `goodfellow build` use React, as `--react` does: `GOODFELLOW_REACT=1`. */
+export const REACT_VARIABLE = "GOODFELLOW_REACT";
+
+/** Whether the environment says to use React (`GOODFELLOW_REACT` set to `1`, `true` or `yes`). */
+export function reactFromEnv(env: Record<string, string | undefined>): boolean {
+  return /^(1|true|yes)$/i.test(env[REACT_VARIABLE]?.trim() ?? "");
+}
+
+/**
+ * Why a build runs Client Components with React: some of them don't say they
+ * work with Preact, or the config (`preact: false`), the build's `react`
+ * option (`--react`) or `GOODFELLOW_REACT` says to.
+ */
+export type ReactReason = "components" | "config" | "option" | "variable";
 
 export interface BuildResult {
   outDir: string;
@@ -99,11 +120,11 @@ export interface BuildResult {
   pluginSteps?: string[];
   /**
    * What runs the site's Client Components in visitors' browsers: Preact,
-   * where every one says it works with it and the config doesn't turn it off,
-   * or else React, with the components that don't say so in `needReact`.
-   * Absent for a site without any.
+   * where every one says it works with it and nothing says to use React, or
+   * else React, with what said to (`because`) and the components that don't
+   * say they work with Preact (`needReact`). Absent for a site without any.
    */
-  islands?: { runtime: "preact" } | { runtime: "react"; needReact: string[] };
+  islands?: { runtime: "preact" } | { runtime: "react"; because: ReactReason; needReact: string[] };
   /** How many pages the content API has, at `/api/`, unless the config turns it off. */
   apiPages?: number;
 }
@@ -172,12 +193,17 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const base = normalizeBase(options.base ?? config.base);
     // Loading the config found the Client Components; they run with Preact where every one says it can.
     const needed = needReact(modules);
-    const runtime =
-      modules.size === 0
-        ? undefined
-        : config.preact === false || needed.length > 0
-          ? ("react" as const)
-          : ("preact" as const);
+    // What says to use React, if anything: this build, then its environment, then the config, then the components.
+    const because: ReactReason | undefined = options.react
+      ? "option"
+      : reactFromEnv(process.env)
+        ? "variable"
+        : config.preact === false
+          ? "config"
+          : needed.length > 0
+            ? "components"
+            : undefined;
+    const runtime = modules.size === 0 ? undefined : because ? ("react" as const) : ("preact" as const);
     if (runtime === "preact") stopPreact = await preactIslands(root, modules, server);
     // The site as visitors see it now: pages and items scheduled for later, or hidden again, are left out.
     const now = new Date();
@@ -411,7 +437,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       ...(images.written > 0 && { images }),
       ...(pluginSteps.length > 0 && { pluginSteps }),
       ...(runtime && {
-        islands: runtime === "preact" ? { runtime } : { runtime, needReact: config.preact === false ? [] : needed },
+        islands: runtime === "preact" ? { runtime } : { runtime, because: because ?? "components", needReact: needed },
       }),
       ...(apiFiles.length > 0 && { apiPages: pages.length }),
       ...(robotsElsewhere && { robotsElsewhere }),
@@ -421,6 +447,18 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     await stopPreact?.();
     await server.close();
   }
+}
+
+/** What runs the site's Client Components, and why, as `goodfellow build` says it. */
+export function islandsSummary(islands: NonNullable<BuildResult["islands"]>): string {
+  if (islands.runtime === "preact") return "Client Components run with Preact, since every one says it works with it";
+  if (islands.because === "option") return "Client Components run with React, as --react says";
+  if (islands.because === "variable") return "Client Components run with React, as GOODFELLOW_REACT says";
+  if (islands.because === "config") return "Client Components run with React, as the config says (preact: false)";
+  const shown = islands.needReact.slice(0, 3).join(", ");
+  const more = islands.needReact.length > 3 ? ` and ${islands.needReact.length - 3} more` : "";
+  const verb = islands.needReact.length === 1 ? "doesn't" : "don't";
+  return `Client Components run with React, since ${shown}${more} ${verb} say they work with Preact (export const worksWithPreact = true)`;
 }
 
 /** The manifest of the islands' own bundle, where they run with Preact, removed once it's read. */

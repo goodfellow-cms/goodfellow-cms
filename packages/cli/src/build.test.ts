@@ -12,7 +12,7 @@ import {
 } from "@goodfellow-cms/core";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { build } from "./build.js";
+import { build, islandsSummary, reactFromEnv } from "./build.js";
 
 const fixture = resolve(import.meta.dirname, "../test/fixtures/site");
 const starter = resolve(import.meta.dirname, "../../../templates/starter");
@@ -87,7 +87,7 @@ describe("build", () => {
 
   it("runs Client Components in the browser, only on pages that use them", async () => {
     // With React, since the counter doesn't say it works with Preact.
-    expect(islands).toEqual({ runtime: "react", needReact: ["blocks/counter.tsx"] });
+    expect(islands).toEqual({ runtime: "react", because: "components", needReact: ["blocks/counter.tsx"] });
     const news = await read("news/index.html");
     expect(news).toMatch(
       /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked!<!-- --> <!-- -->0<!-- --> times on <!-- -->\/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news">News<\/a><\/div><\/gf-island>/,
@@ -438,6 +438,22 @@ describe("a site whose Client Components all work with Preact", () => {
       await writeFile(counter, `${await readFile(counter, "utf8")}\nexport const worksWithPreact = true;\n`);
       const result = await build({ root: site, outDir: join(site, "dist") });
       expect(result.islands).toEqual({ runtime: "preact" });
+      // React for one build, to find out whether a problem is Preact's: by the option `--react` sets, or the variable.
+      expect((await build({ root: site, outDir: join(site, "dist"), react: true })).islands).toEqual({
+        runtime: "react",
+        because: "option",
+        needReact: [],
+      });
+      process.env.GOODFELLOW_REACT = "1";
+      try {
+        expect((await build({ root: site, outDir: join(site, "dist") })).islands).toMatchObject({
+          because: "variable",
+        });
+      } finally {
+        delete process.env.GOODFELLOW_REACT;
+      }
+      const preactAgain = await build({ root: site, outDir: join(site, "dist") });
+      expect(preactAgain.islands).toEqual({ runtime: "preact" });
 
       const news = await readFile(join(site, "dist/news/index.html"), "utf8");
       // Rendered by Preact as React would render it, with the content passed to it in its slot.
@@ -464,7 +480,7 @@ describe("a site whose Client Components all work with Preact", () => {
         (await readFile(configFile, "utf8")).replace("defineConfig({", "defineConfig({\n  preact: false,"),
       );
       const react = await build({ root: site, outDir: join(site, "dist") });
-      expect(react.islands).toEqual({ runtime: "react", needReact: [] });
+      expect(react.islands).toEqual({ runtime: "react", because: "config", needReact: [] });
     } finally {
       await rm(site, { recursive: true, force: true });
     }
@@ -742,5 +758,33 @@ describe("parish example", () => {
     ]) {
       expect(await readFile(join(parish, file), "utf8"), file).toBe(await readFile(join(starter, file), "utf8"));
     }
+  });
+});
+
+describe("islandsSummary and reactFromEnv", () => {
+  it("say what runs Client Components, and why", () => {
+    expect(islandsSummary({ runtime: "preact" })).toBe(
+      "Client Components run with Preact, since every one says it works with it",
+    );
+    expect(islandsSummary({ runtime: "react", because: "option", needReact: [] })).toBe(
+      "Client Components run with React, as --react says",
+    );
+    expect(islandsSummary({ runtime: "react", because: "variable", needReact: [] })).toBe(
+      "Client Components run with React, as GOODFELLOW_REACT says",
+    );
+    expect(islandsSummary({ runtime: "react", because: "config", needReact: [] })).toBe(
+      "Client Components run with React, as the config says (preact: false)",
+    );
+    expect(
+      islandsSummary({ runtime: "react", because: "components", needReact: ["a.tsx", "b.tsx", "c.tsx", "d.tsx"] }),
+    ).toBe(
+      "Client Components run with React, since a.tsx, b.tsx, c.tsx and 1 more don't say they work with Preact (export const worksWithPreact = true)",
+    );
+  });
+
+  it("read GOODFELLOW_REACT as on only for a yes", () => {
+    for (const value of ["1", "true", "YES", " yes "]) expect(reactFromEnv({ GOODFELLOW_REACT: value })).toBe(true);
+    for (const value of [undefined, "", "0", "false", "no"])
+      expect(reactFromEnv({ GOODFELLOW_REACT: value })).toBe(false);
   });
 });
