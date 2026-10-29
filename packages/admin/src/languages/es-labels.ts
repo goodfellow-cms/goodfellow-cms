@@ -5,6 +5,9 @@
  * as it is.
  */
 export const labels: Record<string, string> = {
+  "Another service (its signup form's HTML)": "Otro servicio (el HTML de su formulario de suscripción)",
+  "The service's signup form: its HTML, from its embed or sharing settings":
+    "El formulario de suscripción del servicio: su HTML, de sus opciones para insertar o compartir",
   "Social post": "Publicación de redes sociales",
   "Height in pixels (leave at 0 for the usual height)": "Altura en píxeles (deja 0 para la altura habitual)",
   "What the post is, for screen readers": "Qué es la publicación, para lectores de pantalla",
@@ -42,6 +45,7 @@ export const labels: Record<string, string> = {
     "Dirección de otro calendario (.ics), como la de un calendario público de Google",
   Answer: "Respuesta",
   Arrange: "Disposición",
+  "Ask for a first name too": "Pedir también el nombre",
   Audio: "Audio",
   "Background color": "Color de fondo",
   "Background image": "Imagen de fondo",
@@ -51,9 +55,12 @@ export const labels: Record<string, string> = {
   Breadcrumbs: "Ruta de navegación",
   Button: "Botón",
   "Button at the foot (leave empty for none)": "Botón al pie (vacío para ninguno)",
+  "Button beside the box": "Botón junto al cuadro",
   "Button label": "Texto del botón",
   "Button links to": "El botón enlaza a",
+  "Button under the box": "Botón debajo del cuadro",
   "Button's text": "Texto del botón",
+  Buttondown: "Buttondown",
   "Buttons and forms": "Botones y formularios",
   Calendar: "Calendario",
   "Call to action": "Llamada a la acción",
@@ -101,6 +108,7 @@ export const labels: Record<string, string> = {
   "Each item links to its page": "Cada elemento enlaza a su página",
   "Earlier months visitors can see": "Meses anteriores que los visitantes pueden ver",
   Email: "Correo electrónico",
+  "Email address's label": "Etiqueta del correo electrónico",
   "End with this page": "Terminar con esta página",
   "Entry field": "Campo del elemento",
   Events: "Eventos",
@@ -109,6 +117,7 @@ export const labels: Record<string, string> = {
   "Field to order by": "Campo por el que ordenar",
   File: "Archivo",
   First: "Primero",
+  "First name's label": "Etiqueta del nombre",
   "First row is headings": "La primera fila son encabezados",
   "Following the computer's setting": "Según el ajuste del equipo",
   Form: "Formulario",
@@ -134,14 +143,19 @@ export const labels: Record<string, string> = {
   "Image carousel": "Carrusel de imágenes",
   "Image when shared": "Imagen al compartir",
   "In the main color": "En el color principal",
+  "In the site's app: what it says once someone has signed up":
+    "En la aplicación del sitio: lo que dice cuando alguien se ha suscrito",
   "In the site's app: what it says once the answers are sent, without a thank-you page":
     "En la app del sitio: lo que dice al enviar las respuestas, sin página de agradecimiento",
   "In the site's app: what it says when the answers couldn't be sent":
     "En la app del sitio: lo que dice si no se pudieron enviar las respuestas",
+  "In the site's app: what it says when the signup couldn't be sent":
+    "En la aplicación del sitio: lo que dice cuando no se pudo enviar la suscripción",
   Information: "Información",
   Introduction: "Introducción",
   "Items per row": "Elementos por fila",
   Kind: "Tipo",
+  "Kit (ConvertKit)": "Kit (ConvertKit)",
   Label: "Etiqueta",
   "Label at the top, such as Most popular (optional)": "Etiqueta arriba, como Más popular (opcional)",
   Language: "Idioma",
@@ -171,6 +185,7 @@ export const labels: Record<string, string> = {
   "Links to": "Enlaza a",
   "Links to other pages, for screen readers": "Enlaces a otras páginas, para lectores de pantalla",
   "Links' side": "Lado de los enlaces",
+  Mailchimp: "Mailchimp",
   "Main button": "Botón principal",
   "Main button links to": "El botón principal enlaza a",
   "Make it safe": "Hacerlo seguro",
@@ -194,6 +209,8 @@ export const labels: Record<string, string> = {
   Network: "Red",
   "New link": "Enlace nuevo",
   "News feed": "Fuente de noticias",
+  "Newsletter service": "Servicio de boletín",
+  "Newsletter signup": "Suscripción al boletín",
   "Next month's link, for screen readers": "Enlace al mes siguiente, para lectores de pantalla",
   "Next page's link": "Enlace a la página siguiente",
   No: "No",
@@ -212,6 +229,8 @@ export const labels: Record<string, string> = {
   "Page title": "Título de la página",
   "Page visitors see after sending, such as /thank-you (without one, they see the form service's own)":
     "Página que ven los visitantes al enviar, como /gracias (sin ella, ven la del servicio de formularios)",
+  "Page visitors see after signing up, such as /thank-you (without one, they see the form service's own)":
+    "Página que ven los visitantes después de suscribirse, como /gracias (sin ella, ven la del servicio de formularios)",
   Panel: "Panel",
   "Part of the picture to keep in view": "Parte de la imagen que se mantiene a la vista",
   "Per, such as a month": "Por, como un mes",
@@ -294,6 +313,9 @@ export const labels: Record<string, string> = {
   "Text when there's nothing to show": "Texto cuando no hay nada que mostrar",
   "The Google form's embed code (in Google Forms: Send, then the <> tab)":
     "El código para insertar el formulario de Google (en Google Forms: Enviar y luego la pestaña <>)",
+  "The service's signup form: its embed code or address":
+    "El formulario de suscripción del servicio: su código para insertar o su dirección",
+  "The site's form service, from Site Settings": "El servicio de formularios del sitio, de la configuración del sitio",
   "The Vimeo video's address": "La dirección del vídeo de Vimeo",
   "The YouTube video's address, or its ID": "La dirección del vídeo de YouTube, o su ID",
   "The feed's address (RSS or Atom)": "La dirección de la fuente (RSS o Atom)",
@@ -329,9 +351,11 @@ export const labels: Record<string, string> = {
   "Word for the previous item": "Palabra para el elemento anterior",
   "Words beside the switch": "Texto junto al interruptor",
   "Words on the buttons": "Texto de los botones",
+  "Words under the form, such as how often it's sent": "Texto debajo del formulario, como cada cuánto se envía",
   "Wrap onto new lines": "Pasar a líneas nuevas",
   Yes: "Sí",
   "Yes: leave out scripts, styles and frames": "Sí: quitar scripts, estilos y marcos",
+  "Your Buttondown username, or its embed code": "Tu nombre de usuario de Buttondown, o su código para insertar",
   "Zoom, for an address (1 is the world, 21 a building)": "Zoom, para una dirección (1 es el mundo, 21 un edificio)",
   Other: "Otros",
   "/": "/",

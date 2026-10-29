@@ -20,6 +20,7 @@ export const BLOCK_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
   Verse: ["poem", "poetry", "lyrics"],
   Code: ["snippet", "programming", "syntax"],
   Form: ["contact form", "survey", "sign up", "questions"],
+  Newsletter: ["mailing list", "email list", "subscribe", "sign up", "mailchimp", "buttondown", "kit", "convertkit"],
   ContactDetails: ["address", "phone", "email", "contact"],
   Image: ["picture", "photo", "logo"],
   Gallery: ["pictures", "photos", "images", "slideshow"],

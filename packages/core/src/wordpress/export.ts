@@ -92,6 +92,7 @@ export interface WordPressExport {
 /** Blocks with nothing like them in WordPress's own blocks, left out. */
 const LEFT_OUT = new Set([
   "Form",
+  "Newsletter",
   "Calendar",
   "AddToCalendar",
   "Search",
