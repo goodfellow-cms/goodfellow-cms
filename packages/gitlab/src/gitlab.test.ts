@@ -129,6 +129,40 @@ describe("signing in with GitLab (OAuth with PKCE)", () => {
     expect(refreshes).toBeGreaterThanOrEqual(2);
   });
 
+  it("renews the access token once for requests that need a new one together, as GitLab allows", async () => {
+    const { fake, host, location } = setup(
+      { oauth: { clientId: "app-1", user: { username: "u" }, expiresIn: 1 } },
+      "app-1",
+    );
+    await host.startRedirect(true);
+    location.current = fake.authorize(location.assigned[0] ?? "");
+    const backend = await host.restore();
+    const refreshes = () => fake.requests.filter((request) => request.url.endsWith("/oauth/token")).length;
+    const before = refreshes();
+    // Each refresh token works once, so seven renewals at once would sign the editor out.
+    await Promise.all(Array.from({ length: 7 }, () => backend?.revision()));
+    expect(refreshes() - before).toBe(1);
+  });
+
+  it("renews once when GitLab refuses the access token of several requests at once", async () => {
+    const { fake, host, location } = setup({ oauth: { clientId: "app-1", user: { username: "u" } } }, "app-1");
+    await host.startRedirect(true);
+    location.current = fake.authorize(location.assigned[0] ?? "");
+    const backend = await host.restore();
+    const refreshes = () => fake.requests.filter((request) => request.url.endsWith("/oauth/token")).length;
+    const before = refreshes();
+    fake.expireAccessTokens();
+    await Promise.all(Array.from({ length: 7 }, () => backend?.revision()));
+    expect(refreshes() - before).toBe(1);
+  });
+
+  it("takes the code out of the address even in a tab that didn't start signing in", async () => {
+    const { host, location } = setup({ oauth: { clientId: "app-1", user: { username: "u" } } }, "app-1");
+    location.current = "https://parish.example/admin/?code=one-time&state=s#/pages";
+    expect(await host.restore()).toBeNull();
+    expect(location.current).toBe("https://parish.example/admin/#/pages");
+  });
+
   it("builds a redirect address that matches whether or not the address ends in a slash", () => {
     expect(redirectUri("https://parish.example/admin#/pages")).toBe("https://parish.example/admin/");
     expect(redirectUri("https://parish.example/repo/admin/?code=1")).toBe("https://parish.example/repo/admin/");

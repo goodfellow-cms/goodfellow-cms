@@ -1070,6 +1070,10 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     requests,
     commit,
     authorize,
+    /** Ends every OAuth access token GitLab has given, as their two hours running out does; refresh tokens still work. */
+    expireAccessTokens: () => {
+      for (const [token] of tokens) if (token.startsWith("oauth-access-")) tokens.delete(token);
+    },
     handle,
     fetch: ((input: RequestInfo | URL, init?: RequestInit) => handle(new Request(input, init))) as typeof fetch,
   };

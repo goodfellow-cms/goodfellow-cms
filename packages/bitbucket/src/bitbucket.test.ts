@@ -132,6 +132,13 @@ describe("signing in with Bitbucket", () => {
     expect(session.items.size).toBe(1);
   });
 
+  it("takes the token out of the address even in a tab that didn't start signing in", async () => {
+    const { host, location } = setup({ oauth }, "consumer-key");
+    location.current = "https://parish.example/admin/#access_token=live-token&state=s&expires_in=7200";
+    expect(await host.restore()).toBeNull();
+    expect(location.current).not.toContain("live-token");
+  });
+
   it("refuses a return whose state doesn't match", async () => {
     const { host, location } = setup({ oauth }, "consumer-key");
     await host.startRedirect(false);
