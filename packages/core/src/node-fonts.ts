@@ -1,8 +1,10 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { generateFontFace, getMetricsForFamily } from "fontaine";
 import type { FontCategory, Theme } from "./content/schemas.js";
 import {
+  FONTS_DIR,
+  type HostedFonts,
   type ReadFontFile,
   type ReadStylesheet,
   type SelfHostedResult,
@@ -68,6 +70,32 @@ export async function selfHostFonts(
     if (next !== text) await writeFile(file, next);
   }
   return { hosted: fonts.fonts.length };
+}
+
+/**
+ * Puts a full-stack site's Google Fonts in its `public/` folder
+ * (`selfHostedFonts()`), in `FONTS_DIR`, in place of what an earlier build
+ * put there, before Next.js renders any page, since it can't change pages
+ * once they're rendered. Gives where they are, which the renderer points
+ * pages at as it renders them, or `{ unavailable: true }` where Google can't
+ * be reached, so pages keep loading them from Google, and `undefined` for a
+ * site without any.
+ */
+export async function hostFonts(
+  publicDir: string,
+  theme: Theme,
+  options: { read?: ReadStylesheet; readFont?: ReadFontFile } = {},
+): Promise<HostedFonts | { unavailable: true } | undefined> {
+  await rm(join(publicDir, FONTS_DIR), { recursive: true, force: true });
+  if (!googleFontsUrl(theme)) return undefined;
+  const fonts = await selfHostedFonts(theme, options.read ?? readStylesheet, options.readFont ?? readFontFile);
+  if (!fonts) return { unavailable: true };
+  for (const file of fonts.files) {
+    const target = join(publicDir, file.path);
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, "content" in file ? file.content : file.bytes);
+  }
+  return { source: fonts.source, stylesheet: fonts.stylesheet, fonts: fonts.fonts };
 }
 
 /**

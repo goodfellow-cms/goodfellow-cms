@@ -191,3 +191,20 @@ test("serves calendar files written after its build, as static files", async ({ 
   expect(await calendar.text()).toContain("SUMMARY:Open house");
   expect((await request.get(`${SITE}/calendars/events/open-house.ics`)).status()).toBe(200);
 });
+
+test("loads its fonts from the site, on pages its build rendered and pages rendered on request", async ({ page }) => {
+  const google: string[] = [];
+  page.on("request", (request) => {
+    if (/^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(request.url())) google.push(request.url());
+  });
+  for (const address of ["/about/", "/no-such-page/"]) {
+    await page.goto(`${SITE}${address}`);
+    const stylesheet = page.locator('link[rel="stylesheet"][href^="/fonts/google/"]');
+    await expect(stylesheet).toHaveCount(1);
+    const css = await page.request.get(`${SITE}${await stylesheet.getAttribute("href")}`);
+    expect(css.status()).toBe(200);
+    expect(await css.text()).toContain("@font-face");
+    await page.waitForLoadState("networkidle");
+  }
+  expect(google).toEqual([]);
+});

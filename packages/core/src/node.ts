@@ -42,7 +42,7 @@ export {
   isLocalOrigin,
   sendBuildFile,
 } from "./node-dev-api.js";
-export { fontStandIns, readFontFile, readStylesheet, selfHostFonts } from "./node-fonts.js";
+export { fontStandIns, hostFonts, readFontFile, readStylesheet, selfHostFonts } from "./node-fonts.js";
 export { builtSiteSource, type FileSystemSourceOptions, fileSystemSource } from "./node-fs-source.js";
 export {
   type BundledPackage,

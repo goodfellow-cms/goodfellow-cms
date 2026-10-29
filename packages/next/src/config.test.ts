@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vercelHeaders } from "@goodfellow-cms/core";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { withGoodfellow } from "./config.js";
 import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 
@@ -46,6 +46,37 @@ describe("withGoodfellow", () => {
     expect(config).not.toHaveProperty("output");
     // Its server sends the site's header rules.
     expect(await (config as { headers: () => Promise<unknown> }).headers()).toEqual(vercelHeaders());
+  });
+
+  it("copies a full-stack site's fonts into public/ before its pages are rendered, and tells the renderer", async () => {
+    const site = await mkdtemp(join(tmpdir(), "goodfellow-next-fonts-"));
+    const css = "@font-face { src: url(https://fonts.gstatic.com/s/lora/v1/a.woff2) format('woff2'); }";
+    vi.stubGlobal("fetch", async (url: string) =>
+      url.startsWith("https://fonts.googleapis.com/") ? new Response(css) : new Response(new Uint8Array([1, 2, 3])),
+    );
+    try {
+      await mkdir(join(site, "content"), { recursive: true });
+      await writeFile(join(site, "content/site.json"), '{"version":1,"theme":{"fonts":{"body":"Lora"}}}\n');
+      const config = await withGoodfellow({}, { root: site, server: true })("phase-production-build");
+      const fonts = JSON.parse(config.env?.GOODFELLOW_FONTS ?? "{}");
+      expect(fonts).toMatchObject({
+        source: "https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap",
+        fonts: [{ url: "https://fonts.gstatic.com/s/lora/v1/a.woff2", path: "fonts/google/s/lora/v1/a.woff2" }],
+      });
+      expect(existsSync(join(site, "public", fonts.stylesheet))).toBe(true);
+      expect(existsSync(join(site, "public/fonts/google/s/lora/v1/a.woff2"))).toBe(true);
+      // Starting the server copies nothing: the build wrote the fonts and where they are into its code.
+      expect((await withGoodfellow({}, { root: site, server: true })("phase-production-server")).env).toEqual({
+        GOODFELLOW_BASE_PATH: "",
+      });
+      // Static exports are left to `goodfellow-next finish`.
+      expect((await withGoodfellow({}, { root: site })("phase-production-build")).env).toEqual({
+        GOODFELLOW_BASE_PATH: "",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      await rm(site, { recursive: true, force: true });
+    }
   });
 
   it("adds the site's header rules to a static export only where they're sent", async () => {

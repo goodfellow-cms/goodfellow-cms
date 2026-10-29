@@ -13,6 +13,7 @@ import {
   fontPreloads,
   type GoodfellowConfig,
   googleFontsUrl,
+  type HostedFonts,
   hasLanguages,
   IMAGE_WIDTHS,
   loadSiteContent,
@@ -30,6 +31,7 @@ import {
   themeToCss,
   todayIn,
   withBase,
+  withSelfHostedFonts,
 } from "@goodfellow-cms/core";
 import {
   BUILD_DATES_ENV,
@@ -83,6 +85,23 @@ const components: SiteComponents = { Link: NextLink, Image: NextImage };
 /** Set by `withGoodfellow()` from Next.js's `basePath`. */
 function configuredBasePath(): string {
   return process.env.GOODFELLOW_BASE_PATH ?? "";
+}
+
+/**
+ * Where a full-stack site's build copied its Google Fonts (`hostFonts()`), for
+ * the stylesheet at `source`. `withGoodfellow()` puts them in the env, which
+ * Next.js writes into this code by its name, so pages it renders later have
+ * them too. Static exports have none: `goodfellow-next finish` copies theirs.
+ */
+function hostedFonts(source: string): HostedFonts | undefined {
+  const value = process.env.GOODFELLOW_FONTS;
+  if (!value) return undefined;
+  try {
+    const fonts = JSON.parse(value) as HostedFonts;
+    return fonts.source === source ? fonts : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The route parameters of an optional catch-all route named `[[...path]]`. */
@@ -199,13 +218,18 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
 
   /** The site's theme and fonts, which React moves into the document's head. themeToCss escapes its output. */
   async function Theme({ content }: { content: SiteContent }) {
-    const fontsUrl = googleFontsUrl(content.settings.theme);
+    const googleUrl = googleFontsUrl(content.settings.theme);
+    const hosted = googleUrl ? hostedFonts(googleUrl) : undefined;
+    const fontsUrl = googleUrl && hosted ? withSelfHostedFonts(googleUrl, hosted, basePath()) : googleUrl;
     // React adds these to the head once each, where a <link> would also be kept as it is.
     const [fontFiles, standIns] = await Promise.all([
       fontPreloads(content.settings.theme, readStylesheet),
       fontStandIns(content.settings.theme),
     ]);
-    for (const href of fontFiles) {
+    for (const file of fontFiles) {
+      const href = hosted ? withSelfHostedFonts(file, hosted, basePath()) : file;
+      // With the site's copies, a file Google has added since the build isn't one of them, and isn't asked for.
+      if (hosted && href === file) continue;
       preload(href, { as: "font", type: "font/woff2", crossOrigin: "" });
     }
     const colorScheme = colorSchemeMeta(content.settings.theme);
