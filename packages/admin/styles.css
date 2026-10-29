@@ -2236,6 +2236,69 @@ body,
   padding-left: 20px;
 }
 
+/* Comments */
+.gfa-comments-thread {
+  padding: 12px 16px;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+}
+
+.gfa-comments-thread > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.gfa-comments-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.gfa-comment-list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gfa-comment-list .gfa-comment-list {
+  padding-left: 16px;
+  border-left: 2px solid var(--gfa-border);
+}
+
+.gfa-comment-byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.gfa-comment-text {
+  margin: 4px 0 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.gfa-comment-hidden .gfa-comment-text {
+  color: var(--gfa-muted);
+}
+
+.gfa-comment-quote {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--gfa-border);
+  color: var(--gfa-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 /* Failed rebuilds */
 .gfa-deploy .gfa-deploy-why {
   padding: 0 4px;

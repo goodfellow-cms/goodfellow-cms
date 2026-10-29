@@ -24,6 +24,7 @@ import {
   type RevisionFiles,
   type ScheduledBuilds,
   SignInError,
+  type SiteComments,
   type SiteDrafts,
   type SiteEditors,
   type SiteUpdates,
@@ -31,6 +32,7 @@ import {
   type WriteOptions,
 } from "@goodfellow-cms/core";
 import { type ApiOptions, githubJson, githubRequest, repoPath, type TokenSource } from "./api.js";
+import { commentsTokenLink, githubComments } from "./comments.js";
 import { githubEditors, githubOwnerAccess } from "./editors.js";
 import { githubPages } from "./pages.js";
 import { githubScheduledBuilds } from "./scheduled-builds.js";
@@ -110,6 +112,8 @@ export interface GitHubBackendOptions {
   onSignOut: () => void;
   /** Where to create the owner token, which can change editors and GitHub Pages settings. */
   ownerTokenLink: TokenLink;
+  /** Where to create a token for the comments' repository, where the sign-in can't reach it. */
+  commentsTokenLink?: TokenLink;
   /** Signs in as an owner through the sign-in worker instead of with a token, where it's available. */
   ownerRedirect?: (options?: RedirectOptions) => Promise<void>;
   /**
@@ -152,6 +156,7 @@ export class GitHubBackend implements GitBackend {
   readonly drafts: SiteDrafts;
   readonly scheduledBuilds: ScheduledBuilds;
   readonly tasks: PluginTasks;
+  readonly comments: SiteComments;
   readonly contentOnly: boolean;
   private readonly options: GitHubBackendOptions;
   private readonly api: ApiOptions;
@@ -203,6 +208,11 @@ export class GitHubBackend implements GitBackend {
     // The workflows are the repository's own, where the content is kept apart too.
     this.scheduledBuilds = githubScheduledBuilds((path) => this.read(path));
     this.tasks = githubTasks(this.api, this.repo, this.branch, options.tasks);
+    this.comments = githubComments(
+      this.api,
+      options.repo,
+      options.commentsTokenLink ?? commentsTokenLink("https://github.com", options.repo),
+    );
   }
 
   async repositoryVisibility(): Promise<RepositoryVisibility> {
@@ -731,6 +741,7 @@ export class GitHubBackend implements GitBackend {
 
   signOut(): void {
     this.ownerAccess.forget();
+    this.comments.access.forget();
     this.onSignOut();
   }
 }

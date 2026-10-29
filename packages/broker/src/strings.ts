@@ -60,6 +60,8 @@ export const STRINGS = {
     "Running the plugin {plugin}'s task {task} with the secrets it was given. Allowing it lets it run again while this page is open.",
   confirmUpdatesSetup: "Changing the site's settings on its host so it can install updates by itself.",
   confirmDiscardDraft: "Throwing away the draft {name}, which can't be undone.",
+  confirmCommentsCreate: "Making a public repository, {name}, for visitors' comments, beside the site's.",
+  confirmCommentsDelete: "Deleting a visitor's comment, which can't be undone.",
   confirmPublish: "Publish",
   confirmAllow: "Allow",
   cancel: "Cancel",
@@ -74,6 +76,10 @@ export const STRINGS = {
   ownerCreate: "Create a token",
   ownerLabel: "Owner token",
   ownerUse: "Use this token",
+  commentsTitle: "GitHub token for comments",
+  commentsLabel: "GitHub token",
+  commentsIntro:
+    "Create a GitHub token that can manage the comments' repository, then paste it here. This page keeps it for as long as it's open, and the admin panel never sees it.",
   aiTitle: "AI keys",
   aiIntro:
     "The AI assistant asks these services through this page, with your keys, so the admin panel never sees them. Leave a service empty to not use it.",

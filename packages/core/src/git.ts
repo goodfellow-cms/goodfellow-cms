@@ -1,4 +1,5 @@
 import type { BuildProblem } from "./build-problems.js";
+import type { SiteComments } from "./comments.js";
 import type { ContentSource } from "./content/load.js";
 import type { ContentStore } from "./content/store.js";
 import type { PagesDomains } from "./domains.js";
@@ -82,6 +83,12 @@ export interface GitBackend extends ContentStore {
   /** Plugins' tasks, run in the site's CI with its secrets. Absent where the backend can't run them. */
   readonly tasks?: PluginTasks;
   /**
+   * Setting up and moderating visitors' comments, kept as GitHub Discussions in
+   * a repository of their own. Absent where the host isn't GitHub, where the
+   * admin panel says how to set them up on GitHub itself.
+   */
+  readonly comments?: SiteComments;
+  /**
    * Who can read the repository, so the admin panel can warn that content
    * scheduled for later can be read there before it's shown.
    */
@@ -102,7 +109,7 @@ export interface GitBackend extends ContentStore {
  */
 export interface TokenLink {
   url: string;
-  label: "signIn.token.create" | "signIn.token.createBroad" | "owner.token.create";
+  label: "signIn.token.create" | "signIn.token.createBroad" | "owner.token.create" | "comments.token.create";
   hint?: "signIn.token.createBroadHint" | "signIn.token.apiTokenHint";
 }
 

@@ -13,6 +13,7 @@ import {
 } from "@goodfellow-cms/core";
 import { type ApiOptions, githubJson, githubRequest, repoPath } from "./api.js";
 import { GitHubBackend } from "./backend.js";
+import { commentsTokenLink } from "./comments.js";
 import { githubSetup } from "./setup.js";
 import {
   type BrowserLocation,
@@ -119,6 +120,7 @@ export function githubTokenLinks(repo: string, webUrl = "https://github.com") {
     fineGrained: `${webUrl}/settings/personal-access-tokens/new?${fineGrained}`,
     classic: `${webUrl}/settings/tokens/new?${classic}`,
     owner: `${webUrl}/settings/personal-access-tokens/new?${owner}`,
+    comments: commentsTokenLink(webUrl, repo).url,
   };
 }
 
@@ -210,6 +212,7 @@ export function github(options: GitHubOptions): GitHost {
         revokeIssued(source.current());
       },
       ownerTokenLink: { url: links.owner, label: "owner.token.create" },
+      commentsTokenLink: { url: links.comments, label: "comments.token.create" },
       ownerRedirect: (redirectOptions) => redirect("owner", false, redirectOptions),
     });
   }
@@ -314,6 +317,7 @@ export function github(options: GitHubOptions): GitHost {
       user: { login: user.login, name: user.name ?? undefined, avatarUrl: user.avatar_url },
       onSignOut: () => storage.clear(),
       ownerTokenLink: { url: links.owner, label: "owner.token.create" },
+      commentsTokenLink: { url: links.comments, label: "comments.token.create" },
       ...(service && {
         ownerRedirect: (redirectOptions?: RedirectOptions) => redirect("owner", false, redirectOptions),
       }),
@@ -345,6 +349,7 @@ export function github(options: GitHubOptions): GitHost {
         user: { login: author?.name ?? options.repo, ...(author && { name: author.name }) },
         onSignOut: () => {},
         ownerTokenLink: { url: links.owner, label: "owner.token.create" },
+        commentsTokenLink: { url: links.comments, label: "comments.token.create" },
         ...(revision && { revision }),
         ...(author && { author }),
       });

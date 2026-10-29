@@ -299,6 +299,7 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
         extra: {
           signOut,
           "ownerAccess.requestToken": () => askOwnerToken(signedIn),
+          "comments.access.requestToken": () => askCommentsToken(signedIn),
         },
       });
       services.port1.onmessage = (serviceEvent) => void answerService(services.port1, serviceEvent.data);
@@ -429,6 +430,10 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
         body.push(element("p", {}, t("confirmUpdatesSetup")));
       } else if (question.kind === "discard-draft") {
         body.push(element("p", {}, t("confirmDiscardDraft", { name: question.name })));
+      } else if (question.kind === "comments-create") {
+        body.push(element("p", {}, t("confirmCommentsCreate", { name: question.name })));
+      } else if (question.kind === "comments-delete") {
+        body.push(element("p", {}, t("confirmCommentsDelete")));
       } else {
         publishes = true;
         const intro =
@@ -451,22 +456,38 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
   }
 
   /** Asks for an owner token in the broker's own dialog, and gives it to the backend, which keeps it in memory. */
-  async function askOwnerToken(signedIn: GitBackend): Promise<void> {
+  function askOwnerToken(signedIn: GitBackend): Promise<void> {
     const access = signedIn.ownerAccess;
     if (!access) throw new BrokerRefusedError("not-here", "This site's host has no owner token.");
+    return askToken(access, t("ownerTitle"), t("ownerIntro"), t("ownerLabel"));
+  }
+
+  /** The same for a token for comments, where the site's sign-in can't reach their repository. */
+  function askCommentsToken(signedIn: GitBackend): Promise<void> {
+    const access = signedIn.comments?.access;
+    if (!access) throw new BrokerRefusedError("not-here", "This site's host has no comments.");
+    return askToken(access, t("commentsTitle"), t("commentsIntro"), t("commentsLabel"));
+  }
+
+  async function askToken(
+    access: { tokenLink: { url: string }; applyToken(token: string): Promise<void> },
+    title: string,
+    intro: string,
+    label: string,
+  ): Promise<void> {
     const field = element("input", { type: "password", id: "broker-owner-token", autocomplete: "off" });
     const problem = element("p", { class: "broker-error", role: "alert" });
     for (;;) {
       const ok = await dialog(
-        t("ownerTitle"),
+        title,
         [
-          element("p", {}, t("ownerIntro")),
+          element("p", {}, intro),
           element(
             "p",
             {},
             element("a", { href: access.tokenLink.url, target: "_blank", rel: "noreferrer" }, t("ownerCreate")),
           ),
-          element("label", { for: "broker-owner-token" }, t("ownerLabel")),
+          element("label", { for: "broker-owner-token" }, label),
           field,
           problem,
         ],

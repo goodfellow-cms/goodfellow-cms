@@ -7,6 +7,7 @@ import {
   Languages,
   type LucideIcon,
   Menu,
+  MessageSquare,
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
@@ -39,6 +40,7 @@ export type SettingsPlace =
   | "plugins"
   | "updates"
   | "history"
+  | "comments"
   | "import"
   | "security";
 
@@ -67,6 +69,7 @@ const SCREEN_ITEMS: SidebarItem[] = [
   { place: "plugins", label: "settings.tab.plugins", icon: Plug },
   { place: "updates", label: "settings.tab.updates", icon: RefreshCw },
   { place: "history", label: "settings.tab.history", icon: History },
+  { place: "comments", label: "settings.tab.comments", icon: MessageSquare },
   { place: "import", label: "settings.tab.import", icon: FileInput },
   { place: "security", label: "settings.tab.security", icon: ShieldCheck },
 ];

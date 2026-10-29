@@ -11,7 +11,11 @@ import { GiscusFrame } from "./giscus-frame";
 
 export interface CommentsProps {
   heading: string;
-  /** Giscus's code from giscus.app, which names the repository and the discussions' category. */
+  /**
+   * Giscus's code from giscus.app, which names the repository and the
+   * discussions' category, for comments kept somewhere other than where Site
+   * Settings' Comments says; left empty, the block shows those.
+   */
   code: string;
   reactions: boolean;
   /** Where the box for writing a comment is: above the comments or under them. */
@@ -56,19 +60,27 @@ function CommentsView({
   puck,
 }: CommentsProps & { puck?: { isEditing?: boolean } }) {
   const part = useParts();
-  const { settings } = useSite();
-  const giscus = giscusSettings(code ?? "");
+  const { settings, adminLink } = useSite();
+  const giscus = giscusSettings(code ?? "") ?? (code?.trim() ? undefined : settings.comments);
   if (!giscus && !puck?.isEditing) return null;
   // Pages are built on the server: in the browser, it's the editor or a preview, which never load Giscus.
   const onSite = typeof document === "undefined" && !puck?.isEditing;
   const frameClass = part("gf-comments-frame", "w-full");
   let body: ReactNode;
   if (!giscus) {
+    const link = code?.trim() ? undefined : adminLink?.("comments-settings");
+    const text = code?.trim()
+      ? "This isn't Giscus's code. On giscus.app, choose the repository and category, then copy the code at the end of the page."
+      : "Set up comments in Site settings' Comments to show them here.";
     body = (
       <p className="rounded-lg bg-muted p-6 text-muted-foreground">
-        {code?.trim()
-          ? "This isn't Giscus's code. On giscus.app, choose the repository and category, then copy the code at the end of the page."
-          : "Paste Giscus's code from giscus.app to show comments."}
+        {link ? (
+          <a {...link} className="underline underline-offset-2 hover:text-foreground">
+            {text}
+          </a>
+        ) : (
+          text
+        )}
       </p>
     );
   } else if (!onSite) {
@@ -122,8 +134,10 @@ function CommentsView({
 }
 
 /**
- * Comments on the page, kept as GitHub Discussions in a repository of the
- * site's choosing, through Giscus: visitors sign in with GitHub to comment.
+ * Comments on the page, kept as GitHub Discussions in a repository of their
+ * own, through Giscus: visitors sign in with GitHub to comment. Where they're
+ * kept is Site Settings' Comments (`content/site.json`'s `comments`), unless
+ * the block is given Giscus's code for somewhere else.
  * Giscus loads only on the built site, never in the editor or previews, and
  * on a site that asks visitors before loading other sites' content, it waits
  * until they agree.
@@ -133,7 +147,10 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
     label: "Comments",
     fields: {
       heading: { type: "text", label: "Heading", contentEditable: true },
-      code: { type: "textarea", label: "Giscus's code, from giscus.app" },
+      code: {
+        type: "textarea",
+        label: "Giscus's code, for comments kept elsewhere than Site settings says (optional)",
+      },
       reactions: {
         type: "radio",
         label: "Reactions to the page",

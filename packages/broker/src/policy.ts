@@ -35,7 +35,11 @@ export type BrokerQuestion =
   /** Turning on what the site's host needs for updates. */
   | { kind: "updates-setup" }
   /** Throwing away a draft, whoever made it. */
-  | { kind: "discard-draft"; name: string };
+  | { kind: "discard-draft"; name: string }
+  /** Making a public repository for visitors' comments. */
+  | { kind: "comments-create"; name: string }
+  /** Deleting a visitor's comment, which can't be undone. */
+  | { kind: "comments-delete" };
 
 /** What the broker does with a call: makes it, asks first, or refuses it. */
 export type BrokerDecision =
@@ -93,6 +97,15 @@ const UNASKED = new Set([
   "scheduledBuilds.sync",
   "tasks.supported",
   "tasks.secretsPlace",
+  // Comments: finding their repository, reading them, and moderating in ways that can be undone.
+  "comments.find",
+  "comments.threads",
+  "comments.hide",
+  "comments.show",
+  "comments.lock",
+  "comments.unlock",
+  "comments.access.forget",
+  "comments.access.requestToken",
 ]);
 
 const DOMAIN_CHANGES: Record<string, "connect" | "secure" | "disconnect"> = {
@@ -220,6 +233,9 @@ export async function decide(
     const name = (target as { name?: unknown } | null)?.name;
     return { action: "ask", questions: [{ kind: "discard-draft", name: text(name) }] };
   }
+  if (path === "comments.create")
+    return { action: "ask", questions: [{ kind: "comments-create", name: text(args[0]) }] };
+  if (path === "comments.remove") return { action: "ask", questions: [{ kind: "comments-delete" }] };
   if (UNASKED.has(path)) return { action: "allow" };
   return { action: "refuse", paths: [path], reason: "unknown" };
 }

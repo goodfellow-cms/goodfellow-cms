@@ -371,6 +371,19 @@ describe("people, numbers, timelines, countdowns and comments", () => {
     // Without consent, the island loads Giscus's script once the page has loaded.
     expect(await render("comments", { code })).toContain('<div class="giscus gf-comments-frame w-full"></div>');
     expect(await render("comments", {})).not.toContain("gf-comments");
+    // Without code, it shows where Site Settings says comments are kept.
+    const kept = siteSettingsSchema.parse({
+      ...base,
+      comments: {
+        repo: "stjoseph/comments",
+        repoId: "R_kgDOdef456",
+        category: "Announcements",
+        categoryId: "DIC_kwDOdef456",
+      },
+    });
+    expect(await render("comments", {}, kept)).toContain('<div class="giscus gf-comments-frame w-full"></div>');
+    // Code that isn't Giscus's never falls back to the setting, so a mistake shows in the editor.
+    expect(await render("comments", { code: "<p>Hi</p>" }, kept)).not.toContain("gf-comments");
     // A site that asks keeps it in a template until the visitor agrees.
     const asking = siteSettingsSchema.parse({ ...base, consent: {} });
     const held = await render("comments", { code: code.replace("Comments", "Q&A") }, asking);
