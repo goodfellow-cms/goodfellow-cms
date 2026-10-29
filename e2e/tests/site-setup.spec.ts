@@ -307,6 +307,28 @@ test("creates a site on GitLab with a sign-in page of its own, on the project's 
   expect(text(site.get("goodfellow.config.tsx"))).not.toContain("broker:");
 });
 
+test("recommends a sign-in page of its own, or with a domain chooses an admin address", async ({ page }) => {
+  await page.goto(SETUP, { waitUntil: "networkidle" });
+  await radio(page, "A church, charity, school or club").check();
+  await openAdvanced(page);
+  const signIn = (name: string) => page.locator("label", { has: radio(page, name) });
+  // Without a domain, editors sign in at the site's address unless the owner chooses otherwise.
+  await expect(radio(page, "In the admin panel, at the site's address")).toBeChecked();
+  await expect(signIn("At a sign-in page of its own")).toContainText("Recommended");
+  await expect(signIn("At an admin address of its own")).not.toContainText("Recommended");
+
+  await page.getByRole("checkbox", { name: "I have a domain for this site" }).check();
+  await expect(radio(page, "At an admin address of its own")).toBeChecked();
+  await expect(signIn("At an admin address of its own")).toContainText("Recommended");
+  await expect(page.getByRole("link", { name: "Continue" })).toBeHidden();
+  // GitHub Pages can't serve one, so the sign-in page is recommended there, and the choice goes back.
+  await radio(page, "GitHub").check();
+  await radio(page, "GitHub Pages").check();
+  await expect(radio(page, "At an admin address of its own")).toHaveCount(0);
+  await expect(radio(page, "In the admin panel, at the site's address")).toBeChecked();
+  await expect(signIn("At a sign-in page of its own")).toContainText("Recommended");
+});
+
 test("names an admin address of its own in a new site's config", async ({ page }) => {
   const gitlab = fakeGitLab({ project: "someone/existing", tokens: { "gl-token": { username: "someone" } } });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);

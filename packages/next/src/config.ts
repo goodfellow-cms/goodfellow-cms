@@ -16,7 +16,7 @@ import {
   redirectFrom,
   redirectProblems,
   shownContent,
-  vercelAdminHeaders,
+  vercelHeaders,
 } from "@goodfellow-cms/core";
 import {
   BUILD_DATES_DIR,
@@ -56,15 +56,16 @@ function siteAdmin(root: string): AdminAddress | undefined {
 }
 
 /**
- * The admin address's header rules, for hosts that read them from the build,
- * such as Vercel: every page there sandboxed but the admin panel's own, as
- * `goodfellow build`'s `_headers` does on Cloudflare Pages. Next.js adds the base path itself.
+ * The site's header rules, for hosts that read them from the build, such as
+ * Vercel, as `goodfellow build`'s `_headers` does on Cloudflare Pages: the
+ * media library's SVGs sandboxed, the admin panel unframed, and with an admin
+ * address every page there sandboxed but the admin panel's own. Next.js adds the base path itself.
  */
-function adminHeaders(root: string): Headers {
+function siteHeaders(root: string): Headers {
   const admin = siteAdmin(root);
   const file = CONFIG_FILES.map((name) => join(root, name)).find((path) => existsSync(path));
   const broker = brokerOrigin(file ? configBroker(readFileSync(file, "utf8")) : undefined);
-  return admin ? vercelAdminHeaders(admin, "/", broker) : [];
+  return vercelHeaders({ ...(admin && { admin }), ...(broker && { broker }) });
 }
 type Rewrite = Extract<Rewrites, unknown[]>[number];
 
@@ -171,8 +172,9 @@ async function siteRedirects(root: string): Promise<Redirects> {
  * - Serves images as they are unless the site sets an image loader, since static files can't be optimized on request.
  * - Adds the site's redirects (Site Settings → Redirects) ahead of the site's own, for hosts that
  *   send them, such as Vercel. Others get the pages `goodfellow-next finish` writes at old addresses.
- * - For a site with an admin address, adds header rules that sandbox every page there but the
- *   admin panel's own, for hosts that send headers, such as Vercel.
+ * - Adds header rules for hosts that send them, such as Vercel: the media library's SVGs
+ *   sandboxed, the admin panel unframed, and, for a site with an admin address, every page
+ *   there sandboxed but the admin panel's own.
  * - With `{ server: true }`, builds a full-stack site for a server instead of as static
  *   files: see `goodfellowApi()` in `@goodfellow-cms/next/server`.
  * - In `next dev`, runs the admin panel's local backend, so publishing saves to
@@ -219,6 +221,7 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
           "/**": [...(nextConfig.outputFileTracingIncludes?.["/**"] ?? []), "./content/**/*", "./public/media/**/*"],
         },
         redirects: async () => [...(await siteRedirects(root)), ...((await nextConfig.redirects?.()) ?? [])],
+        headers: async () => [...siteHeaders(root), ...((await nextConfig.headers?.()) ?? [])],
       };
     }
     // In development, Next.js treats an unknown address in an exported site as an error rather than "not found".
@@ -227,8 +230,10 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
         output: "export",
         ...config,
         redirects: async () => [...(await siteRedirects(root)), ...((await nextConfig.redirects?.()) ?? [])],
-        ...(siteAdmin(root) && {
-          headers: async () => [...adminHeaders(root), ...((await nextConfig.headers?.()) ?? [])],
+        // Only where they're sent, since Next.js warns that a static export can't send headers: on Vercel
+        // (`VERCEL` is set where it builds), and for an admin address, which needs them.
+        ...((siteAdmin(root) || process.env.VERCEL) && {
+          headers: async () => [...siteHeaders(root), ...((await nextConfig.headers?.()) ?? [])],
         }),
       };
     }

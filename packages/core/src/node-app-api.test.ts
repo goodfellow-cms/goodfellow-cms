@@ -125,7 +125,10 @@ function fakeServerGit(repo: FakeRepo) {
 const ALICE: AppEditor = { login: "alice", name: "Alice Editor", email: "alice@example.org", role: "editor" };
 const OWEN: AppEditor = { ...ALICE, login: "owen", name: "Owen Owner", email: "owen@example.org", role: "owner" };
 
-function setup(editor: AppEditor | null | false = ALICE, { contentOnly = false } = {}) {
+function setup(
+  editor: AppEditor | null | false = ALICE,
+  { contentOnly = false, codeChanges }: { contentOnly?: boolean; codeChanges?: "review" | "publish" } = {},
+) {
   const repo = new FakeRepo(FILES);
   const server = fakeServerGit(repo);
   const errors: unknown[] = [];
@@ -136,6 +139,7 @@ function setup(editor: AppEditor | null | false = ALICE, { contentOnly = false }
     signIn: "/sign-in?next=/admin/",
     signOut: "/sign-out",
     onError: (error) => errors.push(error),
+    ...(codeChanges && { codeChanges }),
   });
   const call = (endpoint: string, init: RequestInit & { query?: Record<string, string> } = {}) => {
     const url = new URL(`https://parish.example/api/goodfellow/${endpoint}`);
@@ -170,6 +174,7 @@ describe("appApi", () => {
       user: { login: "alice", name: "Alice Editor" },
       role: "editor",
       ai: [],
+      codeReview: true,
       signOut: "/sign-out",
     });
     signIn(null);
@@ -349,6 +354,42 @@ describe("appApi", () => {
         author: "Owen Owner",
       },
     ]);
+  });
+
+  it("sends owners' changes to the site's code for review, unless the site lets them publish it", async () => {
+    const { call, post, reviews, signIn } = setup(OWEN);
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const block = {
+      changes: [
+        { path: "blocks/installed/index.ts", content: "export const installedBlocks = {};" },
+        { path: "content/pages/index.json", content: "{}" },
+      ],
+    };
+    const direct = await post("write", { ...block, message: "Add a block", expectedRevision: revision });
+    expect(direct.status).toBe(403);
+    expect(await direct.json()).toEqual({ error: "review-only" });
+    for (const path of ["components/ui/button.tsx", "lib/utils.ts", "hooks/use-mobile.ts"]) {
+      const answer = await post("write", {
+        changes: [{ path, content: "" }],
+        message: "x",
+        expectedRevision: revision,
+      });
+      expect(answer.status, path).toBe(403);
+    }
+
+    const answer = await post("review", { ...block, title: "Add the Hero block", from: revision });
+    expect(await answer.json()).toEqual({ url: "https://github.example/parish/site/pull/1" });
+    // For a developer, never the site's reviewers.
+    expect(reviews).toEqual([
+      { from: revision, changes: block.changes, title: "Add the Hero block", author: "Owen Owner" },
+    ]);
+    signIn(ALICE);
+    expect((await post("review", { ...block, title: "Add the Hero block", from: revision })).status).toBe(403);
+
+    const publishing = setup(OWEN, { codeChanges: "publish" });
+    expect(await (await publishing.call("session")).json()).not.toHaveProperty("codeReview");
+    const saved = await publishing.post("write", { ...block, message: "Add a block", expectedRevision: revision });
+    expect(saved.status).toBe(200);
   });
 
   it("holds editors to their limits, and sends what's outside them to the site's reviewers", async () => {

@@ -49,6 +49,7 @@ import {
   sitePluginsApart,
   taskSecretsFrom,
   writeBuildRecord,
+  writeSiteHeaders,
 } from "@goodfellow-cms/core/node";
 import type { PageRender } from "@goodfellow-cms/core/shadcn";
 import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule } from "./plugins.js";
@@ -243,6 +244,22 @@ export async function writeRedirectFiles(outDir: string, root = process.cwd()): 
   // A site's own public/_redirects stays as it is.
   if (cloudflare.file && !(await exists(redirects))) await writeFile(redirects, cloudflare.file.content);
   return { pages: written.length, cloudflareLeft: cloudflare.left };
+}
+
+/**
+ * Adds Cloudflare Pages' header rules for every site to the export's
+ * `_headers`, as `goodfellow build` does (`writeSiteHeaders()`), from the
+ * admin address and broker the exported `goodfellow-site.json` names.
+ */
+export async function writeExportHeaders(outDir: string, root = process.cwd()): Promise<void> {
+  const text = await readFile(join(outDir, SITE_DESCRIPTION_PATH), "utf8").catch(() => undefined);
+  const parsed = text === undefined ? undefined : parseSiteDescription(text);
+  const description = parsed?.ok ? parsed.description : undefined;
+  await writeSiteHeaders(outDir, {
+    base: `${await exportBasePath(resolve(root))}/`,
+    ...(description?.admin && { admin: description.admin }),
+    ...(description?.broker && { broker: description.broker }),
+  });
 }
 
 /**

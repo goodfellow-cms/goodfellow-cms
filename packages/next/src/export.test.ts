@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startsWithGuard } from "@goodfellow-cms/core";
+import { cloudflareSiteHeaders, startsWithGuard } from "@goodfellow-cms/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   blockPageRender,
@@ -10,6 +10,7 @@ import {
   exportedPages,
   fixSegmentFiles,
   guardExport,
+  writeExportHeaders,
   writePluginFiles,
   writeRedirectFiles,
 } from "./export.js";
@@ -136,6 +137,17 @@ describe("guardExport", () => {
     );
     expect(await readFile(join(out, "out/admin/editor.html"), "utf8")).toBe(editor);
     expect(await readFile(join(out, "out/_headers"), "utf8")).toContain("https://admin.example.org/site/admin/*");
+  });
+
+  it("adds Cloudflare Pages' header rules for every site after the site's own, once", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-export-"));
+    await write("site/.next/routes-manifest.json", JSON.stringify({ basePath: "/site" }));
+    await write("out/_headers", "/fonts/*\n  Cache-Control: max-age=31536000\n");
+    await writeExportHeaders(join(out, "out"), join(out, "site"));
+    await writeExportHeaders(join(out, "out"), join(out, "site"));
+    expect(await readFile(join(out, "out/_headers"), "utf8")).toBe(
+      `/fonts/*\n  Cache-Control: max-age=31536000\n\n${cloudflareSiteHeaders("/site/")}`,
+    );
   });
 
   it("leaves an export without an admin address as it is", async () => {

@@ -55,6 +55,13 @@ export interface AppApiOptions {
    * in only for requests from the site's own pages.
    */
   plugins?: Record<string, PluginServer>;
+  /**
+   * What happens to owners' changes to the site's code (installed blocks,
+   * `components/`, `lib/` and `hooks/`), which this server runs with its token
+   * and keys: `"review"`, the default, submits them for a developer to review,
+   * as plugins are; `"publish"` lets owners publish them.
+   */
+  codeChanges?: "review" | "publish";
 }
 
 /** Room for a save with uploads, which are sent as base64 (a third larger than the files). */
@@ -115,6 +122,11 @@ function isInstalledPluginsPath(path: string): boolean {
   return isEditablePath(path) && path.startsWith(`${INSTALLED_PLUGINS_DIR}/`);
 }
 
+/** The site's code among the editable folders, which runs on a full-stack site's server: installed blocks and what they share. */
+function isCodePath(path: string): boolean {
+  return isEditablePath(path) && !isContentPath(path) && !isInstalledPluginsPath(path);
+}
+
 function reviewPath(value: unknown): string {
   if (typeof value !== "string" || !isPluginInstallPath(value))
     throw new BadRequest("That file can't be changed here.");
@@ -162,6 +174,7 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 export function appApi(options: AppApiOptions): (request: Request, endpoint: string) => Promise<Response> {
   const kept = new Map<string, Promise<GitBackend>>();
   const onError = options.onError ?? ((error: unknown) => console.error(error));
+  const codeReview = options.codeChanges !== "publish" && !options.git.contentOnly;
 
   /** A backend reading `revision`, kept for the next request, since a browser loading the site asks for many files. */
   function reader(revision: string): Promise<GitBackend> {
@@ -194,6 +207,7 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       role: editor.role,
       ai: options.ai?.services ?? [],
       ...(options.git.contentOnly && { contentOnly: true }),
+      ...(codeReview && { codeReview: true }),
       ...signOut,
     } satisfies AppSession);
   }
@@ -256,6 +270,8 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       }
       // Plugins are only ever added through a review, below.
       if (changes.some((change) => isInstalledPluginsPath(change.path))) return json(403, { error: "review-only" });
+      // So is the code this server runs, unless the site lets owners publish it.
+      if (codeReview && changes.some((change) => isCodePath(change.path))) return json(403, { error: "review-only" });
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
       // An owner's limits for this person, held here too, since the browser can't be trusted to keep to them.
       const outside = await outsideLimitsAt(backend, editor.login, changes);
@@ -263,8 +279,8 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       return json(200, await backend.write(changes, { message, expectedRevision }));
     }
     if (post && endpoint === "review") {
-      // A draft with the changes, submitted for review: installing, updating or removing a plugin, for a developer to
-      // accept, or changes outside someone's limits, for the site's reviewers.
+      // A draft with the changes, submitted for review: installing, updating or removing a plugin, or changing the
+      // site's code, for a developer to accept, or changes outside someone's limits, for the site's reviewers.
       const body = await readBody(request);
       const { title, description } = body;
       const from = revisionParam(body.from);
@@ -282,7 +298,9 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       }
       const backend = await options.git.at(from, { name: editor.name, email: editor.email });
       if (!backend.drafts) throw new BadRequest("This site's repository can't take changes for review.");
-      const reviewers = plugins ? [] : reviewersFor(await readPermissions(backend), []);
+      const code = changes.some((change) => isCodePath(change.path));
+      if (code && editor.role !== "owner") return json(403, { error: "owners-only" });
+      const reviewers = plugins || code ? [] : reviewersFor(await readPermissions(backend), []);
       const draft = await backend.drafts.create(newDraftName(), { from });
       await draft.store.write(changes, { message: title, expectedRevision: await draft.store.revision() });
       return json(

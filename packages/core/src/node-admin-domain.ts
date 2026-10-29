@@ -7,12 +7,33 @@ import {
   adminOrigin,
   CLOUDFLARE_HEADERS_PATH,
   cloudflareAdminHeaders,
+  cloudflareSiteHeaders,
   pageFileKind,
+  SITE_HEADERS_MARK,
   siteGuard,
   startsWithGuard,
   withGuard,
 } from "./admin-domain.js";
 import { brokerOrigin } from "./broker.js";
+
+/**
+ * Adds Cloudflare Pages' header rules for every site (`cloudflareSiteHeaders()`)
+ * to the built site's `_headers`, after the site's own rules, once: as
+ * `goodfellow build` and `goodfellow-next finish` do before `guardBuiltSite()`
+ * adds an admin address's. Other hosts serve the file as one of no use.
+ */
+export async function writeSiteHeaders(
+  outDir: string,
+  { base = "/", admin, broker }: { base?: string; admin?: AdminAddress; broker?: { url: string } } = {},
+): Promise<void> {
+  const file = join(outDir, CLOUDFLARE_HEADERS_PATH);
+  const own = await readFile(file, "utf8").catch(() => "");
+  if (own.includes(SITE_HEADERS_MARK)) return;
+  const framer = brokerOrigin(broker);
+  const rules = cloudflareSiteHeaders(base, { ...(admin && { admin }), ...(framer && { broker: framer }) });
+  const separator = own === "" ? "" : own.endsWith("\n") ? "\n" : "\n\n";
+  await writeFile(file, `${own}${separator}${rules}`);
+}
 
 export interface GuardOptions {
   admin: AdminAddress;

@@ -27,7 +27,7 @@ The admin panel's **Blocks** screen adds more blocks to the editor, from Goodfel
 | Slideshow with quick links | Full-width pictures that fade from one to the next, with a badge, such as a logo, and a column of quick links over them |
 | Content with section links | A page's blocks beside a list of the other pages in its part of the menu, the current one marked |
 
-Sites whose [content is kept apart from their code](/docs/content-repository) have no Blocks screen, since adding a block changes the code: their developer adds blocks.
+Sites whose [content is kept apart from their code](/docs/content-repository) have no Blocks screen, since adding a block changes the code: their developer adds blocks. On a [full-stack Next.js site](/docs/full-stack-nextjs), whose server runs blocks' code, the Blocks screen submits the changes for review, for a developer to accept, rather than publishing them.
 
 ## Adding a block
 

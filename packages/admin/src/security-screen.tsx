@@ -19,10 +19,23 @@ import { useAdmin, useSiteContent } from "./admin-context.js";
 import { useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
 
+/**
+ * Whether editors sign in where the site's own pages could reach their
+ * sign-in: at the site's address, with neither an admin address of its own nor
+ * a token broker. `"server"` on a full-stack site, whose sign-in is the site's
+ * own and can't move, so there's nothing to suggest.
+ */
+export function useSignInExposed(): "site" | "server" | undefined {
+  const { outOfReach, demo, account } = useAdmin();
+  if (outOfReach || demo || !account) return undefined;
+  return account.role ? "server" : "site";
+}
+
 export function SecurityScreen() {
   const t = useStrings();
   const { versions, state, publish, contentOnly, demo, account, site } = useAdmin();
   const { content } = useSiteContent();
+  const exposed = useSignInExposed();
   const revision = state.status === "ready" ? state.revision : undefined;
   // The config as it is now, which a publish changes before the site is rebuilt with it.
   const [config, setConfig] = useState<string | null>();
@@ -103,6 +116,11 @@ export function SecurityScreen() {
           {t("security.broker.title")}
         </h2>
         <p>{t("security.broker.intro")}</p>
+        {exposed === "site" && (
+          <p className="gfa-notice" role="note">
+            {t("security.exposed")}
+          </p>
+        )}
         {body}
       </section>
     </div>

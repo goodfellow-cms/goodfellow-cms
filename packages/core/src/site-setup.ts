@@ -4,7 +4,7 @@
  * same choices, worked out the same way, with no disk access.
  */
 
-import { adminOrigin, vercelAdminHeaders, withAdminConfig, withVercelHeaders } from "./admin-domain.js";
+import { adminOrigin, vercelHeaders, withAdminConfig, withVercelHeaders } from "./admin-domain.js";
 import { BITBUCKET_PIPELINES, bitbucketPipelines } from "./bitbucket-setup.js";
 import { cloudflareSetupFiles } from "./cloudflare-setup.js";
 import { CONTENT_REPOSITORY_DIR, INSTALLED_PLUGINS_FILE } from "./content/paths.js";
@@ -425,7 +425,7 @@ export async function planSite({
     // Vercel reads a content repository's vercel.ts before the code is cloned, so it gets the header rules written out.
     const vercel = files.get(`${CONTENT_REPOSITORY_DIR}/vercel.ts`);
     if (adminUrl && vercel !== undefined) {
-      const edited = withVercelHeaders(siteFileText(vercel), vercelAdminHeaders({ url: adminUrl }));
+      const edited = withVercelHeaders(siteFileText(vercel), vercelHeaders({ admin: { url: adminUrl } }));
       if (edited !== undefined) files.set(`${CONTENT_REPOSITORY_DIR}/vercel.ts`, edited);
     }
   } else if (host) {

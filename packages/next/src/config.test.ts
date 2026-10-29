@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { vercelHeaders } from "@goodfellow-cms/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withGoodfellow } from "./config.js";
 
@@ -38,8 +39,25 @@ describe("withGoodfellow", () => {
       env: { GOODFELLOW_BASE_PATH: "" },
       outputFileTracingIncludes: { "/**": ["./content/**/*", "./public/media/**/*"] },
       redirects: expect.any(Function),
+      headers: expect.any(Function),
     });
     expect(config).not.toHaveProperty("output");
+    // Its server sends the site's header rules.
+    expect(await (config as { headers: () => Promise<unknown> }).headers()).toEqual(vercelHeaders());
+  });
+
+  it("adds the site's header rules to a static export only where they're sent", async () => {
+    const plain = await withGoodfellow({}, { root })("phase-production-build");
+    expect(plain).not.toHaveProperty("headers");
+    process.env.VERCEL = "1";
+    try {
+      const vercel = (await withGoodfellow({}, { root })("phase-production-build")) as {
+        headers: () => Promise<unknown>;
+      };
+      expect(await vercel.headers()).toEqual(vercelHeaders());
+    } finally {
+      delete process.env.VERCEL;
+    }
   });
 
   it("adds the site's redirects ahead of its own for hosts that send them, leaving out pages' addresses", async () => {
