@@ -146,7 +146,8 @@ describe("blocks", () => {
   });
 
   it("holds custom HTML used as written back until visitors agree, on a site that asks", async () => {
-    const block = (await import("../site/blocks/installed/custom-html/block.tsx")).default as ComponentConfig;
+    const name = "custom-html";
+    const block = (await import(`../site/blocks/installed/${name}/block.tsx`)).default as ComponentConfig;
     const asking = { ...content, settings: siteSettingsSchema.parse({ ...content.settings, consent: {} }) };
     const render = (props: Record<string, unknown>) =>
       createPageRenderer({ blocks: { "custom-html": block } })(asking, {
