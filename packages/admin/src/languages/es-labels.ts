@@ -5,6 +5,24 @@
  * as it is.
  */
 export const labels: Record<string, string> = {
+  "Words before the buttons": "Texto antes de los botones",
+  "Where it can be shared": "Dónde se puede compartir",
+  Where: "Dónde",
+  "What the document is, for screen readers": "Qué es el documento, para lectores de pantalla",
+  "Share buttons": "Botones para compartir",
+  "Say where people give": "Decir dónde se dona",
+  PDF: "PDF",
+  Look: "Aspecto",
+  "Giving page's address (a Stripe payment link, PayPal donate button or similar)":
+    "Dirección de la página de donativos (un enlace de pago de Stripe, un botón de donativos de PayPal o similar)",
+  "Donate button": "Botón de donativos",
+  "Document viewer": "Visor de documentos",
+  Buttons: "Botones",
+  X: "X",
+  WhatsApp: "WhatsApp",
+  LinkedIn: "LinkedIn",
+  Facebook: "Facebook",
+  Bluesky: "Bluesky",
   '"Add to calendar" link (leave empty for none)': "Enlace «Añadir al calendario» (vacío para ninguno)",
   '"Subscribe" link (leave empty for none)': "Enlace «Suscribirse» (vacío para ninguno)",
   "A few words about them": "Unas palabras sobre la persona",
