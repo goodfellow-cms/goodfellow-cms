@@ -5,8 +5,10 @@
  * keep it, and the site's Tailwind finds the classes in `content/` as it does
  * any others. The theme's colors are `text-primary` and `bg-muted`, sizes are
  * on Tailwind's scales, and values of an editor's own are arbitrary classes
- * such as `p-[13px]`. Classes the style doesn't cover, responsive and dark
- * ones included, are kept as they were.
+ * such as `p-[13px]`. Hiding a block on some sizes of screen is Tailwind's
+ * breakpoints' `hidden` (`max-sm:hidden`, `sm:max-lg:hidden`, `lg:hidden`).
+ * Other classes the style doesn't cover, responsive and dark ones included,
+ * are kept as they were.
  */
 import { THEME_COLORS, type ThemeColor } from "./content/schemas.js";
 
@@ -14,6 +16,11 @@ export type TextAlign = "left" | "center" | "right" | "justify";
 export type Side = "top" | "right" | "bottom" | "left";
 /** Space on each side: a step on Tailwind's spacing scale (`4`), or a length of the editor's own (`13px`). */
 export type Sides = Partial<Record<Side, string>>;
+/**
+ * Sizes of screen, by Tailwind's breakpoints: phones below `sm` (640px),
+ * tablets from `sm` to below `lg` (1024px), and computers from `lg`.
+ */
+export type ScreenSize = "phones" | "tablets" | "computers";
 
 /**
  * A block's look. Sizes are a step on Tailwind's scale (`lg`, `4`) or a length
@@ -28,6 +35,8 @@ export interface BlockStyle {
   padding?: Sides;
   margin?: Sides;
   radius?: string;
+  /** The sizes of screen the block isn't shown on, in `SCREEN_SIZES`' order. */
+  hiddenOn?: ScreenSize[];
 }
 
 export const TEXT_ALIGNS: readonly TextAlign[] = ["left", "center", "right", "justify"];
@@ -38,6 +47,23 @@ export const FONT_SIZES = ["xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl", 
 
 /** Steps of Tailwind's spacing scale offered for space inside and around blocks, each a quarter of a rem. */
 export const SPACING_STEPS = ["0", "1", "2", "3", "4", "6", "8", "10", "12", "16", "20", "24"] as const;
+
+export const SCREEN_SIZES: readonly ScreenSize[] = ["phones", "tablets", "computers"];
+
+/**
+ * The classes that hide a block on sizes of screen, each with the sizes it
+ * covers, written out so Tailwind finds them. Those covering two sizes come
+ * first, so a style is written with the fewest. Plain `hidden` is never one:
+ * blocks use it with `dark:block` and the like, which isn't hiding them.
+ */
+const HIDDEN_CLASSES: ReadonlyArray<readonly [string, readonly ScreenSize[]]> = [
+  ["max-lg:hidden", ["phones", "tablets"]],
+  ["sm:hidden", ["tablets", "computers"]],
+  ["max-sm:hidden", ["phones"]],
+  ["sm:max-lg:hidden", ["tablets"]],
+  ["lg:hidden", ["computers"]],
+];
+const HIDDEN_BY_CLASS = new Map(HIDDEN_CLASSES);
 
 /** Rounded corners: none, the theme's sizes, and round. */
 export const RADII = ["none", "sm", "md", "lg", "xl", "full"] as const;
@@ -103,6 +129,12 @@ const SPACING_SIDES: Record<string, readonly Side[]> = {
 
 /** What one class says about the style, or `false` for a class it doesn't cover. */
 function readClass(name: string, style: BlockStyle): boolean {
+  const hidden = HIDDEN_BY_CLASS.get(name);
+  if (hidden) {
+    const sizes = new Set([...(style.hiddenOn ?? []), ...hidden]);
+    style.hiddenOn = SCREEN_SIZES.filter((size) => sizes.has(size));
+    return true;
+  }
   const align = /^text-(left|center|right|justify)$/.exec(name)?.[1] as TextAlign | undefined;
   if (align) {
     style.align = align;
@@ -213,6 +245,21 @@ export function blockStyleClasses(style: BlockStyle): string[] {
   classes.push(...sideClasses("p", style.padding), ...sideClasses("m", style.margin));
   const radius = validLength(style.radius, isRadius);
   if (radius) classes.push(`rounded-${classValue(radius, isRadius)}`);
+  classes.push(...hiddenClasses(style.hiddenOn));
+  return classes;
+}
+
+/** The fewest classes that hide a block on these sizes of screen. */
+function hiddenClasses(sizes: readonly ScreenSize[] | undefined): string[] {
+  const left = new Set(sizes?.filter((size) => SCREEN_SIZES.includes(size)));
+  const classes: string[] = [];
+  for (const [name, covers] of HIDDEN_CLASSES) {
+    if (left.size === 0) break;
+    if (covers.every((size) => left.has(size))) {
+      classes.push(name);
+      for (const size of covers) left.delete(size);
+    }
+  }
   return classes;
 }
 

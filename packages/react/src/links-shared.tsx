@@ -42,7 +42,8 @@ export function createSiteLinks(useSite: () => SiteContextValue) {
    * such as Next.js's `next/image`, with their size filled in. Where the build
    * makes smaller copies of the media library's photos (`imageWidths`), it
    * lists them in `srcset` instead, in both renderers alike: give it `sizes`
-   * where the image is narrower than the page.
+   * where the image is narrower than the page. Any other image the build knows
+   * the size of, such as an SVG logo, gets its `width` and `height` too.
    */
   function SiteImage(props: SiteImageProps) {
     const { base, components, media, imageWidths } = useSite();
@@ -64,8 +65,9 @@ export function createSiteLinks(useSite: () => SiteContextValue) {
       const { width: _width, height: _height, ...rest } = props;
       return <Image {...rest} src={src} width={size.width} height={size.height} />;
     }
+    // Its size, where the build knows it, so the browser keeps its space before it loads.
     // biome-ignore lint/a11y/useAltText: the alt text is in props, which TypeScript requires
-    return <img {...props} src={src} />;
+    return <img width={size?.width} height={size?.height} {...props} src={src} />;
   }
 
   return { SiteLink, SiteImage };
