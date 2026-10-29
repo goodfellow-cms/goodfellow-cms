@@ -8,6 +8,7 @@
  * call before making it (`brokerChangeCheck()`).
  */
 import { adminOrigin } from "./admin-domain.js";
+import { CommentsError } from "./comments.js";
 import { CONTENT_DIR } from "./content/paths.js";
 import { CodeChangeError, ConflictError, type FileChange, isContentPath } from "./content/store.js";
 import { DomainError } from "./domains.js";
@@ -251,6 +252,10 @@ const BACKEND: Shape = {
     drafts: { methods: ["create", "open", "list", "reviews"], returns: { create: DRAFT, open: DRAFT } },
     scheduledBuilds: { methods: ["timing", "sync"] },
     tasks: { methods: ["supported", "secretsPlace", "run"] },
+    comments: {
+      methods: ["create", "find", "threads", "hide", "show", "remove", "lock", "unlock"],
+      objects: { access: { data: ["tokenLink", "active"], methods: ["forget", "requestToken"] } },
+    },
   },
 };
 
@@ -314,6 +319,8 @@ function receiveError({ name, message, fields }: SentError): Error {
       return new GitApiError(Number(fields.status), message);
     case "DomainError":
       return new DomainError(problem, message);
+    case "CommentsError":
+      return new CommentsError(problem, message, fields.link as string | undefined);
     case "EditorsError":
       return new EditorsError(problem, message);
     case "DraftError":

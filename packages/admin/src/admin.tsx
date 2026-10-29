@@ -28,6 +28,7 @@ import { BuildProblemButton } from "./build-problem.js";
 import { EntriesScreen, TemplateScreen } from "./collection-screen.js";
 import { CollectionSettingsScreen } from "./collection-settings.js";
 import { CollectionsScreen } from "./collections-screen.js";
+import { CommentsScreen } from "./comments-screen.js";
 import { createDemoStore } from "./demo.js";
 import { DomainScreen } from "./domain-screen.js";
 import { draftStarted } from "./drafts.js";
@@ -186,6 +187,7 @@ function SettingsLayout({ sub, rest, params }: { sub?: string; rest: string[]; p
     plugins: PluginsScreen,
     updates: UpdatesScreen,
     history: SiteHistoryScreen,
+    comments: CommentsScreen,
     import: ImportScreen,
     security: SecurityScreen,
   } as const;

@@ -180,6 +180,22 @@ export {
   outsideHost,
 } from "./cloudflare-setup.js";
 export { COLOR_SCHEME_ATTRIBUTE, COLOR_SCHEME_STORAGE_KEY, colorSchemeScript } from "./color-scheme.js";
+export {
+  COMMENTS_ID,
+  COMMENTS_REPO,
+  type CommentsAccess,
+  CommentsError,
+  type CommentsPlace,
+  type CommentsProblem,
+  type CommentsRepository,
+  type CommentThread,
+  type CommentThreads,
+  GISCUS_APP_URL,
+  HIDE_REASONS,
+  type HideReason,
+  type SiteComment,
+  type SiteComments,
+} from "./comments.js";
 export { type AiConfig, type ClaudeConfig, defineConfig, type GoodfellowConfig } from "./config.js";
 export {
   CONSENT_ACCEPT_ATTRIBUTE,

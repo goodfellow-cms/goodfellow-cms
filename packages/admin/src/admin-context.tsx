@@ -39,6 +39,7 @@ import {
   SHADCN_NAMESPACE,
   SHADCN_REGISTRY,
   SignInError,
+  type SiteComments,
   type SiteContent,
   type SiteDrafts,
   type SiteEditors,
@@ -243,6 +244,8 @@ export interface AdminContextValue {
   editors?: SiteEditors;
   /** A second token for changing editors and Pages settings, where signing in can't. */
   ownerAccess?: OwnerAccess;
+  /** Setting up and moderating visitors' comments on GitHub, when the backend can. */
+  comments?: SiteComments;
   /** The site's nightly update job, when the backend can run it. */
   updates?: SiteUpdates;
   /** The repository holds only the site's content: its code, and so its blocks, are a developer's to change. */
@@ -397,6 +400,7 @@ export function AdminProvider({
     [store],
   );
   const editors = isGitBackend(store) ? store.editors : undefined;
+  const comments = isGitBackend(store) ? store.comments : undefined;
   const updates = isGitBackend(store) ? store.updates : undefined;
   const contentOnly = isGitBackend(store) && store.contentOnly === true;
   const scheduledBuilds = isGitBackend(store) ? store.scheduledBuilds : undefined;
@@ -829,6 +833,7 @@ export function AdminProvider({
       changedPaths,
       editors,
       ownerAccess,
+      comments,
       updates,
       contentOnly,
       scheduledBuilds,
@@ -863,6 +868,7 @@ export function AdminProvider({
       changedPaths,
       editors,
       ownerAccess,
+      comments,
       updates,
       contentOnly,
       scheduledBuilds,

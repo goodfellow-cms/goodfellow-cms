@@ -9,6 +9,7 @@ import {
   serveBackend,
   withBrokerConfig,
 } from "./broker.js";
+import { CommentsError } from "./comments.js";
 import { ConflictError, type FileChange } from "./content/store.js";
 import { EditorsError } from "./editors.js";
 import type { GitBackend } from "./git.js";
@@ -164,6 +165,17 @@ function memoryBackend() {
         ownerActive = false;
       },
     },
+    comments: {
+      access: {
+        tokenLink: { url: "https://github.com/settings/tokens/new", label: "comments.token.create" as const },
+        active: false,
+        async applyToken() {},
+        forget() {},
+      },
+      async threads() {
+        throw new CommentsError("no-access", "Refused.", "https://github.com/example/comments");
+      },
+    },
     drafts: {
       async create(name: string) {
         return {
@@ -230,6 +242,19 @@ describe("the broker's backend in the admin panel", () => {
       problem: "not-found",
     });
     expect("request" in remote).toBe(false);
+    expect(remote.comments?.access.tokenLink.label).toBe("comments.token.create");
+    await expect(
+      remote.comments?.threads({
+        repo: "example/comments",
+        repoId: "R_1",
+        category: "Announcements",
+        categoryId: "C_1",
+      }),
+    ).rejects.toMatchObject({
+      name: "CommentsError",
+      problem: "no-access",
+      link: "https://github.com/example/comments",
+    });
     close();
   });
 

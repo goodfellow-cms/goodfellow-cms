@@ -143,6 +143,20 @@ describe("what the broker asks before making a call", () => {
     expect(await ask("draft.discard", [], { name: "spring" })).toEqual([{ kind: "discard-draft", name: "spring" }]);
   });
 
+  it("asks before making a repository for comments or deleting one, but moderates in ways that can be undone", async () => {
+    expect(await decide({ path: "comments.create", args: ["site-comments", "Comments"], target: {} }, SITE)).toEqual({
+      action: "ask",
+      questions: [{ kind: "comments-create", name: "site-comments" }],
+    });
+    expect(await decide({ path: "comments.remove", args: ["DC_1"], target: {} }, SITE)).toEqual({
+      action: "ask",
+      questions: [{ kind: "comments-delete" }],
+    });
+    for (const path of ["comments.threads", "comments.hide", "comments.show", "comments.lock", "comments.find"]) {
+      expect(await decide({ path, args: [], target: {} }, SITE), path).toEqual({ action: "allow" });
+    }
+  });
+
   it("refuses calls it doesn't know, so one added later isn't made unchecked", async () => {
     expect(await decide({ path: "pages.somethingNew", args: [], target: {} }, SITE)).toEqual({
       action: "refuse",

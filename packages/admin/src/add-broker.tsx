@@ -54,7 +54,7 @@ function domainProblem(domain: string, siteUrl: string | undefined): StringKey |
 }
 
 /** The site's repository's name, from its config's backend, for naming the broker's beside it. */
-function siteRepoName(options: Record<string, unknown> | undefined): string {
+export function siteRepoName(options: Record<string, unknown> | undefined): string {
   const repo = options?.repo ?? options?.project;
   return typeof repo === "string" ? (repo.split("/").at(-1) ?? "site") : "site";
 }

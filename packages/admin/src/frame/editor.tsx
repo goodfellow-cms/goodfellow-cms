@@ -72,6 +72,7 @@ const ADMIN_PLACES: Record<AdminPlace, string> = {
   "forms-settings": `#/settings/general?section=${SETTINGS_SECTIONS.forms}`,
   "theme-settings": "#/settings/theme",
   "language-settings": "#/settings/languages",
+  "comments-settings": "#/settings/comments",
 };
 
 /** Puck's text field, with the media library's chooser below it for fields that hold a media address. */

@@ -36,6 +36,8 @@ export interface FakeGitHubUser {
   variables?: boolean;
   /** Whether the token may set Actions secrets and add deploy keys. Defaults to true. */
   secrets?: boolean;
+  /** A fine-grained token's repositories, which it alone reaches. Others reach every repository the user can. */
+  repositories?: string[];
 }
 
 /** A GitHub Actions workflow run, with its jobs and their steps. */
@@ -104,6 +106,8 @@ export interface FakeGitHubOptions {
   pages?: boolean;
   /** Domains another GitHub Pages site already uses. */
   takenDomains?: string[];
+  /** Turning on Discussions makes no categories yet, as GitHub sometimes doesn't until someone opens them. */
+  noDiscussionCategories?: boolean;
   /** Other GitHub accounts that exist, which can be invited. Every token's user exists too. */
   accounts?: string[];
   /** GitHub Apps, which the sign-in worker signs people in with. */
@@ -216,7 +220,40 @@ export interface FakeCreatedRepo {
   secretKey?: CryptoKeyPair;
   /** People's permission on it, by login, as `collaborators/{login}/permission` says; others have none. */
   collaborators?: Map<string, "admin" | "write" | "read">;
+  /** Whether Discussions are on, and their categories and discussions, as the Comments block keeps them. */
+  discussions?: boolean;
+  categories: FakeDiscussionCategory[];
+  threads: FakeDiscussion[];
 }
+
+export interface FakeDiscussionCategory {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+/** A visitor's comment on a page's discussion, or a reply to one. */
+export interface FakeDiscussionComment {
+  id: string;
+  login: string;
+  text: string;
+  createdAt: string;
+  minimized?: string;
+  replies: FakeDiscussionComment[];
+}
+
+/** A page's discussion, as Giscus starts one. */
+export interface FakeDiscussion {
+  id: string;
+  title: string;
+  categoryId: string;
+  locked: boolean;
+  updatedAt: string;
+  comments: FakeDiscussionComment[];
+}
+
+/** The categories GitHub makes as Discussions are turned on. */
+const DEFAULT_CATEGORIES = ["Announcements", "General", "Ideas", "Polls", "Q&A", "Show and tell"];
 
 interface Deployment {
   id: number;
@@ -411,6 +448,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       files?: Record<string, string>;
       private?: boolean;
       collaborators?: Record<string, "admin" | "write" | "read">;
+      /** Turns Discussions on, with GitHub's usual categories. */
+      discussions?: boolean;
     } = {},
   ): FakeCreatedRepo {
     const added: FakeCreatedRepo = {
@@ -422,9 +461,183 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       deployKeys: [],
       secrets: new Map(),
       collaborators: new Map(Object.entries(repoOptions.collaborators ?? {})),
+      categories: [],
+      threads: [],
     };
+    if (repoOptions.discussions) enableDiscussions(added);
     created.set(fullName, added);
     return added;
+  }
+
+  let nextNode = 1;
+  function enableDiscussions(target: FakeCreatedRepo): void {
+    target.discussions = true;
+    if (target.categories.length > 0 || options.noDiscussionCategories) return;
+    target.categories = DEFAULT_CATEGORIES.map((category) => ({
+      id: `DIC_${target.id}_${nextNode++}`,
+      name: category,
+      slug: category
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, ""),
+    }));
+  }
+
+  /** Starts a page's discussion with comments, as Giscus does when visitors write them. */
+  function addDiscussion(
+    fullName: string,
+    discussion: {
+      title: string;
+      category?: string;
+      comments: Array<{ login: string; text: string; replies?: Array<{ login: string; text: string }> }>;
+    },
+  ): FakeDiscussion {
+    const target = created.get(fullName);
+    if (!target?.discussions) throw new Error(`${fullName} has no Discussions.`);
+    const category =
+      target.categories.find((candidate) => candidate.name === (discussion.category ?? "Announcements")) ??
+      target.categories[0];
+    const at = new Date(Date.UTC(2026, 9, 1, 12, nextNode)).toISOString();
+    const made = (comment: {
+      login: string;
+      text: string;
+      replies?: Array<{ login: string; text: string }>;
+    }): FakeDiscussionComment => ({
+      id: `DC_${nextNode++}`,
+      login: comment.login,
+      text: comment.text,
+      createdAt: at,
+      replies: (comment.replies ?? []).map((reply) => made(reply)),
+    });
+    const added: FakeDiscussion = {
+      id: `D_${nextNode++}`,
+      title: discussion.title,
+      categoryId: category?.id ?? "",
+      locked: false,
+      updatedAt: at,
+      comments: discussion.comments.map(made),
+    };
+    target.threads.unshift(added);
+    return added;
+  }
+
+  /** GitHub's GraphQL for Discussions, as the admin panel's comments screen asks it. */
+  function handleDiscussions(
+    body: { query: string; variables?: Record<string, unknown> },
+    principal: Principal,
+  ): Response | undefined {
+    const variables = body.variables ?? {};
+    const query = body.query.trimStart();
+    if (query.startsWith("query") && /discussionCategories|discussions\(/.test(query)) {
+      const fullName = `${variables.owner}/${variables.name}`;
+      const target = created.get(fullName);
+      if (!target || principal.bot || !canSee(principal, fullName)) {
+        return json({
+          data: { repository: null },
+          errors: [{ type: "NOT_FOUND", message: "Could not resolve to a Repository" }],
+        });
+      }
+      if (query.includes("discussionCategories")) {
+        return json({ data: { repository: { discussionCategories: { nodes: target.categories } } } });
+      }
+      const comment = (item: FakeDiscussionComment): Record<string, unknown> => ({
+        id: item.id,
+        url: `https://github.com/${fullName}/discussions#${item.id}`,
+        bodyText: item.text,
+        createdAt: item.createdAt,
+        isMinimized: item.minimized !== undefined,
+        minimizedReason: item.minimized ?? null,
+        author: {
+          login: item.login,
+          url: `https://github.com/${item.login}`,
+          avatarUrl: `https://avatars.example/${item.login}`,
+        },
+        replies: { nodes: item.replies.map(comment) },
+      });
+      const inCategory = target.threads.filter((thread) => thread.categoryId === variables.category);
+      const start = typeof variables.after === "string" ? Number(variables.after) : 0;
+      const more = start + 20 < inCategory.length;
+      return json({
+        data: {
+          repository: {
+            discussions: {
+              pageInfo: { hasNextPage: more, endCursor: more ? String(start + 20) : null },
+              nodes: inCategory.slice(start, start + 20).map((thread) => ({
+                id: thread.id,
+                title: thread.title,
+                url: `https://github.com/${fullName}/discussions/${thread.id}`,
+                locked: thread.locked,
+                updatedAt: thread.updatedAt,
+                comments: { nodes: thread.comments.map(comment) },
+              })),
+            },
+          },
+        },
+      });
+    }
+    const mutation = query.match(
+      /\b(minimizeComment|unminimizeComment|deleteDiscussionComment|lockLockable|unlockLockable)\(/,
+    )?.[1];
+    if (!mutation || !query.startsWith("mutation")) return undefined;
+    const input = (variables.input ?? {}) as Record<string, string>;
+    const id = input.subjectId ?? input.id ?? input.lockableId ?? "";
+    const find = (
+      items: FakeDiscussionComment[],
+    ): { list: FakeDiscussionComment[]; item: FakeDiscussionComment } | undefined => {
+      for (const item of items) {
+        if (item.id === id) return { list: items, item };
+        const inner = find(item.replies);
+        if (inner) return inner;
+      }
+      return undefined;
+    };
+    for (const target of created.values()) {
+      const thread = target.threads.find((candidate) => candidate.id === id);
+      const found = target.threads.map((candidate) => find(candidate.comments)).find(Boolean);
+      if (!thread && !found) continue;
+      // Moderating takes a person who can write to the repository, never an app's token for another.
+      const role = target.collaborators?.get(principal.login);
+      const allowed =
+        !principal.bot &&
+        canSee(principal, target.fullName) &&
+        (target.collaborators?.size ? role === "admin" || role === "write" : true);
+      if (!allowed) {
+        return json({
+          data: null,
+          errors: [{ type: "FORBIDDEN", message: "Resource not accessible by personal access token" }],
+        });
+      }
+      if (thread) thread.locked = mutation === "lockLockable";
+      else if (found) {
+        if (mutation === "deleteDiscussionComment") found.list.splice(found.list.indexOf(found.item), 1);
+        if (mutation === "minimizeComment")
+          found.item.minimized = (input.classifier ?? "").toLowerCase().replace(/_/g, "-");
+        if (mutation === "unminimizeComment") delete found.item.minimized;
+      }
+      return json({ data: { [mutation]: { clientMutationId: null } } });
+    }
+    return json({
+      data: null,
+      errors: [{ type: "NOT_FOUND", message: `Could not resolve to a node with the global id of '${id}'` }],
+    });
+  }
+
+  /** A repository as GitHub's REST API describes it. */
+  function repositoryJson(site: FakeCreatedRepo, principal: Principal) {
+    const [ownerLogin = ""] = site.fullName.split("/");
+    const role = site.collaborators?.get(principal.login);
+    const admin = site.collaborators?.size ? role === "admin" : true;
+    return {
+      id: site.id,
+      node_id: `R_${site.id}`,
+      full_name: site.fullName,
+      html_url: `https://github.com/${site.fullName}`,
+      private: site.private,
+      default_branch: site.repo.defaultBranch,
+      has_discussions: site.discussions === true,
+      owner: { id: accountId(ownerLogin), login: ownerLogin },
+      permissions: { push: admin || role === "write", admin },
+    };
   }
 
   /** Repository creation and the Git data API, for repositories created through the fake. */
@@ -433,11 +646,20 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     if (path === "/user/orgs") return json((options.orgs ?? []).map((org) => ({ login: org })));
     const create = path === "/user/repos" ? login : path.match(/^\/orgs\/([^/]+)\/repos$/)?.[1];
     if (create !== undefined && request.method === "POST") {
-      if (principal.bot || (principal.app && principal.permissions?.administration !== "write")) {
+      if (
+        principal.bot ||
+        principal.repositories ||
+        (principal.app && principal.permissions?.administration !== "write")
+      ) {
         return json({ message: "Resource not accessible by integration" }, 403);
       }
       if (path !== "/user/repos" && !options.orgs?.includes(create)) return json({ message: "Not Found" }, 404);
-      const body = (await request.json()) as { name: string; private?: boolean; description?: string };
+      const body = (await request.json()) as {
+        name: string;
+        private?: boolean;
+        description?: string;
+        has_discussions?: boolean;
+      };
       if (!/^[\w.-]+$/.test(body.name)) return json({ message: "Repository creation failed." }, 422);
       const fullName = `${create}/${body.name}`;
       if (created.has(fullName) || fullName === options.repo) {
@@ -457,11 +679,12 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         rulesets: [],
         deployKeys: [],
         secrets: new Map(),
+        categories: [],
+        threads: [],
       });
-      return json(
-        { id, full_name: fullName, html_url: `https://github.com/${fullName}`, default_branch: repo.defaultBranch },
-        201,
-      );
+      const made = created.get(fullName);
+      if (made && body.has_discussions) enableDiscussions(made);
+      return json(made ? repositoryJson(made, principal) : {}, 201);
     }
 
     const match = path.match(/^\/repos\/([^/]+\/[^/]+)(\/.*)?$/);
@@ -472,15 +695,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     const rest = match[2] ?? "";
     const method = request.method;
 
-    if (rest === "" && method === "GET") {
-      return json({
-        id: site.id,
-        full_name: site.fullName,
-        private: site.private,
-        default_branch: repo.defaultBranch,
-        permissions: { push: true, admin: true },
-      });
-    }
+    if (rest === "" && method === "GET") return json(repositoryJson(site, principal));
     // Reading files as backends do, for repositories tests add, such as a site's code repository.
     const tree = rest.match(/^\/git\/trees\/([0-9a-f]{40})$/);
     if (tree && method === "GET" && repo.commitAt(tree[1] ?? "")) {
@@ -511,12 +726,17 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       return json({ permission: site.collaborators?.get(login) ?? "none", user: { login } });
     }
     if (rest === "" && method === "PATCH") {
-      const body = (await request.json()) as { default_branch?: string };
+      const body = (await request.json()) as { default_branch?: string; has_discussions?: boolean };
+      if (!repositoryJson(site, principal).permissions.admin) {
+        return json({ message: "Must have admin rights to Repository." }, 403);
+      }
       if (body.default_branch) {
         if (!repo.branches.has(body.default_branch)) return json({ message: "Not Found" }, 422);
         repo.defaultBranch = body.default_branch;
       }
-      return json({ full_name: site.fullName, default_branch: repo.defaultBranch });
+      if (body.has_discussions) enableDiscussions(site);
+      if (body.has_discussions === false) site.discussions = false;
+      return json(repositoryJson(site, principal));
     }
     const ref = rest.match(/^\/git\/refs?\/heads\/(.+)$/);
     if (ref && method === "GET") {
@@ -968,6 +1188,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     }
 
     if (path === "/graphql" && request.method === "POST") {
+      const discussions = handleDiscussions(await request.clone().json(), user);
+      if (discussions) return discussions;
       const body = (await request.clone().json()) as { query: string; variables?: { owner?: string; name?: string } };
       if (body.query.trimStart().startsWith("query")) {
         // Reading blobs by id, as `readFiles()` does.
@@ -1426,6 +1648,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     /** Repositories created through the API, or added with `addRepo()`, by `owner/name`. */
     created,
     addRepo,
+    /** Starts a page's discussion in a repository with Discussions, as Giscus does. */
+    addDiscussion,
     /** The site's GitHub Pages settings, which tests can change, such as to issue the certificate. */
     pages,
     /** The repository's collaborators, by login, and invitations waiting to be accepted. */
