@@ -71,6 +71,8 @@ export {
   isCustomLength,
   RADII,
   readBlockStyle,
+  SCREEN_SIZES,
+  type ScreenSize,
   SIDES,
   type Side,
   type Sides,

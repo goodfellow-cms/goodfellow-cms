@@ -41,9 +41,9 @@
                           "props": {
                             "id": "Menu-2",
                             "buttonLabel": "Menu",
-                            "className": "",
+                            "className": "max-lg:hidden",
                             "menu": "main",
-                            "menuButton": "md",
+                            "menuButton": "never",
                             "orientation": "horizontal"
                           }
                         },
@@ -51,7 +51,7 @@
                           "type": "Search",
                           "props": {
                             "id": "Search-3",
-                            "className": "sm:w-64",
+                            "className": "sm:w-64 max-sm:hidden",
                             "label": "Search the documentation",
                             "noResults": "Nothing matches “{query}”.",
                             "placeholder": "Search the docs",
@@ -70,15 +70,37 @@
                             "lightLabel": "Light",
                             "systemLabel": "Follow my computer"
                           }
+                        },
+                        {
+                          "type": "Menu",
+                          "props": {
+                            "id": "Menu-8",
+                            "buttonLabel": "Menu",
+                            "className": "lg:hidden",
+                            "menu": "main",
+                            "menuButton": "always",
+                            "orientation": "horizontal"
+                          }
                         }
                       ],
                       "justify": "start",
-                      "wrap": true
+                      "wrap": false
                     }
                   }
                 ],
                 "justify": "between",
-                "wrap": true
+                "wrap": false
+              }
+            },
+            {
+              "type": "Search",
+              "props": {
+                "id": "Search-9",
+                "className": "max-w-none mt-3 sm:hidden",
+                "label": "Search the documentation",
+                "noResults": "Nothing matches “{query}”.",
+                "placeholder": "Search the docs",
+                "unavailable": "Search works on the published site."
               }
             }
           ],

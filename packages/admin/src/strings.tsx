@@ -699,6 +699,13 @@ export const defaultStrings = {
   "style.allSides": "All sides",
   "style.none": "None",
   "style.radius": "Rounded corners",
+  "style.hiddenOn": "Hide on",
+  "style.hiddenOn.phones": "Phones (narrower than 640px)",
+  "style.hiddenOn.tablets": "Tablets (640px to 1023px)",
+  "style.hiddenOn.computers": "Computers (1024px and wider)",
+  "style.hiddenOnHint":
+    "Choose a preview width above the page to see it as each size of screen does. A block hidden there is still in the Outline, where you can choose it.",
+  "style.hiddenOnAll": "This block is hidden on every size of screen, so visitors never see it.",
   "style.radius.none": "Square",
   "style.radius.sm": "Slightly rounded",
   "style.radius.md": "Rounded",

@@ -29,7 +29,7 @@ Because the admin panel talks to GitHub, GitLab or Bitbucket directly, nothing e
 - **A media library** for images and files.
 - **An AI assistant** that writes into the page, with each editor's own AI service or a free one.
 - **More blocks** from block registries, such as an FAQ or a pricing table, added without a developer.
-- **Each block's look** without code: alignment, text size, colors, space inside and around it and rounded corners, kept as Tailwind classes, with any other CSS classes and custom CSS, shown in the editor straight away, before the site is rebuilt. See [A block's look](/docs/edit-pages#a-blocks-look).
+- **Each block's look** without code: alignment, text size, colors, space inside and around it, rounded corners and the sizes of screen it's hidden on, kept as Tailwind classes, with any other CSS classes and custom CSS, shown in the editor straight away, before the site is rebuilt. See [A block's look](/docs/edit-pages#a-blocks-look).
 - **Search engines and feeds:** a sitemap, structured data so search engines show events and news as such, pages hidden from search engines, link previews, and RSS and Atom feeds of news. See [Search engines and feeds](/docs/search-engines).
 - **Scheduled publishing** of pages and items, shown from a time and hidden after one. See [Scheduled publishing](/docs/scheduling).
 - **Several languages**, with translations linked together, a language switch, and help translating with AI. See [Several languages](/docs/languages).

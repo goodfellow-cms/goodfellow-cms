@@ -685,6 +685,13 @@ export const strings: Strings = {
   "style.allSides": "Todos los lados",
   "style.none": "Ninguno",
   "style.radius": "Esquinas redondeadas",
+  "style.hiddenOn": "Ocultar en",
+  "style.hiddenOn.phones": "Teléfonos (menos de 640 px)",
+  "style.hiddenOn.tablets": "Tabletas (de 640 a 1023 px)",
+  "style.hiddenOn.computers": "Ordenadores (1024 px o más)",
+  "style.hiddenOnHint":
+    "Elige un ancho de vista previa encima de la página para verla como la ve cada tamaño de pantalla. Un bloque oculto ahí sigue en el Esquema, donde puedes elegirlo.",
+  "style.hiddenOnAll": "Este bloque está oculto en todos los tamaños de pantalla, así que los visitantes nunca lo ven.",
   "style.radius.none": "Cuadradas",
   "style.radius.sm": "Ligeramente redondeadas",
   "style.radius.md": "Redondeadas",

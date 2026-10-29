@@ -10,6 +10,7 @@
 import { colorSlug, type SiteSettings, THEME_COLORS } from "@goodfellow-cms/core";
 import type { TextStyle, ViewStyle } from "react-native";
 import { create, type TailwindFn } from "twrnc";
+import { appliedClasses } from "./applied-classes.js";
 import { type NativeTheme, nativeTheme } from "./theme.js";
 
 /** A block's classes as styles: what its box takes, and what its text takes, since text in React Native doesn't inherit. */
@@ -36,10 +37,6 @@ const TEXT_KEYS = new Set<string>([
   "textShadowRadius",
   "textTransform",
 ]);
-
-/** Screen widths of Tailwind's breakpoints, in points, for classes such as `md:p-8`. */
-const SCREENS: Record<string, number> = { sm: 640, md: 768, lg: 1024, xl: 1280, "2xl": 1536 };
-const SCREEN_ORDER = Object.keys(SCREENS);
 
 const made = new Map<string, TailwindFn>();
 
@@ -72,35 +69,6 @@ function tailwindFor(theme: NativeTheme): TailwindFn {
   if (made.size > 16) made.clear();
   made.set(key, tw);
   return tw;
-}
-
-/**
- * The classes that apply on this screen, in the order Tailwind applies them:
- * plain ones, then each breakpoint's from the smallest, then dark ones, which
- * apply only where the site has dark mode and shows it. Other variants, such
- * as `hover:`, have nothing to apply to in an app.
- */
-function appliedClasses(className: string, width: number, dark: boolean): string[] {
-  const tiers: string[][] = [];
-  for (const name of className.split(/\s+/).filter(Boolean)) {
-    const variants = name.split(":");
-    const base = variants.pop() ?? "";
-    let tier = 0;
-    let applies = true;
-    for (const variant of variants) {
-      const screen = SCREEN_ORDER.indexOf(variant);
-      if (screen >= 0) {
-        applies &&= width >= (SCREENS[variant] ?? Number.POSITIVE_INFINITY);
-        tier = Math.max(tier, screen + 1);
-      } else if (variant === "dark") {
-        applies &&= dark;
-        tier = Math.max(tier, SCREEN_ORDER.length + 1);
-      } else applies = false;
-    }
-    if (!applies || !base) continue;
-    tiers[tier] = [...(tiers[tier] ?? []), base];
-  }
-  return tiers.flatMap((tier) => tier ?? []);
 }
 
 /**

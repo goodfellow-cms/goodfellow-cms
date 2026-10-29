@@ -1,8 +1,8 @@
 /**
  * A block's Style field (`classNameField` in `@goodfellow-cms/react`), which
  * Puck's editor shows as controls for its look in place of a box of classes:
- * text alignment, size and color, background, space inside and around it and
- * rounded corners, written into its `className` as Tailwind classes
+ * text alignment, size and color, background, space inside and around it,
+ * rounded corners and the sizes of screen it's hidden on, written into its `className` as Tailwind classes
  * (`withBlockStyle()` in `@goodfellow-cms/core`), with any other classes kept.
  */
 import {
@@ -16,6 +16,8 @@ import {
   MINIMUM_CONTRAST,
   RADII,
   readBlockStyle,
+  SCREEN_SIZES,
+  type ScreenSize,
   SIDES,
   type Side,
   type Sides,
@@ -254,6 +256,46 @@ function ColorChoice({
   );
 }
 
+/** The sizes of screen a block is hidden on, a box for each. */
+function HiddenOnChoice({
+  hiddenOn,
+  readOnly,
+  onChange,
+}: {
+  hiddenOn: readonly ScreenSize[] | undefined;
+  readOnly?: boolean;
+  onChange: (hiddenOn: ScreenSize[] | undefined) => void;
+}) {
+  const t = useStrings();
+  const hidden = new Set(hiddenOn);
+  return (
+    <fieldset className="gfa-style-group">
+      <legend className="gfa-style-label">{t("style.hiddenOn")}</legend>
+      {SCREEN_SIZES.map((size) => (
+        <label key={size} className="gfa-style-check">
+          <input
+            type="checkbox"
+            checked={hidden.has(size)}
+            disabled={readOnly}
+            onChange={(event) => {
+              const next = SCREEN_SIZES.filter((candidate) =>
+                candidate === size ? event.target.checked : hidden.has(candidate),
+              );
+              onChange(next.length > 0 ? next : undefined);
+            }}
+          />
+          {t(`style.hiddenOn.${size}` as StringKey)}
+        </label>
+      ))}
+      {hidden.size > 0 && (
+        <p className="gfa-hint">
+          {t(hidden.size === SCREEN_SIZES.length ? "style.hiddenOnAll" : "style.hiddenOnHint")}
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
 /** Other classes, kept as typed while the box has focus, so a class isn't taken into the controls halfway. */
 function OtherClasses({
   other,
@@ -301,6 +343,7 @@ function StyleControls({
   readOnly,
   label,
   ownAlign,
+  block,
   onChange,
 }: {
   value: unknown;
@@ -309,6 +352,8 @@ function StyleControls({
   label?: string;
   /** Whether the block has an alignment setting of its own, which the style then leaves to it. */
   ownAlign: boolean;
+  /** A block's, rather than the page's, which can't be hidden. */
+  block: boolean;
   onChange: (value: string) => void;
 }) {
   const t = useStrings();
@@ -390,6 +435,13 @@ function StyleControls({
         readOnly={readOnly}
         onChange={(radius) => change("radius", radius)}
       />
+      {(block || style.hiddenOn) && (
+        <HiddenOnChoice
+          hiddenOn={style.hiddenOn}
+          readOnly={readOnly}
+          onChange={(hiddenOn) => change("hiddenOn", hiddenOn)}
+        />
+      )}
       <OtherClasses other={other} readOnly={readOnly} onChange={(next) => onChange(withBlockStyle(next, style))} />
       <button
         type="button"
@@ -408,7 +460,7 @@ type AnyField = Field<any>;
 // biome-ignore lint/suspicious/noExplicitAny: blocks have arbitrary props
 type AnyComponent = ComponentConfig<any>;
 
-function withStyleField(field: AnyField, colors: StyleColors, ownAlign: boolean): AnyField {
+function withStyleField(field: AnyField, colors: StyleColors, ownAlign: boolean, block: boolean): AnyField {
   if (field.type !== "text" || !isStyleField(field)) return field;
   const render: CustomField<string>["render"] = ({ value, onChange, readOnly }) => (
     <StyleControls
@@ -417,29 +469,34 @@ function withStyleField(field: AnyField, colors: StyleColors, ownAlign: boolean)
       readOnly={readOnly}
       label={field.label}
       ownAlign={ownAlign}
+      block={block}
       onChange={onChange}
     />
   );
   return { type: "custom", label: field.label, metadata: field.metadata, render } as AnyField;
 }
 
-function withStyleFieldsIn(fields: Fields | undefined, colors: StyleColors): Fields | undefined {
+function withStyleFieldsIn(fields: Fields | undefined, colors: StyleColors, block: boolean): Fields | undefined {
   if (!fields) return fields;
   const ownAlign = "align" in fields;
   return Object.fromEntries(
-    Object.entries(fields).map(([name, field]) => [name, withStyleField(field as AnyField, colors, ownAlign)]),
+    Object.entries(fields).map(([name, field]) => [name, withStyleField(field as AnyField, colors, ownAlign, block)]),
   ) as Fields;
 }
 
-function withStyleComponent<T extends AnyComponent | Config["root"]>(component: T, colors: StyleColors): T {
+function withStyleComponent<T extends AnyComponent | Config["root"]>(
+  component: T,
+  colors: StyleColors,
+  block: boolean,
+): T {
   if (!component) return component;
   const { resolveFields } = component as AnyComponent;
   return {
     ...component,
-    ...(component.fields && { fields: withStyleFieldsIn(component.fields as Fields, colors) }),
+    ...(component.fields && { fields: withStyleFieldsIn(component.fields as Fields, colors, block) }),
     ...(resolveFields && {
       resolveFields: async (...args: Parameters<NonNullable<AnyComponent["resolveFields"]>>) =>
-        withStyleFieldsIn(await resolveFields(...args), colors) as Fields,
+        withStyleFieldsIn(await resolveFields(...args), colors, block) as Fields,
     }),
   };
 }
@@ -447,7 +504,11 @@ function withStyleComponent<T extends AnyComponent | Config["root"]>(component: 
 /** The config with every block's Style field, and the page's, drawn as a style's controls. */
 export function withStyleFields(config: Config, colors: StyleColors): Config {
   const components = Object.fromEntries(
-    Object.entries(config.components).map(([name, component]) => [name, withStyleComponent(component, colors)]),
+    Object.entries(config.components).map(([name, component]) => [name, withStyleComponent(component, colors, true)]),
   );
-  return { ...config, components, ...(config.root && { root: withStyleComponent(config.root, colors) }) } as Config;
+  return {
+    ...config,
+    components,
+    ...(config.root && { root: withStyleComponent(config.root, colors, false) }),
+  } as Config;
 }
