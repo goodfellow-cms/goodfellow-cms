@@ -37,6 +37,8 @@ import { type GitLabTasksOptions, gitlabTasks } from "./tasks.js";
 import { gitlabCodeUpdates, gitlabUpdates } from "./updates.js";
 
 const PAGE_SIZE = 100;
+/** How many pages of drafts' branches and merge requests are read: a thousand of each. */
+const REVIEW_PAGES = 10;
 
 /** How many files one GraphQL request reads. */
 const GRAPHQL_BATCH = 50;
@@ -233,8 +235,8 @@ export class GitLabBackend implements GitBackend {
         return ((await response.json()) as { id: string }).id;
       },
       listBranches: async (prefix) => {
-        const query = new URLSearchParams({ search: `^${prefix}`, per_page: "100" });
-        const branches = await gitlabJson<Array<{ name: string }>>(this.api, this.repo(`/branches?${query}`));
+        const query = new URLSearchParams({ search: `^${prefix}` });
+        const branches = await this.everyPage<{ name: string }>(this.repo(`/branches?${query}`));
         return branches.map((found) => found.name).filter((name) => name.startsWith(prefix));
       },
       openReview: async ({ branch, title, description, reviewers = [] }) => {
@@ -256,10 +258,8 @@ export class GitLabBackend implements GitBackend {
         return { url: review.web_url };
       },
       listReviews: async (prefix) => {
-        const query = new URLSearchParams({ state: "opened", per_page: "100" });
-        const requests = await gitlabJson<Array<{ source_branch: string; web_url: string; title: string }>>(
-          this.api,
-          `${project}/merge_requests?${query}`,
+        const requests = await this.everyPage<{ source_branch: string; web_url: string; title: string }>(
+          `${project}/merge_requests?state=opened`,
         );
         return requests
           .filter((request) => request.source_branch.startsWith(prefix))
@@ -294,6 +294,17 @@ export class GitLabBackend implements GitBackend {
       this.repo(`/branches/${encodeURIComponent(this.branch)}`),
     );
     return branch.commit.id;
+  }
+
+  /** Every item of one of GitLab's lists, page by page, up to `REVIEW_PAGES` pages. */
+  private async everyPage<T>(path: string): Promise<T[]> {
+    const items: T[] = [];
+    for (let page = 1; page <= REVIEW_PAGES; page++) {
+      const found = await gitlabJson<T[]>(this.api, `${path}&per_page=${PAGE_SIZE}&page=${page}`);
+      items.push(...found);
+      if (found.length < PAGE_SIZE) break;
+    }
+    return items;
   }
 
   /** Every file in one folder at a commit, page by page. */

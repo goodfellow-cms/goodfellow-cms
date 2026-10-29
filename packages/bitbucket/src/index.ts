@@ -97,6 +97,12 @@ function randomState(): string {
 
 /** Sign-in and storage for a site whose repository is on Bitbucket Cloud. */
 export function bitbucket(options: BitbucketOptions): GitHost {
+  if (!/^[\w.-]+\/[\w.-]+$/.test(options.repo)) {
+    throw new Error(`bitbucket({ repo }) must look like "workspace/repository" (got "${options.repo}").`);
+  }
+  if (options.code !== undefined && !/^[\w.-]+\/[\w.-]+$/.test(options.code)) {
+    throw new Error(`bitbucket({ code }) must look like "workspace/repository" (got "${options.code}").`);
+  }
   // Many changes in a row, such as Claude's, can reach the host's limits: wait for them rather than fail.
   const fetcher: typeof fetch = withRateLimits(options.fetch ?? ((input, init) => globalThis.fetch(input, init)), {
     host: "Bitbucket",
