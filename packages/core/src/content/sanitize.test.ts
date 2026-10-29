@@ -17,4 +17,10 @@ describe("sanitizeHtml", () => {
     expect(sanitizeHtml('<div style="position:fixed;inset:0">Fake</div>')).toBe("<div>Fake</div>");
     expect(sanitizeHtml('<form action="https://example.org"><input name="password"></form>')).toBe("");
   });
+
+  it("keeps ids, but none of the ones Goodfellow's own scripts look up", () => {
+    expect(sanitizeHtml('<h2 id="hours">Hours</h2><div id="gf-consent">Fake</div>')).toBe(
+      '<h2 id="hours">Hours</h2><div>Fake</div>',
+    );
+  });
 });
