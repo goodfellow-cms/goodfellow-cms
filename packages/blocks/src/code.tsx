@@ -8,16 +8,14 @@ import { CODE_PARTS } from "./parts.js";
 
 /**
  * Highlighted code, as a `<pre>` from `highlightCode()` (or plain, escaped by
- * the caller), with a button that copies it. Shared by the Code block and code in Markdown.
+ * the caller), with a button that copies its text. Shared by the Code block and code in Markdown.
  */
 export function CodeView({
-  code,
   html,
   title,
   copyLabel,
   className,
 }: {
-  code: string;
   html: string;
   title?: string;
   copyLabel?: string;
@@ -45,7 +43,6 @@ export function CodeView({
       />
       {copyLabel && (
         <CopyButton
-          code={code}
           label={copyLabel}
           className={part(
             "gf-code-copy",
@@ -97,14 +94,8 @@ export const Code: ComponentConfig<CodeProps> = withParts(
       const shiki = await loadHighlighter(style);
       return { props: { ...props, html: highlightCode(shiki, props.code, props.language, props.colors, style) } };
     },
-    render: ({ code, html, title, copyLabel, className }) => (
-      <CodeView
-        code={code}
-        html={html ?? ""}
-        title={title || undefined}
-        copyLabel={copyLabel || undefined}
-        className={className}
-      />
+    render: ({ html, title, copyLabel, className }) => (
+      <CodeView html={html ?? ""} title={title || undefined} copyLabel={copyLabel || undefined} className={className} />
     ),
   },
   CODE_PARTS,

@@ -1,5 +1,6 @@
 import {
   absoluteUrl,
+  blockScriptsFor,
   colorSchemeMeta,
   colorSchemeScript,
   consentScript,
@@ -154,6 +155,13 @@ export function createPageRenderer(config: GoodfellowConfig) {
     const { prelude } = await prerender(document, { progressiveChunkSize: WHOLE_PAGE });
     // React writes the doctype itself when the root element is <html>.
     let html = fillSlots(await new Response(prelude).text());
+    // What the built-in blocks on the page need in the browser (copying code, the Dark mode switch, search),
+    // each a small script of its own, so a page with only built-in blocks loads no React.
+    const scripts = blockScriptsFor(html);
+    if (scripts.length > 0) {
+      const end = html.lastIndexOf("</body>");
+      html = `${html.slice(0, end)}${scripts.map((script) => `<script>${script}</script>`).join("")}${html.slice(end)}`;
+    }
     if (assets.islands && html.includes(`<${ISLAND_TAG} `)) {
       const end = html.lastIndexOf("</body>");
       html = `${html.slice(0, end)}${islandScripts(prepared.site, assets.islands)}${html.slice(end)}`;

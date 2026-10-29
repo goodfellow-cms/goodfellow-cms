@@ -25,6 +25,12 @@ describe("applyBasePath", () => {
     );
   });
 
+  it("gives the Search box the site's address, which its script loads the index from", () => {
+    expect(applyBasePath('<search data-gf-base="/" data-gf-search-box=""></search>', "/repo/")).toBe(
+      '<search data-gf-base="/repo/" data-gf-search-box=""></search>',
+    );
+  });
+
   it("prefixes srcsets as React spells them, and preloads' image srcsets", () => {
     expect(
       applyBasePath(

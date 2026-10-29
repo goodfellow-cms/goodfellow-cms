@@ -37,8 +37,7 @@ export const Search: ComponentConfig<SearchProps> = withParts(
     render: ({ className, label, placeholder, noResults, unavailable }) => {
       const part = useParts();
       return (
-        // The attribute tells builds to index the site; the box itself runs in the browser.
-        // Only the text goes to the box: Puck's own props include functions, which Next.js can't pass to the browser.
+        // The attribute tells builds to index the site; the box works in the browser with `searchScript()`.
         <div className={part("gf-search", "w-full max-w-sm", className)} {...{ [SEARCH_ATTRIBUTE]: "" }}>
           <SearchBox label={label} placeholder={placeholder} noResults={noResults} unavailable={unavailable} />
         </div>

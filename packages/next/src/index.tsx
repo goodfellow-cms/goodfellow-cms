@@ -2,10 +2,12 @@ import {
   type AdminSite,
   absoluteUrl,
   adminSiteForCopy,
+  BLOCK_SCRIPTS,
   colorSchemeMeta,
   colorSchemeScript,
   consentScript,
   contentForPage,
+  DARK_MODE_ATTRIBUTE,
   demoContent,
   describedForCopy,
   feedLinks,
@@ -148,6 +150,27 @@ function ConsentAsk({ content }: { content: SiteContent }) {
   if (!asks(content)) return null;
   // biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own script, which asks visitors before loading other sites' content
   return <script dangerouslySetInnerHTML={{ __html: consentScript() }} />;
+}
+
+/**
+ * What the built-in blocks need in the browser (copying code, the Dark mode
+ * switch, search), each a small script that works on what navigations add.
+ * `goodfellow build` adds each only to pages that use it; a layout can't know
+ * the page, so it has them all, but the Dark mode switch's only where the
+ * site has dark mode, since it shows nothing otherwise.
+ */
+function BlockScripts({ content }: { content: SiteContent }) {
+  const scripts = BLOCK_SCRIPTS.filter(
+    ({ attribute }) => attribute !== DARK_MODE_ATTRIBUTE || content.settings.theme.darkMode,
+  );
+  return (
+    <>
+      {scripts.map(({ attribute, script }) => (
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own scripts, for its built-in blocks
+        <script key={attribute} dangerouslySetInnerHTML={{ __html: script() }} />
+      ))}
+    </>
+  );
 }
 
 function toAbsolute(siteUrl: string | undefined, url: string | undefined): string | undefined {
@@ -341,6 +364,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
           <CurrentMenuLinks basePath={basePath()} />
           <BodyCode code={content.code?.body} held={heldCode(content.settings.consent, "body")} />
           <ConsentAsk content={content} />
+          <BlockScripts content={content} />
         </>
       );
     },
@@ -403,6 +427,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
           />
           <BodyCode code={content.code?.body} held={heldCode(content.settings.consent, "body")} />
           <ConsentAsk content={content} />
+          <BlockScripts content={content} />
         </>
       );
     },
