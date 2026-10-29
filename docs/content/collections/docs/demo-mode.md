@@ -6,7 +6,7 @@ section: owners
 order: 3
 ---
 
-To let anyone try the admin panel without signing in, for example from a product page or in a training session, set `demo: true` in `goodfellow.config.tsx`. [Goodfellow's own demo](https://goodfellow-cms.github.io/goodfellow-demo/admin/) is one, made from the parish example.
+To let anyone try the admin panel without signing in, for example from a product page or in a training session, set `demo: true` in `goodfellow.config.tsx`. [Goodfellow's own demo](https://goodfellow-cms.github.io/goodfellow-cms/demo/admin/) is one: the parish example as `npm create goodfellow` makes it, with the recommended blocks and the [Gutenberg plugin](https://github.com/goodfellow-cms/goodfellow-plugin-gutenberg), which edits pages in WordPress's block editor, rebuilt with the documentation every night and with each release.
 
 ```tsx
 export default defineConfig({ blocks, demo: true });

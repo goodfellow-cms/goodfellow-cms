@@ -24,6 +24,8 @@ When a change to Goodfellow changes what users see or do, update these pages in 
 
 Both `pnpm dev` and `pnpm build` first run `scripts/starters.mjs`, which packs the starters for the [setup page](content/pages/new-site.json) into `public/starters/`. Locally they have no `package-lock.json` files, so the page warns that sites it creates won't build; the published site has them (see `.github/workflows/docs.yml`). To try creating a site for real, set `GOODFELLOW_STARTER_LOCKFILES=1`, which needs the packages' versions to be on npm.
 
+`scripts/demo.mjs` builds [the demo](https://goodfellow-cms.github.io/goodfellow-cms/demo/admin/), which `docs.yml` publishes at `/demo/` beside the docs: the parish example as create-goodfellow makes it, with the recommended blocks and the Gutenberg plugin, in demo mode, from the packages on npm. Try it with `node scripts/demo.mjs /demo/ dist/demo` after `pnpm build`.
+
 ## Online
 
 The site is at <https://goodfellow-cms.github.io/goodfellow-cms/>, published with GitHub Pages by `.github/workflows/docs.yml`. It describes the latest release: the release workflow deploys it after publishing a new version to npm, from that version's commit, so changes to these pages go online with the next release. To publish a fix sooner, run **Deploy docs** in the repository's Actions tab with `master` as the version. See [RELEASING.md](../RELEASING.md).
