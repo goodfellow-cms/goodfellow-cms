@@ -24,7 +24,8 @@ function heldBack(settings: SiteContextValue["settings"] | undefined): ConsentSe
 /** What's shown in a held-back player's place: where it's from, and a button that agrees and shows it. */
 function Placeholder({ consent, src }: { consent: ConsentSettings; src: string }) {
   return (
-    <div className="gf-consent-placeholder" {...{ [CONSENT_PLACEHOLDER_ATTRIBUTE]: "" }}>
+    // The consent script hides it, perhaps before Next.js's React takes over the page.
+    <div className="gf-consent-placeholder" {...{ [CONSENT_PLACEHOLDER_ATTRIBUTE]: "" }} suppressHydrationWarning>
       <p>{consent.held.replaceAll("{site}", consentSource(src))}</p>
       <button type="button" {...{ [CONSENT_ACCEPT_ATTRIBUTE]: "" }}>
         {consent.show}
@@ -49,7 +50,8 @@ export function createConsent(useSite: () => SiteContextValue) {
     );
     const shown = (
       <>
-        <iframe {...held} />
+        {/* The consent script gives it its address in place, perhaps before Next.js's React takes over the page. */}
+        <iframe {...held} suppressHydrationWarning />
         <Placeholder consent={consent} src={props.src} />
       </>
     );
@@ -66,8 +68,12 @@ export function createConsent(useSite: () => SiteContextValue) {
     if (!consent) return <script src={src} async defer />;
     return (
       <>
-        <script {...{ [CONSENT_SRC_ATTRIBUTE]: src }} />
-        <div className="gf-consent-placeholder gf-consent-inline" {...{ [CONSENT_PLACEHOLDER_ATTRIBUTE]: "" }}>
+        <script {...{ [CONSENT_SRC_ATTRIBUTE]: src }} suppressHydrationWarning />
+        <div
+          className="gf-consent-placeholder gf-consent-inline"
+          {...{ [CONSENT_PLACEHOLDER_ATTRIBUTE]: "" }}
+          suppressHydrationWarning
+        >
           <p>{message ?? consent.held.replaceAll("{site}", consentSource(src))}</p>
           <button type="button" {...{ [CONSENT_ACCEPT_ATTRIBUTE]: "" }}>
             {consent.show}
