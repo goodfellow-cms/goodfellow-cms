@@ -288,6 +288,7 @@ export {
 } from "./content/credits.js";
 export {
   checkEditedData,
+  checkPuckData,
   type EditedData,
   type EditedDataProblem,
   MAX_EDITED_DATA,

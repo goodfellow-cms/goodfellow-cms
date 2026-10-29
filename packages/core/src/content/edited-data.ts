@@ -294,3 +294,59 @@ export function checkEditedData(
     data: { root: { props: rootProps }, content, ...(opened.zones && { zones: opened.zones }) } as Data,
   };
 }
+
+/**
+ * Checks what Puck's frame gives back before it's published. Puck there runs
+ * with the site's blocks' code, so its values are trusted as they are, but not
+ * its shape: only plain JSON is kept, and every block, in slots and drop zones
+ * too, must be one of the site's blocks, template-only ones only in a
+ * collection's template.
+ */
+export function checkPuckData(
+  edited: unknown,
+  options: { description: Pick<SiteDescription, "blocks">; kind: string },
+): EditedData {
+  const { description, kind } = options;
+  let text: string | undefined;
+  try {
+    text = JSON.stringify(edited);
+  } catch {
+    text = undefined;
+  }
+  if (text === undefined) return { ok: false, problems: [{ path: "", message: "isn't data a page can keep" }] };
+  if (text.length > MAX_EDITED_DATA) return { ok: false, problems: [{ path: "", message: "is too long to publish" }] };
+  const data = JSON.parse(text) as Json;
+  if (!isObject(data) || !Array.isArray(data.content) || (data.root !== undefined && !isObject(data.root))) {
+    return { ok: false, problems: [{ path: "", message: "isn't a page's data" }] };
+  }
+  const problems: EditedDataProblem[] = [];
+  const visit = (list: Json, path: string) => {
+    if (!Array.isArray(list)) {
+      problems.push({ path, message: "should be a list of blocks" });
+      return;
+    }
+    list.forEach((item, index) => {
+      const at = `${path}[${index}]`;
+      if (!isObject(item) || typeof item.type !== "string" || !isObject(item.props)) {
+        problems.push({ path: at, message: "isn't a block" });
+        return;
+      }
+      const block = Object.hasOwn(description.blocks, item.type) ? description.blocks[item.type] : undefined;
+      if (!block || (block.templateOnly && kind !== "template")) {
+        problems.push({ path: at, message: `uses "${item.type}", which isn't one of the site's blocks here` });
+        return;
+      }
+      const fields = block.fields as Record<string, FieldJson>;
+      for (const [name, field] of Object.entries(fields)) {
+        const value = item.props[name];
+        if (field?.type === "slot" && value !== undefined) visit(value, `${at}.props.${name}`);
+      }
+    });
+  };
+  visit(data.content, "content");
+  if (data.zones !== undefined) {
+    if (!isObject(data.zones)) problems.push({ path: "zones", message: "should be the page's drop zones" });
+    else for (const [zone, list] of Object.entries(data.zones)) visit(list, `zones.${zone}`);
+  }
+  return problems.length > 0 ? { ok: false, problems } : { ok: true, data: data as unknown as Data };
+}

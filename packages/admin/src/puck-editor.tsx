@@ -7,6 +7,7 @@
 import {
   type Collection,
   checkEditedData,
+  checkPuckData,
   describedConfig,
   type EditedDataProblem,
   type FileChange,
@@ -330,7 +331,18 @@ export function PuckEditor({
     } else {
       if (!client) return;
       // As it is when Publish is pressed, even if the frame hasn't said so yet.
-      next = await client.call("editor.data").catch(() => state.data);
+      const edited = await client.call("editor.data").catch(() => state.data);
+      // The frame runs the site's blocks' code, so what it hands back is checked as data before it's published.
+      const checked = checkPuckData(edited, { description: site.description, kind });
+      if (!checked.ok) {
+        setStatus({
+          type: "invalid",
+          message: t("editor.invalid"),
+          details: checked.problems.map((problem) => `${problem.path}: ${problem.message}`).join("\n"),
+        });
+        return;
+      }
+      next = checked.data;
     }
     const problem = validate?.(next);
     if (problem) {

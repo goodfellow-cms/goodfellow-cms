@@ -22,9 +22,16 @@ export function mediaUrl(path: string): string {
 /** `/media/photo.jpg` → `public/media/photo.jpg`, or `undefined` for addresses outside the media folder. */
 export function mediaPath(url: string): string | undefined {
   if (!url.startsWith(MEDIA_URL_PREFIX)) return undefined;
-  const rest = url.slice(MEDIA_URL_PREFIX.length).split(/[?#]/)[0] ?? "";
-  if (!rest || rest.split("/").some((part) => part === "" || part === "." || part === "..")) return undefined;
-  return `${MEDIA_DIR}/${decodeURIComponent(rest)}`;
+  let rest: string;
+  try {
+    // Checked as decoded, since `%2e%2e` is `..` once it's a file's name.
+    rest = decodeURIComponent(url.slice(MEDIA_URL_PREFIX.length).split(/[?#]/)[0] ?? "");
+  } catch {
+    // A `%` that starts no escape, as in `/media/100%.jpg`.
+    return undefined;
+  }
+  if (!rest || rest.split(/[/\\]/).some((part) => part === "" || part === "." || part === "..")) return undefined;
+  return `${MEDIA_DIR}/${rest}`;
 }
 
 /** A file size in words: `2.4 MB`. */
