@@ -139,6 +139,9 @@ export const strings: Strings = {
   "publish.conflict":
     "Otra persona cambió el sitio desde que abriste esta página, así que tus cambios no se publicaron. Recarga para ver sus cambios y vuelve a hacer los tuyos.",
   "publish.error": "No se pudieron publicar tus cambios. Comprueba tu conexión e inténtalo de nuevo.",
+  "publish.reloaded":
+    "Esta es la página tal como la dejó la otra persona. Vuelve a hacer tus cambios o recupera los tuyos para publicarlos encima de los suyos.",
+  "publish.putMineBack": "Recuperar mis cambios",
   "publish.invalid": "Corrige los problemas marcados antes de publicar.",
   "draft.label": "Borrador",
   "draft.add": "Añadir al borrador",
