@@ -59,6 +59,10 @@ The [site checks](/docs/publishing#site-checks) suggest translating pages and it
 - **Search engines** are told each page's translations with `hreflang` links, and the sitemap lists them, so they show people the page in their own language. Events and stories say their language in the details search engines read. All of these need the Site address.
 - **Feeds and calendars** come in each language that has items, under its code: `/es/feeds/news.rss`, `/es/calendars/events.ics`.
 
+## The admin panel's own language
+
+The admin panel speaks English or Spanish, whichever each editor's browser asks for first, or chooses with the language menu at the top right. That's each editor's own, kept in their browser, and has nothing to do with the site's languages, so a Spanish-speaking editor can work on the English pages, and the other way round.
+
 ## For developers
 
 What the languages are and what translates what is all in [content files](/docs/content-files):

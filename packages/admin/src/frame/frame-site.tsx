@@ -9,6 +9,7 @@ import { adminSite, createPuckConfig } from "@goodfellow-cms/react";
 import type { ComponentConfig, Config } from "@puckeditor/core";
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef } from "react";
 import { AdminContext, type AdminContextValue } from "../admin-context.js";
+import { EditorTextContext } from "../editor-text.js";
 import { mediaUrl } from "../media.js";
 import { MediaChoiceContext } from "../media-library.js";
 import { createMediaPreviews, type MediaPreviews } from "../media-previews.js";
@@ -161,15 +162,18 @@ export function FrameProviders({
       client.call("media.choose", { kind, value }),
     [client],
   );
+  const text = useMemo(() => ({ puck: init.puck ?? {}, labels: init.labels ?? {} }), [init.puck, init.labels]);
   return (
     <StringsProvider strings={init.strings}>
-      <AdminClientContext.Provider value={client}>
-        <FrameCodeContext.Provider value={code}>
-          <AdminContext.Provider value={admin}>
-            <MediaChoiceContext.Provider value={chooseMedia}>{children}</MediaChoiceContext.Provider>
-          </AdminContext.Provider>
-        </FrameCodeContext.Provider>
-      </AdminClientContext.Provider>
+      <EditorTextContext.Provider value={text}>
+        <AdminClientContext.Provider value={client}>
+          <FrameCodeContext.Provider value={code}>
+            <AdminContext.Provider value={admin}>
+              <MediaChoiceContext.Provider value={chooseMedia}>{children}</MediaChoiceContext.Provider>
+            </AdminContext.Provider>
+          </FrameCodeContext.Provider>
+        </AdminClientContext.Provider>
+      </EditorTextContext.Provider>
     </StringsProvider>
   );
 }

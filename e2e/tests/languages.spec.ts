@@ -117,7 +117,7 @@ test("shows each page in its language, with links to its translations", async ({
 test("gives each language its own menus", async ({ page }) => {
   addSpanish();
   await page.goto("/admin#/settings/menus");
-  await page.getByLabel("Language").selectOption("es");
+  await page.getByLabel("Language", { exact: true }).selectOption("es");
   await page.getByLabel("Español has menus of its own").check();
   await page.getByRole("tab", { name: "main" }).click();
   await page.getByLabel("Label").first().fill("Inicio");

@@ -64,6 +64,7 @@ The admin panel's own page, which signs editors in and publishes, never runs a b
 - **Can't fetch anything**, or store anything in the browser: the frame's Content Security Policy refuses requests, and a sandboxed page has no storage. Work that needs the network belongs in `resolveData` when the site is built, as the Calendar block's feeds do, or in a Client Component, which runs on the live site's pages as usual.
 - **Shares the page with Puck's controls.** The site's CSS is kept to the canvas, and its media queries on the page's width become container queries on the canvas's, so the editor's **Phone** and **Tablet** buttons show the layout at those widths. Viewport units, such as `100vh`, still measure the editor's frame.
 - **Runs only the site's own scripts:** a block can't load a script from another address in the editor. On the live site, nothing changes.
+- **Has its labels translated** where the editor uses the admin panel in another language, such as Spanish: a block's name, group, settings' labels, choices and placeholders are looked up by their English wording in the language's table of labels, which has the built-in blocks' and the page settings'. A block of your own whose labels are worded the same way, such as "Heading" or "Space above and below", is translated too; anything else stays as you wrote it. Only what the editor shows changes: props, choices' values and what blocks render don't.
 
 ## Blocks for collections
 

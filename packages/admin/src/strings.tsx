@@ -811,6 +811,7 @@ export const defaultStrings = {
 
   "settings.title": "Site Settings",
   "appearance.darkMode": "Dark mode",
+  "adminLanguage.label": "Language of the admin panel",
   "settings.tab.general": "General",
   "settings.tab.languages": "Languages",
   "settings.tab.theme": "Colors & fonts",

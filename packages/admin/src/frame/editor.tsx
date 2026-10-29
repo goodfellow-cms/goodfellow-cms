@@ -43,6 +43,7 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "../admin-context.js";
 import { storedData } from "../changes.js";
+import { useEditorText } from "../editor-text.js";
 import { MediaChooser } from "../media-library.js";
 import { showMediaInPreview } from "../media-previews.js";
 import { SETTINGS_SECTIONS } from "../router.js";
@@ -54,6 +55,7 @@ import { useCanvasStyles } from "./canvas-styles.js";
 import type { Channel } from "./channel.js";
 import { entryConfig } from "./entry-fields.js";
 import { useAdminClient, useFrameCode } from "./frame-site.js";
+import { withLabels } from "./labels.js";
 import { type ShownSettings, shownSettings } from "./page-settings.js";
 import type { EditorChange, EditorOpen, EditorOpened, EditorState } from "./protocol.js";
 import { SiteFrame } from "./site-frame.js";
@@ -336,22 +338,27 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
     [content, loaded, language, path, collection, view, languages, adminLink, callPlugin],
   );
   const entry = kind === "entry" && collection && open.entry ? findEntry(loaded, collection.id, open.entry) : undefined;
+  // Blocks' labels in the admin panel's language, which the block search and the AI assistant see too.
+  const { puck: dictionary, labels } = useEditorText();
   const config = useMemo(() => {
     if (kind === "entry") {
       if (!collection || !entry) throw new Error("The item isn't in the site.");
-      return entryConfig(collection, entry.entry, content, { templateConfig, layoutConfig });
+      return withLabels(entryConfig(collection, entry.entry, content, { templateConfig, layoutConfig }), labels);
     }
-    return withTableFields(
-      canvasConfig(
-        kind,
-        kind === "page" ? pageConfig : kind === "template" ? templateConfig : layoutConfig,
-        layoutConfig,
-        content.header.data as Data,
-        content.footer.data as Data,
-        site,
+    return withLabels(
+      withTableFields(
+        canvasConfig(
+          kind,
+          kind === "page" ? pageConfig : kind === "template" ? templateConfig : layoutConfig,
+          layoutConfig,
+          content.header.data as Data,
+          content.footer.data as Data,
+          site,
+        ),
       ),
+      labels,
     );
-  }, [kind, collection, entry, pageConfig, templateConfig, layoutConfig, content, site]);
+  }, [kind, collection, entry, pageConfig, templateConfig, layoutConfig, content, site, labels]);
 
   // Described with Style fields as the text they hold, which the AI assistant fills in.
   const described = useMemo(() => describeConfig(config), [config]);
@@ -408,6 +415,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
           data={initialData}
           metadata={siteMetadata(site)}
           headerTitle={title}
+          dictionary={dictionary}
           height="100%"
           iframe={{ enabled: false }}
           ui={ui}
