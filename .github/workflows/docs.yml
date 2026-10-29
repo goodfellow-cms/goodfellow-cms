@@ -1,8 +1,10 @@
-# Builds the documentation site (docs/) and publishes it with GitHub Pages. The
-# release workflow runs it after each release, so the docs describe the latest
-# version on npm. To publish a fix to the docs between releases, run it from the
-# Actions tab with "master" as the version. In the repository's Settings → Pages,
-# "Source" must be "GitHub Actions". See RELEASING.md.
+# Builds the documentation site (docs/) and the demo (docs/scripts/demo.mjs, at
+# /demo/) and publishes them with GitHub Pages. The release workflow runs it after
+# each release, so the docs describe the latest version on npm, and it runs every
+# night from the latest release, so the demo's dates stay current. To publish a fix
+# to the docs between releases, run it from the Actions tab with "master" as the
+# version. In the repository's Settings → Pages, "Source" must be "GitHub Actions".
+# See RELEASING.md.
 name: Deploy docs
 
 on:
@@ -18,6 +20,8 @@ on:
         description: The version to build the docs from, such as v0.2.0 or master. Leave it empty for the latest release.
         type: string
         required: false
+  schedule:
+    - cron: "23 7 * * *"
 
 permissions:
   contents: read
@@ -69,6 +73,14 @@ jobs:
       - run: pnpm --filter @goodfellow-cms/docs exec goodfellow build --base "$BASE_PATH/"
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
+      # The demo: the parish example as this release's create-goodfellow makes it, with the recommended blocks
+      # and the Gutenberg plugin, from npm. Releases from before it don't have it.
+      - if: hashFiles('docs/scripts/demo.mjs') != ''
+        run: node scripts/demo.mjs "$BASE_PATH/demo/" dist/demo
+        working-directory: docs
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          GOODFELLOW_SITE_URL: ${{ steps.pages.outputs.base_url }}/demo
       # The Claude Desktop extension, which the Work with Claude page links to. Releases from before it don't have it.
       - if: hashFiles('packages/mcp/scripts/pack-extension.mjs') != ''
         run: |
