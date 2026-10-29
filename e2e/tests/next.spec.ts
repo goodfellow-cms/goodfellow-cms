@@ -203,6 +203,64 @@ test("adds the site's own code to every page once, kept when moving between page
   expect(await page.evaluate(() => (window as { bodyRan?: number }).bodyRan)).toBe(1);
 });
 
+test("loads what a site that asks held back once, for a visitor who agreed before, without upsetting React", async ({
+  page,
+}) => {
+  const settingsFile = join(nextSite, "content/site.json");
+  const settings = JSON.parse(readFileSync(settingsFile, "utf8"));
+  writeFileSync(settingsFile, `${JSON.stringify({ ...settings, consent: {} }, null, 2)}\n`);
+  writeFileSync(
+    join(nextSite, "content/pages/watch.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        data: {
+          root: { props: { title: "Watch" } },
+          content: [
+            { type: "Video", props: { id: "Video-1", source: "youtube", youtube: "https://youtu.be/dQw4w9WgXcQ" } },
+          ],
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  mkdirSync(join(nextSite, "content/code"), { recursive: true });
+  writeFileSync(
+    join(nextSite, "content/code/head.html"),
+    "<script>window.headRan = (window.headRan || 0) + 1;</script>\n",
+  );
+  writeFileSync(
+    join(nextSite, "content/code/body.html"),
+    '<p id="widget">Widget</p><script>window.bodyRan = (window.bodyRan || 0) + 1;</script>\n',
+  );
+  const loaded: string[] = [];
+  await page.route("https://www.youtube-nocookie.com/**", (route) => {
+    loaded.push(route.request().url());
+    return route.fulfill({ contentType: "text/html", body: "<p>Player</p>" });
+  });
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.addInitScript(() => localStorage.setItem("goodfellow-consent", "yes"));
+
+  await page.goto(`${BASE}/watch/`);
+  await expect(page.locator("iframe[title='Video']")).toHaveAttribute("src", /youtube-nocookie/);
+  await expect(page.getByText("Widget")).toBeVisible();
+  await expect(page.locator("[data-gf-consent-placeholder]")).toBeHidden();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  // Give React time to take over the page, which would draw it again, and load it all again, if it disagreed.
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(1000);
+  expect(await page.evaluate(() => (window as { headRan?: number }).headRan)).toBe(1);
+  expect(await page.evaluate(() => (window as { bodyRan?: number }).bodyRan)).toBe(1);
+  await expect(page.locator("#widget")).toHaveCount(1);
+  expect(loaded).toHaveLength(1);
+  expect(errors.filter((text) => /hydrat|#418|#425|didn't match/i.test(text))).toEqual([]);
+});
+
 test("shows the header and footer in each page's language, as visitors move between languages", async ({ page }) => {
   const write = (path: string, value: unknown) => {
     mkdirSync(join(nextSite, path, ".."), { recursive: true });

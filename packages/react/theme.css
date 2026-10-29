@@ -165,6 +165,12 @@
     position: relative;
   }
 
+  /* Hidden until the consent script shows them, whatever else styles them. */
+  .gf-consent[hidden],
+  .gf-consent-placeholder[hidden] {
+    display: none;
+  }
+
   h1,
   h2,
   h3,

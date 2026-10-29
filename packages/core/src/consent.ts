@@ -19,6 +19,9 @@ export const CONSENT_PLACEHOLDER_ATTRIBUTE = "data-gf-consent-placeholder";
 /** On a `<template>` of the site's custom code: `head` or `body`, where it goes once the visitor agrees. */
 export const CONSENT_CODE_ATTRIBUTE = "data-gf-consent-code";
 
+/** On a template of custom code the consent script has added to the page, so it adds it once. */
+export const CONSENT_DONE_ATTRIBUTE = "data-gf-consent-done";
+
 /** On buttons that agree, or that don't. */
 export const CONSENT_ACCEPT_ATTRIBUTE = "data-gf-consent-accept";
 export const CONSENT_DECLINE_ATTRIBUTE = "data-gf-consent-decline";
@@ -31,15 +34,23 @@ export const CONSENT_DECLINE_ATTRIBUTE = "data-gf-consent-decline";
  * again so its scripts run. It watches the page, so what Next.js shows later
  * is held back or loaded too, and links to `#consent` open the notice again. Choosing no after
  * yes reloads the page, which can't unload what it loaded.
+ *
+ * It never changes the page's elements, so Next.js's React, which may take
+ * over the page before or after it runs, keeps what it loaded rather than
+ * drawing the page again and loading it all twice: a player gets its address
+ * in place, a placeholder is hidden, and what it adds (another site's
+ * scripts, the head's code) goes at the end of the head, which React lets
+ * other scripts add to, or, for the body's code, in one element after its
+ * template, which it marks as done.
  */
 export function consentScript(): string {
   const q = JSON.stringify;
-  return `(function(){var d=document,K=${q(CONSENT_STORAGE_KEY)},S=${q(CONSENT_SRC_ATTRIBUTE)},P=${q(CONSENT_PLACEHOLDER_ATTRIBUTE)},C=${q(CONSENT_CODE_ATTRIBUTE)},A=${q(CONSENT_ACCEPT_ATTRIBUTE)},N=${q(CONSENT_DECLINE_ATTRIBUTE)},L=${q(CONSENT_LINK)};
+  return `(function(){var d=document,K=${q(CONSENT_STORAGE_KEY)},S=${q(CONSENT_SRC_ATTRIBUTE)},P=${q(CONSENT_PLACEHOLDER_ATTRIBUTE)},C=${q(CONSENT_CODE_ATTRIBUTE)},D=${q(CONSENT_DONE_ATTRIBUTE)},A=${q(CONSENT_ACCEPT_ATTRIBUTE)},N=${q(CONSENT_DECLINE_ATTRIBUTE)},L=${q(CONSENT_LINK)};
 function get(){try{return localStorage.getItem(K)}catch(e){return null}}
 function put(v){try{localStorage.setItem(K,v)}catch(e){}}
 function show(open){var n=d.getElementById(${q(CONSENT_NOTICE_ID)});if(n)n.hidden=!open}
-function code(t){var f=t.content.cloneNode(true);f.querySelectorAll("script").forEach(function(o){var s=d.createElement("script");for(var i=0;i<o.attributes.length;i++)s.setAttribute(o.attributes[i].name,o.attributes[i].value);if(!o.hasAttribute("async"))s.async=false;s.text=o.text;o.replaceWith(s)});if(t.getAttribute(C)==="head"){d.head.appendChild(f);t.remove()}else t.replaceWith(f)}
-function release(){d.querySelectorAll("["+S+"]").forEach(function(e){var a=e.getAttribute(S);e.removeAttribute(S);if(e.tagName==="SCRIPT"){var s=d.createElement("script");s.src=a;s.async=true;e.replaceWith(s)}else e.setAttribute("src",a)});d.querySelectorAll("["+P+"]").forEach(function(e){e.remove()});d.querySelectorAll("template["+C+"]").forEach(code)}
+function code(t){t.setAttribute(D,"");var f=t.content.cloneNode(true);f.querySelectorAll("script").forEach(function(o){var s=d.createElement("script");for(var i=0;i<o.attributes.length;i++)s.setAttribute(o.attributes[i].name,o.attributes[i].value);if(!o.hasAttribute("async"))s.async=false;s.text=o.text;o.replaceWith(s)});if(t.getAttribute(C)==="head")d.head.appendChild(f);else{var w=d.createElement("div");w.setAttribute("data-goodfellow-code","");w.style.display="contents";w.appendChild(f);t.after(w)}}
+function release(){d.querySelectorAll("["+S+"]").forEach(function(e){var a=e.getAttribute(S);e.removeAttribute(S);if(e.tagName==="SCRIPT"){var s=d.createElement("script");s.src=a;s.async=true;d.head.appendChild(s)}else e.setAttribute("src",a)});d.querySelectorAll("["+P+"]").forEach(function(e){e.hidden=true;e.style.display="none"});d.querySelectorAll("template["+C+"]:not(["+D+"])").forEach(code)}
 function check(){var g=get();if(g==="yes")release();else if(g!=="no")show(true)}
 d.addEventListener("click",function(e){var t=e.target&&e.target.closest?e.target.closest("["+A+"],["+N+"],a[href]"):null;if(!t)return;if(t.hasAttribute(A)){put("yes");show(false);release()}else if(t.hasAttribute(N)){var was=get();put("no");show(false);if(was==="yes")location.reload()}else if(t.getAttribute("href")===L){e.preventDefault();show(true)}});
 new MutationObserver(check).observe(d.body,{childList:true,subtree:true});check()})();`;

@@ -135,6 +135,8 @@ export function PuckEditor({
     | { type: "idle" | "publishing" | "done" }
     | { type: "invalid"; message: string; details?: string }
     | { type: "failed"; reason: "conflict" | "error"; error: unknown }
+    // Someone else's version is open after a conflict, and this editor's own is kept to put back.
+    | { type: "reloaded" }
   >({ type: "idle" });
 
   // What's published, as the editor's frame opened it: files saved by older versions of Puck are upgraded there.
@@ -195,6 +197,55 @@ export function PuckEditor({
   );
   const { client, failed, frameProps } = useFrame({ mode: "editor", onConnect });
   useFrameUpdates(client);
+
+  // After someone else changed what's edited: how many times the editor has opened again, what it had before, and
+  // whether the site's content is on its way.
+  const reopened = useRef(0);
+  const [pluginOpening, setPluginOpening] = useState(0);
+  const kept = useRef<Data>(undefined);
+  const reopening = useRef(false);
+
+  /**
+   * Opens what's edited again with `next`: the site's version (`theirs`), which then counts as published, or this
+   * editor's own, kept from before, which is then a change to publish over theirs.
+   */
+  const reopen = useCallback(
+    async (next: Data, theirs: boolean) => {
+      latest.current.data = next;
+      if (theirs) published.current = undefined;
+      reopened.current += 1;
+      if (plugin) {
+        setPluginOpening(reopened.current);
+        return;
+      }
+      if (!client) return;
+      const opened = await client.call("editor.open", {
+        ...open,
+        data: next,
+        reopened: reopened.current,
+        ui: readWidths(widthsKey),
+      });
+      setConfig(opened.config);
+      if (theirs) published.current = serializeContent(storedData(opened.data));
+    },
+    [plugin, client, open, widthsKey],
+  );
+
+  // The site's content after a conflict: what's edited opens again as it is now.
+  useEffect(() => {
+    if (!reopening.current) return;
+    reopening.current = false;
+    void reopen(data, true);
+  }, [data, reopen]);
+
+  /** Loads the site as someone else left it, keeping this editor's version to offer back. */
+  const reloadAfterConflict = async () => {
+    kept.current =
+      plugin || !client ? latest.current.data : await client.call("editor.data").catch(() => latest.current.data);
+    reopening.current = true;
+    await reload();
+    setStatus({ type: "reloaded" });
+  };
 
   const dirty =
     state !== undefined &&
@@ -459,13 +510,35 @@ export function PuckEditor({
               action={<Button onClick={() => setStatus({ type: "idle" })}>{t("action.close")}</Button>}
             />
           )}
+          {status.type === "reloaded" && (
+            <div className="gfa-notice" role="status">
+              <p>{t("publish.reloaded")}</p>
+              <div className="gfa-dialog-actions">
+                {kept.current && (
+                  <Button
+                    onClick={() => {
+                      const mine = kept.current;
+                      kept.current = undefined;
+                      setStatus({ type: "idle" });
+                      if (mine) void reopen(mine, false);
+                    }}
+                  >
+                    {t("publish.putMineBack")}
+                  </Button>
+                )}
+                <Button variant="secondary" onClick={() => setStatus({ type: "idle" })}>
+                  {t("action.close")}
+                </Button>
+              </div>
+            </div>
+          )}
           {status.type === "failed" && (
             <ErrorMessage
               message={t(status.reason === "conflict" ? "publish.conflict" : "publish.error")}
               error={status.error}
               action={
                 status.reason === "conflict" ? (
-                  <Button onClick={() => void reload()}>{t("action.reload")}</Button>
+                  <Button onClick={() => void reloadAfterConflict()}>{t("action.reload")}</Button>
                 ) : (
                   <Button onClick={() => setStatus({ type: "idle" })}>{t("action.close")}</Button>
                 )
@@ -490,7 +563,7 @@ export function PuckEditor({
         <div className="gfa-editor-frame-wrap">
           {plugin && (kind === "page" || kind === "header" || kind === "footer" || kind === "template") ? (
             <PluginEditorFrame
-              key={plugin.name}
+              key={`${plugin.name} ${pluginOpening}`}
               plugin={plugin}
               target={{ kind, path, title, ...(language && { language }), ...(collection && { collection }) }}
               data={() => latest.current.data}

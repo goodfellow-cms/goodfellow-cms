@@ -75,6 +75,8 @@ export interface EditorOpen {
   readOnly?: boolean;
   /** Blocks' owners-only settings shown but not changeable, for an editor who isn't an owner. */
   ownersOnlyLocked?: boolean;
+  /** Counts the times the same editor is opened again with other data, such as after someone else's change, so Puck starts afresh. */
+  reopened?: number;
 }
 
 /** What the editor tells the admin panel about itself once it's open. */
