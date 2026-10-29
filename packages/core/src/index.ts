@@ -15,6 +15,7 @@ export {
   configAdmin,
   GUARD_ATTRIBUTE,
   type HostHeaderRule,
+  type HostRedirectRule,
   type PageFileKind,
   pageFileKind,
   SITE_HEADERS,
@@ -23,10 +24,12 @@ export {
   siteGuard,
   startsWithGuard,
   vercelAdminHeaders,
+  vercelAdminRedirects,
   vercelHeaders,
   vercelSiteHeaders,
   withAdminConfig,
   withGuard,
+  withVercelAdminAddress,
   withVercelHeaders,
 } from "./admin-domain.js";
 export type { AdminSite } from "./admin-site.js";

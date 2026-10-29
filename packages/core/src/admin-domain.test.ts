@@ -11,10 +11,12 @@ import {
   siteGuard,
   startsWithGuard,
   vercelAdminHeaders,
+  vercelAdminRedirects,
   vercelHeaders,
   vercelSiteHeaders,
   withAdminConfig,
   withGuard,
+  withVercelAdminAddress,
 } from "./admin-domain.js";
 
 const admin = { url: "https://admin.example.org" };
@@ -136,6 +138,40 @@ describe("host rules", () => {
     ]);
     expect(rules.every((rule) => rule.has?.[0]?.value === "admin.example.org")).toBe(true);
     expect(rules[0]?.headers).toEqual([{ key: "Content-Security-Policy", value: "sandbox" }]);
+  });
+
+  it("sends pages opened at the wrong address where the guards would, on Vercel", () => {
+    const opened = { type: "header", key: "sec-fetch-dest", value: "document" };
+    // Until the address is checked, the admin panel works at the Site address, so only site pages move.
+    expect(vercelAdminRedirects(admin, "https://example.org/site/", "/site/")).toEqual([
+      {
+        source: "/site/:path((?!admin/|admin$).*)",
+        has: [{ type: "host", value: "admin.example.org" }, opened],
+        destination: "https://example.org/site/:path",
+        permanent: false,
+      },
+    ]);
+    const rules = vercelAdminRedirects({ ...admin, checked: true }, "https://example.org");
+    expect(rules.map(({ source, destination }) => [source, destination])).toEqual([
+      ["/:path((?!admin/|admin$).*)", "https://example.org/:path"],
+      ["/admin", "https://admin.example.org/admin/"],
+      ["/admin/:path((?!editor/|editor$|plugins/).*)", "https://admin.example.org/admin/:path"],
+    ]);
+    // Only from the Site address, so a copy at an address of its own keeps its admin panel.
+    expect(rules[1]?.has).toEqual([{ type: "host", value: "example.org" }, opened]);
+    // Without a Site address, or with an address that can't be one, there's nowhere to send anyone.
+    expect(vercelAdminRedirects(admin, undefined)).toEqual([]);
+    expect(vercelAdminRedirects({ url: "https://example.org" }, "https://example.org")).toEqual([]);
+    expect(vercelAdminRedirects({ url: "http://admin.example.org" }, "https://example.org")).toEqual([]);
+  });
+
+  it("writes the admin address into a content repository's vercel.ts", () => {
+    const source = "  redirects: [...adminRedirects(undefined), ...redirects()],\n";
+    expect(withVercelAdminAddress(source, { ...admin, checked: true })).toBe(
+      '  redirects: [...adminRedirects({"url":"https://admin.example.org","checked":true}), ...redirects()],\n',
+    );
+    expect(withVercelAdminAddress(withVercelAdminAddress(source, admin) ?? "", undefined)).toBe(source);
+    expect(withVercelAdminAddress("  redirects: redirects(),\n", admin)).toBeUndefined();
   });
 
   it("gives every site's files safe headers, sandboxes its SVGs and keeps its admin panel from being framed", () => {

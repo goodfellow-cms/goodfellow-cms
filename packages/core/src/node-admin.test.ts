@@ -31,7 +31,7 @@ beforeEach(async () => {
   );
   await writeFile(
     join(site, "content-repository/vercel.ts"),
-    "export const config = {\n  framework: null,\n  headers: [],\n};\n",
+    "export const config = {\n  framework: null,\n  redirects: [...adminRedirects(undefined), ...redirects()],\n  headers: [],\n};\n",
   );
   await writeFile(join(site, "goodfellow.config.tsx"), "export default defineConfig({\n  blocks,\n});\n");
 });
@@ -48,6 +48,9 @@ describe("setAdminAddress", () => {
     expect(await contentVercel()).toContain(
       `  headers: ${JSON.stringify(vercelHeaders({ admin: { url: "https://admin.example.org" } }))},`,
     );
+    expect(await contentVercel()).toContain(
+      '  redirects: [...adminRedirects({"url":"https://admin.example.org","checked":false}), ...redirects()],',
+    );
 
     // A broker added later is named in the rules too.
     await setBrokerAddress(site, "https://signin.example.org");
@@ -59,6 +62,7 @@ describe("setAdminAddress", () => {
     expect(await contentVercel()).toContain(
       `  headers: ${JSON.stringify(vercelHeaders({ broker: "https://signin.example.org" }))},`,
     );
+    expect(await contentVercel()).toContain("  redirects: [...adminRedirects(undefined), ...redirects()],");
   });
 
   it("refuses addresses that aren't one of its own", async () => {

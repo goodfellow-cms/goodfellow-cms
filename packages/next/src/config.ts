@@ -16,6 +16,7 @@ import {
   redirectFrom,
   redirectProblems,
   shownContent,
+  vercelAdminRedirects,
   vercelHeaders,
 } from "@goodfellow-cms/core";
 import {
@@ -162,6 +163,28 @@ async function siteRedirects(root: string): Promise<Redirects> {
 }
 
 /**
+ * Pages opened at the wrong one of the Site address and the admin address,
+ * sent to the right one before anything loads, for hosts that send redirects,
+ * such as Vercel (`vercelAdminRedirects()`). The Site address is
+ * `content/site.json`'s own, never a copy's, which leaves the admin address
+ * out. Their addresses already have the base path, so Next.js adds none.
+ */
+function adminRedirects(root: string, basePath: string): Redirects {
+  const admin = siteAdmin(root);
+  if (!admin) return [];
+  let siteUrl: unknown;
+  try {
+    siteUrl = JSON.parse(readFileSync(join(root, "content/site.json"), "utf8")).url;
+  } catch {
+    return [];
+  }
+  return vercelAdminRedirects(admin, typeof siteUrl === "string" ? siteUrl : undefined, `${basePath}/`).map((rule) => ({
+    ...rule,
+    basePath: false as const,
+  }));
+}
+
+/**
  * Sets up Next.js for a Goodfellow site, in `next.config.ts`:
  * `export default withGoodfellow({ ... })`.
  *
@@ -175,7 +198,8 @@ async function siteRedirects(root: string): Promise<Redirects> {
  *   send them, such as Vercel. Others get the pages `goodfellow-next finish` writes at old addresses.
  * - Adds header rules for hosts that send them, such as Vercel: the media library's SVGs
  *   sandboxed, the admin panel unframed, and, for a site with an admin address, every page
- *   there sandboxed but the admin panel's own.
+ *   there sandboxed but the admin panel's own, with redirects sending pages opened at the
+ *   wrong one of the two addresses to the right one.
  * - With `{ server: true }`, builds a full-stack site for a server instead of as static
  *   files: see `goodfellowApi()` in `@goodfellow-cms/next/server`.
  * - In `next dev`, runs the admin panel's local backend, so publishing saves to
@@ -241,7 +265,11 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       return {
         output: "export",
         ...config,
-        redirects: async () => [...(await siteRedirects(root)), ...((await nextConfig.redirects?.()) ?? [])],
+        redirects: async () => [
+          ...adminRedirects(root, basePath),
+          ...(await siteRedirects(root)),
+          ...((await nextConfig.redirects?.()) ?? []),
+        ],
         // Only where they're sent, since Next.js warns that a static export can't send headers: on Vercel
         // (`VERCEL` is set where it builds), and for an admin address, which needs them.
         ...((siteAdmin(root) || process.env.VERCEL) && {
