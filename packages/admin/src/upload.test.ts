@@ -109,6 +109,11 @@ describe("safeMediaChanges", () => {
     expect(gone).toEqual({ path: "public/media/old.html", delete: true });
   });
 
+  it("keeps an SVG that's already safe as it was written, such as one put back from Version history", () => {
+    const safe = { path: "public/media/placeholder.svg", bytes: bytes(`${svg('<rect width="4" height="4"/>')}\n`) };
+    expect(safeMediaChanges([safe])).toEqual([safe]);
+  });
+
   it("refuses an SVG that isn't one", () => {
     expect(() =>
       safeMediaChanges([{ path: "public/media/logo.svg", content: "<html><script>x</script></html>" }]),

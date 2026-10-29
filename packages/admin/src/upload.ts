@@ -279,6 +279,9 @@ export function safeMediaChanges(changes: readonly FileChange[]): FileChange[] {
     const text = "bytes" in change ? new TextDecoder().decode(change.bytes) : change.content;
     const cleaned = cleanSvg(text);
     if (cleaned === undefined) throw new UploadError("unreadable", name, `${name} isn't a valid SVG image.`);
+    // An SVG that's already safe, such as one put back from Version history, keeps its own spelling.
+    const asWritten = new XMLSerializer().serializeToString(new DOMParser().parseFromString(text, "image/svg+xml"));
+    if (cleaned === asWritten) return change;
     return { path: change.path, bytes: new TextEncoder().encode(cleaned) };
   });
 }
