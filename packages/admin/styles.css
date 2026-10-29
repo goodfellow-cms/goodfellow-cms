@@ -198,9 +198,22 @@ body,
 }
 
 @media (min-width: 721px) {
-  .gfa-topbar-menu > .gfa-account {
+  .gfa-topbar-menu > .gfa-account,
+  .gfa-topbar-menu > .gfa-language {
     order: 1;
   }
+}
+
+/* The admin panel's language, as small as the header's other controls. */
+.gfa-language select {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--gfa-input-border);
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-surface);
+  color: var(--gfa-text);
+  font: inherit;
+  font-size: 13px;
 }
 
 @media (max-width: 720px) {
@@ -260,6 +273,10 @@ body,
     padding: 12px 12px 0;
     border-top: 1px solid var(--gfa-border);
     white-space: normal;
+  }
+
+  .gfa-topbar-menu .gfa-language {
+    padding: 0 12px;
   }
 }
 

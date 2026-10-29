@@ -19,7 +19,8 @@ Click **Edit** beside a page. The editor shows the page with the site's own head
 - **Phones and tablets:** **Tablet** and **Phone** above the page show it as wide as one, and **Full width** goes back.
 - **Another editor:** where the site has a [plugin with a page editor of its own](/docs/plugins#a-page-editor-of-its-own), **Editor** above the page chooses it or the standard editor, and your browser remembers your choice. What you've changed so far comes with you when you switch. If the other editor can't keep something you changed, such as a block the site doesn't have, you're asked first, since switching would leave those changes behind.
 - **Light or dark:** the admin panel follows your computer's setting. To choose for yourself, use the **Dark mode** switch at the top right; your browser remembers it. Switching it to what your computer shows follows your computer again.
-- **On a phone:** in narrow windows, the admin panel's links, **View site** and your account are under the menu button (☰) at the top right.
+- **The admin panel's language:** the admin panel is in English or Spanish, whichever your browser asks for first, and the menu at the top right beside your account chooses for yourself; your browser remembers it. The editor, Puck's own controls and the built-in blocks' settings follow it. It's separate from your site's languages: what you edit stays as it's written.
+- **On a phone:** in narrow windows, the admin panel's links, **View site**, your account and the language menu are under the menu button (☰) at the top right.
 - **Style:** every block, and the page itself, has a **Style** setting for how it looks, which shows in the editor at once (see [A block's look](#a-blocks-look)).
 
 Nothing changes on the live site until you **Publish**.

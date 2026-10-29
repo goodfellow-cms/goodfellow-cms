@@ -51,6 +51,7 @@ import type { ComponentConfig } from "@puckeditor/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ChecksDialog } from "./checks-dialog.js";
 import { browserDraftKeeper, rememberDraft, rememberedDraft } from "./drafts.js";
+import { useEditorText } from "./editor-text.js";
 import {
   type FrameClient,
   type FrameServices,
@@ -943,6 +944,7 @@ function SiteFrames({
 }) {
   const t = useStrings();
   const strings = useStringTable();
+  const { puck, labels } = useEditorText();
   const theme = useThemeChoice();
   const {
     site,
@@ -1012,6 +1014,8 @@ function SiteFrames({
         siteUrl,
         preview,
         strings,
+        puck,
+        labels,
         theme,
         hostName: account?.hostName ?? "",
       },
@@ -1030,7 +1034,21 @@ function SiteFrames({
           ? callPlugin.current(plugin, method, args)
           : Promise.reject(new Error("Plugins haven't started.")),
     }),
-    [frames, state, schedule, siteUrl, preview, strings, theme, account, siteCss, mediaPreviews, confirmLeave],
+    [
+      frames,
+      state,
+      schedule,
+      siteUrl,
+      preview,
+      strings,
+      puck,
+      labels,
+      theme,
+      account,
+      siteCss,
+      mediaPreviews,
+      confirmLeave,
+    ],
   );
   return (
     <FrameServicesProvider value={services}>

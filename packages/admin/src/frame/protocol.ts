@@ -47,6 +47,10 @@ export interface FrameInit extends FrameSite {
    */
   siteCss?: string[];
   strings: Strings;
+  /** Puck's own text in the admin panel's language, as its `dictionary`. */
+  puck: Record<string, string>;
+  /** Blocks' labels in the admin panel's language, by their English wording. */
+  labels: Record<string, string>;
   theme: ThemeChoice;
   /** The git host's name, for notes such as when scheduled changes go live. */
   hostName: string;

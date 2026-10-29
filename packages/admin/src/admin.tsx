@@ -12,6 +12,13 @@ import { Menu as MenuIcon, Moon, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AdminProvider, type PreviewOptions, useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
+import {
+  ADMIN_LANGUAGES,
+  isAdminLanguage,
+  setAdminLanguage,
+  useAdminLanguage,
+  useAdminText,
+} from "./admin-language.js";
 import { forgetAiKeys } from "./ai-settings.js";
 import { appServer } from "./app-server.js";
 import { AppSignInGate } from "./app-sign-in.js";
@@ -25,6 +32,7 @@ import { createDemoStore } from "./demo.js";
 import { DomainScreen } from "./domain-screen.js";
 import { draftStarted } from "./drafts.js";
 import { LayoutEditorScreen, PageEditorScreen } from "./editor-screens.js";
+import { EditorTextContext } from "./editor-text.js";
 import { EditorsScreen } from "./editors-screen.js";
 import { EntryEditorScreen } from "./entry-editor.js";
 import type { FrameSource } from "./frame/host.js";
@@ -470,6 +478,30 @@ function AccountMenu() {
   );
 }
 
+/** The admin panel's language, remembered in this browser; each named in itself, so anyone finds their own. */
+function LanguageMenu() {
+  const t = useStrings();
+  const language = useAdminLanguage();
+  return (
+    <label className="gfa-language">
+      <span className="gfa-visually-hidden">{t("adminLanguage.label")}</span>
+      <select
+        value={language}
+        title={t("adminLanguage.label")}
+        onChange={(event) => {
+          if (isAdminLanguage(event.target.value)) setAdminLanguage(event.target.value);
+        }}
+      >
+        {ADMIN_LANGUAGES.map(({ code, name }) => (
+          <option key={code} value={code} lang={code}>
+            {name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 /**
  * Dark mode on or off, remembered in this browser. A switch takes less room
  * in the header than a list, which phones need for the menu button.
@@ -591,6 +623,7 @@ function Shell() {
             {t("app.viewSite")}
           </a>
           <AccountMenu />
+          <LanguageMenu />
         </div>
         <DeployIndicator />
         <DarkModeSwitch />
@@ -632,12 +665,16 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
   // Light or dark everywhere, signing in included.
   useApplyThemeChoice();
   const demo = useMemo(() => (site.demo ? createDemoStore(siteUrl, store) : undefined), [site.demo, siteUrl, store]);
-  // In a demo, "Published." would mislead: the changes are only saved in the browser.
-  const text = useMemo(
-    () =>
-      demo ? { ...strings, "publish.done": strings?.["demo.published"] ?? defaultStrings["demo.published"] } : strings,
-    [demo, strings],
-  );
+  // The admin panel's language, with any strings it was given over it.
+  const language = useAdminText();
+  const text = useMemo(() => {
+    const table = { ...(language?.strings ?? defaultStrings), ...strings };
+    // In a demo, "Published." would mislead: the changes are only saved in the browser.
+    return demo ? { ...table, "publish.done": table["demo.published"] } : table;
+  }, [language, demo, strings]);
+  const editorText = useMemo(() => ({ puck: language?.puck ?? {}, labels: language?.labels ?? {} }), [language]);
+  // Shown once the language has loaded, so nothing shows in English first.
+  if (!language) return null;
   // The page tools such as the Claude connector take screenshots of drafts with; it signs nobody in.
   if (typeof location !== "undefined" && isPreviewAddress(location.hash)) {
     return (
@@ -744,7 +781,11 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
   ) : (
     <MissingBackend />
   );
-  return <StringsProvider strings={text}>{body}</StringsProvider>;
+  return (
+    <StringsProvider strings={text}>
+      <EditorTextContext.Provider value={editorText}>{body}</EditorTextContext.Provider>
+    </StringsProvider>
+  );
 }
 
 /** Renders the admin panel into an element. */
