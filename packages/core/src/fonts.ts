@@ -176,8 +176,23 @@ export type SelfHostedResult = { hosted: number } | { unavailable: true } | unde
  * at the domain's root (`rootRobotsUrl()`), so the sitemap needs naming there
  * or in their own tools.
  */
-export function buildNotes(result: { fonts?: SelfHostedResult; robotsElsewhere?: string; sitemap?: string }): string[] {
+export function buildNotes(result: {
+  fonts?: SelfHostedResult;
+  robotsElsewhere?: string;
+  sitemap?: string;
+  images?: { written: number; failed: string[] };
+}): string[] {
   const lines: string[] = [];
+  if (result.images && result.images.written > 0) {
+    lines.push(
+      `Wrote ${result.images.written} smaller cop${result.images.written === 1 ? "y" : "ies"} of the media library's photos, which pages offer browsers in place of the whole photo`,
+    );
+  }
+  if (result.images && result.images.failed.length > 0) {
+    lines.push(
+      `Couldn't make smaller copies of ${result.images.failed.join(", ")}, so browsers download ${result.images.failed.length === 1 ? "it" : "them"} whole`,
+    );
+  }
   if (result.fonts && "hosted" in result.fonts) {
     lines.push(
       `Copied ${result.fonts.hosted} font file${result.fonts.hosted === 1 ? "" : "s"} into the site, so visitors' browsers don't ask Google Fonts for them`,

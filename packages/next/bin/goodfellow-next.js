@@ -59,6 +59,7 @@ import {
   writeExportHeaders,
   writeFeedFiles,
   writeFontFiles,
+  writeImageFiles,
   writePageLanguages,
   writePluginFiles,
   writeRedirectFiles,
@@ -342,7 +343,8 @@ if (command === "finish") {
   }
   // Cloudflare Pages' header rules, after the site's own public/_headers.
   await writeExportHeaders(dir);
-  for (const line of buildNotes(await writeFontFiles(dir))) console.log(line);
+  const images = await writeImageFiles(dir);
+  for (const line of buildNotes({ ...(await writeFontFiles(dir)), ...(images && { images }) })) console.log(line);
   // Plugins' admin frames and build steps, once Goodfellow has written the rest, before the index and the guards.
   const plugins = await writePluginFiles(dir);
   if (plugins.frames.length > 0) console.log(`Wrote the admin frames of ${plugins.frames.join(", ")}`);

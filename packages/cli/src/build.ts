@@ -13,6 +13,7 @@ import {
   describedForCopy,
   feedFiles,
   framedPlugins,
+  IMAGE_WIDTHS,
   loadSiteContent,
   MEDIA_DIR,
   normalizeBase,
@@ -38,15 +39,19 @@ import {
   builtSiteSource,
   fileSystemSource,
   guardBuiltSite,
+  type ImageSizesResult,
+  readMediaSizes,
   runPluginBuildSteps,
   selfHostFonts,
   writeBuildRecord,
+  writeImageSizes,
   writeSiteHeaders,
 } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { createServer, build as viteBuild } from "vite";
 import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
 import { buildEditor } from "./editor-bundle.js";
+import { sharpResizer } from "./image-sizes.js";
 import { type ClientModules, ISLANDS_ENTRY } from "./islands.js";
 import { cssFiles, findEntry, type Manifest } from "./manifest.js";
 import { buildPluginFrame } from "./plugin-frames.js";
@@ -87,6 +92,8 @@ export interface BuildResult {
   robotsElsewhere?: string;
   /** The sitemap's address, for a site with its address set. */
   sitemap?: string;
+  /** The smaller copies of the media library's photos the build wrote, for pages' `srcset`. */
+  images?: ImageSizesResult;
   /** The plugins' build steps that ran, as `plugin: step`. */
   pluginSteps?: string[];
   /** How many pages the content API has, at `/api/`, unless the config turns it off. */
@@ -239,8 +246,13 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const pages = sitePages(content, today, config.blocks);
     const written: string[] = [];
     const built: BuiltPage[] = [];
+    // Images' sizes, and the widths the build makes smaller copies of photos at, which pages list in `srcset`.
+    const imageOptions = { media: await readMediaSizes(root), imageWidths: IMAGE_WIDTHS };
     for (const page of pages) {
-      const html = applyBasePath(await renderPage(content, page, { stylesheets, ...(islands && { islands }) }), base);
+      const html = applyBasePath(
+        await renderPage(content, page, { stylesheets, ...(islands && { islands }) }, imageOptions),
+        base,
+      );
       built.push({ path: page.path, file: page.file, html });
       const file = join(outDir, pageOutputFile(page.path));
       await mkdir(dirname(file), { recursive: true });
@@ -307,6 +319,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       );
     }
 
+    // The smaller copies of the media library's photos that pages list.
+    const images = await writeImageSizes(root, outDir, { resize: await sharpResizer() });
+
     // The site's own copy of its fonts, once every page is written, so visitors' browsers don't ask Google for them.
     const fonts = await selfHostFonts(outDir, content.settings.theme, { base });
     const robotsElsewhere = rootRobotsUrl(url);
@@ -348,6 +363,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       ...(record.currentUntil && { currentUntil: record.currentUntil }),
       ...(cloudflare.left > 0 && { redirectsLeft: cloudflare.left }),
       ...(fonts && { fonts }),
+      ...(images.written > 0 && { images }),
       ...(pluginSteps.length > 0 && { pluginSteps }),
       ...(apiFiles.length > 0 && { apiPages: pages.length }),
       ...(robotsElsewhere && { robotsElsewhere }),
