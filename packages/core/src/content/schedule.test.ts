@@ -3,7 +3,7 @@ import { entryFileChange, pageFileChange, relinkedChanges } from "./changes.js";
 import { type ContentSource, loadSiteContent } from "./load.js";
 import { parseMarkdownEntry, serializeMarkdownEntry } from "./markdown.js";
 import { dueChanges, scheduleProblem, scheduleState, shownContent, upcomingChanges } from "./schedule.js";
-import { collectionFileSchema } from "./schemas.js";
+import { collectionFileSchema, siteSettingsSchema } from "./schemas.js";
 
 function memorySource(files: Record<string, unknown>): ContentSource {
   const text = Object.fromEntries(
@@ -174,5 +174,21 @@ describe("scheduled publishing", () => {
       { showFrom: "2026-11-29T09:00" },
       { hideAfter: "2026-11-01T18:00" },
     ]);
+  });
+});
+
+describe("site settings that would be misread", () => {
+  it("refuse a time zone that isn't one, which would otherwise be read as UTC", () => {
+    expect(siteSettingsSchema.safeParse({ version: 1, timeZone: "Europe/London" }).success).toBe(true);
+    expect(siteSettingsSchema.safeParse({ version: 1, timeZone: "America/NewYork" }).success).toBe(false);
+  });
+
+  it("refuse theme colors that load something, as url() would in a background", () => {
+    const theme = (primary: string) =>
+      siteSettingsSchema.safeParse({ version: 1, theme: { colors: { primary } } }).success;
+    expect(theme("#1e3a8a")).toBe(true);
+    expect(theme("oklch(0.4 0.1 260)")).toBe(true);
+    expect(theme("rebeccapurple")).toBe(true);
+    expect(theme("url(//evil.example/t.png)")).toBe(false);
   });
 });

@@ -73,6 +73,8 @@ export interface EditorOpen {
   ui?: Partial<UiState>;
   /** Shown without editing, where it's outside what the signed-in person may change. */
   readOnly?: boolean;
+  /** Counts the times the same editor is opened again with other data, such as after someone else's change, so Puck starts afresh. */
+  reopened?: number;
 }
 
 /** What the editor tells the admin panel about itself once it's open. */

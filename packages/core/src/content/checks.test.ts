@@ -121,6 +121,49 @@ describe("site checks", () => {
     ]);
   });
 
+  it("refuses links that would run code, in menus, blocks, items and settings, however they're spelled", async () => {
+    const content = await site({
+      "content/menus.json": {
+        version: 1,
+        menus: {
+          main: [
+            { label: "Home", href: "/" },
+            { label: "Run", href: " JavaScript:alert(1)" },
+          ],
+        },
+      },
+      "content/pages/about.json": page("About", [
+        block("Button", "Button-1", { href: "java\tscript:alert(1)", label: "Run" }),
+        block("Button", "Button-2", { href: "data:text/html,<script>alert(1)</script>", label: "Data" }),
+        // Words, not a link, and a link to a calendar app, which is fine.
+        block("Button", "Button-3", { href: "webcal://parish.example/calendars/mass.ics", label: "Data: 2026" }),
+        block("Text", "Text-1", { text: '<p><a href="vbscript:msgbox(1)">x</a></p>' }),
+      ]),
+      "content/collections/talks/_collection.json": {
+        version: 1,
+        name: "Talks",
+        entryName: "Talk",
+        path: "/talks/{slug}",
+        fields: [
+          { name: "title", label: "Title", type: "text" },
+          { name: "video", label: "Video", type: "link" },
+        ],
+      },
+      "content/collections/talks/advent.json": {
+        version: 1,
+        fields: { title: "Advent", video: "blob:https://parish.example/1" },
+      },
+    });
+    const problems = checkSite(content, { media: [], blocks });
+    expect(errors(problems)).toEqual([
+      ["unsafe-link", "content/pages/about.json", "java\tscript:alert(1)"],
+      ["unsafe-link", "content/pages/about.json", "data:text/html,<script>alert(1)</script>"],
+      ["unsafe-link", "content/pages/about.json", "vbscript:msgbox(1)"],
+      ["unsafe-link", "content/collections/talks/advent.json", "blob:https://parish.example/1"],
+      ["unsafe-link", "content/menus.json", " JavaScript:alert(1)"],
+    ]);
+  });
+
   it("warns about pages without a title or description", async () => {
     const content = await site({
       "content/site.json": { version: 1, title: "Parish" },

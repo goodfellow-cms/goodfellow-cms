@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { entryFileChange } from "./changes.js";
 import {
   choiceSlug,
   choicesOf,
@@ -86,6 +87,26 @@ describe("collection files", () => {
       "path",
       "sort.field",
     ]);
+  });
+});
+
+describe("language paths and names", () => {
+  const valid = { version: 1, name: "Videos", entryName: "Video", fields };
+
+  it("puts each language's items under its own code, which says what language a page is in", () => {
+    const parse = (languagePaths: Record<string, string>) =>
+      collectionFileSchema.safeParse({ ...valid, path: "/videos/{slug}", languagePaths });
+    expect(parse({ es: "/es/videos/{slug}" }).success).toBe(true);
+    expect(parse({ es: "/videos-es/{slug}" }).error?.issues[0]?.message).toMatch(/must start with "\/es\/"/);
+  });
+
+  it("writes no file for a collection or item whose name isn't one part of an address", () => {
+    const collection = { id: "videos", settings: collectionFileSchema.parse(valid) };
+    expect(entryFileChange(collection, "advent", { title: "Advent" }, undefined).path).toBe(
+      "content/collections/videos/advent.json",
+    );
+    expect(() => entryFileChange(collection, "_collection", { title: "x" }, undefined)).toThrow();
+    expect(() => entryFileChange({ ...collection, id: "../pages" }, "about", { title: "x" }, undefined)).toThrow();
   });
 });
 

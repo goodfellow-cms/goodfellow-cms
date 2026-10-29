@@ -1,6 +1,9 @@
 import { Marked, type Token, type Tokens } from "marked";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { isExternalLink, NEW_TAB } from "../external-links.js";
+import { isExternalLink, isSafeUrl, NEW_TAB } from "../external-links.js";
+
+export { isSafeUrl };
+
 import { CURRENT_VERSION } from "../migrations/index.js";
 import type { CollectionFile } from "./schemas.js";
 import { withoutTags } from "./tags.js";
@@ -105,14 +108,6 @@ const escapes: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;"
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (character) => escapes[character] ?? character);
-}
-
-/** Addresses that can't run code: the site's own, the web's, email and phone. */
-export function isSafeUrl(url: string): boolean {
-  const trimmed = url.trim();
-  if (/^(?:https?:|mailto:|tel:)/i.test(trimmed)) return true;
-  // No scheme at all: relative, root-relative or a fragment. Anything with a colon before the first slash has one.
-  return !/^[^/?#]*:/.test(trimmed);
 }
 
 /** Lowercase words joined by hyphens, as GitHub makes heading anchors: "Writing blocks" → `writing-blocks`. */

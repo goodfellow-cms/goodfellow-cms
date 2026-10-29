@@ -1,10 +1,10 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { createServer, type Server } from "node:http";
+import { createServer, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DEV_API_PREFIX, handleDevApi, isLocalOrigin } from "./node-dev-api.js";
+import { DEV_API_PREFIX, handleDevApi, isAllowedDevHost, isLocalOrigin } from "./node-dev-api.js";
 import { localFileStore } from "./node-local-files.js";
 import { newTaskRequestId, openTaskAnswer, taskKeys } from "./plugin-tasks.js";
 import { definePlugin } from "./plugins.js";
@@ -123,6 +123,21 @@ describe("handleDevApi", { timeout: NODE_TIMEOUT }, () => {
     expect(plainText.status).toBe(415);
   });
 
+  it("refuses a website whose name has been pointed at this computer, even from its own pages", async () => {
+    // What a page at http://rebound.example:<port> sends once its name resolves to 127.0.0.1.
+    const url = new URL(`${base}/revision`);
+    const status = await new Promise<number | undefined>((done, fail) => {
+      const host = `rebound.example:${url.port}`;
+      request(url, { headers: { ...headers, host, origin: `http://${host}` } }, (response) => {
+        response.resume();
+        done(response.statusCode);
+      })
+        .on("error", fail)
+        .end();
+    });
+    expect(status).toBe(403);
+  });
+
   it("refuses files outside content/ and public/media/, and malformed saves", async () => {
     expect((await fetch(`${base}/file?path=package.json`, { headers })).status).toBe(400);
     const bad = await fetch(`${base}/write`, {
@@ -216,5 +231,22 @@ describe("handleDevApi's plugins' tasks", { timeout: NODE_TIMEOUT }, () => {
       body: JSON.stringify({ ...request, key: "{}" }),
     });
     expect(bad.status).toBe(400);
+  });
+});
+
+describe("isAllowedDevHost", () => {
+  it("allows this computer's names and IP addresses, and the hosts the developer allowed", () => {
+    for (const host of ["localhost:4321", "127.0.0.1:4321", "[::1]:4321", "192.168.1.20:4321", "site.localhost:4321"]) {
+      expect(isAllowedDevHost(host), host).toBe(true);
+    }
+    expect(isAllowedDevHost("dev.example.org", ["dev.example.org"])).toBe(true);
+    expect(isAllowedDevHost("a.example.org:4321", [".example.org"])).toBe(true);
+    expect(isAllowedDevHost("anything.example", true)).toBe(true);
+  });
+
+  it("refuses other names, which any website could point at this computer", () => {
+    expect(isAllowedDevHost("rebound.example:4321")).toBe(false);
+    expect(isAllowedDevHost("example.org.evil.example", [".example.org"])).toBe(false);
+    expect(isAllowedDevHost(undefined)).toBe(false);
   });
 });

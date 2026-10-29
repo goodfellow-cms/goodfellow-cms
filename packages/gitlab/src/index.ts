@@ -105,20 +105,30 @@ export function gitlab(options: GitLabOptions): GitHost {
 
   async function connect(initial: Credentials, remember: boolean): Promise<GitLabBackend> {
     let credentials = initial;
-    const token: ApiOptions["token"] = async ({ refresh } = {}) => {
-      if (credentials.type === "token") return credentials.token;
-      if (refresh || credentials.expiresAt - 60_000 < Date.now()) {
-        const { verifier } = credentials;
+    // GitLab gives a new refresh token each time and refuses the old one, so requests that need a new
+    // access token at once (the backend reads several folders together) share one renewal.
+    let renewing: Promise<string> | undefined;
+    const renew = (current: OAuthTokens) =>
+      (renewing ??= (async () => {
         const response = await requestTokens({
           client_id: options.clientId ?? "",
-          refresh_token: credentials.refresh,
+          refresh_token: current.refresh,
           grant_type: "refresh_token",
           redirect_uri: redirectUri(location().href()),
-          code_verifier: verifier,
+          code_verifier: current.verifier,
         });
-        credentials = toTokens(response, verifier);
+        credentials = toTokens(response, current.verifier);
         storage.save(JSON.stringify(credentials), remember);
-      }
+        return credentials.access;
+      })().finally(() => {
+        renewing = undefined;
+      }));
+    const token: ApiOptions["token"] = async ({ refresh, stale } = {}) => {
+      if (credentials.type === "token") return credentials.token;
+      if (renewing) return renewing;
+      // Another request renewed it since this one was sent with the token GitLab refused.
+      if (refresh && stale !== undefined && stale !== credentials.access) return credentials.access;
+      if (refresh || credentials.expiresAt - 60_000 < Date.now()) return renew(credentials);
       return credentials.access;
     };
     const api: ApiOptions = { apiUrl, token, canRefresh: credentials.type === "oauth", fetch: fetcher };
@@ -168,15 +178,15 @@ export function gitlab(options: GitLabOptions): GitHost {
     const returnedState = url.searchParams.get("state");
     const error = url.searchParams.get("error");
     if (!code && !error) return null;
+    // Remove the sign-in details from the address bar first, even where this tab didn't start the
+    // sign-in, and return to the screen sign-in started from.
+    for (const key of ["code", "state", "error", "error_description"]) url.searchParams.delete(key);
     const saved = pending.load();
+    if (saved) url.hash = (JSON.parse(saved) as PendingRedirect).hash;
+    location().replace(url.toString());
     if (!saved) return null;
     pending.clear();
     const redirect = JSON.parse(saved) as PendingRedirect;
-
-    // Remove the sign-in details from the address bar and return to the screen sign-in started from.
-    for (const key of ["code", "state", "error", "error_description"]) url.searchParams.delete(key);
-    url.hash = redirect.hash;
-    location().replace(url.toString());
 
     // The state must match, so another site can't complete a sign-in it started.
     if (error || !code || returnedState !== redirect.state) {

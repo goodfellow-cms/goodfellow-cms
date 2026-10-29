@@ -53,6 +53,8 @@ describe("redirectTarget", () => {
     expect(redirectTarget("about")).toBeUndefined();
     expect(redirectTarget("//evil.example.org")).toBeUndefined();
     expect(redirectTarget("javascript:alert(1)")).toBeUndefined();
+    // Other websites only over HTTPS.
+    expect(redirectTarget("http://example.org/new")).toBeUndefined();
   });
 });
 
@@ -69,6 +71,21 @@ describe("redirectProblems", () => {
         { from: "/bad", to: "mailto:office@example.org" },
       ]),
     ).toEqual([undefined, "duplicate", "reserved", "reserved", "loop", "no-to", "bad-to"]);
+  });
+
+  it("keeps old addresses off what builds write, and finds redirects that lead back to themselves", () => {
+    expect(
+      redirectProblems([
+        { from: "/api/manifest.json", to: "/" },
+        { from: "/feeds/news.rss", to: "/" },
+        { from: "/media-sizes/480/a.jpg", to: "/" },
+        { from: "/404.html", to: "/" },
+        { from: "/a", to: "/b" },
+        { from: "/b", to: "/c#top" },
+        { from: "/c", to: "/a" },
+        { from: "/d", to: "/a" },
+      ]),
+    ).toEqual(["reserved", "reserved", "reserved", "reserved", "loop", "loop", "loop", undefined]);
   });
 
   it("stores them spelled one way", () => {

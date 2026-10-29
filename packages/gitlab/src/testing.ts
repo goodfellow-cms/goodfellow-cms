@@ -120,6 +120,13 @@ async function sha256Base64Url(text: string): Promise<string> {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/** One page of a list, as GitLab answers with `per_page` and `page`. */
+function onePage<T>(url: URL, items: T[]): T[] {
+  const perPage = Number(url.searchParams.get("per_page") ?? 20);
+  const page = Number(url.searchParams.get("page") ?? 1);
+  return items.slice((page - 1) * perPage, page * perPage);
+}
+
 export function fakeGitLab(options: FakeGitLabOptions) {
   const webUrl = options.url ?? "https://gitlab.com";
   const repo = new FakeRepo(options.files);
@@ -647,7 +654,13 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       const matches = (name: string) =>
         search.startsWith("^") ? name.startsWith(search.slice(1)) : name.includes(search);
       return json(
-        [...repo.branches].filter(([name]) => matches(name)).map(([name, sha]) => ({ name, commit: { id: sha } })),
+        onePage(
+          url,
+          [...repo.branches].filter(([name]) => matches(name)),
+        ).map(([name, sha]) => ({
+          name,
+          commit: { id: sha },
+        })),
       );
     }
     if (rest === "/repository/branches" && request.method === "POST") {
@@ -706,7 +719,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       const source = url.searchParams.get("source_branch");
       const found = repo.reviews.filter((review) => review.state === "open" && (!source || review.branch === source));
       return json(
-        found.map((review) => ({
+        onePage(url, found).map((review) => ({
           iid: review.number,
           title: review.title,
           source_branch: review.branch,
@@ -1070,6 +1083,10 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     requests,
     commit,
     authorize,
+    /** Ends every OAuth access token GitLab has given, as their two hours running out does; refresh tokens still work. */
+    expireAccessTokens: () => {
+      for (const [token] of tokens) if (token.startsWith("oauth-access-")) tokens.delete(token);
+    },
     handle,
     fetch: ((input: RequestInfo | URL, init?: RequestInit) => handle(new Request(input, init))) as typeof fetch,
   };

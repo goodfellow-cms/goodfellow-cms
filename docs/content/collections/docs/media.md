@@ -20,7 +20,7 @@ Choose files, or drop them onto the Media screen. Wherever an image goes, such a
 
 ## Replace and delete
 
-Replacing a file keeps its address, so everything that uses it shows the new version. Deleting a file first lists everything that uses it, and can't be published until they use another file (see [Site checks](/docs/publishing#site-checks)).
+Replacing a file keeps its address, so everything that uses it shows the new version. The new file has to be the same kind as the one it replaces, such as a `.jpg` for a `.jpg`, since it's saved under the same name. Deleting a file first lists everything that uses it, and can't be published until they use another file (see [Site checks](/docs/publishing#site-checks)).
 
 ## Media kept in a storage service
 
