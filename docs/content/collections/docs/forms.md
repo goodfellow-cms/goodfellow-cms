@@ -47,7 +47,7 @@ In the site's [app](/docs/apps), the form sends the answers itself and then open
 
 Every form has a field that people never see, which robots fill in. Services throw away answers that have it filled in. Formspree also asks visitors who might be robots to tick its reCAPTCHA box before their answers are sent.
 
-With Web3Forms, **Ask visitors to show they aren't robots (hCaptcha)** adds Web3Forms' hCaptcha to every form. It needs Web3Forms' script on pages with a form, so it's off by default, and the editor shows where the hCaptcha will go rather than loading it. Web3Forms only turns away answers without it when hCaptcha is also turned on for the form in a Web3Forms account.
+With Web3Forms, **Ask visitors to show they aren't robots (hCaptcha)** adds Web3Forms' hCaptcha to every form. It needs Web3Forms' script on pages with a form, so it's off by default, and the editor shows where the hCaptcha will go rather than loading it. Web3Forms only turns away answers without it when hCaptcha is also turned on for the form in a Web3Forms account. On a site that [asks visitors first](/docs/layout-and-settings#visitors-consent), the script loads once a visitor agrees, and until then the form says so, with a button that agrees; Google forms wait the same way.
 
 ## Google Forms
 

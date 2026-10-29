@@ -1,6 +1,7 @@
 import { isAddedPage, type PageCredit } from "@goodfellow-cms/core";
 import type { Config, Data, Metadata } from "@puckeditor/core";
 import type { ComponentType, ReactNode } from "react";
+import { ConsentNotice } from "./consent-shared.js";
 import { cx } from "./cx.js";
 import { type SiteContextValue, siteMetadata } from "./site-types.js";
 
@@ -114,13 +115,18 @@ export function createPageBody({ Render, SiteProvider }: Renderers) {
 
   /** The site's footer, for layouts shared by every page. */
   function PageFooter({ site, layoutConfig, data }: PageHeaderProps) {
-    if (data.content.length === 0) return null;
+    // The consent notice comes with the footer, in its language, since both renderers show the footer once a page.
+    const notice = <ConsentNotice site={site} />;
+    if (data.content.length === 0) return notice;
     return (
-      <SiteProvider value={site}>
-        <footer className="gf-footer">
-          <Render config={layoutConfig} data={data} metadata={siteMetadata(site)} site={site} />
-        </footer>
-      </SiteProvider>
+      <>
+        <SiteProvider value={site}>
+          <footer className="gf-footer">
+            <Render config={layoutConfig} data={data} metadata={siteMetadata(site)} site={site} />
+          </footer>
+        </SiteProvider>
+        {notice}
+      </>
     );
   }
 

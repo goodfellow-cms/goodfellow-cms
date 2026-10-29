@@ -315,6 +315,9 @@ export function mapSiteLinks(
       },
     }),
     ...(settings.socialImage !== undefined && { socialImage: media(settings.socialImage) }),
+    ...(settings.consent?.policy !== undefined && {
+      consent: { ...settings.consent, policy: media(settings.consent.policy) },
+    }),
   });
   const redirectsVisitor = visit(REDIRECTS_FILE);
   const redirects =

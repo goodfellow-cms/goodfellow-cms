@@ -2,6 +2,7 @@ import {
   absoluteUrl,
   colorSchemeMeta,
   colorSchemeScript,
+  consentScript,
   contentForPage,
   feedLinks,
   fontPreloads,
@@ -82,6 +83,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
     ]);
     const colorScheme = colorSchemeMeta(settings.theme);
     const schemeScript = colorSchemeScript(settings.theme);
+    const consent = settings.consent !== undefined;
     const socialImage = toAbsolute(settings.url, head.socialImage);
 
     const document = (
@@ -121,7 +123,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
           ))}
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: themeToCss escapes its output */}
           <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme, standIns) }} />
-          <HeadCode code={content.code?.head} />
+          <HeadCode code={content.code?.head} held={consent} />
         </head>
         <body>
           <PageBody
@@ -133,7 +135,9 @@ export function createPageRenderer(config: GoodfellowConfig) {
             footer={prepared.footer}
             {...(prepared.structuredData && { structuredData: prepared.structuredData })}
           />
-          <BodyCode code={content.code?.body} />
+          <BodyCode code={content.code?.body} held={consent} />
+          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own script, which asks visitors before loading other sites' content */}
+          {consent && <script dangerouslySetInnerHTML={{ __html: consentScript() }} />}
           {assets.scripts?.map((src) => (
             <script key={src} type="module" src={src} />
           ))}

@@ -8,6 +8,7 @@ import {
   type SiteSettings,
 } from "@goodfellow-cms/core";
 import { useMemo } from "react";
+import { CONSENT_WORDS, ConsentWordField } from "./consent-settings.js";
 import { useStrings } from "./strings.js";
 import { Button, TextField } from "./ui.js";
 
@@ -45,6 +46,12 @@ export function cleanLanguages(draft: SiteSettings): Pick<SiteSettings, "languag
         ...(optional(own?.description) && { description: optional(own?.description) }),
         ...(optional(own?.titleTemplate) && { titleTemplate: optional(own?.titleTemplate) }),
       };
+      const consent = Object.fromEntries(
+        CONSENT_WORDS.flatMap((word) =>
+          optional(own?.consent?.[word]) ? [[word, optional(own?.consent?.[word])]] : [],
+        ),
+      );
+      if (draft.consent && Object.keys(consent).length > 0) kept.consent = consent;
       return Object.keys(kept).length > 0 ? [[code, kept]] : [];
     }),
   );
@@ -178,6 +185,24 @@ export function LanguagesTab({
               value={own?.titleTemplate ?? ""}
               onChange={(value) => setTranslation(code, "titleTemplate", value)}
             />
+            {draft.consent &&
+              CONSENT_WORDS.map((word) => (
+                <ConsentWordField
+                  key={word}
+                  word={word}
+                  placeholder={draft.consent?.[word]}
+                  value={own?.consent?.[word] ?? ""}
+                  onChange={(value) =>
+                    onChange({
+                      ...draft,
+                      translations: {
+                        ...draft.translations,
+                        [code]: { ...own, consent: { ...own?.consent, [word]: value } },
+                      },
+                    })
+                  }
+                />
+              ))}
             {count > 0 ? (
               <p className="gfa-hint">{t("languages.inUse", { count: String(count) })}</p>
             ) : (

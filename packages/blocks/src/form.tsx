@@ -7,7 +7,15 @@ import {
   googleFormUrl,
   WEB3FORMS_SCRIPT,
 } from "@goodfellow-cms/core";
-import { type AdminPlace, classNameField, useParts, useSite, withParts } from "@goodfellow-cms/react";
+import {
+  type AdminPlace,
+  ConsentFrame,
+  ConsentScript,
+  classNameField,
+  useParts,
+  useSite,
+  withParts,
+} from "@goodfellow-cms/react";
 import type { ComponentConfig, Fields } from "@puckeditor/core";
 import type { ReactNode } from "react";
 import { answerNames, choicesOf, type FormField, type FormFieldType, type FormProps } from "./form-data.js";
@@ -249,7 +257,8 @@ function FormView({ isEditing, id, ...stored }: FormProps & { isEditing: boolean
     const form = googleFormUrl(props.google);
     if ("problem" in form) return isEditing ? <Notice>{googleProblems[form.problem]}</Notice> : null;
     return (
-      <iframe
+      <ConsentFrame
+        box
         className={part("gf-form-embed", "block w-full rounded-lg border-0", className)}
         style={{ height: form.height ?? props.height }}
         src={form.url}
@@ -326,7 +335,7 @@ function FormView({ isEditing, id, ...stored }: FormProps & { isEditing: boolean
           ) : (
             <>
               <div className="h-captcha" data-captcha="true" />
-              {onSite && <script src={WEB3FORMS_SCRIPT} async defer />}
+              {onSite && <ConsentScript src={WEB3FORMS_SCRIPT} />}
             </>
           ))}
         <button

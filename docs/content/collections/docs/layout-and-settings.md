@@ -14,7 +14,7 @@ order: 5
 
 **Site Settings** lists its tabs in a sidebar on the left, each with an icon; **Hide names** at the bottom of it shows only the icons, with each name appearing as you point at its icon, and the admin panel remembers the choice on that computer. In a narrow window, the sidebar shows only the icons. The first seven tabs are published together, with a preview of the home page that shows changes as you type, and Undo and Redo work across all of them:
 
-- **General:** the site's name, its address, the title shown in browser tabs, a description for search engines, the logo, the icon, the image for link previews, whether links to other sites open in a new tab, the time zone events' times are in (see [Calendars and events](/docs/calendars#time-zone)), the contact details (address, phone number and email address) that the Contact details block shows, and where forms' answers go (see [Forms](/docs/forms#choose-a-form-service)). Links to the site's own pages always open in the same tab.
+- **General:** the site's name, its address, the title shown in browser tabs, a description for search engines, the logo, the icon, the image for link previews, whether links to other sites open in a new tab, the time zone events' times are in (see [Calendars and events](/docs/calendars#time-zone)), the contact details (address, phone number and email address) that the Contact details block shows, where forms' answers go (see [Forms](/docs/forms#choose-a-form-service)), and whether pages ask visitors before showing content from other sites (see [Visitors' consent](#visitors-consent)). Links to the site's own pages always open in the same tab.
 - **Languages:** the site's main language and any others, each with the site's name and description in it (see [Several languages](/docs/languages)).
 - **Colors & fonts:** colors, fonts and how rounded corners are, dark mode (see [Dark mode](#dark-mode)), and classes for blocks' parts (see [Blocks' parts](#blocks-parts)). A [theme](/docs/themes) sets these for you, and you can still change them here. Fonts are chosen from a searchable list of Google Fonts, each shown in its own typeface. Builds copy them into the site, so visitors' browsers load them from the site and never ask Google; if Google can't be reached when the site is built, its pages load them from Google until the next build. While a font loads, or if it can't, pages show one of the computer's own fonts of the same kind, such as a serif for a serif font, resized to take the same space, so the text doesn't move when the font arrives.
 - **Menus:** named lists of links, with submenus. The header's Menu block shows one of them. On a site in several languages, each language can have menus of its own.
@@ -58,6 +58,17 @@ Every part of a block has a name, such as `gf-heading` for a Heading or `gf-card
 - **Show code on the subtle background color** gives code that looks like the page the site's **Subtle background** color, instead of the background its colors were made for, so it matches the rest of the site. Some colors are harder to read on another background, so check how the code looks.
 
 GitHub Light and GitHub Dark are the defaults.
+
+## Visitors' consent
+
+Videos from YouTube and Vimeo, Google forms and maps, and hCaptcha come from other sites, which can set cookies and see who visits; so can code pasted under **Code**, such as analytics. In many places, such as the European Union and the United Kingdom, visitors have to agree first. **Site Settings → General → Visitors' consent → Ask visitors before showing content from other sites** makes pages wait:
+
+- **A notice** at the bottom of each page asks visitors, with **Allow** and **No, thanks** and a link to your privacy page, until they answer. Their answer is kept in their browser, so it's asked once. A link to `#consent`, such as a "Privacy choices" link in the footer's menu, opens the notice again.
+- **Videos, Google forms and maps** from other sites load nothing until visitors agree: in their place, a note says where they come from, with a button that agrees and shows them. Uploaded videos and sound files are the site's own and play as always.
+- **hCaptcha** on a form loads once visitors agree, with the same note and button in the form.
+- **Code:** what's at the end of the page, and the head's scripts, links and `<noscript>`, wait too. The head's `<meta>` tags, such as a site verification, and its `<style>` stay on every page, since they load nothing.
+
+Every word of the notice can be changed, and on a site in [several languages](/docs/languages), each language's own words go on the **Languages** tab. Visitors whose browser runs no JavaScript never see the notice, so nothing from other sites loads for them. The admin panel's editor and previews always show everything. Fonts aren't held back, since builds copy them into the site; if Google can't be reached when the site is built, pages load them from Google until the next build. Whether a site needs to ask, and what its privacy page says, depends on where it and its visitors are; this only makes asking possible.
 
 ## Redirects
 

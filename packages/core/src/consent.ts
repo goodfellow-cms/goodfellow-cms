@@ -1,0 +1,55 @@
+// What visitors' browsers run to ask before loading other sites' content. It has no imports, since it
+// runs on every page of a site that asks.
+
+/** Where a visitor's answer is kept in their browser: `yes` or `no`. */
+export const CONSENT_STORAGE_KEY = "goodfellow-consent";
+
+/** The notice's id. */
+export const CONSENT_NOTICE_ID = "gf-consent";
+
+/** Links to this, such as a menu's "Privacy choices", open the notice again. */
+export const CONSENT_LINK = "#consent";
+
+/** On a player, frame or script held back: the address it loads once the visitor agrees, in place of `src`. */
+export const CONSENT_SRC_ATTRIBUTE = "data-gf-consent-src";
+
+/** On what's shown in place of a player held back, which goes once the visitor agrees. */
+export const CONSENT_PLACEHOLDER_ATTRIBUTE = "data-gf-consent-placeholder";
+
+/** On a `<template>` of the site's custom code: `head` or `body`, where it goes once the visitor agrees. */
+export const CONSENT_CODE_ATTRIBUTE = "data-gf-consent-code";
+
+/** On buttons that agree, or that don't. */
+export const CONSENT_ACCEPT_ATTRIBUTE = "data-gf-consent-accept";
+export const CONSENT_DECLINE_ATTRIBUTE = "data-gf-consent-decline";
+
+/**
+ * The script a site that asks puts after its notice, at the end of the page.
+ * It shows the notice until the visitor answers, keeps the answer in their
+ * browser, and once they agree loads what was held back: each player's
+ * address, Web3Forms' hCaptcha script and the site's custom code, written
+ * again so its scripts run. It watches the page, so what Next.js shows later
+ * is held back or loaded too, and links to `#consent` open the notice again. Choosing no after
+ * yes reloads the page, which can't unload what it loaded.
+ */
+export function consentScript(): string {
+  const q = JSON.stringify;
+  return `(function(){var d=document,K=${q(CONSENT_STORAGE_KEY)},S=${q(CONSENT_SRC_ATTRIBUTE)},P=${q(CONSENT_PLACEHOLDER_ATTRIBUTE)},C=${q(CONSENT_CODE_ATTRIBUTE)},A=${q(CONSENT_ACCEPT_ATTRIBUTE)},N=${q(CONSENT_DECLINE_ATTRIBUTE)},L=${q(CONSENT_LINK)};
+function get(){try{return localStorage.getItem(K)}catch(e){return null}}
+function put(v){try{localStorage.setItem(K,v)}catch(e){}}
+function show(open){var n=d.getElementById(${q(CONSENT_NOTICE_ID)});if(n)n.hidden=!open}
+function code(t){var f=t.content.cloneNode(true);f.querySelectorAll("script").forEach(function(o){var s=d.createElement("script");for(var i=0;i<o.attributes.length;i++)s.setAttribute(o.attributes[i].name,o.attributes[i].value);if(!o.hasAttribute("async"))s.async=false;s.text=o.text;o.replaceWith(s)});if(t.getAttribute(C)==="head"){d.head.appendChild(f);t.remove()}else t.replaceWith(f)}
+function release(){d.querySelectorAll("["+S+"]").forEach(function(e){var a=e.getAttribute(S);e.removeAttribute(S);if(e.tagName==="SCRIPT"){var s=d.createElement("script");s.src=a;s.async=true;e.replaceWith(s)}else e.setAttribute("src",a)});d.querySelectorAll("["+P+"]").forEach(function(e){e.remove()});d.querySelectorAll("template["+C+"]").forEach(code)}
+function check(){var g=get();if(g==="yes")release();else if(g!=="no")show(true)}
+d.addEventListener("click",function(e){var t=e.target&&e.target.closest?e.target.closest("["+A+"],["+N+"],a[href]"):null;if(!t)return;if(t.hasAttribute(A)){put("yes");show(false);release()}else if(t.hasAttribute(N)){var was=get();put("no");show(false);if(was==="yes")location.reload()}else if(t.getAttribute("href")===L){e.preventDefault();show(true)}});
+new MutationObserver(check).observe(d.body,{childList:true,subtree:true});check()})();`;
+}
+
+/** The site a held-back player is from, to name in its place, such as `youtube-nocookie.com`. */
+export function consentSource(src: string): string {
+  try {
+    return new URL(src).hostname.replace(/^www\./, "");
+  } catch {
+    return src;
+  }
+}

@@ -4,6 +4,7 @@ import {
   adminSiteForCopy,
   colorSchemeMeta,
   colorSchemeScript,
+  consentScript,
   contentForPage,
   demoContent,
   describedForCopy,
@@ -113,6 +114,18 @@ function exportedPages(content: SiteContent, blocks: GoodfellowConfig["blocks"])
 
 function findPage(content: SiteContent, blocks: GoodfellowConfig["blocks"], path: string): Page | undefined {
   return exportedPages(content, blocks).find((page) => page.path === path);
+}
+
+/** Whether the site asks visitors before loading other sites' content. */
+function asks(content: SiteContent): boolean {
+  return content.settings.consent !== undefined;
+}
+
+/** The consent script, after the footer's notice, on a site that asks. */
+function ConsentAsk({ content }: { content: SiteContent }) {
+  if (!asks(content)) return null;
+  // biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own script, which asks visitors before loading other sites' content
+  return <script dangerouslySetInnerHTML={{ __html: consentScript() }} />;
 }
 
 function toAbsolute(siteUrl: string | undefined, url: string | undefined): string | undefined {
@@ -288,12 +301,13 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
         <>
           <Theme content={content} />
           {/* React moves the head's links, meta tags and loading scripts into the head; inline scripts run here. */}
-          <HeadCode code={content.code?.head} />
+          <HeadCode code={content.code?.head} held={asks(content)} />
           {header}
           {children}
           {footer}
           <CurrentMenuLinks basePath={basePath()} />
-          <BodyCode code={content.code?.body} />
+          <BodyCode code={content.code?.body} held={asks(content)} />
+          <ConsentAsk content={content} />
         </>
       );
     },
@@ -341,7 +355,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
           {/* Next.js doesn't take metadata from not-found pages; React moves this into the head. */}
           <title>{pageHead(content, page).title}</title>
           <Theme content={content} />
-          <HeadCode code={content.code?.head} />
+          <HeadCode code={content.code?.head} held={asks(content)} />
           <PageBody
             site={prepared.site}
             pageConfig={prepared.pageConfig}
@@ -350,7 +364,8 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
             header={prepared.header}
             footer={prepared.footer}
           />
-          <BodyCode code={content.code?.body} />
+          <BodyCode code={content.code?.body} held={asks(content)} />
+          <ConsentAsk content={content} />
         </>
       );
     },

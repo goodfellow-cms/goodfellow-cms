@@ -34,6 +34,7 @@ import {
   storedCss,
 } from "./changes.js";
 import { CodeEditor } from "./code-editor.js";
+import { ConsentSection, cleanConsent } from "./consent-settings.js";
 import { FontPicker } from "./font-picker.js";
 import { useHistory } from "./history.js";
 import { cleanLanguages, LanguagesTab, languagesProblem } from "./languages-tab.js";
@@ -42,7 +43,7 @@ import { MenusTab } from "./menus-editor.js";
 import { PartsEditor } from "./parts-editor.js";
 import { PreviewFrame, type PreviewScheme } from "./preview.js";
 import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
-import { type SettingsSection, useUnsavedChanges } from "./router.js";
+import { type SettingsSection, sectionId, useUnsavedChanges } from "./router.js";
 import { describeContrast } from "./site-checks.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { useDarkMode } from "./theme.js";
@@ -102,6 +103,7 @@ function cleanSettings(draft: SiteSettings): unknown {
       : undefined,
     contact: cleanContact(draft.contact),
     forms: cleanForms(draft.forms),
+    consent: cleanConsent(draft.consent),
     theme: {
       colors,
       fonts: cleanFonts(draft.theme.fonts),
@@ -397,6 +399,8 @@ function GeneralTab({
       />
 
       <FormsSettings forms={draft.forms} error={formsError} onChange={(forms) => onChange({ ...draft, forms })} />
+
+      <ConsentSection consent={draft.consent} onChange={(consent) => onChange({ ...draft, consent })} />
     </div>
   );
 }
@@ -688,11 +692,6 @@ function CodeTab({
  * preview of the home page (without the code, which never runs in the admin
  * panel). Publishing saves every changed file in one go.
  */
-/** The id of a General tab section's heading, which links scroll to. */
-function sectionId(section: SettingsSection): string {
-  return `gfa-settings-${section}`;
-}
-
 export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: SettingsSection }) {
   // A link to a section, such as from a block's note in the editor, scrolls down to it.
   useEffect(() => {

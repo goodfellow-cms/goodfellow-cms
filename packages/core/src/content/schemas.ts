@@ -110,10 +110,52 @@ export function isLanguageCode(code: string): boolean {
 }
 
 /** The site's wording in one of its other languages. Left out, a setting is the main language's. */
+/** What the notice asking visitors before loading other sites' content says, and the words in held-back players' place. */
+const consentWords = {
+  /** The notice's text. */
+  message: z.string(),
+  /** The button that agrees. */
+  accept: z.string(),
+  /** The button that doesn't. */
+  decline: z.string(),
+  /** Shown in place of each player held back; `{site}` is where it's from, such as `youtube-nocookie.com`. */
+  held: z.string(),
+  /** The button there, which agrees and shows it. */
+  show: z.string(),
+  /** The words of the link to the privacy page. */
+  policyLabel: z.string(),
+};
+
+/** The notice's words until an owner changes them. */
+export const CONSENT_DEFAULTS = {
+  message:
+    "This site shows videos, forms and other content from other sites, which can set cookies and see that you visited. Is that all right with you?",
+  accept: "Allow",
+  decline: "No, thanks",
+  held: "This comes from {site}, which can set cookies.",
+  show: "Allow and show it",
+  policyLabel: "Privacy",
+} as const;
+
+export const consentSchema = z.object({
+  message: consentWords.message.default(CONSENT_DEFAULTS.message),
+  accept: consentWords.accept.default(CONSENT_DEFAULTS.accept),
+  decline: consentWords.decline.default(CONSENT_DEFAULTS.decline),
+  held: consentWords.held.default(CONSENT_DEFAULTS.held),
+  show: consentWords.show.default(CONSENT_DEFAULTS.show),
+  /** The site's privacy page, such as `/privacy`, which the notice links to. */
+  policy: z.string().optional(),
+  policyLabel: consentWords.policyLabel.default(CONSENT_DEFAULTS.policyLabel),
+});
+
+export type ConsentSettings = z.output<typeof consentSchema>;
+
 const settingsTranslation = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
   titleTemplate: z.string().optional(),
+  /** The consent notice's words in the language. */
+  consent: z.object(consentWords).partial().optional(),
 });
 
 export const siteSettingsSchema = z.object({
@@ -188,6 +230,12 @@ export const siteSettingsSchema = z.object({
       captcha: z.boolean().optional(),
     })
     .optional(),
+  /**
+   * Whether pages ask visitors before loading other sites' content: players
+   * from YouTube, Vimeo and other sites, Google Forms, hCaptcha and the site's
+   * custom code wait until they agree. Asks only where it's set.
+   */
+  consent: consentSchema.optional(),
   theme: themeSchema.default({ colors: {}, fonts: {} }),
 });
 
