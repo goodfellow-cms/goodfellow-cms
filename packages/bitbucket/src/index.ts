@@ -165,15 +165,15 @@ export function bitbucket(options: BitbucketOptions): GitHost {
     const access = fragment.get("access_token");
     const error = fragment.get("error") ?? url.searchParams.get("error");
     if (!access && !error) return null;
+    // Take the token out of the address bar, history and bookmarks first, even where this tab
+    // didn't start the sign-in, and go back to the screen sign-in started from.
+    for (const key of ["error", "error_description"]) url.searchParams.delete(key);
     const saved = pending.load();
+    url.hash = saved ? (JSON.parse(saved) as PendingRedirect).hash : "";
+    location().replace(url.toString());
     if (!saved) return null;
     pending.clear();
     const redirect = JSON.parse(saved) as PendingRedirect;
-
-    // Take the token out of the address bar and go back to the screen sign-in started from.
-    url.hash = redirect.hash;
-    for (const key of ["error", "error_description"]) url.searchParams.delete(key);
-    location().replace(url.toString());
 
     // The state must match, so another site can't finish a sign-in it started.
     if (error || !access || fragment.get("state") !== redirect.state) {
