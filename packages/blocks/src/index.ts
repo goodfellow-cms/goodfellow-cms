@@ -16,6 +16,7 @@ import { Flex, Grid, Section, Space } from "./layout.js";
 import { CollectionLoop } from "./loop.js";
 import { Audio, Document, File, Gallery, MediaText } from "./media.js";
 import { Breadcrumbs, Menu, PageList, SiteBrand } from "./navigation.js";
+import { Newsletter } from "./newsletter.js";
 import { Search } from "./search.js";
 import { Donate, ShareButtons } from "./share.js";
 import { Details, Preformatted, Pullquote, Separator, Table, Verse } from "./text.js";
@@ -114,6 +115,13 @@ export {
   SiteBrand,
   type SiteBrandProps,
 } from "./navigation.js";
+export {
+  NEWSLETTER_SERVICES,
+  Newsletter,
+  type NewsletterProps,
+  type NewsletterService,
+  newsletterTarget,
+} from "./newsletter.js";
 export { Search, type SearchProps } from "./search.js";
 export { Donate, type DonateProps, ShareButtons, type ShareButtonsProps, type ShareSite } from "./share.js";
 export {
@@ -147,6 +155,7 @@ export const blocks = {
   Image,
   Video,
   Form,
+  Newsletter,
   Code,
   ContactDetails,
   Menu,
@@ -201,7 +210,10 @@ export const categories = {
     title: "Text",
     components: ["Heading", "Text", "Pullquote", "Table", "Preformatted", "Verse", "Code"],
   },
-  forms: { title: "Buttons and forms", components: ["Button", "Donate", "ShareButtons", "Form", "ContactDetails"] },
+  forms: {
+    title: "Buttons and forms",
+    components: ["Button", "Donate", "ShareButtons", "Form", "Newsletter", "ContactDetails"],
+  },
   media: {
     title: "Media",
     components: ["Image", "Gallery", "Video", "Embed", "Audio", "File", "Document"],
