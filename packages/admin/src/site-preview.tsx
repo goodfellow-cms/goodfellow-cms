@@ -73,7 +73,18 @@ export function SitePreview({
     () =>
       empty && {
         source: frames,
-        init: { content: empty, media: [], schedule: {}, siteUrl, preview, strings, theme, hostName: "" },
+        init: {
+          content: empty,
+          media: [],
+          schedule: {},
+          siteUrl,
+          preview,
+          strings,
+          puck: {},
+          labels: {},
+          theme,
+          hostName: "",
+        },
         siteCss: async () => [],
         // Media comes from the live site; there's no repository to read the rest from.
         mediaPreviews: createMediaPreviews({ readBytes: async () => undefined }, siteUrl),
