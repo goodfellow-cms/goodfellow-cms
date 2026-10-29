@@ -151,7 +151,11 @@ function headers() {
   const site = [
     {
       source: "/(.*)",
-      headers: list({ "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin" }),
+      headers: list({
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Content-Security-Policy": "object-src 'none'; base-uri 'self'",
+      }),
     },
     { source: "/media/(.*)\\.(svg|SVG)", headers: list({ "Content-Security-Policy": "sandbox" }) },
   ];

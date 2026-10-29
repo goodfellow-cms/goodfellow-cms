@@ -15,7 +15,9 @@ import {
   limitsContent,
   limitsFor,
   newDraftName,
+  type OwnersOnlyFields,
   outsideLimits,
+  ownersOnlyChanges,
   PluginTaskError,
   type PluginTaskRequest,
   pluginId,
@@ -62,6 +64,12 @@ export interface AppApiOptions {
    * as plugins are; `"publish"` lets owners publish them.
    */
   codeChanges?: "review" | "publish";
+  /**
+   * Block settings only owners may change (`ownersOnlyFields(config.blocks)`),
+   * such as Custom HTML used exactly as written, which editors' saves may then
+   * not change.
+   */
+  ownersOnly?: OwnersOnlyFields;
 }
 
 /** Room for a save with uploads, which are sent as base64 (a third larger than the files). */
@@ -273,6 +281,11 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       // So is the code this server runs, unless the site lets owners publish it.
       if (codeReview && changes.some((change) => isCodePath(change.path))) return json(403, { error: "review-only" });
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
+      // Block settings only owners may change, such as Custom HTML used exactly as written.
+      if (editor.role !== "owner" && options.ownersOnly) {
+        const changed = await ownersOnlyChanges(changes, options.ownersOnly, (path) => backend.read(path));
+        if (changed.length > 0) return json(403, { error: "owners-only", paths: changed });
+      }
       // An owner's limits for this person, held here too, since the browser can't be trusted to keep to them.
       const outside = await outsideLimitsAt(backend, editor.login, changes);
       if (outside.length > 0) return json(403, { error: "outside-limits", paths: outside });

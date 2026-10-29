@@ -19,7 +19,15 @@ describe("media addresses", () => {
     expect(mediaPath("/media/my%20photo.jpg")).toBe("public/media/my photo.jpg");
   });
 
-  it.each(["/images/a.jpg", "/media/", "/media/../secret", "https://example.org/media/a.jpg"])("ignores %s", (url) => {
+  it.each([
+    "/images/a.jpg",
+    "/media/",
+    "/media/../secret",
+    "/media/%2e%2e/secret",
+    "/media/a%2F..%2F..%2Fsecret",
+    "/media/100%.jpg",
+    "https://example.org/media/a.jpg",
+  ])("ignores %s", (url) => {
     expect(mediaPath(url)).toBeUndefined();
   });
 });

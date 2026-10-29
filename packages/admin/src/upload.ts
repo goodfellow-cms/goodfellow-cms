@@ -138,6 +138,27 @@ const SVG_ELEMENTS = new Set([
 /** Addresses links and images may have: within the file, on the web, relative ones, and pictures. */
 const SAFE_SVG_ADDRESS = /^(#|https?:|data:image\/(png|jpeg|gif|webp)[;,]|(?![a-z][a-z\d+.-]*:))/;
 
+/**
+ * Addresses an SVG loads as it draws (images, filters' images, `use` and CSS's
+ * `url()`): within the file, the site's own, and pictures in the file, so an
+ * SVG opened on its own never asks another site for anything.
+ */
+const LOADED_SVG_ADDRESS = /^(#|data:image\/(png|jpeg|gif|webp)[;,]|(?![a-z][a-z\d+.-]*:)(?!\/\/))/;
+
+/**
+ * CSS with what would load from another site taken out: `@import`, and
+ * `url()`s other than the file's own and the site's. Escapes could spell
+ * either some other way, so CSS with any is left out whole (`undefined`).
+ */
+function cssWithoutOutsideAddresses(css: string): string | undefined {
+  if (css.includes("\\")) return undefined;
+  return css
+    .replace(/@import[^;]*;?/gi, "")
+    .replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (whole, _quote: string, address: string) =>
+      LOADED_SVG_ADDRESS.test(normalized(address)) ? whole : "none",
+    );
+}
+
 /** An attribute's value as a browser reads an address: without the spaces and control characters it skips. */
 function normalized(value: string): string {
   return value.replace(/[\s\p{Cc}]/gu, "").toLowerCase();
@@ -159,15 +180,25 @@ function keepsElement(element: Element): boolean {
 }
 
 function cleanElement(element: Element): void {
+  // Only links are followed when someone chooses to; everything else's addresses load with the picture.
+  const loads = element.localName !== "a";
   for (const attribute of [...element.attributes]) {
     const value = normalized(attribute.value);
+    if (attribute.value.includes("url(") || (attribute.localName === "style" && attribute.value.includes("\\"))) {
+      const css = cssWithoutOutsideAddresses(attribute.value);
+      if (css === undefined) {
+        element.removeAttributeNode(attribute);
+        continue;
+      }
+      attribute.value = css;
+    }
     if (
       (attribute.namespaceURI !== null && !SVG_ATTRIBUTE_NAMESPACES.has(attribute.namespaceURI)) ||
       (attribute.name.includes(":") && !/^(xlink|xml|xmlns):/.test(attribute.name)) ||
       attribute.localName.toLowerCase().startsWith("on") ||
       value.includes("javascript:") ||
       value.includes("vbscript:") ||
-      (isLink(attribute.name.toLowerCase()) && !SAFE_SVG_ADDRESS.test(value))
+      (isLink(attribute.name.toLowerCase()) && !(loads ? LOADED_SVG_ADDRESS : SAFE_SVG_ADDRESS).test(value))
     ) {
       element.removeAttributeNode(attribute);
     }
@@ -180,6 +211,11 @@ function cleanElement(element: Element): void {
       child.remove();
     }
   }
+  if (element.localName === "style") {
+    const css = cssWithoutOutsideAddresses(element.textContent ?? "");
+    if (css === undefined) element.remove();
+    else if (css !== element.textContent) element.textContent = css;
+  }
 }
 
 /**
@@ -187,7 +223,9 @@ function cleanElement(element: Element): void {
  * opens the file directly: SVG's own drawing elements, with no scripts,
  * embedded pages, elements from other namespaces, event handlers, processing
  * instructions (an XSL stylesheet could write a page), or javascript:, vbscript:
- * and other addresses than the web's, the file's own and pictures.
+ * and other addresses than the web's, the file's own and pictures. What it
+ * loads as it draws comes only from the file itself or the site, so opening it
+ * tells no one else.
  */
 export function cleanSvg(text: string): string | undefined {
   const doc = new DOMParser().parseFromString(text, "image/svg+xml");

@@ -1,7 +1,7 @@
 import type { ComponentData, Data } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
 import type { SiteDescription } from "../site-description.js";
-import { checkEditedData, MAX_EDITED_DATA } from "./edited-data.js";
+import { checkEditedData, checkPuckData, MAX_EDITED_DATA } from "./edited-data.js";
 
 const description: Pick<SiteDescription, "blocks" | "root"> = {
   root: {
@@ -176,5 +176,42 @@ describe("checkEditedData", () => {
       { description, kind: "page", opened: withZones },
     );
     expect(kept.ok && kept.data.zones).toEqual({ "s1:left": [] });
+  });
+});
+
+describe("checkPuckData", () => {
+  it("keeps Puck's data as plain JSON, values as they are", () => {
+    const data = { ...opened, zones: { "s1:extra": [{ type: "Heading", props: { id: "h2", odd: 1 } }] } };
+    expect(checkPuckData(data, { description, kind: "page" })).toEqual({ ok: true, data });
+    const withUndefined = { root: { props: { title: undefined } }, content: [] };
+    expect(checkPuckData(withUndefined, { description, kind: "page" })).toEqual({
+      ok: true,
+      data: { root: { props: {} }, content: [] },
+    });
+  });
+
+  it("refuses blocks that aren't the site's, in slots and drop zones too, and what isn't data", () => {
+    const nested = {
+      root: { props: {} },
+      content: [{ type: "Section", props: { id: "s1", content: [{ type: "Script", props: { id: "x" } }] } }],
+      zones: { "s1:extra": [{ type: "EntryField", props: { id: "e" } }] },
+    };
+    const checked = checkPuckData(nested, { description, kind: "page" });
+    expect(checked.ok).toBe(false);
+    if (!checked.ok)
+      expect(checked.problems.map((problem) => problem.path)).toEqual([
+        "content[0].props.content[0]",
+        "zones.s1:extra[0]",
+      ]);
+    expect(
+      checkPuckData(
+        { root: { props: {} }, content: [{ type: "EntryField", props: { id: "e" } }] },
+        { description, kind: "template" },
+      ).ok,
+    ).toBe(true);
+    expect(checkPuckData({ content: "no" }, { description, kind: "page" }).ok).toBe(false);
+    const looped: Record<string, unknown> = { content: [] };
+    looped.root = looped;
+    expect(checkPuckData(looped, { description, kind: "page" }).ok).toBe(false);
   });
 });

@@ -1593,6 +1593,33 @@ body,
 }
 
 .gfa-media-actions .gfa-button,
+/* A setting only the site's owners may change, shown to editors as it is (frame/owners-only.tsx). */
+.gfa-locked-field {
+  padding: 0 16px 16px;
+  font:
+    14px / 1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+.gfa-locked-field-label {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.gfa-locked-field-value {
+  padding: 10px 12px;
+  border: 1px solid var(--gfa-border);
+  border-radius: 4px;
+  background: var(--gfa-bg);
+}
+
+.gfa-locked-field-note {
+  margin: 6px 0 0;
+  color: var(--gfa-muted);
+  font-size: 13px;
+}
+
 /* A table's cells, in the editor's fields. */
 .gfa-table-field {
   padding: 0 16px 16px;

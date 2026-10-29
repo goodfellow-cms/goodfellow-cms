@@ -1,3 +1,6 @@
 node_modules/
 dist/
 public/starters/
+# Environment files, which hold secrets.
+.env
+.env*.local

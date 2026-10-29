@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { APP_API_HEADER, type AppEditor, isSettingsPath } from "./app-api.js";
+import type { OwnersOnlyFields } from "./content/owners-only.js";
 import { ConflictError, type FileChange } from "./content/store.js";
 import { type CommitAuthor, encodeBase64Bytes, GitApiError, type GitBackend, type ServerGit } from "./git.js";
 import { appApi } from "./node-app-api.js";
@@ -127,7 +128,11 @@ const OWEN: AppEditor = { ...ALICE, login: "owen", name: "Owen Owner", email: "o
 
 function setup(
   editor: AppEditor | null | false = ALICE,
-  { contentOnly = false, codeChanges }: { contentOnly?: boolean; codeChanges?: "review" | "publish" } = {},
+  {
+    contentOnly = false,
+    codeChanges,
+    ownersOnly,
+  }: { contentOnly?: boolean; codeChanges?: "review" | "publish"; ownersOnly?: OwnersOnlyFields } = {},
 ) {
   const repo = new FakeRepo(FILES);
   const server = fakeServerGit(repo);
@@ -140,6 +145,7 @@ function setup(
     signOut: "/sign-out",
     onError: (error) => errors.push(error),
     ...(codeChanges && { codeChanges }),
+    ...(ownersOnly && { ownersOnly }),
   });
   const call = (endpoint: string, init: RequestInit & { query?: Record<string, string> } = {}) => {
     const url = new URL(`https://parish.example/api/goodfellow/${endpoint}`);
@@ -314,6 +320,41 @@ describe("appApi", () => {
 
     signIn(OWEN);
     expect((await post("write", { ...settings, expectedRevision: revision })).status).toBe(200);
+  });
+
+  it("lets only owners change settings blocks mark as theirs", async () => {
+    const ownersOnly: OwnersOnlyFields = { "custom-html": { fields: ["sanitize"], defaults: { sanitize: true } } };
+    const { call, post, signIn } = setup(ALICE, { ownersOnly });
+    const page = (sanitize?: boolean, html = "<p>Hi</p>") =>
+      JSON.stringify({
+        version: 1,
+        data: {
+          root: { props: { title: "About" } },
+          content: [
+            { type: "custom-html", props: { id: "html-1", html, ...(sanitize !== undefined && { sanitize }) } },
+          ],
+        },
+      });
+    const write = async (content: string) => {
+      const { revision } = (await (await call("revision")).json()) as { revision: string };
+      return post("write", {
+        changes: [{ path: "content/pages/about.json", content }],
+        message: "Edit About",
+        expectedRevision: revision,
+      });
+    };
+
+    expect((await write(page())).status).toBe(200);
+    expect((await write(page(undefined, "<p>Hello</p>"))).status).toBe(200);
+    const refused = await write(page(false, "<script>alert(1)</script>"));
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: "owners-only", paths: ["content/pages/about.json"] });
+
+    signIn(OWEN);
+    expect((await write(page(false))).status).toBe(200);
+    signIn(ALICE);
+    expect((await write(page(false, "<p>Changed</p>"))).status).toBe(200);
+    expect((await write(page(true))).status).toBe(403);
   });
 
   it("adds plugins only through a review, which only owners can ask for", async () => {

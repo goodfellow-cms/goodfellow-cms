@@ -21,12 +21,12 @@ The tools read the site's files from its repository, and what blocks the site ha
 
 ## What it keeps
 
-Who connected and which sites they chose are sealed inside the tokens Claude holds, with AES-GCM under a key only the connector has, so Claude can't read or change them. The one thing stored, in Cloudflare's D1 database, is each connection's refresh token generation and when it lapses, so a refresh token used twice ends the connection, as OAuth asks.
+Who connected and which sites they chose are sealed inside the tokens Claude holds, with AES-GCM under a key only the connector has, so Claude can't read or change them. The one thing stored, in Cloudflare's D1 database, is each connection's refresh token generation and when it lapses, so a refresh token used twice ends the connection, as OAuth asks. The one before the current one still works for a minute, so Claude asking again after an answer it didn't get doesn't end it. Revoking either of a connection's tokens ends it.
 
 | Host | What the connector signs in with |
 |---|---|
 | GitHub | A GitHub App of its own, **Goodfellow for Claude** unless you name it otherwise, separate from the sign-in service's apps. The editor's own GitHub token shows which repositories they can publish to that the app is installed on, then it's revoked. Each request to `/mcp` gets an installation token for one repository, with Contents and Pull requests write, checks the editor still can publish to it, and revokes it once the request is answered. Commits name the editor as their author. |
-| GitLab | A GitLab OAuth application with the `api` scope, since GitLab has no tokens for one project. The editor's GitLab tokens are sealed in Claude's: the access token in Claude's access token, which never outlasts it, and the refresh token in Claude's refresh token. Renewing Claude's tokens renews GitLab's. |
+| GitLab | A GitLab OAuth application with the `api` scope, since GitLab has no tokens for one project, and no narrower scope can publish: `write_repository` covers only git itself, and the commits, merge requests and pipeline schedules Goodfellow uses need `api`. The editor's GitLab tokens are sealed in Claude's: the access token in Claude's access token, which never outlasts it, and the refresh token in Claude's refresh token. Renewing Claude's tokens renews GitLab's. |
 | Bitbucket | A private Bitbucket OAuth consumer, with a secret, since Bitbucket has no tokens for one repository. The editor's Bitbucket tokens are sealed in Claude's, as GitLab's are, and renewing Claude's tokens renews Bitbucket's. The sites offered are the repositories the editor can write to in their workspaces (the first ten); Bitbucket's tokens reach every repository the editor's account can, but the connector works only on the sites they chose. |
 
 ## Limits
@@ -54,4 +54,4 @@ An organization can run it, with its own GitHub App. The connector is `packages/
    Keep the change it makes to `wrangler.jsonc`, which names the database.
 3. **Use it:** editors add `https://claude.your-name.workers.dev/mcp` (your connector's address) to Claude.
 
-Run `pnpm run setup` again to replace the app or add GitLab or Bitbucket. It keeps the connector's key for sealing tokens, since a new one would end every connection. For a GitLab of your own, set `GITLAB_URL` in `wrangler.jsonc`'s `vars`.
+Run `pnpm run setup` again to replace the app or add GitLab or Bitbucket. It keeps the connector's key for sealing tokens, since a new one would end every connection. For a GitLab of your own, set `GITLAB_URL` in `wrangler.jsonc`'s `vars`. After updating Goodfellow, run `npx wrangler d1 migrations apply DB --remote` in `packages/connector` before `npx wrangler deploy`, so the database has what the new version keeps (setup does this too).

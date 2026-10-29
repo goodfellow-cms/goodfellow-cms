@@ -67,6 +67,26 @@ describe("cleanSvg", () => {
     expect(cleaned).toContain('attributeName="opacity"');
   });
 
+  it("keeps what it loads as it draws to the file itself and the site, so opening it tells no one", () => {
+    const cleaned =
+      cleanSvg(
+        svg(
+          '<style>@import url("https://tracker.example/a.css");.a{fill:url(#g)}.b{background:url(https://tracker.example/b.png)}</style>' +
+            '<image href="https://tracker.example/c.png"/><image href="//tracker.example/d.png"/><image href="/media/e.png"/>' +
+            '<use xlink:href="https://tracker.example/f.svg#x"/><feImage href="https://tracker.example/g.png"/>' +
+            '<rect style="fill:url(https://tracker.example/h.svg#p)"/><rect fill="url(#g)"/>' +
+            '<a href="https://example.org/"><text>Visit</text></a>',
+        ),
+      ) ?? "";
+    expect(cleaned).not.toContain("tracker.example");
+    for (const kept of [".a{fill:url(#g)}", 'href="/media/e.png"', 'fill="url(#g)"', 'href="https://example.org/"']) {
+      expect(cleaned).toContain(kept);
+    }
+    expect(cleanSvg(svg("<style>.a{background:\\75 rl(https://tracker.example/i.png)}</style><rect/>"))).not.toMatch(
+      /<style|tracker/,
+    );
+  });
+
   it("removes processing instructions, comments and attributes from other namespaces", () => {
     const cleaned = cleanSvg(
       `<?xml-stylesheet type="text/xsl" href="https://evil.example/page.xsl"?><!-- hi -->${svg(

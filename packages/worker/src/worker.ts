@@ -210,6 +210,17 @@ interface GrantData extends SessionData {
   challenge: string;
 }
 
+/**
+ * The setup page's grant, which goes back to it in the address: GitHub's
+ * one-time code, which `/github/session` exchanges, rather than the person's
+ * token, so no token is ever in an address, a browser's history or a log.
+ */
+interface SetupGrantData extends Omit<SessionData, "user" | "tokens"> {
+  purpose: "setup";
+  challenge: string;
+  code: string;
+}
+
 class Problem extends Error {
   constructor(
     readonly problem: SignInProblem,
@@ -644,24 +655,27 @@ export function createWorker(options: WorkerOptions = {}) {
       const issued = await withInstallation(app, repo, (installation) =>
         purposeToken(jwt, installation, repo, session.purpose),
       );
+      // Anything that fails before the token is handed over revokes it, so no token is left that nobody holds.
       try {
         await checkStillAllowed(session, repo, issued.token);
         // Checked every time, since the site's address can change, and its old address shouldn't keep getting tokens.
         if (!(await siteAddresses(repo, issued.token)).includes(session.origin)) {
           throw new Problem("wrong-address", 403);
         }
+        const sealed = await sealSession(session);
+        // Last, so nothing after it can fail and leave the code repository's token unheld.
+        const codeToken = await issueCode(session, code);
+        return {
+          session: sealed,
+          token: issued.token,
+          expiresAt: issued.expiresAt,
+          user: publicUser(session.user),
+          ...(codeToken && { code: codeToken }),
+        };
       } catch (error) {
         await revoke(issued.token);
         throw error;
       }
-      const codeToken = await issueCode(session, code);
-      return {
-        session: await sealSession(session),
-        token: issued.token,
-        expiresAt: issued.expiresAt,
-        user: publicUser(session.user),
-        ...(codeToken && { code: codeToken }),
-      };
     }
 
     /** Whether the person may use the code repository as the token would, asked with that token. */
@@ -719,6 +733,22 @@ export function createWorker(options: WorkerOptions = {}) {
       }
       if (issued) await revoke(issued.token);
       return undefined;
+    }
+
+    /** Who a person's own GitHub token belongs to, as sessions keep them. */
+    async function signedInUser(token: string): Promise<SignedInUser> {
+      const found = await githubJson<{ id: number; login: string; name?: string | null; avatar_url?: string }>(
+        config,
+        "/user",
+        { auth: { bearer: token } },
+      );
+      return {
+        id: found.id,
+        login: found.login,
+        name: found.name ?? undefined,
+        avatarUrl: found.avatar_url,
+        email: `${found.id}+${found.login}@users.noreply.github.com`,
+      };
     }
 
     function backTo(state: StateData, params: Record<string, string>): Response {
@@ -840,36 +870,35 @@ export function createWorker(options: WorkerOptions = {}) {
           }
         }
         if (!code) return backTo(state, { goodfellow_sign_in_error: "cancelled" });
+        if (state.purpose === "setup") {
+          const grant: SetupGrantData = {
+            purpose: "setup",
+            origin,
+            remember: state.remember,
+            signedInAt: now(),
+            challenge: state.challenge,
+            code,
+          };
+          return backTo(state, { goodfellow_sign_in: await (await sealer()).seal("grant", grant, GRANT_LIFETIME) });
+        }
         let tokens: UserTokens | undefined;
         try {
           tokens = await userTokens(config, app, { code, redirectUri: `${url.origin}/github/callback` }, now());
-          const found = await githubJson<{ id: number; login: string; name?: string | null; avatar_url?: string }>(
-            config,
-            "/user",
-            { auth: { bearer: tokens.access } },
-          );
+          const user = await signedInUser(tokens.access);
           if (state.repo) await checkAccess(state.purpose, state.repo, tokens.access);
           const grant: GrantData = {
             purpose: state.purpose,
             repo: state.repo,
-            origin: new URL(state.return).origin,
+            origin,
             remember: state.remember,
             signedInAt: now(),
             challenge: state.challenge,
-            user: {
-              id: found.id,
-              login: found.login,
-              name: found.name ?? undefined,
-              avatarUrl: found.avatar_url,
-              email: `${found.id}+${found.login}@users.noreply.github.com`,
-            },
-            // Only the setup page needs the person's own token after this.
-            ...(state.purpose === "setup" && { tokens }),
+            user,
           };
-          if (state.purpose !== "setup") await revokeUserToken(config, app, tokens.access);
+          await revokeUserToken(config, app, tokens.access);
           return backTo(state, { goodfellow_sign_in: await (await sealer()).seal("grant", grant, GRANT_LIFETIME) });
         } catch (error) {
-          if (tokens && state.purpose !== "setup") await revokeUserToken(config, app, tokens.access).catch(() => {});
+          if (tokens) await revokeUserToken(config, app, tokens.access).catch(() => {});
           if (error instanceof Problem) return backTo(state, { goodfellow_sign_in_error: error.problem });
           if (error instanceof GitHubError && error.status === 401) {
             return backTo(state, { goodfellow_sign_in_error: "invalid" });
@@ -882,14 +911,25 @@ export function createWorker(options: WorkerOptions = {}) {
       const body = await readBody();
 
       if (path === "/github/session") {
-        const grant = await (await sealer()).open<GrantData>("grant", body.grant);
+        const grant = await (await sealer()).open<GrantData | SetupGrantData>("grant", body.grant);
         if (!grant || typeof body.verifier !== "string") throw new Problem("invalid", 401);
         if (grant.origin !== requestOrigin) throw new Problem("wrong-address", 403);
         if ((await challengeFor(body.verifier)) !== grant.challenge) throw new Problem("invalid", 401);
-        const { challenge: _, ...session } = grant;
-        if (session.purpose === "setup") {
+        if (grant.purpose === "setup" && "code" in grant) {
+          // Only the setup page keeps the person's own token, sealed in its session, never in an address.
+          const { challenge: _, code, ...rest } = grant;
+          const tokens = await userTokens(
+            config,
+            appFor("setup"),
+            { code, redirectUri: `${url.origin}/github/callback` },
+            now(),
+          ).catch((error: unknown) => {
+            throw error instanceof GitHubError ? new Problem("invalid", 401) : error;
+          });
+          const session: SessionData = { ...rest, user: await signedInUser(tokens.access), tokens };
           return json({ session: await sealSession(session), user: publicUser(session.user) });
         }
+        const { challenge: _, ...session } = grant as GrantData;
         return json(await issue(session, body.code));
       }
 

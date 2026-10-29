@@ -75,3 +75,5 @@ A block can give the page it's on pages of its own, as Calendar does for its mon
 A block can also repeat the blocks inside it once for each of a collection's items, as Collection loop does: `repeatsForEntries(block, { design, items, entries })` from `@goodfellow-cms/react` names the slot that holds the design, the slot the copies go into, and a function that picks the items. The copies are made where pages are rendered, with each item's values in its placeholders, and never saved.
 
 Custom fields don't say what they hold, so give them `metadata: { ai: … }` (an `AiFieldHint` from `@goodfellow-cms/ai`) for the AI assistant to fill them in.
+
+A setting only the site's owners should choose, such as Custom HTML's "use it exactly as written", which lets HTML run on the site, takes `metadata: { owners: true }`. On a [full-stack Next.js site](/docs/full-stack-nextjs#who-may-do-what), editors who aren't owners see what it's set to but can't change it, and the server refuses a publish that changes it, or gives a new block anything but its starting value. Elsewhere it changes nothing, since editors' own accounts can change any file.
