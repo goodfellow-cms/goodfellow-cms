@@ -101,6 +101,14 @@ describe("runRequest", () => {
     expect(await listModels(settings, { fetch: fake.fetch })).toEqual(["a-model", "gpt-oss-120b"]);
   });
 
+  it("sends a key only over HTTPS, unless the service runs on this computer", async () => {
+    const fake = fakeAi({ answer: () => answer, models: ["local"] });
+    const custom = (baseUrl: string) => ({ provider: "custom" as const, model: "m", apiKey: "sk-test", baseUrl });
+    await expect(listModels(custom("http://ai.example/v1"), { fetch: fake.fetch })).rejects.toThrow(/https:\/\//);
+    expect(fake.requests).toEqual([]);
+    expect(await listModels(custom("http://localhost:11434/v1"), { fetch: fake.fetch })).toEqual(["local"]);
+  });
+
   it("holds services that can follow a schema to it", async () => {
     const fake = fakeAi({ answer: () => answer, keys: ["sk-test"] });
     await runRequest({ provider: "openai", model: "gpt-x", apiKey: "sk-test" }, request, { fetch: fake.fetch });

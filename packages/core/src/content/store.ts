@@ -102,8 +102,9 @@ export async function writeChanges(
       if (!(error instanceof ConflictError) || !store.changedPaths || attempt === 2) throw error;
       const current = await store.revision();
       if (current === expected) throw error;
-      const changed = await store.changedPaths(options.expectedRevision, current);
-      if (changed.some((path) => paths.has(path))) throw error;
+      // Where the host can't say everything that changed, someone else's change may be to these files.
+      const changed = await store.changedPaths(options.expectedRevision, current).catch(() => undefined);
+      if (!changed || changed.some((path) => paths.has(path))) throw error;
       expected = current;
     }
   }

@@ -189,10 +189,17 @@ function prefixOf(template: string): string {
 export function itemUrl(ref: string, registries: RegistrySources): string {
   const templates = Object.values(registries);
   if (/^https?:\/\//.test(ref)) {
-    if (!templates.some((template) => ref.startsWith(prefixOf(template)))) {
+    // Compared as the browser would fetch it, so `…/r/../../other/x.json` can't leave the registry's folder.
+    let url: string;
+    try {
+      url = new URL(ref).href;
+    } catch {
       throw new RegistryError({ code: "untrusted", ref });
     }
-    return ref;
+    if (/%2e|%2f|%5c/i.test(url) || !templates.some((template) => url.startsWith(prefixOf(template)))) {
+      throw new RegistryError({ code: "untrusted", ref });
+    }
+    return url;
   }
   const namespaced = /^(@[a-z0-9-]+)\/([a-z0-9-]+)$/.exec(ref);
   if (namespaced) {

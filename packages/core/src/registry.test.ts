@@ -153,7 +153,14 @@ describe("itemUrl", () => {
   it("finds items in the registries it's given, shadcn's only where it's listed, and nowhere else", () => {
     expect(itemUrl("@goodfellow/shadcn-faq", registries)).toBe("https://registry.example/r/shadcn-faq.json");
     expect(itemUrl("https://registry.example/r/x.json", registries)).toBe("https://registry.example/r/x.json");
-    for (const ref of ["@other/x", "https://evil.example/r/x.json", "../x", "button"]) {
+    for (const ref of [
+      "@other/x",
+      "https://evil.example/r/x.json",
+      "https://registry.example/r/../../other/x.json",
+      "https://registry.example/r/%2e%2e/other/x.json",
+      "../x",
+      "button",
+    ]) {
       expect(() => itemUrl(ref, registries), ref).toThrow(RegistryError);
     }
     const withShadcn = { ...registries, [SHADCN_NAMESPACE]: SHADCN_REGISTRY };

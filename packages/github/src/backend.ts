@@ -92,6 +92,9 @@ interface GraphQLResponse {
 
 /** How many files one GraphQL request reads. */
 const GRAPHQL_BATCH = 100;
+/** The most files GitHub's compare lists. */
+const COMPARE_FILES_LIMIT = 300;
+
 /** How many pages of open pull requests are read for drafts' reviews: a thousand. */
 const REVIEW_PAGES = 10;
 
@@ -580,9 +583,12 @@ export class GitHubBackend implements GitBackend {
       this.api,
       `/repos/${this.repo}/compare/${from}...${to}`,
     );
-    return [
-      ...new Set((comparison.files ?? []).flatMap((file) => [file.filename, file.previous_filename ?? []].flat())),
-    ];
+    const files = comparison.files ?? [];
+    // GitHub lists at most 300 files: past that, some changes would be missing, which callers take as unchanged.
+    if (files.length >= COMPARE_FILES_LIMIT) {
+      throw new GitApiError(0, `More files changed between ${from} and ${to} than GitHub lists.`);
+    }
+    return [...new Set(files.flatMap((file) => [file.filename, file.previous_filename ?? []].flat()))];
   }
 
   /**
