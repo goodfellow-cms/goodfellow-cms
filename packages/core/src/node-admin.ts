@@ -20,6 +20,7 @@ import {
   configAdmin,
   vercelHeaders,
   withAdminConfig,
+  withVercelAdminAddress,
   withVercelHeaders,
 } from "./admin-domain.js";
 import { brokerOrigin, configBroker } from "./broker.js";
@@ -60,9 +61,9 @@ async function siteUrl(root: string): Promise<string | undefined> {
 }
 
 /**
- * Writes the site's header rules into the content repository's
- * `vercel.ts`, where Vercel builds from it, from the config's `admin` and
- * `broker` lines. Returns whether it changed the file.
+ * Writes the site's header rules, and the admin address its redirects are
+ * worked out from, into the content repository's `vercel.ts`, where Vercel
+ * builds from it, from the config's `admin` and `broker` lines. Returns whether it changed the file.
  */
 export async function syncContentHeaders(root: string): Promise<boolean> {
   const site = resolve(root);
@@ -73,8 +74,11 @@ export async function syncContentHeaders(root: string): Promise<boolean> {
   const admin = configAdmin(config);
   const broker = brokerOrigin(configBroker(config));
   const rules = vercelHeaders({ ...(admin && { admin }), ...(broker && { broker }) });
-  const next = withVercelHeaders(vercel, rules);
-  if (next === undefined || next === vercel) return false;
+  const withHeaders = withVercelHeaders(vercel, rules);
+  if (withHeaders === undefined) return false;
+  // And the admin address, which the redirects between it and the Site address are worked out from.
+  const next = withVercelAdminAddress(withHeaders, admin) ?? withHeaders;
+  if (next === vercel) return false;
   await writeFile(path, next);
   return true;
 }

@@ -1,10 +1,11 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { vercelHeaders } from "./admin-domain.js";
+import { vercelAdminRedirects, vercelHeaders } from "./admin-domain.js";
 import {
   contentBuildsFor,
   type SeparateSetup,
@@ -271,6 +272,24 @@ describe("planSite with the content in a repository of its own", () => {
     expect(text(files, "goodfellow.config.tsx")).toContain('  admin: { url: "https://admin.example.org" },');
     const vercel = await vercelConfig(text(files, "content-repository/vercel.ts"));
     expect(vercel.headers).toEqual(vercelHeaders({ admin: { url: "https://admin.example.org" } }));
+    // And the admin address, which the redirects are worked out from with the content's Site address.
+    const dir = await mkdtemp(join(tmpdir(), "goodfellow-vercel-"));
+    try {
+      await mkdir(join(dir, "content"));
+      await writeFile(join(dir, "content/site.json"), '{"version":1,"url":"https://example.org"}\n');
+      await writeFile(join(dir, "vercel.ts"), text(files, "content-repository/vercel.ts"));
+      const script = 'const { config } = await import("./vercel.ts"); console.log(JSON.stringify(config.redirects));';
+      const redirects = execFileSync(
+        process.execPath,
+        ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
+        { cwd: dir, encoding: "utf8" },
+      );
+      expect(JSON.parse(redirects)).toEqual(
+        vercelAdminRedirects({ url: "https://admin.example.org" }, "https://example.org"),
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
     // The admin panel can't publish the code's config, so the README says to check it from a computer.
     expect(text(files, "README.md")).toContain("run `npx goodfellow admin check` here");
   });

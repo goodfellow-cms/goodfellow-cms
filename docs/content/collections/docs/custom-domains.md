@@ -94,6 +94,7 @@ A few things to know:
 - **Sign in with GitLab:** add the admin panel's new address, such as `https://admin.example.org/admin/`, to the GitLab application's redirect URIs too.
 - **Signing in with GitHub** through a [sign-in service](/docs/sign-in-service) gives tokens to the admin address as well as the Site address, once the site has been rebuilt with it.
 - **Content in a repository of its own:** the address is in the code's `goodfellow.config.tsx`, which the admin panel can't publish on a site whose [content is in a repository of its own](/docs/content-repository), so a developer finishes it there. See [With a content repository](#with-a-content-repository).
+- **Pages opened at the wrong address:** the script every page starts with sends people to the right address in the browser. On Vercel, the site's setup also has Vercel send them there before anything loads: a site page opened at the admin address, such as `admin.example.org/about/`, goes to `example.org/about/`, and once the address is checked, `example.org/admin/` goes to `admin.example.org/admin/`. Only pages opened in a tab are sent, so the admin panel's previews and what pages load stay where they are. On Cloudflare Pages you can add the same as redirect rules; see [Redirects on Cloudflare](#redirects-on-cloudflare). GitLab Pages can't send them, so the scripts do it there.
 - **Stopping:** **Stop using the admin address** removes it from the config, and on GitLab Pages from the site's domains. The admin panel goes back to the site's own address once the site has rebuilt.
 
 ### With a content repository
@@ -101,10 +102,32 @@ A few things to know:
 On a site whose content is in a repository of its own, the Domain screen connects the address but leaves the config to a developer, and shows what they run in the code's folder (`goodfellow-next` in place of `goodfellow` for a Next.js site):
 
 1. In **Site Settings → Domain**, type the address and choose **Give the admin panel this address**. On GitLab Pages, Goodfellow connects it there and lists its records, as above; on Cloudflare Pages and Vercel, add it to the site's project yourself.
-2. A developer runs `npx goodfellow admin add admin.example.org` and publishes the code. Where Vercel builds the site from the content repository, it also writes the address's header rules into the content repository's `vercel.ts`, since Vercel reads that file before the code is cloned: publish that too.
-3. Once the site has rebuilt, the developer runs `npx goodfellow admin check`, which reads the site's home page at the admin address, as the Domain screen does from there, checks that it leaves the address before running anything (and is sandboxed on Cloudflare Pages and Vercel), and marks the address checked in `goodfellow.config.tsx`. Once that's published and the site has rebuilt, the admin panel opens only at the admin address.
+2. A developer runs `npx goodfellow admin add admin.example.org` and publishes the code. Where Vercel builds the site from the content repository, it also writes the address's header rules, and the address its redirects are worked out from, into the content repository's `vercel.ts`, since Vercel reads that file before the code is cloned: publish that too. Where Vercel builds from the code repository, the content isn't there yet when Vercel reads `vercel.ts`, so only the scripts send pages opened at the wrong address.
+3. Once the site has rebuilt, the developer runs `npx goodfellow admin check`, which reads the site's home page at the admin address, as the Domain screen does from there, checks that it leaves the address before running anything (and is sandboxed on Cloudflare Pages and Vercel), and marks the address checked in `goodfellow.config.tsx`, and in the content repository's `vercel.ts` where it changed it before. Once that's published and the site has rebuilt, the admin panel opens only at the admin address.
 
 `npx goodfellow admin remove` stops using it. The Domain screen shows how far it's got where the sign-in can read the code's repository.
+
+### Redirects on Cloudflare
+
+Cloudflare Pages can't send people from one address to another itself, but Cloudflare can, where the domain's DNS is on Cloudflare (not where you [keep it at your registrar](#keeping-your-dns-at-your-registrar)). They're optional, since every page's script does the same in the browser. In the Cloudflare dashboard, open the domain, go to **Rules → Redirect Rules**, and add a rule for each, choosing **Custom filter expression**, **Edit expression**, a **Dynamic** target, status code **307** and **Preserve query string**, with your own addresses in place of `example.org` and `admin.example.org`:
+
+1. **Site pages opened at the admin address,** sent to the Site address:
+
+   ```text
+   http.host eq "admin.example.org" and not (http.request.uri.path eq "/admin" or starts_with(http.request.uri.path, "/admin/")) and any(http.request.headers["sec-fetch-dest"][*] eq "document")
+   ```
+
+   with the target `concat("https://example.org", http.request.uri.path)`.
+
+2. **The admin panel opened at the Site address,** sent to the admin address. Add it only once the admin panel has checked the address, or you couldn't open it at the Site address to do so:
+
+   ```text
+   http.host eq "example.org" and (http.request.uri.path eq "/admin" or (starts_with(http.request.uri.path, "/admin/") and not starts_with(http.request.uri.path, "/admin/editor/") and not starts_with(http.request.uri.path, "/admin/plugins/"))) and any(http.request.headers["sec-fetch-dest"][*] eq "document")
+   ```
+
+   with the target `concat("https://admin.example.org", http.request.uri.path)`.
+
+The `sec-fetch-dest` part sends only pages opened in a tab, so the admin panel's previews and what pages load stay where they are. Use 307, not a permanent redirect, which browsers remember after you change or stop using the address, and delete both rules if you do.
 
 ## If it doesn't work
 

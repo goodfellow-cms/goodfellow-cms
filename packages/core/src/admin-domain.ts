@@ -288,6 +288,69 @@ export function vercelAdminHeaders(admin: AdminAddress, base = "/", broker?: str
   ];
 }
 
+/** A Vercel redirect, as `vercel.ts` and Next.js's `redirects()` take it. */
+export interface HostRedirectRule {
+  source: string;
+  has: ({ type: "host"; value: string } | { type: "header"; key: string; value: string })[];
+  destination: string;
+  /** Never permanent, since an owner can change or remove the admin address, and browsers keep permanent ones. */
+  permanent: false;
+}
+
+/** The request header browsers send with what they're asked for, `document` for a page opened in a tab. */
+const PAGE_OPENED = { type: "header" as const, key: "sec-fetch-dest", value: "document" };
+
+/**
+ * Vercel's redirects between the Site address and an admin address, which
+ * send people where the guards would, before anything loads: a site page
+ * opened at the admin address goes to the Site address, and, once the address
+ * is `checked`, the admin panel opened at the Site address goes to the admin
+ * address, as `adminGuard()` does. Only pages opened in a tab are sent
+ * (`Sec-Fetch-Dest: document`): the admin panel's frames, previews' styles
+ * and media, and checks of the address load where they are, and browsers that
+ * don't say what they're opening still have the guards. Only from the Site
+ * address's host, so copies and previews at other addresses keep their own.
+ * Nothing without a Site address. `base` is the site's base path.
+ */
+export function vercelAdminRedirects(admin: AdminAddress, siteUrl: string | undefined, base = "/"): HostRedirectRule[] {
+  const origin = adminOrigin(admin);
+  if (!origin || !siteUrl || adminAddressProblem(admin, siteUrl)) return [];
+  let site: URL;
+  try {
+    site = new URL(siteUrl);
+  } catch {
+    return [];
+  }
+  const prefix = base.replace(/\/$/, "");
+  const host = (at: string) => ({ type: "host" as const, value: at.replace(/^https?:\/\//, "") });
+  const atAdmin = [host(origin), PAGE_OPENED];
+  const atSite = [host(site.origin), PAGE_OPENED];
+  return [
+    {
+      source: `${prefix}/:path((?!admin/|admin$).*)`,
+      has: atAdmin,
+      destination: `${site.origin}${prefix}/:path`,
+      permanent: false,
+    },
+    ...(admin.checked
+      ? [
+          {
+            source: `${prefix}/admin`,
+            has: atSite,
+            destination: `${origin}${prefix}/admin/`,
+            permanent: false as const,
+          },
+          {
+            source: `${prefix}/admin/:path((?!editor/|editor$|plugins/).*)`,
+            has: atSite,
+            destination: `${origin}${prefix}/admin/:path`,
+            permanent: false as const,
+          },
+        ]
+      : []),
+  ];
+}
+
 /**
  * Headers every file of a site gets where the host sends headers: browsers
  * never guess a file's type from what's in it, and other sites a visitor goes
@@ -386,6 +449,25 @@ const VERCEL_HEADERS_LINE = /^([ \t]*)headers: \[.*\],[ \t]*$/m;
 export function withVercelHeaders(source: string, rules: HostHeaderRule[]): string | undefined {
   if (!VERCEL_HEADERS_LINE.test(source)) return undefined;
   return source.replace(VERCEL_HEADERS_LINE, (_, indent: string) => `${indent}headers: ${JSON.stringify(rules)},`);
+}
+
+/** The `redirects` line of a `vercel.ts`, whose `adminRedirects()` is given the admin address. */
+const VERCEL_ADMIN_REDIRECTS_LINE = /^([ \t]*)redirects: \[\.\.\.adminRedirects\(.*\), \.\.\.redirects\(\)\],[ \t]*$/m;
+
+/**
+ * A content repository's `vercel.ts` with the admin address written into its
+ * `adminRedirects()` call, which works the redirects out from it and the
+ * content's Site address (`vercelAdminRedirects()`), as `planSite()`,
+ * `goodfellow admin` and `goodfellow broker` copy it from the code's config;
+ * `undefined` if it has no such line.
+ */
+export function withVercelAdminAddress(source: string, admin: AdminAddress | undefined): string | undefined {
+  if (!VERCEL_ADMIN_REDIRECTS_LINE.test(source)) return undefined;
+  const value = admin ? JSON.stringify({ url: admin.url, checked: admin.checked === true }) : "undefined";
+  return source.replace(
+    VERCEL_ADMIN_REDIRECTS_LINE,
+    (_, indent: string) => `${indent}redirects: [...adminRedirects(${value}), ...redirects()],`,
+  );
 }
 
 const ADMIN_LINE = /^[ \t]*admin:[ \t]*\{[^\n]*\},?[ \t]*\n/m;

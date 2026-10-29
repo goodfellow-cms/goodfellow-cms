@@ -106,6 +106,32 @@ describe("withGoodfellow", () => {
     }
   });
 
+  it("sends pages opened at the wrong one of the Site address and the admin address to the right one", async () => {
+    const site = await mkdtemp(join(tmpdir(), "goodfellow-next-"));
+    try {
+      await mkdir(join(site, "content"), { recursive: true });
+      await writeFile(join(site, "content/site.json"), '{"version":1,"url":"https://example.org/site/"}\n');
+      await writeFile(
+        join(site, "goodfellow.config.tsx"),
+        'export default defineConfig({\n  admin: { url: "https://admin.example.org", checked: true },\n  blocks,\n});\n',
+      );
+      const config = await withGoodfellow({ basePath: "/site" }, { root: site })("phase-production-build");
+      const redirects = (await config.redirects?.()) ?? [];
+      // Their addresses have the base path already.
+      expect(redirects.map(({ source, destination, basePath }) => [source, destination, basePath])).toEqual([
+        ["/site/:path((?!admin/|admin$).*)", "https://example.org/site/:path", false],
+        ["/site/admin", "https://admin.example.org/site/admin/", false],
+        ["/site/admin/:path((?!editor/|editor$|plugins/).*)", "https://admin.example.org/site/admin/:path", false],
+      ]);
+      expect(redirects[0]?.has).toEqual([
+        { type: "host", value: "admin.example.org" },
+        { type: "header", key: "sec-fetch-dest", value: "document" },
+      ]);
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+
   it("runs the local backend in development, behind the site's address", async () => {
     const config = await withGoodfellow(
       { rewrites: async () => [{ source: "/old", destination: "/new" }] },
