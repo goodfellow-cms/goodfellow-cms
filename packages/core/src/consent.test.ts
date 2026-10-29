@@ -55,13 +55,39 @@ describe("the consent script", () => {
     expect(notice().hidden).toBe(true);
     expect(window?.localStorage.getItem(CONSENT_STORAGE_KEY)).toBe("yes");
     expect(document.querySelector("iframe")?.getAttribute("src")).toBe("https://www.youtube-nocookie.com/embed/abc");
-    expect(document.querySelector("[data-gf-consent-placeholder]")).toBeNull();
-    expect(document.querySelector('script[src="https://web3forms.com/client/script.js"]')).not.toBeNull();
-    // The site's code runs once each, in its place.
+    expect((document.querySelector("[data-gf-consent-placeholder]") as unknown as HTMLElement).hidden).toBe(true);
+    expect(document.head.querySelector('script[src="https://web3forms.com/client/script.js"]')).not.toBeNull();
+    // The site's code runs once each, the body's after its template.
     expect(page.headRan).toBe(1);
     expect(page.bodyRan).toBe(1);
-    expect(document.getElementById("widget")).not.toBeNull();
-    expect(document.querySelectorAll("template")).toHaveLength(0);
+    expect(
+      document.querySelector("template[data-gf-consent-code=body] + [data-goodfellow-code] #widget"),
+    ).not.toBeNull();
+  });
+
+  it("leaves the page's elements where they were, so Next.js's React keeps them", () => {
+    const { document } = open();
+    const shape = () =>
+      [...document.body.querySelectorAll("*")]
+        .filter((element) => !element.closest("[data-goodfellow-code]"))
+        .map((element) => element.tagName)
+        .join(" ");
+    const before = shape();
+    const body = document.body.innerHTML.length;
+    (document.querySelector("#gf-consent [data-gf-consent-accept]") as unknown as HTMLElement).click();
+    expect(shape()).toBe(before);
+    expect(document.body.innerHTML.length).toBeGreaterThan(body);
+  });
+
+  it("adds what was held back once, however often the page changes", async () => {
+    const { page, document } = open("yes");
+    document.body.appendChild(document.createElement("p"));
+    document.body.appendChild(document.createElement("p"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(page.headRan).toBe(1);
+    expect(page.bodyRan).toBe(1);
+    expect(document.querySelectorAll("[data-goodfellow-code]")).toHaveLength(1);
+    expect(document.head.querySelectorAll('script[src="https://web3forms.com/client/script.js"]')).toHaveLength(1);
   });
 
   it("remembers the answer, and opens the notice again from a link to #consent", () => {

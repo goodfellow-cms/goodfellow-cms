@@ -92,6 +92,8 @@ interface GraphQLResponse {
 
 /** How many files one GraphQL request reads. */
 const GRAPHQL_BATCH = 100;
+/** How many pages of open pull requests are read for drafts' reviews: a thousand. */
+const REVIEW_PAGES = 10;
 
 const COMMIT_MUTATION = `mutation ($input: CreateCommitOnBranchInput!) {
   createCommitOnBranch(input: $input) { commit { oid } }
@@ -272,9 +274,15 @@ export class GitHubBackend implements GitBackend {
         return { url: review.html_url };
       },
       listReviews: async (prefix) => {
-        const pulls = await githubJson<
-          Array<{ html_url: string; title: string; head: { ref: string; repo?: { full_name?: string } | null } }>
-        >(this.api, `${base}/pulls?${new URLSearchParams({ state: "open", per_page: "100" })}`);
+        type Pull = { html_url: string; title: string; head: { ref: string; repo?: { full_name?: string } | null } };
+        const pulls: Pull[] = [];
+        // A site with many pull requests open has its drafts' further down the list.
+        for (let page = 1; page <= REVIEW_PAGES; page++) {
+          const query = new URLSearchParams({ state: "open", per_page: "100", page: String(page) });
+          const found = await githubJson<Pull[]>(this.api, `${base}/pulls?${query}`);
+          pulls.push(...found);
+          if (found.length < 100) break;
+        }
         const repo = decodeURIComponent(this.repo).toLowerCase();
         return pulls
           .filter(

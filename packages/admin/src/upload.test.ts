@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
-import { cleanSvg } from "./upload.js";
+import { cleanSvg, safeMediaChanges, UploadError } from "./upload.js";
 
 const svg = (body: string, attributes = "") =>
   `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"${attributes}>${body}</svg>`;
@@ -101,5 +101,42 @@ describe("cleanSvg", () => {
     expect(cleanSvg("<svg><rect>")).toBeUndefined();
     expect(cleanSvg('<html xmlns="http://www.w3.org/1999/xhtml"><body/></html>')).toBeUndefined();
     expect(cleanSvg("<svg><script>alert(1)</script></svg>")).toBeUndefined();
+  });
+});
+
+describe("safeMediaChanges", () => {
+  const bytes = (text: string) => new TextEncoder().encode(text);
+
+  it("refuses files in the media library that aren't a kind the site can use, by the name they're saved under", () => {
+    expect(() => safeMediaChanges([{ path: "public/media/page.html", bytes: bytes("<script>x</script>") }])).toThrow(
+      UploadError,
+    );
+    expect(() => safeMediaChanges([{ path: "public/media/notes.js", content: "alert(1)" }])).toThrow(UploadError);
+  });
+
+  it("cleans every SVG saved there, whatever it was chosen as, and leaves other files alone", () => {
+    const [logo, photo, page, gone] = safeMediaChanges([
+      { path: "public/media/logo.svg", bytes: bytes(svg('<rect width="4" height="4"/><script>alert(1)</script>')) },
+      { path: "public/media/photo.jpg", bytes: bytes("jpeg") },
+      { path: "content/pages/about.json", content: "{}" },
+      { path: "public/media/old.html", delete: true },
+    ]);
+    const text = new TextDecoder().decode((logo as { bytes: Uint8Array }).bytes);
+    expect(text).toContain("<rect");
+    expect(text).not.toContain("script");
+    expect(photo).toEqual({ path: "public/media/photo.jpg", bytes: bytes("jpeg") });
+    expect(page).toEqual({ path: "content/pages/about.json", content: "{}" });
+    expect(gone).toEqual({ path: "public/media/old.html", delete: true });
+  });
+
+  it("keeps an SVG that's already safe as it was written, such as one put back from Version history", () => {
+    const safe = { path: "public/media/placeholder.svg", bytes: bytes(`${svg('<rect width="4" height="4"/>')}\n`) };
+    expect(safeMediaChanges([safe])).toEqual([safe]);
+  });
+
+  it("refuses an SVG that isn't one", () => {
+    expect(() =>
+      safeMediaChanges([{ path: "public/media/logo.svg", content: "<html><script>x</script></html>" }]),
+    ).toThrow(UploadError);
   });
 });

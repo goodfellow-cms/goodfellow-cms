@@ -1,4 +1,4 @@
-import { imageSrcSet, isExternalLink, NEW_TAB, withBase } from "@goodfellow-cms/core";
+import { imageSrcSet, isExternalLink, isScriptUrl, NEW_TAB, withBase } from "@goodfellow-cms/core";
 import type { SiteContextValue, SiteImageProps, SiteLinkProps } from "./site-types.js";
 
 /** Whether a link goes to one of the site's own pages, rather than a file, another site, or a new tab. */
@@ -19,9 +19,15 @@ export function createSiteLinks(useSite: () => SiteContextValue) {
    * path, and links to the site's own pages use the renderer's link component,
    * such as Next.js's `next/link`. Links to other sites open in a new tab if
    * the site's settings say so, unless the link says where it opens itself.
+   * An address that could run code (`javascript:`, `data:` and the like, which
+   * `isScriptUrl()` finds) leaves the link's words without one.
    */
   function SiteLink(given: SiteLinkProps) {
     const { base, components, settings } = useSite();
+    if (isScriptUrl(given.href)) {
+      const { href: _href, ...rest } = given;
+      return <a {...rest} />;
+    }
     const newTab =
       settings?.externalLinksInNewTab && given.target === undefined && isExternalLink(given.href, settings.url);
     const props = newTab ? { ...given, ...NEW_TAB } : given;

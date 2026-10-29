@@ -317,10 +317,15 @@ function cookie(request: Request, name: string): string | undefined {
   return undefined;
 }
 
+/** How long a check before signing in trusts the site's addresses it last read. */
+const ADDRESS_CHECK_MS = 2 * 60_000;
+
 export function createWorker(options: WorkerOptions = {}) {
   const now = options.now ?? Date.now;
   const sealers = new Map<string, Promise<Sealer>>();
   const installations = new Map<string, { id: number | undefined; at: number }>();
+  // Sites' addresses as the last check found them, so checks anyone can ask for don't each cost GitHub requests.
+  const checkedAddresses = new Map<string, { addresses: string[]; at: number }>();
 
   async function handle(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
@@ -503,6 +508,20 @@ export function createWorker(options: WorkerOptions = {}) {
     async function checkSite(purpose: Purpose, repo: string, origin: string | undefined): Promise<number> {
       if (!origin || !originOf(origin) || isLocalAddress(origin)) throw new Problem("local-address", 403);
       const app = appFor(purpose);
+      const verdict = (addresses: string[], installation: number) => {
+        if (addresses.length === 0) throw new Problem("no-address", 409);
+        if (!addresses.includes(origin)) throw new Problem("wrong-address", 403);
+        return installation;
+      };
+      // Checks before signing in can be asked for by anyone, so they read the site's addresses at most every
+      // couple of minutes. Giving a token always reads them again (`issue()`).
+      const key = repo.toLowerCase();
+      const checked = checkedAddresses.get(key);
+      if (checked && now() - checked.at < ADDRESS_CHECK_MS) {
+        const installation = await installationFor(app, repo);
+        if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
+        return verdict(checked.addresses, installation);
+      }
       const jwt = await jwtFor(app);
       const { installation, reader } = await withInstallation(app, repo, async (installation) => ({
         installation,
@@ -514,9 +533,8 @@ export function createWorker(options: WorkerOptions = {}) {
       } finally {
         await revoke(reader.token);
       }
-      if (addresses.length === 0) throw new Problem("no-address", 409);
-      if (!addresses.includes(origin)) throw new Problem("wrong-address", 403);
-      return installation;
+      checkedAddresses.set(key, { addresses, at: now() });
+      return verdict(addresses, installation);
     }
 
     async function revoke(token: string): Promise<void> {

@@ -37,7 +37,7 @@ When there are fixes to install, the site's build first runs `goodfellow update`
 1. It finds the newest fix for the site's release on npm: for a site on 0.4.1, the newest 0.4 release. Releases that can change how things work, such as 0.5, are only installed when an owner chooses one. Nothing is installed if automatic fixes are turned off, and releases the site went back from are left out.
 2. It updates every Goodfellow package to it, and the version of Puck that release uses.
 3. It updates blocks added from Goodfellow's block registry. A block's files that someone changed since they were added stay as they are, and the Updates screen lists them, so nobody's changes are lost.
-4. It installs the packages and builds the site. If either fails, every file goes back as it was, and the site is built as it was before.
+4. It installs the packages, taking only what npm had a day after the release came out, so a package someone published, or took over, since then isn't installed into the site overnight, and builds the site. If either fails, every file goes back as it was, and the site is built as it was before.
 5. If the site built, the update is published as one change, named "Update Goodfellow to …", which the site's version history shows.
 
 On GitHub, the job that installs the update and builds the site can only read the repository, so packages it installs can't publish anything. A second job, which runs none of the site's code, publishes the change the first one made. On GitLab, any job in the site's project can publish once updates are turned on, since GitLab gives every job the same permissions. Bitbucket lets every pipeline step publish, as GitLab does.

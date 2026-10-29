@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isExternalLink, setLinkTargets } from "./external-links.js";
+import { isExternalLink, isScriptUrl, setLinkTargets } from "./external-links.js";
 
 describe("isExternalLink", () => {
   it("counts addresses on other sites, not the site's own pages, files or email links", () => {
@@ -14,6 +14,39 @@ describe("isExternalLink", () => {
   it("leaves out full addresses on the site's own address", () => {
     expect(isExternalLink("https://example.org/news", "https://example.org")).toBe(false);
     expect(isExternalLink("https://other.example/news", "https://example.org")).toBe(true);
+  });
+});
+
+describe("isScriptUrl", () => {
+  it("finds addresses that run code however they're spelled, as browsers read them", () => {
+    for (const url of [
+      "javascript:alert(1)",
+      " JavaScript:alert(1)",
+      "java\tscript:alert(1)",
+      "java\nscript:alert(1)",
+      "\u0000javascript:alert(1)",
+      "vbscript:msgbox(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "blob:https://example.org/1",
+      "file:///etc/passwd",
+    ]) {
+      expect(isScriptUrl(url), JSON.stringify(url)).toBe(true);
+    }
+  });
+
+  it("leaves the site's own pages, the web's, apps' and calendars' addresses alone", () => {
+    for (const url of [
+      "/about",
+      "#top",
+      "https://example.org",
+      "mailto:a@example.org",
+      "tel:+15550100",
+      "webcal://example.org/a.ics",
+      "about",
+      "?page=2",
+    ]) {
+      expect(isScriptUrl(url), url).toBe(false);
+    }
   });
 });
 
