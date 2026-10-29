@@ -49,13 +49,13 @@ export interface WorkerEnv {
   GITHUB_API?: string;
   /** For GitHub Enterprise and tests. Defaults to `https://github.com`. */
   GITHUB_WEB?: string;
-  /** The everyday app, which editors sign in with: Contents, Deployments, Actions (read) and Pages (read). */
+  /** The everyday app, which editors sign in with: what `PERMISSIONS.edit` asks for (Contents and Pull requests to write, and reading the rest). */
   EDIT_APP_ID?: string;
   EDIT_APP_SLUG?: string;
   EDIT_CLIENT_ID?: string;
   EDIT_CLIENT_SECRET?: string;
   EDIT_PRIVATE_KEY?: string;
-  /** The owners' app: Administration, Pages, Actions, Contents, Workflows and Secrets, for the Editors and Domain screens and creating sites. */
+  /** The owners' app, for the Editors, Domain and Updates screens and creating sites: what `PERMISSIONS.owner` and `PERMISSIONS.setup` ask for. */
   OWNER_APP_ID?: string;
   OWNER_APP_SLUG?: string;
   OWNER_CLIENT_ID?: string;
