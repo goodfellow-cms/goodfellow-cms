@@ -252,13 +252,27 @@ export function code(text: string): string {
   return wpBlock("code", undefined, `<pre class="wp-block-code"><code>${escapeText(text)}</code></pre>`);
 }
 
-/** A YouTube or Vimeo video, which WordPress embeds itself. */
-export function embed(url: string, provider: "youtube" | "vimeo", caption = ""): string {
+/**
+ * Something WordPress embeds itself from its address: a YouTube or Vimeo
+ * video, or a post from a site WordPress knows (`provider`), or else a link
+ * that WordPress shows as it is.
+ */
+export function embed(
+  url: string,
+  provider: string | undefined,
+  caption = "",
+  type: "video" | "rich" = "video",
+): string {
   const figcaption = caption ? `<figcaption class="wp-element-caption">${escapeText(caption)}</figcaption>` : "";
+  const classes = [
+    "wp-block-embed",
+    `is-type-${type}`,
+    ...(provider ? [`is-provider-${provider}`, `wp-block-embed-${provider}`] : []),
+  ];
   return wpBlock(
     "embed",
-    { url, type: "video", providerNameSlug: provider, responsive: true },
-    `<figure class="wp-block-embed is-type-video is-provider-${provider} wp-block-embed-${provider}"><div class="wp-block-embed__wrapper">\n${escapeText(url)}\n</div>${figcaption}</figure>`,
+    { url, type, ...(provider && { providerNameSlug: provider }), responsive: true },
+    `<figure class="${classes.join(" ")}"><div class="wp-block-embed__wrapper">\n${escapeText(url)}\n</div>${figcaption}</figure>`,
   );
 }
 

@@ -263,6 +263,9 @@ export function partsMarkdown(parts: Part[], link: Link): string {
       case "video":
         out.push(part.caption ? `[${escapeText(part.caption)}](${destination(part.url)})` : `<${part.url}>`);
         break;
+      case "post":
+        out.push(part.caption ? `[${escapeText(part.caption)}](${destination(part.link)})` : `<${part.link}>`);
+        break;
       case "code": {
         const marks = fence(part.code);
         out.push(`${marks}${part.language}\n${part.code}\n${marks}`);

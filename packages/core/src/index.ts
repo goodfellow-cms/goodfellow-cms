@@ -710,6 +710,17 @@ export {
   type SiteEditor,
   type SiteEditors,
 } from "./editors.js";
+export {
+  type BlueskyHandlePost,
+  blueskyPostUrl,
+  EMBED_SITE_NAMES,
+  EMBED_SITES,
+  type EmbeddedPost,
+  type EmbedPostProblem,
+  type EmbedPostResult,
+  type EmbedSite,
+  embeddedPost,
+} from "./embeds.js";
 export { isExternalLink, isScriptUrl, type LinkTargetOptions, NEW_TAB, setLinkTargets } from "./external-links.js";
 export {
   buildNotes,

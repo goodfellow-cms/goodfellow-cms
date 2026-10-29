@@ -237,6 +237,15 @@ function partsSummary(parts: Part[]): string {
   return shortSummary(paragraphs.filter(Boolean).join(" "));
 }
 
+/** A post's site, as notes name it, as the conversion's own notes do. */
+function hostName(address: string): string {
+  try {
+    return new URL(address).hostname.replace(/^www\./, "");
+  } catch {
+    return address;
+  }
+}
+
 function walkParts(parts: Part[], visit: (part: Part) => void): void {
   for (const part of parts) {
     visit(part);
@@ -592,6 +601,10 @@ export function planWordPressImport(
       if (part.kind === "table" && options.blocks && !options.blocks.includes("Table")) {
         notes.convert("table", "table", title);
       }
+      // And posts from social sites as links to them.
+      if (part.kind === "post" && options.blocks && !options.blocks.includes("Embed")) {
+        notes.convert("embed", hostName(part.url), title);
+      }
     });
     const writer = new BlockWriter();
     // Every page has its title as its heading, unless its content starts with one of its own.
@@ -707,6 +720,7 @@ export function planWordPressImport(
       const parts = itemParts(post, context(title));
       walkParts(parts, (part) => {
         if (part.kind === "video") notes.convert("video", "video", title);
+        if (part.kind === "post") notes.convert("embed", hostName(part.url), title);
         if (part.kind === "posts") notes.convert("posts", "posts", title);
       });
       const values: Record<string, unknown> = {
