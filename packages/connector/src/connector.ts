@@ -269,17 +269,22 @@ export function createConnector(options: ConnectorOptions = {}) {
         );
       }
       const state = params.get("state") ?? undefined;
-      const back = { redirectUri, state };
-      if (params.get("response_type") !== "code") {
-        return backWithError(back, "unsupported_response_type", "Only response_type=code is supported.");
-      }
+      // Problems before the person has seen anything are shown here, never sent on to the app's address,
+      // so a link to this page can't send someone to an address of the link's choosing.
+      const badRequest = (description: string) =>
+        problemPage(
+          "Can't connect",
+          `The app connecting to Goodfellow sent a request it can't use: ${description}`,
+          400,
+        );
+      if (params.get("response_type") !== "code") return badRequest("only response_type=code is supported.");
       const challenge = params.get("code_challenge") ?? "";
       if (params.get("code_challenge_method") !== "S256" || !/^[\w-]{43}$/.test(challenge)) {
-        return backWithError(back, "invalid_request", "PKCE with S256 is required.");
+        return badRequest("PKCE with S256 is required.");
       }
       const resource = params.get("resource");
       if (resource && resource.replace(/\/$/, "") !== `${origin}/mcp` && resource.replace(/\/$/, "") !== origin) {
-        return backWithError(back, "invalid_target", `This server's resource is ${origin}/mcp.`);
+        return badRequest(`this server's resource is ${origin}/mcp.`);
       }
       if (!app && !gitlab && !bitbucket)
         return problemPage("Not set up yet", "This connector isn't set up to sign in anywhere yet.", 503);
@@ -485,7 +490,8 @@ export function createConnector(options: ConnectorOptions = {}) {
         if (!data || data.clientId !== clientId) {
           throw new OAuthError("invalid_grant", "The refresh token isn't valid, or has expired.");
         }
-        if (!(await grants.rotate(data.grant, data.generation, now() + REFRESH_LIFETIME, now()))) {
+        const rotation = await grants.rotate(data.grant, data.generation, now() + REFRESH_LIFETIME, now());
+        if (!rotation) {
           // An old refresh token: someone else may have it, so the connection ends.
           await grants.revoke(data.grant);
           throw new OAuthError(
@@ -510,7 +516,8 @@ export function createConnector(options: ConnectorOptions = {}) {
             if ((error instanceof gl.GitLabError || error instanceof bb.BitbucketError) && error.status === 0) {
               throw new OAuthError("temporarily_unavailable", `${name} couldn't be reached.`, 503);
             }
-            await grants.revoke(data.grant);
+            // Asked again with the refresh token before the current one: the tokens already given still work.
+            if (rotation === "rotated") await grants.revoke(data.grant);
             throw new OAuthError("invalid_grant", `${name} didn't renew the sign-in. Connect again.`);
           }
         }
@@ -521,7 +528,11 @@ export function createConnector(options: ConnectorOptions = {}) {
 
     async function revokeRoute(): Promise<Response> {
       const body = await form();
-      const data = await (await sealer()).open<RefreshData>("refresh", body.get("token"));
+      const given = body.get("token");
+      // Either of a connection's tokens ends it (RFC 7009 lets the client send either).
+      const data =
+        (await (await sealer()).open<RefreshData>("refresh", given)) ??
+        (await (await sealer()).open<AccessData>("access", given));
       if (data && grants) await grants.revoke(data.grant);
       // RFC 7009: the same answer whatever the token was.
       return json({});

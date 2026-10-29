@@ -34,6 +34,8 @@ export function authorizeUrl(config: GitLabConfig, redirectUri: string, state: s
     client_id: config.clientId,
     redirect_uri: redirectUri,
     response_type: "code",
+    // GitLab has no narrower scope that can publish: `write_repository` covers only git itself, and
+    // the commits, merge requests and pipeline schedules APIs Goodfellow uses need `api`.
     scope: "api",
     state,
     code_challenge: challenge,

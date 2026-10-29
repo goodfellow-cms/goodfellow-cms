@@ -484,6 +484,19 @@ describe("owners and site setup", () => {
     );
     expect(await taken.json()).toEqual({ problem: "name-taken" });
   });
+
+  it("doesn't make the person's token until the tab that started the setup sign-in finishes it", async () => {
+    const { fake, redirect, post } = setup();
+    const { back, verifier } = await redirect("maria", "setup", "https://setup.example/new-site/");
+    // The grant in the address holds GitHub's one-time code, not a token.
+    expect(fake.issued.filter((item) => item.kind === "user")).toEqual([]);
+    const grant = back.searchParams.get("goodfellow_sign_in");
+    expect((await post("/github/session", { grant, verifier: "wrong" }, "https://setup.example")).status).toBe(401);
+    expect(fake.issued.filter((item) => item.kind === "user")).toEqual([]);
+    const signedIn = await post("/github/session", { grant, verifier }, "https://setup.example");
+    expect(signedIn.status).toBe(200);
+    expect(fake.issued.filter((item) => item.kind === "user" && !item.revoked)).toHaveLength(1);
+  });
 });
 
 describe("setting up a site in two repositories", () => {

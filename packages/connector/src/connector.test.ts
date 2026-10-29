@@ -13,7 +13,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { describe, expect, it } from "vitest";
 import { type ConnectorEnv, createConnector } from "./connector.js";
 import { PERMISSIONS } from "./github.js";
-import { memoryGrants } from "./grants.js";
+import { memoryGrants, REFRESH_GRACE_MS } from "./grants.js";
 
 const CONNECTOR = "https://claude.goodfellow.example";
 const CLAUDE = "https://claude.ai/api/mcp/auth_callback";
@@ -361,7 +361,7 @@ describe("connecting with GitHub", () => {
   });
 
   it("refreshes once with each refresh token", async () => {
-    const { connectGitHub, post } = setup();
+    const { connectGitHub, post, tick } = setup();
     const { clientId, tokens } = await connectGitHub();
     const refresh = (token: string) =>
       post("/token", { grant_type: "refresh_token", refresh_token: token, client_id: clientId });
@@ -369,7 +369,10 @@ describe("connecting with GitHub", () => {
     expect(next.status).toBe(200);
     const renewed = (await next.json()) as { refresh_token: string; access_token: string };
     expect(renewed.refresh_token).not.toBe(tokens.refresh_token);
-    // The old one again: someone else may have it, so the connection ends, and the new one stops working too.
+    // Asked again at once, as after an answer Claude didn't get, the old one still works.
+    expect((await refresh(tokens.refresh_token)).status).toBe(200);
+    tick(REFRESH_GRACE_MS + 1_000);
+    // Later, the old one again: someone else may have it, so the connection ends, and the new one stops working too.
     expect((await refresh(tokens.refresh_token)).status).toBe(400);
     expect((await refresh(renewed.refresh_token)).status).toBe(400);
     // Another client can't use it.
@@ -399,6 +402,30 @@ describe("connecting with GitHub", () => {
     expect(html).toContain("Unknown address");
     const unknown = await startAuthorize("not-a-client");
     expect(unknown.html).toContain("Unknown app");
+  });
+
+  it("shows a request it can't use, rather than sending the person to the client's address", async () => {
+    const { register, visit } = setup();
+    const clientId = await register();
+    const requests: Array<Record<string, string>> = [
+      { response_type: "token" },
+      { code_challenge_method: "plain" },
+      { resource: "https://elsewhere.example" },
+    ];
+    for (const wrong of requests) {
+      const query = new URLSearchParams({
+        response_type: "code",
+        client_id: clientId,
+        redirect_uri: CLAUDE,
+        code_challenge: "a".repeat(43),
+        code_challenge_method: "S256",
+        ...wrong,
+      });
+      const response = await visit(`/authorize?${query}`);
+      expect(response.status).toBe(400);
+      expect(response.headers.get("location")).toBeNull();
+      expect(await response.text()).toContain("Can&#39;t connect");
+    }
   });
 
   it("asks an owner to install the app when it isn't on any site the person edits", async () => {
@@ -517,6 +544,18 @@ describe("working on sites", () => {
     const response = await list();
     expect(response.status).toBe(401);
     expect(response.headers.get("www-authenticate")).toContain('error="invalid_token"');
+  });
+
+  it("ends the connection when Claude revokes its access token", async () => {
+    const { connectGitHub, post } = setup();
+    const { clientId, tokens } = await connectGitHub();
+    await post("/revoke", { token: tokens.access_token, client_id: clientId });
+    const refreshed = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+      client_id: clientId,
+    });
+    expect(refreshed.status).toBe(400);
   });
 
   it("takes screenshots where it can", async () => {
