@@ -263,7 +263,8 @@ export function cloudflareAdminHeaders(admin: AdminAddress, base = "/", broker?:
 /** A Vercel header rule, as `vercel.ts` and Next.js's `headers()` take it. */
 export interface HostHeaderRule {
   source: string;
-  has: { type: "host"; value: string }[];
+  /** The host it's for, such as the admin address; every host without it. */
+  has?: { type: "host"; value: string }[];
   headers: { key: string; value: string }[];
 }
 
@@ -284,6 +285,92 @@ export function vercelAdminHeaders(admin: AdminAddress, base = "/", broker?: str
     { source: `${prefix}/admin/((?!editor/|editor$|plugins/).*)`, has, headers: list(adminPageHeaders(broker)) },
     { source: `${prefix}/admin/editor/:path*`, has, headers: list(EDITOR_FRAME_HEADERS) },
     { source: `${prefix}/admin/plugins/:path*`, has, headers: list(EDITOR_FRAME_HEADERS) },
+  ];
+}
+
+/**
+ * Headers every file of a site gets where the host sends headers: browsers
+ * never guess a file's type from what's in it, and other sites a visitor goes
+ * to are told the site's address, not the page they came from.
+ */
+export const SITE_HEADERS: Readonly<Record<string, string>> = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
+
+/**
+ * The media library's SVGs, which can hold scripts, opened on their own run in
+ * an opaque origin, so never as the site, whatever `cleanSvg()` missed or
+ * didn't see. Only SVGs: Chrome won't show a sandboxed PDF.
+ */
+export const SVG_MEDIA_HEADERS: Readonly<Record<string, string>> = { "Content-Security-Policy": "sandbox" };
+
+/** Starts Goodfellow's rules in `_headers`, so a build adds them once to a site's own file. */
+export const SITE_HEADERS_MARK = "# Goodfellow's header rules";
+
+/**
+ * Cloudflare Pages' header rules for every site: `SITE_HEADERS` everywhere,
+ * the media library's SVGs sandboxed, and, without an admin address (whose
+ * own rules, `cloudflareAdminHeaders()`, cover them), the admin panel's pages'
+ * `adminPageHeaders()` and its frames', so no other site can frame them and
+ * the site's pages can't reach a window of them. `base` is the site's base path.
+ */
+export function cloudflareSiteHeaders(
+  base = "/",
+  { admin, broker }: { admin?: AdminAddress; broker?: string } = {},
+): string {
+  const root = base.replace(/\/?$/, "/");
+  const block = (path: string, lines: string[]) => [path, ...lines.map((line) => `  ${line}`)].join("\n");
+  const headers = (record: Readonly<Record<string, string>>) =>
+    Object.entries(record).map(([name, value]) => `${name}: ${value}`);
+  const blocks = [
+    block(`${root}*`, headers(SITE_HEADERS)),
+    // A rule takes one splat, so each spelling of the extension has its own.
+    block(`${root}media/*.svg`, headers(SVG_MEDIA_HEADERS)),
+    block(`${root}media/*.SVG`, headers(SVG_MEDIA_HEADERS)),
+  ];
+  if (!adminOrigin(admin)) {
+    const adminPath = `${root}admin/`;
+    // The frames' rules take away the admin panel's, which their paths match too, since Cloudflare joins both.
+    const frames = ["! Content-Security-Policy", "! Cross-Origin-Opener-Policy", "! Origin-Agent-Cluster"];
+    blocks.push(
+      block(`${adminPath}*`, headers(adminPageHeaders(broker))),
+      block(`${adminPath}editor/*`, [...frames, ...headers(EDITOR_FRAME_HEADERS)]),
+      block(`${adminPath}plugins/*`, [...frames, ...headers(EDITOR_FRAME_HEADERS)]),
+    );
+  }
+  return `${SITE_HEADERS_MARK}\n${blocks.join("\n\n")}\n`;
+}
+
+/** Vercel's header rules for every site, the same as `cloudflareSiteHeaders()`'s. `base` is the site's base path. */
+export function vercelSiteHeaders(
+  base = "/",
+  { admin, broker }: { admin?: AdminAddress; broker?: string } = {},
+): HostHeaderRule[] {
+  const prefix = base.replace(/\/$/, "");
+  const list = (record: Readonly<Record<string, string>>) =>
+    Object.entries(record).map(([key, value]) => ({ key, value }));
+  const rules: HostHeaderRule[] = [
+    { source: `${prefix}/(.*)`, headers: list(SITE_HEADERS) },
+    { source: `${prefix}/media/(.*)\\.(svg|SVG)`, headers: list(SVG_MEDIA_HEADERS) },
+  ];
+  if (adminOrigin(admin)) return rules;
+  return [
+    ...rules,
+    { source: `${prefix}/admin/((?!editor/|editor$|plugins/).*)`, headers: list(adminPageHeaders(broker)) },
+    { source: `${prefix}/admin/editor/:path*`, headers: list(EDITOR_FRAME_HEADERS) },
+    { source: `${prefix}/admin/plugins/:path*`, headers: list(EDITOR_FRAME_HEADERS) },
+  ];
+}
+
+/** Every one of a site's Vercel header rules: `vercelSiteHeaders()`, then an admin address's `vercelAdminHeaders()`. */
+export function vercelHeaders(
+  options: { admin?: AdminAddress; base?: string; broker?: string } = {},
+): HostHeaderRule[] {
+  const { admin, base = "/", broker } = options;
+  return [
+    ...vercelSiteHeaders(base, { ...(admin && { admin }), ...(broker && { broker }) }),
+    ...(admin ? vercelAdminHeaders(admin, base, broker) : []),
   ];
 }
 

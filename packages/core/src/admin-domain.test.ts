@@ -4,11 +4,15 @@ import {
   adminGuard,
   adminOrigin,
   cloudflareAdminHeaders,
+  cloudflareSiteHeaders,
   configAdmin,
   pageFileKind,
+  SITE_HEADERS_MARK,
   siteGuard,
   startsWithGuard,
   vercelAdminHeaders,
+  vercelHeaders,
+  vercelSiteHeaders,
   withAdminConfig,
   withGuard,
 } from "./admin-domain.js";
@@ -130,8 +134,44 @@ describe("host rules", () => {
       "/site/admin/editor/:path*",
       "/site/admin/plugins/:path*",
     ]);
-    expect(rules.every((rule) => rule.has[0]?.value === "admin.example.org")).toBe(true);
+    expect(rules.every((rule) => rule.has?.[0]?.value === "admin.example.org")).toBe(true);
     expect(rules[0]?.headers).toEqual([{ key: "Content-Security-Policy", value: "sandbox" }]);
+  });
+
+  it("gives every site's files safe headers, sandboxes its SVGs and keeps its admin panel from being framed", () => {
+    const rules = cloudflareSiteHeaders("/site/");
+    expect(rules.startsWith(`${SITE_HEADERS_MARK}\n/site/*\n  X-Content-Type-Options: nosniff\n`)).toBe(true);
+    expect(rules).toContain("/site/media/*.svg\n  Content-Security-Policy: sandbox\n");
+    expect(rules).toContain("/site/media/*.SVG\n  Content-Security-Policy: sandbox\n");
+    expect(rules).toContain(
+      "/site/admin/*\n  Cross-Origin-Opener-Policy: same-origin\n  Content-Security-Policy: frame-ancestors 'none'\n",
+    );
+    // The frames' paths are under the admin panel's too, whose headers Cloudflare would join with theirs.
+    expect(rules).toContain(
+      "/site/admin/editor/*\n  ! Content-Security-Policy\n  ! Cross-Origin-Opener-Policy\n  ! Origin-Agent-Cluster\n  Content-Security-Policy: frame-ancestors 'self'\n",
+    );
+    // A token broker frames the admin panel.
+    expect(cloudflareSiteHeaders("/", { broker: "https://signin.example.org" })).toContain(
+      "frame-ancestors https://signin.example.org",
+    );
+    // An admin address's own rules cover the admin panel there.
+    const withAdmin = cloudflareSiteHeaders("/", { admin });
+    expect(withAdmin).toContain("/media/*.svg");
+    expect(withAdmin).not.toContain("/admin/");
+  });
+
+  it("does the same on Vercel, then adds an admin address's rules", () => {
+    expect(vercelHeaders().map((rule) => rule.source)).toEqual([
+      "/(.*)",
+      "/media/(.*)\\.(svg|SVG)",
+      "/admin/((?!editor/|editor$|plugins/).*)",
+      "/admin/editor/:path*",
+      "/admin/plugins/:path*",
+    ]);
+    expect(vercelHeaders().every((rule) => rule.has === undefined)).toBe(true);
+    expect(vercelHeaders({ base: "/site/" })[1]?.source).toBe("/site/media/(.*)\\.(svg|SVG)");
+    expect(vercelHeaders({ admin })).toEqual([...vercelSiteHeaders("/", { admin }), ...vercelAdminHeaders(admin)]);
+    expect(vercelSiteHeaders("/", { admin })).toHaveLength(2);
   });
 });
 

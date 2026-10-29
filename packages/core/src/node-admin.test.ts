@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type AdminCheckResponse, siteGuard, vercelAdminHeaders } from "./admin-domain.js";
+import { type AdminCheckResponse, siteGuard, vercelHeaders } from "./admin-domain.js";
 import { AdminSetupError, checkSiteAdminAddress, formatAdminResult, setAdminAddress } from "./node-admin.js";
 import { setBrokerAddress } from "./node-broker.js";
 
@@ -46,7 +46,7 @@ describe("setAdminAddress", () => {
     expect(result).toEqual({ admin: { url: "https://admin.example.org" }, contentChanged: true });
     expect(await config()).toContain('  admin: { url: "https://admin.example.org" },');
     expect(await contentVercel()).toContain(
-      `  headers: ${JSON.stringify(vercelAdminHeaders({ url: "https://admin.example.org" }))},`,
+      `  headers: ${JSON.stringify(vercelHeaders({ admin: { url: "https://admin.example.org" } }))},`,
     );
 
     // A broker added later is named in the rules too.
@@ -55,7 +55,10 @@ describe("setAdminAddress", () => {
 
     await setAdminAddress(site, undefined);
     expect(await config()).not.toContain("admin:");
-    expect(await contentVercel()).toContain("  headers: [],");
+    // The broker stays, and frames the admin panel at the Site address.
+    expect(await contentVercel()).toContain(
+      `  headers: ${JSON.stringify(vercelHeaders({ broker: "https://signin.example.org" }))},`,
+    );
   });
 
   it("refuses addresses that aren't one of its own", async () => {
