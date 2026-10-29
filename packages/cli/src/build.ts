@@ -48,13 +48,14 @@ import {
   writeSiteHeaders,
 } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
-import { createServer, build as viteBuild } from "vite";
+import { type Alias, createServer, type InlineConfig, build as viteBuild } from "vite";
 import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
 import { buildEditor } from "./editor-bundle.js";
 import { sharpResizer } from "./image-sizes.js";
-import { type ClientModules, ISLANDS_ENTRY } from "./islands.js";
+import { type ClientModules, ISLANDS_ENTRY, needReact } from "./islands.js";
 import { cssFiles, findEntry, type Manifest } from "./manifest.js";
 import { buildPluginFrame } from "./plugin-frames.js";
+import { preactAliases, preactIslands } from "./preact.js";
 import { baseViteConfig, findConfigFile, loadServerEntry, writeStylesEntries } from "./site.js";
 
 export interface BuildOptions {
@@ -64,7 +65,28 @@ export interface BuildOptions {
   outDir?: string;
   /** Overrides the config's `base`. */
   base?: string;
+  /**
+   * Runs the site's Client Components with React even where every one says it
+   * works with Preact, as `goodfellow build --react` does, such as to find out
+   * whether a problem is Preact's. Without it, `GOODFELLOW_REACT` can say so.
+   */
+  react?: boolean;
 }
+
+/** The environment variable that has `goodfellow build` use React, as `--react` does: `GOODFELLOW_REACT=1`. */
+export const REACT_VARIABLE = "GOODFELLOW_REACT";
+
+/** Whether the environment says to use React (`GOODFELLOW_REACT` set to `1`, `true` or `yes`). */
+export function reactFromEnv(env: Record<string, string | undefined>): boolean {
+  return /^(1|true|yes)$/i.test(env[REACT_VARIABLE]?.trim() ?? "");
+}
+
+/**
+ * Why a build runs Client Components with React: some of them don't say they
+ * work with Preact, or the config (`preact: false`), the build's `react`
+ * option (`--react`) or `GOODFELLOW_REACT` says to.
+ */
+export type ReactReason = "components" | "config" | "option" | "variable";
 
 export interface BuildResult {
   outDir: string;
@@ -96,6 +118,13 @@ export interface BuildResult {
   images?: ImageSizesResult;
   /** The plugins' build steps that ran, as `plugin: step`. */
   pluginSteps?: string[];
+  /**
+   * What runs the site's Client Components in visitors' browsers: Preact,
+   * where every one says it works with it and nothing says to use React, or
+   * else React, with what said to (`because`) and the components that don't
+   * say they work with Preact (`needReact`). Absent for a site without any.
+   */
+  islands?: { runtime: "preact" } | { runtime: "react"; because: ReactReason; needReact: string[] };
   /** How many pages the content API has, at `/api/`, unless the config turns it off. */
   apiPages?: number;
 }
@@ -158,9 +187,24 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     server: { middlewareMode: true, hmr: false, ws: false, watch: null },
   });
 
+  let stopPreact: (() => Promise<void>) | undefined;
   try {
     const { config, renderPage, describe, admin: adminSite, api } = await loadServerEntry(server);
     const base = normalizeBase(options.base ?? config.base);
+    // Loading the config found the Client Components; they run with Preact where every one says it can.
+    const needed = needReact(modules);
+    // What says to use React, if anything: this build, then its environment, then the config, then the components.
+    const because: ReactReason | undefined = options.react
+      ? "option"
+      : reactFromEnv(process.env)
+        ? "variable"
+        : config.preact === false
+          ? "config"
+          : needed.length > 0
+            ? "components"
+            : undefined;
+    const runtime = modules.size === 0 ? undefined : because ? ("react" as const) : ("preact" as const);
+    if (runtime === "preact") stopPreact = await preactIslands(root, modules, server);
     // The site as visitors see it now: pages and items scheduled for later, or hidden again, are left out.
     const now = new Date();
     // Rendering pages reports when what they show by today's date changes, for the build record.
@@ -174,7 +218,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     // a backend or is a demo, the Client Components if it has any, and copy public/ into the output.
     const input: Record<string, string> = { styles: styles.site };
     if (withAdmin) Object.assign(input, { preview: styles.preview, admin: ADMIN_ENTRY });
-    if (modules.size > 0) input.islands = ISLANDS_ENTRY;
+    // With Preact, the islands have a bundle of their own, whose React is Preact, unlike the admin panel's.
+    if (runtime === "react") input.islands = ISLANDS_ENTRY;
     const viteConfig = baseViteConfig(root, configFile, modules);
     // A copy of the site, such as a staging site, says so to its admin panel, which stays at the copy's address.
     const copy = siteCopyFrom(process.env);
@@ -201,15 +246,41 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       },
     });
 
+    if (runtime === "preact") {
+      await viteBuild({
+        ...viteConfig,
+        resolve: { ...viteConfig.resolve, alias: [...aliasList(viteConfig.resolve?.alias), ...preactAliases()] },
+        base,
+        build: {
+          outDir,
+          emptyOutDir: false,
+          manifest: ISLANDS_MANIFEST,
+          rolldownOptions: {
+            input: { islands: ISLANDS_ENTRY },
+            onLog(level, log, handler) {
+              if (log.code === "MODULE_LEVEL_DIRECTIVE") return;
+              handler(level, log);
+            },
+          },
+        },
+      });
+    }
+
     const manifestPath = join(outDir, "manifest.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest;
     await rm(manifestPath);
+    let islandsManifest = manifest;
+    if (runtime === "preact") {
+      const path = join(outDir, ISLANDS_MANIFEST);
+      islandsManifest = JSON.parse(await readFile(path, "utf8")) as Manifest;
+      await rm(path);
+    }
     const stylesheets = cssFiles(manifest, "styles").map((file) => `/${file}`);
-    const islandsEntry = findEntry(manifest, "islands");
+    const islandsEntry = findEntry(islandsManifest, "islands");
     // Root-relative like the stylesheets: applyBasePath() adds the base path to the finished pages.
     const islands = islandsEntry && {
       script: `/${islandsEntry.file}`,
-      preload: importedFiles(manifest, "islands").map((file) => `/${file}`),
+      preload: importedFiles(islandsManifest, "islands").map((file) => `/${file}`),
       ...(base !== "/" && { base }),
     };
 
@@ -365,11 +436,37 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       ...(fonts && { fonts }),
       ...(images.written > 0 && { images }),
       ...(pluginSteps.length > 0 && { pluginSteps }),
+      ...(runtime && {
+        islands: runtime === "preact" ? { runtime } : { runtime, because: because ?? "components", needReact: needed },
+      }),
       ...(apiFiles.length > 0 && { apiPages: pages.length }),
       ...(robotsElsewhere && { robotsElsewhere }),
       ...(url && { sitemap: absoluteUrl(url, "/sitemap.xml") }),
     };
   } finally {
+    await stopPreact?.();
     await server.close();
   }
+}
+
+/** What runs the site's Client Components, and why, as `goodfellow build` says it. */
+export function islandsSummary(islands: NonNullable<BuildResult["islands"]>): string {
+  if (islands.runtime === "preact") return "Client Components run with Preact, since every one says it works with it";
+  if (islands.because === "option") return "Client Components run with React, as --react says";
+  if (islands.because === "variable") return "Client Components run with React, as GOODFELLOW_REACT says";
+  if (islands.because === "config") return "Client Components run with React, as the config says (preact: false)";
+  const shown = islands.needReact.slice(0, 3).join(", ");
+  const more = islands.needReact.length > 3 ? ` and ${islands.needReact.length - 3} more` : "";
+  const verb = islands.needReact.length === 1 ? "doesn't" : "don't";
+  return `Client Components run with React, since ${shown}${more} ${verb} say they work with Preact (export const worksWithPreact = true)`;
+}
+
+/** The manifest of the islands' own bundle, where they run with Preact, removed once it's read. */
+const ISLANDS_MANIFEST = "islands-manifest.json";
+
+/** Vite's aliases as a list, however the config gives them. */
+function aliasList(alias: NonNullable<InlineConfig["resolve"]>["alias"]): Alias[] {
+  if (!alias) return [];
+  if (Array.isArray(alias)) return alias;
+  return Object.entries(alias).map(([find, replacement]) => ({ find, replacement }));
 }

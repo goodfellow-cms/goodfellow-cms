@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
+/** Runs with Preact as well as React, so sites whose Client Components all do load Preact instead (see Islands). */
+export const worksWithPreact = true;
+
 /** Scripts that have already run, so a second pass (React's Strict Mode runs effects twice) doesn't run them again. */
 const ran = new WeakSet<Element>();
 

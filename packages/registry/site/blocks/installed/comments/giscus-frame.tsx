@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from "react";
 
+/** Runs with Preact as well as React, so sites whose Client Components all do load Preact instead (see Islands). */
+export const worksWithPreact = true;
+
 /**
  * Giscus's comments, loaded once the page has: its script reads its settings
  * from its own attributes and puts the comments in the `.giscus` element.

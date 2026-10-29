@@ -43,6 +43,42 @@ Each page with a Client Component loads React, so use HTML and CSS where they're
 
 The built-in blocks never need React: the Code block's copy button, the Dark mode switch and the Search box each work with a small script of their own. With `goodfellow build` a page has a script only when it has that block, so a page made of built-in blocks loads no React at all. Next.js loads React on every page for its own navigation, and has the scripts in its layout.
 
+## Preact instead of React
+
+React is about 70 kB for each page with a Client Component. Preact runs the same components in a tenth of that, through `preact/compat`, and `goodfellow build` uses it where every Client Component the site has says it works with it:
+
+```tsx
+// blocks/like-button.tsx
+"use client";
+
+import { useState } from "react";
+
+export const worksWithPreact = true;
+
+export function LikeButton({ label }: { label: string }) {
+  // …
+}
+```
+
+Every interactive block in Goodfellow's [block registry](/docs/block-registries) says so already. A Client Component that doesn't, such as one of the site's own or another package's, keeps the whole site on React, and `goodfellow build` names it. It also renders the islands with Preact while it builds the pages, so the ids `useId()` gives match the browser's. Pages themselves are rendered the same way either way.
+
+Say it only once you've tried the component with Preact: most React components work, but some libraries use parts of React that Preact doesn't have. To keep React whatever the components say, set `preact: false` in the config:
+
+```tsx
+export default defineConfig({
+  preact: false,
+  blocks: { ...blocks },
+});
+```
+
+To try one build with React without changing the config, such as to find out whether a problem is Preact's, run `goodfellow build --react`, or set `GOODFELLOW_REACT=1` where the site is built, which works on hosts whose build command you'd rather not change. The build says what it used, and why:
+
+```
+Client Components run with React, as GOODFELLOW_REACT says
+```
+
+`goodfellow dev` always uses React, so try a site that uses Preact with `goodfellow build` and `goodfellow preview` before publishing it. Next.js sites always use React too.
+
 ## What islands can't do
 
 Islands have limits that Next.js doesn't:

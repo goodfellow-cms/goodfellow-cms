@@ -34,7 +34,7 @@ import { blockWorks, formatShadcnBlock, ShadcnBlockError, TYPESCRIPT_VERSION } f
 import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import { addBlock } from "./blocks.js";
 import { siteBackend } from "./broker.js";
-import { build } from "./build.js";
+import { build, islandsSummary } from "./build.js";
 import { dev } from "./dev.js";
 import { preview } from "./preview.js";
 import { buildCause, reportBuildCause } from "./problems.js";
@@ -115,6 +115,8 @@ Options:
   --output <file> For nightly: add build=… and update=… to file, as GitHub Actions' outputs;
                   for due: add due=…
   --strict        For build: fail if the site checks find links to pages or media that don't exist
+  --react         For build: run Client Components with React even where they all work with Preact,
+                  as GOODFELLOW_REACT=1 does
   --dry-run       For import: say what importing would bring across, and change nothing
   --registry <dir>
                   For blocks add: write the block into the block registry in dir
@@ -145,6 +147,7 @@ async function main(): Promise<void> {
       host: { type: "string" },
       domain: { type: "string" },
       strict: { type: "boolean" },
+      react: { type: "boolean" },
       network: { type: "boolean" },
       "dry-run": { type: "boolean" },
       registry: { type: "string" },
@@ -173,7 +176,7 @@ async function main(): Promise<void> {
       const started = performance.now();
       let result: Awaited<ReturnType<typeof build>>;
       try {
-        result = await build({ root: values.root, outDir: values.out, base });
+        result = await build({ root: values.root, outDir: values.out, base, ...(values.react && { react: true }) });
       } catch (error) {
         // For the admin panel, which reads it in the host's log to explain the failure.
         for (const line of reportBuildCause(buildCause(error, resolve(values.root ?? ".")))) console.log(line);
@@ -185,6 +188,7 @@ async function main(): Promise<void> {
       );
       if (result.searchIndexed !== undefined) console.log(`Indexed ${result.searchIndexed} pages for search`);
       if (result.apiPages !== undefined) console.log(`Wrote the content API, with ${result.apiPages} pages, in api/`);
+      if (result.islands) console.log(islandsSummary(result.islands));
       if (result.nextChange) {
         const { kind, title, path, time } = result.nextChange;
         console.log(

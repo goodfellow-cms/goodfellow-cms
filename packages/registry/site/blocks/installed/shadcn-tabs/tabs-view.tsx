@@ -3,6 +3,9 @@
 import type { ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+/** Runs with Preact as well as React, so sites whose Client Components all do load Preact instead (see Islands). */
+export const worksWithPreact = true;
+
 /** The tabs, with every tab's content in the page and the others hidden, and their parts' classes from the block. */
 export function TabsView({
   tabs,

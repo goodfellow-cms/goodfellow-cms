@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+/** Runs with Preact as well as React, so sites whose Client Components all do load Preact instead (see Islands). */
+export const worksWithPreact = true;
+
 interface Words {
   days: string;
   hours: string;

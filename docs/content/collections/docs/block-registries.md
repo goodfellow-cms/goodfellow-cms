@@ -44,7 +44,7 @@ The admin panel can't install npm packages, so every site includes the same set,
 
 ## Writing the blocks
 
-Registry blocks follow the [rules for every block](/docs/write-blocks#rules). Interactive ones put every part that shares React context, such as an accordion with its items, in one `"use client"` file, since [islands](/docs/interactive-blocks#what-islands-cant-do) don't share context, and keep hidden content in the HTML, hidden with CSS, so search engines and search boxes see it.
+Registry blocks follow the [rules for every block](/docs/write-blocks#rules). Interactive ones say they work with [Preact](/docs/interactive-blocks#preact-instead-of-react) once they've been tried with it, and put every part that shares React context, such as an accordion with its items, in one `"use client"` file, since [islands](/docs/interactive-blocks#what-islands-cant-do) don't share context, and keep hidden content in the HTML, hidden with CSS, so search engines and search boxes see it.
 
 ## Letting a site use it
 

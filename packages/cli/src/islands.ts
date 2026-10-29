@@ -147,6 +147,22 @@ export interface ClientModuleExports {
   names: string[];
   /** Whether it also has `export * from …`, whose names aren't known without loading the other module. */
   star: boolean;
+  /** Whether it says it works with Preact as well as React: `export const worksWithPreact = true`. */
+  preact: boolean;
+}
+
+/** What a Client Component's module exports to say it works with Preact's `preact/compat` as well as React. */
+export const PREACT_EXPORT = "worksWithPreact";
+
+/** The names a declaration gives `true`, as in `const worksWithPreact = true`. */
+function trueConstants(declaration: Node): string[] {
+  if (declaration?.type !== "VariableDeclaration" || declaration.kind !== "const") return [];
+  return declaration.declarations
+    .filter(
+      (declarator: Node) =>
+        declarator.id?.type === "Identifier" && declarator.init?.type === "Literal" && declarator.init.value === true,
+    )
+    .map((declarator: Node) => declarator.id.name as string);
 }
 
 /**
@@ -160,10 +176,23 @@ export function clientModuleExports(code: string, file: string): ClientModuleExp
 
   const names: string[] = [];
   let star = false;
+  let preact = false;
+  // `const worksWithPreact = true`, exported where it's declared or, as bundlers write it, in `export { … }`.
+  const constants = new Set((program.body as Node[]).flatMap(trueConstants));
   for (const node of program.body as Node[]) {
     if (node.type === "ExportNamedDeclaration") {
       if (node.exportKind === "type" || node.declaration?.declare) continue;
       const declaration = node.declaration;
+      if (trueConstants(declaration).includes(PREACT_EXPORT)) preact = true;
+      for (const specifier of node.specifiers ?? []) {
+        if (
+          !node.source &&
+          exportName(specifier.exported) === PREACT_EXPORT &&
+          constants.has(exportName(specifier.local))
+        ) {
+          preact = true;
+        }
+      }
       if (declaration?.type === "VariableDeclaration") {
         names.push(...declaration.declarations.flatMap((declarator: Node) => bindingNames(declarator.id)));
       } else if (declaration?.id) {
@@ -179,7 +208,24 @@ export function clientModuleExports(code: string, file: string): ClientModuleExp
       else star = true;
     }
   }
-  return { names, star };
+  return { names, star, preact };
+}
+
+/**
+ * The site's Client Components that don't say they work with Preact, by the
+ * name pages refer to them by. Where there are none, and the config doesn't
+ * say otherwise, `goodfellow build` runs islands with Preact.
+ */
+export function needReact(modules: ClientModules): string[] {
+  return [...modules]
+    .filter(([, file]) => {
+      try {
+        return !clientModuleExports(readFileSync(file, "utf8"), file)?.preact;
+      } catch {
+        return true;
+      }
+    })
+    .map(([name]) => name);
 }
 
 /** A name as it's written in `export { … }`, quoted unless it's an identifier. */
