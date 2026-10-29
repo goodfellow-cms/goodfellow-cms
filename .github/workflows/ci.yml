@@ -14,6 +14,23 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Known security advisories in every package the workspace installs, from the lockfile, in a job of its own
+  # so a new advisory doesn't hide the other checks' results. Fix one with an override in pnpm-workspace.yaml,
+  # or, where no fixed release exists, list it in auditConfig.ignoreGhsas there with the reason.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          check-latest: true
+      - run: pnpm audit
+
   check:
     runs-on: ubuntu-latest
     # A run takes 20 to 35 minutes; one that hangs, such as on a server that never starts, stops well before GitHub's six hours.
