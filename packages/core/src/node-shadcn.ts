@@ -9,6 +9,7 @@
  * that never run the command don't download it. With `native`, it also makes
  * the block's version for an Expo app, with shadcn-tamagui-codemod.
  */
+
 import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -40,6 +41,7 @@ import {
   renderedProblems,
   serializeContent,
 } from "./index.js";
+import { commandToRun } from "./node-command.js";
 
 export type { ComponentInfo, ComponentProp, PropShape } from "./component-blocks.js";
 export {
@@ -178,19 +180,18 @@ const execFileAsync = promisify(execFile);
 
 /** shadcn's CLI from npm, at the release the command was tried with. */
 export const npxShadcn: ShadcnRunner = async (args, { cwd, interactive }) => {
-  const command = process.platform === "win32" ? "npx.cmd" : "npx";
-  const full = ["--yes", `shadcn@${SHADCN_VERSION}`, ...args];
+  const run = commandToRun("npx", ["--yes", `shadcn@${SHADCN_VERSION}`, ...args]);
   if (!interactive) {
-    const { stdout } = await execFileAsync(command, full, {
+    const { stdout } = await execFileAsync(run.file, run.args, {
       cwd,
       maxBuffer: 64 * 1024 * 1024,
-      shell: process.platform === "win32",
+      shell: run.shell,
     });
     return stdout;
   }
   // `add` asks before replacing a file that differs, even with --yes, so the developer answers.
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, full, { cwd, stdio: "inherit", shell: process.platform === "win32" });
+    const child = spawn(run.file, run.args, { cwd, stdio: "inherit", shell: run.shell });
     child.on("error", reject);
     child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`exited with code ${code}`))));
   });
@@ -199,11 +200,11 @@ export const npxShadcn: ShadcnRunner = async (args, { cwd, interactive }) => {
 
 /** shadcn-tamagui-codemod from npm, at the release the command was tried with. */
 export const npxCodemod: CodemodRunner = async (args, { cwd }) => {
-  const command = process.platform === "win32" ? "npx.cmd" : "npx";
-  const { stdout } = await execFileAsync(command, ["--yes", `shadcn-tamagui-codemod@${CODEMOD_VERSION}`, ...args], {
+  const run = commandToRun("npx", ["--yes", `shadcn-tamagui-codemod@${CODEMOD_VERSION}`, ...args]);
+  const { stdout } = await execFileAsync(run.file, run.args, {
     cwd,
     maxBuffer: 64 * 1024 * 1024,
-    shell: process.platform === "win32",
+    shell: run.shell,
   });
   return stdout;
 };

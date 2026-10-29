@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { findBuildCause } from "./build-problems.js";
 import { CONTENT_REPOSITORY_DIR, INSTALLED_RECORD_FILE, SITE_FILE, UPDATES_FILE } from "./content/paths.js";
 import type { FileChange } from "./content/store.js";
+import { commandToRun } from "./node-command.js";
 import {
   type FetchJson,
   GOODFELLOW_REGISTRY,
@@ -120,7 +121,8 @@ const runCommand: RunCommand = (command, args, cwd) =>
   new Promise((done) => {
     // Shown as it runs, as CI logs show it, and kept to find what the build said.
     let output = "";
-    const child = spawn(command, args, { cwd, stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" });
+    const run = commandToRun(command, args);
+    const child = spawn(run.file, run.args, { cwd, stdio: ["ignore", "pipe", "pipe"], shell: run.shell });
     const keep = (chunk: Buffer, to: NodeJS.WriteStream) => {
       output += chunk.toString();
       to.write(chunk);

@@ -494,6 +494,7 @@ pnpm test:e2e
 
 ## Conventions
 
+- **Other programs:** start them with `commandToRun()` (`node-command.ts` in `@goodfellow-cms/core/node`), which runs npm and npx through cmd.exe on Windows with their arguments quoted (`cmdArgument()`) and everything else, git included, without a shell; never pass `shell: true` with an argument list, which Node joins unquoted. Globs given to Vite or watchers use forward slashes (`slashes()`), since they read `\` as an escape.
 - **Exports:** use named exports. Each package exposes its public API from `src/index.ts`; anything not exported there is internal.
 - **Dependencies:** keep runtime dependencies small. Every package that ships to the browser counts against the editor's load time, and anything in `@goodfellow-cms/react` also ships to every visitor of every site.
 - **Actions:** this repository's workflows pin every action to a commit, with its version in a comment, which `.github/dependabot.yml` keeps up to date; pin new ones the same way.
