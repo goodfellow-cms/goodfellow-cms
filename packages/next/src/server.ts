@@ -1,5 +1,5 @@
 import { aiServer, type ServerKeys } from "@goodfellow-cms/ai";
-import type { GoodfellowConfig } from "@goodfellow-cms/core";
+import { type GoodfellowConfig, ownersOnlyFields } from "@goodfellow-cms/core";
 import { type AppApiOptions, appApi } from "@goodfellow-cms/core/node";
 
 /** The environment variable the server's token is read from, unless `goodfellowApi({ token })` gives one. */
@@ -91,6 +91,7 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
       ...(options.onError && { onError: options.onError }),
       ...(options.plugins && { plugins: options.plugins }),
       ...(options.codeChanges && { codeChanges: options.codeChanges }),
+      ownersOnly: ownersOnlyFields(options.config.blocks ?? {}),
     });
     return api;
   }

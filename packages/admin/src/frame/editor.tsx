@@ -56,6 +56,7 @@ import type { Channel } from "./channel.js";
 import { entryConfig } from "./entry-fields.js";
 import { useAdminClient, useFrameCode } from "./frame-site.js";
 import { withLabels } from "./labels.js";
+import { withOwnersOnlyLocked } from "./owners-only.js";
 import { type ShownSettings, shownSettings } from "./page-settings.js";
 import type { EditorChange, EditorOpen, EditorOpened, EditorState } from "./protocol.js";
 import { SiteFrame } from "./site-frame.js";
@@ -362,10 +363,10 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
 
   // Described with Style fields as the text they hold, which the AI assistant fills in.
   const described = useMemo(() => describeConfig(config), [config]);
-  const puckConfig = useMemo(
-    () => (kind === "entry" ? config : withStyleFields(config, content.settings.theme.colors)),
-    [kind, config, content.settings.theme.colors],
-  );
+  const puckConfig = useMemo(() => {
+    const styled = kind === "entry" ? config : withStyleFields(config, content.settings.theme.colors);
+    return open.ownersOnlyLocked ? withOwnersOnlyLocked(styled) : styled;
+  }, [kind, config, content.settings.theme.colors, open.ownersOnlyLocked]);
   const told = useRef<Config>(undefined);
   useEffect(() => {
     if (told.current === described) return;

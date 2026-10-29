@@ -39,7 +39,7 @@ News feed reads the feed when the site is built, not in the editor, which says w
 
 Content with section links finds the pages to list in a menu (`main` unless you name another): the submenu of the top-level link the page is under, or, on a page under one of those submenu's pages, such as one ministry under "Ministries", the pages beside it. On a collection's page design, **Show the links as if on this page** lists them as on another page, such as the list of news.
 
-Custom HTML used exactly as written runs its scripts on the site. The editor only shows it, in a sealed-off frame where it can't reach the admin panel, without running its scripts, so a widget that a script builds shows on the published site but not in the editor. Only use HTML you trust that way. Its scripts run whenever its page is shown, also when visitors move to it from another page of a Next.js site. A page with such scripts loads React, as pages with interactive blocks do.
+Custom HTML used exactly as written runs its scripts on the site. The editor only shows it, in a sealed-off frame where it can't reach the admin panel, without running its scripts, so a widget that a script builds shows on the published site but not in the editor. Only use HTML you trust that way. On a [full-stack Next.js site](/docs/full-stack-nextjs#who-may-do-what), only its owners can choose it. Its scripts run whenever its page is shown, also when visitors move to it from another page of a Next.js site. A page with such scripts loads React, as pages with interactive blocks do.
 
 ## Removing a block
 
