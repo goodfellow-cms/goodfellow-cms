@@ -279,3 +279,105 @@ describe("the parish site's blocks", () => {
     expect(html).toContain('<span class="sr-only">YouTube</span>');
   });
 });
+
+describe("people, numbers, timelines, countdowns and comments", () => {
+  const base = siteSettingsSchema.parse({
+    version: 1,
+    title: "St. Joseph",
+    language: "en",
+    timeZone: "America/Chicago",
+  });
+  const render = async (name: string, props: Record<string, unknown>, settings = base) => {
+    const block = (await import(`../site/blocks/installed/${name}/block.tsx`)).default as ComponentConfig;
+    const html = await createPageRenderer({ blocks: { [name]: block } })(
+      {
+        settings,
+        menus: {},
+        header: { version: 1, data: { root: {}, content: [] } },
+        footer: { version: 1, data: { root: {}, content: [] } },
+        pages: [],
+        collections: [],
+        customCss: "",
+      },
+      {
+        path: "/news/fair",
+        file: "content/pages/news/fair.json",
+        content: {
+          version: 1,
+          data: { root: { props: {} }, content: [{ type: name, props: { id: "b", ...block.defaultProps, ...props } }] },
+        },
+      },
+    );
+    return html.slice(html.indexOf("<main"), html.indexOf("</main>"));
+  };
+
+  it("puts people's names a level under the heading, with their photos hidden from screen readers", async () => {
+    const people = [
+      { photo: "/media/ann.jpg", name: "Ann Lee", role: "Secretary", bio: "", email: "ann@example.org", link: "" },
+    ];
+    const html = await render("people", { people });
+    expect(html).toMatch(/<h2 [^>]*>Our team<\/h2>/);
+    expect(html).toMatch(/<h3 [^>]*>Ann Lee<\/h3>/);
+    expect(html).toMatch(/<img (?=[^>]*alt="")(?=[^>]*aria-hidden="true")[^>]*src="\/media\/ann.jpg"/);
+    expect(html).toContain('href="mailto:ann@example.org"');
+    expect(await render("people", { people, heading: "" })).toMatch(/<h2 [^>]*>Ann Lee<\/h2>/);
+  });
+
+  it("names whose each logo is, and shows nothing to visitors without any", async () => {
+    const html = await render("logos", { logos: [{ image: "/media/diocese.png", name: "The diocese", link: "" }] });
+    expect(html).toMatch(/<img [^>]*alt="The diocese"/);
+    expect(await render("logos", {})).not.toContain("gf-logos");
+  });
+
+  it("gives each number the words it counts as its term", async () => {
+    const html = await render("numbers", {});
+    expect(html).toMatch(/<dt [^>]*>Families<\/dt><dd [^>]*>1,200<\/dd>/);
+  });
+
+  it("lists a timeline's moments in order", async () => {
+    const html = await render("timeline", {});
+    expect(html).toMatch(/<ol [^>]*>.*1902.*The first church is built.*1958.*2002.*<\/ol>/s);
+    expect(html).toMatch(/<h3 [^>]*>The school opens<\/h3>/);
+  });
+
+  it("counts down to a moment in the site's time zone, saying when it is before it starts counting", async () => {
+    const { countdownInstant } = await import("../site/blocks/installed/countdown/block.js");
+    expect(countdownInstant("2027-12-24", "18:00", "America/Chicago")?.toISOString()).toBe("2027-12-25T00:00:00.000Z");
+    expect(countdownInstant("2027-12-24", "", "America/Chicago")?.toISOString()).toBe("2027-12-24T06:00:00.000Z");
+    expect(countdownInstant("24/12/2027", "18:00", "America/Chicago")).toBeUndefined();
+    expect(countdownInstant("2027-12-24", "6pm", "America/Chicago")).toBeUndefined();
+    const future = await render("countdown", { date: "2099-12-24", time: "18:00" });
+    expect(future).toContain('<time dateTime="2099-12-25T00:00:00.000Z"');
+    expect(future).toContain("Thursday, December 24, 2099 at 6:00");
+    const past = await render("countdown", { date: "2000-12-24", time: "18:00" });
+    expect(past).toContain(">It&#x27;s here!</p>");
+    expect(past).not.toContain("<time");
+    expect(await render("countdown", {})).not.toContain("gf-countdown");
+  });
+
+  it("reads Giscus's code, and loads Giscus only on the built site, waiting for visitors that are asked", async () => {
+    const { giscusSettings } = await import("../site/blocks/installed/comments/block.js");
+    const code = `<script src="https://giscus.app/client.js"
+        data-repo="stjoseph/website" data-repo-id="R_kgDOabc123" data-category="Comments"
+        data-category-id="DIC_kwDOabc123" data-mapping="pathname" crossorigin="anonymous" async></script>`;
+    expect(giscusSettings(code)).toEqual({
+      repo: "stjoseph/website",
+      repoId: "R_kgDOabc123",
+      category: "Comments",
+      categoryId: "DIC_kwDOabc123",
+    });
+    expect(giscusSettings(code.replace("stjoseph/website", "stjoseph/web site"))).toBeUndefined();
+    expect(giscusSettings("<p>Hi</p>")).toBeUndefined();
+    // Without consent, the island loads Giscus's script once the page has loaded.
+    expect(await render("comments", { code })).toContain('<div class="giscus gf-comments-frame w-full"></div>');
+    expect(await render("comments", {})).not.toContain("gf-comments");
+    // A site that asks keeps it in a template until the visitor agrees.
+    const asking = siteSettingsSchema.parse({ ...base, consent: {} });
+    const held = await render("comments", { code: code.replace("Comments", "Q&A") }, asking);
+    expect(held).toMatch(
+      /<template data-gf-consent-code="body"><script src="https:\/\/giscus.app\/client.js" crossorigin="anonymous" async data-repo="stjoseph\/website" data-repo-id="R_kgDOabc123" data-category="Q&amp;A" [^<]*data-mapping="pathname" [^<]*data-lang="en"[^<]*><\/script><\/template>/,
+    );
+    expect(held.replace(/<template[\s\S]*?<\/template>/g, "")).not.toContain('giscus.app/client.js"');
+    expect(held).toContain("This comes from giscus.app");
+  });
+});
