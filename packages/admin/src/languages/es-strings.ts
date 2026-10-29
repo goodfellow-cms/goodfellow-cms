@@ -210,6 +210,8 @@ export const strings: Strings = {
     "Alguien propietario ha limitado lo que puedes cambiar, y la biblioteca multimedia queda fuera. Aun así, puedes usar sus archivos en las páginas que puedes cambiar.",
   "checks.missing-page": "{place} enlaza a {target}, que no es una página del sitio.",
   "checks.missing-media": "{place} usa {target}, que no está en la biblioteca multimedia.",
+  "checks.unsafe-link":
+    "{place} enlaza a {target}, una dirección que ejecutaría código en el sitio. Las páginas la omiten: usa una dirección que empiece por https:// o una de las páginas del sitio.",
   "checks.no-title":
     "{place} no tiene título, así que las pestañas del navegador y los resultados de búsqueda solo muestran el nombre del sitio.",
   "checks.missing-translation":
@@ -615,6 +617,8 @@ export const strings: Strings = {
   "media.uploaded": "Subido. Los visitantes ven los archivos nuevos cuando se actualiza el sitio publicado.",
   "media.uploadMessage": "Añadir {names}",
   "media.replaceMessage": "Sustituir {name}",
+  "media.replaceKind":
+    "{name} es un tipo de archivo distinto de {target}. Sustitúyelo por un archivo del mismo tipo o sube {name} como archivo nuevo.",
   "media.deleteMessage": "Eliminar {name}",
   "media.deleteTitle": "¿Eliminar {name}?",
   "media.deleteBody": "{name} se quitará del sitio.",

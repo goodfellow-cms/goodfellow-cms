@@ -50,6 +50,15 @@ describe("SiteLink", () => {
       ),
     ).toBe('<a href="/about" target="_blank">C</a>');
   });
+
+  it("leaves out addresses that would run code, keeping the link's words, and keeps calendar links", () => {
+    for (const href of ["javascript:alert(1)", " java\tscript:alert(1)", "data:text/html,<script>x</script>"]) {
+      expect(render({ components }, <SiteLink href={href}>Run</SiteLink>), href).toBe("<a>Run</a>");
+    }
+    expect(render({}, <SiteLink href="webcal://example.org/a.ics">Subscribe</SiteLink>)).toBe(
+      '<a href="webcal://example.org/a.ics">Subscribe</a>',
+    );
+  });
 });
 
 describe("SiteLink with links to other sites in new tabs", () => {

@@ -1,3 +1,4 @@
+import { type FileChange, fileName, MEDIA_DIR } from "@goodfellow-cms/core";
 import { extensionOf, MAX_UPLOAD_BYTES, mediaKind } from "./media.js";
 import { mediaType } from "./media-previews.js";
 
@@ -260,4 +261,27 @@ export async function prepareStoredUpload(file: File, maxBytes: number): Promise
   const blob = await prepared(file, maxBytes);
   const type = blob.type || file.type || mediaType(file.name);
   return { name: file.name, blob, type, ...(await imageSize(blob, file.name)) };
+}
+
+/**
+ * Changes as they're published: a file into the media library must be a kind
+ * the site can use by the name it's saved under, whatever it was chosen as,
+ * and an SVG keeps only what draws it (`cleanSvg()`), however it got there,
+ * from an upload, a replaced file or a plugin. Throws `UploadError` for a file
+ * that can't be saved there.
+ */
+export function safeMediaChanges(changes: readonly FileChange[]): FileChange[] {
+  return changes.map((change) => {
+    if (!change.path.startsWith(`${MEDIA_DIR}/`) || "delete" in change) return change;
+    const name = fileName(change.path);
+    if (!mediaKind(name)) throw new UploadError("type", name, `${name} isn't a kind of file the site can use.`);
+    if (extensionOf(name) !== "svg") return change;
+    const text = "bytes" in change ? new TextDecoder().decode(change.bytes) : change.content;
+    const cleaned = cleanSvg(text);
+    if (cleaned === undefined) throw new UploadError("unreadable", name, `${name} isn't a valid SVG image.`);
+    // An SVG that's already safe, such as one put back from Version history, keeps its own spelling.
+    const asWritten = new XMLSerializer().serializeToString(new DOMParser().parseFromString(text, "image/svg+xml"));
+    if (cleaned === asWritten) return change;
+    return { path: change.path, bytes: new TextEncoder().encode(cleaned) };
+  });
 }

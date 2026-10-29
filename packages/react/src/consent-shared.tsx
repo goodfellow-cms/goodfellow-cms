@@ -6,6 +6,7 @@ import {
   CONSENT_SRC_ATTRIBUTE,
   type ConsentSettings,
   consentSource,
+  isScriptUrl,
   withBase,
 } from "@goodfellow-cms/core";
 import type { IframeHTMLAttributes } from "react";
@@ -101,7 +102,7 @@ export function ConsentNotice({ site }: { site: SiteContextValue }) {
     >
       <p>
         {consent.message}
-        {consent.policy && (
+        {consent.policy && !isScriptUrl(consent.policy) && (
           <>
             {" "}
             <a href={withBase(consent.policy, site.base)}>{consent.policyLabel}</a>
