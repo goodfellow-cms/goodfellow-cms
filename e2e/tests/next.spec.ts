@@ -83,6 +83,47 @@ test("keeps a visitor's choice from the Dark mode switch between pages", async (
   expect(problems).toEqual([]);
 });
 
+test("opens the Search box's results with Next.js's navigation, as its links would", async ({ page }) => {
+  const headerFile = join(nextSite, "content/layout/header.json");
+  const header = JSON.parse(readFileSync(headerFile, "utf8"));
+  header.data.content.push({
+    type: "Search",
+    props: {
+      id: "Search-test",
+      label: "Search this site",
+      placeholder: "Search",
+      noResults: "Nothing matches “{query}”.",
+      unavailable: "Search works on the published site.",
+      className: "",
+    },
+  });
+  writeFileSync(headerFile, `${JSON.stringify(header, null, 2)}\n`);
+  // `next dev` has no search index, so Pagefind is a stand-in that finds the About page.
+  await page.route("**/pagefind/pagefind.js", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: `export async function options() {}
+export async function destroy() {}
+export async function debouncedSearch() {
+  return { results: [{ data: async () => ({ url: "/about/", excerpt: "Who <mark>we</mark> are", meta: { title: "About us" } }) }] };
+}`,
+    }),
+  );
+
+  await page.goto(`${BASE}/`);
+  await page.getByRole("searchbox", { name: "Search this site" }).fill("we");
+  const result = page.getByRole("search").getByRole("link", { name: /About us/ });
+  await expect(result).toHaveAttribute("href", "/about/");
+  // Remembered only while the same document is shown, which a page loaded anew wouldn't be.
+  await page.evaluate(() => {
+    (window as { stayed?: boolean }).stayed = true;
+  });
+  await result.click();
+  await expect(page).toHaveURL(`${BASE}/about/`);
+  await expect(page.getByRole("heading", { name: "About us" })).toBeVisible();
+  expect(await page.evaluate(() => (window as { stayed?: boolean }).stayed)).toBe(true);
+});
+
 test("shows the site's own page for addresses that don't exist", async ({ page }) => {
   const response = await page.goto(`${BASE}/no-such-page/`);
   expect(response?.status()).toBe(404);

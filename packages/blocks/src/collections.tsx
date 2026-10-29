@@ -94,7 +94,7 @@ function MarkdownBody({
       {parts.map((piece, index) =>
         piece.kind === "code" ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: parts have no ids, and only change all together
-          <CodeView key={index} code={piece.code} html={piece.html} copyLabel={copyLabel || undefined} />
+          <CodeView key={index} html={piece.html} copyLabel={copyLabel || undefined} />
         ) : (
           <div
             // biome-ignore lint/suspicious/noArrayIndexKey: as above

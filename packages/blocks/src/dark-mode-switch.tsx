@@ -1,6 +1,6 @@
 import { classNameField, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
-import { ColorSchemeControl } from "./dark-mode-switch-client.js";
+import { ColorSchemeControl } from "./dark-mode-switch-view.js";
 import { options } from "./options.js";
 import { DARK_MODE_SWITCH_PARTS } from "./parts.js";
 

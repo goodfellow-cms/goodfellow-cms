@@ -5,6 +5,8 @@ const DOCS = "http://localhost:4406/goodfellow-cms";
 
 test("finds pages with the search box, from the site's own index", async ({ page }) => {
   await page.goto(`${DOCS}/`, { waitUntil: "networkidle" });
+  // The Search box and the Dark mode switch work with scripts of their own, so the page loads no React.
+  await expect(page.locator("script[src]")).toHaveCount(0);
   await page.getByRole("searchbox", { name: "Search the documentation" }).fill("pagefind");
   const result = page.getByRole("search").getByRole("link", { name: /^Search/ });
   await expect(result).toBeVisible();

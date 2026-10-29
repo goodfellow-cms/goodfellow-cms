@@ -62,6 +62,18 @@ export {
   type IconShape,
 } from "./block-icons.js";
 export {
+  BLOCK_SCRIPTS,
+  blockScriptsFor,
+  COPIED_ATTRIBUTE,
+  COPY_ATTRIBUTE,
+  copyScript,
+  DARK_MODE_ATTRIBUTE,
+  DARK_MODE_READY_ATTRIBUTE,
+  darkModeScript,
+  SEARCH_BOX_ATTRIBUTE,
+  searchScript,
+} from "./block-scripts.js";
+export {
   type BlockStyle,
   blockStyleClasses,
   colorSlug,

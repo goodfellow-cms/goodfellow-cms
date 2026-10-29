@@ -41,6 +41,8 @@ They run in the browser however the site is built. With `goodfellow build` and `
 
 Each page with a Client Component loads React, so use HTML and CSS where they're enough: `<details>` for something that opens and closes, `:hover` and `:focus-within` for menus.
 
+The built-in blocks never need React: the Code block's copy button, the Dark mode switch and the Search box each work with a small script of their own. With `goodfellow build` a page has a script only when it has that block, so a page made of built-in blocks loads no React at all. Next.js loads React on every page for its own navigation, and has the scripts in its layout.
+
 ## What islands can't do
 
 Islands have limits that Next.js doesn't:

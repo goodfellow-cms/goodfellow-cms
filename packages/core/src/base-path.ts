@@ -17,7 +17,7 @@ export function applyBasePath(html: string, base: string): string {
   if (!prefix) return html;
 
   return html
-    .replace(/(\s(?:href|src|poster|action)=")\/(?!\/)/g, `$1${prefix}/`)
+    .replace(/(\s(?:href|src|poster|action|data-gf-base)=")\/(?!\/)/g, `$1${prefix}/`)
     .replace(/(\s(?:image)?srcset=")([^"]*)"/gi, (_, start: string, value: string) => {
       const rewritten = value
         .split(",")
