@@ -23,10 +23,11 @@ describe("build", () => {
   let outDir: string;
   let pages: string[];
   let nextChange: Awaited<ReturnType<typeof build>>["nextChange"];
+  let islands: Awaited<ReturnType<typeof build>>["islands"];
 
   beforeAll(async () => {
     outDir = await mkdtemp(join(tmpdir(), "goodfellow-build-"));
-    ({ pages, nextChange } = await build({ root: fixture, outDir }));
+    ({ pages, nextChange, islands } = await build({ root: fixture, outDir }));
   }, 60_000);
 
   afterAll(() => rm(outDir, { recursive: true, force: true }));
@@ -85,6 +86,8 @@ describe("build", () => {
   });
 
   it("runs Client Components in the browser, only on pages that use them", async () => {
+    // With React, since the counter doesn't say it works with Preact.
+    expect(islands).toEqual({ runtime: "react", needReact: ["blocks/counter.tsx"] });
     const news = await read("news/index.html");
     expect(news).toMatch(
       /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked!<!-- --> <!-- -->0<!-- --> times on <!-- -->\/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news">News<\/a><\/div><\/gf-island>/,
@@ -424,6 +427,48 @@ describe("a site with an admin address", () => {
       await rm(site, { recursive: true, force: true });
     }
   });
+});
+
+describe("a site whose Client Components all work with Preact", () => {
+  it("runs them with Preact, in the browser and where its pages are built, unless the config says React", async () => {
+    const site = await mkdtemp(join(import.meta.dirname, "../test/.preact-"));
+    try {
+      await cp(fixture, site, { recursive: true, filter: (path) => !path.includes("node_modules") });
+      const counter = join(site, "blocks/counter.tsx");
+      await writeFile(counter, `${await readFile(counter, "utf8")}\nexport const worksWithPreact = true;\n`);
+      const result = await build({ root: site, outDir: join(site, "dist") });
+      expect(result.islands).toEqual({ runtime: "preact" });
+
+      const news = await readFile(join(site, "dist/news/index.html"), "utf8");
+      // Rendered by Preact as React would render it, with the content passed to it in its slot.
+      expect(news).toMatch(
+        /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked! 0 times on \/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news">News<\/a><\/div><\/gf-island>/,
+      );
+      const script = news.match(
+        /<script type="module" src="\/from-config\/(assets\/islands-[\w-]+\.js)"><\/script>/,
+      )?.[1];
+      const assets = join(site, "dist/assets");
+      const code = (
+        await Promise.all((await readdir(assets)).map((file) => readFile(join(assets, file), "utf8")))
+      ).join("\n");
+      expect(script).toBeDefined();
+      // No React in the browser: Preact, which is a tenth of its size.
+      expect(code).not.toContain("react.production");
+      expect(code).not.toContain("__REACT_DEVTOOLS_GLOBAL_HOOK__");
+      // The bundle it was rendered from isn't left in the site.
+      expect(existsSync(join(site, "node_modules/.goodfellow/preact-islands"))).toBe(false);
+
+      const configFile = join(site, "goodfellow.config.tsx");
+      await writeFile(
+        configFile,
+        (await readFile(configFile, "utf8")).replace("defineConfig({", "defineConfig({\n  preact: false,"),
+      );
+      const react = await build({ root: site, outDir: join(site, "dist") });
+      expect(react.islands).toEqual({ runtime: "react", needReact: [] });
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  }, 120_000);
 });
 
 describe("a site without the content API", () => {

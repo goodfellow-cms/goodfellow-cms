@@ -37,8 +37,9 @@ export function renderIsland(
   slots: IslandSlots,
 ): Promise<string> {
   const element = h(component, decode(props, slots) as Record<string, unknown>);
-  // biome-ignore lint/suspicious/noExplicitAny: the site's context value, as React's renderer gives it
+  // React's types for the site's provider, which is Preact's here, as `react` is.
+  const Site = SiteProvider as unknown as ComponentType<{ value: unknown }>;
   return Promise.resolve(
-    renderToStringAsync(h(IdPrefix.Provider, { value: prefix }, h(SiteProvider as any, { value: site }, element))),
+    renderToStringAsync(h(IdPrefix.Provider, { value: prefix }, h(Site, { value: site }, element))),
   );
 }

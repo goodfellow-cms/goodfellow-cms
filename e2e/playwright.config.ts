@@ -64,6 +64,11 @@ const SERVERS: { server: Server; usedBy?: RegExp }[] = [
   },
   // Production builds of the starter with each git backend, as a demo, with its content in a repository of its
   // own, with an admin address, and with a token broker, served like a static host.
+  // Every registry block, built with `goodfellow build`, whose islands run with Preact.
+  {
+    server: server("node scripts/start-preact-site.mjs", "http://localhost:4415/registry/", 120_000),
+    usedBy: /4415/,
+  },
   { server: builtSite("github"), usedBy: /GITHUB_SITE|builtSites\.github|4401/ },
   { server: builtSite("gitlab"), usedBy: /GITLAB_SITE|builtSites\.gitlab|4402/ },
   { server: builtSite("bitbucket"), usedBy: /BITBUCKET_SITE|builtSites\.bitbucket|4414/ },
@@ -164,10 +169,11 @@ export default defineConfig({
   },
   projects: [
     { name: "chromium", use: {} },
-    // The admin address's guards, in every browser engine, since each loads pages its own way.
+    // The admin address's guards, in every browser engine, since each loads pages its own way, and the registry's
+    // blocks with Preact, which each runs its own way too.
     ...(["firefox", "webkit"] as const).map((name) => ({
       name,
-      testMatch: "admin-domain.spec.ts",
+      testMatch: ["admin-domain.spec.ts", "preact.spec.ts"],
       use: {
         ...devices[name === "firefox" ? "Desktop Firefox" : "Desktop Safari"],
         viewport: { width: 1440, height: 900 },

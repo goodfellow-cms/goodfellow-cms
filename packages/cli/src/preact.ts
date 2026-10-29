@@ -37,7 +37,7 @@ export function preactAliases(): Alias[] {
   ];
 }
 
-/** Packages whose `react` must be Preact, since they use React or are Preact: those that depend on these. */
+/** Packages whose `react` must be Preact, since they use React: those that depend on these, and Preact itself. */
 const REACT_PACKAGES = ["react", "react-dom", "preact"];
 
 /**
@@ -68,46 +68,37 @@ function packageDir(name: string, from: string): string | undefined {
   }
 }
 
-/**
- * The packages that use React, of the site's and of those it uses in turn,
- * with Preact's own: where islands are rendered with Preact, Vite loads these
- * itself, so their `react` is Preact. Node loads the rest, as it does where
- * pages are rendered, since some, such as CommonJS ones, can't go through Vite.
- */
-export function reactPackages(root: string): string[] {
-  const found = new Set(["preact", "preact-render-to-string", "@goodfellow-cms/react"]);
-  const seen = new Set<string>();
-  const queue: Array<{ name: string; from: string }> = [];
-  const visit = (pkg: PackageJson, dir: string) => {
-    for (const name of Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies, ...pkg.peerDependencies })) {
-      queue.push({ name, from: dir });
-    }
-  };
+/** Whether a package uses React, by its `package.json`: it depends on React, or is React or Preact. */
+function usesReact(dir: string): boolean {
   try {
-    visit(JSON.parse(readFileSync(join(root, "package.json"), "utf8")), root);
+    const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as PackageJson;
+    if (REACT_PACKAGES.includes(pkg.name ?? "")) return true;
+    return Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies }).some((name) => REACT_PACKAGES.includes(name));
   } catch {
-    // A site without a package.json uses nothing but its own files.
+    return true;
   }
-  while (queue.length > 0) {
-    const { name, from } = queue.shift() as { name: string; from: string };
-    if (NEVER_ISLANDS.includes(name)) continue;
-    const dir = packageDir(name, from);
-    if (!dir || seen.has(dir)) continue;
-    seen.add(dir);
-    let pkg: PackageJson;
-    try {
-      pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
-    } catch {
-      continue;
-    }
-    const names = Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies });
-    if (!REACT_PACKAGES.includes(name) && names.some((dependency) => REACT_PACKAGES.includes(dependency))) {
-      found.add(name);
-    }
-    // React itself, and what only React uses, never load here.
-    if (!REACT_PACKAGES.includes(name)) visit(pkg, dir);
+}
+
+/**
+ * Whether the islands' server bundle leaves an import to Node: Node's own
+ * modules, and packages that don't use React that Node finds from the site,
+ * as where pages are rendered. Packages that use React are bundled, so their
+ * `react` is Preact, and so are packages Node couldn't find from the site,
+ * such as other packages' own, in installs that keep them apart (pnpm's).
+ */
+export function leftToNode(id: string, root: string, cache = new Map<string, boolean>()): boolean {
+  if (id.startsWith("node:")) return true;
+  const name = packageName(id);
+  // React's own modules are the aliases' Preact, which the bundle has.
+  if (!name || REACT_PACKAGES.includes(name) || name.startsWith("preact")) return false;
+  if (NEVER_ISLANDS.includes(name)) return true;
+  let left = cache.get(name);
+  if (left === undefined) {
+    const dir = packageDir(name, root);
+    left = dir !== undefined && !usesReact(dir);
+    cache.set(name, left);
   }
-  return [...found].sort();
+  return left;
 }
 
 /** The renderer `setIslandRenderer()` takes, as `@goodfellow-cms/react/island` declares it. */
@@ -143,7 +134,7 @@ export async function preactIslands(
   modules: ClientModules,
   pages: ViteDevServer,
 ): Promise<() => Promise<void>> {
-  const usesReact = new Set(reactPackages(root));
+  const decided = new Map<string, boolean>();
   const outDir = join(root, SERVER_BUNDLE_DIR);
   const entry = "virtual:goodfellow/preact-islands";
   const loaders = [...modules].map(
@@ -174,14 +165,7 @@ export async function preactIslands(
       rolldownOptions: {
         input: { islands: entry },
         output: { entryFileNames: "islands.mjs" },
-        // Packages that don't use React, and that Node finds from the bundle's folder: the site's own.
-        external: (id) => {
-          if (id.startsWith("node:")) return true;
-          const name = packageName(id);
-          // React's own modules are the aliases' Preact, which the bundle has.
-          if (!name || REACT_PACKAGES.includes(name) || usesReact.has(name) || name.startsWith("preact")) return false;
-          return NEVER_ISLANDS.includes(name) || packageDir(name, root) !== undefined;
-        },
+        external: (id) => leftToNode(id, root, decided),
         onLog(level, log, handler) {
           if (log.code === "MODULE_LEVEL_DIRECTIVE") return;
           handler(level, log);

@@ -99,6 +99,7 @@ Registry blocks follow the same rules as any Goodfellow block (see [AGENTS.md](h
 - **One Client Component per interactive part.** Sites built with `goodfellow build` run each Client Component a block renders as its own small React app (an island), and islands don't share React context. Components whose parts talk to each other through context, as Radix's `Accordion`, `AccordionItem` and `AccordionContent` do, must all be put together inside one `"use client"` file, which the block renders with its content as props. See `site/blocks/installed/shadcn-faq/` here.
 - **Keep content in the page.** Hidden content, such as closed answers or other tabs, should still be in the HTML (Radix's `forceMount`, hidden with CSS), so search engines and visitors without JavaScript see it.
 - Prefer HTML and CSS where they're enough: a `<details>` element rather than a Client Component, since a page with a Client Component loads React.
+- **Say when a Client Component works with Preact**, with `export const worksWithPreact = true` in its `"use client"` file, once you've tried it there. Sites whose Client Components all say so run them with Preact's `preact/compat` instead of React, about a tenth of its size; one that doesn't keeps a site on React. Every interactive block here says so, and Goodfellow's tests try each with Preact.
 
 ### Letting a site use it
 

@@ -1,7 +1,7 @@
 import { type GoodfellowConfig, type Page, type SiteContent, siteSettingsSchema } from "@goodfellow-cms/core";
 import { createContext, memo, type ReactNode, useId, useState } from "react";
 import { describe, expect, it } from "vitest";
-import { fillSlots, island } from "./island.js";
+import { fillSlots, type IslandToRender, island, setIslandRenderer } from "./island.js";
 import { createPageRenderer } from "./server.js";
 import { useSite } from "./site-context.js";
 
@@ -128,6 +128,36 @@ describe("islands", () => {
     expect(attribute(html, "for")).toEqual(attribute(html, "<input id"));
     expect(attribute(html, "for")[0]).toContain(`${first}-`);
     expect(attribute(html, "for")[1]).toContain(`${second}-`);
+  });
+
+  it("renders islands with another renderer where the build gives one, such as Preact's", async () => {
+    const asked: IslandToRender[] = [];
+    setIslandRenderer(async (island) => {
+      asked.push(island);
+      const title = (island.props as { title?: { $gfSlot: string } }).title;
+      const slot = title ? `<gf-slot data-gf-slot="${title.$gfSlot}" style="display:contents"></gf-slot>` : "";
+      return `<p>Drawn for ${island.prefix}</p>${slot}`;
+    });
+    try {
+      const html = await renderPage(content, page([{ type: "Disclosure", props: { open: true } }]), { islands });
+      const [id] = attribute(html, "data-gf-id");
+      // The Disclosure, and the Counter in the content passed to it, an island of its own.
+      expect(asked.map((island) => island.name)).toEqual(["Disclosure", "Counter"]);
+      expect(asked[0]).toMatchObject({
+        module: "blocks/disclosure.tsx",
+        name: "Disclosure",
+        prefix: `${id}-`,
+        slots: { marker: "$gfSlot", tag: "gf-slot" },
+        props: { open: true, title: { $gfSlot: `${id}.0` }, children: { $gfSlot: `${id}.1` } },
+      });
+      expect(asked[0]?.site.path).toBe("/about");
+      // Its HTML is the island's, with the content passed to it put in its slots, as with React's.
+      expect(html).toContain(
+        `<p>Drawn for ${id}-</p><gf-slot data-gf-slot="${id}.0" style="display:contents"><em>Title</em></gf-slot>`,
+      );
+    } finally {
+      setIslandRenderer(undefined);
+    }
   });
 
   it("renders content passed to a Client Component into its slots", async () => {
