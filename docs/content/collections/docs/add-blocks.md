@@ -31,7 +31,7 @@ The admin panel's **Blocks** screen adds more blocks to the editor, from Goodfel
 | Numbers | A few numbers worth knowing, such as families served or years open, each with what it counts |
 | Timeline | Moments in order down a line, such as an organization's history or the steps of a plan |
 | Countdown | The days, hours, minutes and seconds until a moment, in the site's time zone |
-| Comments | Comments on the page through [Giscus](https://giscus.app), kept as GitHub Discussions in a repository you choose |
+| Comments | Comments on the page, kept as discussions in a GitHub repository you choose (see [Comments](/docs/comments)) |
 
 Sites whose [content is kept apart from their code](/docs/content-repository) have no Blocks screen, since adding a block changes the code: their developer adds blocks. On a [full-stack Next.js site](/docs/full-stack-nextjs), whose server runs blocks' code, the Blocks screen submits the changes for review, for a developer to accept, rather than publishing them.
 
@@ -43,7 +43,7 @@ FAQ, Tabs, Image carousel, Slideshow with quick links, Countdown and Comments ar
 
 Countdown counts to a day and time in the site's time zone (Site Settings, under General). Without JavaScript, and to screen readers, it says when the moment is; once it has come, it shows what you chose to say then, and the site is built again that day so pages say it without JavaScript too.
 
-Comments keeps each page's comments as a discussion in a GitHub repository, through Giscus, and visitors sign in with GitHub to write one. On [giscus.app](https://giscus.app), name a public repository with Discussions turned on and Giscus installed, choose a category, and copy the code at the end of the page into the block. Pages are matched to their discussions by their address, so moving a page starts a new discussion. Giscus is another site's content, so it loads only on the built site, never in the editor, and on a site that [asks visitors first](/docs/layout-and-settings#visitors-consent) it waits until they agree.
+Comments keeps each page's comments as a discussion in a GitHub repository, through Giscus, and visitors sign in with GitHub to write one. It needs a few steps on GitHub first; see [Comments](/docs/comments). Giscus is another site's content, so it loads only on the published site, never in the editor, and on a site that [asks visitors first](/docs/layout-and-settings#visitors-consent) it waits until they agree.
 
 News feed reads the feed when the site is built, not in the editor, which says where its items will come from, and asks for the site to be built again the next day, so a site [rebuilt overnight](/docs/updates#rebuilding-overnight) keeps it current. It shows only the items' titles, links and dates. If the feed can't be read, the page is built without it, showing the block's text for that.
 
