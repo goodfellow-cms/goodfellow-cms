@@ -132,6 +132,8 @@ export const strings: Strings = {
   "editor.plugin.problemField": "{block}, {field}: {message}",
   "editor.plugin.loading": "Abriendo {editor}…",
   "editor.plugin.failed": "{editor} no se abrió. Elige el editor estándar para seguir editando.",
+  "editor.invalid":
+    "El editor devolvió algo que este sitio no puede publicar, así que no se publicó nada. Vuelve a cargar la página e inténtalo de nuevo.",
   "editor.plugin.invalid":
     "{editor} devolvió algo que este sitio no puede publicar, así que no se publicó nada. Inténtalo de nuevo o elige el editor estándar.",
   "publish.publishing": "Publicando…",

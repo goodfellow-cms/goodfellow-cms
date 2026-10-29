@@ -136,6 +136,8 @@ export const defaultStrings = {
   "editor.plugin.problemField": "{block}, {field}: {message}",
   "editor.plugin.loading": "Opening {editor}…",
   "editor.plugin.failed": "{editor} didn't start. Choose the standard editor to keep editing.",
+  "editor.invalid":
+    "The editor gave back something this site can't publish, so nothing was published. Reload the page and try again.",
   "editor.plugin.invalid":
     "{editor} gave back something this site can't publish, so nothing was published. Try again, or choose the standard editor.",
   "publish.publishing": "Publishing…",
