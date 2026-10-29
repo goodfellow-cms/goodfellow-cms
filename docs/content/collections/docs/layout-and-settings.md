@@ -78,6 +78,8 @@ Every word of the notice can be changed, and on a site in [several languages](/d
 - **Old address:** an address on this site, such as `/about-us`. You can paste the old page's full address, such as `https://old.example.org/about-us/`, and only its path is kept. Addresses with a `?` in them, such as `/?page_id=5`, can't be redirected, since a site made of files can't tell them apart from the address before the `?`.
 - **Send visitors to:** a page on this site, such as `/about` (the field suggests the site's pages), or another website's address, starting with `https://`.
 
+Addresses the site's build uses itself, such as `/media/`, `/feeds/` and `/api/`, can't be redirected, and neither can redirects that send visitors round in a circle, such as `/a` to `/b` and `/b` to `/a`.
+
 **Change address** on the Pages screen adds a redirect from the page's old address, unless you untick **Keep … working**, and points redirects to the old address at the new one, so visitors never go through two.
 
 On **Vercel**, Vercel sends the redirects itself, as permanent redirects, so visitors go straight to the new address: the site's `vercel.ts` gives them to Vercel, or, on a Next.js site, `withGoodfellow()` in `next.config.ts` does. (`next build` then warns that redirects don't work with a static export, which is true of other hosts, and why they get the pages below instead.)
