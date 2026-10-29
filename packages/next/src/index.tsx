@@ -64,7 +64,7 @@ import type { Metadata, MetadataRoute } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { preload } from "react-dom";
-import { ByLanguage, CurrentMenuLinks, NextImage, NextLink, PageLanguage } from "./components.js";
+import { ByLanguage, CurrentMenuLinks, NextImage, NextLink, PageLanguage, SearchResultLinks } from "./components.js";
 import { IMAGE_SIZES_ENV } from "./image-sizes-mark.js";
 
 export interface GoodfellowPagesOptions {
@@ -362,6 +362,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
           {children}
           {footer}
           <CurrentMenuLinks basePath={basePath()} />
+          <SearchResultLinks basePath={basePath()} />
           <BodyCode code={content.code?.body} held={heldCode(content.settings.consent, "body")} />
           <ConsentAsk content={content} />
           <BlockScripts content={content} />
@@ -428,6 +429,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
           <BodyCode code={content.code?.body} held={heldCode(content.settings.consent, "body")} />
           <ConsentAsk content={content} />
           <BlockScripts content={content} />
+          <SearchResultLinks basePath={basePath()} />
         </>
       );
     },
