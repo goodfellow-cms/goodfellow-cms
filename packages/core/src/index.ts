@@ -380,7 +380,14 @@ export {
   withStoredFiles,
   withStoredMedia,
 } from "./content/media-storage.js";
-export { type PageLink, type PageTree, pageLinks, pageTree } from "./content/page-links.js";
+export {
+  type Breadcrumbs,
+  breadcrumbs,
+  type PageLink,
+  type PageTree,
+  pageLinks,
+  pageTree,
+} from "./content/page-links.js";
 export {
   addressPatternProblem,
   BODY_CODE_FILE,

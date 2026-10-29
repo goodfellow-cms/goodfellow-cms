@@ -264,6 +264,15 @@ export const GALLERY_PARTS: BlockParts = {
   "gf-gallery-caption": "Gallery's caption",
 };
 
+export const BREADCRUMBS_PARTS: BlockParts = {
+  "gf-breadcrumbs": "Breadcrumbs",
+  "gf-breadcrumbs-list": "List of pages",
+  "gf-breadcrumbs-item": "Page",
+  "gf-breadcrumbs-link": "Page's link",
+  "gf-breadcrumbs-separator": "Mark between pages",
+  "gf-breadcrumbs-current": "This page",
+};
+
 export const PAGE_LIST_PARTS: BlockParts = {
   "gf-page-list": "Page list",
   "gf-page-list-item": "Page",

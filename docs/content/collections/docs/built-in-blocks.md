@@ -38,6 +38,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Dark mode switch | Lets visitors choose light or dark colors, on sites with dark mode |
 | Collection navigation | Links to every item in a collection, grouped by one of its choice fields |
 | Page list | The site's pages, or the ones under an address, nested by their addresses |
+| Breadcrumbs | The way from the home page to the page shown, such as Home › News › The parish fair (see [Breadcrumbs](#breadcrumbs)) |
 | Collection list | A collection's items as a list or cards, with a heading, on pages of their own and a page for each choice (see [Showing collections](/docs/showing-collections)) |
 | Collection loop | Blocks you design, shown once for each of a collection's items |
 | Calendar | Events coming up, or a month at a time, from a collection of events or another calendar (see [Calendars and events](/docs/calendars)) |
@@ -93,6 +94,12 @@ On a site with [dark mode](/docs/layout-and-settings#dark-mode), the Dark mode s
 - **A menu:** **Light**, **Dark** or **Follow my computer**, which goes back to following the computer's setting.
 
 The visitor's choice is kept in their browser and put back at the start of every page, before it shows, so pages never flash the other colors first. Every word is the block's to set, so sites in other languages can translate them. On a site without dark mode, the switch isn't shown, and the editor says where to turn dark mode on.
+
+## Breadcrumbs
+
+Breadcrumbs show where a page is in the site: the home page, each page above it by address, and the page itself, such as **Home › About us › Staff** on `/about/staff`. Addresses with no page of their own are skipped, so `/about/history/1900s` shows **Home › About us › The 1900s** when there's no `/about/history` page. An item's page is under its collection's page (**Home › News › The parish fair**), and a page a block adds comes after the page it's on (**Home › News › Page 2**). On a site in [several languages](/docs/languages), they start from the home page of the page's language. On the home page they show nothing.
+
+**What to call the home page** is "Home" until you change it; leave it empty to use the home page's title. **Between pages** chooses ›, / or →, and **End with this page** chooses whether the page shown comes last, not as a link. They're marked up as schema.org's `BreadcrumbList`, which search engines can show in their results in place of the page's address. Put them in a collection's page design to show them on every item's page. They need to know the page they're on, so they go on pages and in page designs, not in the header or footer, which Next.js sites share between pages.
 
 ## Language switch
 

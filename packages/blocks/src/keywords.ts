@@ -33,6 +33,7 @@ export const BLOCK_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
   LanguageSwitch: ["languages", "translation", "translate"],
   CollectionNav: ["contents", "sidebar"],
   PageList: ["pages", "sitemap", "child pages"],
+  Breadcrumbs: ["breadcrumb", "trail", "you are here", "path", "parent pages"],
   CollectionList: ["latest posts", "posts", "news", "query loop", "list"],
   CollectionLoop: ["query loop", "repeat", "posts"],
   Calendar: ["events", "dates", "schedule"],
