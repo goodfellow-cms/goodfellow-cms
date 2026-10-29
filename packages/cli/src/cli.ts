@@ -185,6 +185,15 @@ async function main(): Promise<void> {
       );
       if (result.searchIndexed !== undefined) console.log(`Indexed ${result.searchIndexed} pages for search`);
       if (result.apiPages !== undefined) console.log(`Wrote the content API, with ${result.apiPages} pages, in api/`);
+      if (result.islands?.runtime === "preact") {
+        console.log("Client Components run with Preact, since every one says it works with it");
+      } else if (result.islands && result.islands.needReact.length > 0) {
+        const shown = result.islands.needReact.slice(0, 3).join(", ");
+        const more = result.islands.needReact.length > 3 ? ` and ${result.islands.needReact.length - 3} more` : "";
+        console.log(
+          `Client Components run with React, since ${shown}${more} doesn't say it works with Preact (export const worksWithPreact = true)`,
+        );
+      }
       if (result.nextChange) {
         const { kind, title, path, time } = result.nextChange;
         console.log(

@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { type Alias, createServer, type ViteDevServer } from "vite";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { type Alias, build, type ViteDevServer } from "vite";
 import type { ClientModules } from "./islands.js";
 import { slashes } from "./islands.js";
 
@@ -40,6 +40,13 @@ export function preactAliases(): Alias[] {
 /** Packages whose `react` must be Preact, since they use React or are Preact: those that depend on these. */
 const REACT_PACKAGES = ["react", "react-dom", "preact"];
 
+/**
+ * Packages islands never render, though they're imported on the way, which
+ * are left to Node with React: Puck, which `@goodfellow-cms/react` imports
+ * for pages and the editor, and would take seconds to load through Vite.
+ */
+const NEVER_ISLANDS = ["@puckeditor/core"];
+
 interface PackageJson {
   name?: string;
   dependencies?: Record<string, string>;
@@ -47,12 +54,17 @@ interface PackageJson {
   optionalDependencies?: Record<string, string>;
 }
 
-/** A package's folder, as it's found from `from`, or `undefined` if it isn't installed. */
+/**
+ * A package's folder, found from `from` as Node finds it, in the nearest
+ * `node_modules` folder that has it, or `undefined` if it isn't installed.
+ * Not with `require.resolve()`, since many packages' `exports` leave their
+ * `package.json` out.
+ */
 function packageDir(name: string, from: string): string | undefined {
-  try {
-    return dirname(createRequire(join(from, "package.json")).resolve(`${name}/package.json`));
-  } catch {
-    return undefined;
+  for (let dir = from; ; dir = dirname(dir)) {
+    const candidate = join(dir, "node_modules", name);
+    if (existsSync(join(candidate, "package.json"))) return realpathSync(candidate);
+    if (dirname(dir) === dir) return undefined;
   }
 }
 
@@ -78,6 +90,7 @@ export function reactPackages(root: string): string[] {
   }
   while (queue.length > 0) {
     const { name, from } = queue.shift() as { name: string; from: string };
+    if (NEVER_ISLANDS.includes(name)) continue;
     const dir = packageDir(name, from);
     if (!dir || seen.has(dir)) continue;
     seen.add(dir);
@@ -107,41 +120,89 @@ type IslandRenderer = (island: {
   slots: { marker: string; tag: string };
 }) => Promise<string>;
 
+/** The bundle of islands for rendering them with Preact, written where the site's packages are found from. */
+const SERVER_BUNDLE_DIR = "node_modules/.goodfellow/preact-islands";
+
+/** A bare import's package name: `@radix-ui/react-tabs/dist` → `@radix-ui/react-tabs`. */
+function packageName(id: string): string | undefined {
+  const match = /^((?:@[\w.-]+\/)?[\w.-]+)/.exec(id);
+  return match && !id.startsWith(".") && !id.startsWith("/") ? match[1] : undefined;
+}
+
 /**
- * Has the server that renders pages (`pages`) render islands with Preact, from
- * a server of its own that loads the site's Client Components with React as
- * `preact/compat`. Returns what stops it, which puts React's renderer back.
+ * Has the server that renders pages (`pages`) render islands with Preact: the
+ * site's Client Components are bundled for the server as they are for the
+ * browser, with React as `preact/compat`, and each island is rendered from
+ * that bundle. Packages that use React are bundled with them, so their
+ * `react` is Preact; packages that don't, which the site can import itself,
+ * are left to Node, as where pages are rendered. Returns what stops it, which
+ * puts React's renderer back.
  */
 export async function preactIslands(
   root: string,
   modules: ClientModules,
   pages: ViteDevServer,
 ): Promise<() => Promise<void>> {
-  const server = await createServer({
+  const usesReact = new Set(reactPackages(root));
+  const outDir = join(root, SERVER_BUNDLE_DIR);
+  const entry = "virtual:goodfellow/preact-islands";
+  const loaders = [...modules].map(
+    ([name, file]) => `  ${JSON.stringify(name)}: () => import(${JSON.stringify(slashes(file))}),`,
+  );
+  await build({
     root,
     configFile: false,
     envDir: false,
-    cacheDir: `${root}/node_modules/.vite-preact`,
     logLevel: "warn",
-    appType: "custom",
-    server: { middlewareMode: true, hmr: false, ws: false, watch: null },
+    plugins: [
+      {
+        name: "goodfellow:preact-islands",
+        enforce: "pre",
+        resolveId: (id) => (id === entry ? `\0${entry}` : undefined),
+        load: (id) =>
+          id === `\0${entry}`
+            ? `export { renderIsland } from ${JSON.stringify(own("render"))};\nexport const modules = {\n${loaders.join("\n")}\n};\n`
+            : undefined,
+      },
+    ],
     resolve: { alias: [{ find: /^@\//, replacement: `${slashes(root)}/` }, ...preactAliases()] },
-    ssr: { noExternal: reactPackages(root) },
+    ssr: { noExternal: true },
+    build: {
+      ssr: true,
+      outDir,
+      emptyOutDir: true,
+      rolldownOptions: {
+        input: { islands: entry },
+        output: { entryFileNames: "islands.mjs" },
+        // Packages that don't use React, and that Node finds from the bundle's folder: the site's own.
+        external: (id) => {
+          if (id.startsWith("node:")) return true;
+          const name = packageName(id);
+          // React's own modules are the aliases' Preact, which the bundle has.
+          if (!name || REACT_PACKAGES.includes(name) || usesReact.has(name) || name.startsWith("preact")) return false;
+          return NEVER_ISLANDS.includes(name) || packageDir(name, root) !== undefined;
+        },
+        onLog(level, log, handler) {
+          if (log.code === "MODULE_LEVEL_DIRECTIVE") return;
+          handler(level, log);
+        },
+      },
+    },
   });
-  const { renderIsland } = (await server.ssrLoadModule(own("render"))) as {
+  const bundle = (await import(pathToFileURL(join(outDir, "islands.mjs")).href)) as {
     renderIsland(component: unknown, props: unknown, site: unknown, prefix: string, slots: unknown): Promise<string>;
+    modules: Record<string, () => Promise<Record<string, unknown>>>;
   };
   const islands = (await pages.ssrLoadModule("@goodfellow-cms/react/island")) as {
     setIslandRenderer(render: IslandRenderer | undefined): void;
   };
   islands.setIslandRenderer(async ({ module, name, props, site, prefix, slots }) => {
-    const file = modules.get(module);
-    if (!file) throw new Error(`No Client Component module named ${module}.`);
-    const loaded = (await server.ssrLoadModule(file)) as Record<string, unknown>;
-    return renderIsland(loaded[name], props, site, prefix, slots);
+    const load = bundle.modules[module];
+    if (!load) throw new Error(`No Client Component module named ${module}.`);
+    return bundle.renderIsland((await load())[name], props, site, prefix, slots);
   });
   return async () => {
     islands.setIslandRenderer(undefined);
-    await server.close();
+    await rm(outDir, { recursive: true, force: true });
   };
 }

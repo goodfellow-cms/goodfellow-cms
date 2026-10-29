@@ -7,9 +7,9 @@
  */
 import { createContext } from "preact";
 import compat from "preact/compat";
-import { useContext, useId as preactId } from "preact/hooks";
+import { useId as preactId, useContext } from "preact/hooks";
 
-// @ts-ignore: its types are `export =`, which TypeScript won't re-export this way; the module itself is ESM
+// @ts-expect-error: its types are `export =`, which TypeScript won't re-export this way; the module itself is ESM
 export * from "preact/compat";
 
 /** The island's `useId()` prefix, given by `hydrateRoot()` in the browser and by `renderIsland()` on the server. */

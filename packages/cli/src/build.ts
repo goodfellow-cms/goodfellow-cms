@@ -173,7 +173,11 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     // Loading the config found the Client Components; they run with Preact where every one says it can.
     const needed = needReact(modules);
     const runtime =
-      modules.size === 0 ? undefined : config.preact === false || needed.length > 0 ? ("react" as const) : ("preact" as const);
+      modules.size === 0
+        ? undefined
+        : config.preact === false || needed.length > 0
+          ? ("react" as const)
+          : ("preact" as const);
     if (runtime === "preact") stopPreact = await preactIslands(root, modules, server);
     // The site as visitors see it now: pages and items scheduled for later, or hidden again, are left out.
     const now = new Date();

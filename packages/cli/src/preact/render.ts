@@ -38,5 +38,7 @@ export function renderIsland(
 ): Promise<string> {
   const element = h(component, decode(props, slots) as Record<string, unknown>);
   // biome-ignore lint/suspicious/noExplicitAny: the site's context value, as React's renderer gives it
-  return Promise.resolve(renderToStringAsync(h(IdPrefix.Provider, { value: prefix }, h(SiteProvider as any, { value: site }, element))));
+  return Promise.resolve(
+    renderToStringAsync(h(IdPrefix.Provider, { value: prefix }, h(SiteProvider as any, { value: site }, element))),
+  );
 }

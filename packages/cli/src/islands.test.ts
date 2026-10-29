@@ -48,7 +48,11 @@ describe("clientModuleExports", () => {
       star: false,
       preact: false,
     });
-    expect(clientModuleExports('"use client";\nexport * from "./a";', "/a.js")).toEqual({ names: [], star: true, preact: false });
+    expect(clientModuleExports('"use client";\nexport * from "./a";', "/a.js")).toEqual({
+      names: [],
+      star: true,
+      preact: false,
+    });
   });
 
   it("finds a module that says it works with Preact, as it's written and as bundlers write it", () => {
@@ -77,7 +81,9 @@ describe("islandModule", () => {
     expect(exports.Counter).toEqual({ value: Counter, module: "blocks/a.tsx", name: "Counter" });
     expect(exports["Tab item"]).toEqual({ value: Counter, module: "blocks/a.tsx", name: "Tab item" });
     expect(exports.default).toEqual({ value: Counter, module: "blocks/a.tsx", name: "default" });
-    expect(islandModule("/a.tsx", "a.tsx", { names: [], star: true, preact: false })).toContain('export * from "/a.tsx";');
+    expect(islandModule("/a.tsx", "a.tsx", { names: [], star: true, preact: false })).toContain(
+      'export * from "/a.tsx";',
+    );
   });
 });
 
@@ -145,7 +151,10 @@ describe("needReact", () => {
   let dir: string;
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), "gf-preact-"));
-    await writeFile(join(dir, "yes.tsx"), '"use client";\nexport const worksWithPreact = true;\nexport function A() {}\n');
+    await writeFile(
+      join(dir, "yes.tsx"),
+      '"use client";\nexport const worksWithPreact = true;\nexport function A() {}\n',
+    );
     await writeFile(join(dir, "no.tsx"), '"use client";\nexport function B() {}\n');
   });
   afterAll(() => rm(dir, { recursive: true, force: true }));
