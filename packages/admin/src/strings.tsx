@@ -579,6 +579,13 @@ export const defaultStrings = {
   "blocks.publish": "Publish",
   "blocks.publishedNotice":
     "Published. Added blocks will be in the editor's list of blocks, and removed ones gone from it, once the site has been updated.",
+  "blocks.submit": "Submit for review",
+  "blocks.reviewHint":
+    "Blocks' code runs on this site's server, which holds its secrets, so adding and removing blocks is submitted for review, for a developer to accept.",
+  "blocks.reviewDescription": "From the admin panel's Blocks screen. The blocks' code runs on the site's server.",
+  "blocks.submittedNotice":
+    "Submitted for review. Once a developer accepts it and the site has been updated, the editor's list of blocks will change.",
+  "blocks.seeReview": "See it",
   "blocks.addMessage": "Add the {name} block",
   "blocks.removeMessage": "Remove the {name} block",
   "blocks.changeMessage": "Change blocks: {changes}",
@@ -951,6 +958,8 @@ export const defaultStrings = {
   "security.broker.title": "Sign-in page",
   "security.broker.intro":
     "A sign-in page of its own, called a token broker, keeps editors' sign-in and AI keys at an address that holds nothing else, and shows the admin panel from there, so nothing on the site's pages can reach them. It asks the editor before publishing the site's code. It needs an address of its own, such as signin.example.org, that serves nothing else.",
+  "security.exposed":
+    "Editors sign in at the site's own address, where its pages could reach their sign-in: code added on the Code tab, or by a block, could act as anyone signed in. A sign-in page of its own, below, keeps it out of their reach, and needs no domain on GitLab, Cloudflare Pages or Vercel. Where you have a domain and the host allows it, an admin address of its own, on the Domain screen, does too.",
   "security.broker.useTitle": "Sign in at a sign-in page that's online",
   "security.add.title": "Add a token broker",
   "security.add.intro":
@@ -1755,6 +1764,10 @@ export const defaultStrings = {
     "Tab indents, and suggestions appear as you type. Press Escape, then Tab, to leave the editor. Ctrl+F finds and replaces.",
   "code.intro":
     "Code from services such as analytics or site verification, added to every page of the site. It never runs in the admin panel, so check it on the site once it's published. Paste only code you trust: it can change anything on the site.",
+  "code.exposed":
+    "Editors sign in at the same address as the site's pages, so code here runs where it could act as anyone signed in to the admin panel, and publish changes as them.",
+  "code.exposedFix":
+    "A sign-in page or an admin address of its own, on the Security tab, keeps their sign-in out of its reach.",
   "code.head": "In the page head",
   "code.headHint": "Script, style, link, meta and noscript tags, such as the ones Google Analytics gives you.",
   "code.body": "At the end of the page",

@@ -32,6 +32,7 @@ import {
   parseChoices,
   RECOMMENDED_GIT,
   recommendedHost,
+  recommendedSignIn,
   SIGN_IN_PLACES,
   type SignInPlace,
   signInProblem,
@@ -259,6 +260,15 @@ function Choose({
           </Question>
 
           <Question title="Where editors sign in">
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={choices.domain}
+                onChange={(event) => choose({ domain: event.target.checked })}
+              />
+              <span>I have a domain for this site, such as example.org</span>
+            </label>
             {signInPlaces.map((value) => (
               <Choice
                 key={value}
@@ -266,6 +276,7 @@ function Choose({
                 value={value}
                 current={choices.signIn}
                 {...SIGN_IN_PLACES[value]}
+                badge={value === recommendedSignIn(choices) ? "Recommended" : undefined}
                 onChange={(signIn) => choose({ signIn })}
               />
             ))}

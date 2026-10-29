@@ -80,9 +80,11 @@ The content still lives in the site's repository, so the site is still rebuilt w
 | Role | May |
 |---|---|
 | `editor` | Edit and publish pages, collections' items, media, menus, and the header and footer |
-| `owner` | Also change Site Settings, redirects, collections' settings and templates, and blocks |
+| `owner` | Also change Site Settings, redirects, collections' settings and templates, and submit blocks for review |
 
-The admin panel hides what editors can't change, and the server refuses it whatever a browser sends. Moving a page doesn't offer an editor a redirect from its old address, since redirects are part of Site Settings.
+The admin panel hides what editors can't change, and the server refuses it whatever a browser sends.
+
+A block's code, and what it shares in `components/`, `lib/` and `hooks/`, runs on the site's server, which holds its token and AI keys. So on the Blocks screen, adding or removing blocks is submitted for review, as a pull request or merge request for a developer to accept, and the server refuses to publish those files otherwise. To let owners publish them themselves, pass `codeChanges: "publish"` to `goodfellowApi()`. Moving a page doesn't offer an editor a redirect from its old address, since redirects are part of Site Settings.
 
 Owners can also [limit what each person changes](/docs/sign-in#limiting-what-editors-can-change), by their `login`. The server checks every publish against their limits too, and takes changes outside them for review: a pull request or merge request asking the people the limits name as reviewers, since the server can't tell which of the app's people are owners on the git host.
 

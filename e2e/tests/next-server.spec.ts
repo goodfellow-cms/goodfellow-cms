@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
 import { NEXT_SERVER } from "../scripts/site.mjs";
 import { editor } from "./helpers.js";
@@ -99,6 +102,35 @@ test("leaves Site Settings, blocks and collections' settings to owners", async (
     "/repos/parish/site/commits?path=content/site.json",
   );
   expect(commit?.commit.author.name).toBe("Owen Owner");
+});
+
+test("submits owners' blocks for review, since their code runs on the site's server", async ({ page }) => {
+  // The admin panel installs from the registry's release on jsDelivr; the test serves the built registry instead.
+  const registryDir = fileURLToPath(new URL("../node_modules/@goodfellow-cms/registry/r/", import.meta.url));
+  await page.route(
+    /^https:\/\/cdn\.jsdelivr\.net\/npm\/@goodfellow-cms\/registry@[^/]+\/r\/([a-z0-9-]+\.json)$/,
+    (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: readFileSync(join(registryDir, new URL(route.request().url()).pathname.split("/").at(-1) ?? ""), "utf8"),
+      }),
+  );
+  await signIn(page, "owen");
+  await page.locator(".gfa-nav").getByRole("link", { name: "Blocks", exact: true }).click();
+  await expect(page.getByText("adding and removing blocks is submitted for review")).toBeVisible();
+  await page.getByRole("button", { name: "Add FAQ" }).click();
+  await page.getByRole("button", { name: "Submit for review" }).click();
+  await expect(page.getByText("Submitted for review.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "See it" })).toHaveAttribute("href", /\/pull\/\d+$/);
+
+  const pulls = await github<Array<{ title: string; head: { ref: string } }>>("/repos/parish/site/pulls");
+  expect(pulls.map((pull) => pull.title)).toEqual(["Add the FAQ block"]);
+  // Nothing was published.
+  const installed = await fetch(`${GITHUB}/repos/parish/site/contents/blocks/installed/shadcn-faq/block.tsx`, {
+    headers: { authorization: `Bearer ${NEXT_SERVER.token}` },
+  });
+  expect(installed.status).toBe(404);
 });
 
 test("says so when the site's sign-in doesn't let someone edit", async ({ page }) => {

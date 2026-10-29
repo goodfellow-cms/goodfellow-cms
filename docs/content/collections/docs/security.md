@@ -18,9 +18,9 @@ A Goodfellow site is static files: there's no server or database to break into, 
 Two things close that gap, and owners choose one on **Site Settings**:
 
 - **An admin address,** such as `admin.example.org`, on a domain you already have: the admin panel moves there, and the site's pages can't reach it. It needs a host that serves a site at more than one address: GitLab Pages, Cloudflare Pages or Vercel, not GitHub Pages. See [An admin address](/docs/custom-domains#an-admin-address).
-- **A token broker,** a sign-in page of its own: editors sign in there, it keeps their sign-in and AI keys, and shows the admin panel in a frame. Nothing on the site, the admin panel included, can read them, and it asks the editor before publishing the site's code. It works on any host, needs no domain on GitLab, and **Add a token broker** on the Security tab makes it. See [Token broker](/docs/token-broker).
+- **A token broker,** a sign-in page of its own: editors sign in there, it keeps their sign-in and AI keys, and shows the admin panel in a frame. Nothing on the site, the admin panel included, can read them, and it asks the editor before publishing the site's code. It works on any host, needs a domain only on GitHub Pages, and **Add a token broker** on the Security tab makes it. See [Token broker](/docs/token-broker).
 
-Either one lets the Blocks screen offer blocks from other registries too. The [setup page](/new-site/) and `create-goodfellow` offer both for new sites.
+Either one lets the Blocks screen offer blocks from other registries too. The [setup page](/new-site/) and `create-goodfellow` offer both for new sites: they ask whether you have a domain, and choose an admin address for you where you do and the host can serve one, and otherwise recommend a token broker. A site with neither says so on the Security tab and on Site Settings' **Code** tab.
 
 ## Recommendations
 

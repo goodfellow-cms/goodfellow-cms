@@ -39,6 +39,13 @@ export interface GoodfellowApiOptions {
    * `plugins/<id>/…`, and runs with everything the server has.
    */
   plugins?: AppApiOptions["plugins"];
+  /**
+   * Whether owners' changes to the site's code, such as adding blocks on the
+   * Blocks screen, go to a developer for review (`"review"`, the default),
+   * since this server runs that code with its token and keys, or are published
+   * (`"publish"`).
+   */
+  codeChanges?: AppApiOptions["codeChanges"];
 }
 
 /** The route parameters of a catch-all route named `[...path]`. */
@@ -83,6 +90,7 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
       ...(ai && ai.services.length > 0 && { ai }),
       ...(options.onError && { onError: options.onError }),
       ...(options.plugins && { plugins: options.plugins }),
+      ...(options.codeChanges && { codeChanges: options.codeChanges }),
     });
     return api;
   }
