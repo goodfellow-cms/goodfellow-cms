@@ -5,6 +5,11 @@
  * as it is.
  */
 export const labels: Record<string, string> = {
+  "Social post": "Publicación de redes sociales",
+  "Height in pixels (leave at 0 for the usual height)": "Altura en píxeles (deja 0 para la altura habitual)",
+  "What the post is, for screen readers": "Qué es la publicación, para lectores de pantalla",
+  "The post's address, or the embed code its site gives (Bluesky, Mastodon, Instagram, X, Spotify, SoundCloud)":
+    "La dirección de la publicación, o el código para insertar que da su sitio (Bluesky, Mastodon, Instagram, X, Spotify, SoundCloud)",
   "Words before the buttons": "Texto antes de los botones",
   "Where it can be shared": "Dónde se puede compartir",
   Where: "Dónde",

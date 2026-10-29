@@ -6,6 +6,7 @@
  * where they say what a block was. `blocks.ts` and `markdown.ts` write the
  * parts as Puck blocks and as Markdown.
  */
+import { embeddedPost } from "../embeds.js";
 import { vimeoVideo, youtubeVideo } from "../video.js";
 import { blockHtml, hasBlocks, parseBlocks, type WordPressBlock } from "./blocks.js";
 import {
@@ -91,6 +92,8 @@ export type Part =
   | { kind: "pages" }
   /** A YouTube or Vimeo video, or a video file, by its address. */
   | { kind: "video"; url: string; caption: string }
+  /** A post from a social site the Social post block shows (`embeddedPost()`), by the address it came with, and that address on the new site as a link. */
+  | { kind: "post"; url: string; link: string; caption: string }
   | { kind: "code"; code: string; language: string }
   | { kind: "table"; rows: TableRow[]; caption?: string }
   /** A list of the latest posts. */
@@ -456,13 +459,19 @@ function imagesIn(node: Element | ChildNode[], context: ConvertContext): ImagePa
   });
 }
 
-/** Something from another site: YouTube and Vimeo videos and video files are videos; anything else is a link to it. */
+/**
+ * Something from another site: YouTube and Vimeo videos and video files are
+ * videos, posts from the sites the Social post block shows are posts, and
+ * anything else is a link to it.
+ */
 function embedParts(url: string, caption: string, context: ConvertContext): Part[] {
   const address = url.trim();
   if (youtubeVideo(address) || vimeoVideo(address)) return [{ kind: "video", url: address, caption }];
   if (/\.(mp4|webm)(\?|$)/i.test(address)) return [{ kind: "video", url: context.media(address), caption }];
   const href = context.link(address);
   if (!href) return [];
+  const post = embeddedPost(address);
+  if ("post" in post || post.problem === "handle") return [{ kind: "post", url: address, link: href, caption }];
   try {
     context.note("embed", new URL(address).hostname.replace(/^www\./, ""));
   } catch {

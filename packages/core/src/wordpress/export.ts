@@ -20,6 +20,7 @@ import { mediaKind } from "../content/media-files.js";
 import { MEDIA_DIR } from "../content/paths.js";
 import { type Schedule, scheduleState } from "../content/schedule.js";
 import type { CollectionField } from "../content/schemas.js";
+import { type EmbedSite, embeddedPost } from "../embeds.js";
 import { vimeoVideo, youtubeVideo } from "../video.js";
 import {
   audio,
@@ -190,6 +191,21 @@ function videoBlocks(props: Record<string, unknown>, context: ConvertContext): s
   return [];
 }
 
+/** WordPress's names for the sites whose posts it embeds itself; it links the rest. */
+const WORDPRESS_PROVIDERS: Partial<Record<EmbedSite, string>> = {
+  x: "twitter",
+  spotify: "spotify",
+  soundcloud: "soundcloud",
+};
+
+function socialPostBlocks(props: Record<string, unknown>): string[] {
+  const found = embeddedPost(text(props.post));
+  const link = "post" in found ? found.post.link : "link" in found ? found.link : undefined;
+  if (!link) return [];
+  const site = "post" in found ? found.post.site : "bluesky";
+  return [embed(link, WORDPRESS_PROVIDERS[site], text(props.caption), "rich")];
+}
+
 function contactBlocks(props: Record<string, unknown>, context: ConvertContext): string[] {
   const contact = context.content.settings.contact ?? {};
   const lines: string[] = [];
@@ -231,6 +247,8 @@ function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string[] {
       }
       case "Video":
         return videoBlocks(props, context);
+      case "Embed":
+        return socialPostBlocks(props);
       case "Space":
         return [spacer(SPACES[text(props.size)] ?? 32)];
       case "Code":

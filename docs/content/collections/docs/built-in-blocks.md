@@ -27,6 +27,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Image | An image with an optional caption, and a description for people who can't see it, unless it's only decoration |
 | Gallery | Pictures in two to four columns, each with an optional caption, cropped to squares or not |
 | Video | A video from the media library, YouTube, Vimeo or another site's player |
+| Social post | A post from Bluesky, Mastodon, Instagram or X, or a track or playlist from Spotify or SoundCloud (see [Social posts](#social-posts)) |
 | Audio | A sound file from the media library, such as a homily, with the browser's own player |
 | File | A link to a file from the media library, such as a PDF, with an optional download button |
 | Document viewer | A PDF from the media library shown on the page, such as a bulletin or a newsletter, with a link to open it (see [Documents](#documents)) |
@@ -64,6 +65,16 @@ The Video block shows a video from one of four places, chosen in **Video from**:
 - **Another site's player**: paste the player's embed address, or the whole embed code the other site gives. It's shown in a sandbox, with only what players need, and only from a secure (`https://`) address on another site.
 
 Give every video a description for screen readers. It can also have a caption below it, a shape (the video's own, wide, landscape, square, or tall for videos made on phones), and play on its own without sound, start with the sound off, or play again when it ends. Players load only when they're scrolled near, so they don't slow down the top of the page.
+
+## Social posts
+
+The Social post block shows a post from **Bluesky**, **Mastodon** (or another server that works like Mastodon's), **Instagram** or **X**, or a track, album, playlist or episode from **Spotify** or **SoundCloud**. Paste the post's address, or the embed code its site gives (such as **Embed post** in a Bluesky post's menu, or **Embed** under an Instagram post's ⋯). Short links, such as `spotify.link` or `on.soundcloud.com`, can't be followed: open them and paste the address they go to.
+
+Each post is drawn by its own site, in a sandbox, and as tall as that site usually draws one; set **Height in pixels** if a long post is cut off. Give it a description for screen readers if the post's site isn't enough, and a caption if you like. On a site that asks [visitors' consent](/docs/layout-and-settings#visitors-consent), posts load only once visitors agree, like videos.
+
+A Bluesky post whose address has its author's handle, such as `bsky.app/profile/parish.example.org/post/…`, needs the author's ID, which only Bluesky knows: the site looks it up when it's built, and the editor says so until then. Paste the post's embed code instead to see it in the editor too. If Bluesky can't be reached when the site is built, the page links to the post instead.
+
+For other sites' video players, use the [Video](#video) block's **Another site's player**.
 
 ## Documents
 
@@ -164,4 +175,5 @@ Every part of a built-in block has a name, which is on the part as a class, and 
 - **Table:** `gf-table` (Table and caption), `gf-table-grid` (Table), `gf-table-caption` (Caption), `gf-table-row` (Row), `gf-table-header-cell` (Heading cell), `gf-table-cell` (Cell).
 - **Text:** `gf-text` (Text).
 - **Verse:** `gf-verse` (Verse).
+- **Social post:** `gf-embed` (Post and caption), `gf-embed-frame` (Post), `gf-embed-caption` (Caption), `gf-embed-link` (Link to the post).
 - **Video:** `gf-video` (Video and caption), `gf-video-player` (Player), `gf-video-caption` (Caption).
