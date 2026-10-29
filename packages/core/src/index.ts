@@ -187,6 +187,8 @@ export {
   CONSENT_DECLINE_ATTRIBUTE,
   CONSENT_DONE_ATTRIBUTE,
   CONSENT_LINK,
+  CONSENT_MESSAGE_ID,
+  CONSENT_NOTICE_ATTRIBUTE,
   CONSENT_NOTICE_ID,
   CONSENT_PLACEHOLDER_ATTRIBUTE,
   CONSENT_SRC_ATTRIBUTE,
@@ -251,6 +253,7 @@ export {
   type SiteProblem,
 } from "./content/checks.js";
 export {
+  endsHeldTemplate,
   HEAD_TAGS,
   HeadCodeError,
   type HeadCodeProblem,
@@ -525,7 +528,10 @@ export {
   type CollectionField,
   type CollectionFile,
   type ConsentSettings,
+  type ConsentWords,
   collectionFileSchema,
+  consentDefaults,
+  consentInLanguage,
   consentSchema,
   type EntryFile,
   entryFileSchema,

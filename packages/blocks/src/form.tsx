@@ -259,7 +259,8 @@ function FormView({ isEditing, id, ...stored }: FormProps & { isEditing: boolean
     return (
       <ConsentFrame
         box
-        className={part("gf-form-embed", "block w-full rounded-lg border-0", className)}
+        boxClassName={className}
+        className={part("gf-form-embed", "block w-full rounded-lg border-0")}
         style={{ height: form.height ?? props.height }}
         src={form.url}
         title={props.title || "Form"}

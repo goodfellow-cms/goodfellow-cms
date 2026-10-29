@@ -1,4 +1,5 @@
 import {
+  consentInLanguage,
   isLanguageCode,
   languageName,
   languagePrefix,
@@ -190,7 +191,8 @@ export function LanguagesTab({
                 <ConsentWordField
                   key={word}
                   word={word}
-                  placeholder={draft.consent?.[word]}
+                  // What the language shows without words of its own.
+                  placeholder={draft.consent && consentInLanguage(draft.consent, code, draft.language)[word]}
                   value={own?.consent?.[word] ?? ""}
                   onChange={(value) =>
                     onChange({

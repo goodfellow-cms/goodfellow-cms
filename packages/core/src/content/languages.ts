@@ -14,7 +14,7 @@ import type { Collection, Entry } from "./collections.js";
 import { type LanguageLink, type LanguageMap, languageLinksAt } from "./language-map.js";
 import { allPages, type Page, type SiteContent } from "./load.js";
 import { entryAddress } from "./paths.js";
-import type { CollectionFile, LayoutFile, Menus, SiteSettings } from "./schemas.js";
+import { type CollectionFile, consentInLanguage, type LayoutFile, type Menus, type SiteSettings } from "./schemas.js";
 
 export type { LanguageLink, LanguageMap } from "./language-map.js";
 
@@ -145,13 +145,14 @@ export function localizedSettings(settings: SiteSettings, language: string): Sit
     mainLanguage: main,
     ...(own?.title && { title: own.title }),
     ...(own?.description && { description: own.description }),
-    ...(own?.consent &&
-      settings.consent && {
-        consent: {
-          ...settings.consent,
-          ...Object.fromEntries(Object.entries(own.consent).filter(([, words]) => words?.trim())),
-        },
-      }),
+    // The notice's words: the language's own, else the main language's, which, where they're left as they come, are in
+    // this language's words where there are some.
+    ...(settings.consent && {
+      consent: {
+        ...consentInLanguage(settings.consent, language, main),
+        ...Object.fromEntries(Object.entries(own?.consent ?? {}).filter(([, words]) => words?.trim())),
+      },
+    }),
     // Without a template of its own, the main language's, with the site's name in this language.
     titleTemplate:
       own?.titleTemplate ||
