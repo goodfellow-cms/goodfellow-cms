@@ -76,6 +76,13 @@ export interface SiteContextValue {
   /** The sizes of the site's images, by address (`/media/photo.jpg`), where they're known. */
   media?: Record<string, ImageSize>;
   /**
+   * The widths the build makes smaller copies of the media library's photos
+   * at (`IMAGE_WIDTHS`), which `<SiteImage>` lists in their `srcset`, so
+   * browsers download the smallest that fills its space. Only builds that write
+   * the copies set it: the development servers and the editor don't.
+   */
+  imageWidths?: readonly number[];
+  /**
    * On a site in several languages, the page in each of them: its translation,
    * or the language's home page where it has none, for a language switch.
    */

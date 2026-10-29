@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startsWithGuard } from "@goodfellow-cms/core";
+import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   blockPageRender,
@@ -10,9 +11,11 @@ import {
   exportedPages,
   fixSegmentFiles,
   guardExport,
+  writeImageFiles,
   writePluginFiles,
   writeRedirectFiles,
 } from "./export.js";
+import { IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -109,6 +112,26 @@ describe("checkPages", () => {
       ["no-alt", "content/pages/news.json", "/news/page/2"],
     ]);
   }, 30_000);
+});
+
+describe("writeImageFiles", () => {
+  it("writes smaller copies of photos where next build listed them", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-export-"));
+    const photo = await sharp({ create: { width: 1000, height: 500, channels: 3, background: "#336699" } })
+      .jpeg()
+      .toBuffer();
+    await mkdir(join(out, "site/public/media"), { recursive: true });
+    await writeFile(join(out, "site/public/media/hall.jpg"), photo);
+
+    // Without the mark, pages don't list copies, so there are none.
+    expect(await writeImageFiles(join(out, "out"), join(out, "site"))).toBeUndefined();
+    expect(existsSync(join(out, "out/media-sizes"))).toBe(false);
+
+    await write(`site/.next/${IMAGE_SIZES_MARK}`, "");
+    expect(await writeImageFiles(join(out, "out"), join(out, "site"))).toEqual({ written: 2, failed: [] });
+    const copy = await sharp(await readFile(join(out, "out/media-sizes/480/hall.jpg"))).metadata();
+    expect([copy.width, copy.height]).toEqual([480, 240]);
+  });
 });
 
 describe("guardExport", () => {

@@ -58,6 +58,7 @@ import {
   writeEditorPolicy,
   writeFeedFiles,
   writeFontFiles,
+  writeImageFiles,
   writePageLanguages,
   writePluginFiles,
   writeRedirectFiles,
@@ -339,7 +340,8 @@ if (command === "finish") {
       `Cloudflare Pages reads only the first ${CLOUDFLARE_REDIRECTS_LIMIT.toLocaleString("en")} lines of _redirects, so ${redirects.cloudflareLeft} old address${redirects.cloudflareLeft === 1 ? " is" : "es are"} left to the pages that send visitors on.`,
     );
   }
-  for (const line of buildNotes(await writeFontFiles(dir))) console.log(line);
+  const images = await writeImageFiles(dir);
+  for (const line of buildNotes({ ...(await writeFontFiles(dir)), ...(images && { images }) })) console.log(line);
   // Plugins' admin frames and build steps, once Goodfellow has written the rest, before the index and the guards.
   const plugins = await writePluginFiles(dir);
   if (plugins.frames.length > 0) console.log(`Wrote the admin frames of ${plugins.frames.join(", ")}`);

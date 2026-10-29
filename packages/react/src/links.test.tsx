@@ -85,3 +85,30 @@ describe("SiteImage", () => {
     );
   });
 });
+
+describe("SiteImage with smaller copies of photos", () => {
+  const media = { "/media/photo.jpg": { width: 1000, height: 500 }, "/media/logo.svg": { width: 2000, height: 100 } };
+
+  it("lists the copies the build makes in srcset, with the base path, whatever the renderer", () => {
+    const html = render(
+      { base: "/repo/", components, media, imageWidths: [480, 800, 1200] },
+      <SiteImage src="/media/photo.jpg" alt="Hall" sizes="50vw" />,
+    );
+    expect(html).toContain(
+      '<img width="1000" height="500" src="/repo/media/photo.jpg" alt="Hall" sizes="50vw" srcSet="/repo/media-sizes/480/photo.jpg 480w, /repo/media-sizes/800/photo.jpg 800w, /repo/media/photo.jpg 1000w"/>',
+    );
+  });
+
+  it("leaves images the build makes no copies of to the renderer, as before", () => {
+    // SVGs, other sites' images, and builds that make no copies, such as the development servers'.
+    expect(render({ components, media, imageWidths: [480] }, <SiteImage src="/media/logo.svg" alt="" />)).toContain(
+      '<img data-sized="" src="/media/logo.svg" alt="" width="2000" height="100"/>',
+    );
+    expect(render({ media, imageWidths: [480] }, <SiteImage src="https://example.org/a.jpg" alt="" />)).toContain(
+      '<img src="https://example.org/a.jpg" alt=""/>',
+    );
+    expect(render({ components, media }, <SiteImage src="/media/photo.jpg" alt="" />)).toContain(
+      '<img data-sized="" src="/media/photo.jpg" alt="" width="1000" height="500"/>',
+    );
+  });
+});

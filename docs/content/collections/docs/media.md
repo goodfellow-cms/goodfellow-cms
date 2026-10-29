@@ -16,6 +16,7 @@ Choose files, or drop them onto the Media screen. Wherever an image goes, such a
 - SVG images have anything that could run code removed.
 - Images, PDFs, office documents, MP3 audio, MP4 and WebM video, and captions for videos (WebVTT `.vtt` files) can be uploaded, up to 25 MB each. Web pages, scripts and other files that could run code can't. Uploads stay in the site's repository for good, even after they're replaced, so longer videos are better on YouTube or Vimeo, which the [Video](/docs/built-in-blocks#video) block shows too. On a site published with Cloudflare Pages, whose terms ask free plans to serve video through its paid services, the media library says so once it has a video in it ([Hosts and business sites](/docs/hosts#business-and-commercial-sites)).
 - New uploads show in the editor straight away, even before the live site has been rebuilt with them.
+- When the site is built, smaller copies of each JPEG, PNG and WebP photo are made, 480, 800, 1200 and 1600 pixels wide (only those narrower than the photo), so phones download no more than they show. The photo itself is kept as it was uploaded. Sites that keep media in a storage service, full-stack Next.js sites and Next.js sites with an image loader of their own don't get the copies.
 
 ## Replace and delete
 

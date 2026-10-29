@@ -1,8 +1,10 @@
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withGoodfellow } from "./config.js";
+import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 
 describe("withGoodfellow", () => {
   let root: string;
@@ -148,5 +150,22 @@ describe("withGoodfellow", () => {
     const images = { loader: "custom" as const, loaderFile: "./loader.ts" };
     const config = await withGoodfellow({ images }, { root })("phase-production-build");
     expect(config.images).toEqual(images);
+  });
+
+  it("lists smaller copies of photos only where Next.js doesn't optimize them", async () => {
+    const mark = join(root, ".next", IMAGE_SIZES_MARK);
+    try {
+      await withGoodfellow({}, { root })("phase-production-build");
+      expect(existsSync(mark)).toBe(true);
+      expect(process.env[IMAGE_SIZES_ENV]).toBe("1");
+      await withGoodfellow(
+        { images: { loader: "custom", loaderFile: "./loader.ts" } },
+        { root },
+      )("phase-production-build");
+      expect(existsSync(mark)).toBe(false);
+      expect(process.env[IMAGE_SIZES_ENV]).toBeUndefined();
+    } finally {
+      delete process.env[IMAGE_SIZES_ENV];
+    }
   });
 });

@@ -28,7 +28,7 @@ import { createPuckConfig } from "./puck-config.js";
 import { type SiteContextValue, siteMetadata } from "./site-types.js";
 
 /** How the page will be rendered, for renderers that don't rewrite the finished HTML. */
-export type RenderOptions = Pick<SiteContextValue, "base" | "components" | "media" | "languageMap">;
+export type RenderOptions = Pick<SiteContextValue, "base" | "components" | "media" | "imageWidths" | "languageMap">;
 
 /** The Puck configs a site's pages are rendered with. */
 export interface PuckConfigs {

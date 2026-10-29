@@ -4,6 +4,7 @@ import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { startsWithGuard, vercelAdminHeaders, withAdminConfig } from "@goodfellow-cms/core";
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "./build.js";
 
@@ -397,6 +398,43 @@ describe("a site without the content API", () => {
       const result = await build({ root: site, outDir: join(site, "dist") });
       expect(result.apiPages).toBeUndefined();
       expect(existsSync(join(site, "dist/api"))).toBe(false);
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a site with photos", () => {
+  it("writes smaller copies of them, which pages list in srcset", async () => {
+    const site = await mkdtemp(join(import.meta.dirname, "../test/.images-"));
+    const out = join(site, "dist");
+    try {
+      await cp(fixture, site, { recursive: true, filter: (path) => !path.includes("node_modules") });
+      await mkdir(join(site, "public/media"), { recursive: true });
+      const photo = await sharp({ create: { width: 1300, height: 600, channels: 3, background: "#336699" } })
+        .jpeg()
+        .toBuffer();
+      await writeFile(join(site, "public/media/hall.jpg"), photo);
+      await writeFile(
+        join(site, "content/pages/hall.json"),
+        `${JSON.stringify({
+          version: 1,
+          data: {
+            content: [{ type: "Image", props: { id: "Image-hall", src: "/media/hall.jpg", alt: "The parish hall" } }],
+            root: { props: { title: "The hall" } },
+          },
+        })}\n`,
+      );
+      const result = await build({ root: site, outDir: out });
+      expect(result.images).toEqual({ written: 3, failed: [] });
+
+      const html = await readFile(join(out, "hall/index.html"), "utf8");
+      expect(html).toContain(
+        'srcSet="/from-config/media-sizes/480/hall.jpg 480w, /from-config/media-sizes/800/hall.jpg 800w, /from-config/media-sizes/1200/hall.jpg 1200w, /from-config/media/hall.jpg 1300w"',
+      );
+      expect(html).toContain('width="1300"');
+      const copy = await sharp(await readFile(join(out, "media-sizes/800/hall.jpg"))).metadata();
+      expect([copy.width, copy.height]).toEqual([800, 369]);
     } finally {
       await rm(site, { recursive: true, force: true });
     }

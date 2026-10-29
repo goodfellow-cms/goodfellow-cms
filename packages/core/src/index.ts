@@ -939,6 +939,13 @@ export {
   type UpdatePlan,
 } from "./registry.js";
 export {
+  IMAGE_WIDTHS,
+  imageSrcSet,
+  imageVariantPath,
+  imageWidths,
+  MEDIA_SIZES_DIR,
+} from "./responsive-images.js";
+export {
   type RepositoryVisibility,
   type ScheduledBuilds,
   ScheduledBuildsError,

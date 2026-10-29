@@ -1,4 +1,4 @@
-import { isExternalLink, NEW_TAB, withBase } from "@goodfellow-cms/core";
+import { imageSrcSet, isExternalLink, NEW_TAB, withBase } from "@goodfellow-cms/core";
 import type { SiteContextValue, SiteImageProps, SiteLinkProps } from "./site-types.js";
 
 /** Whether a link goes to one of the site's own pages, rather than a file, another site, or a new tab. */
@@ -33,12 +33,26 @@ export function createSiteLinks(useSite: () => SiteContextValue) {
   /**
    * An image. Use it in blocks instead of `<img>`, so images follow the site's
    * base path, and the site's own images use the renderer's image component,
-   * such as Next.js's `next/image`, with their size filled in.
+   * such as Next.js's `next/image`, with their size filled in. Where the build
+   * makes smaller copies of the media library's photos (`imageWidths`), it
+   * lists them in `srcset` instead, in both renderers alike: give it `sizes`
+   * where the image is narrower than the page.
    */
   function SiteImage(props: SiteImageProps) {
-    const { base, components, media } = useSite();
+    const { base, components, media, imageWidths } = useSite();
     const size = media?.[props.src];
     const src = withBase(props.src, base);
+    const srcSet = imageWidths && imageSrcSet(props.src, size, imageWidths);
+    if (srcSet && size) {
+      const candidates = srcSet
+        .split(", ")
+        .map((candidate) => withBase(candidate, base))
+        .join(", ");
+      return (
+        // biome-ignore lint/a11y/useAltText: the alt text is in props, which TypeScript requires
+        <img width={size.width} height={size.height} {...props} src={src} srcSet={candidates} />
+      );
+    }
     const Image = components?.Image;
     if (Image && size) {
       const { width: _width, height: _height, ...rest } = props;
