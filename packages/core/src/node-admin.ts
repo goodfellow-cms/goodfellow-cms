@@ -18,7 +18,7 @@ import {
   adminOrigin,
   checkAdminAddress,
   configAdmin,
-  vercelAdminHeaders,
+  vercelHeaders,
   withAdminConfig,
   withVercelHeaders,
 } from "./admin-domain.js";
@@ -60,7 +60,7 @@ async function siteUrl(root: string): Promise<string | undefined> {
 }
 
 /**
- * Writes the admin address's header rules into the content repository's
+ * Writes the site's header rules into the content repository's
  * `vercel.ts`, where Vercel builds from it, from the config's `admin` and
  * `broker` lines. Returns whether it changed the file.
  */
@@ -71,7 +71,8 @@ export async function syncContentHeaders(root: string): Promise<boolean> {
   if (vercel === undefined) return false;
   const config = await readConfig(site);
   const admin = configAdmin(config);
-  const rules = admin ? vercelAdminHeaders(admin, "/", brokerOrigin(configBroker(config))) : [];
+  const broker = brokerOrigin(configBroker(config));
+  const rules = vercelHeaders({ ...(admin && { admin }), ...(broker && { broker }) });
   const next = withVercelHeaders(vercel, rules);
   if (next === undefined || next === vercel) return false;
   await writeFile(path, next);

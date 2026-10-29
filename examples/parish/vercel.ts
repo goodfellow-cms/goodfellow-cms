@@ -4,9 +4,11 @@
 // so visitors go straight to the new address. Like the pages the build writes at old addresses
 // for other hosts, a redirect from an address a page has is left out: pages always win.
 //
-// For a site with an admin address (goodfellow.config.tsx's `admin` line, which Site Settings'
-// Domain screen writes), every page at that address but the admin panel's own is sandboxed, so a
-// site page served there can't read what the admin panel keeps.
+// Every file gets headers that keep browsers from guessing its type, the media library's SVGs open
+// sandboxed, and no other site can frame the admin panel. For a site with an admin address
+// (goodfellow.config.tsx's `admin` line, which Site Settings' Domain screen writes), every page at
+// that address but the admin panel's own is sandboxed, so a site page served there can't read
+// what the admin panel keeps.
 // This file uses only Node's own modules, since Vercel may read it before installing packages.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +19,7 @@ export const config = {
   buildCommand: "npx goodfellow build",
   outputDirectory: "dist",
   redirects: redirects(),
-  headers: adminHeaders(),
+  headers: headers(),
   // Drafts, from the admin panel's Add to draft and from Claude, are kept on branches named
   // goodfellow-draft-…, and plugins' tasks answer on branches named goodfellow-task-…, which
   // visitors never see, so Vercel doesn't build previews of them.
@@ -90,37 +92,42 @@ function redirects() {
   });
 }
 
-/** The admin address's header rules, as `vercelAdminHeaders()` in @goodfellow-cms/core writes them. */
-function adminHeaders() {
+/** The site's header rules, as `vercelHeaders()` in @goodfellow-cms/core writes them. */
+function headers() {
   const config = existsSync("goodfellow.config.tsx") ? readFileSync("goodfellow.config.tsx", "utf8") : "";
   const line = /^[ \t]*admin:[ \t]*\{[^\n]*\},?[ \t]*$/m.exec(config)?.[0];
   const url = line && /url:\s*"([^"\\]+)"/.exec(line)?.[1];
-  if (!url) return [];
-  const has = [{ type: "host", value: new URL(url).host }];
   // A token broker (the config's `broker` line) shows the admin panel in its frame.
   const brokerLine = /^[ \t]*broker:[ \t]*\{[^\n]*\},?[ \t]*$/m.exec(config)?.[0];
   const broker = brokerLine && /url:\s*"([^"\\]+)"/.exec(brokerLine)?.[1];
   const list = (headers: Record<string, string>) => Object.entries(headers).map(([key, value]) => ({ key, value }));
+  const adminPage = list({
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Content-Security-Policy": `frame-ancestors ${broker ? new URL(broker).origin : "'none'"}`,
+    "Origin-Agent-Cluster": "?1",
+  });
+  const frames = list({ "Content-Security-Policy": "frame-ancestors 'self'", "Origin-Agent-Cluster": "?1" });
+  const site = [
+    {
+      source: "/(.*)",
+      headers: list({ "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin" }),
+    },
+    { source: "/media/(.*)\\.(svg|SVG)", headers: list({ "Content-Security-Policy": "sandbox" }) },
+  ];
+  if (!url) {
+    return [
+      ...site,
+      { source: "/admin/((?!editor/|editor$|plugins/).*)", headers: adminPage },
+      { source: "/admin/editor/:path*", headers: frames },
+      { source: "/admin/plugins/:path*", headers: frames },
+    ];
+  }
+  const has = [{ type: "host", value: new URL(url).host }];
   return [
+    ...site,
     { source: "/((?!admin/|admin$).*)", has, headers: list({ "Content-Security-Policy": "sandbox" }) },
-    {
-      source: "/admin/((?!editor/|editor$|plugins/).*)",
-      has,
-      headers: list({
-        "Cross-Origin-Opener-Policy": "same-origin",
-        "Content-Security-Policy": `frame-ancestors ${broker ? new URL(broker).origin : "'none'"}`,
-        "Origin-Agent-Cluster": "?1",
-      }),
-    },
-    {
-      source: "/admin/editor/:path*",
-      has,
-      headers: list({ "Content-Security-Policy": "frame-ancestors 'self'", "Origin-Agent-Cluster": "?1" }),
-    },
-    {
-      source: "/admin/plugins/:path*",
-      has,
-      headers: list({ "Content-Security-Policy": "frame-ancestors 'self'", "Origin-Agent-Cluster": "?1" }),
-    },
+    { source: "/admin/((?!editor/|editor$|plugins/).*)", has, headers: adminPage },
+    { source: "/admin/editor/:path*", has, headers: frames },
+    { source: "/admin/plugins/:path*", has, headers: frames },
   ];
 }

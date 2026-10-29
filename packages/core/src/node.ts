@@ -7,7 +7,7 @@ export {
   setAdminAddress,
   syncContentHeaders,
 } from "./node-admin.js";
-export { type GuardOptions, guardBuiltSite } from "./node-admin-domain.js";
+export { type GuardOptions, guardBuiltSite, writeSiteHeaders } from "./node-admin-domain.js";
 export { type AppApiOptions, appApi, isPluginInstallPath } from "./node-app-api.js";
 export {
   type AddBrokerOptions,

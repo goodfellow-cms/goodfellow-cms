@@ -238,7 +238,7 @@ async function main(): Promise<void> {
       );
     }
     if (backend && admin === undefined && broker === undefined) {
-      const signIn = await chooseSignIn(backend, host as Host | undefined);
+      const signIn = await chooseSignIn(backend, host as Host | undefined, await hasDomain());
       if (signIn === "admin") admin = await askAddress("The admin address, such as https://admin.example.org: ");
       if (signIn === "broker") {
         broker = await choose(
@@ -482,30 +482,48 @@ const BROKER_HOSTS: Record<BrokerHost, string> = {
   vercel: "Vercel",
 };
 
-/** Where editors will sign in: the admin panel itself, an admin address, or a token broker. */
-async function chooseSignIn(backend: Backend, host: Host | undefined): Promise<"site" | "admin" | "broker"> {
-  const admin = allowsAdminAddress(host);
-  return choose<"site" | "admin" | "broker">("Where will editors sign in?", [
-    {
-      value: "site",
-      label: "In the admin panel, at the site's address",
-      note: "The simplest. Their sign-in is kept where the site's own pages could reach it.",
-    },
-    ...(admin
+async function hasDomain(): Promise<boolean> {
+  return choose("Do you have a domain for this site, such as example.org?", [
+    { value: false, label: "No, or not yet" },
+    { value: true, label: "Yes" },
+  ]);
+}
+
+/**
+ * Where editors will sign in: the admin panel itself, an admin address, or a
+ * token broker. With a domain, and a host that can serve one, the admin address
+ * comes first, so it's the default; otherwise the sign-in page is recommended.
+ */
+async function chooseSignIn(
+  backend: Backend,
+  host: Host | undefined,
+  domain: boolean,
+): Promise<"site" | "admin" | "broker"> {
+  const admin = domain && allowsAdminAddress(host);
+  const site: Choice<"site"> = {
+    value: "site",
+    label: "In the admin panel, at the site's address",
+    note: "The simplest, but the least safe: their sign-in is kept where the site's own pages could reach it.",
+  };
+  const broker: Choice<"broker"> = {
+    value: "broker",
+    label: `At a sign-in page of its own (a token broker)${admin ? "" : ", recommended"}`,
+    note: `A second repository, put online at an address of its own${backend.host === "gitlab" ? ", which GitLab Pages gives it" : ""}. Keeps sign-ins where nothing on the site can reach them.`,
+  };
+  return choose<"site" | "admin" | "broker">(
+    "Where will editors sign in?",
+    admin
       ? [
           {
-            value: "admin" as const,
-            label: "At an admin address of its own",
-            note: "Such as admin.example.org, on a domain you have. The usual choice where you have one.",
+            value: "admin",
+            label: "At an admin address of its own, recommended",
+            note: "Such as admin.example.org, on your domain: the site's pages can't reach their sign-in there.",
           },
+          broker,
+          site,
         ]
-      : []),
-    {
-      value: "broker",
-      label: "At a sign-in page of its own (a token broker)",
-      note: `A second repository, put online at an address of its own${backend.host === "gitlab" ? ", which GitLab Pages gives it" : ""}. Keeps sign-ins where nothing on the site can reach them.`,
-    },
-  ]);
+      : [site, broker],
+  );
 }
 
 async function askAddress(question: string): Promise<string> {

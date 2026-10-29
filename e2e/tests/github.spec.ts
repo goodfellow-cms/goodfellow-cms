@@ -196,6 +196,11 @@ test("adds a token broker: makes its repository from the released page, then pub
   await signIn(page);
   await page.goto(`${GITHUB_SITE}/admin/#/settings/security`);
   await expect(page.getByRole("heading", { name: "Add a token broker" })).toBeVisible();
+  // Without one, or an admin address, the tab says what the site's pages could reach, as the Code tab does.
+  await expect(page.getByRole("note").filter({ hasText: "where its pages could reach their sign-in" })).toBeVisible();
+  await page.goto(`${GITHUB_SITE}/admin/#/settings/code`);
+  await expect(page.getByRole("note").filter({ hasText: "could act as anyone signed in" })).toBeVisible();
+  await page.goto(`${GITHUB_SITE}/admin/#/settings/security`);
 
   // GitHub Pages needs a domain of its own, never a github.io one.
   await page.getByLabel("Its domain").fill("signin.parish.github.io");

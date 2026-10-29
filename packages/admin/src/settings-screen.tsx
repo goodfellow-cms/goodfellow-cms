@@ -44,6 +44,7 @@ import { PartsEditor } from "./parts-editor.js";
 import { PreviewFrame, type PreviewScheme } from "./preview.js";
 import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
 import { type SettingsSection, sectionId, useUnsavedChanges } from "./router.js";
+import { useSignInExposed } from "./security-screen.js";
 import { describeContrast } from "./site-checks.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { useDarkMode } from "./theme.js";
@@ -656,9 +657,16 @@ function CodeTab({
   onChange: (code: SiteCode) => void;
 }) {
   const t = useStrings();
+  const exposed = useSignInExposed();
   return (
     <div className="gfa-form">
       <p className="gfa-hint">{t("code.intro")}</p>
+      {exposed && (
+        <p className="gfa-notice" role="note">
+          {t("code.exposed")}
+          {exposed === "site" && ` ${t("code.exposedFix")}`}
+        </p>
+      )}
       <Field label={t("code.head")} hint={t("code.headHint")} error={headError}>
         {(props) => (
           <CodeEditor

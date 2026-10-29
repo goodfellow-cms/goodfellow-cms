@@ -4,6 +4,8 @@
  * `planSite()` uses them for new sites, so `create-goodfellow` and the setup
  * page make the same ones.
  */
+
+import { vercelHeaders } from "./admin-domain.js";
 import {
   BITBUCKET_PIPELINE_NAMES,
   BITBUCKET_PIPELINES,
@@ -552,7 +554,7 @@ export const config = {
   buildCommand: ${JSON.stringify(build)},
   outputDirectory: ${JSON.stringify(`site/${output}`)},
 ${VERCEL_HEADERS_NOTE}
-  headers: [],
+  headers: ${JSON.stringify(vercelHeaders())},
 ${VERCEL_DRAFTS}
 };
 `;
@@ -572,22 +574,24 @@ const VERCEL_DRAFTS = `${comment("Drafts, from the admin panel's Add to draft an
 
 /**
  * Where Vercel builds from the content repository, it reads `vercel.ts` before
- * the code is cloned, so the admin address's header rules are written out in
- * it (`withVercelHeaders()`), which `goodfellow admin` and `goodfellow broker`
- * keep in step with the code's config.
+ * the code is cloned, so the site's header rules are written out in it
+ * (`withVercelHeaders()`), which `goodfellow admin` and `goodfellow broker`
+ * keep in step with the code's config's admin address and broker.
  */
 const VERCEL_HEADERS_NOTE = comment(
-  "The admin address's header rules, from the code's goodfellow.config.tsx: goodfellow admin and goodfellow broker, run in the code's folder, copy them here, since Vercel reads this file before the code is cloned.",
+  "The site's header rules, for the admin address and token broker in the code's goodfellow.config.tsx: goodfellow admin and goodfellow broker, run in the code's folder, copy them here, since Vercel reads this file before the code is cloned.",
   "  // ",
 );
 
 /** The template's `vercel.ts`, with header rules written out in place of reading them from the config. */
 function withCopiedHeaders(source: string): string {
-  const call = /^([ \t]*)headers: adminHeaders\(\),$/m;
-  const reader = source.indexOf("/** The admin address's header rules");
-  if (!call.test(source) || reader === -1)
-    throw new Error("The template's vercel.ts has no adminHeaders() to replace.");
-  return `${source.slice(0, reader).trimEnd()}\n`.replace(call, `${VERCEL_HEADERS_NOTE}\n$1headers: [],`);
+  const call = /^([ \t]*)headers: headers\(\),$/m;
+  const reader = source.indexOf("/** The site's header rules");
+  if (!call.test(source) || reader === -1) throw new Error("The template's vercel.ts has no headers() to replace.");
+  return `${source.slice(0, reader).trimEnd()}\n`.replace(
+    call,
+    `${VERCEL_HEADERS_NOTE}\n$1headers: ${JSON.stringify(vercelHeaders())},`,
+  );
 }
 
 /**
