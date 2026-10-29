@@ -66,7 +66,9 @@ jobs:
         working-directory: docs
         env:
           GOODFELLOW_STARTER_LOCKFILES: "1"
-      - run: pnpm --filter @goodfellow-cms/docs exec goodfellow build --base "${{ steps.pages.outputs.base_path }}/"
+      - run: pnpm --filter @goodfellow-cms/docs exec goodfellow build --base "$BASE_PATH/"
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
       # The Claude Desktop extension, which the Work with Claude page links to. Releases from before it don't have it.
       - if: hashFiles('packages/mcp/scripts/pack-extension.mjs') != ''
         run: |
