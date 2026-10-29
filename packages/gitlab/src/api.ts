@@ -3,8 +3,12 @@ import { GitApiError, SignInError } from "@goodfellow-cms/core";
 export interface ApiOptions {
   /** The API root, such as `https://gitlab.com/api/v4`. */
   apiUrl: string;
-  /** Returns a current access token, refreshing it if needed. */
-  token: (options?: { refresh?: boolean }) => Promise<string>;
+  /**
+   * Returns a current access token, refreshing it if needed. `refresh` asks
+   * for a new one after GitLab refused `stale`, which another request may
+   * already have replaced.
+   */
+  token: (options?: { refresh?: boolean; stale?: string }) => Promise<string>;
   /** Whether the token can be refreshed after a 401. */
   canRefresh: boolean;
   fetch: typeof fetch;
@@ -16,16 +20,19 @@ export async function gitlabRequest(
   path: string,
   init: { method?: string; body?: unknown; allow?: number[] } = {},
 ): Promise<Response> {
-  const send = async (refresh: boolean) =>
-    api.fetch(`${api.apiUrl}${path}`, {
+  let sent: string | undefined;
+  const send = async (refresh: boolean) => {
+    sent = await api.token(refresh ? { refresh, ...(sent !== undefined && { stale: sent }) } : {});
+    return api.fetch(`${api.apiUrl}${path}`, {
       method: init.method ?? "GET",
       headers: {
-        authorization: `Bearer ${await api.token({ refresh })}`,
+        authorization: `Bearer ${sent}`,
         ...(init.body !== undefined && { "content-type": "application/json" }),
       },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       cache: "no-store",
     });
+  };
 
   let response = await send(false);
   if (response.status === 401 && api.canRefresh) response = await send(true);

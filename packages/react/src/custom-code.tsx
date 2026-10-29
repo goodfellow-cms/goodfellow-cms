@@ -59,6 +59,8 @@ export function HeadCode({ code, held = false }: { code?: string; held?: boolean
       {waiting.length > 0 && (
         <template
           {...{ [CONSENT_CODE_ATTRIBUTE]: "head" }}
+          // The consent script marks it done once it has added the code.
+          suppressHydrationWarning
           // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel
           dangerouslySetInnerHTML={{ __html: waiting.map(headElementHtml).join("") }}
         />
@@ -77,6 +79,8 @@ export function BodyCode({ code, held = false }: { code?: string; held?: boolean
     return (
       <template
         {...{ [CONSENT_CODE_ATTRIBUTE]: "body" }}
+        // The consent script marks it done once it has added the code after it.
+        suppressHydrationWarning
         // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel
         dangerouslySetInnerHTML={{ __html: code }}
       />

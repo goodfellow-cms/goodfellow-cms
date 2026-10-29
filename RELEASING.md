@@ -29,11 +29,11 @@ Goodfellow's packages are released together, with one version number: every pack
    pnpm release:approve   # shows them, asks, then approves each one
    ```
 
-   Approving publishes the packages, each after the packages it depends on. npm asks for your two-factor code or a browser sign-in for each one; `pnpm release:approve --otp 123456` gives it the code instead, while the code is still valid. If several versions are waiting, choose one with `--version 0.2.0`. To throw away a staged version instead, run `npm stage reject <id>` with the id `pnpm release:staged` shows.
+   Each staged version is listed with its digest, as npm gives it; the Release run that staged it lists the digest of each file it built, on its page, so compare them before approving. Approving publishes the packages, each after the packages it depends on. npm asks for your two-factor code or a browser sign-in for each one; `pnpm release:approve --otp 123456` gives it the code instead, while the code is still valid. If several versions are waiting, choose one with `--version 0.2.0`. To throw away a staged version instead, run `npm stage reject <id>` with the id `pnpm release:staged` shows.
 
 Each Release run is for one commit: the one CI passed on, or master as it is when you start it from the Actions tab, which waits until CI has passed there. **Re-running** a run releases that run's own commit, so after merging the version pull request, re-running the run from before the merge says its version is already on npm; the merge's own run starts once CI passes on it. Each run's page says which commit it was for, and what it did.
 
-If you approve after the workflow has stopped waiting, run the Release workflow again from the Actions tab: it finds every package on npm, tags the release and deploys the docs. If staging fails partway, run it again too: versions already on npm are skipped, and versions an earlier run staged can't be staged twice, so that step fails again for them but the workflow still waits for their approval.
+If you approve after the workflow has stopped waiting, run the Release workflow again from the Actions tab: it finds every package on npm, tags the release and deploys the docs. However far master has moved on, the tags go on the commit where the release's version was set (the version pull request's merge), and the docs are built from it, so both describe what was published. If staging fails partway, run it again too: versions already on npm are skipped, and versions an earlier run staged can't be staged twice, so that step fails again for them but the workflow still waits for their approval.
 
 ## Publishing from your computer
 

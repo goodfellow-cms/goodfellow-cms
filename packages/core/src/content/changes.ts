@@ -301,8 +301,20 @@ export function codeFileChanges(code: SiteCode, current: SiteCode = { head: "", 
   return changes;
 }
 
+/**
+ * Refuses names that aren't one part of an address, as loading the site
+ * would, so no caller (a plugin, Claude) can write a file such as
+ * `_collection.json` or one in another folder through an item's name.
+ */
+function assertNames(...names: string[]): void {
+  for (const name of names) {
+    if (!isAddressSegment(name)) throw new Error(`"${name}" isn't a name a collection or item can have.`);
+  }
+}
+
 /** Writes a collection's settings file. */
 export function collectionFileChange(id: string, settings: CollectionFile): FileChange {
+  assertNames(id);
   return {
     path: collectionSettingsFile(id),
     content: serializeContent({
@@ -334,6 +346,7 @@ export function entryFileChange(
   values: Record<string, unknown>,
   details: FileDetails | undefined,
 ): FileChange {
+  assertNames(collection.id, slug);
   const fields = storedEntryFields(values);
   const { settings } = collection;
   const times = fileDetailsOf(details ?? {});

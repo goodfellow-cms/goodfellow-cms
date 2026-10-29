@@ -143,6 +143,9 @@ export const defaultStrings = {
   "publish.conflict":
     "Someone else changed the site since you opened this page, so your changes weren't published. Reload to see their changes, then make yours again.",
   "publish.error": "Your changes couldn't be published. Check your connection and try again.",
+  "publish.reloaded":
+    "This is the page as the other person left it. Make your changes again, or put yours back to publish them over theirs.",
+  "publish.putMineBack": "Put my changes back",
   "publish.invalid": "Fix the highlighted problems before publishing.",
   "draft.label": "Draft",
   "draft.add": "Add to draft",
@@ -212,6 +215,8 @@ export const defaultStrings = {
     "An owner has limited what you can change, and the media library is outside it. You can still use its files on pages you can change.",
   "checks.missing-page": "{place} links to {target}, which isn't a page on the site.",
   "checks.missing-media": "{place} uses {target}, which isn't in the media library.",
+  "checks.unsafe-link":
+    "{place} links to {target}, an address that would run code on the site. Pages leave it out: use an address that starts with https://, or one of the site's own pages.",
   "checks.no-title": "{place} has no title, so browser tabs and search results show only the site's name.",
   "checks.missing-translation":
     "{place} has no translation in {language} yet. Visitors reading in {language} are sent to its home page instead.",
@@ -629,6 +634,8 @@ export const defaultStrings = {
   "media.uploaded": "Uploaded. Visitors see new files once the live site is updated.",
   "media.uploadMessage": "Add {names}",
   "media.replaceMessage": "Replace {name}",
+  "media.replaceKind":
+    "{name} is a different kind of file from {target}. Replace it with a file of the same kind, or upload {name} as a new file.",
   "media.deleteMessage": "Delete {name}",
   "media.deleteTitle": "Delete {name}?",
   "media.deleteBody": "{name} will be removed from the site.",

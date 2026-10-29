@@ -8,14 +8,14 @@ import { files, routeToFake } from "./backends.js";
 const { site, broker } = BROKER_ADDRESSES;
 const CONFIG = `export default defineConfig({\n  broker: { url: "${broker}" },\n  blocks,\n});\n`;
 
-async function setup(page: Page) {
+async function setup(page: Page, siteUrl = `${site}/`) {
   const content = files();
   const settings = JSON.parse(content["content/site.json"] ?? "{}");
   const fake = fakeGitHub({
     repo: "parish/site",
     files: {
       ...content,
-      "content/site.json": `${JSON.stringify({ ...settings, url: `${site}/` }, null, 2)}\n`,
+      "content/site.json": `${JSON.stringify({ ...settings, url: siteUrl }, null, 2)}\n`,
       "goodfellow.config.tsx": CONFIG,
     },
     tokens: { "good-token": { login: "maria", name: "Maria" } },
@@ -38,6 +38,7 @@ test("signs in at the broker, which shows the admin panel and publishes for it",
   await expect(page.getByRole("heading", { name: "Sign in to edit parish/site" })).toBeVisible();
   const admin = await signIn(page, "#/settings/general");
   await expect(page.locator(".broker-bar")).toContainText("Signed in as Maria");
+  await expect(page.locator(".broker-bar")).toContainText(`Showing ${new URL(site).origin}`);
 
   await admin.getByLabel("Site name").fill("St. Joseph's");
   await admin.getByRole("button", { name: "Publish" }).click();
@@ -75,6 +76,14 @@ test("answers only the admin panel in its own frame, never another window or fra
   await expect.poll(() => page.frames().some((frame) => frame.url() === `${site}/`)).toBe(true);
   const other = page.frames().find((frame) => frame.url() === `${site}/`);
   expect(await other?.evaluate(ask)).toBe(false);
+});
+
+test("won't show an admin panel at its own address, where it could read the sign-in", async ({ page }) => {
+  // An editor who can change the site's settings points its address at another site on the broker's host.
+  await setup(page, `${broker}/elsewhere/`);
+  await signIn(page);
+  await expect(page.getByRole("alert")).toContainText("The admin panel is at this page's own address");
+  await expect(page.locator(".broker-frame")).toHaveCount(0);
 });
 
 test("edits a page in the editor's frame, inside the admin panel's", async ({ page }) => {

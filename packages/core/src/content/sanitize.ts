@@ -30,6 +30,10 @@ function createFilter() {
     stripIgnoreTagBody: ["script", "style", "iframe", "object", "embed", "noscript", "template"],
     // No inline styles, which can cover the page with something that looks like part of it.
     css: false,
+    // Ids Goodfellow's own scripts look up (`gf-consent`) stay Goodfellow's, so text can't stand in for them.
+    onTagAttr(_tag, name, value) {
+      return name === "id" && /^\s*gf-/i.test(value) ? "" : undefined;
+    },
     safeAttrValue(tag, name, value, cssFilter) {
       const safe = xss.safeAttrValue(tag, name, value, cssFilter);
       if ((name === "href" || name === "src") && !isSafeUrl(safe)) return "";

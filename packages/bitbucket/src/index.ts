@@ -97,6 +97,12 @@ function randomState(): string {
 
 /** Sign-in and storage for a site whose repository is on Bitbucket Cloud. */
 export function bitbucket(options: BitbucketOptions): GitHost {
+  if (!/^[\w.-]+\/[\w.-]+$/.test(options.repo)) {
+    throw new Error(`bitbucket({ repo }) must look like "workspace/repository" (got "${options.repo}").`);
+  }
+  if (options.code !== undefined && !/^[\w.-]+\/[\w.-]+$/.test(options.code)) {
+    throw new Error(`bitbucket({ code }) must look like "workspace/repository" (got "${options.code}").`);
+  }
   // Many changes in a row, such as Claude's, can reach the host's limits: wait for them rather than fail.
   const fetcher: typeof fetch = withRateLimits(options.fetch ?? ((input, init) => globalThis.fetch(input, init)), {
     host: "Bitbucket",
@@ -165,15 +171,15 @@ export function bitbucket(options: BitbucketOptions): GitHost {
     const access = fragment.get("access_token");
     const error = fragment.get("error") ?? url.searchParams.get("error");
     if (!access && !error) return null;
+    // Take the token out of the address bar, history and bookmarks first, even where this tab
+    // didn't start the sign-in, and go back to the screen sign-in started from.
+    for (const key of ["error", "error_description"]) url.searchParams.delete(key);
     const saved = pending.load();
+    url.hash = saved ? (JSON.parse(saved) as PendingRedirect).hash : "";
+    location().replace(url.toString());
     if (!saved) return null;
     pending.clear();
     const redirect = JSON.parse(saved) as PendingRedirect;
-
-    // Take the token out of the address bar and go back to the screen sign-in started from.
-    url.hash = redirect.hash;
-    for (const key of ["error", "error_description"]) url.searchParams.delete(key);
-    location().replace(url.toString());
 
     // The state must match, so another site can't finish a sign-in it started.
     if (error || !access || fragment.get("state") !== redirect.state) {

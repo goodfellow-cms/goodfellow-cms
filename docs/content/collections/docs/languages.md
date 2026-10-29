@@ -71,7 +71,7 @@ What the languages are and what translates what is all in [content files](/docs/
 - `content/menus.json`: `languages`, each language's own menus by name.
 - Pages: a translation's file has `translationOf`, the address of the page it translates, and `translatedFrom`, a hash of that page's content when it was translated, which says whether it's out of date. A page under a language's code without `translationOf` is a page of its own in that language.
 - Items: `inLanguage`, the item's language, besides `translationOf` (the name of the item it translates) and `translatedFrom`. Markdown items have them in their front matter.
-- A collection's `languagePaths` gives a language's items an address pattern of its own, such as `{ "es": "/es/noticias/{slug}" }`, in place of the collection's under the language's code.
+- A collection's `languagePaths` gives a language's items an address pattern of its own, such as `{ "es": "/es/noticias/{slug}" }`, in place of the collection's under the language's code. It starts with the language's code too, since that's how pages know what language they're in.
 - A language can have a header or footer of its own in `content/layout/header.es.json` or `footer.es.json`, used in place of the main one on its pages.
 
 [Site checks](/docs/publishing) warn about a translation of a page that isn't in the main language, and about missing and out-of-date translations. With Next.js, the shared layout has the header and footer in each language, and the browser shows the one for the page's address, so they stay mounted as visitors move between pages, even from one language to another; the Language switch there finds the page's translations in the browser too. `goodfellow-next finish` writes each exported page's language on its `<html>`.

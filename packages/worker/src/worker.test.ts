@@ -68,6 +68,21 @@ describe("signing in", () => {
     expect(isLocalAddress("https://parish.example")).toBe(false);
   });
 
+  it("reads a site's addresses for checks anyone can ask for at most every couple of minutes", async () => {
+    const { call, fake, tick } = setup();
+    const reads = () => fake.requests.filter((request) => request.url.includes("/contents/content/site.json")).length;
+    for (let i = 0; i < 5; i++) {
+      expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).toEqual({ ok: true });
+    }
+    expect(await (await call("/github/check?repo=parish/site", { origin: "https://evil.example" })).json()).toEqual({
+      problem: "wrong-address",
+    });
+    expect(reads()).toBe(1);
+    tick(3 * 60_000);
+    await call("/github/check?repo=parish/site", { origin: SITE });
+    expect(reads()).toBe(2);
+  });
+
   it("gives tokens to the site's admin address too, which its build names", async () => {
     const admin = "https://admin.parish.example";
     const { call, post, redirect } = setup({ admin });

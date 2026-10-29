@@ -38,7 +38,7 @@ jobs:
       sha: ${{ steps.commit.outputs.sha }}
       waiting: ${{ steps.publish.outputs.waiting }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # The commit CI passed on, even if master has moved on since.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -58,8 +58,8 @@ jobs:
             echo "$message" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-      - uses: pnpm/action-setup@v6.1.0
-      - uses: actions/setup-node@v5
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           check-latest: true
@@ -84,11 +84,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 310
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.publish.outputs.sha }}
       # Only Node: setup-node would look for pnpm, which this job doesn't install, to cache its packages.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           check-latest: true
@@ -103,12 +103,14 @@ jobs:
       contents: write # pushes the release's tags
     outputs:
       released: ${{ steps.tag.outputs.released }}
+      # The commit the release's version was set in, which it's tagged at.
+      sha: ${{ steps.tag.outputs.sha }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.publish.outputs.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           check-latest: true
@@ -117,11 +119,11 @@ jobs:
         run: node scripts/release.mjs tag
 
   docs:
-    needs: [publish, tag]
+    needs: tag
     if: ${{ !cancelled() && needs.tag.outputs.released == 'true' }}
     uses: ./.github/workflows/docs.yml
     with:
-      ref: ${{ needs.publish.outputs.sha }}
+      ref: ${{ needs.tag.outputs.sha }}
     permissions:
       contents: read
       pages: write

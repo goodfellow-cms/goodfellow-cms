@@ -132,6 +132,7 @@ export function describeProblem(t: Translate, content: SiteContent, problem: Sit
   switch (problem.kind) {
     case "missing-page":
     case "missing-media":
+    case "unsafe-link":
       return t(`checks.${problem.kind}`, { place: problemPlace(t, content, problem.file), target: problem.target });
     case "no-title":
     case "no-description":

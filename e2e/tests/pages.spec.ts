@@ -177,6 +177,34 @@ test("doesn't overwrite changes someone else made in the meantime", async ({ pag
 
   await expect(page.getByRole("alert")).toContainText("Someone else changed the site");
   expect(readSiteFile("content/pages/about.json")).toBe(theirs);
+
+  // Reloading shows their version, so publishing again can't put the old one back over it.
+  await page.getByRole("alert").getByRole("button", { name: "Reload" }).click();
+  await expect(page.getByRole("status")).toContainText("This is the page as the other person left it");
+  await expect(canvas(page).getByRole("heading", { name: "Their heading" })).toBeVisible();
+  await canvas(page).getByRole("heading", { name: "Their heading" }).click();
+  await field(page, "text").fill("Our heading");
+  await publishInEditor(page);
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readSiteFile("content/pages/about.json")).toContain('"text": "Our heading"');
+});
+
+test("puts the editor's own changes back after reloading someone else's", async ({ page }) => {
+  await openPageEditor(page, "/about", "About us");
+  const original = readSiteFile("content/pages/about.json");
+  writeSiteFile("content/pages/about.json", original.replace('"text": "About us"', '"text": "Their heading"'));
+
+  await canvas(page).getByRole("heading", { name: "About us" }).click();
+  await field(page, "text").fill("My heading");
+  await publishInEditor(page);
+  await page.getByRole("alert").getByRole("button", { name: "Reload" }).click();
+  await expect(canvas(page).getByRole("heading", { name: "Their heading" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Put my changes back" }).click();
+  await expect(canvas(page).getByRole("heading", { name: "My heading" })).toBeVisible();
+  await publishInEditor(page);
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readSiteFile("content/pages/about.json")).toContain('"text": "My heading"');
 });
 
 test("asks before leaving a page with unpublished changes", async ({ page }) => {

@@ -480,18 +480,24 @@ export class BitbucketBackend implements GitBackend {
     if (response.status === 403) {
       throw new SignInError("cant-publish", "This Bitbucket account can't publish to the site.");
     }
-    const revision = await this.commitAfter(expectedRevision, message);
-    this.carryOver(expectedRevision, revision, new Set(changes.map((change) => change.path)));
-    this.pinned = revision;
-    return { revision };
+    const made = await this.commitAfter(expectedRevision, message);
+    if (!made) {
+      // Too many commits since to find it: what changed is read from Bitbucket, never assumed.
+      this.pinned = expectedRevision;
+      return { revision: await this.revision() };
+    }
+    this.carryOver(expectedRevision, made, new Set(changes.map((change) => change.path)));
+    this.pinned = made;
+    return { revision: made };
   }
 
   /**
    * The commit a save just made: Bitbucket doesn't let browsers read the
    * address it answers with, so it's found on the branch, as the newest
-   * commit whose parent is the one the save started from.
+   * commit whose parent is the one the save started from, if it's among the
+   * branch's newest.
    */
-  private async commitAfter(parent: string, message: string): Promise<string> {
+  private async commitAfter(parent: string, message: string): Promise<string | undefined> {
     const query = new URLSearchParams({ pagelen: "20" });
     const recent = await bitbucketJson<Paged<Commit>>(
       this.api,
@@ -501,8 +507,7 @@ export class BitbucketBackend implements GitBackend {
       recent.values.find(
         (commit) => commit.parents?.[0]?.hash === parent && title(commit.message) === title(message),
       ) ?? recent.values.find((commit) => commit.parents?.[0]?.hash === parent);
-    if (made) return made.hash;
-    return this.head();
+    return made?.hash;
   }
 
   async history(path: string, { page = 1, perPage = 20 }: HistoryOptions = {}): Promise<FileVersion[]> {
