@@ -38,7 +38,7 @@ It then checks every built page for accessibility problems: the ones the admin p
 
 Next.js sites get the checks of built pages from `goodfellow-next finish`; the checks of content files don't run in `next build` yet.
 
-`goodfellow dev` uses port 4321, or the next free one if another program has it, and `goodfellow preview` uses 4322. Each prints its address when it starts.
+`goodfellow dev` uses port 4321, or the next free one if another program has it, and `goodfellow preview` uses 4322. Each prints its address when it starts. Only this computer can open `goodfellow preview`, since it may show what isn't published yet; `--network` lets other computers on the network see it too.
 
 ## Serving from a subfolder
 

@@ -120,6 +120,16 @@ describe("writeChanges", () => {
     ).rejects.toThrow(ConflictError);
   });
 
+  it("refuses rather than retries when the host can't list everything that changed", async () => {
+    const { store, revisions } = historyStore({ "content/a.json": "1", "content/b.json": "1" });
+    await store.write(save("content/b.json", "theirs"), { message: "theirs", expectedRevision: "0" });
+    const truncated = { ...store, changedPaths: () => Promise.reject(new Error("too many files")) };
+    await expect(
+      writeChanges(truncated, save("content/a.json", "mine"), { message: "mine", expectedRevision: "0" }),
+    ).rejects.toThrow(ConflictError);
+    expect(revisions.at(-1)).toEqual({ "content/a.json": "1", "content/b.json": "theirs" });
+  });
+
   it("doesn't retry stores without history", async () => {
     const { store } = historyStore({});
     const { changedPaths: _none, ...withoutHistory } = store;

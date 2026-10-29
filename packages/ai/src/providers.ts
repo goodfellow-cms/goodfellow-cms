@@ -212,6 +212,10 @@ function baseUrlOf(settings: ProviderSettings): string {
   if (settings.server) return `${trimChars(settings.server, "/", { start: false })}/${settings.provider}`;
   const base = settings.provider === "custom" ? settings.baseUrl : PROVIDERS[settings.provider].baseUrl;
   if (!base) throw new AiError("service", "No address is set for this AI service.");
+  // The key goes with every request, so only over HTTPS, unless the service runs on this computer.
+  if (!/^https:\/\//i.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(base)) {
+    throw new AiError("service", "The AI service's address must start with https://, unless it runs on this computer.");
+  }
   return trimChars(base, "/", { start: false });
 }
 

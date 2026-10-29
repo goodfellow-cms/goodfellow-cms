@@ -37,6 +37,8 @@ import { type GitLabTasksOptions, gitlabTasks } from "./tasks.js";
 import { gitlabCodeUpdates, gitlabUpdates } from "./updates.js";
 
 const PAGE_SIZE = 100;
+/** The most files GitLab's compare lists, by default. */
+const COMPARE_FILES_LIMIT = 1000;
 
 /** How many files one GraphQL request reads. */
 const GRAPHQL_BATCH = 50;
@@ -577,7 +579,12 @@ export class GitLabBackend implements GitBackend {
       this.api,
       this.repo(`/compare?${new URLSearchParams({ from, to, straight: "true" })}`),
     );
-    return [...new Set((comparison.diffs ?? []).flatMap((diff) => [diff.old_path, diff.new_path]))];
+    const diffs = comparison.diffs ?? [];
+    // GitLab lists at most its diff limit's files (1,000 by default): past that, some changes would be missing.
+    if (diffs.length >= COMPARE_FILES_LIMIT) {
+      throw new GitApiError(0, `More files changed between ${from} and ${to} than GitLab lists.`);
+    }
+    return [...new Set(diffs.flatMap((diff) => [diff.old_path, diff.new_path]))];
   }
 
   /**
