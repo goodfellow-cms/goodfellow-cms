@@ -135,6 +135,19 @@ describe("signing in with GitLab (OAuth with PKCE)", () => {
   });
 });
 
+describe("the token", () => {
+  it("only ever sends the token in the Authorization header", async () => {
+    const { fake, host } = setup();
+    const backend = await host.signInWithToken("test-token", false);
+    await loadSiteContent(backend);
+    expect(fake.requests.length).toBeGreaterThan(0);
+    for (const request of fake.requests) {
+      expect(request.url).not.toContain("test-token");
+      expect(request.headers.get("authorization")).toBe("Bearer test-token");
+    }
+  });
+});
+
 describe("publishing", () => {
   async function signedIn(options?: Partial<Parameters<typeof fakeGitLab>[0]>) {
     const context = setup(options);

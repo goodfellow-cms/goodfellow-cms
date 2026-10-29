@@ -225,6 +225,22 @@ describe("sessions", () => {
   });
 });
 
+describe("renewing", () => {
+  it("renews a session only for the address it was given to", async () => {
+    const { signIn, post, fake } = setup();
+    const { body } = await signIn();
+    const before = fake.issued.length;
+    for (const origin of ["https://evil.example", "https://staging.parish.example", "null"]) {
+      const renewed = await post("/github/token", { session: body.session }, origin);
+      expect(renewed.ok, origin).toBe(false);
+      expect(JSON.stringify(await renewed.json())).not.toContain("ghs_");
+    }
+    // Nothing was made for them.
+    expect(fake.issued.slice(before).filter((item) => !item.revoked)).toEqual([]);
+    expect((await post("/github/token", { session: body.session })).status).toBe(200);
+  });
+});
+
 describe("checking an address", () => {
   it("revokes the token it reads the site with, even when reading fails", async () => {
     const { fake, call } = setup({ settingsFail: true });
@@ -243,6 +259,21 @@ describe("checking an address", () => {
     expect(await (await call("/github/check?repo=parish/site", { origin: staging })).json()).toEqual({
       problem: "wrong-address",
     });
+  });
+
+  it("gives tokens to a token broker only where the worker's own settings list it", async () => {
+    const broker = "https://broker.parish.example";
+    const listed = setup({ broker, env: { ALLOWED_ORIGINS: `${SITE},${broker}` } });
+    expect(await (await listed.call("/github/check?repo=parish/site", { origin: broker })).json()).toEqual({
+      ok: true,
+    });
+    // With a broker, the site's own address gets none either, so no address is left.
+    const unlisted = setup({ broker, env: { ALLOWED_ORIGINS: SITE } });
+    for (const origin of [broker, SITE]) {
+      expect(await (await unlisted.call("/github/check?repo=parish/site", { origin })).json()).toEqual({
+        problem: "no-address",
+      });
+    }
   });
 });
 

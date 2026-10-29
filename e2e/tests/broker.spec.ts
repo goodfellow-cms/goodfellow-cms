@@ -50,6 +50,33 @@ test("signs in at the broker, which shows the admin panel and publishes for it",
   expect(kept).not.toContain("good-token");
 });
 
+test("answers only the admin panel in its own frame, never another window or frame", async ({ page }) => {
+  await setup(page);
+  const admin = await signIn(page);
+  await expect(admin.getByRole("link", { name: "About us", exact: true }).first()).toBeVisible();
+  // Asks as the admin panel does, and says whether the broker answered.
+  const ask = async () => {
+    let answered = false;
+    window.addEventListener("message", (event) => {
+      if ((event.data as { type?: unknown } | null)?.type === "goodfellow:broker-connect") answered = true;
+    });
+    (window.parent === window ? window : window.parent).postMessage({ type: "goodfellow:broker-ready" }, "*");
+    await new Promise((done) => setTimeout(done, 1000));
+    return answered;
+  };
+  // The broker's own page.
+  expect(await page.evaluate(ask)).toBe(false);
+  // Another frame at the admin panel's own address.
+  await page.evaluate((src) => {
+    const other = document.createElement("iframe");
+    other.src = src;
+    document.body.append(other);
+  }, `${site}/`);
+  await expect.poll(() => page.frames().some((frame) => frame.url() === `${site}/`)).toBe(true);
+  const other = page.frames().find((frame) => frame.url() === `${site}/`);
+  expect(await other?.evaluate(ask)).toBe(false);
+});
+
 test("edits a page in the editor's frame, inside the admin panel's", async ({ page }) => {
   const fake = await setup(page);
   const admin = await signIn(page);
