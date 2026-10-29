@@ -101,6 +101,13 @@ export interface UpdateOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+/** A day after npm says `version` was published, for `npm install --before`, or nothing where it doesn't say. */
+function installedBefore(packument: unknown, version: string): string | undefined {
+  const time = (packument as { time?: Record<string, unknown> } | undefined)?.time?.[version];
+  const published = typeof time === "string" ? Date.parse(time) : Number.NaN;
+  return Number.isNaN(published) ? undefined : new Date(published + 24 * 60 * 60 * 1000).toISOString();
+}
+
 /** Goodfellow's packages, which are all released together with the same version. */
 function isGoodfellowPackage(name: string): boolean {
   return name.startsWith("@goodfellow-cms/") || name === "goodfellow" || name === "create-goodfellow";
@@ -157,12 +164,8 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     log(`Automatic updates are turned off in ${UPDATES_FILE}, so Goodfellow ${from} stays as it is.`);
     return { state: "up-to-date", from, paused: true };
   }
-  const to = chooseUpdate(
-    from,
-    releaseVersions(await fetchJson(`${NPM_REGISTRY}/${VERSION_PACKAGE}`)),
-    target === "automatic" ? "fixes" : target,
-    settings.skip,
-  );
+  const packument = await fetchJson(`${NPM_REGISTRY}/${VERSION_PACKAGE}`);
+  const to = chooseUpdate(from, releaseVersions(packument), target === "automatic" ? "fixes" : target, settings.skip);
   const siteFiles = options.siteFiles ?? [];
   const current = to ? undefined : await siteFileChanges(siteFiles, from, read);
   if (!to && current?.changes.length === 0) {
@@ -296,7 +299,12 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   const files = own.changes.map((change) => change.path);
 
   log("Installing packages…");
-  if ((await run("npm", ["install", "--no-audit", "--no-fund"], root)).code !== 0) return failed({ step: "install" });
+  // Only what npm had a day after the release came out, so a package published (or taken over) since
+  // isn't installed into every site that updates overnight. The day lets in the release's own packages,
+  // published one after another.
+  const before = to ? installedBefore(packument, to) : undefined;
+  const install = ["install", "--no-audit", "--no-fund", ...(before ? [`--before=${before}`] : [])];
+  if ((await run("npm", install, root)).code !== 0) return failed({ step: "install" });
   log("Building the site with the update…");
   const built = await run("npm", ["run", "build"], root);
   if (built.code !== 0) {

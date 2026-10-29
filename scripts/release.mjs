@@ -13,6 +13,7 @@
 //   node scripts/release.mjs approve [--version <v>] [--otp <code>] [--yes]
 //                                               Approves them, which publishes them.
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -295,6 +296,8 @@ async function publish({ ci, dryRun, yes }) {
       // Staging needs no two-factor code, and doesn't publish anything until a maintainer approves it.
       // One that fails doesn't stop the others: it may only have been staged by an earlier run.
       for (const pkg of tarballs) {
+        // What a maintainer compares with what `approve` shows, so they approve the files this run built.
+        report(`${pkg.name}@${pkg.version}: ${integrity(pkg.tarball)}`);
         console.log(`\n$ npm stage publish ${pkg.tarball} ${flags.join(" ")}`);
         const result = spawn("npm", ["stage", "publish", pkg.tarball, ...flags], { stdio: "inherit" });
         if (result.error || result.status !== 0) failed.push(pkg.name);
@@ -331,16 +334,38 @@ async function publish({ ci, dryRun, yes }) {
   }
 }
 
+/** A tarball's digest as npm writes it (`sha512-…`), which npm keeps for every version it publishes. */
+function integrity(file) {
+  return `sha512-${createHash("sha512").update(readFileSync(file)).digest("base64")}`;
+}
+
+/**
+ * The commit a version was released from: the first commit on master's own
+ * history whose packages are at it, so a release tagged by a later run, after
+ * master has moved on, is still tagged where its version was set.
+ */
+function releaseCommit(next) {
+  const file = "packages/core/package.json";
+  const commits = read("git", ["rev-list", "--first-parent", "--reverse", "HEAD", "--", file]).split("\n");
+  for (const commit of commits.filter(Boolean)) {
+    const shown = spawn("git", ["show", `${commit}:${file}`], { encoding: "utf8" });
+    if (shown.status === 0 && JSON.parse(shown.stdout).version === next) return commit;
+  }
+  return read("git", ["rev-parse", "HEAD"]);
+}
+
 /** Tags the release, as Changesets would: one tag for each package, and one for the release. Returns whether the release's tag is new. */
-function tagRelease(list, next, { dryRun }) {
+function tagRelease(list, next, { dryRun, commit = "HEAD" }) {
   const tags = [...list.map((pkg) => `${pkg.name}@${pkg.version}`), `v${next}`];
   const existing = new Set(read("git", ["tag", "--list"]).split("\n"));
   const missing = tags.filter((tag) => !existing.has(tag));
   if (dryRun) {
-    console.log(`\nWould tag ${missing.length > 0 ? missing.join(", ") : "nothing (all tagged)"} and push the tags.`);
+    console.log(
+      `\nWould tag ${missing.length > 0 ? missing.join(", ") : "nothing (all tagged)"} at ${commit.slice(0, 7)} and push the tags.`,
+    );
     return false;
   }
-  for (const tag of missing) run("git", ["tag", tag]);
+  for (const tag of missing) run("git", ["tag", tag, commit]);
   if (missing.length > 0) run("git", ["push", "origin", ...missing.map((tag) => `refs/tags/${tag}`)]);
   return missing.includes(`v${next}`);
 }
@@ -356,10 +381,13 @@ function tag({ dryRun }) {
     console.log(`\nNot tagging ${next}: npm doesn't have ${missing.map((pkg) => pkg.name).join(", ")} at it yet.`);
     return;
   }
-  const released = tagRelease(list, next, { dryRun });
+  const commit = releaseCommit(next);
+  const released = tagRelease(list, next, { dryRun, commit });
   if (dryRun) return;
   setOutput("released", String(released));
-  console.log(released ? `\nReleased ${next}.` : `\n${next} was already tagged.`);
+  // The docs are built from the same commit, so they describe what was published.
+  setOutput("sha", commit);
+  console.log(released ? `\nReleased ${next}, from ${commit.slice(0, 7)}.` : `\n${next} was already tagged.`);
 }
 
 /**
@@ -405,10 +433,16 @@ function stagedVersions(list) {
   });
 }
 
+/** The staged tarball's digest, where npm's list gives one. */
+function stagedDigest(item) {
+  return item.integrity ?? item.dist?.integrity ?? item.shasum ?? item.dist?.shasum;
+}
+
 function showStaged(items) {
   for (const item of items) {
     const by = item.actorType ? `${item.actor} (${item.actorType})` : (item.actor ?? "?");
     console.log(`  ${item.packageName}@${item.version}, staged ${item.createdAt ?? "?"} by ${by} (${item.id})`);
+    console.log(`    ${stagedDigest(item) ?? "npm's list gives no digest; check the run that staged it"}`);
   }
 }
 
@@ -452,6 +486,9 @@ async function approve({ version: chosen, otp, yes }) {
   if (chosenItems.length === 0) throw new ReleaseError(`Nothing is waiting for approval at ${next}.`);
   console.log(`\nApproving ${next}:`);
   showStaged(chosenItems);
+  console.log(
+    "\nCompare each digest with the one the Release workflow's run listed for it, on the run's page, before going on.",
+  );
   if (!yes && !(await confirm(`\nPublish these ${chosenItems.length} packages to npm?`))) {
     throw new ReleaseError("Nothing was approved.");
   }
