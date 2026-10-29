@@ -14,6 +14,7 @@ import {
   sealTaskAnswer,
   TASK_BRANCH_PREFIX,
   taskKeys,
+  writeChanges,
 } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
 import { allPages, bitbucketRequest } from "./api.js";
@@ -158,6 +159,29 @@ describe("signing in with Bitbucket", () => {
   });
 });
 
+describe("the token", () => {
+  it("only ever sends the token in the Authorization header", async () => {
+    const fake = fakeBitbucket({ repo: "parish/site", files: FILES });
+    const sent: Request[] = [];
+    const host = bitbucket({
+      repo: "parish/site",
+      fetch: async (input, init) => {
+        sent.push(new Request(input, init));
+        return fake.fetch(input, init);
+      },
+      storage: { local: memoryStorage(), session: memoryStorage() },
+      location: fakeLocation("https://parish.example/admin/"),
+    });
+    const backend = await host.signInWithToken(TOKEN, false);
+    await loadSiteContent(backend);
+    expect(sent.length).toBeGreaterThan(0);
+    for (const request of sent) {
+      expect(request.url).not.toContain("test-token");
+      expect(request.headers.get("authorization")).toBe(`Basic ${btoa(TOKEN)}`);
+    }
+  });
+});
+
 describe("the API", () => {
   it("never sends the sign-in to an address outside Bitbucket's API, even one Bitbucket names", async () => {
     const asked: string[] = [];
@@ -239,6 +263,30 @@ describe("publishing", () => {
     expect(fake.repo.files().get("content/pages/about.json")).toBe(about("Theirs"));
   });
 
+  it("saves on top of someone else's changes to other files", async () => {
+    const { fake, backend } = await signedIn();
+    const start = await backend.revision();
+    fake.commit("content/pages/index.json", about("Theirs"));
+    await writeChanges(backend, [{ path: "content/pages/about.json", content: about("Mine") }], {
+      message: "Mine",
+      expectedRevision: start,
+    });
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(about("Mine"));
+    expect(fake.repo.files().get("content/pages/index.json")).toBe(about("Theirs"));
+  });
+
+  it("reads many files at once, leaving out those it doesn't have", async () => {
+    const { backend } = await signedIn();
+    expect(
+      await backend.readFiles?.(["content/site.json", "content/pages/about.json", "content/missing.json"]),
+    ).toEqual(
+      new Map([
+        ["content/site.json", FILES["content/site.json"]],
+        ["content/pages/about.json", FILES["content/pages/about.json"]],
+      ]),
+    );
+  });
+
   it("reads what others changed when its own commit is too far down the branch to find", async () => {
     const fake = fakeBitbucket({ repo: "parish/site", files: FILES });
     const host = bitbucket({
@@ -318,6 +366,30 @@ describe("version history", () => {
     expect(await backend.readAt("content/pages/gone.json", first)).toBeUndefined();
     expect(await backend.changedPaths(first, await backend.revision())).toEqual(["content/pages/about.json"]);
     expect(await backend.filesAt(first).read("content/pages/about.json")).toContain('"A"');
+  });
+});
+
+describe("the whole site's history", () => {
+  it("lists the whole site's publishes and reads the site as it was at one", async () => {
+    const { fake, backend } = await signedIn();
+    const photo = new Uint8Array([0xff, 0xd8, 0xff, 7]);
+    fake.repo.commit([{ path: "public/media/church.jpg", bytes: photo }], "Upload church.jpg");
+    fake.repo.write("content/pages/about.json", '{"version":1}', "Update About");
+    fake.repo.commit([{ path: "public/media/church.jpg", delete: true }], "Delete church.jpg");
+    await backend.revision();
+
+    const content = (await backend.history("content")).map((version) => version.message);
+    expect(content[0]).toBe("Update About");
+    expect(content).not.toContain("Upload church.jpg");
+    const media = await backend.history("public/media");
+    expect(media.slice(0, 2).map((version) => version.message)).toEqual(["Delete church.jpg", "Upload church.jpg"]);
+
+    const then = backend.filesAt(media[1]?.revision ?? "");
+    expect(await then.list("public/media")).toContain("public/media/church.jpg");
+    expect(await then.readBytes("public/media/church.jpg")).toEqual(photo);
+    expect(await then.read("content/pages/about.json")).toBe(FILES["content/pages/about.json"]);
+    // Reading an earlier revision doesn't move the backend's own reads.
+    expect(await backend.list("public/media")).not.toContain("public/media/church.jpg");
   });
 });
 
