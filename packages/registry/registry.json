@@ -111,6 +111,60 @@
       "meta": { "goodfellow": { "category": "Navigation" } }
     },
     {
+      "name": "people",
+      "type": "registry:block",
+      "title": "People",
+      "description": "The people of an organization, such as its staff or council, each with a photo, their name, role and a few words.",
+      "files": [{ "path": "site/blocks/installed/people/block.tsx", "type": "registry:block" }],
+      "meta": { "goodfellow": { "category": "Page sections" } }
+    },
+    {
+      "name": "logos",
+      "type": "registry:block",
+      "title": "Logos",
+      "description": "A row of logos, such as sponsors or partners, each linking to its site.",
+      "files": [{ "path": "site/blocks/installed/logos/block.tsx", "type": "registry:block" }],
+      "meta": { "goodfellow": { "category": "Page sections" } }
+    },
+    {
+      "name": "numbers",
+      "type": "registry:block",
+      "title": "Numbers",
+      "description": "A few numbers worth knowing, such as families served or years open, each with what it counts.",
+      "files": [{ "path": "site/blocks/installed/numbers/block.tsx", "type": "registry:block" }],
+      "meta": { "goodfellow": { "category": "Page sections" } }
+    },
+    {
+      "name": "timeline",
+      "type": "registry:block",
+      "title": "Timeline",
+      "description": "Moments in order down a line, such as an organization's history or the steps of a plan.",
+      "files": [{ "path": "site/blocks/installed/timeline/block.tsx", "type": "registry:block" }],
+      "meta": { "goodfellow": { "category": "Page sections" } }
+    },
+    {
+      "name": "countdown",
+      "type": "registry:block",
+      "title": "Countdown",
+      "description": "The days, hours, minutes and seconds until a moment, in the site's time zone.",
+      "files": [
+        { "path": "site/blocks/installed/countdown/block.tsx", "type": "registry:block" },
+        { "path": "site/blocks/installed/countdown/countdown-clock.tsx", "type": "registry:component" }
+      ],
+      "meta": { "goodfellow": { "category": "Interactive" } }
+    },
+    {
+      "name": "comments",
+      "type": "registry:block",
+      "title": "Comments",
+      "description": "Comments on the page through Giscus, kept as GitHub Discussions; visitors sign in with GitHub to comment.",
+      "files": [
+        { "path": "site/blocks/installed/comments/block.tsx", "type": "registry:block" },
+        { "path": "site/blocks/installed/comments/giscus-frame.tsx", "type": "registry:component" }
+      ],
+      "meta": { "goodfellow": { "category": "Interactive" } }
+    },
+    {
       "name": "custom-html",
       "type": "registry:block",
       "title": "Custom HTML",

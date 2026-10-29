@@ -44,11 +44,11 @@ These comparisons are as of October 2026. The other products change too, so chec
 
 ### WordPress
 
-[WordPress](https://wordpress.org) runs a large share of the web, and for good reason: it has thousands of themes and plugins, a mature block editor, and features such as comments, shops and member logins that a static site can't offer by itself.
+[WordPress](https://wordpress.org) runs a large share of the web, and for good reason: it has thousands of themes and plugins, a mature block editor, and features such as shops, member logins and comments that a static site can't offer by itself.
 
 The trade-off is that WordPress is a program that has to run on a server, with PHP and a MySQL or MariaDB database. Someone has to pay for that server and keep WordPress, its theme and its plugins up to date, because they're a common target: Patchstack recorded [11,334 new vulnerabilities in the WordPress ecosystem in 2025](https://patchstack.com/whitepaper/state-of-wordpress-security-in-2026/), 91% of them in plugins. WordPress.com hosts sites for free, but its free plan shows WordPress.com's ads, uses a `wordpress.com` address and doesn't allow plugins; see [its plans](https://wordpress.com/pricing/).
 
-**Choose WordPress** if the site needs a shop, memberships, comments or other features that need a server, or a particular plugin. **Choose Goodfellow** if the site is mainly pages and news that volunteers, staff or a marketing team keep up to date, and you'd rather have no server to maintain or pay for.
+**Choose WordPress** if the site needs a shop, memberships, comments from visitors without a GitHub account, or other features that need a server, or a particular plugin. **Choose Goodfellow** if the site is mainly pages and news that volunteers, staff or a marketing team keep up to date, and you'd rather have no server to maintain or pay for.
 
 ### TinaCMS
 
@@ -68,7 +68,7 @@ The other differences are about who it's for. Tina's content model, its collecti
 ## What Goodfellow can't do (yet)
 
 - **It's early.** Goodfellow is new, so it has fewer themes, plugins and ready-made blocks than older systems, and fewer people who know it. Moving from WordPress, and back to it, [works already](/docs/move-from-wordpress).
-- **Sites are static.** Shops, member logins and comments need a service of their own, or a developer who makes the site part of a [Next.js app with a server](/docs/full-stack-nextjs). Contact forms work through a form service; see [Forms](/docs/forms).
+- **Sites are static.** Shops and member logins need a service of their own, or a developer who makes the site part of a [Next.js app with a server](/docs/full-stack-nextjs). Contact forms work through a form service; see [Forms](/docs/forms). Comments work through GitHub, so visitors need a GitHub account to write one; see [Comments](/docs/comments).
 - **Publishing takes a minute or two**, while the host rebuilds the site. The editor shows changes at once, but visitors see them after the rebuild.
 - **Editors need a GitHub, GitLab or Bitbucket account** with permission to change the site's repository, except on [full-stack Next.js sites](/docs/full-stack-nextjs), where they sign in with the app's own accounts.
 - **Free hosts have rules.** Some free plans don't allow business sites; see [Hosts and business sites](/docs/hosts).

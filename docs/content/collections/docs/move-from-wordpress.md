@@ -60,7 +60,7 @@ From the command line, JPEG photos lose the details hidden in them, such as wher
 ## What doesn't come across
 
 - **Drafts, private pages and posts, and the trash.**
-- **Comments**, which need a server.
+- **Comments**, which stay in WordPress. New comments can go on GitHub with the [Comments](/docs/comments) block.
 - **Other kinds of content**, such as products or events from a plugin. The import names them.
 - **What plugins do.** Shortcodes, such as a contact form's, only work in WordPress, so they're left out, and the import lists the pages they were on, so you can put a [Form block](/docs/forms) where a form was. Blocks from other plugins come across as their text and pictures.
 - **Tables' formatting.** Table blocks' cells hold plain text, so links and bold in a page's tables are left out. Tables in posts keep them.

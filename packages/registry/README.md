@@ -19,6 +19,12 @@ Goodfellow's block registry: blocks built with [shadcn/ui](https://ui.shadcn.com
 | Image carousel | Interactive | |
 | Slideshow with quick links | Interactive | |
 | Content with section links | Navigation | |
+| People | Page sections | |
+| Logos | Page sections | |
+| Numbers | Page sections | |
+| Timeline | Page sections | |
+| Countdown | Interactive | |
+| Comments | Interactive | |
 | Custom HTML | Advanced | |
 
 New sites made with `create-goodfellow` start with the recommended blocks unless the admin chooses "Built-in blocks only".
