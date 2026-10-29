@@ -7,6 +7,7 @@ import {
   type AdminAddress,
   allPages,
   brokerOrigin,
+  buildNotes,
   CALENDARS_DIR,
   configAdmin,
   configBroker,
@@ -26,6 +27,7 @@ import {
   contentRepositoryProblem,
   DEV_API_PREFIX,
   handleDevApi,
+  hostFonts,
   isLocalOrigin,
   localFileStore,
   localRegistryDir,
@@ -68,6 +70,21 @@ function siteHeaders(root: string): Headers {
   const file = CONFIG_FILES.map((name) => join(root, name)).find((path) => existsSync(path));
   const broker = brokerOrigin(file ? configBroker(readFileSync(file, "utf8")) : undefined);
   return vercelHeaders({ ...(admin && { admin }), ...(broker && { broker }) });
+}
+/**
+ * A full-stack site's Google Fonts, copied into its `public/` folder
+ * (`hostFonts()`), or `undefined` where it has none or Google can't be
+ * reached, which the build says, as `goodfellow build` does.
+ */
+async function hostSiteFonts(root: string) {
+  const { settings } = await loadSiteContent(builtSiteSource(root));
+  const fonts = await hostFonts(join(root, "public"), settings.theme);
+  if (!fonts) return undefined;
+  if ("unavailable" in fonts) {
+    for (const line of buildNotes({ fonts })) console.warn(line);
+    return undefined;
+  }
+  return fonts;
 }
 type Rewrite = Extract<Rewrites, unknown[]>[number];
 
@@ -249,8 +266,12 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
           "A full-stack site can't have an admin address: its admin panel signs in with the site's own sign-in.",
         );
       }
+      // Next.js can't change pages once it has rendered them, so the fonts are copied into public/ first, and
+      // where they are reaches the renderer through the env, which Next.js writes into its code for the server.
+      const fonts = phase === PHASE_PRODUCTION_BUILD ? await hostSiteFonts(root) : undefined;
       return {
         ...config,
+        ...(fonts && { env: { ...config.env, GOODFELLOW_FONTS: JSON.stringify(fonts) } }),
         images: nextConfig.images,
         outputFileTracingIncludes: {
           ...nextConfig.outputFileTracingIncludes,

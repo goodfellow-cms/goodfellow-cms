@@ -701,6 +701,7 @@ export {
   FONTS_DIR,
   fontFilesFor,
   fontPreloads,
+  type HostedFonts,
   type ReadFontFile,
   type ReadStylesheet,
   type SelfHostedFonts,

@@ -90,14 +90,18 @@ export const FONTS_DIR = "fonts/google";
 /** Reads a font file, or gives `undefined` if it can't be read. `@goodfellow-cms/core/node`'s `readFontFile` reads it from the web. */
 export type ReadFontFile = (url: string) => Promise<Uint8Array | undefined>;
 
-/** A site's Google Fonts as files of its own, which builds write and point pages at with `withSelfHostedFonts()`. */
-export interface SelfHostedFonts {
+/** Where a site's copies of its Google Fonts are, which `withSelfHostedFonts()` points pages at. */
+export interface HostedFonts {
   /** Google's stylesheet, which pages link to as they're rendered. */
   source: string;
   /** The site's copy of it, such as `fonts/google/1a2b3c4d.css`, without the base path. */
   stylesheet: string;
   /** Each Google font file's address, and where the site's copy goes. */
   fonts: Array<{ url: string; path: string }>;
+}
+
+/** A site's Google Fonts as files of its own, which builds write and point pages at with `withSelfHostedFonts()`. */
+export interface SelfHostedFonts extends HostedFonts {
   /** Every file to write: the stylesheet, then the fonts. */
   files: Array<{ path: string; content: string } | { path: string; bytes: Uint8Array }>;
 }
@@ -157,7 +161,7 @@ export async function selfHostedFonts(
  * however the page spells their addresses. `base` is the site's base path,
  * such as `/` or `/my-site/`.
  */
-export function withSelfHostedFonts(text: string, fonts: SelfHostedFonts, base = "/"): string {
+export function withSelfHostedFonts(text: string, fonts: HostedFonts, base = "/"): string {
   const prefix = base.replace(/\/?$/, "/");
   const spellings = (url: string) => [url, url.replaceAll("&", "&amp;"), url.replaceAll("&", "\\u0026")];
   let out = text;

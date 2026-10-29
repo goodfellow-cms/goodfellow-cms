@@ -1,9 +1,10 @@
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { siteSettingsSchema } from "./content/schemas.js";
-import { fontStandIns, selfHostFonts } from "./node-fonts.js";
+import { fontStandIns, hostFonts, selfHostFonts } from "./node-fonts.js";
 import { themeToCss } from "./theme.js";
 
 const theme = (fonts: object) => siteSettingsSchema.parse({ version: 1, theme: { fonts } }).theme;
@@ -93,6 +94,45 @@ describe("selfHostFonts", () => {
       expect(await selfHostFonts(out, theme({}))).toBeUndefined();
     } finally {
       await rm(out, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("hostFonts", () => {
+  const css = "@font-face { src: url(https://fonts.gstatic.com/s/lora/v1/a.woff2) format('woff2'); }";
+  const site = theme({ body: "Lora" });
+
+  it("writes a full-stack site's fonts into public/, in place of an earlier build's, and says where they are", async () => {
+    const pub = await mkdtemp(join(tmpdir(), "goodfellow-public-"));
+    try {
+      await mkdir(join(pub, "fonts/google/s/old"), { recursive: true });
+      await writeFile(join(pub, "fonts/google/s/old/b.woff2"), "old");
+      await mkdir(join(pub, "fonts/mine"), { recursive: true });
+      await writeFile(join(pub, "fonts/mine/c.woff2"), "the site's own");
+      const fonts = await hostFonts(pub, site, {
+        read: async () => css,
+        readFont: async () => new Uint8Array([1, 2, 3]),
+      });
+      expect(fonts).toEqual({
+        source: "https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap",
+        stylesheet: expect.stringMatching(/^fonts\/google\/[0-9a-f]{8}\.css$/),
+        fonts: [{ url: "https://fonts.gstatic.com/s/lora/v1/a.woff2", path: "fonts/google/s/lora/v1/a.woff2" }],
+      });
+      expect(new Uint8Array(await readFile(join(pub, "fonts/google/s/lora/v1/a.woff2")))).toEqual(
+        new Uint8Array([1, 2, 3]),
+      );
+      expect(await readFile(join(pub, (fonts as { stylesheet: string }).stylesheet), "utf8")).toContain(
+        "url(s/lora/v1/a.woff2)",
+      );
+      expect(existsSync(join(pub, "fonts/google/s/old"))).toBe(false);
+      // The site's own fonts beside them stay.
+      expect(await readFile(join(pub, "fonts/mine/c.woff2"), "utf8")).toBe("the site's own");
+
+      expect(await hostFonts(pub, site, { read: async () => undefined })).toEqual({ unavailable: true });
+      expect(await hostFonts(pub, theme({}))).toBeUndefined();
+      expect(existsSync(join(pub, "fonts/google"))).toBe(false);
+    } finally {
+      await rm(pub, { recursive: true, force: true });
     }
   });
 });
