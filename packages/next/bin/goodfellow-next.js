@@ -56,6 +56,7 @@ import {
   writeCalendarFiles,
   writeContentApi,
   writeEditorPolicy,
+  writeExportHeaders,
   writeFeedFiles,
   writeFontFiles,
   writeImageFiles,
@@ -340,6 +341,8 @@ if (command === "finish") {
       `Cloudflare Pages reads only the first ${CLOUDFLARE_REDIRECTS_LIMIT.toLocaleString("en")} lines of _redirects, so ${redirects.cloudflareLeft} old address${redirects.cloudflareLeft === 1 ? " is" : "es are"} left to the pages that send visitors on.`,
     );
   }
+  // Cloudflare Pages' header rules, after the site's own public/_headers.
+  await writeExportHeaders(dir);
   const images = await writeImageFiles(dir);
   for (const line of buildNotes({ ...(await writeFontFiles(dir)), ...(images && { images }) })) console.log(line);
   // Plugins' admin frames and build steps, once Goodfellow has written the rest, before the index and the guards.

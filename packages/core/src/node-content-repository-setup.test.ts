@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { vercelAdminHeaders } from "./admin-domain.js";
+import { vercelHeaders } from "./admin-domain.js";
 import {
   contentBuildsFor,
   type SeparateSetup,
@@ -195,7 +195,7 @@ describe("planSite with the content in a repository of its own", () => {
     });
     expect(parse(text(files, ".github/workflows/rebuild.yml")).on.push).toEqual({ branches: ["main"] });
     // Vercel reads it before the code is cloned, so the admin address's header rules are written out in it.
-    expect(vercel.headers).toEqual([]);
+    expect(vercel.headers).toEqual(vercelHeaders());
   });
 
   it("keeps a Bitbucket site's content apart, with Vercel building either repository and the content's pipelines rebuilding it", async () => {
@@ -270,7 +270,7 @@ describe("planSite with the content in a repository of its own", () => {
     });
     expect(text(files, "goodfellow.config.tsx")).toContain('  admin: { url: "https://admin.example.org" },');
     const vercel = await vercelConfig(text(files, "content-repository/vercel.ts"));
-    expect(vercel.headers).toEqual(vercelAdminHeaders({ url: "https://admin.example.org" }));
+    expect(vercel.headers).toEqual(vercelHeaders({ admin: { url: "https://admin.example.org" } }));
     // The admin panel can't publish the code's config, so the README says to check it from a computer.
     expect(text(files, "README.md")).toContain("run `npx goodfellow admin check` here");
   });

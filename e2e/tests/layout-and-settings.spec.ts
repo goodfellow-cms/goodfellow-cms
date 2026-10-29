@@ -163,6 +163,9 @@ test("edits custom CSS like a code editor: it indents, closes braces and suggest
 test("adds the site's own code to every page, but never runs it in the admin panel", async ({ page }) => {
   await page.goto("/admin#/settings/code");
   const head = page.getByRole("textbox", { name: "In the page head" });
+  await expect(head).toBeVisible();
+  // The development server's admin panel holds no sign-in, so there's nothing within the code's reach.
+  await expect(page.getByText("could act as anyone signed in")).toHaveCount(0);
   await head.fill("<div>Not for the head</div>");
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByRole("alert")).toContainText("Fix the highlighted problems");

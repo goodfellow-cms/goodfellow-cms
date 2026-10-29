@@ -149,6 +149,7 @@ export function setup(
 
   return {
     fake,
+    apps: { edit: editApp, owner: ownerApp },
     worker,
     env,
     call,

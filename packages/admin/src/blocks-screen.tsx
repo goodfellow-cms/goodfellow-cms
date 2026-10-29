@@ -42,7 +42,10 @@ function placesText(t: Translate, uses: BlockUse[]): string {
     .join(", ");
 }
 
-type Notice = { type: "published" } | { type: "failed"; message: string; error?: unknown };
+type Notice =
+  | { type: "published" }
+  | { type: "submitted"; url: string }
+  | { type: "failed"; message: string; error?: unknown };
 
 /** A block to add or remove when the changes are published. */
 type Pending = { kind: "add"; block: AvailableBlock } | { kind: "remove"; name: string; title: string };
@@ -137,7 +140,9 @@ function publishMessage(t: Translate, pending: Pending[]): string {
  */
 export function BlocksScreen() {
   const t = useStrings();
-  const { blocks, registries, outOfReach, site, readFile, publish, demo } = useAdmin();
+  const { blocks, registries, outOfReach, site, readFile, publish, demo, account } = useAdmin();
+  // On a full-stack site, blocks' code runs on its server, so it goes to a developer for review.
+  const review = account?.codeReview ? account.review : undefined;
   const { content, revision } = useSiteContent();
   const [record, setRecord] = useState<InstalledRecord>();
   const [available, setAvailable] = useState<AvailableBlock[]>();
@@ -209,6 +214,17 @@ export function BlocksScreen() {
         blocks: Object.keys(blocks),
         content,
       });
+      if (review) {
+        const { url } = await review(plan.changes, {
+          title: publishMessage(t, pending),
+          description: t("blocks.reviewDescription"),
+          from: revision,
+        });
+        setPending([]);
+        setNotice({ type: "submitted", url });
+        setPublishing(false);
+        return;
+      }
       const result = await publish(plan.changes, publishMessage(t, pending));
       if (result.ok) {
         setPending([]);
@@ -245,6 +261,7 @@ export function BlocksScreen() {
         <h1>{t("blocks.title")}</h1>
       </div>
       <p className="gfa-hint">{t("blocks.intro")}</p>
+      {review && <p className="gfa-hint">{t("blocks.reviewHint")}</p>}
       {/* Code other than Goodfellow's runs in the admin panel, so it's installed only where the site's pages can't reach it. */}
       {!outOfReach && Object.keys(site.registries ?? {}).length > 0 && (
         <p className="gfa-hint">{t("blocks.otherRegistries")}</p>
@@ -274,7 +291,7 @@ export function BlocksScreen() {
               {t("blocks.discard")}
             </Button>
             <Button variant="primary" disabled={locked} onClick={() => void onPublish()}>
-              {publishing ? t("publish.publishing") : t("blocks.publish")}
+              {publishing ? t("publish.publishing") : t(review ? "blocks.submit" : "blocks.publish")}
             </Button>
           </div>
         </section>
@@ -283,6 +300,14 @@ export function BlocksScreen() {
       {notice?.type === "published" && (
         <p className="gfa-notice gfa-notice-success" role="status">
           {t("blocks.publishedNotice")}
+        </p>
+      )}
+      {notice?.type === "submitted" && (
+        <p className="gfa-notice gfa-notice-success" role="status">
+          {t("blocks.submittedNotice")}{" "}
+          <a href={notice.url} target="_blank" rel="noreferrer">
+            {t("blocks.seeReview")}
+          </a>
         </p>
       )}
       {notice?.type === "failed" && <ErrorMessage message={notice.message} error={notice.error} />}

@@ -45,6 +45,7 @@ import {
   selfHostFonts,
   writeBuildRecord,
   writeImageSizes,
+  writeSiteHeaders,
 } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { createServer, build as viteBuild } from "vite";
@@ -287,6 +288,12 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const cloudflare = cloudflareRedirects(redirected, base);
     const redirectsTarget = join(outDir, CLOUDFLARE_REDIRECTS_PATH.slice(1));
     if (cloudflare.file && !(await exists(redirectsTarget))) await writeFile(redirectsTarget, cloudflare.file.content);
+    // Its header rules too, after the site's own: SVGs in the media library sandboxed, and the admin panel unframed.
+    await writeSiteHeaders(outDir, {
+      base,
+      ...(site.admin && { admin: site.admin }),
+      ...(config.broker && { broker: config.broker }),
+    });
 
     const { url } = content.settings;
     if (url) {

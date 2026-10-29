@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { startsWithGuard, vercelAdminHeaders, withAdminConfig } from "@goodfellow-cms/core";
+import { cloudflareSiteHeaders, startsWithGuard, vercelHeaders, withAdminConfig } from "@goodfellow-cms/core";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "./build.js";
@@ -128,6 +128,10 @@ describe("build", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("writes Cloudflare Pages' header rules, sandboxing the media library's SVGs", async () => {
+    expect(await read("_headers")).toBe(cloudflareSiteHeaders("/from-config/"));
   });
 
   it("copies the public folder", async () => {
@@ -332,7 +336,18 @@ describe("the starter's vercel.ts", () => {
         },
       );
       expect(JSON.parse(empty).redirects).toEqual([]);
-      expect(JSON.parse(empty).headers).toEqual([]);
+      expect(JSON.parse(empty).headers).toEqual(vercelHeaders());
+      // A token broker frames the admin panel.
+      await writeFile(
+        join(site, "goodfellow.config.tsx"),
+        'export default defineConfig({\n  broker: { url: "https://signin.example.org" },\n  blocks,\n});\n',
+      );
+      const framed = execFileSync(
+        process.execPath,
+        ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
+        { cwd: site, encoding: "utf8" },
+      );
+      expect(JSON.parse(framed).headers).toEqual(vercelHeaders({ broker: "https://signin.example.org" }));
 
       // A site with an admin address sandboxes every page there but the admin panel's own, as core says.
       await writeFile(
@@ -344,7 +359,7 @@ describe("the starter's vercel.ts", () => {
         ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
         { cwd: site, encoding: "utf8" },
       );
-      expect(JSON.parse(headers).headers).toEqual(vercelAdminHeaders({ url: "https://admin.example.org" }));
+      expect(JSON.parse(headers).headers).toEqual(vercelHeaders({ admin: { url: "https://admin.example.org" } }));
     } finally {
       await rm(site, { recursive: true, force: true });
     }
@@ -373,9 +388,12 @@ describe("a site with an admin address", () => {
         expect(startsWithGuard(await readFile(join(out, path), "utf8"), kind), path).toBe(true);
       }
       expect(await readFile(join(out, "index.html"), "utf8")).toContain('location.replace("https://example.org"');
-      expect(await readFile(join(out, "_headers"), "utf8")).toContain(
-        "https://admin.example.org/from-config/admin/*\n  ! Content-Security-Policy",
-      );
+      const rules = await readFile(join(out, "_headers"), "utf8");
+      expect(rules).toContain("https://admin.example.org/from-config/admin/*\n  ! Content-Security-Policy");
+      // Every site's rules first, without the admin panel's, which the admin address's cover there.
+      expect(
+        rules.startsWith(cloudflareSiteHeaders("/from-config/", { admin: { url: "https://admin.example.org" } })),
+      ).toBe(true);
       expect(JSON.parse(await readFile(join(out, "goodfellow-site.json"), "utf8")).admin).toEqual({
         url: "https://admin.example.org",
       });

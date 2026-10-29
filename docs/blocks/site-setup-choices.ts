@@ -37,6 +37,8 @@ export interface Choices {
   content: ContentPlace;
   /** With the content kept apart, which repository the host builds the site from. */
   build: ContentBuild;
+  /** Whether the owner has a domain for the site, such as example.org, which an admin address needs. */
+  domain: boolean;
   /** Where editors sign in: the admin panel itself, an admin address of its own, or a token broker. */
   signIn: SignInPlace;
   /** With an admin address, the address, such as `https://admin.example.org`. */
@@ -107,17 +109,17 @@ export const SIGN_IN_PLACES: Record<SignInPlace, { label: string; description: s
   "admin-panel": {
     label: "In the admin panel, at the site's address",
     description:
-      "The simplest. Editors' sign-in is kept in their browser where the site's own pages could reach it, so blocks from other registries and plugins can't be added in the admin panel.",
+      "The simplest, but the least safe. Editors' sign-in is kept in their browser where the site's own pages could reach it, so code added to the site, such as on Site Settings' Code tab, could act as them, and blocks from other registries and plugins can't be added in the admin panel.",
   },
   "admin-address": {
     label: "At an admin address of its own",
     description:
-      "Such as admin.example.org, on a domain you have: the site's pages can't reach editors' sign-in there. The usual choice where you have a domain.",
+      "Such as admin.example.org, on a domain you have: the site's pages can't reach editors' sign-in there. The usual choice where you have a domain, and nothing more to put online.",
   },
   broker: {
     label: "At a sign-in page of its own",
     description:
-      "A token broker: a second repository, put online at an address that serves nothing else, where editors sign in. Nothing on the site can reach their sign-in or AI keys. No domain needed on GitLab.",
+      "A token broker: a second repository, put online at an address that serves nothing else, where editors sign in. Nothing on the site can reach their sign-in or AI keys. No domain needed on GitLab, Cloudflare Pages or Vercel.",
   },
 };
 
@@ -139,6 +141,15 @@ export const BROKER_HOSTS: Record<BrokerHost, { label: string; description: stri
     description: "Free for non-commercial sites. You import the repository into Vercel once it's created.",
   },
 };
+
+/**
+ * Where editors' sign-in is safest for this site: an admin address of its own
+ * where the owner has a domain and the host can serve one, else a sign-in page
+ * of its own, which works with every host.
+ */
+export function recommendedSignIn(choices: Pick<Choices, "domain" | "host">): SignInPlace {
+  return choices.domain && allowsAdminAddress(choices.host) ? "admin-address" : "broker";
+}
 
 /** An admin address the setup can use: https:// and a domain, nothing after it. */
 export function validAdmin(address: string): boolean {
@@ -181,8 +192,11 @@ export function withDefaults(chosen: Partial<Choices> & { purpose: Purpose }): C
         : (usable[0] ?? "github-pages");
   const build = chosen.build && contentBuildsFor(host).includes(chosen.build) ? chosen.build : "content";
   const content = chosen.content ?? "together";
+  const domain = chosen.domain ?? false;
+  // With a domain, the admin address is chosen for them: a sign-in page needs a second repository, so it's only offered.
+  const fallback = domain && allowsAdminAddress(host) ? "admin-address" : "admin-panel";
   const signIn =
-    chosen.signIn === "admin-address" && !allowsAdminAddress(host) ? "admin-panel" : (chosen.signIn ?? "admin-panel");
+    chosen.signIn === "admin-address" && !allowsAdminAddress(host) ? fallback : (chosen.signIn ?? fallback);
   const brokerHosts = brokerHostsFor(git);
   const brokerHost =
     chosen.brokerHost && brokerHosts.includes(chosen.brokerHost) ? chosen.brokerHost : (brokerHosts[0] ?? "vercel");
@@ -195,6 +209,7 @@ export function withDefaults(chosen: Partial<Choices> & { purpose: Purpose }): C
     visibility,
     content,
     build,
+    domain,
     signIn,
     admin: chosen.admin ?? "",
     brokerHost,
@@ -282,6 +297,7 @@ export function choicesQuery(choices: Choices): string {
     visibility: choices.visibility,
     content: choices.content,
     ...(choices.content === "separate" && { build: choices.build }),
+    ...(choices.domain && { domain: "1" }),
     ...(choices.signIn !== "admin-panel" && { signIn: choices.signIn }),
     ...(choices.signIn === "admin-address" && { admin: choices.admin }),
     ...(choices.signIn === "broker" && { brokerHost: choices.brokerHost }),
@@ -311,6 +327,7 @@ export function parseChoices(search: string): Choices | undefined {
     visibility: oneOf(params.get("visibility"), Object.keys(VISIBILITIES) as Visibility[]),
     content: oneOf(params.get("content"), Object.keys(CONTENT_PLACES) as ContentPlace[]),
     build: oneOf(params.get("build"), Object.keys(CONTENT_BUILDS) as ContentBuild[]),
+    ...(params.has("domain") && { domain: params.get("domain") === "1" }),
     signIn: oneOf(params.get("signIn"), Object.keys(SIGN_IN_PLACES) as SignInPlace[]),
     admin: params.get("admin") ?? undefined,
     brokerHost: oneOf(params.get("brokerHost"), Object.keys(BROKER_HOSTS) as BrokerHost[]),
@@ -330,6 +347,7 @@ export function chosenKeys(search: string): Array<keyof Choices> {
       "visibility",
       "content",
       "build",
+      "domain",
       "signIn",
       "admin",
       "brokerHost",
