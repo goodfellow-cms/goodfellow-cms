@@ -571,6 +571,17 @@ describe("drafts", () => {
     expect((await drafts.open("20261014-abc123")).name).toBe("20261014-abc123");
   });
 
+  it("lists every draft and every one waiting for review, past the first page of merge requests", async () => {
+    const { fake, drafts } = await withDraft();
+    const names = Array.from({ length: 120 }, (_, n) => `20261020-x${String(n).padStart(5, "0")}`);
+    for (const name of names) {
+      fake.repo.branches.set(`goodfellow-draft-${name}`, fake.repo.head());
+      fake.repo.openReview(`goodfellow-draft-${name}`, name, "");
+    }
+    expect(await drafts.list()).toHaveLength(121);
+    expect(await drafts.reviews()).toHaveLength(120);
+  });
+
   it("submits a draft for review as a merge request, once", async () => {
     const { fake, draft } = await withDraft();
     const first = await draft.submitForReview({ title: "New About page" });

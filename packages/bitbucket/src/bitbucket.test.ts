@@ -16,6 +16,7 @@ import {
   taskKeys,
 } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
+import { allPages, bitbucketRequest } from "./api.js";
 import { type BrowserLocation, bitbucket, bitbucketSetup } from "./index.js";
 import { fakeBitbucket } from "./testing.js";
 
@@ -150,6 +151,30 @@ describe("signing in with Bitbucket", () => {
   });
 });
 
+describe("the API", () => {
+  it("never sends the sign-in to an address outside Bitbucket's API, even one Bitbucket names", async () => {
+    const asked: string[] = [];
+    const api = {
+      apiUrl: "https://api.bitbucket.org/2.0",
+      authorization: async () => "Bearer secret",
+      fetch: (async (input: RequestInfo | URL) => {
+        asked.push(String(input));
+        return Response.json({ values: [1], next: "https://cdn.example/page/2" });
+      }) as typeof fetch,
+    };
+    await expect(bitbucketRequest(api, "https://api.bitbucket.org.example/2.0/user")).rejects.toThrow(
+      /outside its API/,
+    );
+    await expect(allPages(api, "/repositories/parish/site/refs/branches")).rejects.toThrow(/outside its API/);
+    expect(asked).toEqual(["https://api.bitbucket.org/2.0/repositories/parish/site/refs/branches"]);
+  });
+
+  it("refuses a repository that isn't a workspace and a name", () => {
+    expect(() => bitbucket({ repo: "parish/site/.." })).toThrow(/workspace\/repository/);
+    expect(() => bitbucket({ repo: "parish/site", contentOnly: true, code: "code" })).toThrow(/workspace\/repository/);
+  });
+});
+
 describe("publishing", () => {
   const about = (title: string) => `{"version":1,"data":{"root":{"props":{"title":"${title}"}},"content":[]}}`;
 
@@ -205,6 +230,32 @@ describe("publishing", () => {
       }),
     ).rejects.toBeInstanceOf(ConflictError);
     expect(fake.repo.files().get("content/pages/about.json")).toBe(about("Theirs"));
+  });
+
+  it("reads what others changed when its own commit is too far down the branch to find", async () => {
+    const fake = fakeBitbucket({ repo: "parish/site", files: FILES });
+    const host = bitbucket({
+      repo: "parish/site",
+      fetch: async (input, init) => {
+        const response = await fake.fetch(input, init);
+        // Others publish many times while the save is answered.
+        if (init?.method === "POST" && String(input).endsWith("/src")) {
+          for (let n = 0; n < 25; n++) fake.commit("content/site.json", `{"version":1,"title":"Theirs ${n}"}`);
+        }
+        return response;
+      },
+      storage: { local: memoryStorage(), session: memoryStorage() },
+      location: fakeLocation("https://parish.example/admin/"),
+    });
+    const backend = await host.signInWithToken(TOKEN, false);
+    await loadSiteContent(backend);
+    const { revision } = await backend.write([{ path: "content/pages/about.json", content: about("About us") }], {
+      message: "Update",
+      expectedRevision: await backend.revision(),
+    });
+    expect(revision).toBe(fake.repo.head());
+    expect(await backend.read("content/site.json")).toBe('{"version":1,"title":"Theirs 24"}');
+    expect(await backend.read("content/pages/about.json")).toBe(about("About us"));
   });
 
   it("reads files nobody changed from what it read before, after a publish", async () => {
