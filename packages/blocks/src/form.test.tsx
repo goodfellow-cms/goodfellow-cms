@@ -125,6 +125,25 @@ describe("Form", () => {
     expect(html.match(/<script src="https:\/\/web3forms.com\/client\/script.js" async=""/g)).toHaveLength(1);
   });
 
+  it("holds back hCaptcha and Google forms until visitors agree, on a site that asks", async () => {
+    const asking = (forms: unknown) => {
+      const content = site(forms);
+      return { ...content, settings: siteSettingsSchema.parse({ ...content.settings, consent: {} }) };
+    };
+    const captcha = await render(asking({ accessKey: KEY, captcha: true }), {}, true);
+    expect(captcha).toContain('<script data-gf-consent-src="https://web3forms.com/client/script.js"></script>');
+    expect(captcha).not.toContain('<script src="https://web3forms.com/client/script.js"');
+    expect(captcha).toContain("This comes from web3forms.com, which can set cookies.");
+    const google = await render(asking(undefined), {
+      source: "google",
+      google: "https://docs.google.com/forms/d/e/1FAIpQLSf9x2k3m4n5p6q7r8s9t0uVwXyZ/viewform?embedded=true",
+    });
+    expect(google).toMatch(
+      /<div class="gf-consent-box"><iframe class="gf-form-embed[^"]*" style="height:800px" data-gf-consent-src="https:\/\/docs\.google\.com\//,
+    );
+    expect(google).toContain("This comes from docs.google.com, which can set cookies.");
+  });
+
   it("fills in settings stored props leave out", async () => {
     const html = await render(site({ accessKey: KEY }), {
       title: undefined,

@@ -1,4 +1,10 @@
-import { type HeadElement, parseHeadCode } from "@goodfellow-cms/core";
+import {
+  CONSENT_CODE_ATTRIBUTE,
+  type HeadElement,
+  headElementHtml,
+  isHeldHeadElement,
+  parseHeadCode,
+} from "@goodfellow-cms/core";
 import { createElement } from "react";
 
 /** HTML attribute names React spells differently. */
@@ -32,10 +38,11 @@ function headElement({ tag, attributes, content }: HeadElement, index: number) {
 /**
  * The site's code for the `<head>` (`content/code/head.html`), as elements.
  * Code that doesn't belong in the head is left out; the admin panel won't
- * publish it. Never render this in the admin panel, where it would run with
+ * publish it. `held`, for a site that asks visitors first, keeps scripts,
+ * links and `noscript` in a template until they agree. Never render this in the admin panel, where it would run with
  * the editor's sign-in.
  */
-export function HeadCode({ code }: { code?: string }) {
+export function HeadCode({ code, held = false }: { code?: string; held?: boolean }) {
   if (!code?.trim()) return null;
   let elements: HeadElement[];
   try {
@@ -43,15 +50,38 @@ export function HeadCode({ code }: { code?: string }) {
   } catch {
     return null;
   }
-  return <>{elements.map(headElement)}</>;
+  if (!held) return <>{elements.map(headElement)}</>;
+  // On a site that asks visitors first, what loads or runs waits in a template for the consent script.
+  const waiting = elements.filter(isHeldHeadElement);
+  return (
+    <>
+      {elements.filter((element) => !isHeldHeadElement(element)).map(headElement)}
+      {waiting.length > 0 && (
+        <template
+          {...{ [CONSENT_CODE_ATTRIBUTE]: "head" }}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel
+          dangerouslySetInnerHTML={{ __html: waiting.map(headElementHtml).join("") }}
+        />
+      )}
+    </>
+  );
 }
 
 /**
  * The site's code for the end of the `<body>` (`content/code/body.html`), as it
- * was written. Never render this in the admin panel.
+ * was written, or in a template until visitors agree where the site asks (`held`). Never render this in the admin panel.
  */
-export function BodyCode({ code }: { code?: string }) {
+export function BodyCode({ code, held = false }: { code?: string; held?: boolean }) {
   if (!code?.trim()) return null;
+  if (held) {
+    return (
+      <template
+        {...{ [CONSENT_CODE_ATTRIBUTE]: "body" }}
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel
+        dangerouslySetInnerHTML={{ __html: code }}
+      />
+    );
+  }
   // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel
   return <div data-goodfellow-code="" style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: code }} />;
 }

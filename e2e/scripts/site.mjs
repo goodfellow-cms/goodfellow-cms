@@ -257,6 +257,11 @@ function copyNextTemplate(dir) {
   }
   // A junction on Windows, which needs no administrator rights; a symlink elsewhere.
   symlinkSync(join(nextTemplate, "node_modules"), join(dir, "node_modules"), "junction");
+  // This repository ignores the whole copy, so Tailwind doesn't follow the copy's own `.gitignore`
+  // and scans everything in it, `.next/`'s binary cache included, whose bytes it can take for class
+  // names that break the site's CSS. A real site's `.gitignore` keeps Tailwind out of `.next/`.
+  const css = join(dir, "app/site.css");
+  writeFileSync(css, `${readFileSync(css, "utf8")}@source not "../.next";\n`);
 }
 
 /** Creates the Next.js test site, with an extra block whose component runs in the browser. */

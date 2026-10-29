@@ -21,7 +21,7 @@ const content: SiteContent = {
   customCss: "",
 };
 
-async function render(props: Partial<VideoProps>): Promise<string> {
+async function render(props: Partial<VideoProps>, site = content): Promise<string> {
   const page: Page = {
     path: "/",
     file: "content/pages/index.json",
@@ -33,11 +33,21 @@ async function render(props: Partial<VideoProps>): Promise<string> {
       },
     },
   };
-  const html = await renderPage(content, page);
+  const html = await renderPage(site, page);
   return html.slice(html.indexOf("<main"), html.indexOf("</main>"));
 }
 
 describe("Video", () => {
+  it("loads another site's player only once visitors agree, on a site that asks", async () => {
+    const asks = { ...content, settings: siteSettingsSchema.parse({ ...content.settings, consent: {} }) };
+    const html = await render({ source: "youtube", youtube: "https://youtu.be/dQw4w9WgXcQ" }, asks);
+    expect(html).toContain('data-gf-consent-src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0"');
+    expect(html).not.toMatch(/<iframe[^>]* src=/);
+    expect(html).toContain('<button type="button" data-gf-consent-accept="">Allow and show it</button>');
+    // An uploaded video is the site's own, so it plays as ever.
+    expect(await render({ source: "upload", file: "/media/welcome.mp4" }, asks)).toContain('src="/media/welcome.mp4"');
+  });
+
   it("plays an uploaded video, with its picture and captions", async () => {
     const html = await render({
       source: "upload",

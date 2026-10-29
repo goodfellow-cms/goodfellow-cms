@@ -1,4 +1,4 @@
-import { classNameField, useParts, withKeywords, withParts } from "@goodfellow-cms/react";
+import { ConsentFrame, classNameField, useParts, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 
 export interface MapProps {
@@ -46,7 +46,9 @@ function MapView({ query, title, zoom, height, className, puck }: MapProps & { p
     );
   }
   return (
-    <iframe
+    // On a site that asks visitors before loading other sites' content, Google's map waits until they agree.
+    <ConsentFrame
+      box
       src={src}
       title={title || "Map"}
       loading="lazy"

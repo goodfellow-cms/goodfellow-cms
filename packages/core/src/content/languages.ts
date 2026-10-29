@@ -145,6 +145,13 @@ export function localizedSettings(settings: SiteSettings, language: string): Sit
     mainLanguage: main,
     ...(own?.title && { title: own.title }),
     ...(own?.description && { description: own.description }),
+    ...(own?.consent &&
+      settings.consent && {
+        consent: {
+          ...settings.consent,
+          ...Object.fromEntries(Object.entries(own.consent).filter(([, words]) => words?.trim())),
+        },
+      }),
     // Without a template of its own, the main language's, with the site's name in this language.
     titleTemplate:
       own?.titleTemplate ||

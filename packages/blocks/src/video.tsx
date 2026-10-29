@@ -1,5 +1,5 @@
 import { withBase } from "@goodfellow-cms/core";
-import { classNameField, cx, mediaField, useParts, useSite, withParts } from "@goodfellow-cms/react";
+import { ConsentFrame, classNameField, cx, mediaField, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Fields } from "@puckeditor/core";
 import type { ReactNode } from "react";
 import { options, yesNo } from "./options.js";
@@ -78,7 +78,7 @@ function VideoView({ isEditing, ...props }: VideoProps & { isEditing: boolean })
     );
     if ("problem" in address) return isEditing ? <Notice text={address.problem} className={className} /> : null;
     player = (
-      <iframe
+      <ConsentFrame
         className="absolute inset-0 h-full w-full border-0"
         src={address.url}
         title={props.title || "Video"}

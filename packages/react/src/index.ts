@@ -1,5 +1,7 @@
 /** HTML that's safe to put in a page, for blocks that show HTML someone wrote: see `@goodfellow-cms/core`. */
 export { sanitizeHtml } from "@goodfellow-cms/core";
+export { ConsentFrame, ConsentScript } from "./consent.js";
+export { ConsentNotice } from "./consent-shared.js";
 export { BodyCode, HeadCode } from "./custom-code.js";
 export { cx } from "./cx.js";
 export {

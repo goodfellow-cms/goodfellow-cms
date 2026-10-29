@@ -116,3 +116,21 @@ export function storedCode(code: string): string {
   const trimmed = code.trimEnd();
   return trimmed.trim() ? `${trimmed}\n` : "";
 }
+
+/** The head's elements that load or run something, which a site that asks visitors first holds back until they agree. */
+const HELD_TAGS = new Set<HeadTag>(["script", "link", "noscript"]);
+
+/** Whether a head element waits for visitors' agreement on a site that asks: scripts, links and `noscript`, not `meta` tags. */
+export function isHeldHeadElement(element: HeadElement): boolean {
+  return HELD_TAGS.has(element.tag);
+}
+
+/** A head element written as HTML again, as it was read. */
+export function headElementHtml({ tag, attributes, content }: HeadElement): string {
+  const written = attributes
+    .map(([name, value]) =>
+      value === "" ? ` ${name}` : ` ${name}="${value.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}"`,
+    )
+    .join("");
+  return VOID_TAGS.has(tag) ? `<${tag}${written}>` : `<${tag}${written}>${content ?? ""}</${tag}>`;
+}

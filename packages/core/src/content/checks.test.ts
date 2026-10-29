@@ -104,13 +104,20 @@ describe("site checks", () => {
       "content/collections/talks/advent.md":
         "---\nversion: 1\ntitle: Advent\nvideo: /talks/lent\nphoto: /media/none.jpg\n---\nSee [the news](/news) and [nothing](/nothing).\n",
       "content/collections/talks/lent.md": "---\nversion: 1\ntitle: Lent\n---\nLent.\n",
-      "content/site.json": { version: 1, title: "Parish", description: "A parish", logo: { src: "/media/logo.svg" } },
+      "content/site.json": {
+        version: 1,
+        title: "Parish",
+        description: "A parish",
+        logo: { src: "/media/logo.svg" },
+        consent: { policy: "/privacy" },
+      },
     });
     const problems = checkSite(content, { media: [], blocks, today: "2026-10-20" });
     expect(errors(problems)).toEqual([
       ["missing-media", "content/collections/talks/advent.md", "/media/none.jpg"],
       ["missing-page", "content/collections/talks/advent.md", "/nothing"],
       ["missing-media", "content/site.json", "/media/logo.svg"],
+      ["missing-page", "content/site.json", "/privacy"],
     ]);
   });
 

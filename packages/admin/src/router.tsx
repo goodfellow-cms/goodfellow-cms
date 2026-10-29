@@ -64,9 +64,14 @@ export function navigate(to: string, confirmLeave: () => boolean): boolean {
 }
 
 /** Sections of Site Settings' General tab that links can scroll to, as `#/settings/general?section=forms`. */
-export const SETTINGS_SECTIONS = { contact: "contact", forms: "forms" } as const;
+export const SETTINGS_SECTIONS = { contact: "contact", forms: "forms", consent: "consent" } as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[keyof typeof SETTINGS_SECTIONS];
+
+/** The id of a General tab section's heading, which links scroll to. */
+export function sectionId(section: SettingsSection): string {
+  return `gfa-settings-${section}`;
+}
 
 export function pageEditorHref(path: string): string {
   return `#/pages/edit?path=${encodeURIComponent(path)}`;

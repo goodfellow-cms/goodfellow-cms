@@ -182,6 +182,18 @@ export {
 export { COLOR_SCHEME_ATTRIBUTE, COLOR_SCHEME_STORAGE_KEY, colorSchemeScript } from "./color-scheme.js";
 export { type AiConfig, type ClaudeConfig, defineConfig, type GoodfellowConfig } from "./config.js";
 export {
+  CONSENT_ACCEPT_ATTRIBUTE,
+  CONSENT_CODE_ATTRIBUTE,
+  CONSENT_DECLINE_ATTRIBUTE,
+  CONSENT_LINK,
+  CONSENT_NOTICE_ID,
+  CONSENT_PLACEHOLDER_ATTRIBUTE,
+  CONSENT_SRC_ATTRIBUTE,
+  CONSENT_STORAGE_KEY,
+  consentScript,
+  consentSource,
+} from "./consent.js";
+export {
   type BuildFile,
   CALENDARS_DIR,
   type CalendarMonths,
@@ -243,6 +255,8 @@ export {
   type HeadCodeProblem,
   type HeadElement,
   type HeadTag,
+  headElementHtml,
+  isHeldHeadElement,
   parseHeadCode,
   storedCode,
 } from "./content/code.js";
@@ -499,9 +513,12 @@ export {
   withSchedule,
 } from "./content/schedule.js";
 export {
+  CONSENT_DEFAULTS,
   type CollectionField,
   type CollectionFile,
+  type ConsentSettings,
   collectionFileSchema,
+  consentSchema,
   type EntryFile,
   entryFileSchema,
   FIELD_TYPES,

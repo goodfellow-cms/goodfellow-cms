@@ -9,6 +9,7 @@ import {
 import type { ComponentConfig } from "@puckeditor/core";
 import { lazy, Suspense } from "react";
 import { describe, expect, it } from "vitest";
+import { ConsentFrame } from "./consent.js";
 import { createPageRenderer } from "./server.js";
 import { useSite } from "./site-context.js";
 
@@ -45,6 +46,7 @@ const config: GoodfellowConfig = {
     Where: { render: () => <CurrentPath /> },
     EntryDate: { render: () => <EntryDate /> },
     Resolved: resolved,
+    Player: { render: () => <ConsentFrame title="Video" src="https://www.youtube-nocookie.com/embed/abc" /> },
   },
 };
 
@@ -180,6 +182,37 @@ describe("renderPage", () => {
     // Code that doesn't belong in the head is left out (the admin panel won't publish it).
     const wrong = await renderPage(makeContent({ code: { head: "<div>Hi</div>", body: "" } }), makePage([]));
     expect(wrong).not.toContain("<div>Hi</div>");
+  });
+
+  it("holds back other sites' content and the site's code on a site that asks visitors first", async () => {
+    const code = {
+      head: '<meta name="verify" content="abc"><script async src="https://example.org/tag.js"></script>',
+      body: "<script>window.n = 1;</script>",
+    };
+    const asks = siteSettingsSchema.parse({ ...settings, consent: { policy: "/privacy" } });
+    const html = await renderPage(
+      makeContent({ settings: asks, code }),
+      makePage([{ type: "Player", props: { id: "p" } }]),
+    );
+    const head = html.slice(html.indexOf("<head>"), html.indexOf("</head>"));
+    // Meta tags such as site verification stay, as search engines read them.
+    expect(head).toContain('<meta name="verify" content="abc"/>');
+    expect(head).toContain(
+      '<template data-gf-consent-code="head"><script async src="https://example.org/tag.js"></script></template>',
+    );
+    expect(html).toContain('<template data-gf-consent-code="body"><script>window.n = 1;</script></template>');
+    expect(html).toContain('<iframe title="Video" data-gf-consent-src="https://www.youtube-nocookie.com/embed/abc">');
+    expect(html).toContain("This comes from youtube-nocookie.com, which can set cookies.");
+    // The notice comes after the footer, even without one, then the script that shows it.
+    expect(html).toMatch(/<div id="gf-consent" class="gf-consent" role="dialog" aria-label="Privacy" hidden=""/);
+    expect(html).toContain('<a href="/privacy">Privacy</a>');
+    expect(html.indexOf('id="gf-consent"')).toBeLessThan(html.indexOf("goodfellow-consent"));
+
+    // A site that doesn't ask shows them as they are.
+    const plain = await renderPage(makeContent({ code }), makePage([{ type: "Player", props: { id: "p" } }]));
+    expect(plain).toContain('<iframe title="Video" src="https://www.youtube-nocookie.com/embed/abc">');
+    expect(plain).not.toContain("gf-consent");
+    expect(plain).not.toContain("goodfellow-consent");
   });
 
   it("renders the header and footer around the page", async () => {
