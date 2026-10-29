@@ -7,6 +7,7 @@ import { ContactDetails } from "./contact.js";
 import { Button, Heading, Image, Text } from "./content.js";
 import { DarkModeSwitch } from "./dark-mode-switch.js";
 import { CollectionNav, EntryPager, OnThisPage } from "./docs.js";
+import { Embed } from "./embed.js";
 import { Form } from "./form.js";
 import { BLOCK_ICONS } from "./icons.js";
 import { BLOCK_KEYWORDS } from "./keywords.js";
@@ -61,6 +62,7 @@ export {
   OnThisPage,
   type OnThisPageProps,
 } from "./docs.js";
+export { Embed, type EmbedProps } from "./embed.js";
 export { Form, type FormField, type FormFieldType, type FormProps } from "./form.js";
 export {
   CODE_LANGUAGES,
@@ -181,6 +183,7 @@ export const blocks = {
   Gallery,
   PageList,
   Breadcrumbs,
+  Embed,
   Document,
   ShareButtons,
   Donate,
@@ -213,7 +216,7 @@ export const categories = {
   },
   media: {
     title: "Media",
-    components: ["Image", "Gallery", "Video", "Audio", "File", "Document"],
+    components: ["Image", "Gallery", "Video", "Embed", "Audio", "File", "Document"],
   },
   navigation: {
     title: "Navigation",

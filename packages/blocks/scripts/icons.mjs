@@ -29,6 +29,7 @@ const ICONS = {
   Image: "image",
   Gallery: "images",
   Video: "video",
+  Embed: "message-square-quote",
   Audio: "audio-lines",
   File: "file-down",
   Document: "file-text",

@@ -104,6 +104,13 @@ export const VIDEO_PARTS: BlockParts = {
   "gf-video-caption": "Caption",
 };
 
+export const EMBED_PARTS: BlockParts = {
+  "gf-embed": "Post and caption",
+  "gf-embed-frame": "Post",
+  "gf-embed-caption": "Caption",
+  "gf-embed-link": "Link to the post",
+};
+
 export const FORM_PARTS: BlockParts = {
   "gf-form": "Form",
   "gf-form-embed": "Google Form",
