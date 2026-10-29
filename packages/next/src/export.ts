@@ -42,6 +42,8 @@ import {
   BUILD_DATES_DIR,
   builtSiteSource,
   guardBuiltSite,
+  type ImageResizer,
+  type ImageSizesResult,
   reportedDate,
   runPluginBuildSteps,
   runPluginTask,
@@ -49,9 +51,11 @@ import {
   sitePluginsApart,
   taskSecretsFrom,
   writeBuildRecord,
+  writeImageSizes,
   writeSiteHeaders,
 } from "@goodfellow-cms/core/node";
 import type { PageRender } from "@goodfellow-cms/core/shadcn";
+import { IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule } from "./plugins.js";
 
 export { NEXT_SITE_FILES } from "./site-files.js";
@@ -244,6 +248,28 @@ export async function writeRedirectFiles(outDir: string, root = process.cwd()): 
   // A site's own public/_redirects stays as it is.
   if (cloudflare.file && !(await exists(redirects))) await writeFile(redirects, cloudflare.file.content);
   return { pages: written.length, cloudflareLeft: cloudflare.left };
+}
+
+/**
+ * Writes the smaller copies of the media library's photos that the export's
+ * pages list in their `srcset` (`writeImageSizes()`), with sharp, where
+ * `next build` said they list them (`IMAGE_SIZES_MARK`): a static export
+ * whose images Next.js doesn't optimize. `undefined` where they don't.
+ */
+export async function writeImageFiles(outDir: string, root = process.cwd()): Promise<ImageSizesResult | undefined> {
+  const dir = resolve(root);
+  if (!(await exists(join(dir, ".next", IMAGE_SIZES_MARK)))) return undefined;
+  return writeImageSizes(dir, outDir, { resize: await sharpResizer() });
+}
+
+/** Makes the copies with sharp, turned as each photo's details say and without them, unless it can't load here. */
+async function sharpResizer(): Promise<ImageResizer | undefined> {
+  try {
+    const { default: sharp } = await import("sharp");
+    return async (image, width) => new Uint8Array(await sharp(image).rotate().resize({ width }).toBuffer());
+  } catch {
+    return undefined;
+  }
 }
 
 /**

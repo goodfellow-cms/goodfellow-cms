@@ -25,6 +25,19 @@ describe("applyBasePath", () => {
     );
   });
 
+  it("prefixes srcsets as React spells them, and preloads' image srcsets", () => {
+    expect(
+      applyBasePath(
+        '<link rel="preload" as="image" imageSrcSet="/media-sizes/480/x.jpg 480w, /media/x.jpg 900w"/>' +
+          '<img src="/media/x.jpg" srcSet="/media-sizes/480/x.jpg 480w, /media/x.jpg 900w"/>',
+        "/repo/",
+      ),
+    ).toBe(
+      '<link rel="preload" as="image" imageSrcSet="/repo/media-sizes/480/x.jpg 480w, /repo/media/x.jpg 900w"/>' +
+        '<img src="/repo/media/x.jpg" srcSet="/repo/media-sizes/480/x.jpg 480w, /repo/media/x.jpg 900w"/>',
+    );
+  });
+
   it("prefixes url() in style attributes", () => {
     expect(applyBasePath('<section style="background-image:url(&quot;/media/bg.jpg&quot;)">', "/repo/")).toBe(
       '<section style="background-image:url(&quot;/repo/media/bg.jpg&quot;)">',

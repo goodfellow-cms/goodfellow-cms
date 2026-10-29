@@ -43,6 +43,7 @@
     "@tailwindcss/browser": "4.3.3",
     "@tailwindcss/vite": "4.3.3",
     "@vitejs/plugin-react": "6.1.1",
+    "sharp": "0.35.5",
     "vite": "8.3.4"
   },
   "peerDependencies": {

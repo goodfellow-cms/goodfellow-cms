@@ -18,7 +18,7 @@ export function applyBasePath(html: string, base: string): string {
 
   return html
     .replace(/(\s(?:href|src|poster|action)=")\/(?!\/)/g, `$1${prefix}/`)
-    .replace(/(\ssrcset=")([^"]*)"/g, (_, start: string, value: string) => {
+    .replace(/(\s(?:image)?srcset=")([^"]*)"/gi, (_, start: string, value: string) => {
       const rewritten = value
         .split(",")
         .map((candidate) => candidate.replace(/^(\s*)\/(?!\/)/, `$1${prefix}/`))

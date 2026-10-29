@@ -102,6 +102,7 @@ const LEFT_OUT = new Set([
   "OnThisPage",
   "EntryField",
   "CollectionLoop",
+  "Breadcrumbs",
 ]);
 
 /** The Space block's sizes, in pixels. */

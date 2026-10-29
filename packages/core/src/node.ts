@@ -51,7 +51,7 @@ export {
   licensesPlugin,
 } from "./node-licenses.js";
 export { InvalidPathError, localFileStore } from "./node-local-files.js";
-export { readMediaSizes } from "./node-media.js";
+export { type ImageResizer, type ImageSizesResult, readMediaSizes, writeImageSizes } from "./node-media.js";
 export {
   type NightlyOptions,
   type NightlyReason,

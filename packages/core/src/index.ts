@@ -394,7 +394,14 @@ export {
   withStoredFiles,
   withStoredMedia,
 } from "./content/media-storage.js";
-export { type PageLink, type PageTree, pageLinks, pageTree } from "./content/page-links.js";
+export {
+  type Breadcrumbs,
+  breadcrumbs,
+  type PageLink,
+  type PageTree,
+  pageLinks,
+  pageTree,
+} from "./content/page-links.js";
 export {
   addressPatternProblem,
   BODY_CODE_FILE,
@@ -961,6 +968,13 @@ export {
   type UpdateOptions,
   type UpdatePlan,
 } from "./registry.js";
+export {
+  IMAGE_WIDTHS,
+  imageSrcSet,
+  imageVariantPath,
+  imageWidths,
+  MEDIA_SIZES_DIR,
+} from "./responsive-images.js";
 export {
   type RepositoryVisibility,
   type ScheduledBuilds,

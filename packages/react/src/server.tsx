@@ -19,7 +19,7 @@ import { BodyCode, HeadCode } from "./custom-code.js";
 import { fillSlots } from "./island.js";
 import { ISLAND_TAG, SITE_DATA_ID } from "./island-shared.js";
 import { PageBody } from "./page-body.js";
-import { createPuckConfigs, preparePage } from "./prepare.js";
+import { createPuckConfigs, preparePage, type RenderOptions } from "./prepare.js";
 
 export interface PageAssets {
   /** Stylesheet URLs, in order. */
@@ -68,8 +68,13 @@ function toAbsolute(siteUrl: string | undefined, url: string | undefined): strin
 export function createPageRenderer(config: GoodfellowConfig) {
   const configs = createPuckConfigs(config);
 
-  return async function renderPage(content: SiteContent, page: Page, assets: PageAssets = {}): Promise<string> {
-    const prepared = await preparePage(configs, content, page);
+  return async function renderPage(
+    content: SiteContent,
+    page: Page,
+    assets: PageAssets = {},
+    options: RenderOptions = {},
+  ): Promise<string> {
+    const prepared = await preparePage(configs, content, page, options);
     page = prepared.page;
     // The site in the page's language: its title, menus and feeds.
     const shown = contentForPage(content, page);

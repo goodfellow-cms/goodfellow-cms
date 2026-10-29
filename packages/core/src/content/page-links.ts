@@ -58,3 +58,39 @@ export function pageTree(pages: PageLink[], parent = "/"): PageTree[] {
   }
   return top;
 }
+
+/** The way from the home page to a page, as breadcrumbs show it. */
+export interface Breadcrumbs {
+  /** The pages above it, from the home page down, each a link. Empty on the home page. */
+  links: PageLink[];
+  /** What the page itself is called, shown last without a link. */
+  current: string;
+}
+
+/**
+ * The breadcrumbs of the page at `path`: the home page (`home`, such as `/es`
+ * in another language), then each page whose address is above it, such as
+ * `/news` for `/news/2026/fair`, then the page itself, called `title` (an
+ * item's title) or its own title in `pages`. A page a block adds (`view`) comes
+ * after the page it's on, called by what the block shows, such as "Page 2".
+ */
+export function breadcrumbs(
+  pages: PageLink[],
+  at: { path: string; home?: string; title?: string; view?: { path: string; title?: string } },
+): Breadcrumbs {
+  const home = at.home ?? "/";
+  const titles = new Map(pages.map((page) => [page.path, page.title]));
+  const base = at.view?.path ?? at.path;
+  const above: PageLink[] = [];
+  let path = base;
+  while (path.lastIndexOf("/") > 0) {
+    path = path.slice(0, path.lastIndexOf("/"));
+    const title = titles.get(path);
+    if (path !== home && title !== undefined) above.unshift({ path, title });
+  }
+  const homeTitle = titles.get(home);
+  const links = base !== home && homeTitle !== undefined ? [{ path: home, title: homeTitle }, ...above] : above;
+  const own = at.title ?? titles.get(base) ?? base;
+  if (at.view?.title) return { links: [...links, { path: base, title: own }], current: at.view.title };
+  return { links, current: own };
+}

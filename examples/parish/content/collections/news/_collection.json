@@ -75,6 +75,17 @@
           "className": "",
           "content": [
             {
+              "type": "Breadcrumbs",
+              "props": {
+                "id": "Breadcrumbs-news",
+                "className": "mb-6",
+                "current": true,
+                "homeLabel": "Home",
+                "label": "Breadcrumbs",
+                "separator": "chevron"
+              }
+            },
+            {
               "type": "EntryField",
               "props": {
                 "id": "EntryField-date",

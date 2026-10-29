@@ -1,9 +1,17 @@
 import { type PageTree, pageTree } from "@goodfellow-cms/core";
 import { classNameField, SiteImage, SiteLink, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
-import { hasSubmenus, isCurrentLink, type MenuButton, subpageLinks } from "./links.js";
+import {
+  BREADCRUMB_SEPARATORS,
+  type BreadcrumbSeparator,
+  hasSubmenus,
+  isCurrentLink,
+  type MenuButton,
+  pageBreadcrumbs,
+  subpageLinks,
+} from "./links.js";
 import { options, yesNo } from "./options.js";
-import { MENU_PARTS, PAGE_LIST_PARTS, SITE_BRAND_PARTS } from "./parts.js";
+import { BREADCRUMBS_PARTS, MENU_PARTS, PAGE_LIST_PARTS, SITE_BRAND_PARTS } from "./parts.js";
 
 export interface MenuProps {
   menu: string;
@@ -445,4 +453,87 @@ export const PageList: ComponentConfig<PageListProps> = withParts(
     render: (props) => <PageListView {...props} />,
   },
   PAGE_LIST_PARTS,
+);
+
+export interface BreadcrumbsProps {
+  /** What the home page is called in them; its own title where empty. */
+  homeLabel: string;
+  separator: BreadcrumbSeparator;
+  /** Ends them with the page shown, which isn't a link. */
+  current: boolean;
+  /** Their name, for screen readers. */
+  label: string;
+  className: string;
+}
+
+const LIST_ITEM = { itemProp: "itemListElement", itemScope: true, itemType: "https://schema.org/ListItem" };
+
+function BreadcrumbsView({ homeLabel, separator, current, label, className }: BreadcrumbsProps) {
+  const site = useSite();
+  const part = useParts();
+  const { links, current: title } = pageBreadcrumbs(site, homeLabel);
+  // The home page has none.
+  if (links.length === 0) return null;
+  const mark = BREADCRUMB_SEPARATORS[separator] ?? BREADCRUMB_SEPARATORS.chevron;
+  return (
+    <nav aria-label={label.trim() || "Breadcrumbs"} className={part("gf-breadcrumbs", "text-sm", className)}>
+      {/* Marked as schema.org's BreadcrumbList, which search engines show in place of the page's address. */}
+      <ol
+        itemScope
+        itemType="https://schema.org/BreadcrumbList"
+        className={part("gf-breadcrumbs-list", "flex flex-wrap items-center gap-x-2 gap-y-1")}
+      >
+        {links.map((link, index) => (
+          <li key={link.path} {...LIST_ITEM} className={part("gf-breadcrumbs-item", "flex items-center gap-2")}>
+            <SiteLink
+              href={link.path}
+              itemProp="item"
+              className={part("gf-breadcrumbs-link", "text-muted-foreground hover:text-foreground hover:underline")}
+            >
+              <span itemProp="name">{link.title}</span>
+            </SiteLink>
+            <meta itemProp="position" content={String(index + 1)} />
+            {(current || index < links.length - 1) && (
+              <span aria-hidden="true" className={part("gf-breadcrumbs-separator", "text-muted-foreground")}>
+                {mark}
+              </span>
+            )}
+          </li>
+        ))}
+        {current && (
+          <li {...LIST_ITEM} className={part("gf-breadcrumbs-item", "flex items-center gap-2")}>
+            <span itemProp="name" aria-current="page" className={part("gf-breadcrumbs-current", "font-medium")}>
+              {title}
+            </span>
+            <meta itemProp="position" content={String(links.length + 1)} />
+          </li>
+        )}
+      </ol>
+    </nav>
+  );
+}
+
+/**
+ * The way from the home page to the page shown, through the pages above it by
+ * address, such as Home › News › The parish fair. Search engines can show it
+ * in place of the page's address.
+ */
+export const Breadcrumbs: ComponentConfig<BreadcrumbsProps> = withParts(
+  {
+    label: "Breadcrumbs",
+    fields: {
+      homeLabel: { type: "text", label: "What to call the home page (empty for its title)" },
+      separator: {
+        type: "radio",
+        label: "Between pages",
+        options: options<BreadcrumbSeparator>({ chevron: "›", slash: "/", arrow: "→" }),
+      },
+      current: { type: "radio", label: "End with this page", options: yesNo },
+      label: { type: "text", label: "Name for screen readers" },
+      className: classNameField,
+    },
+    defaultProps: { homeLabel: "Home", separator: "chevron", current: true, label: "Breadcrumbs", className: "" },
+    render: (props) => <BreadcrumbsView {...props} />,
+  },
+  BREADCRUMBS_PARTS,
 );

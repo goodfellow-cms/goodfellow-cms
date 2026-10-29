@@ -14,6 +14,7 @@ import {
   type GoodfellowConfig,
   googleFontsUrl,
   hasLanguages,
+  IMAGE_WIDTHS,
   loadSiteContent,
   normalizePagePath,
   type Page,
@@ -59,6 +60,7 @@ import { notFound, redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { preload } from "react-dom";
 import { ByLanguage, CurrentMenuLinks, NextImage, NextLink, PageLanguage } from "./components.js";
+import { IMAGE_SIZES_ENV } from "./image-sizes-mark.js";
 
 export interface GoodfellowPagesOptions {
   /** The site's folder, holding `content/`. Defaults to the folder Next.js runs in. */
@@ -191,6 +193,8 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
     base: basePath(),
     components,
     media: { ...(await readMediaSizes(root)), ...storedMediaSizes((await site()).mediaStorage) },
+    // Where `goodfellow-next finish` writes smaller copies of the media library's photos, pages list them.
+    ...(process.env[IMAGE_SIZES_ENV] && { imageWidths: IMAGE_WIDTHS }),
   });
 
   /** The site's theme and fonts, which React moves into the document's head. themeToCss escapes its output. */

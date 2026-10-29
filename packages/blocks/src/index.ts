@@ -14,7 +14,7 @@ import { LanguageSwitch } from "./language-switch.js";
 import { Flex, Grid, Section, Space } from "./layout.js";
 import { CollectionLoop } from "./loop.js";
 import { Audio, File, Gallery, MediaText } from "./media.js";
-import { Menu, PageList, SiteBrand } from "./navigation.js";
+import { Breadcrumbs, Menu, PageList, SiteBrand } from "./navigation.js";
 import { Search } from "./search.js";
 import { Details, Preformatted, Pullquote, Separator, Table, Verse } from "./text.js";
 import { Video } from "./video.js";
@@ -100,6 +100,8 @@ export {
   type MediaTextProps,
 } from "./media.js";
 export {
+  Breadcrumbs,
+  type BreadcrumbsProps,
   Menu,
   type MenuProps,
   PageList,
@@ -165,6 +167,7 @@ export const blocks = {
   MediaText,
   Gallery,
   PageList,
+  Breadcrumbs,
 };
 
 for (const [name, keywords] of Object.entries(BLOCK_KEYWORDS)) {
@@ -195,7 +198,16 @@ export const categories = {
   },
   navigation: {
     title: "Navigation",
-    components: ["Menu", "SiteBrand", "Search", "DarkModeSwitch", "LanguageSwitch", "CollectionNav", "PageList"],
+    components: [
+      "Menu",
+      "SiteBrand",
+      "Search",
+      "DarkModeSwitch",
+      "LanguageSwitch",
+      "CollectionNav",
+      "PageList",
+      "Breadcrumbs",
+    ],
   },
   collections: {
     title: "Collections",

@@ -37,6 +37,7 @@ const ICONS = {
   LanguageSwitch: "languages",
   CollectionNav: "list-tree",
   PageList: "list",
+  Breadcrumbs: "footprints",
   CollectionList: "layout-list",
   CollectionLoop: "repeat",
   Calendar: "calendar-days",

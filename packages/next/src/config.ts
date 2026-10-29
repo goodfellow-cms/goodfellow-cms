@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   type AdminAddress,
   allPages,
@@ -30,6 +30,7 @@ import {
   localRegistryDir,
 } from "@goodfellow-cms/core/node";
 import type { NextConfig } from "next";
+import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 
 export interface GoodfellowNextOptions {
   /** The site's folder, holding `content/` and `public/media/`. Defaults to the folder Next.js runs in. */
@@ -205,6 +206,17 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       const dates = join(root, nextConfig.distDir ?? ".next", BUILD_DATES_DIR);
       await rm(dates, { recursive: true, force: true });
       process.env[BUILD_DATES_ENV] = dates;
+      // A static export whose images Next.js doesn't optimize lists the smaller copies `goodfellow-next finish`
+      // writes, which the mark says to write.
+      const mark = join(root, nextConfig.distDir ?? ".next", IMAGE_SIZES_MARK);
+      await rm(mark, { force: true });
+      if (!options.server && config.images?.unoptimized) {
+        process.env[IMAGE_SIZES_ENV] = "1";
+        await mkdir(dirname(mark), { recursive: true });
+        await writeFile(mark, "");
+      } else {
+        delete process.env[IMAGE_SIZES_ENV];
+      }
     }
     // A server of its own: Next.js serves the redirects itself, and can optimize images.
     if (phase !== PHASE_DEVELOPMENT_SERVER && options.server) {

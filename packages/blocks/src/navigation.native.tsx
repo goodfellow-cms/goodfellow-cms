@@ -2,8 +2,8 @@ import { type MenuItem, type PageTree, pageTree } from "@goodfellow-cms/core";
 import { NativeImage, NativeLink, OnColor, SiteText, TEXT, useNativeSite, useWide } from "@goodfellow-cms/expo";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { hasSubmenus, isCurrentLink, subpageLinks } from "./links.js";
-import type { MenuProps, PageListProps, SiteBrandProps } from "./navigation.js";
+import { BREADCRUMB_SEPARATORS, hasSubmenus, isCurrentLink, pageBreadcrumbs, subpageLinks } from "./links.js";
+import type { BreadcrumbsProps, MenuProps, PageListProps, SiteBrandProps } from "./navigation.js";
 
 function MenuLinks({
   items,
@@ -178,4 +178,33 @@ export function PageList({ parent }: PageListProps) {
   const tree = pageTree(pages, parent.trim() || "/");
   if (tree.length === 0) return null;
   return <PageListItems pages={tree} path={path} depth={0} />;
+}
+
+/** The way from the home page to the page shown, such as Home › News › The parish fair. */
+export function Breadcrumbs({ homeLabel, separator, current }: BreadcrumbsProps) {
+  const site = useNativeSite();
+  const { links, current: title } = pageBreadcrumbs(site, homeLabel);
+  if (links.length === 0) return null;
+  const mark = BREADCRUMB_SEPARATORS[separator] ?? BREADCRUMB_SEPARATORS.chevron;
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 4 }}>
+      {links.map((link, index) => (
+        <View key={link.path} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <NativeLink href={link.path}>
+            <SiteText muted style={{ fontSize: TEXT.sm }}>
+              {link.title}
+            </SiteText>
+          </NativeLink>
+          {(current || index < links.length - 1) && (
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <SiteText muted style={{ fontSize: TEXT.sm }}>
+                {mark}
+              </SiteText>
+            </View>
+          )}
+        </View>
+      ))}
+      {current && <SiteText style={{ fontSize: TEXT.sm, fontWeight: "600" }}>{title}</SiteText>}
+    </View>
+  );
 }
