@@ -12,7 +12,6 @@ export const labels: Record<string, string> = {
   "Share buttons": "Botones para compartir",
   "Say where people give": "Decir dónde se dona",
   PDF: "PDF",
-  Look: "Aspecto",
   "Giving page's address (a Stripe payment link, PayPal donate button or similar)":
     "Dirección de la página de donativos (un enlace de pago de Stripe, un botón de donativos de PayPal o similar)",
   "Donate button": "Botón de donativos",
