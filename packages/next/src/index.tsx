@@ -305,7 +305,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
         <>
           <Theme content={content} />
           {/* React moves the head's links, meta tags and loading scripts into the head; inline scripts run here. */}
-          <HeadCode code={content.code?.head} held={asks(content)} />
+          <HeadCode code={content.code?.head} held={asks(content)} siteUrl={content.settings.url} />
           {header}
           {children}
           {footer}
@@ -359,7 +359,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
           {/* Next.js doesn't take metadata from not-found pages; React moves this into the head. */}
           <title>{pageHead(content, page).title}</title>
           <Theme content={content} />
-          <HeadCode code={content.code?.head} held={asks(content)} />
+          <HeadCode code={content.code?.head} held={asks(content)} siteUrl={content.settings.url} />
           <PageBody
             site={prepared.site}
             pageConfig={prepared.pageConfig}

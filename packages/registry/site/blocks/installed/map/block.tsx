@@ -55,7 +55,8 @@ function MapView({ query, title, zoom, height, className, puck }: MapProps & { p
       referrerPolicy="no-referrer-when-downgrade"
       // Google's map needs its scripts and its own address; it can open Google Maps, but nothing else.
       sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      className={part("gf-map", "w-full rounded-lg border border-border", className)}
+      boxClassName={className}
+      className={part("gf-map", "w-full rounded-lg border border-border")}
       style={{ height: Math.max(200, height || 400) }}
     />
   );

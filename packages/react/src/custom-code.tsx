@@ -1,5 +1,6 @@
 import {
   CONSENT_CODE_ATTRIBUTE,
+  endsHeldTemplate,
   type HeadElement,
   headElementHtml,
   isHeldHeadElement,
@@ -39,10 +40,12 @@ function headElement({ tag, attributes, content }: HeadElement, index: number) {
  * The site's code for the `<head>` (`content/code/head.html`), as elements.
  * Code that doesn't belong in the head is left out; the admin panel won't
  * publish it. `held`, for a site that asks visitors first, keeps scripts,
- * links and `noscript` in a template until they agree. Never render this in the admin panel, where it would run with
- * the editor's sign-in.
+ * `noscript` and links to other sites than `siteUrl` in a template until they
+ * agree, and leaves out code that would end that template early
+ * (`endsHeldTemplate()`). Never render this in the admin panel, where it would
+ * run with the editor's sign-in.
  */
-export function HeadCode({ code, held = false }: { code?: string; held?: boolean }) {
+export function HeadCode({ code, held = false, siteUrl }: { code?: string; held?: boolean; siteUrl?: string }) {
   if (!code?.trim()) return null;
   let elements: HeadElement[];
   try {
@@ -52,30 +55,34 @@ export function HeadCode({ code, held = false }: { code?: string; held?: boolean
   }
   if (!held) return <>{elements.map(headElement)}</>;
   // On a site that asks visitors first, what loads or runs waits in a template for the consent script.
-  const waiting = elements.filter(isHeldHeadElement);
+  const isHeld = (element: HeadElement) => isHeldHeadElement(element, siteUrl);
+  const kept = elements.filter((element) => !isHeld(element)).map(headElement);
+  const waiting = elements.filter(isHeld).map(headElementHtml).join("");
+  // Code that would end the template early would run before visitors agree, so it's left out.
+  if (!waiting || endsHeldTemplate(waiting)) return <>{kept}</>;
   return (
     <>
-      {elements.filter((element) => !isHeldHeadElement(element)).map(headElement)}
-      {waiting.length > 0 && (
-        <template
-          {...{ [CONSENT_CODE_ATTRIBUTE]: "head" }}
-          // The consent script marks it done once it has added the code.
-          suppressHydrationWarning
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel
-          dangerouslySetInnerHTML={{ __html: waiting.map(headElementHtml).join("") }}
-        />
-      )}
+      {kept}
+      <template
+        {...{ [CONSENT_CODE_ATTRIBUTE]: "head" }}
+        // The consent script marks it done once it has added the code.
+        suppressHydrationWarning
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel
+        dangerouslySetInnerHTML={{ __html: waiting }}
+      />
     </>
   );
 }
 
 /**
  * The site's code for the end of the `<body>` (`content/code/body.html`), as it
- * was written, or in a template until visitors agree where the site asks (`held`). Never render this in the admin panel.
+ * was written, or in a template until visitors agree where the site asks (`held`),
+ * leaving it out if it would end that template early. Never render this in the admin panel.
  */
 export function BodyCode({ code, held = false }: { code?: string; held?: boolean }) {
   if (!code?.trim()) return null;
   if (held) {
+    if (endsHeldTemplate(code)) return null;
     return (
       <template
         {...{ [CONSENT_CODE_ATTRIBUTE]: "body" }}

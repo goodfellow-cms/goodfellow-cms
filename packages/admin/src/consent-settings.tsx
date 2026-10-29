@@ -1,4 +1,5 @@
-import { CONSENT_DEFAULTS, type ConsentSettings } from "@goodfellow-cms/core";
+import { type ConsentSettings, consentDefaults } from "@goodfellow-cms/core";
+import { useState } from "react";
 import { sectionId } from "./router.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Field, TextField } from "./ui.js";
@@ -18,12 +19,19 @@ const WORD_STRINGS: Record<ConsentWord, { label: StringKey; hint?: StringKey }> 
   policyLabel: { label: "consent.policyLabel" },
 };
 
-/** Consent settings without empty words or ones left as they come, which the defaults fill in, or `undefined` when off. */
-export function cleanConsent(consent: ConsentSettings | undefined): Partial<ConsentSettings> | undefined {
+/**
+ * Consent settings without empty words or ones left as they come in the
+ * site's main language (`language`), which the defaults fill in, or `undefined` when off.
+ */
+export function cleanConsent(
+  consent: ConsentSettings | undefined,
+  language?: string,
+): Partial<ConsentSettings> | undefined {
   if (!consent) return undefined;
+  const defaults = consentDefaults(language);
   const words = CONSENT_WORDS.flatMap((word) => {
     const value = consent[word]?.trim();
-    return value && value !== CONSENT_DEFAULTS[word] ? [[word, value]] : [];
+    return value && value !== defaults[word] ? [[word, value]] : [];
   });
   const policy = consent.policy?.trim();
   return { ...Object.fromEntries(words), ...(policy && { policy }) };
@@ -64,15 +72,23 @@ export function ConsentWordField({
   );
 }
 
-/** Whether pages ask visitors before loading other sites' content, and what the notice says. */
+/**
+ * Whether pages ask visitors before loading other sites' content, and what the
+ * notice says, its words coming in the site's main language (`language`).
+ * Turned off and on again, it keeps the words written meanwhile.
+ */
 export function ConsentSection({
   consent,
+  language,
   onChange,
 }: {
   consent: ConsentSettings | undefined;
+  language: string;
   onChange: (consent: ConsentSettings | undefined) => void;
 }) {
   const t = useStrings();
+  const defaults = consentDefaults(language);
+  const [kept, setKept] = useState<ConsentSettings>();
   return (
     <>
       <h2 id={sectionId("consent")} className="gfa-section-title" tabIndex={-1}>
@@ -82,7 +98,14 @@ export function ConsentSection({
         <input
           type="checkbox"
           checked={consent !== undefined}
-          onChange={(event) => onChange(event.target.checked ? { ...CONSENT_DEFAULTS } : undefined)}
+          onChange={(event) => {
+            if (event.target.checked) {
+              onChange(kept ?? { ...defaults });
+            } else {
+              setKept(consent);
+              onChange(undefined);
+            }
+          }}
         />
         {t("consent.ask")}
       </label>
@@ -93,7 +116,7 @@ export function ConsentSection({
             <ConsentWordField
               key={word}
               word={word}
-              placeholder={CONSENT_DEFAULTS[word]}
+              placeholder={defaults[word]}
               value={consent[word]}
               onChange={(value) => onChange({ ...consent, [word]: value })}
             />
@@ -107,7 +130,7 @@ export function ConsentSection({
           />
           <ConsentWordField
             word="policyLabel"
-            placeholder={CONSENT_DEFAULTS.policyLabel}
+            placeholder={defaults.policyLabel}
             value={consent.policyLabel}
             onChange={(policyLabel) => onChange({ ...consent, policyLabel })}
           />
