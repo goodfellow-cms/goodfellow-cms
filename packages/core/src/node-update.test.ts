@@ -55,7 +55,10 @@ async function site(blockText = "export default { v: 1 };\n") {
 
 const fetchJson = async (url: string): Promise<unknown> => {
   if (url === "https://registry.npmjs.org/@goodfellow-cms/react") {
-    return { versions: { "0.4.1": {}, "0.4.2": {}, "0.5.0": {} } };
+    return {
+      versions: { "0.4.1": {}, "0.4.2": {}, "0.5.0": {} },
+      time: { "0.4.2": "2026-10-01T12:00:00.000Z" },
+    };
   }
   if (url.startsWith("https://registry.npmjs.org/@goodfellow-cms/react/")) {
     return { dependencies: { "@puckeditor/core": "0.23.1" } };
@@ -101,7 +104,8 @@ describe("goodfellow update", () => {
     expect(pkg.devDependencies).toEqual({ goodfellow: "0.4.2" });
     expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
     expect(ran.filter((line) => !line.startsWith("git rev-parse"))).toEqual([
-      "npm install --no-audit --no-fund",
+      // Only what npm had a day after 0.4.2 came out.
+      "npm install --no-audit --no-fund --before=2026-10-02T12:00:00.000Z",
       "npm run build",
       expect.stringMatching(/^git add --all -- package\.json package-lock\.json /),
       "git -c user.name=Goodfellow updates -c user.email=updates@goodfellow.invalid commit --message Update Goodfellow to 0.4.2",
