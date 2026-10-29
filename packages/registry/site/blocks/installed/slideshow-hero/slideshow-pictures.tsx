@@ -3,6 +3,9 @@
 import { SiteImage } from "@goodfellow-cms/react";
 import { useEffect, useState } from "react";
 
+/** Runs with Preact as well as React, so sites whose Client Components all do load Preact instead (see Islands). */
+export const worksWithPreact = true;
+
 /**
  * The pictures, fading from one to the next every few seconds, with a dot for
  * each and a button that stops them. They stop while the pointer is over them

@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
+/** Runs with Preact as well as React, so sites whose Client Components all do load Preact instead (see Islands). */
+export const worksWithPreact = true;
+
 /**
  * Shows HTML as it was written, in the editor only: inside a frame sandboxed
  * with nothing allowed, so it can't reach the admin panel or the editor's

@@ -3,6 +3,9 @@
 import type { ReactNode } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
+/** Runs with Preact as well as React, so sites whose Client Components all do load Preact instead (see Islands). */
+export const worksWithPreact = true;
+
 /**
  * The questions, one open at a time, with their parts' classes from the block.
  * Closed answers stay in the page, hidden, rather than being left out.

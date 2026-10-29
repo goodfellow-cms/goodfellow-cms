@@ -9,6 +9,7 @@ import {
   inNodeModules,
   insideDir,
   islandModule,
+  needReact,
 } from "./islands.js";
 
 /** Runs an island module with stand-ins for the client module and `island()`, and returns its exports. */
@@ -45,8 +46,21 @@ describe("clientModuleExports", () => {
     expect(clientModuleExports(code, "/site/blocks/tabs.tsx")).toEqual({
       names: ["Tabs", "Tab", "label", "a", "c", "Size", "useTabs", "use tabs", "Other", "icons", "default"],
       star: false,
+      preact: false,
     });
-    expect(clientModuleExports('"use client";\nexport * from "./a";', "/a.js")).toEqual({ names: [], star: true });
+    expect(clientModuleExports('"use client";\nexport * from "./a";', "/a.js")).toEqual({ names: [], star: true, preact: false });
+  });
+
+  it("finds a module that says it works with Preact, as it's written and as bundlers write it", () => {
+    const says = (code: string) => clientModuleExports(`"use client";\n${code}`, "/a.tsx")?.preact;
+    expect(says("export const worksWithPreact = true;\nexport function A() {}")).toBe(true);
+    expect(says("const worksWithPreact = true;\nexport { worksWithPreact };")).toBe(true);
+    expect(says("const yes = true;\nexport { yes as worksWithPreact };")).toBe(true);
+    // Anything but a constant `true` it says itself isn't enough.
+    expect(says("export let worksWithPreact = true;")).toBe(false);
+    expect(says("export const worksWithPreact = 1;")).toBe(false);
+    expect(says('export { worksWithPreact } from "./other";')).toBe(false);
+    expect(says("export const works = true;")).toBe(false);
   });
 
   it("leaves other modules alone", () => {
@@ -59,11 +73,11 @@ describe("islandModule", () => {
   it("wraps each export of a Client Component's module in island()", async () => {
     function Counter() {}
     const module = { Counter, "Tab item": Counter, default: Counter };
-    const exports = await exportsOf(module, { names: ["Counter", "Tab item", "default"], star: true });
+    const exports = await exportsOf(module, { names: ["Counter", "Tab item", "default"], star: true, preact: false });
     expect(exports.Counter).toEqual({ value: Counter, module: "blocks/a.tsx", name: "Counter" });
     expect(exports["Tab item"]).toEqual({ value: Counter, module: "blocks/a.tsx", name: "Tab item" });
     expect(exports.default).toEqual({ value: Counter, module: "blocks/a.tsx", name: "default" });
-    expect(islandModule("/a.tsx", "a.tsx", { names: [], star: true })).toContain('export * from "/a.tsx";');
+    expect(islandModule("/a.tsx", "a.tsx", { names: [], star: true, preact: false })).toContain('export * from "/a.tsx";');
   });
 });
 
@@ -124,5 +138,25 @@ describe("blockPackages", () => {
 
   it("finds the site's packages that build on @goodfellow-cms/react", () => {
     expect(blockPackages(root)).toEqual(["@acme/blocks", "@goodfellow-cms/blocks"]);
+  });
+});
+
+describe("needReact", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "gf-preact-"));
+    await writeFile(join(dir, "yes.tsx"), '"use client";\nexport const worksWithPreact = true;\nexport function A() {}\n');
+    await writeFile(join(dir, "no.tsx"), '"use client";\nexport function B() {}\n');
+  });
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  it("lists the Client Components that don't say they work with Preact, or can't be read", () => {
+    const modules = new Map([
+      ["blocks/yes.tsx", join(dir, "yes.tsx")],
+      ["blocks/no.tsx", join(dir, "no.tsx")],
+      ["blocks/gone.tsx", join(dir, "gone.tsx")],
+    ]);
+    expect(needReact(modules)).toEqual(["blocks/no.tsx", "blocks/gone.tsx"]);
+    expect(needReact(new Map([["blocks/yes.tsx", join(dir, "yes.tsx")]]))).toEqual([]);
   });
 });

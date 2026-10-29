@@ -68,6 +68,15 @@ export interface GoodfellowConfig {
    */
   api?: false;
   /**
+   * Whether `goodfellow build` may run the site's Client Components with
+   * Preact (`preact/compat`, about a tenth of React's size) rather than React.
+   * It does only where every one of them says it works with Preact
+   * (`export const worksWithPreact = true` in its `"use client"` module), so a
+   * site's own and other packages' components keep React until they say so.
+   * `false` always uses React. `goodfellow dev` and Next.js always use React.
+   */
+  preact?: false;
+  /**
    * The AI assistant in the editor, which drafts and rewrites content with an
    * AI service each editor chooses. On by default; `false` removes it.
    */

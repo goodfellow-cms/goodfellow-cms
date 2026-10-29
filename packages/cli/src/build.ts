@@ -48,13 +48,14 @@ import {
   writeSiteHeaders,
 } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
-import { createServer, build as viteBuild } from "vite";
+import { type Alias, createServer, type InlineConfig, build as viteBuild } from "vite";
 import { ADMIN_ENTRY, adminEntryPlugin, adminHtml } from "./admin-entry.js";
 import { buildEditor } from "./editor-bundle.js";
 import { sharpResizer } from "./image-sizes.js";
-import { type ClientModules, ISLANDS_ENTRY } from "./islands.js";
+import { type ClientModules, ISLANDS_ENTRY, needReact } from "./islands.js";
 import { cssFiles, findEntry, type Manifest } from "./manifest.js";
 import { buildPluginFrame } from "./plugin-frames.js";
+import { preactAliases, preactIslands } from "./preact.js";
 import { baseViteConfig, findConfigFile, loadServerEntry, writeStylesEntries } from "./site.js";
 
 export interface BuildOptions {
@@ -96,6 +97,13 @@ export interface BuildResult {
   images?: ImageSizesResult;
   /** The plugins' build steps that ran, as `plugin: step`. */
   pluginSteps?: string[];
+  /**
+   * What runs the site's Client Components in visitors' browsers: Preact,
+   * where every one says it works with it and the config doesn't turn it off,
+   * or else React, with the components that don't say so in `needReact`.
+   * Absent for a site without any.
+   */
+  islands?: { runtime: "preact" } | { runtime: "react"; needReact: string[] };
   /** How many pages the content API has, at `/api/`, unless the config turns it off. */
   apiPages?: number;
 }
@@ -158,9 +166,15 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     server: { middlewareMode: true, hmr: false, ws: false, watch: null },
   });
 
+  let stopPreact: (() => Promise<void>) | undefined;
   try {
     const { config, renderPage, describe, admin: adminSite, api } = await loadServerEntry(server);
     const base = normalizeBase(options.base ?? config.base);
+    // Loading the config found the Client Components; they run with Preact where every one says it can.
+    const needed = needReact(modules);
+    const runtime =
+      modules.size === 0 ? undefined : config.preact === false || needed.length > 0 ? ("react" as const) : ("preact" as const);
+    if (runtime === "preact") stopPreact = await preactIslands(root, modules, server);
     // The site as visitors see it now: pages and items scheduled for later, or hidden again, are left out.
     const now = new Date();
     // Rendering pages reports when what they show by today's date changes, for the build record.
@@ -174,7 +188,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     // a backend or is a demo, the Client Components if it has any, and copy public/ into the output.
     const input: Record<string, string> = { styles: styles.site };
     if (withAdmin) Object.assign(input, { preview: styles.preview, admin: ADMIN_ENTRY });
-    if (modules.size > 0) input.islands = ISLANDS_ENTRY;
+    // With Preact, the islands have a bundle of their own, whose React is Preact, unlike the admin panel's.
+    if (runtime === "react") input.islands = ISLANDS_ENTRY;
     const viteConfig = baseViteConfig(root, configFile, modules);
     // A copy of the site, such as a staging site, says so to its admin panel, which stays at the copy's address.
     const copy = siteCopyFrom(process.env);
@@ -201,15 +216,41 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       },
     });
 
+    if (runtime === "preact") {
+      await viteBuild({
+        ...viteConfig,
+        resolve: { ...viteConfig.resolve, alias: [...aliasList(viteConfig.resolve?.alias), ...preactAliases()] },
+        base,
+        build: {
+          outDir,
+          emptyOutDir: false,
+          manifest: ISLANDS_MANIFEST,
+          rolldownOptions: {
+            input: { islands: ISLANDS_ENTRY },
+            onLog(level, log, handler) {
+              if (log.code === "MODULE_LEVEL_DIRECTIVE") return;
+              handler(level, log);
+            },
+          },
+        },
+      });
+    }
+
     const manifestPath = join(outDir, "manifest.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest;
     await rm(manifestPath);
+    let islandsManifest = manifest;
+    if (runtime === "preact") {
+      const path = join(outDir, ISLANDS_MANIFEST);
+      islandsManifest = JSON.parse(await readFile(path, "utf8")) as Manifest;
+      await rm(path);
+    }
     const stylesheets = cssFiles(manifest, "styles").map((file) => `/${file}`);
-    const islandsEntry = findEntry(manifest, "islands");
+    const islandsEntry = findEntry(islandsManifest, "islands");
     // Root-relative like the stylesheets: applyBasePath() adds the base path to the finished pages.
     const islands = islandsEntry && {
       script: `/${islandsEntry.file}`,
-      preload: importedFiles(manifest, "islands").map((file) => `/${file}`),
+      preload: importedFiles(islandsManifest, "islands").map((file) => `/${file}`),
       ...(base !== "/" && { base }),
     };
 
@@ -365,11 +406,25 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       ...(fonts && { fonts }),
       ...(images.written > 0 && { images }),
       ...(pluginSteps.length > 0 && { pluginSteps }),
+      ...(runtime && {
+        islands: runtime === "preact" ? { runtime } : { runtime, needReact: config.preact === false ? [] : needed },
+      }),
       ...(apiFiles.length > 0 && { apiPages: pages.length }),
       ...(robotsElsewhere && { robotsElsewhere }),
       ...(url && { sitemap: absoluteUrl(url, "/sitemap.xml") }),
     };
   } finally {
+    await stopPreact?.();
     await server.close();
   }
+}
+
+/** The manifest of the islands' own bundle, where they run with Preact, removed once it's read. */
+const ISLANDS_MANIFEST = "islands-manifest.json";
+
+/** Vite's aliases as a list, however the config gives them. */
+function aliasList(alias: NonNullable<InlineConfig["resolve"]>["alias"]): Alias[] {
+  if (!alias) return [];
+  if (Array.isArray(alias)) return alias;
+  return Object.entries(alias).map(([find, replacement]) => ({ find, replacement }));
 }

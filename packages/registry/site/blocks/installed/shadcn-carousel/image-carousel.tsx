@@ -3,6 +3,9 @@
 import { SiteImage } from "@goodfellow-cms/react";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 
+/** Runs with Preact as well as React, so sites whose Client Components all do load Preact instead (see Islands). */
+export const worksWithPreact = true;
+
 /** The pictures, one at a time, with previous and next buttons, and their parts' classes from the block. */
 export function ImageCarousel({
   slides,

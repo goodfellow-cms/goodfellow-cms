@@ -107,6 +107,35 @@ function encodeProps(props: Record<string, unknown>, islandId: string, where: st
 /** Each island's HTML, by its props, since React renders a component again after it waits. */
 const rendered = new WeakMap<object, Promise<string>>();
 
+/** What a renderer of islands other than React's is given for each island. */
+export interface IslandToRender {
+  /** The Client Component's module, by the name pages refer to it by (`blocks/installed/faq/faq-list.tsx`). */
+  module: string;
+  /** The export the island uses. */
+  name: string;
+  /** The props as they're written into the page, with content replaced by `{ [slots.marker]: "<slot id>" }`. */
+  props: unknown;
+  site: SiteContextValue;
+  /** Its `useId()` prefix, the same the browser gives it. */
+  prefix: string;
+  /** Where content goes: an empty `<slots.tag data-gf-slot="<slot id>" style="display:contents">`. */
+  slots: { marker: string; tag: string };
+}
+
+/** Renders an island's own HTML some other way than React's, such as with Preact. */
+export type IslandRenderer = (island: IslandToRender) => Promise<string>;
+
+let renderer: IslandRenderer | undefined;
+
+/**
+ * Has islands rendered by `render` instead of React, or by React again with
+ * `undefined`. `goodfellow build` renders them with Preact where the browser
+ * runs them with Preact, so both give the same ids.
+ */
+export function setIslandRenderer(render: IslandRenderer | undefined): void {
+  renderer = render;
+}
+
 /** Renders an island's own HTML as its own React root, as the browser will, so `useId()` gives the same ids. */
 async function renderIsland(component: ComponentType, props: object, site: SiteContextValue, id: string) {
   const element = (
@@ -155,7 +184,16 @@ export function island<T>(component: T, module: string, name: string): T {
     const encoded = encodeProps(props, id, where);
     let html = rendered.get(props);
     if (!html) {
-      html = renderIsland(Component, encoded.props, site, id);
+      html = renderer
+        ? renderer({
+            module,
+            name,
+            props: encoded.json,
+            site,
+            prefix: identifierPrefix(id),
+            slots: { marker: SLOT_MARKER, tag: SLOT_TAG },
+          })
+        : renderIsland(Component, encoded.props, site, id);
       rendered.set(props, html);
     }
     return (

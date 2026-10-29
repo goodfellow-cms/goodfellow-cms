@@ -4,6 +4,9 @@ import { type LanguageMap, languageLinksAt } from "@goodfellow-cms/core";
 import { useCurrentPath } from "@goodfellow-cms/react";
 import { LanguageList, type LanguageListProps } from "./language-switch-view.js";
 
+/** Runs with Preact as well as React, so sites whose Client Components all do load Preact instead (see Islands). */
+export const worksWithPreact = true;
+
 /**
  * The Language switch in a layout shared by every page, such as Next.js's:
  * its links are worked out in the browser from the address being shown, so
