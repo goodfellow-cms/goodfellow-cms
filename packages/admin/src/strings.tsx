@@ -1797,6 +1797,8 @@ export const defaultStrings = {
     'The code in the page head has text outside a tag: "{text}". Only tags such as <script> and <meta> can go there.',
   "code.error.tag": 'A <{tag}> tag can\'t go in the page head. Put it in "At the end of the page" instead.',
   "code.error.unclosed": "A {tag} tag in the page head isn't closed.",
+  "code.error.template":
+    "This code has </template> in it. While the site asks visitors before loading other sites' content, that would let the code run before they agree. Take it out.",
 } as const;
 
 export type StringKey = keyof typeof defaultStrings;

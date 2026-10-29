@@ -4,6 +4,7 @@
  * belong there, which renderers turn into elements of their own (see
  * `parseHeadCode`), since a React document can't take raw HTML in its head.
  */
+import { isExternalLink } from "../external-links.js";
 
 /** An element of the head's code: its tag, its attributes in order, and the text inside it. */
 export interface HeadElement {
@@ -117,12 +118,37 @@ export function storedCode(code: string): string {
   return trimmed.trim() ? `${trimmed}\n` : "";
 }
 
-/** The head's elements that load or run something, which a site that asks visitors first holds back until they agree. */
-const HELD_TAGS = new Set<HeadTag>(["script", "link", "noscript"]);
+/** The head's elements that run something, which a site that asks visitors first holds back until they agree. */
+const HELD_TAGS = new Set<HeadTag>(["script", "noscript"]);
 
-/** Whether a head element waits for visitors' agreement on a site that asks: scripts, links and `noscript`, not `meta` tags. */
-export function isHeldHeadElement(element: HeadElement): boolean {
-  return HELD_TAGS.has(element.tag);
+/** Whether an address is on another site: a full address elsewhere, or one that starts with `//`. */
+function isOtherSite(href: string, siteUrl: string | undefined): boolean {
+  const address = href.trim();
+  if (address.startsWith("//")) return true;
+  return isExternalLink(address, siteUrl);
+}
+
+/**
+ * Whether a head element waits for visitors' agreement on a site that asks:
+ * scripts and `noscript`, which could load anything, and links to other sites,
+ * such as another site's stylesheet. Links on the site itself (its own
+ * stylesheet, manifest or icons, by a root-relative address or the Site
+ * address, `siteUrl`) and `meta` tags stay in the page.
+ */
+export function isHeldHeadElement(element: HeadElement, siteUrl?: string): boolean {
+  if (HELD_TAGS.has(element.tag)) return true;
+  if (element.tag !== "link") return false;
+  const href = element.attributes.find(([name]) => name === "href")?.[1];
+  return href === undefined || isOtherSite(href, siteUrl);
+}
+
+/**
+ * Whether code would end the `<template>` a site that asks visitors first
+ * keeps it in, and so run before they agree. Such code isn't shown on those
+ * sites, and the admin panel won't publish it.
+ */
+export function endsHeldTemplate(code: string): boolean {
+  return /<\/template/i.test(code);
 }
 
 /** A head element written as HTML again, as it was read. */

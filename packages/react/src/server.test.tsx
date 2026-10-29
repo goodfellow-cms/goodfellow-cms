@@ -204,9 +204,27 @@ describe("renderPage", () => {
     expect(html).toContain('<iframe title="Video" data-gf-consent-src="https://www.youtube-nocookie.com/embed/abc">');
     expect(html).toContain("This comes from youtube-nocookie.com, which can set cookies.");
     // The notice comes after the footer, even without one, then the script that shows it.
-    expect(html).toMatch(/<div id="gf-consent" class="gf-consent" role="dialog" aria-label="Privacy" hidden=""/);
+    expect(html).toMatch(
+      /<div id="gf-consent" data-gf-consent-notice="" class="gf-consent" role="dialog" aria-labelledby="gf-consent-message" hidden=""/,
+    );
+    expect(html).toContain('<p id="gf-consent-message">');
     expect(html).toContain('<a href="/privacy">Privacy</a>');
     expect(html.indexOf('id="gf-consent"')).toBeLessThan(html.indexOf("goodfellow-consent"));
+
+    // The site's own stylesheet stays in the page; code that would end its template early is left out.
+    const own = await renderPage(
+      makeContent({
+        settings: asks,
+        code: {
+          head: '<link rel="stylesheet" href="/extra.css"><script>document.write("</template>")</script>',
+          body: "<p>Hi</p></template><script>window.early = 1;</script>",
+        },
+      }),
+      makePage([]),
+    );
+    expect(own).toContain('<link rel="stylesheet" href="/extra.css"/>');
+    expect(own).not.toContain("document.write");
+    expect(own).not.toContain("window.early");
 
     // A site that doesn't ask shows them as they are.
     const plain = await renderPage(makeContent({ code }), makePage([{ type: "Player", props: { id: "p" } }]));

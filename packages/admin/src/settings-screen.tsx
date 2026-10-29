@@ -4,6 +4,7 @@ import {
   DEFAULT_CODE_THEMES,
   DEFAULT_DARK_THEME_COLORS,
   DEFAULT_THEME_COLORS,
+  endsHeldTemplate,
   type FileChange,
   type FormSettings,
   formTarget,
@@ -66,11 +67,15 @@ const tabLabels: Record<SettingsTab, StringKey> = {
 
 const EMPTY_CODE: SiteCode = { head: "", body: "" };
 
-/** Why the head's code can't be published, in plain words, or `undefined` if it can. */
-function headCodeProblem(t: ReturnType<typeof useStrings>, head: string): string | undefined {
+/**
+ * Why the head's code can't be published, in plain words, or `undefined` if it
+ * can. `held`, for a site that asks visitors first, also refuses code that would
+ * end the template it's held in.
+ */
+function headCodeProblem(t: ReturnType<typeof useStrings>, head: string, held: boolean): string | undefined {
   try {
     parseHeadCode(head);
-    return undefined;
+    return held && endsHeldTemplate(head) ? t("code.error.template") : undefined;
   } catch (error) {
     if (!(error instanceof HeadCodeError)) throw error;
     const { problem } = error;
@@ -104,7 +109,7 @@ function cleanSettings(draft: SiteSettings): unknown {
       : undefined,
     contact: cleanContact(draft.contact),
     forms: cleanForms(draft.forms),
-    consent: cleanConsent(draft.consent),
+    consent: cleanConsent(draft.consent, draft.language),
     theme: {
       colors,
       fonts: cleanFonts(draft.theme.fonts),
@@ -401,7 +406,11 @@ function GeneralTab({
 
       <FormsSettings forms={draft.forms} error={formsError} onChange={(forms) => onChange({ ...draft, forms })} />
 
-      <ConsentSection consent={draft.consent} onChange={(consent) => onChange({ ...draft, consent })} />
+      <ConsentSection
+        consent={draft.consent}
+        language={draft.language}
+        onChange={(consent) => onChange({ ...draft, consent })}
+      />
     </div>
   );
 }
@@ -650,10 +659,12 @@ function CssTab({ css, onChange }: { css: string; onChange: (css: string) => voi
 function CodeTab({
   code,
   headError,
+  bodyError,
   onChange,
 }: {
   code: SiteCode;
   headError?: string;
+  bodyError?: string;
   onChange: (code: SiteCode) => void;
 }) {
   const t = useStrings();
@@ -679,7 +690,7 @@ function CodeTab({
           />
         )}
       </Field>
-      <Field label={t("code.body")} hint={t("code.bodyHint")}>
+      <Field label={t("code.body")} hint={t("code.bodyHint")} error={bodyError}>
         {(props) => (
           <CodeEditor
             label={t("code.body")}
@@ -751,7 +762,9 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
   >({ type: "idle" });
 
   const validation = useMemo(() => validate(settings), [settings]);
-  const headError = useMemo(() => headCodeProblem(t, code.head), [t, code.head]);
+  const asks = settings.consent !== undefined;
+  const headError = useMemo(() => headCodeProblem(t, code.head, asks), [t, code.head, asks]);
+  const bodyError = asks && endsHeldTemplate(code.body) ? t("code.error.template") : undefined;
   const formsError = useMemo(() => formsProblem(t, settings.forms), [t, settings.forms]);
   // Rows left empty aren't saved.
   const savedRedirects = useMemo(() => storedRedirects(filledRedirects(redirects)), [redirects]);
@@ -802,6 +815,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
       !menusFileSchema.safeParse({ version: 1, menus, languages: languageMenus }).success ||
       languagesProblem(t, settings, content) ||
       headError ||
+      bodyError ||
       formsError ||
       redirectsInvalid
     ) {
@@ -910,7 +924,14 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
           />
         )}
         {tab === "css" && <CssTab css={css} onChange={setCss} />}
-        {tab === "code" && <CodeTab code={code} headError={showErrors ? headError : undefined} onChange={setCode} />}
+        {tab === "code" && (
+          <CodeTab
+            code={code}
+            headError={showErrors ? headError : undefined}
+            bodyError={showErrors ? bodyError : undefined}
+            onChange={setCode}
+          />
+        )}
       </div>
 
       <section className="gfa-split-preview" aria-label={t("settings.preview")}>

@@ -4,6 +4,7 @@ import {
   CONSENT_PLACEHOLDER_ATTRIBUTE,
   type ConsentSettings,
   consentSource,
+  endsHeldTemplate,
 } from "@goodfellow-cms/core";
 import { classNameField, sanitizeHtml, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
@@ -70,6 +71,11 @@ const CustomHtml: ComponentConfig<CustomHtmlProps> = withParts(
       // Where pages are built: the admin panel's previews render in the browser and show it at once.
       const consent = typeof document === "undefined" ? settings.consent : undefined;
       if (!sanitize && consent && LOADS.test(html)) {
+        // HTML that would end the template early would run before the visitor agrees, so it's made safe instead.
+        if (endsHeldTemplate(html)) {
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized
+          return <div className={className} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />;
+        }
         return (
           <div
             className={className || undefined}

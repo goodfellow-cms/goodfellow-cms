@@ -126,7 +126,7 @@ const consentWords = {
   policyLabel: z.string(),
 };
 
-/** The notice's words until an owner changes them. */
+/** The notice's words until an owner changes them, in English. */
 export const CONSENT_DEFAULTS = {
   message:
     "This site shows videos, forms and other content from other sites, which can set cookies and see that you visited. Is that all right with you?",
@@ -136,6 +136,47 @@ export const CONSENT_DEFAULTS = {
   show: "Allow and show it",
   policyLabel: "Privacy",
 } as const;
+
+export type ConsentWords = { [Word in keyof typeof CONSENT_DEFAULTS]: string };
+
+/** The notice's words until an owner changes them, by language, for the languages there are words for. */
+const CONSENT_DEFAULTS_IN: Record<string, ConsentWords> = {
+  es: {
+    message:
+      "Este sitio muestra vídeos, formularios y otros contenidos de otros sitios, que pueden guardar cookies y saber que lo has visitado. ¿Te parece bien?",
+    accept: "Permitir",
+    decline: "No, gracias",
+    held: "Esto viene de {site}, que puede guardar cookies.",
+    show: "Permitir y mostrarlo",
+    policyLabel: "Privacidad",
+  },
+};
+
+/** The notice's words until an owner changes them, in a language (`es`, `es-MX`), or in English where there are none in it. */
+export function consentDefaults(language: string | undefined): ConsentWords {
+  const code = language?.toLowerCase().split("-")[0];
+  return (code && CONSENT_DEFAULTS_IN[code]) || CONSENT_DEFAULTS;
+}
+
+/**
+ * Consent settings with the words left as they come in language `from`
+ * (English unless it's given) in `language`'s own words, where it has some.
+ * Words an owner changed stay as they are.
+ */
+export function consentInLanguage<Settings extends ConsentWords>(
+  consent: Settings,
+  language: string | undefined,
+  from?: string,
+): Settings {
+  const defaults = consentDefaults(language);
+  const was = consentDefaults(from);
+  if (defaults === was) return consent;
+  const words = Object.keys(CONSENT_DEFAULTS) as Array<keyof ConsentWords>;
+  return {
+    ...consent,
+    ...Object.fromEntries(words.filter((word) => consent[word] === was[word]).map((word) => [word, defaults[word]])),
+  };
+}
 
 export const consentSchema = z.object({
   message: consentWords.message.default(CONSENT_DEFAULTS.message),
@@ -158,86 +199,91 @@ const settingsTranslation = z.object({
   consent: z.object(consentWords).partial().optional(),
 });
 
-export const siteSettingsSchema = z.object({
-  version: z.literal(1),
-  title: z.string().default("My site"),
-  description: z.string().default(""),
-  /** The site's public address, such as `https://example.org`. Used for the sitemap and link previews. */
-  url: z.url({ protocol: /^https?$/ }).optional(),
-  /**
-   * Asks search engines not to list any of the site's pages. Usually set only
-   * where a copy of the site is built, such as a staging site, with
-   * `GOODFELLOW_NO_INDEX` (`site-copy.ts`), so it never reaches the main site.
-   */
-  noIndex: z.boolean().optional(),
-  /** The site's main language, whose pages are at the root of its address. */
-  language: z.string().default("en"),
-  /** The main language's name as visitors see it in a language switch, such as "English". Worked out from its code if left out. */
-  languageName: z.string().optional(),
-  /**
-   * The site's other languages, in the order a language switch lists them.
-   * Each one's pages are under its code, such as `/es/…`, and link to the
-   * main language's page they translate.
-   */
-  languages: z
-    .array(z.object({ code: languageCode, name: z.string().optional() }))
-    .optional()
-    .superRefine((languages, ctx) => {
-      const seen = new Set<string>();
-      (languages ?? []).forEach((language, index) => {
-        const prefix = language.code.toLowerCase();
-        if (seen.has(prefix)) ctx.addIssue({ code: "custom", path: [index, "code"], message: "is listed twice" });
-        seen.add(prefix);
-      });
-    }),
-  /** The site's title, description and title template in each of its other languages, by code. */
-  translations: z.record(z.string(), settingsTranslation).optional(),
-  favicon: z.string().optional(),
-  logo: z
-    .object({
-      src: z.string(),
-      alt: z.string().default(""),
-      /** The logo shown in dark mode, such as a light version, where the site has dark mode. */
-      darkSrc: z.string().optional(),
-    })
-    .optional(),
-  /** How page titles appear in browser tabs. `%s` is replaced by the page title. */
-  titleTemplate: z.string().default("%s"),
-  /** Image shown when a page is shared on social media, unless the page sets its own. */
-  socialImage: z.string().optional(),
-  /** Whether links to other sites open in a new tab, wherever they are: menus, buttons, rich text and Markdown. */
-  externalLinksInNewTab: z.boolean().optional(),
-  /** The time zone events' times are in, such as `America/New_York`. Without one, times are shown as they're written. */
-  timeZone: z.string().optional(),
-  /** How to get in touch, shown by the Contact details block wherever it's placed. */
-  contact: z
-    .object({
-      /** A postal address; line breaks are kept. */
-      address: z.string().optional(),
-      phone: z.string().optional(),
-      email: z.string().optional(),
-    })
-    .optional(),
-  /** Where forms' answers go (see `formTarget()`). Web3Forms unless another service is chosen. */
-  forms: z
-    .object({
-      service: z.enum(["web3forms", "formspree", "other"]).default("web3forms"),
-      /** Web3Forms' access key, which sends answers to the email address it was made for. */
-      accessKey: z.string().optional(),
-      /** Formspree's form address or ID, or another service's address forms post to. */
-      address: z.string().optional(),
-      /** Whether Web3Forms forms show hCaptcha, which loads Web3Forms' script on pages with a form. */
-      captcha: z.boolean().optional(),
-    })
-    .optional(),
-  /**
-   * Whether pages ask visitors before loading other sites' content: players
-   * from YouTube, Vimeo and other sites, Google Forms, hCaptcha and the site's
-   * custom code wait until they agree. Asks only where it's set.
-   */
-  consent: consentSchema.optional(),
-  theme: themeSchema.default({ colors: {}, fonts: {} }),
-});
+export const siteSettingsSchema = z
+  .object({
+    version: z.literal(1),
+    title: z.string().default("My site"),
+    description: z.string().default(""),
+    /** The site's public address, such as `https://example.org`. Used for the sitemap and link previews. */
+    url: z.url({ protocol: /^https?$/ }).optional(),
+    /**
+     * Asks search engines not to list any of the site's pages. Usually set only
+     * where a copy of the site is built, such as a staging site, with
+     * `GOODFELLOW_NO_INDEX` (`site-copy.ts`), so it never reaches the main site.
+     */
+    noIndex: z.boolean().optional(),
+    /** The site's main language, whose pages are at the root of its address. */
+    language: z.string().default("en"),
+    /** The main language's name as visitors see it in a language switch, such as "English". Worked out from its code if left out. */
+    languageName: z.string().optional(),
+    /**
+     * The site's other languages, in the order a language switch lists them.
+     * Each one's pages are under its code, such as `/es/…`, and link to the
+     * main language's page they translate.
+     */
+    languages: z
+      .array(z.object({ code: languageCode, name: z.string().optional() }))
+      .optional()
+      .superRefine((languages, ctx) => {
+        const seen = new Set<string>();
+        (languages ?? []).forEach((language, index) => {
+          const prefix = language.code.toLowerCase();
+          if (seen.has(prefix)) ctx.addIssue({ code: "custom", path: [index, "code"], message: "is listed twice" });
+          seen.add(prefix);
+        });
+      }),
+    /** The site's title, description and title template in each of its other languages, by code. */
+    translations: z.record(z.string(), settingsTranslation).optional(),
+    favicon: z.string().optional(),
+    logo: z
+      .object({
+        src: z.string(),
+        alt: z.string().default(""),
+        /** The logo shown in dark mode, such as a light version, where the site has dark mode. */
+        darkSrc: z.string().optional(),
+      })
+      .optional(),
+    /** How page titles appear in browser tabs. `%s` is replaced by the page title. */
+    titleTemplate: z.string().default("%s"),
+    /** Image shown when a page is shared on social media, unless the page sets its own. */
+    socialImage: z.string().optional(),
+    /** Whether links to other sites open in a new tab, wherever they are: menus, buttons, rich text and Markdown. */
+    externalLinksInNewTab: z.boolean().optional(),
+    /** The time zone events' times are in, such as `America/New_York`. Without one, times are shown as they're written. */
+    timeZone: z.string().optional(),
+    /** How to get in touch, shown by the Contact details block wherever it's placed. */
+    contact: z
+      .object({
+        /** A postal address; line breaks are kept. */
+        address: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().optional(),
+      })
+      .optional(),
+    /** Where forms' answers go (see `formTarget()`). Web3Forms unless another service is chosen. */
+    forms: z
+      .object({
+        service: z.enum(["web3forms", "formspree", "other"]).default("web3forms"),
+        /** Web3Forms' access key, which sends answers to the email address it was made for. */
+        accessKey: z.string().optional(),
+        /** Formspree's form address or ID, or another service's address forms post to. */
+        address: z.string().optional(),
+        /** Whether Web3Forms forms show hCaptcha, which loads Web3Forms' script on pages with a form. */
+        captcha: z.boolean().optional(),
+      })
+      .optional(),
+    /**
+     * Whether pages ask visitors before loading other sites' content: players
+     * from YouTube, Vimeo and other sites, Google Forms, hCaptcha and the site's
+     * custom code wait until they agree. Asks only where it's set.
+     */
+    consent: consentSchema.optional(),
+    theme: themeSchema.default({ colors: {}, fonts: {} }),
+  })
+  // The notice's words, where an owner hasn't changed them, are in the site's main language.
+  .transform((settings) =>
+    settings.consent ? { ...settings, consent: consentInLanguage(settings.consent, settings.language) } : settings,
+  );
 
 export type SiteSettings = z.output<typeof siteSettingsSchema> & {
   /**

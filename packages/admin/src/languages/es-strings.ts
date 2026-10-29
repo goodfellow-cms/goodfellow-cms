@@ -1813,5 +1813,7 @@ export const strings: Strings = {
     "El código de la cabecera de la página tiene texto fuera de una etiqueta: «{text}». Allí solo pueden ir etiquetas como <script> y <meta>.",
   "code.error.tag": "Una etiqueta <{tag}> no puede ir en la cabecera de la página. Ponla en «Al final de la página».",
   "code.error.unclosed": "Una etiqueta {tag} de la cabecera de la página no está cerrada.",
+  "code.error.template":
+    "Este código contiene </template>. Mientras el sitio pregunte a los visitantes antes de cargar contenido de otros sitios, eso haría que el código se ejecutara antes de que acepten. Quítalo.",
   "adminLanguage.label": "Idioma del panel de administración",
 };

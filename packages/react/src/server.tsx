@@ -128,7 +128,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
           ))}
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: themeToCss escapes its output */}
           <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme, standIns) }} />
-          <HeadCode code={content.code?.head} held={consent} />
+          <HeadCode code={content.code?.head} held={consent} siteUrl={settings.url} />
         </head>
         <body>
           <PageBody

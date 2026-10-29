@@ -1,6 +1,8 @@
 import {
   CONSENT_ACCEPT_ATTRIBUTE,
   CONSENT_DECLINE_ATTRIBUTE,
+  CONSENT_MESSAGE_ID,
+  CONSENT_NOTICE_ATTRIBUTE,
   CONSENT_NOTICE_ID,
   CONSENT_PLACEHOLDER_ATTRIBUTE,
   CONSENT_SRC_ATTRIBUTE,
@@ -9,7 +11,8 @@ import {
   isScriptUrl,
   withBase,
 } from "@goodfellow-cms/core";
-import type { IframeHTMLAttributes } from "react";
+import type { IframeHTMLAttributes, ReactNode } from "react";
+import { cx } from "./cx.js";
 import type { SiteContextValue } from "./site-types.js";
 
 /**
@@ -40,11 +43,18 @@ export function createConsent(useSite: () => SiteContextValue) {
    * A frame showing another site's page, such as a YouTube player or a Google
    * form. On a site that asks visitors first, it loads nothing until they
    * agree, with a note and a button in its place, which covers its positioned
-   * parent (`relative`), or a box of its own with `box`. Its props keep their order.
+   * parent (`relative`), or a box of its own with `box`. The box is there
+   * wherever it's drawn, the editor included, and takes `boxClassName`, such
+   * as the block's Style, since it's the block's outermost element. Its props keep their order.
    */
-  function ConsentFrame({ box, ...props }: IframeHTMLAttributes<HTMLIFrameElement> & { src: string; box?: boolean }) {
+  function ConsentFrame({
+    box,
+    boxClassName,
+    ...props
+  }: IframeHTMLAttributes<HTMLIFrameElement> & { src: string; box?: boolean; boxClassName?: string }) {
     const consent = heldBack(useSite().settings);
-    if (!consent) return <iframe {...props} />;
+    const boxed = (shown: ReactNode) => <div className={cx("gf-consent-box", boxClassName)}>{shown}</div>;
+    if (!consent) return box ? boxed(<iframe {...props} />) : <iframe {...props} />;
     const held = Object.fromEntries(
       Object.entries(props).map(([name, value]) => [name === "src" ? CONSENT_SRC_ATTRIBUTE : name, value]),
     );
@@ -55,7 +65,7 @@ export function createConsent(useSite: () => SiteContextValue) {
         <Placeholder consent={consent} src={props.src} />
       </>
     );
-    return box ? <div className="gf-consent-box">{shown}</div> : shown;
+    return box ? boxed(shown) : shown;
   }
 
   /**
@@ -98,15 +108,16 @@ export function ConsentNotice({ site }: { site: SiteContextValue }) {
   return (
     <div
       id={CONSENT_NOTICE_ID}
+      {...{ [CONSENT_NOTICE_ATTRIBUTE]: "" }}
       className="gf-consent"
       role="dialog"
-      aria-label={consent.policyLabel}
+      aria-labelledby={CONSENT_MESSAGE_ID}
       hidden
       // The consent script shows it before Next.js's React takes over the page.
       suppressHydrationWarning
       data-pagefind-ignore=""
     >
-      <p>
+      <p id={CONSENT_MESSAGE_ID}>
         {consent.message}
         {consent.policy && !isScriptUrl(consent.policy) && (
           <>
