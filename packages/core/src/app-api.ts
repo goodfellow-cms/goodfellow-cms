@@ -51,6 +51,8 @@ export type AppSession =
       ai: string[];
       /** The site's repository holds only its content, as `GitBackend.contentOnly`. */
       contentOnly?: boolean;
+      /** Changes to the site's code, such as adding blocks, go to a developer for review (`AppApiOptions.codeChanges`). */
+      codeReview?: boolean;
     }
   | {
       signedIn: false;

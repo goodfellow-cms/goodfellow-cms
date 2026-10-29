@@ -362,6 +362,28 @@ export function createWorker(options: WorkerOptions = {}) {
     }
 
     /**
+     * `make` called with the app's installation on the repository. Where GitHub
+     * refuses the remembered installation, as it does once the app is
+     * uninstalled or the repository taken out of it, it's looked up again, so
+     * the person is told to install the app rather than that signing in isn't
+     * working.
+     */
+    async function withInstallation<T>(app: App, repo: string, make: (installation: number) => Promise<T>): Promise<T> {
+      const installation = await installationFor(app, repo);
+      if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
+      try {
+        return await make(installation);
+      } catch (error) {
+        if (!(error instanceof GitHubError && (error.status === 404 || error.status === 422))) throw error;
+        installations.delete(`${app.id}:${repo.toLowerCase()}`);
+        const current = await installationFor(app, repo);
+        if (current === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
+        if (current === installation) throw error;
+        return make(current);
+      }
+    }
+
+    /**
      * The addresses tokens may go to: the Site address in the site's settings
      * (`content/site.json`), read with an installation token, and the admin
      * address and the site's other copies, such as staging, that the site's
@@ -426,12 +448,11 @@ export function createWorker(options: WorkerOptions = {}) {
     async function checkSite(purpose: Purpose, repo: string, origin: string | undefined): Promise<number> {
       if (!origin || !originOf(origin) || isLocalAddress(origin)) throw new Problem("local-address", 403);
       const app = appFor(purpose);
-      const installation = await installationFor(app, repo);
-      if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
-      const reader = await installationToken(config, await jwtFor(app), installation, repo, {
-        contents: "read",
-        metadata: "read",
-      });
+      const jwt = await jwtFor(app);
+      const { installation, reader } = await withInstallation(app, repo, async (installation) => ({
+        installation,
+        reader: await installationToken(config, jwt, installation, repo, { contents: "read", metadata: "read" }),
+      }));
       const addresses = await siteAddresses(repo, reader.token);
       await revoke(reader.token);
       if (addresses.length === 0) throw new Problem("no-address", 409);
@@ -537,9 +558,10 @@ export function createWorker(options: WorkerOptions = {}) {
       const repo = session.repo;
       if (!repo) throw new Problem("bad-request", 400);
       const app = appFor(session.purpose);
-      const installation = await installationFor(app, repo);
-      if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
-      const issued = await purposeToken(await jwtFor(app), installation, repo, session.purpose);
+      const jwt = await jwtFor(app);
+      const issued = await withInstallation(app, repo, (installation) =>
+        purposeToken(jwt, installation, repo, session.purpose),
+      );
       try {
         await checkStillAllowed(session, repo, issued.token);
         // Checked every time, since the site's address can change, and its old address shouldn't keep getting tokens.

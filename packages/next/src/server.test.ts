@@ -111,7 +111,22 @@ describe("goodfellowApi", () => {
       user: { login: "alice", name: "Alice Editor" },
       role: "editor",
       ai: ["anthropic"],
+      codeReview: true,
       signOut: "/sign-out",
     });
+  });
+
+  it("lets owners publish the site's code only where the route says so", async () => {
+    const fake = fakeGitHub({ repo: "parish/site", files: FILES });
+    const call = caller(
+      goodfellowApi({
+        config: defineConfig({ blocks: {}, backend: github({ repo: "parish/site", fetch: fake.fetch }) }),
+        token: "test-token",
+        authorize: () => ALICE,
+        signIn: "/sign-in",
+        codeChanges: "publish",
+      }),
+    );
+    expect(await (await call("session/")).json()).not.toHaveProperty("codeReview");
   });
 });

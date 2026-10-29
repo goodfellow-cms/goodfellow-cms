@@ -156,6 +156,11 @@ export interface Account {
   setup?: () => SetupHost;
   /** On a full-stack site, where its server answers for plugins, such as `https://example.org/api/goodfellow/plugins`. */
   plugins?: string;
+  /**
+   * On a full-stack site, changes to its code, such as adding blocks, go to
+   * `review` rather than being published, since its server runs that code.
+   */
+  codeReview?: boolean;
   /** On a full-stack site, for its owners: submits changes for a developer to review, as installing a plugin does. */
   review?(
     changes: FileChange[],

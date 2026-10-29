@@ -131,6 +131,27 @@ describe("signing in", () => {
     });
   });
 
+  it("says the app isn't installed as soon as it's uninstalled, though it remembers installations", async () => {
+    const { apps, post, signIn } = setup();
+    const { body } = await signIn();
+    // Installed again, which gives it a new installation: renewing finds it.
+    apps.edit.installations = [{ id: 12, account: "parish", repositories: ["parish/site"] }];
+    const renewed = await post("/github/token", { session: body.session });
+    expect(renewed.status).toBe(200);
+    const { session } = (await renewed.json()) as { session: string };
+
+    apps.edit.installations = [];
+    const response = await post("/github/token", { session });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      problem: "not-installed",
+      installUrl: "https://github.com/apps/goodfellow-cms/installations/new",
+    });
+    // Or the repository taken out of it.
+    apps.edit.installations = [{ id: 12, account: "parish", repositories: ["parish/other"] }];
+    expect(await (await post("/github/token", { session })).json()).toMatchObject({ problem: "not-installed" });
+  });
+
   it("needs the verifier only the tab that started signing in knows, from the same address", async () => {
     const { redirect, post } = setup();
     const { back, verifier } = await redirect("maria");
