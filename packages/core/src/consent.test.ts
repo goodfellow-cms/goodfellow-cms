@@ -1,9 +1,9 @@
-import { type HTMLElement, Window } from "happy-dom";
+import { type HTMLElement, type HTMLInputElement, Window } from "happy-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import { CONSENT_STORAGE_KEY, consentScript, consentSource } from "./consent.js";
 import { endsHeldTemplate, headElementHtml, isHeldHeadElement, parseHeadCode } from "./content/code.js";
 import { localizedSettings } from "./content/languages.js";
-import { siteSettingsSchema } from "./content/schemas.js";
+import { consentKinds, heldCode, siteSettingsSchema } from "./content/schemas.js";
 
 const PAGE = `<!DOCTYPE html><html><head>
 
@@ -24,8 +24,15 @@ afterEach(async () => {
   window = undefined;
 });
 
+/** A visitor's answer as the consent script keeps it: yes or no to other sites' content, given `daysAgo`. */
+function answer(yes: boolean | string[], options: { asked?: string[]; daysAgo?: number } = {}): string {
+  const allowed = yes === true ? ["content"] : yes === false ? [] : yes;
+  const at = Date.now() - (options.daysAgo ?? 0) * 86_400_000;
+  return JSON.stringify({ yes: allowed, asked: options.asked ?? ["content"], at });
+}
+
 /** A page of a site that asks, with the consent script run in it, and the visitor's earlier answer if any. */
-function open(answer?: "yes" | "no") {
+function open(stored?: string, html = PAGE) {
   window = new Window({
     url: "https://example.org/",
     settings: {
@@ -35,8 +42,8 @@ function open(answer?: "yes" | "no") {
       disableJavaScriptFileLoading: true,
     },
   });
-  if (answer) window.localStorage.setItem(CONSENT_STORAGE_KEY, answer);
-  window.document.write(PAGE);
+  if (stored) window.localStorage.setItem(CONSENT_STORAGE_KEY, stored);
+  window.document.write(html);
   window.eval(consentScript());
   const page = window as unknown as Window & { headRan?: number; bodyRan?: number };
   const document = window.document;
@@ -56,7 +63,10 @@ describe("the consent script", () => {
 
     click("[data-gf-consent-notice] [data-gf-consent-accept]");
     expect(notice().hidden).toBe(true);
-    expect(window?.localStorage.getItem(CONSENT_STORAGE_KEY)).toBe("yes");
+    expect(JSON.parse(window?.localStorage.getItem(CONSENT_STORAGE_KEY) ?? "{}")).toMatchObject({
+      yes: ["content"],
+      asked: ["content"],
+    });
     expect(document.querySelector("iframe")?.getAttribute("src")).toBe("https://www.youtube-nocookie.com/embed/abc");
     expect((document.querySelector("[data-gf-consent-placeholder]") as unknown as HTMLElement).hidden).toBe(true);
     expect(document.head.querySelector('script[src="https://web3forms.com/client/script.js"]')).not.toBeNull();
@@ -83,7 +93,7 @@ describe("the consent script", () => {
   });
 
   it("adds what was held back once, however often the page changes", async () => {
-    const { page, document } = open("yes");
+    const { page, document } = open(answer(true));
     document.body.appendChild(document.createElement("p"));
     document.body.appendChild(document.createElement("p"));
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -94,7 +104,7 @@ describe("the consent script", () => {
   });
 
   it("remembers the answer, and opens the notice again from a link to #consent", () => {
-    const declined = open("no");
+    const declined = open(answer(false));
     expect(declined.notice().hidden).toBe(true);
     expect(declined.document.querySelector("iframe")?.getAttribute("src")).toBeNull();
     declined.click('a[href="#consent"]');
@@ -104,7 +114,7 @@ describe("the consent script", () => {
   });
 
   it("loads everything at once for a visitor who agreed before", () => {
-    const { page, document, notice } = open("yes");
+    const { page, document, notice } = open(answer(true));
     expect(notice().hidden).toBe(true);
     expect(document.querySelector("iframe")?.getAttribute("src")).toBe("https://www.youtube-nocookie.com/embed/abc");
     expect(page.bodyRan).toBe(1);
@@ -114,6 +124,90 @@ describe("the consent script", () => {
     const { document, click } = open();
     click(".player [data-gf-consent-accept]");
     expect(document.querySelector("iframe")?.getAttribute("src")).toBe("https://www.youtube-nocookie.com/embed/abc");
+  });
+
+  it("asks again once the answer is older than the notice's days, and when it's in an earlier release's form", () => {
+    const expired = open(
+      answer(true, { daysAgo: 31 }),
+      PAGE.replace('data-gf-consent-notice=""', 'data-gf-consent-notice="" data-gf-consent-days="30"'),
+    );
+    expect(expired.notice().hidden).toBe(false);
+    expect(expired.document.querySelector("iframe")?.getAttribute("src")).toBeNull();
+    // Within the days, the answer stands.
+    const recent = open(
+      answer(true, { daysAgo: 29 }),
+      PAGE.replace('data-gf-consent-notice=""', 'data-gf-consent-notice="" data-gf-consent-days="30"'),
+    );
+    expect(recent.notice().hidden).toBe(true);
+    // 180 days where the notice doesn't say.
+    expect(open(answer(true, { daysAgo: 181 })).notice().hidden).toBe(false);
+    expect(open(answer(true, { daysAgo: 179 })).notice().hidden).toBe(true);
+    const legacy = open("yes");
+    expect(legacy.notice().hidden).toBe(false);
+    expect(legacy.page.bodyRan).toBeUndefined();
+  });
+});
+
+/** A site whose code at the end of the page is statistics, which visitors allow on their own. */
+const KINDS_PAGE = `<!DOCTYPE html><html><head></head><body>
+<div class="player"><iframe title="Video" data-gf-consent-src="https://www.youtube-nocookie.com/embed/abc"></iframe>
+<div data-gf-consent-placeholder=""><button type="button" data-gf-consent-accept="content">Show it</button></div></div>
+<div data-gf-consent-notice="" data-gf-consent-kinds="content statistics" hidden>
+<fieldset data-gf-consent-choices="" hidden><label><input type="checkbox" data-gf-consent-kind="content">Content</label><label><input type="checkbox" data-gf-consent-kind="statistics">Statistics</label></fieldset>
+<button type="button" data-gf-consent-decline="">No</button><button type="button" data-gf-consent-choose="">Choose</button><button type="button" data-gf-consent-save="" hidden>Save</button><button type="button" data-gf-consent-accept="">Allow</button></div>
+<template data-gf-consent-code="body" data-gf-consent-kind="statistics"><script>window.bodyRan = (window.bodyRan || 0) + 1</script></template>
+</body></html>`;
+
+describe("the consent script's kinds", () => {
+  it("loads only the kinds a visitor chooses", () => {
+    const { page, document, notice, click } = open(undefined, KINDS_PAGE);
+    expect(notice().hidden).toBe(false);
+    click("[data-gf-consent-choose]");
+    const choices = document.querySelector("[data-gf-consent-choices]") as unknown as HTMLElement;
+    expect(choices.hidden).toBe(false);
+    expect((document.querySelector("[data-gf-consent-save]") as unknown as HTMLElement).hidden).toBe(false);
+    expect((document.querySelector("[data-gf-consent-choose]") as unknown as HTMLElement).hidden).toBe(true);
+    // The keyboard goes to the first choice.
+    expect(document.activeElement).toBe(document.querySelector('input[data-gf-consent-kind="content"]'));
+    (document.querySelector('input[data-gf-consent-kind="statistics"]') as unknown as HTMLInputElement).checked = true;
+    click("[data-gf-consent-save]");
+    expect(notice().hidden).toBe(true);
+    expect(page.bodyRan).toBe(1);
+    expect(document.querySelector("iframe")?.getAttribute("src")).toBeNull();
+    expect(JSON.parse(window?.localStorage.getItem(CONSENT_STORAGE_KEY) ?? "{}")).toMatchObject({
+      yes: ["statistics"],
+      asked: ["content", "statistics"],
+    });
+
+    // A player's own button allows other sites' content and keeps the rest of the answer.
+    click(".player [data-gf-consent-accept]");
+    expect(document.querySelector("iframe")?.getAttribute("src")).toBe("https://www.youtube-nocookie.com/embed/abc");
+    expect(JSON.parse(window?.localStorage.getItem(CONSENT_STORAGE_KEY) ?? "{}").yes).toEqual([
+      "statistics",
+      "content",
+    ]);
+    expect(page.bodyRan).toBe(1);
+  });
+
+  it("allows every kind from the notice's own button, and asks about a kind it wasn't asked about before", () => {
+    const all = open(undefined, KINDS_PAGE);
+    all.click("[data-gf-consent-notice] [data-gf-consent-accept]");
+    expect(all.page.bodyRan).toBe(1);
+    expect(all.document.querySelector("iframe")?.getAttribute("src")).not.toBeNull();
+
+    // Agreed to other sites' content before the site added statistics: that loads, and the notice asks about the rest.
+    const before = open(answer(true), KINDS_PAGE);
+    expect(before.document.querySelector("iframe")?.getAttribute("src")).not.toBeNull();
+    expect(before.page.bodyRan).toBeUndefined();
+    expect(before.notice().hidden).toBe(false);
+  });
+
+  it("asks again after a player's button until every kind has an answer", () => {
+    const { notice, click } = open(undefined, KINDS_PAGE);
+    click(".player [data-gf-consent-accept]");
+    expect(notice().hidden).toBe(false);
+    click("[data-gf-consent-notice] [data-gf-consent-decline]");
+    expect(notice().hidden).toBe(true);
   });
 });
 
@@ -152,6 +246,23 @@ describe("consent settings", () => {
 
   it("are left out where the site doesn't ask", () => {
     expect(siteSettingsSchema.parse({ version: 1 }).consent).toBeUndefined();
+  });
+
+  it("ask about other sites' content, and the kinds the site's code is for", () => {
+    const consent = (value: object) => siteSettingsSchema.parse({ version: 1, consent: value }).consent;
+    const plain = consent({});
+    expect(plain).toMatchObject({ days: 180, code: { head: "content", body: "content" } });
+    expect(plain && consentKinds(plain)).toEqual(["content"]);
+    const mixed = consent({ days: 30, code: { head: "marketing", body: "statistics" } });
+    expect(mixed && consentKinds(mixed)).toEqual(["content", "statistics", "marketing"]);
+    expect(heldCode(mixed, "head")).toBe("marketing");
+    const needed = consent({ code: { head: "needed" } });
+    expect(needed && consentKinds(needed)).toEqual(["content"]);
+    expect(heldCode(needed, "head")).toBe(false);
+    expect(heldCode(needed, "body")).toBe("content");
+    expect(heldCode(undefined, "body")).toBe(false);
+    // Longer than 13 months isn't an answer regulators accept.
+    expect(siteSettingsSchema.safeParse({ version: 1, consent: { days: 396 } }).success).toBe(false);
   });
 });
 

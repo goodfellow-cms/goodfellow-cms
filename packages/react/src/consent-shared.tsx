@@ -1,12 +1,19 @@
 import {
   CONSENT_ACCEPT_ATTRIBUTE,
+  CONSENT_CHOICES_ATTRIBUTE,
+  CONSENT_CHOOSE_ATTRIBUTE,
+  CONSENT_DAYS_ATTRIBUTE,
   CONSENT_DECLINE_ATTRIBUTE,
+  CONSENT_KIND_ATTRIBUTE,
+  CONSENT_KINDS_ATTRIBUTE,
   CONSENT_MESSAGE_ID,
   CONSENT_NOTICE_ATTRIBUTE,
   CONSENT_NOTICE_ID,
   CONSENT_PLACEHOLDER_ATTRIBUTE,
+  CONSENT_SAVE_ATTRIBUTE,
   CONSENT_SRC_ATTRIBUTE,
   type ConsentSettings,
+  consentKinds,
   consentSource,
   isScriptUrl,
   withBase,
@@ -30,7 +37,8 @@ function Placeholder({ consent, src }: { consent: ConsentSettings; src: string }
     // The consent script hides it, perhaps before Next.js's React takes over the page.
     <div className="gf-consent-placeholder" {...{ [CONSENT_PLACEHOLDER_ATTRIBUTE]: "" }} suppressHydrationWarning>
       <p>{consent.held.replaceAll("{site}", consentSource(src))}</p>
-      <button type="button" {...{ [CONSENT_ACCEPT_ATTRIBUTE]: "" }}>
+      {/* It allows other sites' content, and nothing else the site asks about. */}
+      <button type="button" {...{ [CONSENT_ACCEPT_ATTRIBUTE]: "content" }}>
         {consent.show}
       </button>
     </div>
@@ -85,7 +93,7 @@ export function createConsent(useSite: () => SiteContextValue) {
           suppressHydrationWarning
         >
           <p>{message ?? consent.held.replaceAll("{site}", consentSource(src))}</p>
-          <button type="button" {...{ [CONSENT_ACCEPT_ATTRIBUTE]: "" }}>
+          <button type="button" {...{ [CONSENT_ACCEPT_ATTRIBUTE]: "content" }}>
             {consent.show}
           </button>
         </div>
@@ -99,16 +107,23 @@ export function createConsent(useSite: () => SiteContextValue) {
 /**
  * The notice asking visitors whether the site may load other sites' content,
  * in the page's language, which the consent script shows until they answer.
- * Hidden as rendered, so visitors without JavaScript, the admin panel's
- * previews and search engines never see it.
+ * Where the site asks about more than one kind (`consentKinds()`), Choose
+ * shows a choice for each. Hidden as rendered, so visitors without
+ * JavaScript, the admin panel's previews and search engines never see it.
  */
 export function ConsentNotice({ site }: { site: SiteContextValue }) {
   const consent = site.settings.consent;
   if (!consent) return null;
+  const kinds = consentKinds(consent);
+  const choices = kinds.length > 1;
   return (
     <div
       id={CONSENT_NOTICE_ID}
-      {...{ [CONSENT_NOTICE_ATTRIBUTE]: "" }}
+      {...{
+        [CONSENT_NOTICE_ATTRIBUTE]: "",
+        [CONSENT_KINDS_ATTRIBUTE]: kinds.join(" "),
+        [CONSENT_DAYS_ATTRIBUTE]: String(consent.days),
+      }}
       className="gf-consent"
       role="dialog"
       aria-labelledby={CONSENT_MESSAGE_ID}
@@ -126,10 +141,37 @@ export function ConsentNotice({ site }: { site: SiteContextValue }) {
           </>
         )}
       </p>
+      {choices && (
+        // The consent script shows the choices, and which are ticked, when the visitor asks for them.
+        <fieldset
+          className="gf-consent-choices"
+          {...{ [CONSENT_CHOICES_ATTRIBUTE]: "" }}
+          aria-label={consent.choose}
+          hidden
+          suppressHydrationWarning
+        >
+          {kinds.map((kind) => (
+            <label key={kind}>
+              <input type="checkbox" {...{ [CONSENT_KIND_ATTRIBUTE]: kind }} />
+              {consent[kind]}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <div className="gf-consent-buttons">
         <button type="button" {...{ [CONSENT_DECLINE_ATTRIBUTE]: "" }}>
           {consent.decline}
         </button>
+        {choices && (
+          <>
+            <button type="button" {...{ [CONSENT_CHOOSE_ATTRIBUTE]: "" }} suppressHydrationWarning>
+              {consent.choose}
+            </button>
+            <button type="button" {...{ [CONSENT_SAVE_ATTRIBUTE]: "" }} hidden suppressHydrationWarning>
+              {consent.save}
+            </button>
+          </>
+        )}
         <button type="button" {...{ [CONSENT_ACCEPT_ATTRIBUTE]: "" }}>
           {consent.accept}
         </button>

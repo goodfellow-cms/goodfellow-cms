@@ -198,15 +198,19 @@ describe("renderPage", () => {
     // Meta tags such as site verification stay, as search engines read them.
     expect(head).toContain('<meta name="verify" content="abc"/>');
     expect(head).toContain(
-      '<template data-gf-consent-code="head"><script async src="https://example.org/tag.js"></script></template>',
+      '<template data-gf-consent-code="head" data-gf-consent-kind="content"><script async src="https://example.org/tag.js"></script></template>',
     );
-    expect(html).toContain('<template data-gf-consent-code="body"><script>window.n = 1;</script></template>');
+    expect(html).toContain(
+      '<template data-gf-consent-code="body" data-gf-consent-kind="content"><script>window.n = 1;</script></template>',
+    );
     expect(html).toContain('<iframe title="Video" data-gf-consent-src="https://www.youtube-nocookie.com/embed/abc">');
     expect(html).toContain("This comes from youtube-nocookie.com, which can set cookies.");
     // The notice comes after the footer, even without one, then the script that shows it.
     expect(html).toMatch(
-      /<div id="gf-consent" data-gf-consent-notice="" class="gf-consent" role="dialog" aria-labelledby="gf-consent-message" hidden=""/,
+      /<div id="gf-consent" data-gf-consent-notice="" data-gf-consent-kinds="content" data-gf-consent-days="180" class="gf-consent" role="dialog" aria-labelledby="gf-consent-message" hidden=""/,
     );
+    // With only other sites' content to ask about, there's nothing to choose between.
+    expect(html).not.toContain('data-gf-consent-choose=""');
     expect(html).toContain('<p id="gf-consent-message">');
     expect(html).toContain('<a href="/privacy">Privacy</a>');
     expect(html.indexOf('id="gf-consent"')).toBeLessThan(html.indexOf("goodfellow-consent"));
@@ -225,6 +229,21 @@ describe("renderPage", () => {
     expect(own).toContain('<link rel="stylesheet" href="/extra.css"/>');
     expect(own).not.toContain("document.write");
     expect(own).not.toContain("window.early");
+
+    // Code for statistics waits for its own choice, and code the site needs loads without asking.
+    const kinds = siteSettingsSchema.parse({
+      ...settings,
+      consent: { days: 30, code: { head: "needed", body: "statistics" } },
+    });
+    const chosen = await renderPage(makeContent({ settings: kinds, code }), makePage([]));
+    expect(chosen).toContain('<script async="" src="https://example.org/tag.js"></script>');
+    expect(chosen).toContain(
+      '<template data-gf-consent-code="body" data-gf-consent-kind="statistics"><script>window.n = 1;</script></template>',
+    );
+    expect(chosen).toContain('data-gf-consent-kinds="content statistics" data-gf-consent-days="30"');
+    expect(chosen).toContain('<input type="checkbox" data-gf-consent-kind="statistics"/>Statistics that count visits');
+    expect(chosen).toContain('<button type="button" data-gf-consent-choose="">Choose</button>');
+    expect(chosen).toContain('<button type="button" data-gf-consent-save="" hidden="">Save my choices</button>');
 
     // A site that doesn't ask shows them as they are.
     const plain = await renderPage(makeContent({ code }), makePage([{ type: "Player", props: { id: "p" } }]));

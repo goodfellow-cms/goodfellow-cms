@@ -9,7 +9,7 @@ import {
   type SiteSettings,
 } from "@goodfellow-cms/core";
 import { useMemo } from "react";
-import { CONSENT_WORDS, ConsentWordField } from "./consent-settings.js";
+import { CONSENT_WORDS, ConsentWordField, shownConsentWords } from "./consent-settings.js";
 import { useStrings } from "./strings.js";
 import { Button, TextField } from "./ui.js";
 
@@ -187,7 +187,7 @@ export function LanguagesTab({
               onChange={(value) => setTranslation(code, "titleTemplate", value)}
             />
             {draft.consent &&
-              CONSENT_WORDS.map((word) => (
+              shownConsentWords(draft.consent).map((word) => (
                 <ConsentWordField
                   key={word}
                   word={word}

@@ -14,6 +14,7 @@ import {
   type GoodfellowConfig,
   googleFontsUrl,
   hasLanguages,
+  heldCode,
   IMAGE_WIDTHS,
   loadSiteContent,
   normalizePagePath,
@@ -305,12 +306,16 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
         <>
           <Theme content={content} />
           {/* React moves the head's links, meta tags and loading scripts into the head; inline scripts run here. */}
-          <HeadCode code={content.code?.head} held={asks(content)} siteUrl={content.settings.url} />
+          <HeadCode
+            code={content.code?.head}
+            held={heldCode(content.settings.consent, "head")}
+            siteUrl={content.settings.url}
+          />
           {header}
           {children}
           {footer}
           <CurrentMenuLinks basePath={basePath()} />
-          <BodyCode code={content.code?.body} held={asks(content)} />
+          <BodyCode code={content.code?.body} held={heldCode(content.settings.consent, "body")} />
           <ConsentAsk content={content} />
         </>
       );
@@ -359,7 +364,11 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
           {/* Next.js doesn't take metadata from not-found pages; React moves this into the head. */}
           <title>{pageHead(content, page).title}</title>
           <Theme content={content} />
-          <HeadCode code={content.code?.head} held={asks(content)} siteUrl={content.settings.url} />
+          <HeadCode
+            code={content.code?.head}
+            held={heldCode(content.settings.consent, "head")}
+            siteUrl={content.settings.url}
+          />
           <PageBody
             site={prepared.site}
             pageConfig={prepared.pageConfig}
@@ -368,7 +377,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
             header={prepared.header}
             footer={prepared.footer}
           />
-          <BodyCode code={content.code?.body} held={asks(content)} />
+          <BodyCode code={content.code?.body} held={heldCode(content.settings.consent, "body")} />
           <ConsentAsk content={content} />
         </>
       );

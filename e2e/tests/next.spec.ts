@@ -244,7 +244,12 @@ test("loads what a site that asks held back once, for a visitor who agreed befor
     if (message.type() === "error") errors.push(message.text());
   });
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript(() => localStorage.setItem("goodfellow-consent", "yes"));
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "goodfellow-consent",
+      JSON.stringify({ yes: ["content"], asked: ["content"], at: Date.now() }),
+    ),
+  );
 
   await page.goto(`${BASE}/watch/`);
   await expect(page.locator("iframe[title='Video']")).toHaveAttribute("src", /youtube-nocookie/);

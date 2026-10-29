@@ -8,6 +8,7 @@ import {
   fontPreloads,
   type GoodfellowConfig,
   googleFontsUrl,
+  heldCode,
   type Page,
   pageHead,
   type SiteContent,
@@ -128,7 +129,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
           ))}
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: themeToCss escapes its output */}
           <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme, standIns) }} />
-          <HeadCode code={content.code?.head} held={consent} siteUrl={settings.url} />
+          <HeadCode code={content.code?.head} held={heldCode(settings.consent, "head")} siteUrl={settings.url} />
         </head>
         <body>
           <PageBody
@@ -140,7 +141,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
             footer={prepared.footer}
             {...(prepared.structuredData && { structuredData: prepared.structuredData })}
           />
-          <BodyCode code={content.code?.body} held={consent} />
+          <BodyCode code={content.code?.body} held={heldCode(settings.consent, "body")} />
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own script, which asks visitors before loading other sites' content */}
           {consent && <script dangerouslySetInnerHTML={{ __html: consentScript() }} />}
           {assets.scripts?.map((src) => (

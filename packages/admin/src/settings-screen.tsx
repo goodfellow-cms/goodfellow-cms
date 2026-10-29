@@ -1,5 +1,8 @@
 import {
+  CODE_PURPOSES,
   CODE_THEMES,
+  type CodePurpose,
+  type ConsentSettings,
   contrastProblems,
   DEFAULT_CODE_THEMES,
   DEFAULT_DARK_THEME_COLORS,
@@ -656,16 +659,57 @@ function CssTab({ css, onChange }: { css: string; onChange: (css: string) => voi
   );
 }
 
+/**
+ * What a part of the site's code is for, on a site that asks visitors first:
+ * code needed for the site to work loads without asking, and the rest waits
+ * for visitors to allow its kind.
+ */
+function CodePurposeField({
+  consent,
+  part,
+  onChange,
+}: {
+  consent: ConsentSettings;
+  part: "head" | "body";
+  onChange: (consent: ConsentSettings) => void;
+}) {
+  const t = useStrings();
+  return (
+    <Field label={t(part === "head" ? "code.purpose.head" : "code.purpose.body")} hint={t("code.purposeHint")}>
+      {(props) => (
+        <select
+          {...props}
+          className="gfa-input"
+          value={consent.code[part]}
+          onChange={(event) =>
+            onChange({ ...consent, code: { ...consent.code, [part]: event.target.value as CodePurpose } })
+          }
+        >
+          {CODE_PURPOSES.map((purpose) => (
+            <option key={purpose} value={purpose}>
+              {t(`code.purpose.${purpose}`)}
+            </option>
+          ))}
+        </select>
+      )}
+    </Field>
+  );
+}
+
 function CodeTab({
   code,
+  consent,
   headError,
   bodyError,
   onChange,
+  onConsentChange,
 }: {
   code: SiteCode;
+  consent?: ConsentSettings;
   headError?: string;
   bodyError?: string;
   onChange: (code: SiteCode) => void;
+  onConsentChange: (consent: ConsentSettings) => void;
 }) {
   const t = useStrings();
   const exposed = useSignInExposed();
@@ -690,6 +734,7 @@ function CodeTab({
           />
         )}
       </Field>
+      {consent && <CodePurposeField consent={consent} part="head" onChange={onConsentChange} />}
       <Field label={t("code.body")} hint={t("code.bodyHint")} error={bodyError}>
         {(props) => (
           <CodeEditor
@@ -702,6 +747,7 @@ function CodeTab({
           />
         )}
       </Field>
+      {consent && <CodePurposeField consent={consent} part="body" onChange={onConsentChange} />}
     </div>
   );
 }
@@ -927,9 +973,11 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
         {tab === "code" && (
           <CodeTab
             code={code}
+            consent={settings.consent}
             headError={showErrors ? headError : undefined}
             bodyError={showErrors ? bodyError : undefined}
             onChange={setCode}
+            onConsentChange={(consent) => setSettings({ ...settings, consent })}
           />
         )}
       </div>
