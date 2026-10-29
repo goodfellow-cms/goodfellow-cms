@@ -8,7 +8,10 @@
 // sandboxed, and no other site can frame the admin panel. For a site with an admin address
 // (goodfellow.config.tsx's `admin` line, which Site Settings' Domain screen writes), every page at
 // that address but the admin panel's own is sandboxed, so a site page served there can't read
-// what the admin panel keeps.
+// what the admin panel keeps. Pages opened at the wrong one of the two addresses are sent to the
+// right one, as the guard scripts the build puts first in every page would: a site page at the admin
+// address goes to the Site address (content/site.json's `url`), and once Site Settings has checked
+// the admin address (`checked: true`), the admin panel at the Site address goes there.
 // This file uses only Node's own modules, since Vercel may read it before installing packages.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -18,7 +21,7 @@ export const config = {
   installCommand: "npm ci",
   buildCommand: "npx goodfellow build",
   outputDirectory: "dist",
-  redirects: redirects(),
+  redirects: [...adminRedirects(adminAddress(readConfig())), ...redirects()],
   headers: headers(),
   // Drafts, from the admin panel's Add to draft and from Claude, are kept on branches named
   // goodfellow-draft-…, and plugins' tasks answer on branches named goodfellow-task-…, which
@@ -92,11 +95,49 @@ function redirects() {
   });
 }
 
+/**
+ * Pages opened at the wrong address, as `vercelAdminRedirects()` in @goodfellow-cms/core writes them.
+ * Only pages opened in a tab: the admin panel's frames and what pages load stay where they are.
+ */
+function adminRedirects(admin: { url: string; checked: boolean } | undefined) {
+  const siteUrl = readJson("content/site.json")?.url;
+  if (!admin || typeof siteUrl !== "string") return [];
+  let site: URL;
+  let origin: URL;
+  try {
+    site = new URL(siteUrl);
+    origin = new URL(admin.url);
+  } catch {
+    return [];
+  }
+  if (site.origin === origin.origin) return [];
+  const opened = { type: "header", key: "sec-fetch-dest", value: "document" };
+  const atSite = [{ type: "host", value: site.host }, opened];
+  return [
+    {
+      source: "/:path((?!admin/|admin$).*)",
+      has: [{ type: "host", value: origin.host }, opened],
+      destination: `${site.origin}/:path`,
+      permanent: false,
+    },
+    ...(admin.checked
+      ? [
+          { source: "/admin", has: atSite, destination: `${origin.origin}/admin/`, permanent: false },
+          {
+            source: "/admin/:path((?!editor/|editor$|plugins/).*)",
+            has: atSite,
+            destination: `${origin.origin}/admin/:path`,
+            permanent: false,
+          },
+        ]
+      : []),
+  ];
+}
+
 /** The site's header rules, as `vercelHeaders()` in @goodfellow-cms/core writes them. */
 function headers() {
-  const config = existsSync("goodfellow.config.tsx") ? readFileSync("goodfellow.config.tsx", "utf8") : "";
-  const line = /^[ \t]*admin:[ \t]*\{[^\n]*\},?[ \t]*$/m.exec(config)?.[0];
-  const url = line && /url:\s*"([^"\\]+)"/.exec(line)?.[1];
+  const config = readConfig();
+  const url = adminAddress(config)?.url;
   // A token broker (the config's `broker` line) shows the admin panel in its frame.
   const brokerLine = /^[ \t]*broker:[ \t]*\{[^\n]*\},?[ \t]*$/m.exec(config)?.[0];
   const broker = brokerLine && /url:\s*"([^"\\]+)"/.exec(brokerLine)?.[1];
@@ -130,4 +171,15 @@ function headers() {
     { source: "/admin/editor/:path*", has, headers: frames },
     { source: "/admin/plugins/:path*", has, headers: frames },
   ];
+}
+
+/** The config's `admin` line: the admin address, and whether Site Settings has checked it. */
+function adminAddress(config: string): { url: string; checked: boolean } | undefined {
+  const line = /^[ \t]*admin:[ \t]*\{[^\n]*\},?[ \t]*$/m.exec(config)?.[0];
+  const url = line && /url:\s*"([^"\\]+)"/.exec(line)?.[1];
+  return url ? { url, checked: /checked:\s*true/.test(line) } : undefined;
+}
+
+function readConfig(): string {
+  return existsSync("goodfellow.config.tsx") ? readFileSync("goodfellow.config.tsx", "utf8") : "";
 }

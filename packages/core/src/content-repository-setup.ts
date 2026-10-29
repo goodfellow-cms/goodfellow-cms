@@ -5,7 +5,7 @@
  * page make the same ones.
  */
 
-import { vercelHeaders } from "./admin-domain.js";
+import { vercelHeaders, withVercelAdminAddress } from "./admin-domain.js";
 import {
   BITBUCKET_PIPELINE_NAMES,
   BITBUCKET_PIPELINES,
@@ -583,15 +583,25 @@ const VERCEL_HEADERS_NOTE = comment(
   "  // ",
 );
 
+/** Where the admin address in a content repository's `vercel.ts` comes from. */
+const VERCEL_ADMIN_NOTE = comment(
+  "The admin address in the code's goodfellow.config.tsx, which pages opened at the wrong one of it and the Site address are sent from: goodfellow admin, run in the code's folder, copies it here.",
+  "  // ",
+);
+
 /** The template's `vercel.ts`, with header rules written out in place of reading them from the config. */
 function withCopiedHeaders(source: string): string {
   const call = /^([ \t]*)headers: headers\(\),$/m;
   const reader = source.indexOf("/** The site's header rules");
   if (!call.test(source) || reader === -1) throw new Error("The template's vercel.ts has no headers() to replace.");
-  return `${source.slice(0, reader).trimEnd()}\n`.replace(
+  const copied = `${source.slice(0, reader).trimEnd()}\n`.replace(
     call,
     `${VERCEL_HEADERS_NOTE}\n$1headers: ${JSON.stringify(vercelHeaders())},`,
   );
+  // The admin address too, which the redirects between it and the Site address are worked out from.
+  const withAdmin = withVercelAdminAddress(copied, undefined);
+  if (withAdmin === undefined) throw new Error("The template's vercel.ts has no adminRedirects() to give the address.");
+  return withAdmin.replace(/^([ \t]*)redirects: \[\.\.\.adminRedirects\(/m, `${VERCEL_ADMIN_NOTE}\n$&`);
 }
 
 /**

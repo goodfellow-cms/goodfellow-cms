@@ -3,7 +3,13 @@ import { existsSync } from "node:fs";
 import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { cloudflareSiteHeaders, startsWithGuard, vercelHeaders, withAdminConfig } from "@goodfellow-cms/core";
+import {
+  cloudflareSiteHeaders,
+  startsWithGuard,
+  vercelAdminRedirects,
+  vercelHeaders,
+  withAdminConfig,
+} from "@goodfellow-cms/core";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "./build.js";
@@ -360,6 +366,23 @@ describe("the starter's vercel.ts", () => {
         { cwd: site, encoding: "utf8" },
       );
       expect(JSON.parse(headers).headers).toEqual(vercelHeaders({ admin: { url: "https://admin.example.org" } }));
+      // Site pages opened at the admin address go to the Site address, as core says.
+      expect(JSON.parse(headers).redirects).toEqual(
+        vercelAdminRedirects({ url: "https://admin.example.org" }, "https://example.org/site"),
+      );
+      // Once it's checked, the admin panel opened at the Site address goes to the admin address.
+      const checked = { url: "https://admin.example.org", checked: true };
+      await writeFile(
+        join(site, "goodfellow.config.tsx"),
+        withAdminConfig("export default defineConfig({\n  blocks,\n});\n", checked) ?? "",
+      );
+      const moved = execFileSync(
+        process.execPath,
+        ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
+        { cwd: site, encoding: "utf8" },
+      );
+      expect(JSON.parse(moved).redirects).toEqual(vercelAdminRedirects(checked, "https://example.org/site"));
+      expect(JSON.parse(moved).redirects).toHaveLength(3);
     } finally {
       await rm(site, { recursive: true, force: true });
     }
