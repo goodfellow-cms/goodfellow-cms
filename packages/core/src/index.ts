@@ -398,6 +398,12 @@ export {
   withStoredMedia,
 } from "./content/media-storage.js";
 export {
+  isOwnersOnlyField,
+  type OwnersOnlyFields,
+  ownersOnlyChanges,
+  ownersOnlyFields,
+} from "./content/owners-only.js";
+export {
   type Breadcrumbs,
   breadcrumbs,
   type PageLink,

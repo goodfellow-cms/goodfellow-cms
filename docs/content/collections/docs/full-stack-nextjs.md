@@ -82,7 +82,7 @@ The content still lives in the site's repository, so the site is still rebuilt w
 | `editor` | Edit and publish pages, collections' items, media, menus, and the header and footer |
 | `owner` | Also change Site Settings, redirects, collections' settings and templates, and submit blocks for review |
 
-The admin panel hides what editors can't change, and the server refuses it whatever a browser sends.
+The admin panel hides what editors can't change, and the server refuses it whatever a browser sends. Editors also can't choose to use [Custom HTML](/docs/add-blocks) exactly as written, which would run it on the site: they see the setting but can't change it, and the server refuses a publish that changes it. Blocks of your own can mark settings like that with `metadata: { owners: true }` ([Write blocks](/docs/write-blocks#blocks-for-collections)).
 
 A block's code, and what it shares in `components/`, `lib/` and `hooks/`, runs on the site's server, which holds its token and AI keys. So on the Blocks screen, adding or removing blocks is submitted for review, as a pull request or merge request for a developer to accept, and the server refuses to publish those files otherwise. To let owners publish them themselves, pass `codeChanges: "publish"` to `goodfellowApi()`. Moving a page doesn't offer an editor a redirect from its old address, since redirects are part of Site Settings.
 

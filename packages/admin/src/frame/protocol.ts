@@ -73,6 +73,8 @@ export interface EditorOpen {
   ui?: Partial<UiState>;
   /** Shown without editing, where it's outside what the signed-in person may change. */
   readOnly?: boolean;
+  /** Blocks' owners-only settings shown but not changeable, for an editor who isn't an owner. */
+  ownersOnlyLocked?: boolean;
 }
 
 /** What the editor tells the admin panel about itself once it's open. */

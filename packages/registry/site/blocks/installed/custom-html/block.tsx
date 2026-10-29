@@ -25,6 +25,8 @@ const CustomHtml: ComponentConfig<CustomHtmlProps> = withParts(
       sanitize: {
         type: "radio",
         label: "Make it safe",
+        // HTML used as written runs on the site: on full-stack sites, only owners may choose it.
+        metadata: { owners: true },
         options: [
           { label: "Yes: leave out scripts, styles and frames", value: true },
           { label: "No: use it exactly as written", value: false },

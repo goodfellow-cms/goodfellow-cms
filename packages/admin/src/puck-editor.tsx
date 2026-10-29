@@ -16,7 +16,7 @@ import {
 import { cx } from "@goodfellow-cms/react";
 import type { Config, Data, UiState } from "@puckeditor/core";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAdmin } from "./admin-context.js";
+import { useAdmin, useCanChangeSettings } from "./admin-context.js";
 import { AiPanel } from "./ai-panel.js";
 import { storedData } from "./changes.js";
 import { applyEditorChange, findBlock } from "./editor-change.js";
@@ -144,6 +144,8 @@ export function PuckEditor({
   const [viewport, setViewport] = useState<number | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const widthsKey = kind === "entry" ? ENTRY_WIDTHS_KEY : WIDTHS_KEY;
+  // Settings only owners may change, such as Custom HTML used as written, which full-stack sites' servers refuse from editors.
+  const owner = useCanChangeSettings();
 
   // What the frame opens with, and opens again with if it starts again, such as when the dev server reloads it.
   const latest = useRef({ data, viewport });
@@ -158,8 +160,9 @@ export function PuckEditor({
       ...(entry && { entry }),
       ...(language && { language }),
       ...(readOnly && { readOnly }),
+      ...(!owner && { ownersOnlyLocked: true }),
     }),
-    [kind, path, title, data, collection, entry, language, readOnly],
+    [kind, path, title, data, collection, entry, language, readOnly, owner],
   );
   const onConnect = useCallback(
     async (client: FrameClient) => {
