@@ -22,6 +22,7 @@ import {
   builtSiteSource,
   fileSystemSource,
   handleDevApi,
+  isAllowedDevHost,
   localFileStore,
   localRegistryDir,
   sendBuildFile,
@@ -279,6 +280,13 @@ function devPlugin(
     name: "goodfellow:dev",
     configureServer(server: ViteDevServer) {
       watchContent(server, root, styles);
+      // These run before Vite's own check of the address asked for, so they check it themselves.
+      const allowedHosts = server.config.server.allowedHosts;
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
+        if (isAllowedDevHost(req.headers.host, allowedHosts)) return next();
+        res.statusCode = 403;
+        res.end();
+      });
       server.middlewares.use(serveMedia(root));
       server.middlewares.use(serveEditor(editor));
       server.middlewares.use(servePluginFrames(pluginFrames));
@@ -298,7 +306,7 @@ function devPlugin(
             plugins: async () => (await loadServerEntry(server)).config.plugins ?? [],
             server: "goodfellow-dev" as const,
           };
-          if (await handleDevApi(store, req, res, { registryDir, tasks })) return;
+          if (await handleDevApi(store, req, res, { registryDir, tasks, allowedHosts })) return;
           if (req.method !== "GET" && req.method !== "HEAD") return next();
           const url = new URL(req.url ?? "/", "http://localhost");
 

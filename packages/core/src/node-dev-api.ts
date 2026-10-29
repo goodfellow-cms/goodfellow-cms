@@ -70,6 +70,13 @@ export interface DevApiOptions {
    * Next.js's development server) sees a different address in `host`.
    */
   trustOrigin?: (origin: string, host: string | undefined) => boolean;
+  /**
+   * Addresses besides this computer's names and IP addresses that the server
+   * answers at, as Vite's `server.allowedHosts` names them (`.example.org`
+   * for its subdomains too), or `true` for any. Others are refused, so a
+   * website whose name has been pointed at this computer can't use the API.
+   */
+  allowedHosts?: readonly string[] | true;
   /** The built block registry to serve at `registry/<name>.json`, for the admin panel's Blocks screen. */
   registryDir?: string;
   /**
@@ -132,6 +139,28 @@ async function sendRegistryFile(res: ServerResponse, dir: string | undefined, na
   } catch {
     send(res, 404, { error: "not-found" });
   }
+}
+
+/**
+ * Whether a development server may answer a request sent to `host`, as Vite
+ * decides: this computer's names, IP addresses (which no website can take
+ * over), and the hosts the developer allowed. A website whose name it
+ * resolves to this computer (DNS rebinding) still sends its own name.
+ */
+export function isAllowedDevHost(host: string | undefined, allowed: readonly string[] | true = []): boolean {
+  if (allowed === true) return true;
+  if (!host) return false;
+  let hostname: string;
+  try {
+    hostname = new URL(`http://${host}`).hostname;
+  } catch {
+    return false;
+  }
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) return true;
+  if (hostname.startsWith("[") || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return true;
+  return allowed.some((name) =>
+    name.startsWith(".") ? hostname === name.slice(1) || hostname.endsWith(name) : hostname === name,
+  );
 }
 
 function sameOrigin(origin: string, host: string | undefined): boolean {
@@ -216,6 +245,10 @@ export async function handleDevApi(
   if (!url.pathname.startsWith(`${DEV_API_PREFIX}/`)) return false;
   // Without a trailing slash: Next.js redirects `/revision` to `/revision/` in sites with `trailingSlash`.
   const endpoint = url.pathname.slice(DEV_API_PREFIX.length + 1).replace(/\/+$/, "");
+  if (!isAllowedDevHost(req.headers.host, options.allowedHosts)) {
+    send(res, 403, { error: "forbidden" });
+    return true;
+  }
 
   if (req.method === "GET" && endpoint.startsWith("registry/")) {
     await sendRegistryFile(res, options.registryDir, endpoint.slice("registry/".length));
@@ -266,7 +299,9 @@ export async function handleDevApi(
         return true;
       }
       const result = await store.write(changes, { message, expectedRevision });
-      console.log(`  Saved: ${message}`);
+      // The message is the browser's, so nothing in it can move the terminal's cursor or change its colors.
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it leaves out
+      console.log(`  Saved: ${message.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")}`);
       send(res, 200, result);
     } else if (req.method === "GET" && endpoint === "task") {
       send(res, 200, {

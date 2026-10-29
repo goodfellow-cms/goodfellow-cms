@@ -38,6 +38,7 @@ export {
   DEV_API_PREFIX,
   type DevApiOptions,
   handleDevApi,
+  isAllowedDevHost,
   isLocalOrigin,
   sendBuildFile,
 } from "./node-dev-api.js";
