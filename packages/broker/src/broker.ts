@@ -226,6 +226,12 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
       return;
     }
     const frameOrigin = new URL(where.url).origin;
+    // Framed with allow-same-origin, a page at this page's own address could read its storage: the
+    // sign-in and AI keys. Hosts that serve many sites at one address (`group.gitlab.io/…`) would allow it.
+    if (frameOrigin === location.origin) {
+      show(element("p", { class: "broker-note", role: "alert" }, t("sameOrigin", { address: frameOrigin })));
+      return;
+    }
     const route = sessionStorage.getItem(ROUTE_KEY) ?? "";
     const frame = element("iframe", {
       class: "broker-frame",
@@ -253,6 +259,8 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
         "header",
         { class: "broker-bar" },
         element("span", {}, t("signedInAs", { name: signedIn.user.name || signedIn.user.login })),
+        // Where the admin panel shown below is, since a site's settings say where that is.
+        element("span", { class: "broker-origin" }, t("showing", { address: frameOrigin })),
         aiButton,
         signOutButton,
       ),
