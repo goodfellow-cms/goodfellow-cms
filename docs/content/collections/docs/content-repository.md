@@ -107,6 +107,8 @@ Adding and removing blocks from [block registries](/docs/add-blocks) changes cod
 
 ## Full-stack Next.js sites
 
+We strongly recommend this for [full-stack Next.js sites](/docs/full-stack-nextjs#keep-the-content-in-a-repository-of-its-own). Their server always holds a token, and a token that can write to the code's repository could change the code the server runs, with all its secrets.
+
 Point `goodfellow.config.tsx`'s `backend` at the content repository, with `contentOnly: true`, and give the server a token for the content repository only as `GOODFELLOW_GIT_TOKEN`. The server then refuses to write anything but content, whoever asks. The site builds from the code repository, which needs the content when it builds: clone it into `content-repository/` and run `npx goodfellow-next content copy` before `npm run build`, as the Vercel setup's install does. Publishing changes the content repository, so it has to start the build, as the Vercel setup's deploy hook does.
 
 ## Moving an existing site

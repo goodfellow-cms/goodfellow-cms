@@ -93,7 +93,7 @@ The site is built by GitHub Actions, GitLab CI, Cloudflare Pages or Vercel, from
 ### Going further
 
 - **[Content in a repository of its own](/docs/content-repository):** editors' sign-in reaches only the content's repository, so it can never change the site's code.
-- **[Full-stack Next.js sites](/docs/full-stack-nextjs)** sign editors in with the app's own sign-in, and their server holds the repository's token. The editor's sandbox still keeps blocks away from the app's API, but the app's server, sign-in, pages and secrets are their developers' to secure, and the token broker, admin addresses and the starters' builds don't apply to them.
+- **[Full-stack Next.js sites](/docs/full-stack-nextjs)** sign editors in with the app's own sign-in, and their server holds the repository's token. Keep their content in a [repository of its own](/docs/full-stack-nextjs#keep-the-content-in-a-repository-of-its-own), as we strongly recommend, so that token can't change the code the server runs. The editor's sandbox still keeps blocks away from the app's API, but the app's server, sign-in, pages and secrets are their developers' to secure, and the token broker, admin addresses and the starters' builds don't apply to them.
 - **[Running your own sign-in service](/docs/sign-in-service)** and **[token broker](/docs/token-broker)**.
 
 ## Reporting a security problem

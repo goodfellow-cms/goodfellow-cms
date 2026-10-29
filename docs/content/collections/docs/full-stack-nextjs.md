@@ -12,11 +12,19 @@ Goodfellow sites are static files by default, and nothing on this page is needed
 - The app's server reads and publishes through GitHub, GitLab or Bitbucket with one token, from an environment variable, which never reaches a browser. What each editor publishes still names them as its author.
 - Optionally, the AI assistant asks AI services through the server, with keys in environment variables, so editors don't need keys of their own.
 
-The content still lives in the site's repository, so the site is still rebuilt when something is published, as hosts that run Next.js do on every change to the repository. `next dev` still saves to the files on disk.
+The site is still rebuilt when something is published, as hosts that run Next.js do on every change to the repository. `next dev` still saves to the files on disk.
+
+## Keep the content in a repository of its own
+
+We strongly recommend keeping a full-stack site's content in a [repository of its own](/docs/content-repository#full-stack-nextjs-sites), and giving the server a token for that repository only.
+
+The server holds its token all the time, and runs code from many places: the app's own, its packages, its blocks and plugins' server modules. A token that can write to the site's repository can also change that code, which the host then builds and runs with every secret the server has. So anyone who gets the token, through a bug or a package with something added to it, could take over the site and its server for good, not just change its pages. A token that can reach only the content can change only the content, which [version history](/docs/publishing#version-history) can put back. The server also refuses to write anything but content then, whoever asks.
+
+The cost is a second repository to set up. Blocks and plugins are then added by a developer in the code repository, since the admin panel can't change code. And where the host builds from the code repository, as hosts that run Next.js do, the admin panel can't say when a change is live.
 
 ## Setting it up
 
-1. In `goodfellow.config.tsx`, say where the site is stored, as for any site: `backend: github({ repo: "your-name/your-site" })` or `backend: gitlab({ project: "your-group/your-site" })`.
+1. In `goodfellow.config.tsx`, say where the site is stored, as for any site: `backend: github({ repo: "your-name/your-site" })` or `backend: gitlab({ project: "your-group/your-site" })`. With the content in a [repository of its own](#keep-the-content-in-a-repository-of-its-own), as we recommend, that's the content repository, with `contentOnly: true`: `backend: github({ repo: "your-name/your-site-content", contentOnly: true })`.
 
 2. In `next.config.ts`, build it for a server rather than as static files:
 
@@ -67,9 +75,9 @@ The content still lives in the site's repository, so the site is still rebuilt w
    <GoodfellowAdmin site={site.admin()} server="/api/goodfellow" />
    ```
 
-5. Give the server its token as `GOODFELLOW_GIT_TOKEN` in the host's environment variables:
+5. Give the server its token as `GOODFELLOW_GIT_TOKEN` in the host's environment variables. Make it for the content repository if the site has one, as we recommend, and never for the code's:
 
-   - **GitHub:** a fine-grained token for the site's repository only, with Contents read and write, and Deployments and Actions read, which the admin panel uses to say when a change is live and why a rebuild failed. Make it from an account kept for the site, such as a machine user, rather than a person's own.
+   - **GitHub:** a fine-grained token for that one repository only, with Contents read and write, and Deployments and Actions read, which the admin panel uses to say when a change is live and why a rebuild failed. Make it from an account kept for the site, such as a machine user, rather than a person's own.
    - **GitLab:** a project access token with the Developer role (Maintainer if the main branch only lets Maintainers push) and the `api` scope.
    - **Bitbucket:** a repository access token with Repositories read and write and Pipelines read. Commits still name each editor as their author.
 
@@ -95,8 +103,6 @@ Signing in and out stay the app's own: the admin panel sends people to `signIn`,
 With `ai`, the AI assistant asks those services through the server, which adds its own key, so editors don't need keys of their own and never see the site's. Give a key for any of the [AI assistant's](/docs/ai-assistant) services, or a key and an address, such as `custom: { key, baseUrl: "https://ai.example/v1" }`. Editors see them as provided by the site. They can still use other services with keys of their own, unless the config's `ai.providers` leaves those out.
 
 The server sends on only the requests the assistant makes, and only for people `authorize` lets in.
-
-To keep the server's token away from the site's code, the content can be kept in a [repository of its own](/docs/content-repository#full-stack-nextjs-sites), with a token for that repository only.
 
 ## Plugins' routes
 
