@@ -47,8 +47,26 @@ export type RedirectProblem =
   | "loop"
   | "duplicate";
 
-/** Addresses Goodfellow writes files at itself, besides the admin panel's. */
-const RESERVED_PREFIXES = ["/media", "/calendars", "/pagefind", "/_next", "/_redirects"];
+/**
+ * Addresses Goodfellow writes files at itself, besides the admin panel's: a
+ * redirect page there would take the place of, or clash with, what's built.
+ */
+const RESERVED_PREFIXES = [
+  "/media",
+  "/media-sizes",
+  "/calendars",
+  "/feeds",
+  "/api",
+  "/fonts",
+  "/pagefind",
+  "/_next",
+  "/_redirects",
+  "/_headers",
+  "/__goodfellow",
+  "/404.html",
+  "/goodfellow-site.json",
+  "/goodfellow-build.json",
+];
 
 /** Characters a part of an old address can't have, since builds write a folder named after it. */
 const UNSAFE_SEGMENT = /[\s\\/?#<>"|*:%\p{Cc}]/u;
@@ -95,7 +113,8 @@ export function redirectFrom(input: string): FromResult {
 export function redirectTarget(input: string): string | undefined {
   const text = input.trim();
   if (text.startsWith("/") && !text.startsWith("//") && !/[\s\\]/.test(text)) return text;
-  if (!/^https?:\/\//i.test(text)) return undefined;
+  // Other websites only over HTTPS, as the Redirects tab says, so visitors are never sent somewhere unencrypted.
+  if (!/^https:\/\//i.test(text)) return undefined;
   try {
     return new URL(text).href;
   } catch {
@@ -120,6 +139,22 @@ function targetPath(to: string): string | undefined {
 /** What's wrong with each redirect, by position, or `undefined` for one that's fine. */
 export function redirectProblems(redirects: readonly Redirect[]): Array<RedirectProblem | undefined> {
   const seen = new Set<string>();
+  // Where each old address sends visitors on the site, to find redirects that lead back to themselves.
+  const next = new Map<string, string>();
+  for (const redirect of redirects) {
+    const from = redirectFrom(redirect.from);
+    const to = redirectTarget(redirect.to);
+    const path = to && targetPath(to);
+    if (from.ok && path && !next.has(from.path)) next.set(from.path, path);
+  }
+  const loops = (start: string) => {
+    let at = next.get(start);
+    for (let steps = 0; at !== undefined && steps <= next.size; steps++) {
+      if (at === start) return true;
+      at = next.get(at);
+    }
+    return false;
+  };
   return redirects.map((redirect) => {
     const from = redirectFrom(redirect.from);
     if (!from.ok) return from.problem;
@@ -129,7 +164,7 @@ export function redirectProblems(redirects: readonly Redirect[]): Array<Redirect
     if (!redirect.to.trim()) return "no-to";
     const to = redirectTarget(redirect.to);
     if (!to) return "bad-to";
-    if (targetPath(to) === from.path) return "loop";
+    if (targetPath(to) === from.path || loops(from.path)) return "loop";
     return undefined;
   });
 }

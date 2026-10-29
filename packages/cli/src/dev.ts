@@ -38,7 +38,7 @@ import {
   EDITOR_REBUILT_EVENT,
 } from "./admin-entry.js";
 import { buildEditor } from "./editor-bundle.js";
-import { type ClientModules, ISLANDS_DEV_URL } from "./islands.js";
+import { type ClientModules, ISLANDS_DEV_URL, slashes } from "./islands.js";
 import { devPluginFrames } from "./plugin-frames.js";
 import {
   baseViteConfig,
@@ -131,7 +131,8 @@ function watchedPaths(dir: string): string[] {
       return dir;
     }
   })();
-  return [...new Set([dir, real])].map((path) => `${path}/**`);
+  // Globs take \ for an escape, so Windows' paths are written with forward slashes.
+  return [...new Set([dir, real])].map((path) => `${slashes(path)}/**`);
 }
 
 const MEDIA_TYPES: Record<string, string> = {
