@@ -78,14 +78,19 @@ export function githubEditors(
     }
   }
 
-  async function collaborators(api: ApiOptions): Promise<Collaborator[]> {
-    const all: Collaborator[] = [];
+  /** Every page of a list, 100 at a time. */
+  async function allPages<T>(api: ApiOptions, list: string): Promise<T[]> {
+    const all: T[] = [];
     for (let page = 1; page <= 10; page++) {
-      const found = await githubJson<Collaborator[]>(api, `${path}/collaborators?per_page=100&page=${page}`);
+      const found = await githubJson<T[]>(api, `${path}/${list}?per_page=100&page=${page}`);
       all.push(...found);
       if (found.length < 100) break;
     }
     return all;
+  }
+
+  function collaborators(api: ApiOptions): Promise<Collaborator[]> {
+    return allPages<Collaborator>(api, "collaborators");
   }
 
   return {
@@ -96,7 +101,7 @@ export function githubEditors(
       const people = await collaborators(api);
       let invitations: Invitation[] | undefined;
       try {
-        invitations = await githubJson<Invitation[]>(api, `${path}/invitations?per_page=100`);
+        invitations = await allPages<Invitation>(api, "invitations");
       } catch (error) {
         // Seeing invitations needs the Administration permission, as changing editors does.
         if (!isNotAllowed(error)) throw error;

@@ -1,4 +1,4 @@
-import type { GitBackend } from "@goodfellow-cms/core";
+import { brokerCalls, type GitBackend } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
 import { decide } from "./policy.js";
 
@@ -119,5 +119,49 @@ describe("what the broker asks before making a call", () => {
     expect(await decide({ path: "pages.status", args: ["example.org"], target: {} }, SITE)).toEqual({
       action: "allow",
     });
+  });
+
+  it("asks before changing domains, taking access away, running tasks, setting up updates or throwing away a draft", async () => {
+    const ask = async (path: string, args: unknown[], target: unknown = {}) =>
+      ((await decide({ path, args, target }, SITE)) as { questions?: unknown[] }).questions;
+    expect(await ask("pages.connect", ["example.org", {}])).toEqual([
+      { kind: "domain", change: "connect", domain: "example.org" },
+    ]);
+    expect(await ask("pages.secure", ["example.org"])).toEqual([
+      { kind: "domain", change: "secure", domain: "example.org" },
+    ]);
+    expect(await ask("pages.disconnect", ["example.org"])).toEqual([
+      { kind: "domain", change: "disconnect", domain: "example.org" },
+    ]);
+    expect(await ask("editors.remove", [{ id: "1", login: "ann", role: "editor" }])).toEqual([
+      { kind: "editors-remove", who: "ann" },
+    ]);
+    expect(await ask("tasks.run", [{ id: "r", plugin: "s3", task: "sign", input: "{}", key: "{}" }])).toEqual([
+      { kind: "task", plugin: "s3", task: "sign" },
+    ]);
+    expect(await ask("updates.enable", [])).toEqual([{ kind: "updates-setup" }]);
+    expect(await ask("draft.discard", [], { name: "spring" })).toEqual([{ kind: "discard-draft", name: "spring" }]);
+  });
+
+  it("refuses calls it doesn't know, so one added later isn't made unchecked", async () => {
+    expect(await decide({ path: "pages.somethingNew", args: [], target: {} }, SITE)).toEqual({
+      action: "refuse",
+      paths: ["pages.somethingNew"],
+      reason: "unknown",
+    });
+    for (const path of ["read", "filesAt.read", "draft.store.list", "drafts.list", "updates.rebuild"]) {
+      expect(await decide({ path, args: [], target: {} }, SITE), path).toEqual({ action: "allow" });
+    }
+  });
+});
+
+describe("every call the broker offers", () => {
+  it("has a decision, so none is refused only because it isn't listed", async () => {
+    const unknown: string[] = [];
+    for (const path of brokerCalls()) {
+      const decision = await decide({ path, args: [[]], target: { changes: async () => [] } }, SITE);
+      if (decision.action === "refuse" && decision.reason === "unknown") unknown.push(path);
+    }
+    expect(unknown).toEqual([]);
   });
 });

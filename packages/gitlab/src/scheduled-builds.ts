@@ -25,7 +25,11 @@ function notAllowed(error: unknown): never {
   throw error;
 }
 
-/** A cron line for one instant, in UTC: it comes once a year, and `sync()` removes it once it has passed. */
+/**
+ * A cron line for one instant, in UTC. GitLab's crons have no year, so it
+ * comes again a year later unless `sync()` has removed it since, which only
+ * builds the site again, since the schedule's variable skips the update.
+ */
 function cronAt(at: Date): string {
   return `${at.getUTCMinutes()} ${at.getUTCHours()} ${at.getUTCDate()} ${at.getUTCMonth() + 1} *`;
 }
@@ -61,7 +65,12 @@ export function gitlabScheduledBuilds(
         if (wanted.size >= MAX_SCHEDULED_BUILDS) break;
         wanted.set(minute(at), at);
       }
-      const found = await gitlabJson<Schedule[]>(api, `${base}?per_page=100`).catch(notAllowed);
+      const found: Schedule[] = [];
+      for (let page = 1; page <= 10; page++) {
+        const listed = await gitlabJson<Schedule[]>(api, `${base}?per_page=100&page=${page}`).catch(notAllowed);
+        found.push(...listed);
+        if (listed.length < 100) break;
+      }
       const ours = new Map<string, Schedule>();
       for (const schedule of found) {
         if (!schedule.description?.startsWith(SCHEDULED_BUILD_DESCRIPTION)) continue;
@@ -84,10 +93,16 @@ export function gitlabScheduledBuilds(
             active: true,
           },
         }).catch(notAllowed);
-        await gitlabRequest(api, `${base}/${created.id}/variables`, {
-          method: "POST",
-          body: { key: SCHEDULED_CHANGE_VARIABLE, value: time, variable_type: "env_var" },
-        }).catch(notAllowed);
+        try {
+          await gitlabRequest(api, `${base}/${created.id}/variables`, {
+            method: "POST",
+            body: { key: SCHEDULED_CHANGE_VARIABLE, value: time, variable_type: "env_var" },
+          });
+        } catch (error) {
+          // Without its variable the schedule would run the nightly update, not only a build, so it goes.
+          await gitlabRequest(api, `${base}/${created.id}`, { method: "DELETE", allow: [403, 404] }).catch(() => {});
+          notAllowed(error);
+        }
       }
     },
   };

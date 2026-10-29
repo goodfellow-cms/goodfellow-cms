@@ -14,10 +14,10 @@ The broker is a small static page on an address that serves nothing else. Editor
 
 Whoever runs code in the admin panel's frame can ask the broker for anything the admin panel can, so the broker checks every request:
 
-- **Only what the admin panel uses:** it answers reads, publishes, version history, the live site's updates, drafts, domains, editors and updates, and never the git host's API for anything else.
-- **Never workflows:** it refuses to publish `.github/` or `.gitlab-ci.yml`, which run with the repository's secrets.
+- **Only what the admin panel uses:** it answers reads, publishes, version history, the live site's updates, drafts, domains, editors and updates, and never the git host's API for anything else. Each request it makes without asking is on a list of its own; it refuses anything else, so a request added in a later release isn't made unchecked.
+- **Never workflows:** it refuses to publish `.github/`, `.gitlab-ci.yml` or `bitbucket-pipelines.yml`, which run with the repository's secrets.
 - **Editors' limits:** it refuses to publish changes outside what an owner [lets the editor change](/docs/sign-in#limiting-what-editors-can-change), so code in the admin panel's frame can't either. They can still go into a draft, for review.
-- **Asks first, in its own part of the page,** outside the admin panel's frame, before publishing the site's code (installed blocks, `goodfellow.config.tsx`, `package.json` and anything else outside `content/` and `public/media/`), the site's own code that runs on its pages (`content/code/`), a new Site address (which is where it shows the admin panel from), installing a release of Goodfellow, or giving someone access to the site.
+- **Asks first, in its own part of the page,** outside the admin panel's frame, before publishing the site's code (installed blocks, `goodfellow.config.tsx`, `package.json` and anything else outside `content/` and `public/media/`), the site's own code that runs on its pages (`content/code/`), a new Site address (which is where it shows the admin panel from, however the settings file is written, or deleting it), installing a release of Goodfellow, giving someone access to the site or taking it away, connecting, securing or removing a domain, setting up updates, throwing away a draft, or running a plugin's task with its secrets (once for each task while the page is open, so uploads to storage aren't asked about one by one).
 - **Owner tokens in its own dialog:** where a screen needs an owner token, the broker asks for it itself, and keeps it in memory only.
 - **Only its own frame:** it talks only to the admin panel at the Site address (or a checked admin address), read from the repository, and refuses to be shown inside another page.
 

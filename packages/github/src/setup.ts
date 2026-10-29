@@ -291,7 +291,16 @@ async function tokenCreator(api: ApiOptions): Promise<Creator> {
     async owners() {
       const own: SetupOwner = { path: user.login, name: user.name || user.login, kind: "personal" };
       // A fine-grained token may not be allowed to list organizations; the person's own account still works.
-      const orgs = await githubJson<{ login: string }[]>(api, "/user/orgs?per_page=100").catch(() => []);
+      const orgs: { login: string }[] = [];
+      try {
+        for (let page = 1; page <= 10; page++) {
+          const found = await githubJson<{ login: string }[]>(api, `/user/orgs?per_page=100&page=${page}`);
+          orgs.push(...found);
+          if (found.length < 100) break;
+        }
+      } catch {
+        // Listed as far as it could be.
+      }
       return [own, ...orgs.map((org): SetupOwner => ({ path: org.login, name: org.login, kind: "organization" }))];
     },
     isAvailable,

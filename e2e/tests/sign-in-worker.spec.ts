@@ -167,6 +167,10 @@ test("an owner signs in with the owners' app for this tab to change editors", as
   await expect(page.getByRole("button", { name: "Invite" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Sign in as an owner with GitHub" }).click();
+  // GitHub would sign the owner in without asking, so the sign-in service says first where the token goes.
+  await expect(page.getByRole("heading", { name: "Sign in as an owner?" })).toBeVisible();
+  await expect(page.getByRole("main")).toContainText(SITE);
+  await page.getByRole("link", { name: "Continue to GitHub" }).click();
   await page.getByLabel("Their GitHub username").fill("anne");
   expect(page.url()).toBe(`${SITE}/admin/#/settings/editors`);
   await page.getByRole("button", { name: "Invite" }).click();
