@@ -1100,8 +1100,11 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     if (rest === "/pulls" && request.method === "GET") {
       const head = url.searchParams.get("head")?.split(":")[1];
       const found = repo.reviews.filter((review) => review.state === "open" && (!head || review.branch === head));
+      // A page at a time, as GitHub answers.
+      const perPage = Number(url.searchParams.get("per_page") ?? 30);
+      const page = Number(url.searchParams.get("page") ?? 1);
       return json(
-        found.map((review) => ({
+        found.slice((page - 1) * perPage, page * perPage).map((review) => ({
           number: review.number,
           title: review.title,
           html_url: `https://github.com/${options.repo}/pull/${review.number}`,

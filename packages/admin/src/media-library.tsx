@@ -249,6 +249,11 @@ export function useUploadMedia() {
   };
 
   return async (files: File[], replace?: string): Promise<UploadResult> => {
+    // A replacement is saved under the replaced file's name, so it must be the same kind of file.
+    const different = replace && files.find((file) => sameExtension(file.name) !== sameExtension(replace));
+    if (replace && different) {
+      return { ok: false, message: t("media.replaceKind", { name: different.name, target: fileName(replace) }) };
+    }
     if (storage && client && (!replace || isStorableAddress(mediaUrl(replace)))) return toStorage(files, replace);
     const taken = allMedia(content, media).map(fileName);
     const changes: FileChange[] = [];
@@ -630,6 +635,17 @@ function StorageSection({ onDone }: { onDone: (message: string) => void }) {
   );
 }
 
+/** A file's extension as names are saved: lowercase, with `.jpeg` as `.jpg`. */
+function sameExtension(name: string): string {
+  return extensionOf(name).replace(/^jpeg$/, "jpg");
+}
+
+/** What the file chooser offers when replacing a file: files of its kind. */
+function replacementAccept(url: string): string {
+  const extension = sameExtension(url);
+  return extension === "jpg" ? ".jpg,.jpeg" : `.${extension}`;
+}
+
 /** Every uploaded image and file, with buttons to upload, replace and delete them. */
 /** Cloudflare's terms for its CDN, which limit serving video on its free plans. */
 const CLOUDFLARE_TERMS = "https://www.cloudflare.com/service-specific-terms-application-services/";
@@ -756,6 +772,7 @@ export function MediaScreen() {
                         label={t("media.replace")}
                         variant="secondary"
                         multiple={false}
+                        accept={replacementAccept(url)}
                         disabled={status.type === "uploading"}
                         onFiles={(files) => void run(files.slice(0, 1), mediaPath(url))}
                       />

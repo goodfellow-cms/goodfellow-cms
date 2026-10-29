@@ -26,7 +26,12 @@ export type ThemeColor = (typeof THEME_COLORS)[number];
  */
 const cssColor = z
   .string()
-  .regex(/^[#a-zA-Z0-9(),.%\s/+-]{1,100}$/, "must be a CSS color, such as #1e3a8a or rgb(30 58 138)");
+  .regex(/^[#a-zA-Z0-9(),.%\s/+-]{1,100}$/, "must be a CSS color, such as #1e3a8a or rgb(30 58 138)")
+  // A hex color, a color function or a named color, never `url(…)`, which a background would load.
+  .regex(
+    /^\s*(#[0-9a-fA-F]{3,8}|(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\([^()]*(\([^()]*\)[^()]*)*\)|[a-zA-Z]+)\s*$/,
+    "must be a CSS color, such as #1e3a8a or rgb(30 58 138)",
+  );
 
 /** A Google Fonts family name, such as `Inter` or `Cinzel Decorative`. */
 const fontFamily = z.string().regex(/^[a-zA-Z0-9 ]{1,60}$/, "must be a font name, such as Inter or Cinzel Decorative");
@@ -208,7 +213,21 @@ export const siteSettingsSchema = z.object({
   /** Whether links to other sites open in a new tab, wherever they are: menus, buttons, rich text and Markdown. */
   externalLinksInNewTab: z.boolean().optional(),
   /** The time zone events' times are in, such as `America/New_York`. Without one, times are shown as they're written. */
-  timeZone: z.string().optional(),
+  timeZone: z
+    .string()
+    .refine(
+      (zone) => {
+        try {
+          new Intl.DateTimeFormat("en", { timeZone: zone });
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      // Anything else would be read as UTC, putting scheduled changes and events hours out without a word.
+      { message: "isn't a time zone: it should be one such as Europe/London or America/New_York" },
+    )
+    .optional(),
   /** How to get in touch, shown by the Contact details block wherever it's placed. */
   contact: z
     .object({
@@ -440,7 +459,10 @@ export const collectionFileSchema = z
       if (problem) ctx.addIssue({ code: "custom", path: ["path"], message: problem });
     }
     for (const [code, pattern] of Object.entries(file.languagePaths ?? {})) {
-      const problem = addressPatternProblem(pattern);
+      // A page's language is read from its address, so a language's items' addresses start with its code.
+      const problem =
+        addressPatternProblem(pattern) ??
+        (pattern.startsWith(`/${code}/`) ? undefined : `must start with "/${code}/", the language's own address.`);
       if (problem) ctx.addIssue({ code: "custom", path: ["languagePaths", code], message: problem });
     }
     if (file.sort && !names.has(file.sort.field)) {

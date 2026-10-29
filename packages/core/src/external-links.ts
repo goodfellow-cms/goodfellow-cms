@@ -2,6 +2,34 @@
 export const NEW_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
 
 /**
+ * Addresses that can't run code: the site's own, the web's, email and phone.
+ * Anything with another scheme, such as `javascript:`, `data:` or `blob:`, isn't.
+ */
+export function isSafeUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (/^(?:https?:|mailto:|tel:)/i.test(trimmed)) return true;
+  // No scheme at all: relative, root-relative or a fragment. Anything with a colon before the first slash has one.
+  return !/^[^/?#]*:/.test(trimmed);
+}
+
+/** Schemes whose addresses run code, or show what's in them, wherever a link opens them. */
+const SCRIPT_SCHEMES = new Set(["javascript", "vbscript", "data", "blob", "file"]);
+
+/**
+ * Whether an address would run code or show something of its own instead of
+ * going somewhere: `javascript:`, `vbscript:`, `data:`, `blob:` and `file:`,
+ * however it's spelled. Browsers leave out spaces, tabs, line breaks and
+ * control characters before reading a scheme, and so does this. Links to
+ * other kinds of addresses, such as `webcal:`, still work; rich text keeps
+ * the stricter `isSafeUrl()`.
+ */
+export function isScriptUrl(url: string): boolean {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: browsers leave control characters out of a scheme, so this does too
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(url.replace(/[\u0000-\u0020\u007f]/g, ""))?.[1];
+  return scheme !== undefined && SCRIPT_SCHEMES.has(scheme.toLowerCase());
+}
+
+/**
  * Whether a link goes to another site: an `http` or `https` address that isn't
  * on the site's own address (`siteUrl`, such as `https://example.org`).
  * Root-relative links, `mailto:` and `tel:` links are the site's own or open an app.

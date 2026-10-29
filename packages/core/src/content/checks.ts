@@ -11,6 +11,7 @@
  */
 import type { ComponentConfig } from "@puckeditor/core";
 import { contrastRatio, MINIMUM_CONTRAST } from "../contrast.js";
+import { isScriptUrl } from "../external-links.js";
 import { DEFAULT_THEME_COLORS, darkThemeColor } from "../theme.js";
 import {
   entryLanguage,
@@ -36,6 +37,8 @@ export type SiteProblem =
   | { kind: "missing-page"; severity: "error"; file: string; target: string }
   /** A link to, or an image or video from, a media file the site doesn't have. */
   | { kind: "missing-media"; severity: "error"; file: string; target: string }
+  /** A link that would run code (`javascript:` and the like), which pages leave out. */
+  | { kind: "unsafe-link"; severity: "error"; file: string; target: string }
   /** A page without a title of its own, so visitors' tabs and search results show only the site's. */
   | { kind: "no-title"; severity: "warning"; file: string; path: string }
   /** A page without a description, when the site has none either, for search results to show. */
@@ -263,6 +266,11 @@ export function checkSite(content: SiteContent, options: SiteCheckOptions): Site
   for (const [file, links] of siteLinks(content, options.blocks)) {
     const seen = new Set<string>();
     for (const link of links) {
+      if (isScriptUrl(link)) {
+        if (!seen.has(link)) errors.push({ kind: "unsafe-link", severity: "error", file, target: link });
+        seen.add(link);
+        continue;
+      }
       const target = linkTarget(link);
       if (!target || seen.has(target.path)) continue;
       seen.add(target.path);
@@ -286,6 +294,7 @@ export function problemKey(problem: SiteProblem): string {
   switch (problem.kind) {
     case "missing-page":
     case "missing-media":
+    case "unsafe-link":
       return `${problem.kind} ${problem.file} ${problem.target}`;
     case "no-title":
     case "no-description":
@@ -344,6 +353,8 @@ export function formatSiteProblem(problem: SiteProblem): string {
       return `${problem.file} links to ${problem.target}, which isn't a page or item on the site.`;
     case "missing-media":
       return `${problem.file} uses ${problem.target}, which isn't in public/media/.`;
+    case "unsafe-link":
+      return `${problem.file} links to ${problem.target}, an address that would run code, which pages leave out.`;
     case "no-title":
       return `${problem.file} (${problem.path}) has no title.`;
     case "no-description":
