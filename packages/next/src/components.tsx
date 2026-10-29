@@ -5,7 +5,7 @@ import type { SiteImageProps, SiteLinkProps } from "@goodfellow-cms/react";
 import { CurrentPathProvider } from "@goodfellow-cms/react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 
 // A Client Component module, so Server Components can pass these to the browser for Client Components in blocks.
@@ -53,6 +53,58 @@ export function CurrentMenuLinks({ basePath = "" }: { basePath?: string }) {
       panel.open = false;
     }
   }, [pathname, basePath]);
+  return null;
+}
+
+/**
+ * Opens the Search box's results with Next.js's navigation, and loads them
+ * ahead when they're pointed at or reached with the keyboard, as `next/link`
+ * does. The Search box writes its results itself (`searchScript()`), as plain
+ * links, so pages built with `goodfellow build` need no React for them.
+ */
+export function SearchResultLinks({ basePath = "" }: { basePath?: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    const prefix = trimSlash(basePath) === "/" ? "" : trimSlash(basePath);
+    /** A result's address within the site, without the base path, which Next.js's router adds. */
+    const target = (event: Event): string | undefined => {
+      const link = (event.target as Element | null)?.closest?.("[data-gf-search-box] a[href]");
+      if (!(link instanceof HTMLAnchorElement) || (link.target && link.target !== "_self")) return undefined;
+      const url = new URL(link.href, location.href);
+      if (url.origin !== location.origin) return undefined;
+      if (prefix && url.pathname !== prefix && !url.pathname.startsWith(`${prefix}/`)) return undefined;
+      return `${url.pathname.slice(prefix.length) || "/"}${url.search}${url.hash}`;
+    };
+    const open = (event: MouseEvent) => {
+      // A new tab or window, or another script's own handling, is left to the browser.
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      const to = target(event);
+      if (!to) return;
+      event.preventDefault();
+      router.push(to);
+    };
+    const prefetch = (event: Event) => {
+      const to = target(event);
+      if (to) router.prefetch(to);
+    };
+    document.addEventListener("click", open);
+    document.addEventListener("pointerover", prefetch);
+    document.addEventListener("focusin", prefetch);
+    return () => {
+      document.removeEventListener("click", open);
+      document.removeEventListener("pointerover", prefetch);
+      document.removeEventListener("focusin", prefetch);
+    };
+  }, [router, basePath]);
   return null;
 }
 
