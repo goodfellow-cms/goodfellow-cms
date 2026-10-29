@@ -143,6 +143,9 @@ export const defaultStrings = {
   "publish.conflict":
     "Someone else changed the site since you opened this page, so your changes weren't published. Reload to see their changes, then make yours again.",
   "publish.error": "Your changes couldn't be published. Check your connection and try again.",
+  "publish.reloaded":
+    "This is the page as the other person left it. Make your changes again, or put yours back to publish them over theirs.",
+  "publish.putMineBack": "Put my changes back",
   "publish.invalid": "Fix the highlighted problems before publishing.",
   "draft.label": "Draft",
   "draft.add": "Add to draft",

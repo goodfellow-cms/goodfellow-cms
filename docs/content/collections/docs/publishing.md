@@ -33,7 +33,7 @@ On GitHub, seeing which step failed needs the token's **Actions** permission, wh
 
 ## Working with other editors
 
-Several people can edit the same site. If someone else published changes to other pages while you were editing, publishing still goes ahead. If they changed the same page or file, publishing stops and explains what happened, instead of overwriting their work; reload the page to see their version, then make your change again.
+Several people can edit the same site. If someone else published changes to other pages while you were editing, publishing still goes ahead. If they changed the same page or file, publishing stops and explains what happened, instead of overwriting their work; **Reload** shows their version in the editor, so you can make your change again on top of it, or choose **Put my changes back** to publish yours over theirs.
 
 ## Version history
 

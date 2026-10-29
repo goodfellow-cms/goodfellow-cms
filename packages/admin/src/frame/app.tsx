@@ -46,7 +46,7 @@ function CodeService({ channel }: { channel: Channel }) {
 
 /** Which editor is open: another one starts Puck afresh. */
 function editorKey(open: EditorOpen): string {
-  return JSON.stringify([open.kind, open.path, open.collection, open.entry, open.language]);
+  return JSON.stringify([open.kind, open.path, open.collection, open.entry, open.language, open.reopened]);
 }
 
 /** Opens an editor when the admin panel's page asks, and tells it Puck's config once it's open. */
