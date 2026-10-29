@@ -8,9 +8,16 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request replaces its run; every commit on master keeps its own, since releases wait for them.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A run takes 20 to 35 minutes; one that hangs, such as on a server that never starts, stops well before GitHub's six hours.
+    timeout-minutes: 60
     # Playwright's image has every browser the end-to-end tests use, with their system packages, which
     # `playwright install --with-deps` took up to an hour to download from Ubuntu's mirror. Its tag is
     # @playwright/test's version in e2e/package.json, which the step before the tests checks.

@@ -8,5 +8,6 @@ public/calendars/
 public/feeds/
 public/api/
 public/pagefind/
-# Secrets for trying plugins on this computer, which never leave it.
+# Secrets for trying plugins on this computer, which never leave it, and any other environment files.
+.env
 .env*.local
