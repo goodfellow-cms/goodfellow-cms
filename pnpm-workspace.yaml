@@ -14,6 +14,20 @@ overrides:
   # happy-dom 20. Only 21.0.4 and later fix GHSA-834v-8h66-3h79, and the few
   # calls tiptap makes (a Window with scripts and loading turned off) work the same.
   "@puckeditor/core>happy-dom": "^21.0.4"
+  # Expo's code signing asks for node-forge 1.4.0; 1.4.1 fixes GHSA-86w9-cpqp-85rv.
+  "@expo/code-signing-certificates>node-forge": "^1.4.1"
+  # Express, which the MCP SDK uses, asks for qs 6.16.0; 6.16.1 fixes GHSA-6pq8-jhm2-2vcw.
+  "express>qs": "^6.16.1"
+
+auditConfig:
+  ignoreGhsas:
+    # Zod 3, which Expo's command line uses to read its own settings, has no
+    # fixed release (only Zod 4.6.6 has the fix), and it never reads visitors'
+    # or editors' input.
+    - GHSA-mrhx-c7xc-m3w5
+    # deepmerge has no fixed release; Expo's config tools merge only the
+    # app's own settings with it.
+    - GHSA-gcqx-w48m-w2h4
 
 peerDependencyRules:
   allowedVersions:
