@@ -185,6 +185,7 @@ export {
   CONSENT_ACCEPT_ATTRIBUTE,
   CONSENT_CODE_ATTRIBUTE,
   CONSENT_DECLINE_ATTRIBUTE,
+  CONSENT_DONE_ATTRIBUTE,
   CONSENT_LINK,
   CONSENT_NOTICE_ID,
   CONSENT_PLACEHOLDER_ATTRIBUTE,
@@ -681,7 +682,7 @@ export {
   type SiteEditor,
   type SiteEditors,
 } from "./editors.js";
-export { isExternalLink, type LinkTargetOptions, NEW_TAB, setLinkTargets } from "./external-links.js";
+export { isExternalLink, isScriptUrl, type LinkTargetOptions, NEW_TAB, setLinkTargets } from "./external-links.js";
 export {
   buildNotes,
   FONTS_DIR,

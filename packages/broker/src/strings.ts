@@ -18,7 +18,10 @@ export const STRINGS = {
   noSiteAddress:
     "The site has no address yet, so there's no admin panel to show. Set its address in Site Settings first, or ask its owner to.",
   badSiteAddress: "The site's address, {address}, isn't one this page can show the admin panel from.",
+  sameOrigin:
+    "The admin panel is at this page's own address, {address}, where it could read your sign-in. Give the sign-in page an address of its own.",
   signedInAs: "Signed in as {name}",
+  showing: "Showing {address}",
   aiKeys: "AI keys",
   signOut: "Sign out",
   adminFrame: "Admin panel",

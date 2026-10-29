@@ -54,7 +54,12 @@ async function errorMessage(response: Response): Promise<string> {
 
 /** Calls Bitbucket's API. A 401 means the sign-in has expired or was never right. */
 export async function bitbucketRequest(api: ApiOptions, path: string, init: RequestInit = {}): Promise<Response> {
-  const url = path.startsWith("https://") || path.startsWith("http://") ? path : `${api.apiUrl}${path}`;
+  const absolute = /^[a-z][a-z\d+.-]*:/i.test(path);
+  // Addresses Bitbucket answers with, such as a list's next page, get the sign-in only on its API.
+  if (absolute && !path.startsWith(`${api.apiUrl}/`)) {
+    throw new GitApiError(0, "Bitbucket pointed to an address outside its API.");
+  }
+  const url = absolute ? path : `${api.apiUrl}${path}`;
   const response = await api.fetch(url, {
     method: init.method ?? (init.body !== undefined || init.form ? "POST" : "GET"),
     headers: {

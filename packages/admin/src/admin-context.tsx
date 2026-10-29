@@ -74,6 +74,7 @@ import type { SiteCodeService } from "./site-code.js";
 import { showSiteIcon } from "./site-icon.js";
 import { StringsProvider, useStrings, useStringTable } from "./strings.js";
 import { useThemeChoice } from "./theme.js";
+import { safeMediaChanges } from "./upload.js";
 
 /** How previews load the site's styles. Provided by the dev server or build that serves the admin panel. */
 export interface PreviewOptions {
@@ -534,11 +535,18 @@ export function AdminProvider({
 
   const publish = useCallback(
     async (
-      changes: FileChange[],
+      given: FileChange[],
       message: string,
       options?: { checks?: boolean; draft?: boolean },
     ): Promise<PublishResult> => {
       if (state.status !== "ready") return { ok: false, reason: "error", error: new Error("The site isn't loaded.") };
+      // Whatever asked, a file in the media library is saved only as a kind the site can use, and SVGs safe.
+      let changes: FileChange[];
+      try {
+        changes = safeMediaChanges(given);
+      } catch (error) {
+        return { ok: false, reason: "error", error };
+      }
       // Changes going into a draft don't reach the live site, so limits are checked when it's published.
       const outside = draft || options?.draft ? [] : outsideLimits(state.content, limits, changes);
       if (outside.length > 0) {
