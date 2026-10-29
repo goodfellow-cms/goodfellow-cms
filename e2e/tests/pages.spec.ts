@@ -221,6 +221,28 @@ test("asks before leaving a page with unpublished changes", async ({ page }) => 
   await expect(page).toHaveURL(/#\/settings\/general$/);
 });
 
+test("hides a block on phones with its Style settings, as the editor's preview widths show", async ({ page }) => {
+  await openPageEditor(page, "/", "Welcome to my site");
+  await canvas(page).locator('[data-puck-component="Heading-features"]').click();
+  const style = editor(page).locator(".gfa-style-field:visible");
+  const hideOn = style.getByRole("group", { name: "Hide on" });
+  await hideOn.getByLabel("Phones (narrower than 640px)").check();
+  await expect(hideOn).toContainText("still in the Outline");
+
+  // The canvas's width, not the window's, is the screen's, as preview widths set it.
+  const heading = canvas(page).locator('[data-puck-component="Heading-features"]').locator("h2");
+  await page.getByRole("button", { name: "Tablet", exact: true }).click();
+  await expect(heading).toBeVisible();
+  await page.getByRole("button", { name: "Phone", exact: true }).click();
+  await expect(heading).toBeHidden();
+  await page.getByRole("button", { name: "Full width", exact: true }).click();
+  await hideOn.getByLabel("Computers (1024px and wider)").check();
+
+  await publishInEditor(page);
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readSiteFile("content/pages/index.json")).toMatch(/"className": "[^"]*\bmax-sm:hidden lg:hidden"/);
+});
+
 test("runs the site's blocks in a sandbox in goodfellow dev too, away from the files on disk", async ({ page }) => {
   await openPageEditor(page, "/about", "About us");
   await expectSandboxed(page);

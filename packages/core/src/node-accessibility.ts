@@ -91,39 +91,147 @@ function fileFor(document: Window["document"], target: unknown[], page: BuiltPag
   return page.file;
 }
 
-/** axe-core's findings on one built page, by rule and file. */
+/** Tailwind's breakpoints' widths, for classes such as `lg:hidden` and `max-sm:hidden`. */
+const SCREENS: Record<string, number> = { sm: 640, md: 768, lg: 1024, xl: 1280, "2xl": 1536 };
+const SCREEN_ORDER = Object.keys(SCREENS);
+
+/** Display classes, which decide whether a responsive `hidden` hides an element. */
+const DISPLAY =
+  /^(hidden|block|inline|inline-block|flex|inline-flex|grid|inline-grid|contents|flow-root|table|list-item)$/;
+
+/** A class's screen variants and base, or `undefined` for one with any other variant, such as `dark:` or `hover:`. */
+function screenClass(name: string): { tier: number; applies: (width: number) => boolean; base: string } | undefined {
+  const variants = name.split(":");
+  const base = variants.pop() ?? "";
+  const tests: Array<(width: number) => boolean> = [];
+  let tier = 0;
+  for (const variant of variants) {
+    const below = variant.startsWith("max-") ? variant.slice(4) : undefined;
+    const screen = SCREENS[below ?? variant];
+    if (screen === undefined) return undefined;
+    tests.push(below ? (width) => width < screen : (width) => width >= screen);
+    tier = Math.max(tier, SCREEN_ORDER.indexOf(below ?? variant) + 1);
+  }
+  return { tier, base, applies: (width) => tests.every((test) => test(width)) };
+}
+
+/**
+ * Whether classes such as `max-sm:hidden` or `hidden lg:block` hide an
+ * element on a screen this wide: the display class with the widest
+ * breakpoint that applies wins, as Tailwind orders them. An element whose
+ * hiding doesn't depend on the screen (plain `hidden`, or `dark:block`) isn't
+ * one, and is checked as before.
+ */
+function hiddenAt(className: string, width: number): boolean {
+  const display = className
+    .split(/\s+/)
+    .map(screenClass)
+    .filter((found) => found !== undefined && DISPLAY.test(found.base));
+  if (!display.some((found) => found && found.tier > 0)) return false;
+  let shown: { tier: number; base: string } | undefined;
+  for (const found of display) {
+    if (found?.applies(width) && (!shown || found.tier >= shown.tier)) shown = found;
+  }
+  return shown?.base === "hidden";
+}
+
+/**
+ * The widths to check a page at: one on each side of every breakpoint its
+ * responsive display classes use, or none where it has none, so a block hidden
+ * on phones and shown on computers in its place, as editors' Style settings
+ * do, is checked as each screen shows the page, never as two of it at once.
+ */
+function screenWidths(document: Window["document"]): number[] {
+  const used = new Set<number>();
+  for (const element of document.querySelectorAll("[class]")) {
+    for (const name of (element.getAttribute("class") ?? "").split(/\s+/)) {
+      const found = name.includes(":") ? screenClass(name) : undefined;
+      if (!found || !DISPLAY.test(found.base)) continue;
+      for (const variant of name.split(":").slice(0, -1)) {
+        const screen = SCREENS[variant.replace(/^max-/, "")];
+        if (screen !== undefined) used.add(screen);
+      }
+    }
+  }
+  if (used.size === 0) return [];
+  const sorted = [...used].sort((a, b) => a - b);
+  return [(sorted[0] ?? 0) - 1, ...sorted];
+}
+
+type AxeProblem = SiteProblem & { kind: "accessibility" };
+type Axe = { run: (context: unknown, options: unknown) => Promise<AxeResults> };
+
+/** axe-core's findings in a page's document as it is now, by rule and file, by `rules` where given. */
+async function axeRun(axe: Axe, page: BuiltPage, document: Window["document"], rules?: string[]) {
+  const results = await axe.run(document, {
+    resultTypes: ["violations"],
+    ...(rules
+      ? { runOnly: { type: "rule", values: rules } }
+      : { rules: Object.fromEntries(LEFT_OUT.map((rule) => [rule, { enabled: false }])) }),
+  });
+  const found = new Map<string, AxeProblem>();
+  for (const violation of results.violations) {
+    for (const node of violation.nodes) {
+      const file = fileFor(document, node.target, page);
+      const key = `${violation.id} ${file}`;
+      const existing = found.get(key);
+      if (existing) existing.count += 1;
+      else {
+        found.set(key, {
+          kind: "accessibility",
+          severity: "warning",
+          file,
+          path: page.path,
+          rule: violation.id,
+          help: PLAIN_WORDS[violation.id] ?? `${violation.help}.`,
+          count: 1,
+        });
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * axe-core's findings on one built page, by rule and file. Where it finds any
+ * on a page that looks different on different screens, they're found again as
+ * each width shows it, without what that width hides, and only those are
+ * kept: hiding blocks can't bring a problem the whole page doesn't have, but
+ * two blocks never shown at once, such as a menu for phones and one for
+ * computers, can look like one.
+ */
 async function axeProblems(page: BuiltPage): Promise<SiteProblem[]> {
   const window = new Window({
     url: "https://localhost/",
     settings: { disableJavaScriptFileLoading: true, disableCSSFileLoading: true, disableIframePageLoading: true },
   });
   try {
-    window.document.write(page.html);
+    const { document } = window;
+    document.write(page.html);
     window.eval(await loadAxe());
-    const axe = (window as unknown as { axe: { run: (context: unknown, options: unknown) => Promise<AxeResults> } })
-      .axe;
-    const results = await axe.run(window.document, {
-      resultTypes: ["violations"],
-      rules: Object.fromEntries(LEFT_OUT.map((rule) => [rule, { enabled: false }])),
-    });
-    const found = new Map<string, SiteProblem & { kind: "accessibility" }>();
-    for (const violation of results.violations) {
-      for (const node of violation.nodes) {
-        const file = fileFor(window.document, node.target, page);
-        const key = `${violation.id} ${file}`;
-        const existing = found.get(key);
-        if (existing) existing.count += 1;
-        else {
-          found.set(key, {
-            kind: "accessibility",
-            severity: "warning",
-            file,
-            path: page.path,
-            rule: violation.id,
-            help: PLAIN_WORDS[violation.id] ?? `${violation.help}.`,
-            count: 1,
-          });
+    const axe = (window as unknown as { axe: Axe }).axe;
+    const whole = await axeRun(axe, page, document);
+    const widths = whole.size > 0 ? screenWidths(document) : [];
+    if (widths.length === 0) return [...whole.values()];
+    // Only the rules the whole page broke, since hiding blocks can't break others.
+    const rules = [...new Set([...whole.values()].map((problem) => problem.rule))];
+    const found = new Map<string, AxeProblem>();
+    for (const width of widths) {
+      const hidden = [...document.querySelectorAll("[class]")].filter((element) =>
+        hiddenAt(element.getAttribute("class") ?? "", width),
+      );
+      // Taken out, outermost first, and put back where they were afterwards.
+      const taken = hidden
+        .filter((element) => !hidden.some((other) => other !== element && other.contains(element)))
+        .map((element) => ({ element, parent: element.parentNode, next: element.nextSibling }));
+      for (const { element } of taken) element.remove();
+      try {
+        for (const [key, problem] of await axeRun(axe, page, document, rules)) {
+          const before = found.get(key);
+          if (!before || before.count < problem.count) found.set(key, problem);
         }
+      } finally {
+        for (const { element, parent, next } of taken.reverse()) parent?.insertBefore(element, next);
       }
     }
     return [...found.values()];

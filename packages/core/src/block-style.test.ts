@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockStyleClasses, customLength, readBlockStyle, withBlockStyle } from "./block-style.js";
+import { type BlockStyle, blockStyleClasses, customLength, readBlockStyle, withBlockStyle } from "./block-style.js";
 
 describe("block styles", () => {
   it("reads a block's classes as its style, keeping the rest in order", () => {
@@ -73,5 +73,25 @@ describe("block styles", () => {
     expect(customLength(" 1.5 REM ")).toBe("1.5rem");
     expect(customLength("0")).toBe("0px");
     expect(customLength("big")).toBeUndefined();
+  });
+
+  it("hides a block on sizes of screen with the fewest of Tailwind's breakpoint classes", () => {
+    const write = (hiddenOn: BlockStyle["hiddenOn"]) => blockStyleClasses({ hiddenOn });
+    expect(write(["phones"])).toEqual(["max-sm:hidden"]);
+    expect(write(["tablets"])).toEqual(["sm:max-lg:hidden"]);
+    expect(write(["computers"])).toEqual(["lg:hidden"]);
+    expect(write(["phones", "tablets"])).toEqual(["max-lg:hidden"]);
+    expect(write(["tablets", "computers"])).toEqual(["sm:hidden"]);
+    expect(write(["phones", "computers"])).toEqual(["max-sm:hidden", "lg:hidden"]);
+    expect(write(["phones", "tablets", "computers"])).toEqual(["max-lg:hidden", "lg:hidden"]);
+    expect(write([])).toEqual([]);
+    expect(readBlockStyle("flex sm:hidden max-sm:hidden").style.hiddenOn).toEqual(["phones", "tablets", "computers"]);
+    expect(readBlockStyle("lg:hidden p-4").style).toEqual({
+      hiddenOn: ["computers"],
+      padding: { top: "4", right: "4", bottom: "4", left: "4" },
+    });
+    // Plain `hidden` is a block's own, such as a dark logo's `hidden dark:block`.
+    expect(readBlockStyle("hidden dark:block")).toEqual({ style: {}, other: ["hidden", "dark:block"] });
+    expect(readBlockStyle("md:hidden").other).toEqual(["md:hidden"]);
   });
 });
