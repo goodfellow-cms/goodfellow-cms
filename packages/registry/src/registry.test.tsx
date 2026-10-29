@@ -144,6 +144,31 @@ describe("blocks", () => {
     const asWritten = await render({ html, sanitize: false });
     expect(asWritten).toContain(`<div class="gf-custom-html">${html}</div>`);
   });
+
+  it("holds custom HTML used as written back until visitors agree, on a site that asks", async () => {
+    const block = (await import("../site/blocks/installed/custom-html/block.tsx")).default as ComponentConfig;
+    const asking = { ...content, settings: siteSettingsSchema.parse({ ...content.settings, consent: {} }) };
+    const render = (props: Record<string, unknown>) =>
+      createPageRenderer({ blocks: { "custom-html": block } })(asking, {
+        path: "/",
+        file: "content/pages/index.json",
+        content: {
+          version: 1,
+          data: {
+            root: { props: {} },
+            content: [{ type: "custom-html", props: { id: "b", ...block.defaultProps, sanitize: false, ...props } }],
+          },
+        },
+      });
+    const map = '<iframe src="https://www.google.com/maps/embed?pb=1"></iframe><script>window.ran = true;</script>';
+    const held = await render({ html: map });
+    expect(held).toContain(`<template data-gf-consent-code="body">${map}</template>`);
+    expect(held).toContain("This comes from google.com, which can set cookies.");
+    // Nothing outside the template loads.
+    expect(held.replace(/<template[\s\S]*?<\/template>/g, "")).not.toMatch(/<iframe|window\.ran/);
+    // HTML that loads nothing shows at once.
+    expect(await render({ html: "<p>Plain</p>" })).toContain('<div class="gf-custom-html"><p>Plain</p></div>');
+  });
 });
 
 describe("the parish site's blocks", () => {
