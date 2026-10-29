@@ -1,8 +1,11 @@
 import { fileName, mediaKind, withBase } from "@goodfellow-cms/core";
 import { classNameField, mediaField, SiteImage, SiteLink, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Slot, SlotComponent } from "@puckeditor/core";
+import { type DocumentProps, documentAddress, documentHeight } from "./media-data.js";
 import { options, yesNo } from "./options.js";
-import { AUDIO_PARTS, FILE_PARTS, GALLERY_PARTS, MEDIA_TEXT_PARTS } from "./parts.js";
+import { AUDIO_PARTS, DOCUMENT_PARTS, FILE_PARTS, GALLERY_PARTS, MEDIA_TEXT_PARTS } from "./parts.js";
+
+export type { DocumentProps } from "./media-data.js";
 
 /** What an empty media block shows in the editor, where something has to be chosen. Visitors see nothing. */
 function EditorPlaceholder({ text, className }: { text: string; className?: string }) {
@@ -65,6 +68,71 @@ function FileView({ file, label, button, buttonLabel, className, isEditing }: Fi
     </div>
   );
 }
+
+function DocumentView({
+  file,
+  title,
+  height,
+  linkLabel,
+  className,
+  isEditing,
+}: DocumentProps & { isEditing: boolean }) {
+  const { base } = useSite();
+  const part = useParts();
+  const address = documentAddress(file);
+  if (!address) {
+    return isEditing ? (
+      <EditorPlaceholder
+        text={file ? "Choose a PDF: other files can only be linked, with the File block." : "Choose a PDF"}
+        className={className}
+      />
+    ) : null;
+  }
+  const shown = withBase(address, base);
+  const name = title || fileName(address);
+  return (
+    <figure className={part("gf-document", "my-4", className)}>
+      {isEditing ? (
+        // The editor can't open the site's files in a frame; the page shows the document here.
+        <EditorPlaceholder text={`${name}: shown here on the site`} className="h-40" />
+      ) : (
+        <iframe
+          src={shown}
+          title={name}
+          loading="lazy"
+          className={part("gf-document-frame", "block w-full rounded-md border border-border bg-muted")}
+          style={{ height: documentHeight(height) }}
+        />
+      )}
+      <figcaption className={part("gf-document-caption", "mt-2 text-sm")}>
+        <SiteLink href={address} className={part("gf-document-link", "underline underline-offset-4")}>
+          {linkLabel || "Open the document"}
+        </SiteLink>
+      </figcaption>
+    </figure>
+  );
+}
+
+/**
+ * A PDF from the media library shown on the page, in the browser's own viewer,
+ * with a link to open it, which phones' browsers need since they show only its
+ * first page in a page.
+ */
+export const Document: ComponentConfig<DocumentProps> = withParts(
+  {
+    label: "Document viewer",
+    fields: {
+      file: mediaField("PDF", "file"),
+      title: { type: "text", label: "What the document is, for screen readers" },
+      height: { type: "number", label: "Height in pixels", min: 200, max: 2000 },
+      linkLabel: { type: "text", label: "Link's text" },
+      className: classNameField,
+    },
+    defaultProps: { file: "", title: "", height: 800, linkLabel: "Open the document", className: "" },
+    render: ({ puck, ...props }) => <DocumentView {...props} isEditing={puck?.isEditing === true} />,
+  },
+  DOCUMENT_PARTS,
+);
 
 export interface AudioProps {
   /** An uploaded sound file's address, such as `/media/sermon.mp3`. */
