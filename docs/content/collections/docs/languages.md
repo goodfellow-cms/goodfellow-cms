@@ -97,7 +97,7 @@ To publish one, make an npm package named `goodfellow-language-<name>`, or `@som
 }
 ```
 
-The quickest start is a site's own file, made and checked on the Admin panel languages screen, with `code` added.
+Goodfellow's own French pack, [goodfellow-language-fr](https://github.com/goodfellow-cms/goodfellow-language-fr), is the example to copy: its README goes through each of its files, its test checks the pack against the admin panel's English from `@goodfellow-cms/admin/text` as installing it would, and `npm run status` lists what a new Goodfellow release leaves to translate. The quickest start is a site's own file, made and checked on the Admin panel languages screen, with `code` added.
 
 A developer or a translation tool can write the files too:
 

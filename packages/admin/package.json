@@ -39,6 +39,10 @@
       "types": "./dist/plugin.d.ts",
       "import": "./dist/plugin.js"
     },
+    "./text": {
+      "types": "./dist/text.d.ts",
+      "import": "./dist/text.js"
+    },
     "./styles.css": "./styles.css",
     "./plugin.css": "./plugin.css",
     "./package.json": "./package.json"
