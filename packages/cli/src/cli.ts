@@ -17,6 +17,7 @@ import {
   contentRepositoryProblem,
   exportWordPress,
   formatAdminResult,
+  formatAdminText,
   formatWordPressExport,
   formatWordPressImport,
   importWordPress,
@@ -195,6 +196,7 @@ async function main(): Promise<void> {
       if (result.searchIndexed !== undefined) console.log(`Indexed ${result.searchIndexed} pages for search`);
       if (result.apiPages !== undefined) console.log(`Wrote the content API, with ${result.apiPages} pages, in api/`);
       if (result.islands) console.log(islandsSummary(result.islands));
+      if (result.adminText) for (const line of formatAdminText(result.adminText)) console.log(line);
       if (result.nextChange) {
         const { kind, title, path, time } = result.nextChange;
         console.log(

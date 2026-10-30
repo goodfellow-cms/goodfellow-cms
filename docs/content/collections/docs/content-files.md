@@ -22,6 +22,7 @@ Everything the admin panel edits is a file in `content/` or `public/media/`, in 
 | `content/collections/<id>/<slug>.json` or `.md` | One item: its field values |
 | `content/styles/custom.css` | The custom CSS from Site Settings |
 | `content/styles/theme.json` | Which [theme](/docs/themes) is installed, and what it installed, so an update keeps what owners changed |
+| `content/admin-text/<code>.json` | The [admin panel in another language](/docs/languages#the-admin-panel-in-other-languages): its words, Puck's and blocks' labels, each with a hash of the English it was made from |
 | `public/media/` | Uploaded images and files, served at `/media/`, apart from those a plugin keeps |
 
 Every JSON file has a `version`, and is written with two-space indentation, keys in a fixed order and a trailing newline, so changes read well in a diff. If you edit one by hand, run the build, which reports any file that doesn't fit, with what's wrong.

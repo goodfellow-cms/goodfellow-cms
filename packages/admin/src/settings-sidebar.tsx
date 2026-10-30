@@ -8,6 +8,7 @@ import {
   type LucideIcon,
   Menu,
   MessageSquare,
+  MessageSquareText,
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
@@ -37,6 +38,7 @@ export type SettingsPlace =
   | "domain"
   | "editors"
   | "themes"
+  | "admin-languages"
   | "plugins"
   | "updates"
   | "history"
@@ -66,6 +68,7 @@ const SCREEN_ITEMS: SidebarItem[] = [
   { place: "domain", label: "settings.tab.domain", icon: Globe },
   { place: "editors", label: "settings.tab.editors", icon: Users },
   { place: "themes", label: "settings.tab.themes", icon: SwatchBook },
+  { place: "admin-languages", label: "settings.tab.adminLanguages", icon: MessageSquareText },
   { place: "plugins", label: "settings.tab.plugins", icon: Plug },
   { place: "updates", label: "settings.tab.updates", icon: RefreshCw },
   { place: "history", label: "settings.tab.history", icon: History },

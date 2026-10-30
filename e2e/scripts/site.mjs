@@ -207,6 +207,9 @@ export function createBuiltSite(name) {
   }
   cpSync(testBlocks, join(dir, "blocks"), { recursive: true });
   writeFileSync(join(content, "content/pages/islands.json"), `${JSON.stringify(islandsPage, null, 2)}\n`);
+  // The admin panel in a language of the site's own, which its build publishes for the sign-in screen.
+  if (name === "github")
+    cpSync(join(here, "../fixtures/admin-text"), join(content, "content/admin-text"), { recursive: true });
   if (admin) {
     const settingsFile = join(content, "content/site.json");
     const settings = JSON.parse(readFileSync(settingsFile, "utf8"));

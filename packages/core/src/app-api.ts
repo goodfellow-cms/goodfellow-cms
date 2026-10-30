@@ -1,3 +1,4 @@
+import { ADMIN_TEXT_DIR } from "./content/admin-text.js";
 import {
   COLLECTION_SETTINGS_FILE,
   COLLECTIONS_DIR,
@@ -65,12 +66,14 @@ export type AppSession =
 
 /**
  * Files only owners may change: Site Settings, redirects and updates, editors'
- * permissions, custom CSS and code, collections' settings and templates, and
- * installed blocks' code.
+ * permissions, custom CSS and code, collections' settings and templates, the
+ * admin panel's text, and installed blocks' code.
  */
 export function isSettingsPath(path: string): boolean {
   if (path === SITE_FILE || path === REDIRECTS_FILE || path === UPDATES_FILE || path === PERMISSIONS_FILE) return true;
   if (path.startsWith(`${CONTENT_DIR}/styles/`) || path.startsWith(`${CONTENT_DIR}/code/`)) return true;
+  // The admin panel's words, which every editor reads.
+  if (path.startsWith(`${ADMIN_TEXT_DIR}/`)) return true;
   if (path.startsWith(`${COLLECTIONS_DIR}/`) && path.endsWith(`/${COLLECTION_SETTINGS_FILE}`)) return true;
   return [INSTALLED_BLOCKS_DIR, COMPONENTS_DIR, LIB_DIR, HOOKS_DIR].some((dir) => path.startsWith(`${dir}/`));
 }

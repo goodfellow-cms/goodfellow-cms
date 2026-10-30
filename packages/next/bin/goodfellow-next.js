@@ -30,6 +30,7 @@ import {
   contentRepositoryProblem,
   exportWordPress,
   formatAdminResult,
+  formatAdminText,
   formatWordPressExport,
   formatWordPressImport,
   importWordPress,
@@ -41,6 +42,7 @@ import {
   setBrokerAddress,
   setUpContentRepository,
   update,
+  writeAdminText,
   writeTaskDescription,
 } from "@goodfellow-cms/core/node";
 import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
@@ -104,6 +106,8 @@ if (command === "finish" && dir === "--server") {
   if (feeds > 0) console.log(`Wrote ${feeds} feeds, in public/feeds`);
   const api = await writeContentApi("public");
   if (api !== undefined) console.log(`Wrote the content API, with ${api} pages, in public/api`);
+  // The admin panel's text in the site's own languages, for the sign-in screen, which can't read the site yet.
+  for (const line of formatAdminText(await writeAdminText("public"))) console.log(line);
   // Before the pages are read, so the search index and the checks see each page's language.
   const languages = await writePageLanguages(undefined);
   if (languages > 0) console.log(`Marked ${languages} pages with their language`);
@@ -357,6 +361,7 @@ if (command === "finish") {
   if (feeds > 0) console.log(`Wrote ${feeds} feeds`);
   const api = await writeContentApi(dir);
   if (api !== undefined) console.log(`Wrote the content API, with ${api} pages, in api/`);
+  for (const line of formatAdminText(await writeAdminText(dir))) console.log(line);
   const languages = await writePageLanguages(dir);
   if (languages > 0) console.log(`Marked ${languages} pages with their language`);
   // Before the redirects' pages, which aren't the site's.

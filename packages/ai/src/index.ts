@@ -1,4 +1,16 @@
 export {
+  ADMIN_GLOSSARY,
+  ADMIN_TEXT_BATCH,
+  type AdminTextJob,
+  type AdminTextProgress,
+  type AdminTextResult,
+  type AdminTextSource,
+  adminTextRequest,
+  type GlossaryTerm,
+  readAdminTextAnswer,
+  translateAdminText,
+} from "./admin-text.js";
+export {
   type AiRequest,
   type AiTask,
   buildRequest,
