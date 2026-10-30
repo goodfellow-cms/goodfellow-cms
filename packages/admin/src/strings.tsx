@@ -148,6 +148,12 @@ export const defaultStrings = {
   "publish.reloaded":
     "This is the page as the other person left it. Make your changes again, or put yours back to publish them over theirs.",
   "publish.putMineBack": "Put my changes back",
+  "kept.found": "You have changes here from {time} that weren't published.",
+  "kept.theirs":
+    "Someone has published changes here since then. If you put yours back, publishing them replaces theirs.",
+  "kept.putBack": "Put them back",
+  "kept.throwAway": "Throw them away",
+  "kept.invalid": "Your changes from {time} can't be put back, since the site's blocks have changed since.",
   "publish.invalid": "Fix the highlighted problems before publishing.",
   "draft.label": "Draft",
   "draft.add": "Add to draft",

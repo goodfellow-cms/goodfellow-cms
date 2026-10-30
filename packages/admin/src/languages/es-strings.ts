@@ -144,6 +144,13 @@ export const strings: Strings = {
   "publish.reloaded":
     "Esta es la página tal como la dejó la otra persona. Vuelve a hacer tus cambios o recupera los tuyos para publicarlos encima de los suyos.",
   "publish.putMineBack": "Recuperar mis cambios",
+  "kept.found": "Tienes cambios aquí del {time} que no se publicaron.",
+  "kept.theirs":
+    "Otra persona ha publicado cambios aquí desde entonces. Si recuperas los tuyos, al publicarlos sustituirán a los suyos.",
+  "kept.putBack": "Recuperarlos",
+  "kept.throwAway": "Descartarlos",
+  "kept.invalid":
+    "Tus cambios del {time} no se pueden recuperar, porque los bloques del sitio han cambiado desde entonces.",
   "publish.invalid": "Corrige los problemas marcados antes de publicar.",
   "draft.label": "Borrador",
   "draft.add": "Añadir al borrador",
