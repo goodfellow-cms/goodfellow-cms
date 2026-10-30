@@ -38,6 +38,15 @@ const config = {
         return createElement("h2", { "data-path": useSite().path }, text);
       },
     },
+    // Offers its colour only on the site whose title is Parish, as a block reading Site settings would.
+    Notice: {
+      fields: { text: { type: "text", label: "Text" }, colour: { type: "text", label: "Colour" } },
+      resolveFields: (
+        _data: unknown,
+        { fields, metadata }: { fields: Record<string, unknown>; metadata: { site?: { title?: string } } },
+      ) => (metadata.site?.title === "Parish" ? fields : { text: fields.text }),
+      render: ({ text }: { text: string }) => createElement("p", {}, text),
+    },
     Byline: templateOnly({
       fields: {},
       render: () => createElement("p", {}, "By someone"),
@@ -84,5 +93,24 @@ describe("drawing one block for an editor plugin", () => {
     expect(await code.drawBlock(content, { kind: "template", path: "/news/welcome", block: byline })).toContain(
       "By someone",
     );
+  });
+});
+
+describe("a block's fields for an editor plugin", () => {
+  it("are what its resolveFields gives in the page it's on, as JSON", async () => {
+    const content = await loadSiteContent(source);
+    const code = localSiteCode(config);
+    const target = (type: string) => ({
+      kind: "page" as const,
+      path: "/about",
+      block: block(type, { id: `${type}-1` }),
+    });
+    const notice = await code.blockFields(content, target("Notice"));
+    expect(notice.colour).toEqual({ type: "text", label: "Colour" });
+    expect(Object.keys(notice)).toEqual(expect.arrayContaining(["text", "colour"]));
+    const elsewhere = { ...content, settings: { ...content.settings, title: "Chapel" } };
+    expect(Object.keys(await code.blockFields(elsewhere, target("Notice")))).toEqual(["text", "className"]);
+    // A block that doesn't choose them has its own, with the Style setting every block has.
+    expect(Object.keys(await code.blockFields(content, target("Heading")))).toEqual(["text", "className"]);
   });
 });

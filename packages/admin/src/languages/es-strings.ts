@@ -1070,12 +1070,12 @@ export const strings: Strings = {
   "settings.tab.history": "Historial del sitio",
   "settings.tab.comments": "Comentarios",
   "comments.intro":
-    "Los comentarios de los visitantes se guardan en GitHub, en un proyecto público propio, y se muestran en las páginas con el bloque Comentarios mediante Giscus. Para comentar, los visitantes inician sesión con una cuenta de GitHub.",
+    "Los comentarios de los visitantes se muestran en las páginas con el bloque Comentarios. Se guardan en GitHub, en un proyecto público propio, mediante Giscus, donde los visitantes inician sesión con una cuenta de GitHub para comentar, o en Disqus, donde inician sesión con Disqus u otra cuenta que ofrezca Disqus, o comentan como invitados si su configuración lo permite.",
   "comments.demo": "Los comentarios no se pueden configurar en la demostración.",
   "comments.local":
-    "Los comentarios se configuran desde el panel de administración del sitio publicado, que inicia sesión en GitHub. Las páginas de aquí los muestran en cuanto estén configurados.",
+    "Los comentarios en GitHub se configuran desde el panel de administración del sitio publicado, que inicia sesión en GitHub. Las páginas de aquí los muestran en cuanto estén configurados. Disqus se puede configurar aquí.",
   "comments.unavailable":
-    "El panel de administración solo puede configurar los comentarios donde inicia sesión en GitHub. Configúralos en GitHub como explica la página Comentarios de la documentación y pega el código de Giscus en el bloque Comentarios.",
+    "El panel de administración solo puede configurar los comentarios en GitHub donde inicia sesión en GitHub. Configúralos en GitHub como explica la página Comentarios de la documentación y pega el código de Giscus en el bloque Comentarios, o usa Disqus.",
   "comments.setup.title": "Configurar los comentarios",
   "comments.setup.new": "Crear un proyecto nuevo para los comentarios",
   "comments.setup.existing": "Usar un proyecto que ya tengo",
@@ -1104,6 +1104,41 @@ export const strings: Strings = {
   "comments.stop.body":
     "Las páginas dejan de mostrar comentarios cuando el sitio se haya reconstruido. Todo lo que escribieron los visitantes se queda en {project} en GitHub, así que puedes volver a configurar los comentarios con él más adelante.",
   "comments.stop.message": "Dejar de usar los comentarios",
+  "comments.disqus.title": "Usar Disqus",
+  "comments.disqus.intro":
+    "Disqus guarda los comentarios en su propio servicio, donde los apruebas, ocultas y eliminas. Su plan gratuito muestra anuncios junto a ellos.",
+  "comments.disqus.create": "Crea un sitio en Disqus",
+  "comments.disqus.then":
+    " y pega su nombre corto, que Disqus muestra en su configuración, o el código que te da para instalarlo.",
+  "comments.disqus.label": "Nombre corto de Disqus, o su código",
+  "comments.disqus.invalid":
+    "Eso no es un nombre corto ni el código de Disqus. Un nombre corto solo tiene letras, números y guiones, como sanjose.",
+  "comments.disqus.button": "Usar Disqus",
+  "comments.disqus.message": "Usar Disqus para los comentarios",
+  "comments.disqus.kept": "Disqus guarda los comentarios, para su sitio",
+  "comments.disqus.moderateHint": "Aprueba, oculta y elimina comentarios, y bloquea a personas, en Disqus.",
+  "comments.disqus.moderate": "Moderar los comentarios en Disqus",
+  "comments.disqus.stopBody":
+    "Las páginas dejan de mostrar comentarios cuando el sitio se haya reconstruido. Todo lo que escribieron los visitantes se queda en Disqus, así que puedes volver a usarlo más adelante.",
+  "comments.garrul.title": "Usar Garrul",
+  "comments.garrul.intro":
+    "Garrul guarda los comentarios en una cuenta de Cloudflare propia, con el plan gratuito de Cloudflare y sin anuncios. Los visitantes comentan como invitados o inician sesión con GitHub, Google, Facebook, X o Discord. Antes hay que configurarlo en Cloudflare, algo que debe hacer alguien acostumbrado a escribir comandos en un ordenador.",
+  "comments.garrul.start": "Las instrucciones de Garrul",
+  "comments.garrul.then":
+    " explican cómo configurarlo. Después pega su dirección, o el código que te da para una página.",
+  "comments.garrul.label": "Dirección de Garrul, o su código",
+  "comments.garrul.invalid":
+    "Eso no es una dirección ni el código de Garrul. La dirección de Garrul empieza por https://, como https://comentarios.example.org.",
+  "comments.garrul.button": "Usar Garrul",
+  "comments.garrul.message": "Usar Garrul para los comentarios",
+  "comments.garrul.kept": "Garrul guarda los comentarios, en",
+  "comments.garrul.origins":
+    "Garrul solo muestra comentarios en las direcciones que permite su configuración, así que su ALLOWED_ORIGINS debe incluir la dirección del sitio.",
+  "comments.garrul.moderateHint":
+    "Aprueba, oculta y elimina comentarios en las páginas de Garrul, con una sesión iniciada con una dirección de correo que su configuración nombra como administradora.",
+  "comments.garrul.moderate": "Moderar los comentarios en Garrul",
+  "comments.garrul.stopBody":
+    "Las páginas dejan de mostrar comentarios cuando el sitio se haya reconstruido. Todo lo que escribieron los visitantes se queda en Garrul, así que puedes volver a usarlo más adelante.",
   "comments.moderate.title": "Lo que han escrito los visitantes",
   "comments.moderate.empty": "Todavía no ha comentado nadie.",
   "comments.moderate.more": "Mostrar más páginas",

@@ -158,6 +158,13 @@ export function PluginEditorFrame({
         }
         return code.drawBlock(content, { kind: target.kind, path: target.path, block });
       },
+      fields: (block: PluginEditorBlock) => {
+        const { target, content, description, code } = latest.current;
+        if (!editorBlocks(target, description)[block.type]) {
+          return Promise.reject(new Error(`${block.type} isn't one of the blocks this editor may use.`));
+        }
+        return code.blockFields(content, { kind: target.kind, path: target.path, block });
+      },
       mediaBytes: (url) => latest.current.services.mediaPreviews.bytes(url),
       onRemember: (listener) => latest.current.services.mediaPreviews.onRemember(listener),
       mediaStorage: () => latest.current.content.mediaStorage,

@@ -1,21 +1,35 @@
 /**
  * Site Settings' Comments screen: visitors' comments, kept as discussions in a
- * public GitHub repository of their own and shown on pages by Giscus. Owners
- * make that repository or pick one (`SiteComments.create()`, `find()`),
- * publish where it is as `content/site.json`'s `comments`, which the Comments
- * block reads, and moderate what visitors write. Only backends with
- * `comments` (GitHub) offer it; elsewhere the screen says how it's done on
- * GitHub itself.
+ * public GitHub repository of their own and shown on pages by Giscus, or kept
+ * by Disqus, or by the owner's own Garrul. Owners make that repository or
+ * pick one (`SiteComments.create()`, `find()`), or name Disqus's site or
+ * Garrul's address, publish where comments are as `content/site.json`'s
+ * `comments`, which the Comments block reads, and moderate what visitors
+ * write on GitHub here (Disqus's are
+ * moderated on Disqus, and Garrul's on Garrul). Only backends with `comments`
+ * (GitHub) set up Giscus; elsewhere the screen says how it's done on GitHub
+ * itself. Disqus and Garrul work on every site.
  */
 import {
   CommentsError,
   type CommentsPlace,
   type CommentsRepository,
   type CommentThread,
+  DISQUS_CREATE_URL,
+  type DisqusPlace,
+  disqusModerationUrl,
+  disqusShortname,
+  GARRUL_URL,
+  type GarrulPlace,
   GISCUS_APP_URL,
+  garrulAddress,
+  garrulModerationUrl,
   HIDE_REASONS,
   type HideReason,
+  isDisqus,
+  isGarrul,
   type SiteComment,
+  type SiteCommentsPlace,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useState } from "react";
 import { siteRepoName } from "./add-broker.js";
@@ -39,10 +53,28 @@ export function CommentsScreen() {
 
   let body: React.ReactNode;
   if (demo) body = <p>{t("comments.demo")}</p>;
-  else if (!versions) body = <p>{t("comments.local")}</p>;
-  else if (!comments) body = <p>{t("comments.unavailable")}</p>;
-  else if (!place) body = <CommentsSetup onMade={setMade} />;
-  else {
+  else if (place && (isDisqus(place) || isGarrul(place))) body = <NamedServicePlace place={place} />;
+  else if (!versions || !comments) {
+    body = (
+      <>
+        <p>{t(versions ? "comments.unavailable" : "comments.local")}</p>
+        {!place && (
+          <>
+            <NamedServiceSetup service={DISQUS} />
+            <NamedServiceSetup service={GARRUL} />
+          </>
+        )}
+      </>
+    );
+  } else if (!place) {
+    body = (
+      <>
+        <CommentsSetup onMade={setMade} />
+        <NamedServiceSetup service={DISQUS} />
+        <NamedServiceSetup service={GARRUL} />
+      </>
+    );
+  } else {
     body = (
       <>
         <CommentsPlaceSection place={place} made={made} />
@@ -279,22 +311,7 @@ function CommentsSetup({ onMade }: { onMade: (made: CommentsRepository) => void 
 /** Where comments are kept, the step Giscus needs, and stopping. */
 function CommentsPlaceSection({ place, made }: { place: CommentsPlace; made?: CommentsRepository }) {
   const t = useStrings();
-  const { publish } = useAdmin();
-  const { content } = useSiteContent();
-  const [stopping, setStopping] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<Failure>(null);
   const webUrl = `https://github.com/${place.repo}`;
-
-  const stop = async () => {
-    setBusy(true);
-    setFailure(null);
-    const { comments: _left, ...settings } = content.settings;
-    const result = await publish([siteSettingsFileChange(settings)], t("comments.stop.message"), { checks: false });
-    setBusy(false);
-    if (result.ok) setStopping(false);
-    else setFailure(result);
-  };
 
   return (
     <section className="gfa-form" aria-labelledby="gfa-comments-place">
@@ -328,6 +345,32 @@ function CommentsPlaceSection({ place, made }: { place: CommentsPlace; made?: Co
           </a>
         </p>
       )}
+      <StopComments body={t("comments.stop.body", { project: place.repo })} />
+    </section>
+  );
+}
+
+/** Stops showing comments: publishes Site settings without them, leaving what visitors wrote where it is. */
+function StopComments({ body }: { body: string }) {
+  const t = useStrings();
+  const { publish } = useAdmin();
+  const { content } = useSiteContent();
+  const [stopping, setStopping] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<Failure>(null);
+
+  const stop = async () => {
+    setBusy(true);
+    setFailure(null);
+    const { comments: _left, ...settings } = content.settings;
+    const result = await publish([siteSettingsFileChange(settings)], t("comments.stop.message"), { checks: false });
+    setBusy(false);
+    if (result.ok) setStopping(false);
+    else setFailure(result);
+  };
+
+  return (
+    <>
       <div>
         <Button variant="danger" onClick={() => setStopping(true)}>
           {t("comments.stop.button")}
@@ -335,7 +378,7 @@ function CommentsPlaceSection({ place, made }: { place: CommentsPlace; made?: Co
       </div>
       {stopping && (
         <Dialog title={t("comments.stop.title")} onClose={() => setStopping(false)}>
-          <p>{t("comments.stop.body", { project: place.repo })}</p>
+          <p>{body}</p>
           <PublishFailure failure={failure} />
           <div className="gfa-dialog-actions">
             <Button onClick={() => setStopping(false)}>{t("action.cancel")}</Button>
@@ -345,6 +388,159 @@ function CommentsPlaceSection({ place, made }: { place: CommentsPlace; made?: Co
           </div>
         </Dialog>
       )}
+    </>
+  );
+}
+
+/** A comments service the screen names by what an owner pastes, and links to for moderating. */
+interface NamedService {
+  id: "disqus" | "garrul";
+  /** What `content/site.json`'s `comments` is, from what was pasted, or nothing where it can't be read. */
+  read(pasted: string): SiteCommentsPlace | undefined;
+  /** Where to start with the service. */
+  start: string;
+  placeholder: string;
+  keys: {
+    title: StringKey;
+    intro: StringKey;
+    start: StringKey;
+    howTo: StringKey;
+    label: StringKey;
+    invalid: StringKey;
+    button: StringKey;
+    message: StringKey;
+  };
+}
+
+const DISQUS: NamedService = {
+  id: "disqus",
+  read: (pasted) => {
+    const disqus = disqusShortname(pasted);
+    return disqus ? { disqus } : undefined;
+  },
+  start: DISQUS_CREATE_URL,
+  placeholder: "stjoseph",
+  keys: {
+    title: "comments.disqus.title",
+    intro: "comments.disqus.intro",
+    start: "comments.disqus.create",
+    howTo: "comments.disqus.then",
+    label: "comments.disqus.label",
+    invalid: "comments.disqus.invalid",
+    button: "comments.disqus.button",
+    message: "comments.disqus.message",
+  },
+};
+
+const GARRUL: NamedService = {
+  id: "garrul",
+  read: (pasted) => {
+    const garrul = garrulAddress(pasted);
+    return garrul ? { garrul } : undefined;
+  },
+  start: GARRUL_URL,
+  placeholder: "https://comments.example.org",
+  keys: {
+    title: "comments.garrul.title",
+    intro: "comments.garrul.intro",
+    start: "comments.garrul.start",
+    howTo: "comments.garrul.then",
+    label: "comments.garrul.label",
+    invalid: "comments.garrul.invalid",
+    button: "comments.garrul.button",
+    message: "comments.garrul.message",
+  },
+};
+
+/** Names a service's place for comments, from what the service gives an owner to paste, and publishes it. */
+function NamedServiceSetup({ service }: { service: NamedService }) {
+  const t = useStrings();
+  const { publish } = useAdmin();
+  const { content } = useSiteContent();
+  const [pasted, setPasted] = useState("");
+  const [invalid, setInvalid] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<Failure>(null);
+  const { keys } = service;
+
+  const use = async () => {
+    const comments = service.read(pasted);
+    setInvalid(!comments);
+    if (!comments) return;
+    setBusy(true);
+    setFailure(null);
+    const result = await publish([siteSettingsFileChange({ ...content.settings, comments })], t(keys.message), {
+      checks: false,
+    });
+    setBusy(false);
+    if (!result.ok) setFailure(result);
+  };
+
+  return (
+    <form
+      className="gfa-form"
+      aria-labelledby={`gfa-comments-${service.id}`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void use();
+      }}
+    >
+      <h2 className="gfa-section-title" id={`gfa-comments-${service.id}`}>
+        {t(keys.title)}
+      </h2>
+      <p>{t(keys.intro)}</p>
+      <p>
+        <a href={service.start} target="_blank" rel="noreferrer">
+          {t(keys.start)}
+        </a>
+        {t(keys.howTo)}
+      </p>
+      <TextField
+        label={t(keys.label)}
+        placeholder={service.placeholder}
+        error={invalid ? t(keys.invalid) : undefined}
+        value={pasted}
+        onChange={(value) => {
+          setPasted(value);
+          setInvalid(false);
+        }}
+      />
+      <PublishFailure failure={failure} />
+      <div>
+        <Button type="submit" variant="primary" disabled={busy || !pasted.trim()}>
+          {busy ? t("comments.setup.working") : t(keys.button)}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Where a service keeps comments, where they're moderated, and stopping. */
+function NamedServicePlace({ place }: { place: DisqusPlace | GarrulPlace }) {
+  const t = useStrings();
+  const disqus = isDisqus(place);
+  return (
+    <section className="gfa-form" aria-labelledby="gfa-comments-place">
+      <h2 className="gfa-section-title" id="gfa-comments-place">
+        {t("comments.place.title")}
+      </h2>
+      <p>
+        {t(disqus ? "comments.disqus.kept" : "comments.garrul.kept")}{" "}
+        <strong>{disqus ? place.disqus : place.garrul}</strong>
+      </p>
+      {!disqus && <p className="gfa-hint">{t("comments.garrul.origins")}</p>}
+      <p>{t(disqus ? "comments.disqus.moderateHint" : "comments.garrul.moderateHint")}</p>
+      <p>
+        <a
+          className="gfa-button gfa-button-primary"
+          href={disqus ? disqusModerationUrl(place.disqus) : garrulModerationUrl(place.garrul)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t(disqus ? "comments.disqus.moderate" : "comments.garrul.moderate")}
+        </a>
+      </p>
+      <StopComments body={t(disqus ? "comments.disqus.stopBody" : "comments.garrul.stopBody")} />
     </section>
   );
 }

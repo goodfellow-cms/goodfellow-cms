@@ -1,8 +1,10 @@
 /**
  * Visitors' comments, kept as discussions in a public GitHub repository of
- * their own and shown on the site by Giscus: what `content/site.json` says
- * about where they are, and what a backend offers to set that repository up
- * and moderate it from the admin panel (`GitBackend.comments`).
+ * their own and shown on the site by Giscus, or kept by Disqus, or by the
+ * site owner's own Garrul, on Cloudflare: what
+ * `content/site.json` says about where they are, and what a backend offers to
+ * set that repository up and moderate it from the admin panel
+ * (`GitBackend.comments`).
  */
 import type { TokenLink } from "./git.js";
 
@@ -16,6 +18,103 @@ export interface CommentsPlace {
   category: string;
   /** GitHub's node id for the category. */
   categoryId: string;
+}
+
+/** Comments kept by Disqus, for the site Disqus knows by its shortname. */
+export interface DisqusPlace {
+  /** The Disqus site's shortname, such as `stjoseph`, which its address starts with. */
+  disqus: string;
+}
+
+/** Comments kept by Garrul, which the site's owner runs as a Cloudflare Worker of their own. */
+export interface GarrulPlace {
+  /** The Worker's origin, such as `https://comments.example.org`, which serves its script, API and admin pages. */
+  garrul: string;
+}
+
+/** What `content/site.json`'s `comments` says: Giscus's repository and category, Disqus's site, or Garrul's address. */
+export type SiteCommentsPlace = CommentsPlace | DisqusPlace | GarrulPlace;
+
+export function isDisqus(place: SiteCommentsPlace): place is DisqusPlace {
+  return "disqus" in place;
+}
+
+export function isGarrul(place: SiteCommentsPlace): place is GarrulPlace {
+  return "garrul" in place;
+}
+
+/** A Disqus site's shortname: lowercase letters, numbers and hyphens. */
+export const DISQUS_SHORTNAME = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+
+/**
+ * The shortname in what an owner pasted: Disqus's code (which loads
+ * `https://<shortname>.disqus.com/embed.js`), an address on the site's Disqus
+ * pages, or the shortname itself.
+ */
+export function disqusShortname(text: string): string | undefined {
+  const trimmed = text.trim();
+  const named = /(?:^|[/"'\s])(?:https?:)?(?:\/\/)?([a-z0-9-]+)\.disqus\.com(?=[/"'\s?#]|$)/i.exec(trimmed)?.[1];
+  if (!named && /[^A-Za-z0-9-]/.test(trimmed)) return undefined;
+  const shortname = (named ?? trimmed).toLowerCase();
+  return DISQUS_SHORTNAME.test(shortname) && shortname !== "www" ? shortname : undefined;
+}
+
+/** Disqus's script for a site, which shows its comments in the `#disqus_thread` element. */
+export function disqusEmbedUrl(shortname: string): string {
+  return `https://${shortname}.disqus.com/embed.js`;
+}
+
+/** Where a Disqus site's moderators approve, hide and delete comments. */
+export function disqusModerationUrl(shortname: string): string {
+  return `https://${shortname}.disqus.com/admin/moderate/`;
+}
+
+/** Where to make a site on Disqus. */
+export const DISQUS_CREATE_URL = "https://disqus.com/admin/create/";
+
+/** Garrul's own instructions, for setting up its Worker. */
+export const GARRUL_URL = "https://github.com/KingPin/Garrul";
+
+/**
+ * A Garrul Worker's origin, from its address or the code Garrul gives (its
+ * `data-api`, else its script's address): `https://`, or `http://` only for
+ * this computer, where Garrul's development server runs. Never Disqus's,
+ * whose code also loads an `embed.js`.
+ */
+export function garrulAddress(text: string): string | undefined {
+  const trimmed = text.trim();
+  const named =
+    /\sdata-api\s*=\s*["']([^"'<>\s]+)["']/i.exec(trimmed)?.[1] ??
+    /\ssrc\s*=\s*["']([^"'<>\s]+)\/embed\.js["']/i.exec(trimmed)?.[1] ??
+    (/^[^\s<>"']+$/.test(trimmed) ? trimmed : undefined);
+  if (!named) return undefined;
+  let url: URL;
+  try {
+    url = new URL(named);
+  } catch {
+    return undefined;
+  }
+  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) return undefined;
+  // An address with a sign-in in it, such as `https://user:pass@…`, is never one to load scripts from.
+  if (/^[a-z]+:\/\/[^/]*@/i.test(named) || /(^|\.)disqus\.com$/i.test(url.hostname)) return undefined;
+  return url.origin;
+}
+
+/** Garrul's script, which shows its comments in the `#garrul` element. */
+export function garrulEmbedUrl(origin: string): string {
+  return `${origin}/embed.js`;
+}
+
+/** Where Garrul's moderators approve, hide and delete comments: its queue of those waiting. */
+export function garrulModerationUrl(origin: string): string {
+  return `${origin}/admin/queue?status=pending`;
+}
+
+/** What Garrul knows a page's comments by: its address, in the letters Garrul's threads' names may have. */
+export function garrulSlug(path: string): string {
+  const slug = path.replace(/[^a-zA-Z0-9_\-./]/g, "-").slice(0, 200);
+  return slug || "/";
 }
 
 /** The repository's own name, and its owner's. */

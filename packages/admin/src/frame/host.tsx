@@ -254,6 +254,9 @@ export function frameSiteCode(client: () => Promise<FrameClient>): SiteCodeServi
     async drawBlock(content: SiteContent, target: DrawTarget) {
       return (await client()).call("code.drawBlock", { content, target });
     },
+    async blockFields(content: SiteContent, target: DrawTarget) {
+      return (await client()).call("code.blockFields", { content, target });
+    },
   };
 }
 

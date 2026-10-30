@@ -393,4 +393,94 @@ describe("people, numbers, timelines, countdowns and comments", () => {
     expect(held.replace(/<template[\s\S]*?<\/template>/g, "")).not.toContain('giscus.app/client.js"');
     expect(held).toContain("This comes from giscus.app");
   });
+
+  it("shows Disqus's comments from its code or Site settings, by the page's address", async () => {
+    const { disqusLoader } = await import("../site/blocks/installed/comments/block.js");
+    const code = `<div id="disqus_thread"></div><script>(function() { var d = document, s = d.createElement('script');
+      s.src = 'https://stjoseph.disqus.com/embed.js'; (d.head || d.body).appendChild(s); })();</script>`;
+    expect(await render("comments", { code })).toContain(
+      '<div id="disqus_thread" class="gf-comments-frame w-full"></div>',
+    );
+    const kept = siteSettingsSchema.parse({
+      ...base,
+      url: "https://stjoseph.example/",
+      comments: { disqus: "stjoseph" },
+    });
+    expect(await render("comments", {}, kept)).toContain('id="disqus_thread"');
+    // A site that asks holds the script that loads Disqus until the visitor agrees.
+    const held = await render(
+      "comments",
+      {},
+      { ...kept, consent: siteSettingsSchema.parse({ ...base, consent: {} }).consent },
+    );
+    expect(held).toContain(
+      `<template data-gf-consent-code="body"><script>${disqusLoader({
+        script: "https://stjoseph.disqus.com/embed.js",
+        identifier: "/news/fair",
+        url: "https://stjoseph.example/news/fair",
+      })}</script></template>`,
+    );
+    expect(held).toContain("This comes from disqus.com");
+    expect(held.replace(/<template[\s\S]*?<\/template>/g, "")).not.toContain("embed.js");
+    // Nothing in the page's address can end the script.
+    expect(disqusLoader({ script: "https://a.disqus.com/embed.js", identifier: "/</script>" })).not.toContain("</");
+    expect(disqusLoader({ script: "https://a.disqus.com/embed.js" })).toContain(
+      "this.page.identifier=location.pathname",
+    );
+  });
+
+  it("offers Giscus's reactions and box for writing only for Giscus's comments", async () => {
+    const block = (await import("../site/blocks/installed/comments/block.js")).default as ComponentConfig;
+    const fields = async (code: string, comments?: unknown) =>
+      Object.keys(
+        (await block.resolveFields?.(
+          { props: { ...block.defaultProps, code } } as never,
+          {
+            fields: block.fields,
+            metadata: { site: siteSettingsSchema.parse({ ...base, ...(comments ? { comments } : {}) }) },
+          } as never,
+        )) ?? {},
+      );
+    const giscus = `<script src="https://giscus.app/client.js" data-repo="stjoseph/website" data-repo-id="R_kgDOabc123"
+      data-category="Comments" data-category-id="DIC_kwDOabc123"></script>`;
+    expect(await fields(giscus)).toEqual(["heading", "code", "reactions", "input", "className"]);
+    expect(await fields("", { disqus: "stjoseph" })).toEqual(["heading", "code", "className"]);
+    expect(await fields("https://comments.example.org")).toEqual(["heading", "code", "className"]);
+    // Code for another service wins over Site settings' Giscus.
+    const kept = {
+      repo: "stjoseph/comments",
+      repoId: "R_kgDOdef456",
+      category: "Announcements",
+      categoryId: "DIC_kw1",
+    };
+    expect(await fields("", kept)).toContain("reactions");
+    expect(await fields("stjoseph", kept)).not.toContain("reactions");
+  });
+
+  it("shows Garrul's comments from the owner's own Worker, named by the page's address", async () => {
+    const code = `<div id="garrul" data-slug="my-post-slug" data-api="https://comments.example.org"></div>
+<script src="https://comments.example.org/embed.js" defer></script>`;
+    const shown = await render("comments", { code });
+    expect(shown).toContain(
+      '<div id="garrul" class="gf-comments-frame w-full" data-api="https://comments.example.org" data-slug="/news/fair" data-lang="en" data-theme="light"></div>',
+    );
+    const kept = siteSettingsSchema.parse({
+      ...base,
+      url: "https://stjoseph.example/",
+      comments: { garrul: "https://comments.example.org" },
+    });
+    expect(await render("comments", {}, kept)).toContain('data-url="https://stjoseph.example/news/fair"');
+    const held = await render(
+      "comments",
+      {},
+      {
+        ...kept,
+        consent: siteSettingsSchema.parse({ ...base, consent: {} }).consent,
+      },
+    );
+    expect(held).toContain(
+      '<template data-gf-consent-code="body"><script src="https://comments.example.org/embed.js" async></script></template>',
+    );
+    expect(held).toContain("This comes from comments.example.org");
+  });
 });

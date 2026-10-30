@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { wallClock } from "../calendar.js";
-import { COMMENTS_ID, COMMENTS_REPO } from "../comments.js";
+import { COMMENTS_ID, COMMENTS_REPO, DISQUS_SHORTNAME, garrulAddress } from "../comments.js";
 import { addressPatternProblem } from "./paths.js";
 
 /** Theme color names. They map to shadcn-compatible CSS variables (`primaryForeground` → `--primary-foreground`). */
@@ -358,16 +358,21 @@ export const siteSettingsSchema = z
       })
       .optional(),
     /**
-     * Where visitors' comments are kept, as the Comments block shows them
-     * through Giscus: a public GitHub repository's discussions in one category.
+     * Where visitors' comments are kept, as the Comments block shows them:
+     * through Giscus, a public GitHub repository's discussions in one category,
+     * by Disqus, its site's shortname, or by Garrul, its Worker's origin.
      */
     comments: z
-      .object({
-        repo: z.string().regex(COMMENTS_REPO),
-        repoId: z.string().regex(COMMENTS_ID),
-        category: z.string(),
-        categoryId: z.string().regex(COMMENTS_ID),
-      })
+      .union([
+        z.object({
+          repo: z.string().regex(COMMENTS_REPO),
+          repoId: z.string().regex(COMMENTS_ID),
+          category: z.string(),
+          categoryId: z.string().regex(COMMENTS_ID),
+        }),
+        z.object({ disqus: z.string().regex(DISQUS_SHORTNAME) }),
+        z.object({ garrul: z.string().refine((value) => garrulAddress(value) === value) }),
+      ])
       .optional(),
     /**
      * Whether pages ask visitors before loading other sites' content: players

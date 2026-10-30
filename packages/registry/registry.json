@@ -157,9 +157,11 @@
       "name": "comments",
       "type": "registry:block",
       "title": "Comments",
-      "description": "Comments on the page through Giscus, kept as GitHub Discussions; visitors sign in with GitHub to comment.",
+      "description": "Comments on the page through Giscus, kept as GitHub Discussions, where visitors sign in with GitHub to comment, through Disqus, or through the site owner's own Garrul.",
       "files": [
         { "path": "site/blocks/installed/comments/block.tsx", "type": "registry:block" },
+        { "path": "site/blocks/installed/comments/disqus-frame.tsx", "type": "registry:component" },
+        { "path": "site/blocks/installed/comments/garrul-frame.tsx", "type": "registry:component" },
         { "path": "site/blocks/installed/comments/giscus-frame.tsx", "type": "registry:component" }
       ],
       "meta": { "goodfellow": { "category": "Interactive" } }

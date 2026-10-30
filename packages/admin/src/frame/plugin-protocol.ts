@@ -120,6 +120,8 @@ export interface PluginPageRequests {
   "editor.sharePreview"(params: { root: PluginEditorData["root"] }): PluginSharePreview;
   /** One block drawn as the site draws it, its slots left empty. Only editor frames may. */
   "editor.draw"(params: { block: PluginEditorBlock }): string;
+  /** A block's fields as its props make them, for blocks whose fields change with them. Only editor frames may. */
+  "editor.fields"(params: { block: PluginEditorBlock }): Record<string, unknown>;
   /** The site's styles, for drawn blocks. Only editor frames may. */
   "editor.styles"(): PluginEditorStyles;
   /** A media file the live site doesn't have yet, read from the repository, to show. Only editor frames may. */

@@ -1073,12 +1073,12 @@ export const defaultStrings = {
   "settings.tab.history": "Site history",
   "settings.tab.comments": "Comments",
   "comments.intro":
-    "Visitors' comments are kept on GitHub, in a public project of their own, and shown on pages with the Comments block through Giscus. Visitors sign in with a GitHub account to comment.",
+    "Visitors' comments are shown on pages with the Comments block. They're kept either on GitHub, in a public project of their own, through Giscus, where visitors sign in with a GitHub account to comment, or by Disqus, where visitors sign in with Disqus or another account Disqus offers, or comment as guests where its settings allow it.",
   "comments.demo": "Comments can't be set up in the demo.",
   "comments.local":
-    "Comments are set up from the admin panel on the live site, which signs in to GitHub. Pages here show them once they are.",
+    "Comments on GitHub are set up from the admin panel on the live site, which signs in to GitHub. Pages here show them once they are. Disqus can be set up here.",
   "comments.unavailable":
-    "The admin panel can set comments up only where it signs in to GitHub itself. Set them up on GitHub as the documentation's Comments page says, then paste Giscus's code into the Comments block.",
+    "The admin panel can set up comments on GitHub only where it signs in to GitHub itself. Set them up on GitHub as the documentation's Comments page says, then paste Giscus's code into the Comments block, or use Disqus.",
   "comments.setup.title": "Set up comments",
   "comments.setup.new": "Make a new project for comments",
   "comments.setup.existing": "Use a project I already have",
@@ -1106,6 +1106,40 @@ export const defaultStrings = {
   "comments.stop.body":
     "Pages stop showing comments once the site has been rebuilt. Everything visitors wrote stays in {project} on GitHub, so you can set comments up with it again later.",
   "comments.stop.message": "Stop using comments",
+  "comments.disqus.title": "Use Disqus",
+  "comments.disqus.intro":
+    "Disqus keeps comments on its own service, where you approve, hide and delete them. Its free plan shows ads with them.",
+  "comments.disqus.create": "Make a site on Disqus",
+  "comments.disqus.then":
+    ", then paste its shortname, which Disqus shows in its settings, or the code it gives you to install it.",
+  "comments.disqus.label": "Disqus's shortname, or its code",
+  "comments.disqus.invalid":
+    "That isn't a shortname or Disqus's code. A shortname has only letters, numbers and hyphens, such as stjoseph.",
+  "comments.disqus.button": "Use Disqus",
+  "comments.disqus.message": "Use Disqus for comments",
+  "comments.disqus.kept": "Comments are kept by Disqus, for its site",
+  "comments.disqus.moderateHint": "Approve, hide and delete comments, and block people, on Disqus.",
+  "comments.disqus.moderate": "Moderate comments on Disqus",
+  "comments.disqus.stopBody":
+    "Pages stop showing comments once the site has been rebuilt. Everything visitors wrote stays on Disqus, so you can use it again later.",
+  "comments.garrul.title": "Use Garrul",
+  "comments.garrul.intro":
+    "Garrul keeps comments in a Cloudflare account of your own, on Cloudflare's free plan, with no ads. Visitors comment as guests or sign in with GitHub, Google, Facebook, X or Discord. It needs setting up on Cloudflare first, by someone used to running commands on a computer.",
+  "comments.garrul.start": "Garrul's instructions",
+  "comments.garrul.then": " say how to set it up. Then paste its address, or the code it gives you for a page.",
+  "comments.garrul.label": "Garrul's address, or its code",
+  "comments.garrul.invalid":
+    "That isn't an address or Garrul's code. Garrul's address starts with https://, such as https://comments.example.org.",
+  "comments.garrul.button": "Use Garrul",
+  "comments.garrul.message": "Use Garrul for comments",
+  "comments.garrul.kept": "Comments are kept by Garrul, at",
+  "comments.garrul.origins":
+    "Garrul shows comments only at the addresses its settings allow, so its ALLOWED_ORIGINS must include the site's address.",
+  "comments.garrul.moderateHint":
+    "Approve, hide and delete comments on Garrul's own pages, signed in with an email address its settings name as an admin.",
+  "comments.garrul.moderate": "Moderate comments on Garrul",
+  "comments.garrul.stopBody":
+    "Pages stop showing comments once the site has been rebuilt. Everything visitors wrote stays in Garrul, so you can use it again later.",
   "comments.moderate.title": "What visitors have written",
   "comments.moderate.empty": "No one has commented yet.",
   "comments.moderate.more": "Show more pages",
