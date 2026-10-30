@@ -16,7 +16,7 @@
 // the token broker, in goodfellow.config.tsx, as `goodfellow admin` and `goodfellow broker` do.
 import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { buildNotes, CLOUDFLARE_REDIRECTS_LIMIT, configAdmin, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
@@ -52,6 +52,7 @@ import {
   fixSegmentFiles,
   guardExport,
   NEXT_SITE_FILES,
+  nextDistDir,
   writeBuildRecordFile,
   writeCalendarFiles,
   writeContentApi,
@@ -82,7 +83,7 @@ if (command === "finish" && dir === "--server") {
   }
   for (const folder of await buildFileFolders()) await rm(`public/${folder}`, { recursive: true, force: true });
   // The editor's frames' page, which next start serves as it was rendered.
-  await writeEditorPolicy(".next/server/app");
+  await writeEditorPolicy(join(await nextDistDir(), "server/app"));
   const calendars = await writeCalendarFiles("public");
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files, in public/calendars`);
   const feeds = await writeFeedFiles("public");

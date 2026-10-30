@@ -99,6 +99,8 @@ describe("language paths and names", () => {
       collectionFileSchema.safeParse({ ...valid, path: "/videos/{slug}", languagePaths });
     expect(parse({ es: "/es/videos/{slug}" }).success).toBe(true);
     expect(parse({ es: "/videos-es/{slug}" }).error?.issues[0]?.message).toMatch(/must start with "\/es\/"/);
+    // A code with capitals has a lowercase address.
+    expect(parse({ "pt-BR": "/pt-br/videos/{slug}" }).success).toBe(true);
   });
 
   it("writes no file for a collection or item whose name isn't one part of an address", () => {

@@ -5,7 +5,7 @@
  * and news as such in their results. Its addresses must be full ones, so a
  * site has it only once its address is set.
  */
-import { isEventLike, shownOccurrence, todayIn, zonedInstant, zoneOffset } from "../calendar.js";
+import { isEventLike, shownOccurrence, todayIn, zonedInstant, zonedTime, zoneOffset } from "../calendar.js";
 import { absoluteUrl, getPageHead } from "../head.js";
 import { type Collection, type Entry, richTextToPlainText } from "./collections.js";
 import { dateField, entryDetails } from "./entry-details.js";
@@ -22,11 +22,14 @@ const CONTEXT = "https://schema.org";
 export function zonedIso(local: string, timeZone: string | undefined): string {
   if (!local.includes("T")) return local;
   if (!timeZone) return `${local}:00`;
-  const offset = zoneOffset(zonedInstant(local, timeZone).getTime(), timeZone);
+  const instant = zonedInstant(local, timeZone);
+  const offset = zoneOffset(instant.getTime(), timeZone);
   const sign = offset < 0 ? "-" : "+";
   const hours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, "0");
   const minutes = String(Math.abs(offset) % 60).padStart(2, "0");
-  return `${local}:00${sign}${hours}:${minutes}`;
+  // The time as it is at that instant, which differs from `local` where clocks skip it, such as 2:30 the
+  // night clocks go forward an hour, which happens at 3:30.
+  return `${zonedTime(instant, timeZone)}:00${sign}${hours}:${minutes}`;
 }
 
 function full(siteUrl: string, address: string | undefined): string | undefined {

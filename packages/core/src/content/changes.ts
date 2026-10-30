@@ -190,7 +190,12 @@ export function movedPageRedirects(redirects: readonly Redirect[], from: string,
   };
   const kept = redirects
     .filter((redirect) => !at(redirect, to) && !at(redirect, from))
-    .map((redirect) => (redirect.to === from ? { ...redirect, to } : redirect));
+    // However the redirect writes the old address: /old/, /old?x or /old#top, keeping what's after it.
+    .map((redirect) => {
+      const target = redirect.to.startsWith("/") ? /^([^?#]*)(.*)$/.exec(redirect.to) : null;
+      const path = target && redirectFrom(target[1] ?? "");
+      return path?.ok && path.path === from ? { ...redirect, to: `${to}${target?.[2] ?? ""}` } : redirect;
+    });
   return [...kept, { from, to }];
 }
 

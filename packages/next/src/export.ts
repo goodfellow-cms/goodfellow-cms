@@ -55,7 +55,7 @@ import {
   writeSiteHeaders,
 } from "@goodfellow-cms/core/node";
 import type { PageRender } from "@goodfellow-cms/core/shadcn";
-import { IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
+import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule } from "./plugins.js";
 
 export { NEXT_SITE_FILES } from "./site-files.js";
@@ -125,10 +125,16 @@ export async function buildFileFolders(root = process.cwd()): Promise<string[]> 
   );
 }
 
+/** The folder `next build` wrote into, as `withGoodfellow()` recorded it: the config's `distDir`, or `.next`. */
+export async function nextDistDir(root = process.cwd()): Promise<string> {
+  const recorded = await readFile(join(root, DIST_DIR_RECORD), "utf8").catch(() => "");
+  return join(root, recorded.trim() || ".next");
+}
+
 /** The `basePath` the export was built with, which Next.js records in `.next/routes-manifest.json`. */
 async function exportBasePath(root: string): Promise<string> {
   try {
-    const manifest = JSON.parse(await readFile(join(root, ".next/routes-manifest.json"), "utf8")) as {
+    const manifest = JSON.parse(await readFile(join(await nextDistDir(root), "routes-manifest.json"), "utf8")) as {
       basePath?: unknown;
     };
     return typeof manifest.basePath === "string" ? manifest.basePath : "";
@@ -209,7 +215,7 @@ export async function writeFontFiles(outDir: string, root = process.cwd()): Prom
 export async function writeBuildRecordFile(outDir: string, root = process.cwd()): Promise<string | undefined> {
   const dir = resolve(root);
   const content = await loadSiteContent(builtSiteSource(dir));
-  const date = await reportedDate(join(dir, ".next", BUILD_DATES_DIR));
+  const date = await reportedDate(join(await nextDistDir(dir), BUILD_DATES_DIR));
   const record = await writeBuildRecord(outDir, { root: dir, content, now: new Date(), ...(date && { date }) });
   return record.currentUntil;
 }
@@ -258,7 +264,7 @@ export async function writeRedirectFiles(outDir: string, root = process.cwd()): 
  */
 export async function writeImageFiles(outDir: string, root = process.cwd()): Promise<ImageSizesResult | undefined> {
   const dir = resolve(root);
-  if (!(await exists(join(dir, ".next", IMAGE_SIZES_MARK)))) return undefined;
+  if (!(await exists(join(await nextDistDir(dir), IMAGE_SIZES_MARK)))) return undefined;
   return writeImageSizes(dir, outDir, { resize: await sharpResizer() });
 }
 
@@ -390,7 +396,7 @@ export async function writePageLanguages(outDir: string | undefined, root = proc
   const dir = resolve(root);
   const { settings } = await loadSiteContent(builtSiteSource(dir));
   if (!hasLanguages(settings)) return 0;
-  const base = outDir ?? join(dir, ".next/server/app");
+  const base = outDir ?? join(await nextDistDir(dir), "server/app");
   const files = (await readdir(base, { recursive: true }))
     .map((file) => file.split("\\").join("/"))
     .filter((file) => file.endsWith(".html") && !/^(admin|_next|pagefind)\//.test(file));
@@ -419,7 +425,7 @@ export interface BuiltPage {
  * and keeps their HTML in `.next/server/app/`. The admin panel and Next.js's own pages are left out.
  */
 export async function builtPages(root = process.cwd()): Promise<BuiltPage[]> {
-  const next = join(resolve(root), ".next");
+  const next = await nextDistDir(resolve(root));
   const manifest = JSON.parse(await readFile(join(next, "prerender-manifest.json"), "utf8")) as {
     routes?: Record<string, unknown>;
   };

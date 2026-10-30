@@ -193,5 +193,7 @@ describe("structured data", () => {
     expect(zonedIso("2026-07-04T09:00", "Asia/Kolkata")).toBe("2026-07-04T09:00:00+05:30");
     expect(zonedIso("2026-07-04", "America/New_York")).toBe("2026-07-04");
     expect(zonedIso("2026-07-04T09:00", undefined)).toBe("2026-07-04T09:00:00");
+    // 2:30 doesn't happen the night clocks go forward: it's the instant of 3:30, as everything else reads it.
+    expect(zonedIso("2026-03-08T02:30", "America/New_York")).toBe("2026-03-08T03:30:00-04:00");
   });
 });

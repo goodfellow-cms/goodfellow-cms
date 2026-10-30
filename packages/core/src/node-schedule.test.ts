@@ -90,5 +90,20 @@ describe("the hourly check", () => {
       fetch,
     });
     expect(later.dated).toBeUndefined();
+
+    // The first check, with none before it, looks back to when the live site was built.
+    const first = await scheduleDue({ root: dir, now: new Date("2026-11-02T00:47:00Z"), fetch });
+    expect(first.since.toISOString()).toBe("2026-11-01T04:17:00.000Z");
+
+    // A copy, such as staging, reads its own build record.
+    asked.length = 0;
+    await scheduleDue({
+      root: dir,
+      since: "2026-11-01T23:47:00Z",
+      now: new Date("2026-11-02T00:47:00Z"),
+      fetch,
+      env: { GOODFELLOW_SITE_URL: "https://staging.parish.example.org/" },
+    });
+    expect(asked).toEqual(["https://staging.parish.example.org/goodfellow-build.json"]);
   });
 });

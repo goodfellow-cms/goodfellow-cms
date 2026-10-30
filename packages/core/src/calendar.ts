@@ -231,6 +231,9 @@ export function eventValueProblem(value: unknown): string | undefined {
   if (repeat.until !== undefined && (!DATE.test(repeat.until) || wallClock(repeat.until) === undefined)) {
     return "must stop repeating on a date written as YYYY-MM-DD";
   }
+  if (repeat.until !== undefined && repeat.until < start.slice(0, 10)) {
+    return "must stop repeating on or after the day it starts";
+  }
   if (repeat.skip !== undefined) {
     if (!Array.isArray(repeat.skip) || repeat.skip.some((date) => !DATE.test(date) || wallClock(date) === undefined)) {
       return "must skip dates written as YYYY-MM-DD";
@@ -354,8 +357,16 @@ export function occurrences(event: EventValue, options: OccurrenceOptions): Occu
     take(startMs);
     return found;
   }
+  // A daily event takes a step a day from its start, so one started long ago would use every step before
+  // reaching `from`: it starts as many whole intervals later as it can, which repeats the same days.
+  let firstMs = startMs;
+  if (event.repeat?.every === "day") {
+    const interval = (event.repeat.interval ?? 1) * DAY;
+    const behind = Math.floor((fromMs - startMs - (duration ?? 0)) / interval) - 1;
+    if (behind > 0) firstMs = startMs + behind * interval;
+  }
   // Wall-clock times, without a time zone, as everything here is.
-  const start = new Date(startMs);
+  const start = new Date(firstMs);
   const iterator = ICAL.Recur.fromString(rule).iterator(
     ICAL.Time.fromData({
       year: start.getUTCFullYear(),

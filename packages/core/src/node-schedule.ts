@@ -7,7 +7,7 @@
  */
 import { appendFile } from "node:fs/promises";
 import { dueChanges, loadSiteContent, type ScheduledChange, upcomingChanges } from "./index.js";
-import { fileSystemSource } from "./node-fs-source.js";
+import { builtSiteSource } from "./node-fs-source.js";
 import { liveRecord } from "./node-nightly.js";
 
 const HOUR = 60 * 60 * 1000;
@@ -18,12 +18,15 @@ export interface DueOptions {
   /**
    * When the last check that worked started, as an ISO time, such as the
    * previous scheduled run's. Without one, or with one that isn't a time,
-   * the last hour.
+   * when the live site was built (its build record's `builtAt`), else the
+   * last hour.
    */
   since?: string;
   now?: Date;
   /** For tests: reads the live site's build record. */
   fetch?: typeof fetch;
+  /** Where a copy of the site's address comes from (`GOODFELLOW_SITE_URL`). Defaults to `process.env`. */
+  env?: Readonly<Record<string, string | undefined>>;
 }
 
 export interface DueResult {
@@ -44,12 +47,18 @@ export interface DueResult {
 /** Which of the site's scheduled changes came due since the last check, and the next one. */
 export async function scheduleDue(options: DueOptions = {}): Promise<DueResult> {
   const now = options.now ?? new Date();
-  const given = options.since ? new Date(options.since) : undefined;
-  const since = given && !Number.isNaN(given.getTime()) && given < now ? given : new Date(now.getTime() - HOUR);
-  const content = await loadSiteContent(fileSystemSource(options.root ?? "."));
+  // As the site is built, so a copy, such as staging, reads its own build record, not the main site's.
+  const content = await loadSiteContent(builtSiteSource(options.root ?? ".", options.env ?? process.env));
+  const record = await liveRecord(content.settings.url, options.fetch ?? fetch);
+  const time = (text: string | undefined) => {
+    const date = text ? new Date(text) : undefined;
+    return date && !Number.isNaN(date.getTime()) && date < now ? date : undefined;
+  };
+  // Without a last check, such as the first, since the live site was built, else the last hour.
+  const since = time(options.since) ?? time(record?.builtAt) ?? new Date(now.getTime() - HOUR);
   const [next] = upcomingChanges(content, now);
   // Only once, the first check after, so a build that fails isn't tried again every hour.
-  const until = (await liveRecord(content.settings.url, options.fetch ?? fetch))?.currentUntil;
+  const until = record?.currentUntil;
   const dated = until && new Date(until) > since && new Date(until) <= now ? until : undefined;
   return {
     due: dueChanges(content, since, now),

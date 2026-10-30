@@ -21,7 +21,8 @@ import { withoutTags } from "./tags.js";
  *     Blocks are React components…
  */
 
-const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n?---[ \t]*(?:\r?\n|$)/;
+/** Front matter between two lines of `---`, each a whole line, so `title: Foo ---` never ends it. */
+const FRONT_MATTER = /^---\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/;
 
 /**
  * Reads a Markdown entry into the same shape as a JSON entry, `{ version, fields }`,
