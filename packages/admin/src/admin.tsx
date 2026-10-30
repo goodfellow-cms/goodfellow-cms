@@ -23,6 +23,7 @@ import {
   usePublishedAdminText,
   useSiteAdminTextFiles,
 } from "./admin-language.js";
+import { AdminLanguagesScreen } from "./admin-languages-screen.js";
 import { forgetAiKeys } from "./ai-settings.js";
 import { appServer } from "./app-server.js";
 import { AppSignInGate } from "./app-sign-in.js";
@@ -188,6 +189,7 @@ function SettingsLayout({ sub, rest, params }: { sub?: string; rest: string[]; p
     domain: DomainScreen,
     editors: EditorsScreen,
     themes: ThemesScreen,
+    "admin-languages": AdminLanguagesScreen,
     plugins: PluginsScreen,
     updates: UpdatesScreen,
     history: SiteHistoryScreen,

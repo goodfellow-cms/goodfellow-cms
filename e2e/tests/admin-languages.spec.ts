@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
-import { GITHUB_SITE } from "./backends.js";
-import { canvas, editor, expect, openPageEditor, test, writeSiteFile } from "./helpers";
+import { fakeAi } from "@goodfellow-cms/ai/testing";
+import { GITHUB_SITE, routeToFake } from "./backends.js";
+import { canvas, editor, expect, openPageEditor, readSiteFile, test, writeSiteFile } from "./helpers";
 
 const french = readFileSync(new URL("../fixtures/admin-text/fr.json", import.meta.url), "utf8");
 
@@ -81,4 +82,44 @@ test.describe("in a browser set to French", () => {
     // A string with git's words in it isn't used.
     await expect(page.getByText("repository avec")).toHaveCount(0);
   });
+});
+
+test("translates the admin panel into a new language with the editor's AI service, and publishes it", async ({
+  page,
+}) => {
+  const key = "sk-ant-test-key";
+  // Claude, answering every string asked for with "FR " before its English.
+  const fake = fakeAi({
+    keys: [key],
+    answer: (body) => {
+      const messages = body.messages as { content: string }[];
+      const json = /<site-content>\n([\s\S]*)\n<\/site-content>/.exec(messages[0]?.content ?? "")?.[1] ?? "[]";
+      const asked = JSON.parse(json) as { key: string; english: string }[];
+      return { strings: asked.map(({ key: item, english }) => ({ key: item, text: `FR ${english}` })) };
+    },
+  });
+  await routeToFake(page, "https://api.anthropic.com", fake.handle);
+
+  await page.goto("/admin#/settings/admin-languages");
+  await expect(page.getByRole("heading", { name: "Admin panel languages" })).toBeVisible();
+  await expect(page.getByText("The site has no languages of its own for the admin panel yet.")).toBeVisible();
+  await page.getByLabel("API key").fill(key);
+  await page.getByLabel("Language code").fill("fr");
+  await page.getByLabel("Its name, in that language").fill("Français");
+  await page.getByRole("button", { name: "Add and translate" }).click();
+
+  await expect(page.getByText(/^Translated and published \d+ strings\.$/)).toBeVisible({ timeout: 60_000 });
+  const file = JSON.parse(readSiteFile("content/admin-text/fr.json"));
+  expect(file).toMatchObject({ version: 1, name: "Français" });
+  expect(file.strings["nav.pages"]).toMatchObject({ text: "FR Pages", source: expect.stringMatching(/^[0-9a-f]{8}$/) });
+  expect(file.puck["header-publish"].text).toBe("FR Publish");
+  expect(file.labels.Section.text).toBe("FR Section");
+  // Every request went to Claude with the glossary.
+  expect(fake.requests.length).toBeGreaterThan(1);
+  expect(JSON.stringify(fake.requests[1]?.body)).toContain("FR Publish");
+  await expect(page.getByRole("cell", { name: /Français/ })).toBeVisible();
+
+  // Editors can then choose it.
+  await page.getByRole("combobox", { name: "Language of the admin panel" }).selectOption("fr");
+  await expect(page.getByRole("link", { name: "FR Pages", exact: true })).toBeVisible();
 });

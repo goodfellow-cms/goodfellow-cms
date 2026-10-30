@@ -116,13 +116,13 @@ type Status =
   | { type: "failed"; error: unknown }
   | { type: "manual"; prompt: string; task: AiTask };
 
-function problemKey(error: unknown): StringKey {
+export function problemKey(error: unknown): StringKey {
   if (error instanceof AiError) return `ai.error.${error.problem}` as StringKey;
   if (error instanceof SyntaxError) return "ai.error.answer";
   return "ai.error.service";
 }
 
-function ServiceSettings({
+export function ServiceSettings({
   providers,
   settings,
   onChange,
@@ -286,11 +286,13 @@ function serviceName(id: ProviderId, t: ReturnType<typeof useStrings>): string {
  * the selected block, or fills in the fields. It's in the admin panel's own
  * page, beside the editor's frame, so the site's blocks never see the editor's keys.
  */
-export function AiPanel({ context, editor }: { context: AiContext; editor: AiEditor }) {
-  const t = useStrings();
-  const { site, publish, mediaPreviews, account } = useAdmin();
-  const { content, media } = useSiteContent();
-  const selected = editor.selected;
+/**
+ * The AI service the editor chose, as the AI panel and the Admin languages
+ * screen both use it: the site's services first, asked through its server
+ * with its key where it has one, otherwise with the editor's own.
+ */
+export function useAiService() {
+  const { site, account } = useAdmin();
   const siteAi = account?.ai;
   const providers = useMemo(() => {
     const allowed = allowedProviders(site.ai ? site.ai.providers : undefined);
@@ -299,7 +301,6 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
     return [...paid, ...allowed.filter((id) => !paid.includes(id))];
   }, [site.ai, siteAi]);
   const [chosen, updateSettings] = useAiSettings(providers);
-  // Asked through the site's server, with its key, where it has one; otherwise with the editor's own.
   const settings = useMemo(
     () =>
       siteAi?.services.includes(chosen.provider)
@@ -307,6 +308,24 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
         : chosen,
     [chosen, siteAi],
   );
+  const ready =
+    settings.provider === "manual" ||
+    (Boolean(settings.model) &&
+      (!PROVIDERS[settings.provider].needsKey || Boolean(settings.apiKey) || Boolean(settings.server)));
+  /** What `runRequest()` needs besides the settings: the broker's `fetch`, where it sends requests on. */
+  const runOptions = useMemo(
+    () => (settings.server && siteAi?.fetch ? { fetch: siteAi.fetch } : {}),
+    [settings.server, siteAi],
+  );
+  return { providers, chosen, updateSettings, settings, siteAi, ready, runOptions };
+}
+
+export function AiPanel({ context, editor }: { context: AiContext; editor: AiEditor }) {
+  const t = useStrings();
+  const { site, publish, mediaPreviews } = useAdmin();
+  const { content, media } = useSiteContent();
+  const selected = editor.selected;
+  const { providers, chosen, updateSettings, settings, siteAi, ready } = useAiService();
   const [photosChosen, choosePhotos] = useStockPhotoChoice();
   const photosOffered = !(site.ai && site.ai.stockPhotos === false);
   const photosAllowed = photosOffered && photosChosen;
@@ -321,11 +340,6 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
   const blockName = (block: ComponentData | null) =>
     block ? (editor.config.components[block.type]?.label ?? block.type) : "";
   const itemName = inSentence(context.collection?.settings.entryName ?? "");
-  const ready =
-    settings.provider === "manual" ||
-    (Boolean(settings.model) &&
-      (!PROVIDERS[settings.provider].needsKey || Boolean(settings.apiKey) || Boolean(settings.server)));
-
   // Open at first if the service isn't set up yet, and then wherever the editor leaves it.
   const [settingsOpen, setSettingsOpen] = useState(!ready);
 

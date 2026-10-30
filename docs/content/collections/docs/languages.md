@@ -65,7 +65,11 @@ The admin panel speaks English or Spanish, whichever each editor's browser asks 
 
 ### The admin panel in other languages
 
-A site can have the admin panel in any other language too, with its text in a file of the site's own: `content/admin-text/fr.json` for French, named by the language's code. The language menu then offers it, named as the file names it, and editors whose browser asks for it first start in it. There's no screen for these files yet, so a developer or a translation tool writes them.
+A site can have the admin panel in any other language too, with its text in a file of the site's own: `content/admin-text/fr.json` for French, named by the language's code. The language menu then offers it, named as the file names it, and editors whose browser asks for it first start in it.
+
+Owners add one in **Site Settings → Admin panel languages**: give the language's code and its name in that language, choose the [AI service](/docs/ai-assistant) and its key, as in the editor's AI panel, and **Add and translate**. The service translates the admin panel's words, the editor's controls and your blocks' labels, a batch at a time, with a glossary that keeps words such as Publish, Draft and Version history the same throughout and never uses git's. What comes back is published as the language's file, even if the service stops part way, so nothing is translated twice. The screen then shows how much of the admin panel each language says, with **Translate what's missing**, **Translate again what's out of date** for strings whose English has changed in a later release, and **Remove**. A box says anything the translation should know, such as how formal to be. A chat app can't do it, since the admin panel asks the service itself.
+
+A developer or a translation tool can write the files too:
 
 ```json
 {

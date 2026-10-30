@@ -10,6 +10,7 @@ import {
 } from "@goodfellow-cms/core";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { EditorText } from "./editor-text.js";
+import { PUCK_ENGLISH } from "./languages/en-puck.js";
 import { defaultStrings, type StringKey, type Strings } from "./strings.js";
 
 /** The languages Goodfellow ships the admin panel in, each named in itself, as a menu of them shows it. */
@@ -242,7 +243,11 @@ export function composeAdminText(base: AdminText | undefined, file: AdminTextFil
   }
   return {
     strings: table as Strings,
-    puck: adminTextOverlay(file.puck, base?.puck ?? {}),
+    // Puck's text, checked against its English where the admin panel knows it.
+    puck: {
+      ...adminTextOverlay(file.puck, base?.puck ?? {}),
+      ...adminTextTable(PUCK_ENGLISH, file.puck, base?.puck).table,
+    },
     labels: adminTextOverlay(file.labels, base?.labels ?? {}, { keyedByEnglish: true }),
   };
 }
