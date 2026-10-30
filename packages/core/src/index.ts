@@ -1179,6 +1179,7 @@ export {
   parseUpdateSettings,
   releaseVersion,
   releaseVersions,
+  SITE_OVERRIDES,
   type SiteUpdates,
   siteVersion,
   UPDATE_RESULT_MARKER,
@@ -1189,6 +1190,7 @@ export {
   type UpdatesSetup,
   updateSettingsFile,
   VERSION_PACKAGE,
+  withSiteOverrides,
 } from "./updates.js";
 export {
   type EmbedProblem,

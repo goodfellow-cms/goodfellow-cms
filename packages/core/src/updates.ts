@@ -16,6 +16,45 @@ import { CURRENT_VERSION } from "./migrations/index.js";
 /** npm's registry, which answers browsers too. */
 export const NPM_REGISTRY = "https://registry.npmjs.org";
 
+/**
+ * npm overrides every site's `package.json` has, by the package whose own
+ * dependency they replace, as Goodfellow's workspace has them
+ * (`pnpm-workspace.yaml`): releases that fix security advisories, for
+ * packages Goodfellow's dependencies ask for older ones of. Puck renders rich
+ * text on the server with `@tiptap/html`, which asks for happy-dom 20; 21.0.4
+ * and later fix GHSA-834v-8h66-3h79 and GHSA-c8p4-j97h-3vg8.
+ */
+export const SITE_OVERRIDES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  "@puckeditor/core": { "happy-dom": "^21.0.4" },
+};
+
+/**
+ * A site's `package.json` overrides with `SITE_OVERRIDES` in them, keeping
+ * every override of the site's own, and the packages it added overrides for,
+ * as `[package, dependency]`.
+ */
+export function withSiteOverrides(overrides: unknown): {
+  overrides: Record<string, unknown>;
+  added: [string, string][];
+} {
+  const result: Record<string, unknown> =
+    typeof overrides === "object" && overrides !== null && !Array.isArray(overrides) ? { ...overrides } : {};
+  const added: [string, string][] = [];
+  for (const [name, children] of Object.entries(SITE_OVERRIDES)) {
+    const own = result[name];
+    // A site that overrides the package itself, as `"@puckeditor/core": "1.2.3"`, chose its own.
+    if (own !== undefined && (typeof own !== "object" || own === null || Array.isArray(own))) continue;
+    const merged: Record<string, unknown> = { ...(own as Record<string, unknown> | undefined) };
+    for (const [child, range] of Object.entries(children)) {
+      if (merged[child] !== undefined) continue;
+      merged[child] = range;
+      added.push([name, child]);
+    }
+    result[name] = merged;
+  }
+  return { overrides: result, added };
+}
+
 /** The package whose version is the site's Goodfellow version: every Goodfellow package has the same one. */
 export const VERSION_PACKAGE = "@goodfellow-cms/react";
 

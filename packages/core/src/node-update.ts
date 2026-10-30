@@ -27,6 +27,7 @@ import {
   type UpdateResult,
   updateSettingsFile,
   VERSION_PACKAGE,
+  withSiteOverrides,
 } from "./updates.js";
 
 /**
@@ -261,8 +262,22 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
       else if (name === "@puckeditor/core" && puck) dependencies[name] = puck;
     }
   }
+  // Overrides that fix security advisories, for sites made before Goodfellow added them.
+  const { overrides, added } = withSiteOverrides(site.overrides);
+  site.overrides = overrides;
   await apply({ path: "package.json", content: `${JSON.stringify(site, null, 2)}\n` });
   await remember("package-lock.json");
+  // npm keeps a package's own copy its lockfile already has, though an override no longer allows it, so the copies
+  // of what an added override replaces are left out for npm to install again.
+  const lockText = added.length > 0 ? await read("package-lock.json") : undefined;
+  if (lockText) {
+    const lock = JSON.parse(lockText) as { packages?: Record<string, unknown> };
+    const replaced = Object.keys(lock.packages ?? {}).filter((path) =>
+      added.some(([name, child]) => path.startsWith(`node_modules/${name}/`) && path.endsWith(`node_modules/${child}`)),
+    );
+    for (const path of replaced) delete lock.packages?.[path];
+    if (replaced.length > 0) await apply({ path: "package-lock.json", content: `${JSON.stringify(lock, null, 2)}\n` });
+  }
 
   // Going back skips the release the site went back from, so automatic updates don't install it again;
   // choosing a release no longer skips it.

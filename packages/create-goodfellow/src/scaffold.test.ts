@@ -433,7 +433,7 @@ describe("helpers", () => {
   it("keeps the order of package.json's keys", () => {
     const source = '{"name":"x","private":true,"dependencies":{"goodfellow":"workspace:*"}}';
     expect(sitePackageJson(source, "site", { goodfellow: "2.0.0" })).toBe(
-      '{\n  "name": "site",\n  "private": true,\n  "dependencies": {\n    "goodfellow": "^2.0.0"\n  }\n}\n',
+      '{\n  "name": "site",\n  "private": true,\n  "dependencies": {\n    "goodfellow": "^2.0.0"\n  },\n  "overrides": {\n    "@puckeditor/core": {\n      "happy-dom": "^21.0.4"\n    }\n  }\n}\n',
     );
   });
 });

@@ -6,7 +6,7 @@ import { formatBuildCause } from "./build-problems.js";
 import { serializeContent } from "./content/serialize.js";
 import { type RunCommand, type SiteFile, update } from "./node-update.js";
 import { hashText } from "./registry.js";
-import { parseUpdateSettings, updateSettingsFile } from "./updates.js";
+import { parseUpdateSettings, SITE_OVERRIDES, updateSettingsFile } from "./updates.js";
 
 const REGISTRY = "https://registry.example/{name}.json";
 const BLOCK = "blocks/installed/shadcn-faq/block.tsx";
@@ -102,6 +102,7 @@ describe("goodfellow update", () => {
       "@puckeditor/core": "0.23.1",
     });
     expect(pkg.devDependencies).toEqual({ goodfellow: "0.4.2" });
+    expect(pkg.overrides).toEqual(SITE_OVERRIDES);
     expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
     expect(ran.filter((line) => !line.startsWith("git rev-parse"))).toEqual([
       // Only what npm had a day after 0.4.2 came out.
@@ -111,6 +112,36 @@ describe("goodfellow update", () => {
       "git -c user.name=Goodfellow updates -c user.email=updates@goodfellow.invalid commit --message Update Goodfellow to 0.4.2",
       "git push origin HEAD:refs/heads/main",
     ]);
+  });
+
+  it("adds the overrides sites need, leaving out the lockfile's copies of what they replace for npm to install again", async () => {
+    await site();
+    const lock = {
+      name: "parish",
+      lockfileVersion: 3,
+      packages: {
+        "": { name: "parish" },
+        "node_modules/happy-dom": { version: "21.0.4" },
+        "node_modules/@puckeditor/core": { version: "0.23.0" },
+        "node_modules/@puckeditor/core/node_modules/happy-dom": { version: "20.14.6" },
+        "node_modules/@puckeditor/core/node_modules/@tiptap/html/node_modules/happy-dom": { version: "20.14.6" },
+        "node_modules/other/node_modules/happy-dom": { version: "20.14.6" },
+      },
+    };
+    await writeFile(join(root, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
+    const { run } = commands();
+    await update({ root, fetchJson, run, registry: REGISTRY, log: () => {}, env: {} });
+    expect(JSON.parse(await read("package.json")).overrides).toEqual(SITE_OVERRIDES);
+    expect(Object.keys(JSON.parse(await read("package-lock.json")).packages)).toEqual([
+      "",
+      "node_modules/happy-dom",
+      "node_modules/@puckeditor/core",
+      "node_modules/other/node_modules/happy-dom",
+    ]);
+    // A site that has them already keeps its lockfile as it is.
+    const text = await read("package-lock.json");
+    await update({ root, fetchJson, run, registry: REGISTRY, to: "0.5.0", log: () => {}, env: {} });
+    expect(await read("package-lock.json")).toBe(text);
   });
 
   it("only commits the update, for a job that runs none of the site's code to publish", async () => {
