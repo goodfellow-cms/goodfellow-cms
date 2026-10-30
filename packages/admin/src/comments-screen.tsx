@@ -1,20 +1,27 @@
 /**
  * Site Settings' Comments screen: visitors' comments, kept as discussions in a
- * public GitHub repository of their own and shown on pages by Giscus. Owners
- * make that repository or pick one (`SiteComments.create()`, `find()`),
- * publish where it is as `content/site.json`'s `comments`, which the Comments
- * block reads, and moderate what visitors write. Only backends with
- * `comments` (GitHub) offer it; elsewhere the screen says how it's done on
- * GitHub itself.
+ * public GitHub repository of their own and shown on pages by Giscus, or kept
+ * by Disqus. Owners make that repository or pick one
+ * (`SiteComments.create()`, `find()`), or name Disqus's site, publish where
+ * comments are as `content/site.json`'s `comments`, which the Comments block
+ * reads, and moderate what visitors write on GitHub here (Disqus's are
+ * moderated on Disqus). Only backends with `comments` (GitHub) set up
+ * Giscus; elsewhere the screen says how it's done on GitHub itself. Disqus
+ * works on every site.
  */
 import {
   CommentsError,
   type CommentsPlace,
   type CommentsRepository,
   type CommentThread,
+  DISQUS_CREATE_URL,
+  type DisqusPlace,
+  disqusModerationUrl,
+  disqusShortname,
   GISCUS_APP_URL,
   HIDE_REASONS,
   type HideReason,
+  isDisqus,
   type SiteComment,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useState } from "react";
@@ -39,10 +46,22 @@ export function CommentsScreen() {
 
   let body: React.ReactNode;
   if (demo) body = <p>{t("comments.demo")}</p>;
-  else if (!versions) body = <p>{t("comments.local")}</p>;
-  else if (!comments) body = <p>{t("comments.unavailable")}</p>;
-  else if (!place) body = <CommentsSetup onMade={setMade} />;
-  else {
+  else if (place && isDisqus(place)) body = <DisqusPlaceSection place={place} />;
+  else if (!versions || !comments) {
+    body = (
+      <>
+        <p>{t(versions ? "comments.unavailable" : "comments.local")}</p>
+        {!place && <DisqusSetup />}
+      </>
+    );
+  } else if (!place) {
+    body = (
+      <>
+        <CommentsSetup onMade={setMade} />
+        <DisqusSetup />
+      </>
+    );
+  } else {
     body = (
       <>
         <CommentsPlaceSection place={place} made={made} />
@@ -279,22 +298,7 @@ function CommentsSetup({ onMade }: { onMade: (made: CommentsRepository) => void 
 /** Where comments are kept, the step Giscus needs, and stopping. */
 function CommentsPlaceSection({ place, made }: { place: CommentsPlace; made?: CommentsRepository }) {
   const t = useStrings();
-  const { publish } = useAdmin();
-  const { content } = useSiteContent();
-  const [stopping, setStopping] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<Failure>(null);
   const webUrl = `https://github.com/${place.repo}`;
-
-  const stop = async () => {
-    setBusy(true);
-    setFailure(null);
-    const { comments: _left, ...settings } = content.settings;
-    const result = await publish([siteSettingsFileChange(settings)], t("comments.stop.message"), { checks: false });
-    setBusy(false);
-    if (result.ok) setStopping(false);
-    else setFailure(result);
-  };
 
   return (
     <section className="gfa-form" aria-labelledby="gfa-comments-place">
@@ -328,6 +332,32 @@ function CommentsPlaceSection({ place, made }: { place: CommentsPlace; made?: Co
           </a>
         </p>
       )}
+      <StopComments body={t("comments.stop.body", { project: place.repo })} />
+    </section>
+  );
+}
+
+/** Stops showing comments: publishes Site settings without them, leaving what visitors wrote where it is. */
+function StopComments({ body }: { body: string }) {
+  const t = useStrings();
+  const { publish } = useAdmin();
+  const { content } = useSiteContent();
+  const [stopping, setStopping] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<Failure>(null);
+
+  const stop = async () => {
+    setBusy(true);
+    setFailure(null);
+    const { comments: _left, ...settings } = content.settings;
+    const result = await publish([siteSettingsFileChange(settings)], t("comments.stop.message"), { checks: false });
+    setBusy(false);
+    if (result.ok) setStopping(false);
+    else setFailure(result);
+  };
+
+  return (
+    <>
       <div>
         <Button variant="danger" onClick={() => setStopping(true)}>
           {t("comments.stop.button")}
@@ -335,7 +365,7 @@ function CommentsPlaceSection({ place, made }: { place: CommentsPlace; made?: Co
       </div>
       {stopping && (
         <Dialog title={t("comments.stop.title")} onClose={() => setStopping(false)}>
-          <p>{t("comments.stop.body", { project: place.repo })}</p>
+          <p>{body}</p>
           <PublishFailure failure={failure} />
           <div className="gfa-dialog-actions">
             <Button onClick={() => setStopping(false)}>{t("action.cancel")}</Button>
@@ -345,6 +375,97 @@ function CommentsPlaceSection({ place, made }: { place: CommentsPlace; made?: Co
           </div>
         </Dialog>
       )}
+    </>
+  );
+}
+
+/** Names Disqus's site for comments, from its shortname or the code Disqus gives, and publishes it. */
+function DisqusSetup() {
+  const t = useStrings();
+  const { publish } = useAdmin();
+  const { content } = useSiteContent();
+  const [pasted, setPasted] = useState("");
+  const [invalid, setInvalid] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<Failure>(null);
+
+  const use = async () => {
+    const disqus = disqusShortname(pasted);
+    setInvalid(!disqus);
+    if (!disqus) return;
+    setBusy(true);
+    setFailure(null);
+    const result = await publish(
+      [siteSettingsFileChange({ ...content.settings, comments: { disqus } })],
+      t("comments.disqus.message"),
+      { checks: false },
+    );
+    setBusy(false);
+    if (!result.ok) setFailure(result);
+  };
+
+  return (
+    <form
+      className="gfa-form"
+      aria-labelledby="gfa-comments-disqus"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void use();
+      }}
+    >
+      <h2 className="gfa-section-title" id="gfa-comments-disqus">
+        {t("comments.disqus.title")}
+      </h2>
+      <p>{t("comments.disqus.intro")}</p>
+      <p>
+        <a href={DISQUS_CREATE_URL} target="_blank" rel="noreferrer">
+          {t("comments.disqus.create")}
+        </a>
+        {t("comments.disqus.then")}
+      </p>
+      <TextField
+        label={t("comments.disqus.label")}
+        placeholder="stjoseph"
+        error={invalid ? t("comments.disqus.invalid") : undefined}
+        value={pasted}
+        onChange={(value) => {
+          setPasted(value);
+          setInvalid(false);
+        }}
+      />
+      <PublishFailure failure={failure} />
+      <div>
+        <Button type="submit" variant="primary" disabled={busy || !pasted.trim()}>
+          {busy ? t("comments.setup.working") : t("comments.disqus.button")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Disqus's site, where its comments are moderated, and stopping. */
+function DisqusPlaceSection({ place }: { place: DisqusPlace }) {
+  const t = useStrings();
+  return (
+    <section className="gfa-form" aria-labelledby="gfa-comments-place">
+      <h2 className="gfa-section-title" id="gfa-comments-place">
+        {t("comments.place.title")}
+      </h2>
+      <p>
+        {t("comments.disqus.kept")} <strong>{place.disqus}</strong>
+      </p>
+      <p>{t("comments.disqus.moderateHint")}</p>
+      <p>
+        <a
+          className="gfa-button gfa-button-primary"
+          href={disqusModerationUrl(place.disqus)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t("comments.disqus.moderate")}
+        </a>
+      </p>
+      <StopComments body={t("comments.disqus.stopBody")} />
     </section>
   );
 }

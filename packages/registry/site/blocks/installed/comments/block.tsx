@@ -3,22 +3,28 @@ import {
   CONSENT_CODE_ATTRIBUTE,
   CONSENT_PLACEHOLDER_ATTRIBUTE,
   consentSource,
+  disqusEmbedUrl,
+  disqusShortname,
+  isDisqus,
 } from "@goodfellow-cms/core";
 import { classNameField, useParts, useSite, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import type { ReactNode } from "react";
+import { DisqusFrame, type DisqusPage } from "./disqus-frame";
 import { GiscusFrame } from "./giscus-frame";
 
 export interface CommentsProps {
   heading: string;
   /**
    * Giscus's code from giscus.app, which names the repository and the
-   * discussions' category, for comments kept somewhere other than where Site
-   * Settings' Comments says; left empty, the block shows those.
+   * discussions' category, or Disqus's code or shortname, for comments kept
+   * somewhere other than where Site Settings' Comments says; left empty, the
+   * block shows those.
    */
   code: string;
+  /** Giscus's reactions to the page. Disqus has its own setting, on Disqus. */
   reactions: boolean;
-  /** Where the box for writing a comment is: above the comments or under them. */
+  /** Where Giscus's box for writing a comment is: above the comments or under them. */
   input: "top" | "bottom";
   className: string;
 }
@@ -48,6 +54,22 @@ export function giscusSettings(code: string): GiscusSettings | undefined {
   return { repo, repoId, category: category ?? "", categoryId };
 }
 
+/**
+ * What `DisqusFrame` does, as a script of its own, for a site that asks
+ * visitors first: held back in a template until they agree, then run where it
+ * is by the consent script. `<` is escaped, so nothing in it can end it.
+ */
+export function disqusLoader({ script, identifier, url }: DisqusPage): string {
+  const json = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c");
+  return `(function(){var w=window,c=function(){this.page.identifier=${identifier ? json(identifier) : "location.pathname"};this.page.url=${url ? json(url) : "location.href"}};if(w.DISQUS){w.DISQUS.reset({reload:true,config:c});return}w.disqus_config=c;var s=document.createElement("script");s.src=${json(script)};s.async=true;s.setAttribute("data-timestamp",String(Date.now()));document.head.appendChild(s)})();`;
+}
+
+/** The page's full address, where the site has a Site address. */
+function pageUrl(siteUrl: string | undefined, path: string): string | undefined {
+  if (!siteUrl) return undefined;
+  return `${siteUrl.replace(/\/+$/, "")}${path === "/" ? "/" : path}`;
+}
+
 const escapeText = (text: string) =>
   text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 
@@ -60,17 +82,31 @@ function CommentsView({
   puck,
 }: CommentsProps & { puck?: { isEditing?: boolean } }) {
   const part = useParts();
-  const { settings, adminLink } = useSite();
-  const giscus = giscusSettings(code ?? "") ?? (code?.trim() ? undefined : settings.comments);
-  if (!giscus && !puck?.isEditing) return null;
-  // Pages are built on the server: in the browser, it's the editor or a preview, which never load Giscus.
+  const { settings, adminLink, path } = useSite();
+  const pasted = code?.trim() ?? "";
+  const giscus = giscusSettings(pasted);
+  const disqus = giscus ? undefined : disqusShortname(pasted);
+  const kept = pasted ? undefined : settings.comments;
+  const place = giscus ?? (disqus ? { disqus } : kept);
+  if (!place && !puck?.isEditing) return null;
+  // Pages are built on the server: in the browser, it's the editor or a preview, which never load comments.
   const onSite = typeof document === "undefined" && !puck?.isEditing;
   const frameClass = part("gf-comments-frame", "w-full");
+  const consent = settings.consent;
+  /** Another site's script, held back until the visitor agrees, beside the placeholder that asks. */
+  const held = (frame: string, script: string, from: string) => (
+    <div
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: the service's script with escaped settings, held back until the visitor agrees
+      dangerouslySetInnerHTML={{
+        __html: `${frame}<template ${CONSENT_CODE_ATTRIBUTE}="body">${script}</template><div class="gf-consent-placeholder gf-consent-inline" ${CONSENT_PLACEHOLDER_ATTRIBUTE}=""><p>${escapeText((consent?.held ?? "").replaceAll("{site}", consentSource(from)))}</p><button type="button" ${CONSENT_ACCEPT_ATTRIBUTE}="content">${escapeText(consent?.show ?? "")}</button></div>`,
+      }}
+    />
+  );
   let body: ReactNode;
-  if (!giscus) {
-    const link = code?.trim() ? undefined : adminLink?.("comments-settings");
-    const text = code?.trim()
-      ? "This isn't Giscus's code. On giscus.app, choose the repository and category, then copy the code at the end of the page."
+  if (!place) {
+    const link = pasted ? undefined : adminLink?.("comments-settings");
+    const text = pasted
+      ? "This isn't Giscus's or Disqus's code. On giscus.app, choose the repository and category, then copy the code at the end of the page; or paste Disqus's code or its site's shortname."
       : "Set up comments in Site settings' Comments to show them here.";
     body = (
       <p className="rounded-lg bg-muted p-6 text-muted-foreground">
@@ -86,15 +122,32 @@ function CommentsView({
   } else if (!onSite) {
     body = (
       <p className="rounded-lg bg-muted p-6 text-muted-foreground">
-        Comments from {giscus.repo}'s discussions show here on the site.
+        {isDisqus(place)
+          ? `Comments from Disqus, for its site ${place.disqus}, show here on the site.`
+          : `Comments from ${place.repo}'s discussions show here on the site.`}
       </p>
+    );
+  } else if (isDisqus(place)) {
+    const page: DisqusPage = {
+      script: disqusEmbedUrl(place.disqus),
+      identifier: path || undefined,
+      url: path ? pageUrl(settings.url, path) : undefined,
+    };
+    body = consent ? (
+      held(
+        `<div id="disqus_thread" class="${escapeText(frameClass)}"></div>`,
+        `<script>${disqusLoader(page)}</script>`,
+        "https://disqus.com",
+      )
+    ) : (
+      <DisqusFrame {...page} className={frameClass} />
     );
   } else {
     const attributes: Record<string, string> = {
-      "data-repo": giscus.repo,
-      "data-repo-id": giscus.repoId,
-      "data-category": giscus.category,
-      "data-category-id": giscus.categoryId,
+      "data-repo": place.repo,
+      "data-repo-id": place.repoId,
+      "data-category": place.category,
+      "data-category-id": place.categoryId,
       "data-mapping": "pathname",
       "data-strict": "1",
       "data-reactions-enabled": reactions === false ? "0" : "1",
@@ -104,21 +157,12 @@ function CommentsView({
       "data-lang": (settings.language ?? "en").split("-")[0] ?? "en",
       "data-loading": "lazy",
     };
-    const consent = settings.consent;
     if (consent) {
       // Held back in a template for the consent script, which runs it where it is once the visitor agrees.
       const script = `<script src="${GISCUS_SCRIPT}" crossorigin="anonymous" async${Object.entries(attributes)
         .map(([name, value]) => ` ${name}="${escapeText(value)}"`)
         .join("")}></script>`;
-      const words = consent.held.replaceAll("{site}", consentSource(GISCUS_SCRIPT));
-      body = (
-        <div
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: Giscus's script with escaped settings, held back until the visitor agrees
-          dangerouslySetInnerHTML={{
-            __html: `<div class="giscus ${escapeText(frameClass)}"></div><template ${CONSENT_CODE_ATTRIBUTE}="body">${script}</template><div class="gf-consent-placeholder gf-consent-inline" ${CONSENT_PLACEHOLDER_ATTRIBUTE}=""><p>${escapeText(words)}</p><button type="button" ${CONSENT_ACCEPT_ATTRIBUTE}="content">${escapeText(consent.show)}</button></div>`,
-          }}
-        />
-      );
+      body = held(`<div class="giscus ${escapeText(frameClass)}"></div>`, script, GISCUS_SCRIPT);
     } else {
       body = <GiscusFrame script={GISCUS_SCRIPT} attributes={attributes} className={frameClass} />;
     }
@@ -135,10 +179,11 @@ function CommentsView({
 
 /**
  * Comments on the page, kept as GitHub Discussions in a repository of their
- * own, through Giscus: visitors sign in with GitHub to comment. Where they're
- * kept is Site Settings' Comments (`content/site.json`'s `comments`), unless
- * the block is given Giscus's code for somewhere else.
- * Giscus loads only on the built site, never in the editor or previews, and
+ * own, through Giscus, where visitors sign in with GitHub to comment, or by
+ * Disqus. Where they're kept is Site Settings' Comments (`content/site.json`'s
+ * `comments`), unless the block is given Giscus's or Disqus's code for
+ * somewhere else.
+ * Either loads only on the built site, never in the editor or previews, and
  * on a site that asks visitors before loading other sites' content, it waits
  * until they agree.
  */
@@ -149,11 +194,11 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
       heading: { type: "text", label: "Heading", contentEditable: true },
       code: {
         type: "textarea",
-        label: "Giscus's code, for comments kept elsewhere than Site settings says (optional)",
+        label: "Giscus's or Disqus's code, for comments kept elsewhere than Site settings says (optional)",
       },
       reactions: {
         type: "radio",
-        label: "Reactions to the page",
+        label: "Reactions to the page (Giscus)",
         options: [
           { value: true, label: "Shown" },
           { value: false, label: "Hidden" },
@@ -161,7 +206,7 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
       },
       input: {
         type: "radio",
-        label: "Box for writing a comment",
+        label: "Box for writing a comment (Giscus)",
         options: [
           { value: "bottom", label: "Under the comments" },
           { value: "top", label: "Above the comments" },
@@ -179,4 +224,4 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
   },
 );
 
-export default withKeywords(Comments, ["comments", "discussion", "giscus", "replies", "feedback", "github"]);
+export default withKeywords(Comments, ["comments", "discussion", "giscus", "disqus", "replies", "feedback", "github"]);

@@ -204,11 +204,19 @@ export {
   type CommentsRepository,
   type CommentThread,
   type CommentThreads,
+  DISQUS_CREATE_URL,
+  DISQUS_SHORTNAME,
+  type DisqusPlace,
+  disqusEmbedUrl,
+  disqusModerationUrl,
+  disqusShortname,
   GISCUS_APP_URL,
   HIDE_REASONS,
   type HideReason,
+  isDisqus,
   type SiteComment,
   type SiteComments,
+  type SiteCommentsPlace,
 } from "./comments.js";
 export { type AiConfig, type ClaudeConfig, defineConfig, type GoodfellowConfig } from "./config.js";
 export {

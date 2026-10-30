@@ -393,4 +393,39 @@ describe("people, numbers, timelines, countdowns and comments", () => {
     expect(held.replace(/<template[\s\S]*?<\/template>/g, "")).not.toContain('giscus.app/client.js"');
     expect(held).toContain("This comes from giscus.app");
   });
+
+  it("shows Disqus's comments from its code or Site settings, by the page's address", async () => {
+    const { disqusLoader } = await import("../site/blocks/installed/comments/block.js");
+    const code = `<div id="disqus_thread"></div><script>(function() { var d = document, s = d.createElement('script');
+      s.src = 'https://stjoseph.disqus.com/embed.js'; (d.head || d.body).appendChild(s); })();</script>`;
+    expect(await render("comments", { code })).toContain(
+      '<div id="disqus_thread" class="gf-comments-frame w-full"></div>',
+    );
+    const kept = siteSettingsSchema.parse({
+      ...base,
+      url: "https://stjoseph.example/",
+      comments: { disqus: "stjoseph" },
+    });
+    expect(await render("comments", {}, kept)).toContain('id="disqus_thread"');
+    // A site that asks holds the script that loads Disqus until the visitor agrees.
+    const held = await render(
+      "comments",
+      {},
+      { ...kept, consent: siteSettingsSchema.parse({ ...base, consent: {} }).consent },
+    );
+    expect(held).toContain(
+      `<template data-gf-consent-code="body"><script>${disqusLoader({
+        script: "https://stjoseph.disqus.com/embed.js",
+        identifier: "/news/fair",
+        url: "https://stjoseph.example/news/fair",
+      })}</script></template>`,
+    );
+    expect(held).toContain("This comes from disqus.com");
+    expect(held.replace(/<template[\s\S]*?<\/template>/g, "")).not.toContain("embed.js");
+    // Nothing in the page's address can end the script.
+    expect(disqusLoader({ script: "https://a.disqus.com/embed.js", identifier: "/</script>" })).not.toContain("</");
+    expect(disqusLoader({ script: "https://a.disqus.com/embed.js" })).toContain(
+      "this.page.identifier=location.pathname",
+    );
+  });
 });

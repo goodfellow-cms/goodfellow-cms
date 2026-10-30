@@ -1,8 +1,9 @@
 /**
  * Visitors' comments, kept as discussions in a public GitHub repository of
- * their own and shown on the site by Giscus: what `content/site.json` says
- * about where they are, and what a backend offers to set that repository up
- * and moderate it from the admin panel (`GitBackend.comments`).
+ * their own and shown on the site by Giscus, or kept by Disqus: what
+ * `content/site.json` says about where they are, and what a backend offers to
+ * set that repository up and moderate it from the admin panel
+ * (`GitBackend.comments`).
  */
 import type { TokenLink } from "./git.js";
 
@@ -17,6 +18,48 @@ export interface CommentsPlace {
   /** GitHub's node id for the category. */
   categoryId: string;
 }
+
+/** Comments kept by Disqus, for the site Disqus knows by its shortname. */
+export interface DisqusPlace {
+  /** The Disqus site's shortname, such as `stjoseph`, which its address starts with. */
+  disqus: string;
+}
+
+/** What `content/site.json`'s `comments` says: Giscus's repository and category, or Disqus's site. */
+export type SiteCommentsPlace = CommentsPlace | DisqusPlace;
+
+export function isDisqus(place: SiteCommentsPlace): place is DisqusPlace {
+  return "disqus" in place;
+}
+
+/** A Disqus site's shortname: lowercase letters, numbers and hyphens. */
+export const DISQUS_SHORTNAME = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+
+/**
+ * The shortname in what an owner pasted: Disqus's code (which loads
+ * `https://<shortname>.disqus.com/embed.js`), an address on the site's Disqus
+ * pages, or the shortname itself.
+ */
+export function disqusShortname(text: string): string | undefined {
+  const trimmed = text.trim();
+  const named = /(?:^|[/"'\s])(?:https?:)?(?:\/\/)?([a-z0-9-]+)\.disqus\.com(?=[/"'\s?#]|$)/i.exec(trimmed)?.[1];
+  if (!named && /[^A-Za-z0-9-]/.test(trimmed)) return undefined;
+  const shortname = (named ?? trimmed).toLowerCase();
+  return DISQUS_SHORTNAME.test(shortname) && shortname !== "www" ? shortname : undefined;
+}
+
+/** Disqus's script for a site, which shows its comments in the `#disqus_thread` element. */
+export function disqusEmbedUrl(shortname: string): string {
+  return `https://${shortname}.disqus.com/embed.js`;
+}
+
+/** Where a Disqus site's moderators approve, hide and delete comments. */
+export function disqusModerationUrl(shortname: string): string {
+  return `https://${shortname}.disqus.com/admin/moderate/`;
+}
+
+/** Where to make a site on Disqus. */
+export const DISQUS_CREATE_URL = "https://disqus.com/admin/create/";
 
 /** The repository's own name, and its owner's. */
 export const COMMENTS_REPO = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
