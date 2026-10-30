@@ -36,6 +36,9 @@ function CodeService({ channel }: { channel: Channel }) {
       channel.handle("code.drawBlock", ({ content, target }: { content: SiteContent; target: DrawTarget }) =>
         code.drawBlock(content, target),
       ),
+      channel.handle("code.blockFields", ({ content, target }: { content: SiteContent; target: DrawTarget }) =>
+        code.blockFields(content, target),
+      ),
     ];
     return () => {
       for (const stop of stops) stop();

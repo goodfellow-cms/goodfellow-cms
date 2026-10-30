@@ -2,6 +2,7 @@ import {
   CONSENT_ACCEPT_ATTRIBUTE,
   CONSENT_CODE_ATTRIBUTE,
   CONSENT_PLACEHOLDER_ATTRIBUTE,
+  type CommentsPlace,
   consentSource,
   disqusEmbedUrl,
   disqusShortname,
@@ -10,6 +11,8 @@ import {
   garrulSlug,
   isDisqus,
   isGarrul,
+  type SiteCommentsPlace,
+  type SiteSettings,
 } from "@goodfellow-cms/core";
 import { classNameField, useParts, useSite, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
@@ -28,9 +31,9 @@ export interface CommentsProps {
    * block shows those.
    */
   code: string;
-  /** Giscus's reactions to the page. Disqus has its own setting, on Disqus. */
+  /** Giscus's reactions to the page, offered only for Giscus: Disqus and Garrul have their own settings. */
   reactions: boolean;
-  /** Where Giscus's box for writing a comment is: above the comments or under them. */
+  /** Where Giscus's box for writing a comment is: above the comments or under them. Offered only for Giscus. */
   input: "top" | "bottom";
   className: string;
 }
@@ -85,6 +88,27 @@ function pageUrl(siteUrl: string | undefined, path: string): string | undefined 
   return `${siteUrl.replace(/\/+$/, "")}${path === "/" ? "/" : path}`;
 }
 
+/**
+ * Where the block's comments are: what its code names, Giscus's, Disqus's or
+ * Garrul's, else Site settings' place. Code that's none of theirs names
+ * nothing, so a mistake shows in the editor rather than other comments.
+ */
+export function commentsPlace(code: string | undefined, settings: Pick<SiteSettings, "comments">) {
+  const pasted = code?.trim() ?? "";
+  if (!pasted) return settings.comments;
+  const giscus = giscusSettings(pasted);
+  if (giscus) return giscus;
+  const disqus = disqusShortname(pasted);
+  if (disqus) return { disqus };
+  const garrul = garrulAddress(pasted);
+  return garrul ? { garrul } : undefined;
+}
+
+/** Whether the comments are Giscus's, whose reactions and box for writing the block's settings choose. */
+function isGiscus(place: SiteCommentsPlace | undefined): place is CommentsPlace {
+  return place !== undefined && !isDisqus(place) && !isGarrul(place);
+}
+
 const escapeText = (text: string) =>
   text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 
@@ -99,11 +123,7 @@ function CommentsView({
   const part = useParts();
   const { settings, adminLink, path, pages, entry } = useSite();
   const pasted = code?.trim() ?? "";
-  const giscus = giscusSettings(pasted);
-  const disqus = giscus ? undefined : disqusShortname(pasted);
-  const garrul = giscus || disqus ? undefined : garrulAddress(pasted);
-  const kept = pasted ? undefined : settings.comments;
-  const place = giscus ?? (disqus ? { disqus } : garrul ? { garrul } : kept);
+  const place: SiteCommentsPlace | undefined = commentsPlace(code, settings);
   if (!place && !puck?.isEditing) return null;
   // Pages are built on the server: in the browser, it's the editor or a preview, which never load comments.
   const onSite = typeof document === "undefined" && !puck?.isEditing;
@@ -241,7 +261,7 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
       },
       reactions: {
         type: "radio",
-        label: "Reactions to the page (Giscus)",
+        label: "Reactions to the page",
         options: [
           { value: true, label: "Shown" },
           { value: false, label: "Hidden" },
@@ -249,7 +269,7 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
       },
       input: {
         type: "radio",
-        label: "Box for writing a comment (Giscus)",
+        label: "Box for writing a comment",
         options: [
           { value: "bottom", label: "Under the comments" },
           { value: "top", label: "Above the comments" },
@@ -258,6 +278,13 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
       className: classNameField,
     },
     defaultProps: { heading: "Comments", code: "", reactions: true, input: "bottom", className: "" },
+    // Reactions and the box for writing are Giscus's settings; Disqus and Garrul have their own, on their own pages.
+    resolveFields: (data, { fields, metadata }) => {
+      const settings = (metadata?.site as SiteSettings | undefined) ?? {};
+      if (isGiscus(commentsPlace(data.props.code, settings))) return fields;
+      const { reactions: _reactions, input: _input, ...others } = fields;
+      return others as typeof fields;
+    },
     render: (props) => <CommentsView {...props} />,
   },
   {

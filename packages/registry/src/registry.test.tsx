@@ -429,6 +429,34 @@ describe("people, numbers, timelines, countdowns and comments", () => {
     );
   });
 
+  it("offers Giscus's reactions and box for writing only for Giscus's comments", async () => {
+    const block = (await import("../site/blocks/installed/comments/block.js")).default as ComponentConfig;
+    const fields = async (code: string, comments?: unknown) =>
+      Object.keys(
+        (await block.resolveFields?.(
+          { props: { ...block.defaultProps, code } } as never,
+          {
+            fields: block.fields,
+            metadata: { site: siteSettingsSchema.parse({ ...base, ...(comments ? { comments } : {}) }) },
+          } as never,
+        )) ?? {},
+      );
+    const giscus = `<script src="https://giscus.app/client.js" data-repo="stjoseph/website" data-repo-id="R_kgDOabc123"
+      data-category="Comments" data-category-id="DIC_kwDOabc123"></script>`;
+    expect(await fields(giscus)).toEqual(["heading", "code", "reactions", "input", "className"]);
+    expect(await fields("", { disqus: "stjoseph" })).toEqual(["heading", "code", "className"]);
+    expect(await fields("https://comments.example.org")).toEqual(["heading", "code", "className"]);
+    // Code for another service wins over Site settings' Giscus.
+    const kept = {
+      repo: "stjoseph/comments",
+      repoId: "R_kgDOdef456",
+      category: "Announcements",
+      categoryId: "DIC_kw1",
+    };
+    expect(await fields("", kept)).toContain("reactions");
+    expect(await fields("stjoseph", kept)).not.toContain("reactions");
+  });
+
   it("shows Garrul's comments from the owner's own Worker, named by the page's address", async () => {
     const code = `<div id="garrul" data-slug="my-post-slug" data-api="https://comments.example.org"></div>
 <script src="https://comments.example.org/embed.js" defer></script>`;

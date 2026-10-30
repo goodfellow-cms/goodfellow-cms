@@ -118,6 +118,8 @@ export interface PluginEditorHooks {
   sharePreview(root: unknown): ReturnType<PluginPageRequests["editor.sharePreview"]>;
   /** Draws a block of what's edited, which the page checks is one the editor may use. */
   draw(block: PluginEditorBlock): Promise<string>;
+  /** A block of what's edited's fields as its props make them, which the page checks is one the editor may use. */
+  fields(block: PluginEditorBlock): Promise<Record<string, unknown>>;
   styles(): Promise<PluginEditorStyles>;
   /** A media file the live site doesn't have yet, from memory or the repository, for the frame to show. */
   mediaBytes(url: string): Promise<Uint8Array | undefined>;
@@ -128,6 +130,21 @@ export interface PluginEditorHooks {
 }
 
 const MEDIA_KINDS = new Set(["image", "video", "audio", "file"]);
+
+/** A block an editor plugin's frame sent, as the site's code may have written it. */
+function sentBlock(block: unknown): PluginEditorBlock {
+  const sent = block as PluginEditorBlock | null;
+  if (
+    typeof sent !== "object" ||
+    sent === null ||
+    typeof sent.type !== "string" ||
+    typeof sent.props !== "object" ||
+    sent.props === null
+  ) {
+    throw new RefusedError("That isn't a block.");
+  }
+  return sent;
+}
 
 /** The answers a plugin's frame gets, each checked against what the plugin declared. */
 function pluginHandlers(
@@ -241,20 +258,8 @@ function pluginHandlers(
       const hooks = editing("preview a shared link");
       return hooks.sharePreview(params?.root);
     },
-    "editor.draw": (params) => {
-      const hooks = editing("draw blocks");
-      const block = params?.block;
-      if (
-        typeof block !== "object" ||
-        block === null ||
-        typeof block.type !== "string" ||
-        typeof block.props !== "object" ||
-        block.props === null
-      ) {
-        throw new RefusedError("That isn't a block.");
-      }
-      return hooks.draw(block);
-    },
+    "editor.draw": (params) => editing("draw blocks").draw(sentBlock(params?.block)),
+    "editor.fields": (params) => editing("read blocks' settings").fields(sentBlock(params?.block)),
     "editor.styles": () => editing("read the site's styles").styles(),
     "media.bytes": async (url) => {
       const hooks = editing("show media");

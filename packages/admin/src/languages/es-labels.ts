@@ -131,7 +131,8 @@ export const labels: Record<string, string> = {
   Form: "Formulario",
   Gallery: "Galería",
   "Gallery's caption": "Pie de la galería",
-  "Giscus's code, from giscus.app": "El código de Giscus, de giscus.app",
+  "Giscus's, Disqus's or Garrul's code, for comments kept elsewhere than Site settings says (optional)":
+    "El código de Giscus, Disqus o Garrul, para comentarios guardados en otro lugar que el que indica la configuración del sitio (opcional)",
   "Good news": "Buenas noticias",
   "Gray until pointed at": "En gris hasta pasar el puntero",
   "Group by": "Agrupar por",

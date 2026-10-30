@@ -13,8 +13,15 @@ import {
   type SiteProblem,
   sitePages,
 } from "@goodfellow-cms/core";
-import { createPuckConfigs, PageBody, PageContent, type PuckConfigs, preparePage } from "@goodfellow-cms/react";
-import type { ComponentConfig, ComponentData } from "@puckeditor/core";
+import {
+  createPuckConfigs,
+  PageBody,
+  PageContent,
+  type PuckConfigs,
+  preparePage,
+  siteMetadata,
+} from "@goodfellow-cms/react";
+import type { ComponentConfig, ComponentData, Config, Fields } from "@puckeditor/core";
 import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
@@ -38,8 +45,8 @@ function withSlotPlaces(block: ComponentData, config: ComponentConfig | undefine
   return { ...block, props: { ...block.props, ...Object.fromEntries(places) } };
 }
 
-/** One block drawn as the site draws it, in the page at its address, as `drawBlock()` describes. */
-async function drawBlock(configs: PuckConfigs, content: SiteContent, { kind, path, block }: DrawTarget) {
+/** The config a target's block is in, and the page it's on, with that block alone. */
+function targetPage(configs: PuckConfigs, content: SiteContent, { kind, path, block }: DrawTarget) {
   const layout = kind === "header" || kind === "footer";
   const config = layout ? configs.layout : kind === "template" ? configs.template : configs.page;
   if (!config.components[block.type]) throw new Error(`The site has no block called ${block.type} here.`);
@@ -55,6 +62,40 @@ async function drawBlock(configs: PuckConfigs, content: SiteContent, { kind, pat
       data: { root: root ?? { props: {} }, content: [withSlotPlaces(block, config.components[block.type])] },
     },
   } as Page;
+  return { config, page };
+}
+
+/** A copy of fields as JSON, as the site's description has them: what they say, without the code in them. */
+function fieldsAsJson(fields: unknown): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(fields ?? {})) as Record<string, unknown>;
+}
+
+/** A block's fields as its props make them, as `blockFields()` describes. */
+async function blockFields(configs: PuckConfigs, content: SiteContent, target: DrawTarget) {
+  const { config, page } = targetPage(configs, content, target);
+  const component = config.components[target.block.type] as ComponentConfig;
+  const fields = (component.fields ?? {}) as Fields;
+  if (!component.resolveFields) return fieldsAsJson(fields);
+  // With the page's site, as the editor gives Puck it, so a block reads Site settings as it does there.
+  const prepared = await preparePage({ ...configs, page: config as Config }, content, page);
+  const resolved = await component.resolveFields(
+    target.block as never,
+    {
+      changed: {},
+      fields,
+      lastFields: fields,
+      lastData: null,
+      metadata: siteMetadata(prepared.site),
+      appState: {} as never,
+      parent: null,
+    } as never,
+  );
+  return fieldsAsJson(resolved);
+}
+
+/** One block drawn as the site draws it, in the page at its address, as `drawBlock()` describes. */
+async function drawBlock(configs: PuckConfigs, content: SiteContent, target: DrawTarget) {
+  const { config, page } = targetPage(configs, content, target);
   const prepared = await preparePage({ ...configs, page: config }, content, page);
   const container = document.createElement("div");
   const reactRoot = createRoot(container);
@@ -127,6 +168,9 @@ export function localSiteCode(config: GoodfellowConfig): SiteCodeService {
       if (typeof document === "undefined") throw new Error("Blocks are drawn only in a browser.");
       drawing ??= createPuckConfigs({ ...config, blocks: { ...config.blocks, [DRAWN_SLOT_BLOCK]: drawnSlot } });
       return drawBlock(drawing, content, target);
+    },
+    async blockFields(content, target) {
+      return blockFields(configs, content, target);
     },
   };
 }

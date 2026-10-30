@@ -101,6 +101,7 @@ async function openEditor(
     chooseMedia: (kind, value) => channel.call("media.choose", { kind, value: value ?? "" }),
     sharePreview: (root) => channel.call("editor.sharePreview", { root }),
     draw: (block) => channel.call("editor.draw", { block }),
+    fields: (block) => channel.call("editor.fields", { block }),
     styles: () => channel.call("editor.styles"),
     showsMedia: true,
   };

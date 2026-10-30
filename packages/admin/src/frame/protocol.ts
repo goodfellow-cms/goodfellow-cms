@@ -152,6 +152,8 @@ export interface FrameRequests {
   "code.renderedProblems"(params: { content: SiteContent; targets: RenderTarget[]; today: string }): SiteProblem[];
   /** One block drawn as the site draws it, for an editor plugin. */
   "code.drawBlock"(params: { content: SiteContent; target: DrawTarget }): string;
+  /** A block's fields as its props make them, for an editor plugin. */
+  "code.blockFields"(params: { content: SiteContent; target: DrawTarget }): Record<string, unknown>;
 }
 
 /** Events frames send the admin panel's page. */

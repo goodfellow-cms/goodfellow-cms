@@ -48,6 +48,12 @@ export interface SiteCodeService {
    * go, and the blocks in them aren't drawn.
    */
   drawBlock(content: SiteContent, target: DrawTarget): Promise<string>;
+  /**
+   * A block's fields as its props make them, as JSON, for an editor plugin:
+   * what the block's `resolveFields` gives, in the page at the target's
+   * address, or its own fields where it has none.
+   */
+  blockFields(content: SiteContent, target: DrawTarget): Promise<Record<string, unknown>>;
 }
 
 /** The page at an address, as `findSitePage()` gives it: a page a build writes, or "Page not found". */

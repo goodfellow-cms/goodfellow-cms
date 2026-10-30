@@ -407,6 +407,14 @@ export interface PluginEditorSession {
    * HTML the site's pages have, before their scripts start.
    */
   draw(block: PluginEditorBlock): Promise<string>;
+  /**
+   * The block's settings as its props now make them, as JSON like `blocks`'
+   * fields: for blocks whose description says `resolvesFields`, which choose
+   * them in the site's code, such as the Comments block offering Giscus's
+   * settings only for Giscus. Other blocks' are `blocks`' own. Admin panels
+   * from before it have none, so call it as `session.fields?.(block)`.
+   */
+  fields?(block: PluginEditorBlock): Promise<Record<string, unknown>>;
   /** The site's styles, for drawn blocks to look as they do on the site. */
   styles(): Promise<PluginEditorStyles>;
 }
