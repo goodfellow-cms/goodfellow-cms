@@ -44,7 +44,7 @@ The [Updates](/docs/updates) screen also says when a newer release of Goodfellow
 
 A theme is an npm package. Keep each in a repository of its own, called `goodfellow-theme-<name>` with the `goodfellow-theme` topic on GitHub or GitLab, so people looking for themes find it.
 
-The easiest start is a copy of [Harbor's repository](https://github.com/goodfellow-cms/goodfellow-theme-harbor), whose README goes through each of its files. It has everything below, a test that checks a theme as installing it would, and a workflow that publishes releases with provenance.
+The easiest start is a copy of [Harbor's repository](https://github.com/goodfellow-cms/goodfellow-theme-harbor), whose README goes through each of its files. It has everything below, a test that checks a theme as installing it would, and a workflow that stages releases on npm with provenance, for you to approve.
 
 `package.json` names it and says which Goodfellow releases it works with, as a `peerDependencies` range on `@goodfellow-cms/core`. The admin panel offers a version only on releases in that range, and never offers a version without one.
 
@@ -86,4 +86,4 @@ The easiest start is a copy of [Harbor's repository](https://github.com/goodfell
 - **`header`** and **`footer`** are a header and footer as `content/layout/header.json` and `footer.json` have them. They can use only these [built-in blocks](/docs/built-in-blocks): Section, Grid, Flex, Space, Heading, Text, Button, Contact details, Menu, Site name and logo, Search, Dark mode switch and Language switch, since other blocks could load or run something on the site. Leave out pictures, since they'd point to files the site doesn't have, and addresses such as `javascript:`, which make the theme refused. Blocks such as Site name and logo and Menu read the site's own logo and menus.
 - **`image`** is a picture of a site with the theme, shown on the Themes screen.
 
-Publish it from GitHub Actions or GitLab CI with [npm's provenance](https://docs.npmjs.com/generating-provenance-statements) (`npm publish --provenance`), so the Themes screen can say which repository it was built from. Never change a published version: publish a new one, which sites update to once it's 3 days old.
+Publish it from GitHub Actions or GitLab CI with [npm's provenance](https://docs.npmjs.com/generating-provenance-statements), so the Themes screen can say which repository it was built from. Let the workflow only stage releases (`npm stage publish --provenance`, with a [trusted publisher](https://docs.npmjs.com/trusted-publishers) that may only stage), and approve each one yourself with two-factor authentication (`npm stage approve`), so nobody who gets into the repository or its workflow can publish a version without you. Harbor's README goes through it. Never change a published version: publish a new one, which sites update to once it's 3 days old.

@@ -140,7 +140,7 @@ function cloneUrl(setup: SeparateSetup, repo: string, variable: string): string 
 function readTokenNote(setup: SeparateSetup, repo: string): string {
   if (setup.git === "github") return `a fine-grained token for ${repo} with Contents read`;
   if (setup.git === "gitlab")
-    return `a project access token for ${repo} with the Reporter role and the read_repository scope`;
+    return `a project access token for ${repo} with the Reporter role and the read_repository scope, or, on GitLab.com's free plan, which has no project access tokens, a fine-grained personal access token that reaches only ${repo} and can download its code`;
   return `a repository access token for ${repo} with Repositories: Read`;
 }
 
