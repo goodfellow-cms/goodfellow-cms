@@ -404,7 +404,7 @@ interface NamedService {
     title: StringKey;
     intro: StringKey;
     start: StringKey;
-    then: StringKey;
+    howTo: StringKey;
     label: StringKey;
     invalid: StringKey;
     button: StringKey;
@@ -424,7 +424,7 @@ const DISQUS: NamedService = {
     title: "comments.disqus.title",
     intro: "comments.disqus.intro",
     start: "comments.disqus.create",
-    then: "comments.disqus.then",
+    howTo: "comments.disqus.then",
     label: "comments.disqus.label",
     invalid: "comments.disqus.invalid",
     button: "comments.disqus.button",
@@ -444,7 +444,7 @@ const GARRUL: NamedService = {
     title: "comments.garrul.title",
     intro: "comments.garrul.intro",
     start: "comments.garrul.start",
-    then: "comments.garrul.then",
+    howTo: "comments.garrul.then",
     label: "comments.garrul.label",
     invalid: "comments.garrul.invalid",
     button: "comments.garrul.button",
@@ -493,7 +493,7 @@ function NamedServiceSetup({ service }: { service: NamedService }) {
         <a href={service.start} target="_blank" rel="noreferrer">
           {t(keys.start)}
         </a>
-        {t(keys.then)}
+        {t(keys.howTo)}
       </p>
       <TextField
         label={t(keys.label)}
