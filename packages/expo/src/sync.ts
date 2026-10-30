@@ -140,14 +140,9 @@ export function mediaFile(address: string): string {
   return `${MEDIA_FOLDER}${address.slice("/media/".length)}`;
 }
 
-async function readManifest(storage: ContentStorage): Promise<ApiManifest | undefined> {
-  const text = await storage.read(MANIFEST_FILE);
-  if (!text) return undefined;
-  try {
-    return JSON.parse(text) as ApiManifest;
-  } catch {
-    return undefined;
-  }
+/** The app's copy's manifest, or `undefined` where it has none it can read. */
+export function readManifest(storage: ContentStorage): Promise<ApiManifest | undefined> {
+  return readJson<ApiManifest>(storage, MANIFEST_FILE);
 }
 
 /** Runs tasks a few at a time, so a phone isn't asked for hundreds of downloads at once. */
@@ -259,9 +254,14 @@ export interface SiteFiles {
   footer: ApiLayoutFile;
 }
 
+/** A kept file, or `undefined` where it's missing or can't be read, as a corrupt one would be, so it's downloaded again. */
 async function readJson<T>(storage: ContentStorage, name: string): Promise<T | undefined> {
-  const text = await storage.read(name);
-  return text ? (JSON.parse(text) as T) : undefined;
+  try {
+    const text = await storage.read(name);
+    return text ? (JSON.parse(text) as T) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** A language's site, collections, header and footer from the app's copy, if it has them. */

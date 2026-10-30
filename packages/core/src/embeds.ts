@@ -5,6 +5,7 @@
  * SoundCloud.
  */
 
+import { isLoopbackHost } from "./hosts.js";
 import { embedSource } from "./video.js";
 
 /** The sites whose posts the Embed block shows. */
@@ -51,7 +52,6 @@ export type EmbedPostResult =
   | { problem: Exclude<EmbedPostProblem, "handle"> }
   | { problem: "handle"; bluesky: BlueskyHandlePost; link: string };
 
-const LOOPBACK = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i;
 const RECORD_KEY = /^[A-Za-z0-9._:~-]{1,512}$/;
 const DID = /^did:(plc:[a-z2-7]{24}|web:[a-z0-9.-]+)$/i;
 const SHORT_LINKS = new Set(["spotify.link", "on.soundcloud.com", "t.co", "instagr.am"]);
@@ -254,7 +254,7 @@ export function embeddedPost(input: string, ownHosts: Array<string | undefined> 
     if (!url || !["https:", "http:"].includes(url.protocol)) continue;
     sawAddress = true;
     const host = url.hostname.toLowerCase();
-    if (LOOPBACK.test(host) || own.includes(host)) {
+    if (isLoopbackHost(host) || own.includes(host)) {
       problem = "same-site";
       continue;
     }

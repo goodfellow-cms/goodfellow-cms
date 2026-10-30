@@ -82,6 +82,15 @@ function describeCalendarText(): void {
   for (const name of CALENDAR_TEXT) properties[name] ??= { defaultType: "text" };
 }
 
+/**
+ * Text with every line break as `\n`, which ical.js escapes: it leaves a lone
+ * carriage return as it is, which some calendar apps take for the end of a
+ * line, so text could start lines of its own.
+ */
+function text(value: string): string {
+  return value.replace(/\r\n?/g, "\n");
+}
+
 function eventComponent(item: CalendarEvent, timeZone: string | undefined, stamp: ICAL.Time): ICAL.Component {
   const { event } = item;
   const vevent = new ICAL.Component("vevent");
@@ -107,9 +116,9 @@ function eventComponent(item: CalendarEvent, timeZone: string | undefined, stamp
       ),
     );
   }
-  vevent.addPropertyWithValue("summary", item.title);
-  if (item.place) vevent.addPropertyWithValue("location", item.place);
-  if (item.description) vevent.addPropertyWithValue("description", item.description);
+  vevent.addPropertyWithValue("summary", text(item.title));
+  if (item.place) vevent.addPropertyWithValue("location", text(item.place));
+  if (item.description) vevent.addPropertyWithValue("description", text(item.description));
   if (item.url) vevent.addPropertyWithValue("url", item.url);
   return vevent;
 }
@@ -135,7 +144,7 @@ export function calendarFile(events: CalendarEvent[], options: CalendarFileOptio
   calendar.addPropertyWithValue("prodid", "-//Goodfellow//Calendar//EN");
   calendar.addPropertyWithValue("calscale", "GREGORIAN");
   calendar.addPropertyWithValue("method", "PUBLISH");
-  calendar.addPropertyWithValue("x-wr-calname", options.name);
+  calendar.addPropertyWithValue("x-wr-calname", text(options.name));
   if (timeZone) {
     calendar.addPropertyWithValue("x-wr-timezone", timeZone);
     const timed = events.some(({ event }) => !isAllDay(event.start));

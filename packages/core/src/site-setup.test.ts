@@ -162,7 +162,7 @@ describe("planSite", () => {
     expect([...gitlab.keys()].filter((path) => /workflows|gitlab|vercel/.test(path))).toEqual([".gitlab-ci.yml"]);
     const pipeline = parse(siteFileText(gitlab.get(".gitlab-ci.yml") ?? ""));
     // Not "pages", which GitLab would take for a GitLab Pages job.
-    expect(Object.keys(pipeline)).toEqual(["variables", "lockfile", "update", "plugin-task"]);
+    expect(Object.keys(pipeline)).toEqual(["variables", "lockfile", "update", "plugin-task-describe", "plugin-task"]);
     // The lockfile is written when package.json changes, and Cloudflare builds the push that publishes it.
     expect(pipeline.lockfile.rules).toEqual([
       { if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"', changes: ["package.json"] },
@@ -208,8 +208,9 @@ describe("planSite", () => {
     expect(JSON.stringify(parsed.pipelines.branches.main)).toContain('"includePaths":["package.json"]');
     const { update, scheduled, task } = BITBUCKET_PIPELINE_NAMES;
     expect(Object.keys(parsed.pipelines.custom)).toEqual([update, scheduled, task]);
+    // Every step of a pipeline, together.
     const script = (name: string) =>
-      JSON.stringify(parsed.pipelines.custom[name]?.find((part) => "step" in part)?.step ?? {});
+      JSON.stringify(parsed.pipelines.custom[name]?.filter((part) => "step" in part).map((part) => part.step) ?? []);
     expect(script(BITBUCKET_PIPELINE_NAMES.update)).toContain("npx goodfellow nightly --output nightly.env");
     expect(script(BITBUCKET_PIPELINE_NAMES.update)).toContain("VERCEL_DEPLOY_HOOK");
     // A scheduled change's rebuild only asks Vercel to build: it clones and installs nothing, so it takes seconds.

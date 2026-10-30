@@ -3,7 +3,8 @@
 // writes the calendar files of collections of events, collections' feeds, the pages at redirects' old addresses and Cloudflare Pages' _redirects, and the search index for sites with a search block,
 // copies the site's Google Fonts into the export, builds plugins' admin frames and runs their build steps, starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
-// `goodfellow-next task [--out <file>]` runs one of a plugin's tasks for the admin panel, as `goodfellow task` does.
+// `goodfellow-next task [--describe] [--out <file>]` runs one of a plugin's tasks for the admin panel, or with
+// --describe only writes it down for a job with no secrets, as `goodfellow task` does.
 // `goodfellow-next due [--since <time>] [--output <file>]` says whether a scheduled change has come due, as `goodfellow due` does.
 // `goodfellow-next nightly [--mode <mode>]` says whether tonight's build is needed, as `goodfellow nightly` does.
 // `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
@@ -40,6 +41,7 @@ import {
   setBrokerAddress,
   setUpContentRepository,
   update,
+  writeTaskDescription,
 } from "@goodfellow-cms/core/node";
 import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { addShadcnBlock, blockWorks, formatShadcnBlock, ShadcnBlockError } from "@goodfellow-cms/core/shadcn";
@@ -132,8 +134,20 @@ if (command === "update") {
   process.exit(result.state === "failed" ? 1 : 0);
 }
 if (command === "task") {
-  const { values } = parseArgs({ args: process.argv.slice(3), options: { out: { type: "string" } } });
+  const { values } = parseArgs({
+    args: process.argv.slice(3),
+    options: { out: { type: "string" }, describe: { type: "boolean" } },
+  });
   const env = process.env;
+  if (values.describe) {
+    await writeTaskDescription(
+      ".",
+      { module: new URL("../dist/export.js", import.meta.url).href, export: "loadTaskConfig" },
+      { plugin: env.GOODFELLOW_TASK_PLUGIN ?? "", task: env.GOODFELLOW_TASK_NAME ?? "" },
+      values.out,
+    );
+    process.exit(0);
+  }
   await writeTaskResult(
     ".",
     {

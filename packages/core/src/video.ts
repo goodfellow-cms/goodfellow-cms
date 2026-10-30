@@ -3,6 +3,7 @@
  * paste, in any of the forms those sites give them, and the addresses of
  * their players.
  */
+import { isLoopbackHost } from "./hosts.js";
 
 /** A YouTube video, and where to start it, in seconds. */
 export interface YouTubeVideo {
@@ -138,8 +139,6 @@ export function vimeoPlayerUrl(video: VimeoVideo, options: PlayerOptions = {}): 
 /** Why another site's player can't be shown, in plain words. */
 export type EmbedProblem = "not-an-address" | "not-secure" | "same-site";
 
-const LOOPBACK = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i;
-
 /**
  * Another site's player, from its embed address or the embed code that site
  * gives. Only `https://` addresses on other sites are shown, since the player
@@ -160,6 +159,6 @@ export function embedPlayerUrl(
   if (url.protocol !== "https:") return { problem: url.protocol === "http:" ? "not-secure" : "not-an-address" };
   const host = url.hostname.toLowerCase();
   const own = ownHosts.filter(Boolean).map((candidate) => (candidate as string).toLowerCase());
-  if (LOOPBACK.test(host) || own.includes(host)) return { problem: "same-site" };
+  if (isLoopbackHost(host) || own.includes(host)) return { problem: "same-site" };
   return { url: url.href };
 }

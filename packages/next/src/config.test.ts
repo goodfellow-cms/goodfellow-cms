@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vercelHeaders } from "@goodfellow-cms/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { withGoodfellow } from "./config.js";
+import { redirectDestination, withGoodfellow } from "./config.js";
 import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 
 describe("withGoodfellow", () => {
@@ -122,6 +122,7 @@ describe("withGoodfellow", () => {
             { from: "/about", to: "/elsewhere" },
             { from: "/talks/hope", to: "/" },
             { from: "/news(old).html", to: "https://news.example.org/" },
+            { from: "/times", to: "/events/10:30?at=10:30#mass:sunday" },
           ],
         }),
       );
@@ -130,11 +131,20 @@ describe("withGoodfellow", () => {
       expect(await config.redirects?.()).toEqual([
         { source: "/who-we-are", destination: "/about", permanent: true },
         { source: "/news\\(old\\).html", destination: "https://news.example.org/", permanent: true },
+        { source: "/times", destination: "/events/10%3A30?at=10:30#mass%3Asunday", permanent: true },
         own,
       ]);
     } finally {
       await rm(site, { recursive: true, force: true });
     }
+  });
+
+  it("writes redirects' targets so Next.js never reads them as patterns", () => {
+    expect(redirectDestination(" https://example.org:8443/a/:b(c)*?q=:d#e:f ")).toBe(
+      "https://example.org:8443/a/%3Ab%28c%29%2A?q=:d#e%3Af",
+    );
+    expect(redirectDestination("/a#b?c:d")).toBe("/a#b?c%3Ad");
+    expect(redirectDestination("/plain/")).toBe("/plain/");
   });
 
   it("sends pages opened at the wrong one of the Site address and the admin address to the right one", async () => {

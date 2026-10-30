@@ -49,6 +49,8 @@ export interface FakeGitLabOptions {
    * artifact, or nothing for a job that fails. Without it, task pipelines fail.
    */
   tasks?: (variables: Record<string, string>) => string | undefined | Promise<string | undefined>;
+  /** GitLab before 15.6, which can't change a protected branch's access levels, only remove and add it. */
+  noProtectionChanges?: boolean;
 }
 
 /** A pipeline schedule, such as the nightly one or one the admin panel adds for a scheduled change. */
@@ -154,6 +156,8 @@ export function fakeGitLab(options: FakeGitLabOptions) {
   const protectedBranches = new Map<string, { push: number; merge: number; forcePush: boolean }>([
     [repo.defaultBranch, { push: 40, merge: 40, forcePush: false }],
   ]);
+  /** Each change to a protected branch, in order: `DELETE main`, `POST main`, `PATCH main`. */
+  const protectionChanges: string[] = [];
 
   /** The project's members and invitations, and its protected branches. */
   async function handleMembers(request: Request, url: URL, rest: string, accessLevel: number) {
@@ -231,17 +235,41 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       const found = protectedBranches.get(name);
       if (!found) return json({ message: "404 Not found" }, 404);
       if (request.method === "GET") {
+        // The free plan's one level of each, with ids as GitLab gives them.
         return json({
           name,
-          push_access_levels: [{ access_level: found.push }],
-          merge_access_levels: [{ access_level: found.merge }],
+          push_access_levels: [{ id: 1, access_level: found.push }],
+          merge_access_levels: [{ id: 2, access_level: found.merge }],
           allow_force_push: found.forcePush,
         });
       }
       if (request.method === "DELETE") {
         if (accessLevel < 40) return forbidden();
         protectedBranches.delete(name);
+        protectionChanges.push(`DELETE ${name}`);
         return new Response(null, { status: 204 });
+      }
+      if (request.method === "PATCH" && !options.noProtectionChanges) {
+        if (accessLevel < 40) return forbidden();
+        type Level = { id?: number; access_level?: number; _destroy?: boolean };
+        const body = (await request.json()) as {
+          allowed_to_push?: Level[];
+          allowed_to_merge?: Level[];
+          allow_force_push?: boolean;
+        };
+        // As on the free plan: each kind keeps one level, so the old one must go as the new one comes.
+        const levelFrom = (levels: Level[] | undefined, id: number, now: number) => {
+          if (!levels) return now;
+          const kept = levels.some((level) => level.id === id && level._destroy) ? [] : [now];
+          const added = levels.flatMap((level) => (level.access_level === undefined ? [] : [level.access_level]));
+          return kept.length + added.length === 1 ? (kept[0] ?? added[0] ?? now) : undefined;
+        };
+        const push = levelFrom(body.allowed_to_push, 1, found.push);
+        const merge = levelFrom(body.allowed_to_merge, 2, found.merge);
+        if (push === undefined || merge === undefined) return json({ message: "Only one access level allowed" }, 422);
+        protectedBranches.set(name, { push, merge, forcePush: body.allow_force_push ?? found.forcePush });
+        protectionChanges.push(`PATCH ${name}`);
+        return json({ name });
       }
     }
     if (rest === "/protected_branches" && request.method === "POST") {
@@ -253,6 +281,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         allow_force_push?: boolean;
       };
       if (protectedBranches.has(body.name)) return json({ message: "Protected branch already exists" }, 409);
+      protectionChanges.push(`POST ${body.name}`);
       protectedBranches.set(body.name, {
         push: body.push_access_level ?? 40,
         merge: body.merge_access_level ?? 40,
@@ -1067,6 +1096,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     members,
     invitations,
     protectedBranches,
+    protectionChanges,
     failBuild,
     cancelBuild,
     /** The project's update settings, and the pipelines the update ran in, which tests add with `addUpdateRun()`. */

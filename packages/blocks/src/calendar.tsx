@@ -13,7 +13,9 @@ import {
   formatTime,
   monthOf,
   monthsAround,
+  type RemoteFetch,
   readCalendar,
+  readRemoteText,
   type SiteSettings,
   todayIn,
   variantPath,
@@ -390,19 +392,21 @@ const FEED_CACHE_MS = 10 * 60_000;
 const FEED_LIMIT = 10 * 1024 * 1024;
 const feedCache = new Map<string, { at: number; text: Promise<string> }>();
 
-/** Fetches another calendar's file, from an `https://` or `webcal://` address, once every few minutes. */
-export async function fetchFeed(address: string, fetcher: typeof fetch = fetch): Promise<string> {
+/**
+ * Fetches another calendar's file, from an `https://` or `webcal://` address,
+ * once every few minutes. Never from this computer or a private network, since
+ * builds run on CI's and developers' computers (`readRemoteText()`).
+ */
+export async function fetchFeed(address: string, fetcher?: typeof fetch): Promise<string> {
   const url = address.trim().replace(/^webcals?:\/\//i, "https://");
-  if (!/^https?:\/\//i.test(url)) throw new Error("The calendar's address must start with https:// or webcal://.");
   const cached = feedCache.get(url);
   if (cached && Date.now() - cached.at < FEED_CACHE_MS) return cached.text;
-  const text = (async () => {
-    const response = await fetcher(url, { headers: { accept: "text/calendar" }, signal: AbortSignal.timeout(20_000) });
-    if (!response.ok) throw new Error(`The calendar's address answered ${response.status}.`);
-    const body = await response.text();
-    if (body.length > FEED_LIMIT) throw new Error("The calendar is too large to read.");
-    return body;
-  })();
+  const text = readRemoteText(url, {
+    what: "calendar",
+    accept: "text/calendar",
+    limit: FEED_LIMIT,
+    fetch: fetcher as unknown as RemoteFetch | undefined,
+  });
   feedCache.set(url, { at: Date.now(), text });
   text.catch(() => feedCache.delete(url));
   return text;

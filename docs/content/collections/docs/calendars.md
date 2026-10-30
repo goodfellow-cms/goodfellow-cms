@@ -55,7 +55,7 @@ If the events are kept in another calendar, such as a public Google Calendar, a 
 
 To find a Google Calendar's address, open [Google Calendar](https://calendar.google.com) on a computer, go to the calendar's **Settings and sharing**, turn on **Make available to public** under **Access permissions for events**, and copy **Public address in iCal format** under **Integrate calendar**.
 
-The other calendar is read when the site is built, so changes show up on the next build: after the next publish, the next night's rebuild, which a calendar like this always has, or **Rebuild now** on the Updates screen. The editor doesn't show its events, only a note saying they're added when the site is built. If the calendar can't be read, the site is built without its events.
+The other calendar is read when the site is built, so changes show up on the next build: after the next publish, the next night's rebuild, which a calendar like this always has, or **Rebuild now** on the Updates screen. The editor doesn't show its events, only a note saying they're added when the site is built. If the calendar can't be read, the site is built without its events. Its address must start with `https://` or `webcal://`, and builds never read one on the computer building the site or a private network, such as `localhost`, `192.168.1.10` or a cloud's own addresses, even where another address redirects there.
 
 ### Embedding a Google Calendar instead
 

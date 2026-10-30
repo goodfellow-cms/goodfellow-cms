@@ -138,7 +138,7 @@ async function exists(path: string): Promise<boolean> {
 }
 
 function escapeXml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 /** The files a build input's JavaScript imports, and the files they import, to fetch along with it. */

@@ -25,9 +25,9 @@ import {
   type ContentStorage,
   findPage,
   loadPage,
-  MANIFEST_FILE,
   type ManifestPage,
   MEDIA_FOLDER,
+  readManifest,
   readSiteFiles,
   redirectFor,
   type SiteFiles,
@@ -237,8 +237,8 @@ export function GoodfellowSite(props: GoodfellowSiteProps) {
     let current = true;
     // What the app kept shows at once; the copy is brought up to date behind it.
     (async () => {
-      const text = await storage.read(MANIFEST_FILE);
-      if (text && current) await show(JSON.parse(text) as ApiManifest, "ready", language);
+      const kept = await readManifest(storage);
+      if (kept && current) await show(kept, "ready", language).catch(() => {});
       const result = await refresh();
       if (current) await show(result.manifest, result.problem ?? "ready", language);
     })();

@@ -39,7 +39,7 @@ pages:
       if ! node -e "$LOCKFILE_CHECK"; then
         # A plugin installed before it was 3 days old is checked against its provenance first,
         # and the job fails if it doesn't check out.
-        if node -e "$EARLY_CHECK"; then npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"; else npm exec --yes --package="@goodfellow-cms/core@$(node -p 'require("./package.json").dependencies["@goodfellow-cms/core"]')" -- goodfellow-early; fi
+        if node -e "$EARLY_CHECK"; then npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"; else core=$(node -e 'const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);') || exit 1; npm exec --yes --package="@goodfellow-cms/core@$core" -- goodfellow-early; fi
         git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_FQDN:-$CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
         git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names" package-lock.json
         git push -o ci.skip origin "HEAD:$CI_COMMIT_BRANCH" || echo "package-lock.json wasn't published: turn on \"Allow Git push requests to the repository\" under Settings → CI/CD → Job token permissions."
@@ -79,12 +79,8 @@ pages:
       when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-plugin-task:
-  # Runs a plugin's task for the admin panel, such as S3 storage signing uploads
-  # with keys kept in the project's CI/CD variables (Settings → CI/CD →
-  # Variables), each task getting only those its plugin declared. The admin
-  # panel starts a pipeline with GOODFELLOW_TASK_PLUGIN set and reads the
-  # answer, sealed to a key only that admin panel holds, from the artifacts.
+plugin-task-describe:
+  # Loads the site's config and writes down a plugin's task, for the task's own job to run.
   image: node:22
   cache:
     key:
@@ -92,9 +88,36 @@ plugin-task:
     paths: [.npm/]
   script:
     - npm ci --cache .npm --prefer-offline
-    - npx goodfellow-next task --out goodfellow-task-result.json
+    - npx goodfellow-next task --describe --out goodfellow-task.json
+  artifacts:
+    paths: [goodfellow-task.json]
+    expire_in: 1 hour
+  rules:
+    - if: $GOODFELLOW_TASK_PLUGIN
+
+plugin-task:
+  # Runs a plugin's task for the admin panel, such as S3 storage signing uploads
+  # with keys kept in the project's CI/CD variables (Settings → CI/CD →
+  # Variables): scope them to the goodfellow-tasks environment, so only this
+  # job has them. It runs Goodfellow's task runner, installed from npm apart
+  # from the site's packages, which gives each task only the variables its
+  # plugin declared. The admin panel starts a pipeline with
+  # GOODFELLOW_TASK_PLUGIN set and reads the answer, sealed to a key only that
+  # admin panel holds, from the artifacts.
+  image: node:22
+  needs: [plugin-task-describe]
+  environment:
+    name: goodfellow-tasks
+    action: prepare
+  script:
+    - core=$(node -e 'const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);') || exit 1
+    - mkdir -p "/tmp/goodfellow-runner"
+    - (cd "/tmp/goodfellow-runner" && npm install --prefix . --no-save --no-package-lock --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ "@goodfellow-cms/core@$core")
+    - npm ci --ignore-scripts
+    - node "/tmp/goodfellow-runner/node_modules/@goodfellow-cms/core/bin/goodfellow-task.js" --description goodfellow-task.json --out goodfellow-task-result.json
   artifacts:
     paths: [goodfellow-task-result.json]
     expire_in: 1 hour
   rules:
     - if: $GOODFELLOW_TASK_PLUGIN
+      when: always

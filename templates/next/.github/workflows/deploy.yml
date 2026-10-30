@@ -68,7 +68,7 @@ jobs:
           else
             # A plugin installed before it was 3 days old, which only its provenance allows:
             # checked first, and if it doesn't check out the job fails, publishing nothing.
-            npm exec --yes --package="@goodfellow-cms/core@$(node -p 'require("./package.json").dependencies["@goodfellow-cms/core"]')" -- goodfellow-early
+            core=$(node -e 'const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);') || exit 1; npm exec --yes --package="@goodfellow-cms/core@$core" -- goodfellow-early
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.lockfile.outputs.changed == 'true'

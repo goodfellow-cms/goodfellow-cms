@@ -832,6 +832,14 @@ export {
   sitemapPages,
 } from "./head.js";
 export {
+  isLoopbackHost,
+  isPrivateHost,
+  type RemoteFetch,
+  RemoteFileError,
+  type RemoteTextOptions,
+  readRemoteText,
+} from "./hosts.js";
+export {
   type CalendarEvent,
   type CalendarFileOptions,
   calendarFile,

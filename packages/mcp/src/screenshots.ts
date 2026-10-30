@@ -11,6 +11,7 @@
  * part-way is tried once more, with the other browser where there is one, and
  * what it said is passed on.
  */
+import { DEV_API_PREFIX } from "@goodfellow-cms/core/node";
 import { ToolError } from "./content.js";
 import { imagePage } from "./image-page.js";
 import type { Screenshotter } from "./site.js";
@@ -81,6 +82,12 @@ async function settle(page: Page, inFlight: () => number, until: number): Promis
 async function picture(browser: Browser, request: Request, until: number): Promise<Uint8Array> {
   const { url, width, preview, image, dark } = request;
   const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme: dark ? "dark" : "light" });
+  // The page runs the site's scripts, unasked by the person, where a development server's API takes any page on
+  // this computer at its word: it may read, as the developer's own browser may, but never write.
+  await page.route(
+    (address) => address.pathname.includes(`${DEV_API_PREFIX}/`),
+    (route) => (["GET", "HEAD"].includes(route.request().method()) ? route.continue() : route.abort("blockedbyclient")),
+  );
   let inFlight = 0;
   page.on("request", () => inFlight++);
   page.on("requestfinished", () => inFlight--);

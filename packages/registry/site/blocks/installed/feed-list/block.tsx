@@ -1,4 +1,4 @@
-import { addDays, changesOn, todayIn } from "@goodfellow-cms/core";
+import { addDays, changesOn, readRemoteText, todayIn } from "@goodfellow-cms/core";
 import { classNameField, SiteLink, useParts, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 
@@ -26,22 +26,20 @@ const FEED_CACHE_MS = 600_000;
 const FEED_LIMIT = 5_242_880;
 const feedCache = new Map<string, { at: number; text: Promise<string> }>();
 
-/** Fetches an RSS or Atom feed from an `https://` address, once every few minutes. */
+/**
+ * Fetches an RSS or Atom feed from an `https://` address, once every few
+ * minutes, never from this computer or a private network, since builds run
+ * on CI's and developers' computers.
+ */
 async function fetchFeed(address: string): Promise<string> {
   const url = address.trim();
-  if (!/^https?:\/\//i.test(url)) throw new Error("The feed's address must start with https://.");
   const cached = feedCache.get(url);
   if (cached && Date.now() - cached.at < FEED_CACHE_MS) return cached.text;
-  const text = (async () => {
-    const response = await fetch(url, {
-      headers: { accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" },
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!response.ok) throw new Error(`The feed's address answered ${response.status}.`);
-    const body = await response.text();
-    if (body.length > FEED_LIMIT) throw new Error("The feed is too large to read.");
-    return body;
-  })();
+  const text = readRemoteText(url, {
+    what: "feed",
+    accept: "application/rss+xml, application/atom+xml, application/xml, text/xml",
+    limit: FEED_LIMIT,
+  });
   feedCache.set(url, { at: Date.now(), text });
   text.catch(() => feedCache.delete(url));
   return text;

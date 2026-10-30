@@ -7,7 +7,7 @@ import {
   type TaskResultFile,
   taskRequestProblem,
 } from "@goodfellow-cms/core";
-import { runPluginTask, sitePluginsApart, taskSecretsFrom } from "@goodfellow-cms/core/node";
+import { runPluginTask, sitePluginsApart, taskSecretsFrom, writeTaskDescription } from "@goodfellow-cms/core/node";
 
 export interface TaskOptions {
   root?: string;
@@ -24,12 +24,26 @@ export interface TaskOptions {
   out: string;
 }
 
+/** Where `goodfellow task` loads the site's config from, in a process of its own. */
+const CONFIG_LOADER = { module: new URL("./task-config.js", import.meta.url).href, export: "loadTaskConfig" };
+
 /**
- * Runs one of a plugin's tasks for the admin panel, as the starters' task
- * workflow and pipeline do, and writes its answer sealed to the request's
- * key, even when the task fails, so the admin panel can say why. The site's
- * config loads in a process of its own, with none of the job's secrets; the
- * task gets only those its plugin declared.
+ * Writes down the task a request names, as the site's config has it, for the
+ * starters' task job with no secrets (`goodfellow task --describe`), whose
+ * job with them runs it with `@goodfellow-cms/core`'s `goodfellow-task`.
+ */
+export async function describeTask(options: { root?: string; plugin: string; task: string; out: string }) {
+  return writeTaskDescription(resolve(options.root ?? "."), CONFIG_LOADER, options, options.out);
+}
+
+/**
+ * Runs one of a plugin's tasks for the admin panel in one job, as sites'
+ * task workflows and pipelines from before 0.9 do, and writes its answer
+ * sealed to the request's key, even when the task fails, so the admin panel
+ * can say why. The site's config loads in a process of its own, without the
+ * job's secrets in its environment, but it can still read them where the job
+ * started (`/proc`), which is why the starters now describe the task in a job
+ * of its own (`describeTask()`) and run it with `goodfellow-task`.
  */
 export async function runTask(options: TaskOptions): Promise<TaskResultFile> {
   const root = resolve(options.root ?? ".");
@@ -44,10 +58,7 @@ export async function runTask(options: TaskOptions): Promise<TaskResultFile> {
   if (problem) throw new Error(problem);
   let answer: TaskAnswer;
   try {
-    const plugins = await sitePluginsApart(root, {
-      module: new URL("./task-config.js", import.meta.url).href,
-      export: "loadTaskConfig",
-    });
+    const plugins = await sitePluginsApart(root, CONFIG_LOADER);
     const plugin = plugins.find((candidate) => pluginId(candidate.name) === options.plugin);
     answer = plugin
       ? await runPluginTask({

@@ -43,8 +43,11 @@ declare const crypto: {
   getRandomValues<T extends Uint8Array>(array: T): T;
 };
 declare class URL {
-  constructor(url: string, base?: string);
+  constructor(url: string, base?: string | URL);
   readonly href: string;
+  readonly host: string;
+  readonly username: string;
+  readonly password: string;
   readonly origin: string;
   readonly hostname: string;
   readonly protocol: string;

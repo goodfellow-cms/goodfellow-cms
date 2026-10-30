@@ -255,10 +255,11 @@ export interface ConfigLoader {
 /**
  * A site's plugins as its config lists them, without their blocks, loaded in
  * a Node process of its own whose environment has only what Node needs
- * (`PASSED_ON`), so neither the config nor anything it loads can read the
- * secrets a task's job was given, from `process.env` or the process's
- * environment as it started. A task runs only once it's known, held as
- * `runPluginTask()` holds it.
+ * (`PASSED_ON`), so the config can't read a job's secrets from `process.env`
+ * or its own environment as it started. It can still read its parent's
+ * (`/proc/<pid>/environ` on Linux), so never load it in a job that holds
+ * secrets: the starters' task jobs describe the task where there are none
+ * (`describeSiteTask()`) and run it with `runDescribedTask()`.
  */
 export async function sitePluginsApart(root: string, loader: ConfigLoader): Promise<GoodfellowPlugin[]> {
   const env = Object.fromEntries(
@@ -285,8 +286,8 @@ export async function sitePluginsApart(root: string, loader: ConfigLoader): Prom
  * a workflow can't name secrets it doesn't know. It takes
  * `GOODFELLOW_SECRETS` out of `process.env`, but the process's environment as
  * it started still has it, as it has every variable GitLab and Bitbucket give
- * a job, so load the site's config with `sitePluginsApart()`, never in the
- * process holding them.
+ * a job, so never load the site's config in the job holding them (see
+ * `runDescribedTask()`).
  */
 export function taskSecretsFrom(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const all: Record<string, string> = {};

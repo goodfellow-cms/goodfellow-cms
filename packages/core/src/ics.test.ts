@@ -77,6 +77,17 @@ describe("writing calendar files", () => {
     expect(tokyo).toContain("TZOFFSETTO:+0900");
     expect(tokyo.filter((line) => line.startsWith("BEGIN:STANDARD"))).toHaveLength(1);
   });
+
+  it("never lets text start a line of its own", () => {
+    const text = calendarFile(
+      [{ uid: "a", title: "A\rBEGIN:VEVENT", place: "B\r\nX:Y", event: { start: "2026-10-04" } }],
+      { name: "N\rBEGIN:VTODO" },
+    );
+    expect(text).not.toMatch(/\r(?!\n)/);
+    expect(lines(text)).toContain("X-WR-CALNAME:N\\nBEGIN:VTODO");
+    expect(lines(text)).toContain("SUMMARY:A\\nBEGIN:VEVENT");
+    expect(lines(text)).toContain("LOCATION:B\\nX:Y");
+  });
 });
 
 describe("reading calendar files", () => {

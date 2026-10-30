@@ -98,6 +98,16 @@ export {
 } from "./node-provenance.js";
 export { localRegistryDir } from "./node-registry.js";
 export { type DueOptions, type DueResult, reportDue, scheduleDue } from "./node-schedule.js";
+export {
+  type DescribedTaskOptions,
+  describedTask,
+  describeSiteTask,
+  isPluginsOwnModule,
+  runDescribedTask,
+  TASK_DESCRIPTION_FILE,
+  type TaskDescription,
+  writeTaskDescription,
+} from "./node-task-runner.js";
 export { type RunCommand, type SiteFile, siteFileChanges, type UpdateOptions, update } from "./node-update.js";
 export {
   type ExportWordPressResult,
