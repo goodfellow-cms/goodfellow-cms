@@ -483,8 +483,38 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
             element("p", {}, t("confirmPlugin", { title: manifest.title, name: plugin.name, release: plugin.release })),
             element("ul", {}, ...pluginLines(manifest).map((line) => element("li", {}, line))),
           );
+          // Named here, where nothing the admin panel runs can change the words: it skips the wait.
+          if (plugin.early) {
+            body.push(
+              element(
+                "p",
+                { class: "broker-warning" },
+                t("confirmEarly", {
+                  release: plugin.release,
+                  from: plugin.early.from,
+                  repository: plugin.early.repository,
+                  workflow: plugin.early.workflow,
+                }),
+              ),
+            );
+          }
         }
         for (const name of question.removed) body.push(element("p", {}, t("confirmPluginRemove", { name })));
+      } else if (question.kind === "theme-early") {
+        publishes = true;
+        body.push(
+          element("p", {}, t("confirmThemeEarly", { name: question.name, release: question.release })),
+          element(
+            "p",
+            { class: "broker-warning" },
+            t("confirmEarly", {
+              release: question.release,
+              from: question.from,
+              repository: question.repository,
+              workflow: question.workflow,
+            }),
+          ),
+        );
       } else if (question.kind === "editors") {
         body.push(
           element(

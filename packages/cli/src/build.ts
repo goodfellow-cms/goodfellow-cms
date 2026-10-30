@@ -37,6 +37,7 @@ import {
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import {
   builtSiteSource,
+  checkEarlyTheme,
   fileSystemSource,
   guardBuiltSite,
   type ImageSizesResult,
@@ -177,6 +178,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
   const root = resolve(options.root ?? ".");
   const outDir = resolve(root, options.outDir ?? "dist");
   const configFile = findConfigFile(root);
+  // A theme installed before it was three days old is used only once its provenance checks out, whatever the
+  // admin panel said, since a browser can lie: an EarlyInstallError stops the build.
+  await checkEarlyTheme(root);
 
   // Pages are rendered by modules loaded through Vite, so the site's config can use TSX and shares one copy of React.
   // Loading the site's config finds its Client Components, which the browser build then bundles.

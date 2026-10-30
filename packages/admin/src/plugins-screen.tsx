@@ -18,6 +18,7 @@ import {
   INSTALLED_PLUGINS_FILE,
   type InstalledPlugin,
   type InstalledPlugins,
+  mayInstallEarly,
   PackageError,
   type PackageFetch,
   type PackageListing,
@@ -27,6 +28,7 @@ import {
   type PluginManifest,
   type PluginPackage,
   type PluginPlan,
+  type ProvenanceSource,
   parseInstalledPlugins,
   permissionChanges,
   planPluginInstall,
@@ -34,12 +36,15 @@ import {
   pluginReleases,
   RELEASE_AGE_DAYS,
   type ReleaseChoice,
+  readProvenanceSource,
   reviewPluginPackages,
   searchPlugins,
+  writesEarlyLockfile,
   writesLockfile,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAdmin, useSiteContent } from "./admin-context.js";
+import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
+import { AppServerError } from "./app-server.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
 import { AppLink } from "./use-link.js";
@@ -63,7 +68,15 @@ function packageProblem(t: Translate, error: unknown): string {
   return t("plugins.error.notAPlugin");
 }
 
-function installProblem(t: Translate, error: unknown): string | undefined {
+function installProblem(t: Translate, error: unknown, version?: string): string | undefined {
+  // The site's server checked a release installed early, and its provenance didn't allow it.
+  if (error instanceof AppServerError && error.code === "early-refused") {
+    return t("plugins.earlyRefused", {
+      version: version ?? "",
+      days: String(RELEASE_AGE_DAYS),
+      reasons: error.reasons.join(" "),
+    });
+  }
   if (!(error instanceof PluginInstallError)) return undefined;
   const { problem } = error;
   if (problem.code === "config") return t("plugins.error.config");
@@ -130,24 +143,29 @@ function useInstalledPlugins() {
   return { record, error };
 }
 
-/** Whether the site's setup writes the lockfile when package.json changes, read from its setup files. */
-function useLockfileSetup(): boolean | undefined {
+/**
+ * Whether the site's setup writes the lockfile when package.json changes, and
+ * for plugins installed before they're old enough once their provenance
+ * checks out, read from its setup files.
+ */
+function useLockfileSetup(): { writes?: boolean; early: boolean } {
   const { versions, state, pluginInstalls } = useAdmin();
   const revision = state.status === "ready" ? state.revision : undefined;
-  const [writes, setWrites] = useState<boolean>();
+  const [setup, setSetup] = useState<{ writes?: boolean; early: boolean }>({ early: false });
   useEffect(() => {
-    // A developer reviews changes on full-stack sites, and builds them as they choose.
-    if (pluginInstalls === "review") return setWrites(true);
-    if (!versions || !revision) return setWrites(false);
+    // A developer reviews changes on full-stack sites, and builds them as they choose; the server checks
+    // plugins installed early itself.
+    if (pluginInstalls === "review") return setSetup({ writes: true, early: true });
+    if (!versions || !revision) return setSetup({ writes: false, early: false });
     let current = true;
     Promise.all(SETUP_FILES.map((path) => versions.readAt(path, revision).catch(() => undefined))).then(
-      (texts) => current && setWrites(writesLockfile(texts)),
+      (texts) => current && setSetup({ writes: writesLockfile(texts), early: writesEarlyLockfile(texts) }),
     );
     return () => {
       current = false;
     };
   }, [versions, revision, pluginInstalls]);
-  return writes;
+  return setup;
 }
 
 /** Why plugins can't be installed here, in words, or nothing where they can. */
@@ -166,7 +184,9 @@ export function PluginsScreen() {
   const t = useStrings();
   const { site } = useAdmin();
   const { record, error: recordError } = useInstalledPlugins();
-  const lockfile = useLockfileSetup();
+  const { writes: lockfile, early: earlySetup } = useLockfileSetup();
+  // Only owners may skip the wait, and only where the site's setup checks it.
+  const canInstallEarly = useCanChangeSettings() && earlySetup;
   const whyNot = useWhyNot();
   const [words, setWords] = useState("");
   const [searched, setSearched] = useState("");
@@ -253,6 +273,7 @@ export function PluginsScreen() {
           installed={installed[chosen]}
           record={record?.text}
           canInstall={canInstall}
+          canInstallEarly={canInstall && canInstallEarly}
           onClose={() => setChosen(undefined)}
           onDone={onDone}
         />
@@ -309,6 +330,7 @@ export function PluginsScreen() {
           name={chosen}
           record={record?.text}
           canInstall={canInstall}
+          canInstallEarly={canInstall && canInstallEarly}
           onClose={() => setChosen(undefined)}
           onDone={onDone}
         />
@@ -490,6 +512,7 @@ function PluginDetails({
   installed,
   record,
   canInstall,
+  canInstallEarly = false,
   onClose,
   onDone,
 }: {
@@ -497,6 +520,7 @@ function PluginDetails({
   installed?: InstalledPlugin;
   record: string | undefined;
   canInstall: boolean;
+  canInstallEarly?: boolean;
   onClose: () => void;
   onDone: (message: string, url?: string) => void;
 }) {
@@ -512,7 +536,33 @@ function PluginDetails({
   const [confirming, setConfirming] = useState<PluginPlan>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
-  const release = choice?.release;
+  // Where the newer release waiting could be installed now: built where the release installed was.
+  const [offer, setOffer] = useState<ProvenanceSource>();
+  const [early, setEarly] = useState<ProvenanceSource>();
+  const waiting = choice?.waiting;
+  useEffect(() => {
+    setOffer(undefined);
+    setEarly(undefined);
+    if (!waiting || !installed || !canInstallEarly) return;
+    let current = true;
+    const options = { fetch: packageFetch };
+    Promise.all([
+      // Sites that installed it before provenance was recorded read it from npm once, and record it.
+      installed.provenance ?? readProvenanceSource(name, installed.release, options),
+      readProvenanceSource(name, waiting.version, options),
+    ]).then(([was, next]) => {
+      if (!current) return;
+      const decision = mayInstallEarly(
+        { release: installed.release, ...(was && { provenance: was }) },
+        { version: waiting.version, ...(next && { provenance: next }) },
+      );
+      setOffer(decision.early ? decision.source : undefined);
+    });
+    return () => {
+      current = false;
+    };
+  }, [name, installed, waiting, canInstallEarly]);
+  const release = early ? waiting : choice?.release;
   const sameRelease = installed?.release === release?.version;
 
   useEffect(() => {
@@ -560,9 +610,13 @@ function PluginDetails({
       const files = await readFiles();
       const blocks = Object.keys(site.description.blocks);
       const plugins = (site.description.plugins ?? []).map((described) => described.name);
+      // Where it was built, for the record, which later updates installed early are checked against.
+      const provenance = await readProvenanceSource(name, plugin.release.version, { fetch: packageFetch });
       setConfirming(
         planPluginInstall({ ...files, ...(record !== undefined && { record }), blocks, plugins }, plugin, {
           today: new Date().toISOString().slice(0, 10),
+          ...(provenance && { provenance }),
+          ...(early && { early }),
         }),
       );
     } catch (problem) {
@@ -617,6 +671,18 @@ function PluginDetails({
             : t("plugins.notCompatible", { version: GOODFELLOW_VERSION })}
         </p>
       )}
+      {offer && !early && waiting && installed && (
+        <div className="gfa-notice" role="note">
+          <p>
+            {t("plugins.early", {
+              version: waiting.version,
+              installed: installed.release,
+              source: offer.repository,
+            })}
+          </p>
+          <Button onClick={() => setEarly(offer)}>{t("plugins.installNow", { version: waiting.version })}</Button>
+        </div>
+      )}
       {release && (
         <>
           {plugin?.manifest.description && <p>{plugin.manifest.description}</p>}
@@ -632,9 +698,18 @@ function PluginDetails({
               ? t("plugins.provenance", { source: release.repository })
               : t("plugins.noProvenance")}
           </p>
-          {choice?.waiting && (
+          {choice?.waiting && !early && (
             <p className="gfa-hint">
               {t("plugins.waiting", { version: choice.waiting.version, days: String(RELEASE_AGE_DAYS) })}
+            </p>
+          )}
+          {early && waiting && installed && (
+            <p className="gfa-notice" role="note">
+              {t("plugins.earlyNotice", {
+                version: waiting.version,
+                days: String(RELEASE_AGE_DAYS),
+                installed: installed.release,
+              })}
             </p>
           )}
           {choice?.incompatible && (
@@ -680,7 +755,10 @@ function PluginDetails({
           )}
 
           {error !== undefined && (
-            <ErrorMessage message={installProblem(t, error) ?? t("publish.error")} error={error} />
+            <ErrorMessage
+              message={installProblem(t, error, plugin.release.version) ?? t("publish.error")}
+              error={error}
+            />
           )}
           {canInstall && (
             <div className="gfa-dialog-actions">
@@ -698,6 +776,15 @@ function PluginDetails({
       {confirming && plugin && (
         <Dialog title={t("plugins.confirmTitle", { title })} onClose={() => setConfirming(undefined)}>
           <p>{t("plugins.confirmIntro", { name, version: plugin.release.version })}</p>
+          {early && installed && (
+            <p className="gfa-notice" role="note">
+              {t("plugins.earlyNotice", {
+                version: plugin.release.version,
+                days: String(RELEASE_AGE_DAYS),
+                installed: installed.release,
+              })}
+            </p>
+          )}
           <ul>
             {asks.map((line) => (
               <li key={line}>{line}</li>

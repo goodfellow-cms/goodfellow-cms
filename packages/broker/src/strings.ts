@@ -42,6 +42,9 @@ export const STRINGS = {
   confirmPlugin:
     "Installing the plugin {title} ({name} {release}), whose code is included when the site is built and runs on its pages. It asks to:",
   confirmPluginRemove: "Removing the plugin {name}.",
+  confirmThemeEarly: "Updating the theme {name} to {release}.",
+  confirmEarly:
+    "This installs {release} before it's three days old, skipping the wait that protects against harmful releases, since it says it was built by {repository} ({workflow}), as {from} was. The site's build checks that before it uses it.",
   pluginConnect: "Reach these addresses from the admin panel: {list}",
   pluginFiles: "Read and publish these files: {list}",
   pluginSecrets: "Get these secrets when the site is built: {list}",

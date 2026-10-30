@@ -14,8 +14,15 @@ export interface FakeThemeRelease {
   age?: number;
   /** Its `peerDependencies` range on `@goodfellow-cms/core`: any release if left out; `null` for none. */
   goodfellow?: string | null;
+  /** Whether it has provenance, with an attestation npm's attestations endpoint answers. */
   provenance?: boolean;
   repository?: string;
+  /** The workflow its provenance says built it: `.github/workflows/release.yml` if left out. */
+  workflow?: string;
+  /** The repository its provenance says built it, where that isn't `repository`. */
+  builtBy?: string;
+  /** Its attestation's signature doesn't match what it says, as `fakeVerifier()` finds. */
+  badSignature?: boolean;
   deprecated?: string;
   /** The packages it needs, with their ranges. */
   dependencies?: Record<string, string>;
@@ -133,6 +140,7 @@ function fakeNpm(options: { packages: (FakeTheme & { keywords: string[] })[]; no
         ...(release.deprecated && { deprecated: release.deprecated }),
         dist: {
           tarball: `https://registry.npmjs.org/${theme.name}/-/${release.version}.tgz`,
+          integrity: `sha512-${btoa(digestText(theme.name, release.version))}`,
           ...(release.provenance && {
             attestations: {
               url: `https://registry.npmjs.org/-/npm/v1/attestations/${theme.name}@${release.version}`,
@@ -146,11 +154,54 @@ function fakeNpm(options: { packages: (FakeTheme & { keywords: string[] })[]; no
     return json({ name: theme.name, versions, time });
   }
 
+  function attestations(name: string, version: string): FakeThemesResponse {
+    const theme = options.packages.find((candidate) => candidate.name === name);
+    const release = theme?.releases.find((candidate) => candidate.version === version);
+    if (!theme || !release?.provenance) return json({ error: "Not found" }, 404);
+    const repository = release.builtBy ?? release.repository ?? `https://github.com/example/${name}`;
+    const workflow = release.workflow ?? ".github/workflows/release.yml";
+    const statement = {
+      _type: "https://in-toto.io/Statement/v1",
+      subject: [
+        { name: `pkg:npm/${name.replace(/^@/, "%40")}@${version}`, digest: { sha512: hex(digestText(name, version)) } },
+      ],
+      predicateType: "https://slsa.dev/provenance/v1",
+      predicate: {
+        buildDefinition: {
+          buildType: "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
+          externalParameters: { workflow: { ref: "refs/heads/main", repository, path: workflow } },
+        },
+      },
+    };
+    const payload = btoa(JSON.stringify(statement));
+    return json({
+      attestations: [
+        {
+          predicateType: "https://slsa.dev/provenance/v1",
+          bundle: {
+            mediaType: "application/vnd.dev.sigstore.bundle.v0.3+json",
+            // Made up: fakeVerifier() reads who signed it here, and checks the signature is the payload.
+            verificationMaterial: { fakeIdentity: `${repository}/${workflow}@refs/heads/main` },
+            dsseEnvelope: {
+              payload,
+              payloadType: "application/vnd.in-toto+json",
+              signatures: [{ sig: release.badSignature ? btoa("forged") : payload }],
+            },
+          },
+        },
+      ],
+    });
+  }
+
   function handle(address: string): FakeThemesResponse {
     requests.push(address);
     const url = new URL(address);
     if (url.hostname === "registry.npmjs.org") {
       if (url.pathname === "/-/v1/search") return search(url);
+      const attested = /^\/-\/npm\/v1\/attestations\/((?:@[^/]+\/)?[^/@]+)@([^/]+)$/.exec(
+        decodeURIComponent(url.pathname),
+      );
+      if (attested) return attestations(attested[1] ?? "", attested[2] ?? "");
       const name = decodeURIComponent(url.pathname.slice(1));
       const theme = options.packages.find((candidate) => candidate.name === name);
       return theme ? metadata(theme) : json({ error: "Not found" }, 404);
@@ -200,6 +251,31 @@ function fakeNpm(options: { packages: (FakeTheme & { keywords: string[] })[]; no
       };
     },
   };
+}
+
+/** The made-up file contents a fake release's digest is of. */
+function digestText(name: string, version: string): string {
+  return `${name}@${version}`;
+}
+
+function hex(text: string): string {
+  return [...text].map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Checks the fake registry's attestations as Sigstore checks real ones: the
+ * signature must be the statement's, and the certificate the workflow's.
+ * Pass it as `verify` to `verifiedSource()` and what uses it.
+ */
+export async function fakeVerifier(bundle: unknown, identity: { issuer: string; uri: string }): Promise<void> {
+  const fake = bundle as {
+    verificationMaterial?: { fakeIdentity?: string };
+    dsseEnvelope?: { payload?: string; signatures?: { sig?: string }[] };
+  };
+  if (fake.dsseEnvelope?.signatures?.[0]?.sig !== fake.dsseEnvelope?.payload) throw new Error("signature mismatch");
+  if (fake.verificationMaterial?.fakeIdentity !== identity.uri) {
+    throw new Error(`certificate identity error - expected ${identity.uri}`);
+  }
 }
 
 /** A made-up theme's files: navy and cream colors, two fonts, classes for a few parts, CSS, and a header. */

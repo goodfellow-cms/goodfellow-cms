@@ -24,6 +24,7 @@ import {
   AdminSetupError,
   BrokerSetupError,
   ContentRepositoryError,
+  checkEarlyTheme,
   checkSiteAdminAddress,
   contentRepositoryProblem,
   exportWordPress,
@@ -72,6 +73,17 @@ const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfell
 // A full-stack site (withGoodfellow(config, { server: true })): Next.js serves its pages and sends redirects
 // itself, so the calendar files, feeds and the search index are written into public/, which `next start` and hosts
 // serve as static files, as they are for an export.
+// A theme installed before it was three days old is used only once its provenance checks out, whatever the
+// admin panel said, since a browser can lie.
+if (command === "finish") {
+  try {
+    const theme = await checkEarlyTheme(process.cwd());
+    if (theme) console.log(`${theme.name} ${theme.release} was installed early: its provenance checks out.`);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
 if (command === "finish" && dir === "--server") {
   // Next.js renders a full-stack site's pages as it serves them, so nothing can put a guard first in each.
   const config = CONFIG_FILES.find((file) => existsSync(file));

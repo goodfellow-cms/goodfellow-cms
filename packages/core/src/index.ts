@@ -848,6 +848,8 @@ export {
   memoryKeeper,
 } from "./kept-drafts.js";
 export {
+  EARLY_CHECK,
+  EARLY_COMMAND,
   GITLAB_LOCKFILE_VARIABLES,
   githubLockfileJobs,
   gitlabLockfileScript,
@@ -929,6 +931,7 @@ export {
   unapproved,
   withDependency,
   withInstalledPluginsConfig,
+  writesEarlyLockfile,
   writesLockfile,
 } from "./plugin-packages.js";
 export {
@@ -1014,6 +1017,25 @@ export {
   pluginProblems,
   withPlugins,
 } from "./plugins.js";
+export {
+  attestationsUrl,
+  type EarlyDecision,
+  type EarlyInstallRecord,
+  type EarlyRefusal,
+  earlyInstallSchema,
+  type InstalledRelease,
+  mayInstallEarly,
+  normalizedRepository,
+  type ProvenanceAttestation,
+  type ProvenanceFetch,
+  type ProvenanceSource,
+  type ProvenanceStatement,
+  provenanceAttestation,
+  provenanceSourceSchema,
+  readProvenanceSource,
+  SLSA_PROVENANCE,
+  sameSource,
+} from "./provenance.js";
 export {
   MAX_RATE_LIMIT_WAIT_MS,
   RateLimitError,

@@ -58,11 +58,17 @@ jobs:
       - id: lockfile
         env:
           CHECK: 'const fs = require("fs"); const read = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; } }; const site = read("package.json") || {}; const root = ((read("package-lock.json") || {}).packages || {})[""]; const same = (a, b) => JSON.stringify(Object.entries(a || {}).sort()) === JSON.stringify(Object.entries(b || {}).sort()); process.exit(root && ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].every((key) => same(site[key], root[key])) ? 0 : 1);'
+          EARLY: 'const fs = require("fs"); let record; try { record = JSON.parse(fs.readFileSync("plugins/installed/installed.json", "utf8")); } catch { process.exit(0); } process.exit(Object.values(record.plugins || {}).some((plugin) => plugin && plugin.early) ? 1 : 0);'
         run: |
           if node -e "$CHECK"; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
+          elif node -e "$EARLY"; then
             npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            # A plugin installed before it was 3 days old, which only its provenance allows:
+            # checked first, and if it doesn't check out the job fails, publishing nothing.
+            npm exec --yes --package="@goodfellow-cms/core@$(node -p 'require("./package.json").dependencies["@goodfellow-cms/core"]')" -- goodfellow-early
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.lockfile.outputs.changed == 'true'
@@ -181,7 +187,8 @@ jobs:
     needs: [check, update, publish-update, lockfile, publish-lockfile]
     # At night only when the check says so, or couldn't tell; otherwise always, even when there was
     # no update to run, or it didn't work.
-    if: ${{ !cancelled() && (github.event_name != 'schedule' || needs.check.outputs.build == 'true' || needs.check.result == 'failure') }}
+    # Never after the lockfile job failed, such as when a plugin installed early didn't check out.
+    if: ${{ !cancelled() && needs.lockfile.result != 'failure' && (github.event_name != 'schedule' || needs.check.outputs.build == 'true' || needs.check.result == 'failure') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -31,6 +31,7 @@ import {
   taskRequestProblem,
 } from "./index.js";
 import type { PluginServer } from "./node-plugins.js";
+import { earlyChangeProblems, earlyInstallsIn, type ProvenanceOptions } from "./node-provenance.js";
 import { unsafeMediaChanges } from "./svg-check.js";
 
 export interface AppApiOptions {
@@ -74,6 +75,11 @@ export interface AppApiOptions {
    * not change.
    */
   ownersOnly?: OwnersOnlyFields;
+  /**
+   * How plugins and themes installed before they're `RELEASE_AGE_DAYS` old are checked: npm's registry and
+   * Sigstore, unless tests give their own.
+   */
+  provenance?: ProvenanceOptions;
 }
 
 /** Room for a save with uploads, which are sent as base64 (a third larger than the files). */
@@ -187,9 +193,22 @@ async function refusedChanges(
   changes: readonly FileChange[],
   editor: AppEditor,
   read: (path: string) => Promise<string | undefined>,
+  provenance: ProvenanceOptions | undefined,
 ): Promise<Response | undefined> {
   const unsafe = unsafeMediaChanges(changes);
   if (unsafe.length > 0) return json(400, { error: "unsafe-media", paths: unsafe });
+  // A plugin or theme installed before it's old enough: only by an owner, and only an update whose provenance,
+  // checked here, comes from the same repository and workflow as the release the site has.
+  const early = await earlyInstallsIn(changes, read);
+  if (early.length > 0 && editor.role !== "owner") {
+    return json(403, { error: "owners-only", paths: early.map(({ install }) => install.name) });
+  }
+  if (early.length > 0) {
+    const problems = await earlyChangeProblems(changes, read, provenance);
+    if (problems.length > 0) {
+      return json(403, { error: "early-refused", reasons: problems.map((found) => found.message) });
+    }
+  }
   if (editor.role !== "owner") {
     const storage = changes.find((change) => change.path === MEDIA_STORAGE_FILE);
     if (storage && !(await keepsStorageSettings(await read(MEDIA_STORAGE_FILE), storage))) {
@@ -321,7 +340,7 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       // So is the code this server runs, unless the site lets owners publish it.
       if (codeReview && changes.some((change) => isCodePath(change.path))) return json(403, { error: "review-only" });
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
-      const refused = await refusedChanges(changes, editor, (path) => backend.read(path));
+      const refused = await refusedChanges(changes, editor, (path) => backend.read(path), options.provenance);
       if (refused) return refused;
       // Block settings only owners may change, such as Custom HTML used exactly as written.
       if (editor.role !== "owner" && options.ownersOnly) {
@@ -359,7 +378,7 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       if (!backend.drafts) throw new BadRequest("This site's repository can't take changes for review.");
       const code = changes.some((change) => isCodePath(change.path));
       if (code && editor.role !== "owner") return json(403, { error: "owners-only" });
-      const refused = await refusedChanges(changes, editor, (path) => backend.read(path));
+      const refused = await refusedChanges(changes, editor, (path) => backend.read(path), options.provenance);
       if (refused) return refused;
       if (editor.role !== "owner" && options.ownersOnly) {
         const changed = await ownersOnlyChanges(changes, options.ownersOnly, (path) => backend.read(path));

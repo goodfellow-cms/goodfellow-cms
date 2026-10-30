@@ -14,7 +14,7 @@
  * makes the same one every time.
  */
 
-import { LOCKFILE_CHECK, LOCKFILE_COMMAND } from "./lockfile-setup.js";
+import { EARLY_CHECK, EARLY_COMMAND, LOCKFILE_CHECK, LOCKFILE_COMMAND } from "./lockfile-setup.js";
 import { RELEASE_AGE_DAYS } from "./npm-packages.js";
 import { TASK_BRANCH_PREFIX, TASK_JOB, TASK_RESULT_FILE } from "./plugin-tasks.js";
 import type { SiteCli } from "./task-setup.js";
@@ -138,8 +138,14 @@ pipelines:
             - |
               if node -e '${LOCKFILE_CHECK}'; then
                 echo "package-lock.json has every package package.json names."
-              else
+              elif node -e '${EARLY_CHECK}'; then
                 ${LOCKFILE_COMMAND}
+                git ${COMMIT_AS} commit -m "Write package-lock.json for the packages package.json names" package-lock.json
+                git push origin "HEAD:$BITBUCKET_BRANCH"
+              else
+                # A plugin installed before it was ${RELEASE_AGE_DAYS} days old: checked against its provenance
+                # first, and the step fails, publishing nothing, if it doesn't check out.
+                ${EARLY_COMMAND}
                 git ${COMMIT_AS} commit -m "Write package-lock.json for the packages package.json names" package-lock.json
                 git push origin "HEAD:$BITBUCKET_BRANCH"
               fi

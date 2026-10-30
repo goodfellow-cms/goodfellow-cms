@@ -83,6 +83,11 @@ a {
   color: var(--accent);
 }
 
+.broker-warning {
+  border-inline-start: 3px solid var(--error);
+  padding-inline-start: 0.75rem;
+}
+
 .broker-error {
   color: var(--error);
   min-height: 1lh;

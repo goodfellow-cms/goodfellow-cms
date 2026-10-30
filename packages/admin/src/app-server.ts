@@ -21,6 +21,8 @@ export class AppServerError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
+    /** Why, where the server says: for `early-refused`, what was wrong with each release installed early. */
+    readonly reasons: readonly string[] = [],
   ) {
     super(
       code === "owners-only"
@@ -58,7 +60,11 @@ export function appServer(api: string) {
     });
     if (response.ok || (response.status === 404 && missingIsFine)) return response;
     if (response.status === 409) throw new ConflictError();
-    const answer = (await response.json().catch(() => ({}))) as { error?: string; problem?: string };
+    const answer = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      problem?: string;
+      reasons?: unknown;
+    };
     // A plugin's task that couldn't run, with why, which the admin panel puts in its own words.
     if (answer.error === "task") {
       const problem = ["missing", "not-allowed", "timeout"].includes(answer.problem ?? "") ? answer.problem : "failed";
@@ -66,7 +72,8 @@ export function appServer(api: string) {
     }
     // The site's own sign-in has ended, or no longer lets them edit.
     if (response.status === 401) throw new SignInError("invalid", "Signing in to the site has ended.");
-    throw new AppServerError(response.status, answer.error ?? "error");
+    const reasons = Array.isArray(answer.reasons) ? answer.reasons.filter((reason) => typeof reason === "string") : [];
+    throw new AppServerError(response.status, answer.error ?? "error", reasons);
   }
 
   return {

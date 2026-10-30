@@ -75,6 +75,27 @@ export {
   sitePluginsApart,
   taskSecretsFrom,
 } from "./node-plugins.js";
+export {
+  type BundleVerifier,
+  checkEarlyInstall,
+  checkEarlyTheme,
+  type EarlyCheck,
+  type EarlyInstall,
+  EarlyInstallError,
+  type EarlyProblem,
+  earlyChangeProblems,
+  earlyInstallsIn,
+  lockfileMatches,
+  type NpmRunner,
+  type ProvenanceOptions,
+  type ProvenanceProblem,
+  type SignerIdentity,
+  signerIdentity,
+  sigstoreVerifier,
+  type VerifiedRelease,
+  verifiedSource,
+  writeEarlyLockfile,
+} from "./node-provenance.js";
 export { localRegistryDir } from "./node-registry.js";
 export { type DueOptions, type DueResult, reportDue, scheduleDue } from "./node-schedule.js";
 export { type RunCommand, type SiteFile, siteFileChanges, type UpdateOptions, update } from "./node-update.js";

@@ -11,9 +11,12 @@ import {
   compareReleases,
   fetchTheme,
   GOODFELLOW_VERSION,
+  mayInstallEarly,
+  type ProvenanceSource,
   pageTitle,
   parseThemeRecord,
   planTheme,
+  readProvenanceSource,
   searchThemes,
   THEME_FILE,
   THEME_RELEASE_AGE_DAYS,
@@ -32,7 +35,7 @@ import {
   themeUnknownBlocks,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAdmin, useSiteContent } from "./admin-context.js";
+import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import { PreviewFrame } from "./preview.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, Field, TextField } from "./ui.js";
@@ -339,7 +342,34 @@ function ThemeDetails({
   // The page the preview shows: the home page until another is chosen.
   const [shown, setShown] = useState("/");
   const update = record?.name === name;
-  const release = choice?.release;
+  // Where the newer release waiting could be installed now: built where the release installed was. Owners only.
+  const owner = useCanChangeSettings();
+  const [offer, setOffer] = useState<ProvenanceSource>();
+  const [early, setEarly] = useState<ProvenanceSource>();
+  const waiting = choice?.waiting;
+  useEffect(() => {
+    setOffer(undefined);
+    setEarly(undefined);
+    if (!waiting || !update || !record || !owner || demo) return;
+    let current = true;
+    const options = { fetch: themeFetch };
+    Promise.all([
+      // Sites that installed it before provenance was recorded read it from npm once, and record it.
+      record.provenance ?? readProvenanceSource(name, record.release, options),
+      readProvenanceSource(name, waiting.version, options),
+    ]).then(([was, next]) => {
+      if (!current) return;
+      const decision = mayInstallEarly(
+        { release: record.release, ...(was && { provenance: was }) },
+        { version: waiting.version, ...(next && { provenance: next }) },
+      );
+      setOffer(decision.early ? decision.source : undefined);
+    });
+    return () => {
+      current = false;
+    };
+  }, [name, record, update, waiting, owner, demo]);
+  const release = early ? waiting : choice?.release;
 
   useEffect(() => {
     if (!release) return;
@@ -367,14 +397,23 @@ function ThemeDetails({
   useEffect(() => {
     if (!theme) return;
     let current = true;
-    planTheme({ ...content, ...(record && { record }) }, theme, { layout: useLayout }).then(
-      (next) => current && setPlan(next),
-      (problem: unknown) => current && setThemeError(problem),
-    );
+    // Where it was built, for the record, which later updates installed early are checked against.
+    readProvenanceSource(name, theme.release, { fetch: themeFetch })
+      .then((provenance) =>
+        planTheme({ ...content, ...(record && { record }) }, theme, {
+          layout: useLayout,
+          ...(provenance && { provenance }),
+          ...(early && { early }),
+        }),
+      )
+      .then(
+        (next) => current && setPlan(next),
+        (problem: unknown) => current && setThemeError(problem),
+      );
     return () => {
       current = false;
     };
-  }, [theme, content, record, useLayout]);
+  }, [name, theme, content, record, useLayout, early]);
 
   const loads = useMemo(() => (theme ? themeLoads(theme) : []), [theme]);
   const pages = useMemo(() => allPages(content), [content]);
@@ -437,6 +476,12 @@ function ThemeDetails({
             : t("themes.notCompatible", { version: GOODFELLOW_VERSION })}
         </p>
       )}
+      {offer && !early && waiting && record && (
+        <div className="gfa-notice" role="note">
+          <p>{t("themes.early", { version: waiting.version, installed: record.release, source: offer.repository })}</p>
+          <Button onClick={() => setEarly(offer)}>{t("themes.installNow", { version: waiting.version })}</Button>
+        </div>
+      )}
       {release && (
         <>
           {theme?.manifest.description && <p>{theme.manifest.description}</p>}
@@ -452,9 +497,18 @@ function ThemeDetails({
               ? t("themes.provenance", { source: release.repository })
               : t("themes.noProvenance")}
           </p>
-          {choice?.waiting && (
+          {choice?.waiting && !early && (
             <p className="gfa-hint">
               {t("themes.waiting", { version: choice.waiting.version, days: String(THEME_RELEASE_AGE_DAYS) })}
+            </p>
+          )}
+          {early && waiting && record && (
+            <p className="gfa-notice" role="note">
+              {t("themes.earlyNotice", {
+                version: waiting.version,
+                days: String(THEME_RELEASE_AGE_DAYS),
+                installed: record.release,
+              })}
             </p>
           )}
           {choice?.incompatible && (
