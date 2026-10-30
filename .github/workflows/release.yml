@@ -64,9 +64,22 @@ jobs:
           node-version: 22
           check-latest: true
           cache: pnpm
-      # Staged publishing needs npm 11.15.0 or later; Node 22 comes with npm 10. An exact release, so what publishes
-      # doesn't change between releases by itself; Dependabot can't see it here, so move it on by hand.
-      - run: npm install --global npm@11.21.0
+      # Staged publishing needs npm 11.15.0 or later; Node 22 comes with npm 10. An exact release, checked against its
+      # digest, so what publishes doesn't change between releases by itself; Dependabot can't see it here, so move it
+      # on by hand.
+      - name: Install npm 11.21.0, checked against the digest npm published for it
+        env:
+          NPM_RELEASE: 11.21.0
+          # `npm view npm@<release> dist.integrity`: move both on together.
+          NPM_INTEGRITY: sha512-Zov8KhamNneiLdELtj5YALtNmJW4L4fCLTzjfpzXG2w6MSHcf0UxgdlK5uloCuksWT+7mGUU7wi79cO6RqivPg==
+        run: |
+          tarball=$(npm pack "npm@$NPM_RELEASE" --pack-destination "$RUNNER_TEMP" --json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8"))[0].filename')
+          digest="sha512-$(openssl dgst -sha512 -binary "$RUNNER_TEMP/$tarball" | base64 -w0)"
+          if [ "$digest" != "$NPM_INTEGRITY" ]; then
+            echo "::error::npm $NPM_RELEASE from the registry isn't the release this workflow was written for."
+            exit 1
+          fi
+          npm install --global "$RUNNER_TEMP/$tarball"
       - run: pnpm install --frozen-lockfile
       - id: publish
         env:
