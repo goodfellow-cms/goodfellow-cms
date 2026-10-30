@@ -18,6 +18,7 @@ import type { Data } from "@puckeditor/core";
 import {
   collectionFileChange,
   entryFileChange,
+  mediaFileChange,
   menusFileChange,
   pageFileChange,
   redirectsFileChange,
@@ -26,6 +27,7 @@ import {
   uniqueName,
 } from "../content/changes.js";
 import { type Collection, choiceSlug } from "../content/collections.js";
+import { MAX_DESCRIPTION_LENGTH, type MediaDescription } from "../content/credits.js";
 import { SUMMARY_LENGTH } from "../content/entry-details.js";
 import { allPages, type SiteContent } from "../content/load.js";
 import { isSafeUrl } from "../content/markdown.js";
@@ -862,6 +864,23 @@ export function planWordPressImport(
         ],
         message: content.redirectMessage,
       }),
+    );
+  }
+
+  /* Images' descriptions, from their alt text in WordPress's media library, for blocks that leave theirs empty. */
+  const attachmentByUrl = new Map(source.media.map((file) => [file.url, file]));
+  const described: Record<string, MediaDescription> = {};
+  for (const copy of copies.values()) {
+    const alt = collapsed(attachmentByUrl.get(copy.url)?.alt ?? "")
+      .slice(0, MAX_DESCRIPTION_LENGTH)
+      .trim();
+    if (alt && mediaKind(copy.path) === "image" && !notCopied.has(copy.url)) {
+      described[`/media/${copy.path.slice(MEDIA_DIR.length + 1)}`] = { text: alt };
+    }
+  }
+  if (Object.keys(described).length > 0) {
+    changes.push(
+      mediaFileChange({ credits: content.credits, descriptions: { ...content.descriptions, ...described } }),
     );
   }
 

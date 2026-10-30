@@ -105,6 +105,11 @@ const FILES: Record<string, string> = {
   }),
   "content/collections/staff/aidan.json": json({ version: 1, fields: { title: "Fr. Aidan" } }),
   "content/redirects.json": json({ version: 1, redirects: [{ from: "/old", to: "/about" }] }),
+  "content/media.json": json({
+    version: 1,
+    credits: {},
+    descriptions: { "/media/church.jpg": { text: "The church" } },
+  }),
 };
 
 function source(files: Record<string, string>): ContentSource {
@@ -226,5 +231,11 @@ describe("WordPress export files", () => {
     expect(plan.media.map((file) => file.path)).toEqual(["public/media/church.jpg", "public/media/picnic.jpg"]);
     const home = plan.changes.find((change) => change.path === "content/pages/index.json");
     expect(home && "content" in home ? home.content : "").toContain('"text": "Visit"');
+    // Images' descriptions go as WordPress's alt text, and come back.
+    expect(result.xml).toContain("<wp:meta_key><![CDATA[_wp_attachment_image_alt]]></wp:meta_key>");
+    const media = plan.changes.find((change) => change.path === "content/media.json");
+    expect(JSON.parse(media && "content" in media ? String(media.content) : "{}").descriptions).toEqual({
+      "/media/church.jpg": { text: "The church" },
+    });
   });
 });
