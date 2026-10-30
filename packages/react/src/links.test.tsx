@@ -95,6 +95,26 @@ describe("SiteImage", () => {
   });
 });
 
+describe("SiteImage with the media library's descriptions", () => {
+  const descriptions = { "/media/choir.jpg": "The choir singing" };
+
+  it("describes an image whose block leaves its description empty", () => {
+    expect(render({ descriptions }, <SiteImage src="/media/choir.jpg" alt="" />)).toContain(
+      '<img src="/media/choir.jpg" alt="The choir singing"/>',
+    );
+    expect(render({ descriptions }, <SiteImage src="/media/choir.jpg" alt="Our choir" />)).toContain('alt="Our choir"');
+  });
+
+  it("leaves images only there to look nice undescribed", () => {
+    expect(render({ descriptions }, <SiteImage src="/media/choir.jpg" alt="" aria-hidden="true" />)).toContain(
+      'alt=""',
+    );
+    expect(render({ descriptions }, <SiteImage src="/media/choir.jpg" alt="" role="presentation" />)).toContain(
+      'alt=""',
+    );
+  });
+});
+
 describe("SiteImage with smaller copies of photos", () => {
   const media = { "/media/photo.jpg": { width: 1000, height: 500 }, "/media/logo.svg": { width: 2000, height: 100 } };
 

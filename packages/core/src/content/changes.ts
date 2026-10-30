@@ -8,7 +8,7 @@ import { CURRENT_VERSION } from "../migrations/index.js";
 import { updateSettingsFile } from "../updates.js";
 import { storedCode } from "./code.js";
 import { type Collection, type Entry, isEmptyValue } from "./collections.js";
-import type { PhotoCredit } from "./credits.js";
+import type { MediaDetails } from "./credits.js";
 import { entryPathIn } from "./languages.js";
 import { relinkSite } from "./links.js";
 import type { Page, SiteCode, SiteContent } from "./load.js";
@@ -162,20 +162,26 @@ export function redirectsFileChange({ redirects, message }: SiteRedirects): File
     : { path: REDIRECTS_FILE, delete: true };
 }
 
-/** `content/media.json` with these credits, or its removal once no file has one. */
-export function mediaFileChange(credits: Record<string, PhotoCredit>): FileChange {
-  return Object.keys(credits).length > 0
-    ? { path: MEDIA_FILE, content: serializeContent({ version: CURRENT_VERSION.media, credits }) }
+/** `content/media.json` with these credits and descriptions, or its removal once no file has either. */
+export function mediaFileChange(details: MediaDetails): FileChange {
+  const credits = details.credits ?? {};
+  const descriptions = details.descriptions ?? {};
+  const described = Object.keys(descriptions).length > 0;
+  return Object.keys(credits).length > 0 || described
+    ? {
+        path: MEDIA_FILE,
+        content: serializeContent({ version: CURRENT_VERSION.media, credits, ...(described && { descriptions }) }),
+      }
     : { path: MEDIA_FILE, delete: true };
 }
 
-/** The change that drops the credits of files being deleted or replaced, if any of them has one. */
-export function withoutCredits(
-  credits: Record<string, PhotoCredit> | undefined,
-  urls: readonly string[],
-): FileChange | undefined {
-  if (!credits || !urls.some((url) => url in credits)) return undefined;
-  return mediaFileChange(Object.fromEntries(Object.entries(credits).filter(([url]) => !urls.includes(url))));
+/** The change that drops the credits and descriptions of files being deleted or replaced, if any of them has one. */
+export function withoutMediaDetails(details: MediaDetails, urls: readonly string[]): FileChange | undefined {
+  const has = (record: Record<string, unknown> | undefined) => record && urls.some((url) => url in record);
+  if (!has(details.credits) && !has(details.descriptions)) return undefined;
+  const without = <T>(record: Record<string, T> | undefined) =>
+    record && Object.fromEntries(Object.entries(record).filter(([url]) => !urls.includes(url)));
+  return mediaFileChange({ credits: without(details.credits), descriptions: without(details.descriptions) });
 }
 
 /**

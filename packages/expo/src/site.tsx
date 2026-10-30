@@ -78,6 +78,8 @@ export interface NativeSite {
   open(href: string): void;
   /** Where the app shows one of the site's media files from: its own copy, or the site. */
   media(address: string): string;
+  /** The media library's description of an image, in the language shown, for images whose blocks leave theirs empty. */
+  describe(address: string): string | undefined;
   /** An address on the site in full, such as for sharing. */
   address(href: string): string;
   /** Scrolls to a heading on the page by its id, as the web's `#` links do. */
@@ -366,6 +368,7 @@ export function useNativeSiteValue(
       if (/^(https?:|mailto:|tel:|webcal:)/i.test(url)) Linking.openURL(url);
     },
     media: (address) => media.get(address.split(/[?#]/)[0] ?? address) ?? siteAddress(root.site, manifest, address),
+    describe: (address) => files.site.descriptions?.[address],
     address: (href) => siteAddress(root.site, manifest, href),
     scrollTo: (id) => void scrollToAnchor(scroll, id),
     anchor: (id, measure) => {

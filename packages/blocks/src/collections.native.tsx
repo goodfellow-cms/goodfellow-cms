@@ -139,6 +139,7 @@ export function CollectionList({
         key="picture"
         src={image}
         alt=""
+        decorative
         aspect="wide"
         rounded={!cards}
         style={cards ? undefined : { width: 128 }}

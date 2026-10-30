@@ -29,7 +29,7 @@ import {
   storedCss,
   storedData,
   uniqueName,
-  withoutCredits,
+  withoutMediaDetails,
 } from "./changes.js";
 
 const page = (path: string, title?: string): Page => ({
@@ -468,26 +468,40 @@ describe("collections", () => {
   });
 });
 
-describe("media credits", () => {
+describe("media credits and descriptions", () => {
   const credit = { title: "Choir", creator: "Ann", source: "Flickr", license: "CC BY 2.0" };
+  const description = { text: "The choir singing", translations: { es: "El coro cantando" } };
 
-  it("writes content/media.json, and removes it once no file has a credit", () => {
-    const change = mediaFileChange({ "/media/choir.jpg": credit });
+  it("writes content/media.json, and removes it once no file has a credit or description", () => {
+    const change = mediaFileChange({ credits: { "/media/choir.jpg": credit } });
     expect(change.path).toBe("content/media.json");
     const text = "content" in change ? String(change.content) : "";
     expect(JSON.parse(text)).toEqual({ version: 1, credits: { "/media/choir.jpg": credit } });
     expect(text.endsWith("}\n")).toBe(true);
     expect(mediaFileChange({})).toEqual({ path: "content/media.json", delete: true });
+    const described = mediaFileChange({ descriptions: { "/media/choir.jpg": description } });
+    expect(JSON.parse("content" in described ? String(described.content) : "")).toEqual({
+      version: 1,
+      credits: {},
+      descriptions: { "/media/choir.jpg": description },
+    });
   });
 
-  it("drops the credits of files being deleted or replaced", () => {
+  it("drops the credits and descriptions of files being deleted or replaced", () => {
     const credits = { "/media/choir.jpg": credit, "/media/leaves.jpg": credit };
-    expect(withoutCredits(credits, ["/media/other.jpg"])).toBeUndefined();
-    expect(withoutCredits(undefined, ["/media/choir.jpg"])).toBeUndefined();
-    expect(JSON.stringify(withoutCredits(credits, ["/media/choir.jpg"]))).not.toContain("choir.jpg");
-    expect(withoutCredits({ "/media/choir.jpg": credit }, ["/media/choir.jpg"])).toEqual({
+    expect(withoutMediaDetails({ credits }, ["/media/other.jpg"])).toBeUndefined();
+    expect(withoutMediaDetails({}, ["/media/choir.jpg"])).toBeUndefined();
+    expect(JSON.stringify(withoutMediaDetails({ credits }, ["/media/choir.jpg"]))).not.toContain("choir.jpg");
+    expect(withoutMediaDetails({ credits: { "/media/choir.jpg": credit } }, ["/media/choir.jpg"])).toEqual({
       path: "content/media.json",
       delete: true,
+    });
+    const descriptions = { "/media/choir.jpg": description, "/media/leaves.jpg": description };
+    const left = withoutMediaDetails({ credits, descriptions }, ["/media/choir.jpg", "/media/leaves.jpg"]);
+    expect(left).toEqual({ path: "content/media.json", delete: true });
+    const kept = withoutMediaDetails({ descriptions }, ["/media/choir.jpg"]);
+    expect(JSON.parse(kept && "content" in kept ? String(kept.content) : "{}").descriptions).toEqual({
+      "/media/leaves.jpg": description,
     });
   });
 });

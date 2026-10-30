@@ -1,17 +1,19 @@
 import {
   type FileChange,
   isStorableAddress,
+  MAX_DESCRIPTION_LENGTH,
   MEDIA_DIR,
   mediaStorageFileChange,
   type PhotoCredit,
   type PluginTasks,
   type StoredFile,
+  siteLanguages,
   storedMediaUrl,
   withStoredFiles,
 } from "@goodfellow-cms/core";
 import { createContext, type ReactNode, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
-import { withoutCredits } from "./changes.js";
+import { mediaFileChange, withoutMediaDetails } from "./changes.js";
 import { useMayChange } from "./limits.js";
 import {
   allMedia,
@@ -238,7 +240,7 @@ export function useUploadMedia() {
     const changes: FileChange[] = [mediaStorageFileChange(withStoredFiles(storage, added))];
     // A file in the site's own files that's replaced is kept by the plugin from now on.
     if (replace && media.includes(replace)) changes.push({ path: replace, delete: true });
-    const credits = replace ? withoutCredits(content.credits, [mediaUrl(replace)]) : undefined;
+    const credits = replace ? withoutMediaDetails(content, [mediaUrl(replace)]) : undefined;
     if (credits) changes.push(credits);
     const names = urls.map(fileName).join(", ");
     return published(
@@ -277,7 +279,7 @@ export function useUploadMedia() {
     for (const upload of uploads) mediaPreviews.remember(upload.url, upload.bytes);
     const names = changes.map((change) => fileName(change.path)).join(", ");
     // A replaced photo's credit was for the photo it replaces.
-    const credits = replace ? withoutCredits(content.credits, [mediaUrl(replace)]) : undefined;
+    const credits = replace ? withoutMediaDetails(content, [mediaUrl(replace)]) : undefined;
     // A stored file replaced without its plugin comes back into the site's own files.
     const unstored =
       replace && storage && isStoredMedia(content, mediaUrl(replace))
@@ -291,14 +293,15 @@ export function useUploadMedia() {
   };
 }
 
-function DeleteMediaDialog({ url, onClose }: { url: string; onClose: () => void }) {
+function DeleteMediaDialog({ urls, onClose }: { urls: string[]; onClose: (deleted?: boolean) => void }) {
   const t = useStrings();
   const { publish } = useAdmin();
   const { content } = useSiteContent();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
-  const name = fileName(url);
-  const used = mediaUsage(content, url, {
+  const [first] = urls;
+  const name = first ? fileName(first) : "";
+  const places = {
     header: t("layout.header"),
     footer: t("layout.footer"),
     settings: t("nav.settings"),
@@ -306,40 +309,147 @@ function DeleteMediaDialog({ url, onClose }: { url: string; onClose: () => void 
     menus: t("settings.tab.menus"),
     code: t("settings.tab.code"),
     redirects: t("settings.tab.redirects"),
-  });
+  };
+  const used = urls
+    .map((url) => ({ url, places: mediaUsage(content, url, places) }))
+    .filter((use) => use.places.length > 0);
 
   const { storage, client } = useMediaStorage();
 
   const onDelete = async () => {
-    const path = mediaPath(url);
-    if (!path) return;
+    const stored = storage ? urls.filter((url) => isStoredMedia(content, url)) : [];
+    const paths = urls.filter((url) => !stored.includes(url)).flatMap((url) => mediaPath(url) ?? []);
     setBusy(true);
-    const credits = withoutCredits(content.credits, [url]);
-    const stored = storage && isStoredMedia(content, url);
+    const details = withoutMediaDetails(content, urls);
     const result = await publish(
       [
-        stored ? mediaStorageFileChange(withStoredFiles(storage, {}, [url])) : { path, delete: true },
-        ...(credits ? [credits] : []),
+        ...paths.map((path) => ({ path, delete: true as const })),
+        ...(storage && stored.length > 0 ? [mediaStorageFileChange(withStoredFiles(storage, {}, stored))] : []),
+        ...(details ? [details] : []),
       ],
-      t("media.deleteMessage", { name }),
+      urls.length === 1
+        ? t("media.deleteMessage", { name })
+        : t("media.deleteManyMessage", { count: String(urls.length) }),
     );
     setBusy(false);
     if (!result.ok) return setFailure(result);
-    // Once the site no longer lists it, the plugin removes the file in the background; one left behind does no harm.
-    if (stored) void client?.remove([url]).catch(() => {});
+    // Once the site no longer lists them, the plugin removes the files in the background; one left behind does no harm.
+    if (stored.length > 0) void client?.remove(stored).catch(() => {});
+    onClose(true);
+  };
+
+  return (
+    <Dialog
+      title={
+        urls.length === 1
+          ? t("media.deleteTitle", { name })
+          : t("media.deleteManyTitle", { count: String(urls.length) })
+      }
+      onClose={() => onClose()}
+    >
+      <p>
+        {urls.length === 1
+          ? t("media.deleteBody", { name })
+          : t("media.deleteManyBody", { count: String(urls.length) })}
+      </p>
+      {urls.length === 1 ? (
+        <p>{used[0] ? t("media.deleteUsed", { places: used[0].places.join(", ") }) : t("media.notUsed")}</p>
+      ) : used.length > 0 ? (
+        <>
+          <p>{t("media.deleteManyUsed")}</p>
+          <ul>
+            {used.map((use) => (
+              <li key={use.url}>{t("media.usedIn", { name: fileName(use.url), places: use.places.join(", ") })}</li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p>{t("media.noneUsed")}</p>
+      )}
+      <PublishFailure failure={failure} />
+      <div className="gfa-dialog-actions">
+        <Button onClick={() => onClose()}>{t("action.cancel")}</Button>
+        <Button variant="danger" disabled={busy} onClick={() => void onDelete()}>
+          {busy ? t("publish.publishing") : t("media.delete")}
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
+/** What an image shows, in words for people who can't see it, in each of the site's languages. */
+function DescribeMediaDialog({ url, onClose }: { url: string; onClose: () => void }) {
+  const t = useStrings();
+  const { publish } = useAdmin();
+  const { content } = useSiteContent();
+  const languages = siteLanguages(content.settings);
+  const several = languages.length > 1;
+  const before = content.descriptions?.[url];
+  const [texts, setTexts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      languages.map((language) => [
+        language.code,
+        (language.main ? before?.text : before?.translations?.[language.code]) ?? "",
+      ]),
+    ),
+  );
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<Failure>(null);
+  const name = fileName(url);
+  const id = useId();
+
+  const onPublish = async () => {
+    const [main, ...others] = languages;
+    const text = main ? (texts[main.code] ?? "").trim() : "";
+    const translations = Object.fromEntries(
+      others.flatMap((language) => {
+        const translated = (texts[language.code] ?? "").trim();
+        return translated ? [[language.code, translated]] : [];
+      }),
+    );
+    const { [url]: _left, ...rest } = content.descriptions ?? {};
+    // Without words in the main language there's nothing to fall back on, so the description goes.
+    const descriptions = text
+      ? { ...rest, [url]: { text, ...(Object.keys(translations).length > 0 && { translations }) } }
+      : rest;
+    setBusy(true);
+    const result = await publish(
+      [mediaFileChange({ credits: content.credits, descriptions })],
+      t("media.describeMessage", { name }),
+    );
+    setBusy(false);
+    if (!result.ok) return setFailure(result);
     onClose();
   };
 
   return (
-    <Dialog title={t("media.deleteTitle", { name })} onClose={onClose}>
-      <p>{t("media.deleteBody", { name })}</p>
-      <p>{used.length > 0 ? t("media.deleteUsed", { places: used.join(", ") }) : t("media.notUsed")}</p>
-      <PublishFailure failure={failure} />
-      <div className="gfa-dialog-actions">
-        <Button onClick={onClose}>{t("action.cancel")}</Button>
-        <Button variant="danger" disabled={busy} onClick={() => void onDelete()}>
-          {busy ? t("publish.publishing") : t("media.delete")}
-        </Button>
+    <Dialog title={t("media.describeTitle", { name })} onClose={onClose}>
+      <div className="gfa-form">
+        <MediaThumb url={url} className="gfa-media-describe-thumb" />
+        <p className="gfa-hint">{t("media.describeHint")}</p>
+        {languages.map((language) => (
+          <div key={language.code} className="gfa-field">
+            <label htmlFor={`${id}-${language.code}`} className="gfa-label">
+              {several ? t("media.descriptionIn", { language: language.name }) : t("media.description")}
+            </label>
+            <textarea
+              id={`${id}-${language.code}`}
+              className="gfa-input"
+              rows={3}
+              maxLength={MAX_DESCRIPTION_LENGTH}
+              value={texts[language.code] ?? ""}
+              onChange={(event) => setTexts({ ...texts, [language.code]: event.target.value })}
+            />
+          </div>
+        ))}
+        {several && <p className="gfa-hint">{t("media.describeLanguages")}</p>}
+        <PublishFailure failure={failure} />
+        <div className="gfa-dialog-actions">
+          <Button onClick={onClose}>{t("action.cancel")}</Button>
+          <Button variant="primary" disabled={busy} onClick={() => void onPublish()}>
+            {busy ? t("publish.publishing") : t("publish.button")}
+          </Button>
+        </div>
       </div>
     </Dialog>
   );
@@ -659,7 +769,10 @@ export function MediaScreen() {
   const media = useMemo(() => allMedia(content, own), [content, own]);
   const { status, run } = useUploads();
   const [query, setQuery] = useState("");
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string[] | null>(null);
+  const [describing, setDescribing] = useState<string | null>(null);
+  // Files chosen to delete together, while choosing.
+  const [selected, setSelected] = useState<Set<string> | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   // What moving media to its storage, or back, did: shown here, since moving back can end the storage section.
   const [moved, setMoved] = useState<string>();
@@ -682,25 +795,40 @@ export function MediaScreen() {
   const outside = useOutsideHost();
   const cloudflareVideos =
     outside === "cloudflare-pages" && media.some((path) => mediaKind(mediaUrl(path)) === "video");
-  const urls = useMemo(
-    () =>
-      media
-        .map(mediaUrl)
-        .filter((url) => fileName(url).toLowerCase().includes(query.trim().toLowerCase()))
-        .sort((a, b) => fileName(a).localeCompare(fileName(b))),
-    [media, query],
-  );
+  // Found by name, or by what an image's description says.
+  const urls = useMemo(() => {
+    const words = query.trim().toLowerCase();
+    const described = (url: string) => content.descriptions?.[url]?.text.toLowerCase().includes(words) ?? false;
+    return media
+      .map(mediaUrl)
+      .filter((url) => fileName(url).toLowerCase().includes(words) || described(url))
+      .sort((a, b) => fileName(a).localeCompare(fileName(b)));
+  }, [media, query, content.descriptions]);
+  const toggle = (url: string) => {
+    if (!selected) return;
+    const next = new Set(selected);
+    if (next.has(url)) next.delete(url);
+    else next.add(url);
+    setSelected(next);
+  };
 
   return (
     <div className="gfa-screen gfa-screen-wide">
       <div className="gfa-screen-header">
         <h1>{t("media.title")}</h1>
         {mayChange && (
-          <UploadButton
-            label={t("media.upload")}
-            disabled={status.type === "uploading"}
-            onFiles={(files) => void run(files)}
-          />
+          <div className="gfa-header-actions">
+            {media.length > 0 && !selected && (
+              <Button variant="secondary" onClick={() => setSelected(new Set())}>
+                {t("media.select")}
+              </Button>
+            )}
+            <UploadButton
+              label={t("media.upload")}
+              disabled={status.type === "uploading"}
+              onFiles={(files) => void run(files)}
+            />
+          </div>
         )}
       </div>
       <p className="gfa-hint">{t("media.intro")}</p>
@@ -740,6 +868,21 @@ export function MediaScreen() {
         </div>
       )}
 
+      {selected && (
+        <section className="gfa-media-selection" aria-label={t("media.selection")}>
+          <span>{t("media.selected", { count: String(selected.size) })}</span>
+          <Button variant="ghost" onClick={() => setSelected(new Set([...selected, ...urls]))}>
+            {t("media.selectShown")}
+          </Button>
+          <Button variant="danger" disabled={selected.size === 0} onClick={() => setDeleting([...selected])}>
+            {t("media.deleteSelected", { count: String(selected.size) })}
+          </Button>
+          <Button variant="secondary" onClick={() => setSelected(null)}>
+            {t("media.selectDone")}
+          </Button>
+        </section>
+      )}
+
       <DropZone onFiles={(files) => void (mayChange && run(files))}>
         {media.length === 0 ? (
           <p>{t("media.empty")}</p>
@@ -748,16 +891,31 @@ export function MediaScreen() {
         ) : (
           <ul className="gfa-media-grid">
             {urls.map((url) => (
-              <li key={url} className="gfa-media-card">
+              <li key={url} className={`gfa-media-card${selected?.has(url) ? " gfa-media-card-selected" : ""}`}>
+                {selected && (
+                  <input
+                    type="checkbox"
+                    className="gfa-media-check"
+                    aria-label={t("media.selectFile", { name: fileName(url) })}
+                    checked={selected.has(url)}
+                    onChange={() => toggle(url)}
+                  />
+                )}
                 <MediaThumb url={url} />
                 <span className="gfa-media-name" title={url}>
                   {fileName(url)}
                 </span>
+                {mediaKind(url) === "image" &&
+                  (content.descriptions?.[url] ? (
+                    <span className="gfa-media-description">{content.descriptions[url].text}</span>
+                  ) : (
+                    <span className="gfa-hint gfa-media-description">{t("media.noDescription")}</span>
+                  ))}
                 {content.credits?.[url] && <MediaCredit credit={content.credits[url]} />}
                 {isStoredMedia(content, url) && (
                   <span className="gfa-badge">{t("media.stored", { plugin: content.mediaStorage?.plugin ?? "" })}</span>
                 )}
-                <div className="gfa-media-actions">
+                <div className="gfa-media-actions" hidden={Boolean(selected)}>
                   <Button
                     variant="ghost"
                     onClick={() =>
@@ -779,7 +937,12 @@ export function MediaScreen() {
                         disabled={status.type === "uploading"}
                         onFiles={(files) => void run(files.slice(0, 1), mediaPath(url))}
                       />
-                      <Button variant="ghost" onClick={() => setDeleting(url)}>
+                      {mediaKind(url) === "image" && (
+                        <Button variant="ghost" onClick={() => setDescribing(url)}>
+                          {content.descriptions?.[url] ? t("media.editDescription") : t("media.describe")}
+                        </Button>
+                      )}
+                      <Button variant="ghost" onClick={() => setDeleting([url])}>
                         {t("media.delete")}
                       </Button>
                     </>
@@ -791,7 +954,16 @@ export function MediaScreen() {
         )}
       </DropZone>
 
-      {deleting && <DeleteMediaDialog url={deleting} onClose={() => setDeleting(null)} />}
+      {deleting && (
+        <DeleteMediaDialog
+          urls={deleting}
+          onClose={(deleted) => {
+            setDeleting(null);
+            if (deleted) setSelected(null);
+          }}
+        />
+      )}
+      {describing && <DescribeMediaDialog url={describing} onClose={() => setDescribing(null)} />}
     </div>
   );
 }
@@ -874,6 +1046,9 @@ export function MediaPickerDialog({
                 >
                   <MediaThumb url={url} />
                   <span className="gfa-media-name">{fileName(url)}</span>
+                  {content.descriptions?.[url] && (
+                    <span className="gfa-media-description">{content.descriptions[url].text}</span>
+                  )}
                 </button>
               </li>
             ))}

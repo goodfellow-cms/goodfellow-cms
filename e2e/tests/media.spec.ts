@@ -2,7 +2,16 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { site } from "../scripts/site.mjs";
-import { canvas, editor, expect, openPageEditor, publishInEditor, readSiteFile, test } from "./helpers.js";
+import {
+  canvas,
+  editor,
+  expect,
+  openPageEditor,
+  publishInEditor,
+  readSiteFile,
+  test,
+  writeSiteFile,
+} from "./helpers.js";
 
 /** Draws an image in the browser, so tests have real photos to upload. */
 async function makeImage(page: Page, width: number, height: number, type = "image/jpeg"): Promise<Buffer> {
@@ -162,4 +171,56 @@ test("won't replace a file with another kind of file, which would be saved under
   });
   await expect(page.getByRole("alert").first()).toContainText("notes.txt is a different kind of file from logo.svg");
   expect(readSiteFile("public/media/logo.svg")).toBe(before);
+});
+
+test("describes an image once, for every block that leaves its description empty", async ({ page }) => {
+  writeSiteFile(
+    "content/pages/about.json",
+    readSiteFile("content/pages/about.json").replace(
+      '"alt": "A placeholder picture, to replace with a photo of your own"',
+      '"alt": ""',
+    ),
+  );
+  await page.goto("/admin#/media");
+  const card = page.locator(".gfa-media-card", { hasText: "placeholder.svg" });
+  await expect(card).toContainText("No description yet");
+  await card.getByRole("button", { name: "Describe" }).click();
+  const dialog = page.getByRole("dialog", { name: "Describe placeholder.svg" });
+  await dialog.getByLabel("Description").fill("A hillside in the sun");
+  await dialog.getByRole("button", { name: "Publish" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(card).toContainText("A hillside in the sun");
+  expect(JSON.parse(readSiteFile("content/media.json")).descriptions).toEqual({
+    "/media/placeholder.svg": { text: "A hillside in the sun" },
+  });
+
+  // Found by what it shows, too.
+  await page.getByLabel("Find a file").fill("hillside");
+  await expect(page.locator(".gfa-media-name")).toHaveText(["placeholder.svg"]);
+
+  await page.goto("/about");
+  await expect(page.locator('main img[src="/media/placeholder.svg"]')).toHaveAttribute("alt", "A hillside in the sun");
+});
+
+test("deletes several files at once", async ({ page }) => {
+  await page.goto("/admin#/media");
+  const pdf = Buffer.from("%PDF-1.4\n%%EOF\n");
+  await uploadInput(page).setInputFiles([
+    { name: "bulletin.pdf", mimeType: "application/pdf", buffer: pdf },
+    { name: "rota.pdf", mimeType: "application/pdf", buffer: pdf },
+  ]);
+  await expect(page.getByText("Uploaded.", { exact: false })).toBeVisible();
+
+  await page.getByRole("button", { name: "Select files" }).click();
+  await page.getByLabel("Select bulletin.pdf").check();
+  await page.getByLabel("Select rota.pdf").check();
+  await page.getByRole("button", { name: "Delete selected (2)" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete 2 files?" });
+  await expect(dialog).toContainText("Nothing on the site uses them.");
+  await dialog.getByRole("button", { name: "Delete" }).click();
+  await expect(page.locator(".gfa-media-name", { hasText: /bulletin|rota/ })).toHaveCount(0);
+  expect(existsSync(join(site, "public/media/bulletin.pdf"))).toBe(false);
+  expect(existsSync(join(site, "public/media/rota.pdf"))).toBe(false);
+  // Choosing ends with the delete.
+  await expect(page.getByRole("button", { name: "Select files" })).toBeVisible();
 });

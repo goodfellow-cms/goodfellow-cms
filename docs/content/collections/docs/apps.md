@@ -99,7 +99,7 @@ function Notice({ id, title }: { id: string; title: string }) {
 const blocks = { ...nativeBlocks, Notice };
 ```
 
-`@goodfellow-cms/expo` has what blocks are made of: `SiteText`, `NativeLink`, `NativeImage` (from the app's copy), `RichText`, `Blocks` (a slot's blocks), `Columns`, `Disclosure`, `SiteButton`, `MediaPlayer` and `WebFrame`, and `useNativeSite()` for the site's settings, menus, collections, the page's item and the theme.
+`@goodfellow-cms/expo` has what blocks are made of: `SiteText`, `NativeLink`, `NativeImage` (from the app's copy, described from the media library where its `alt` is empty, unless it's `decorative`), `RichText`, `Blocks` (a slot's blocks), `Columns`, `Disclosure`, `SiteButton`, `MediaPlayer` and `WebFrame`, and `useNativeSite()` for the site's settings, menus, collections, the page's item and the theme.
 
 Each block is drawn in a box with its Style (space, background, corners), and `SiteText` in it takes the Style's text alignment, size and color. A block whose Style belongs on one part of it, as a button's colors belong on the button, marks itself with `stylesItself()` and applies `useBlockStyle()`'s `view` and `text` there; `classStyle()` turns any classes into styles. The built-in blocks' own logic, such as which items a list shows, is shared with the website's and imports none of its code: see `packages/blocks/src/*-data.ts`.
 

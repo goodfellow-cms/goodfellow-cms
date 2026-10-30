@@ -318,7 +318,7 @@ export {
   storedEntryFields,
   uniqueName,
   updateSettingsFileChange,
-  withoutCredits,
+  withoutMediaDetails,
 } from "./content/changes.js";
 export {
   checkSite,
@@ -359,11 +359,17 @@ export {
   sortEntries,
 } from "./content/collections.js";
 export {
+  describedIn,
+  MAX_DESCRIPTION_LENGTH,
+  type MediaDescription,
+  type MediaDetails,
   type MediaFile,
+  mediaDescriptionSchema,
   mediaFileSchema,
   type PageCredit,
   type PhotoCredit,
   pageCredits,
+  pageDescriptions,
   photoCreditSchema,
 } from "./content/credits.js";
 export {

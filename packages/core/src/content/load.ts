@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import { type ContentKind, migrateContent } from "../migrations/index.js";
 import { type Collection, type Entry, entryFieldProblems, sortCollectionEntries } from "./collections.js";
-import { mediaFileSchema, type PhotoCredit } from "./credits.js";
+import { type MediaDescription, mediaFileSchema, type PhotoCredit } from "./credits.js";
 import { ContentError, type ContentProblem } from "./errors.js";
 import { entryLanguage, entryPathIn, isOtherLanguage, siteLanguages } from "./languages.js";
 import { parseMarkdownEntry } from "./markdown.js";
@@ -111,6 +111,8 @@ export interface SiteContent {
   redirectMessage?: string;
   /** Media files' credits, by address (`content/media.json`), such as photos from Openverse. Missing means none. */
   credits?: Record<string, PhotoCredit>;
+  /** Images' descriptions, by address (`content/media.json`), which images use where a block leaves theirs empty. Missing means none. */
+  descriptions?: Record<string, MediaDescription>;
   /** The media a plugin keeps outside the repository (`content/media-storage.json`). Missing means none. */
   mediaStorage?: MediaStorage;
   /** What each editor may change, and who reviews the rest (`content/permissions.json`). Missing means no limits. */
@@ -337,6 +339,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     redirects: redirectsFile.redirects,
     ...(redirectsFile.message !== undefined && { redirectMessage: redirectsFile.message }),
     credits: mediaFile.credits,
+    ...(mediaFile.descriptions && { descriptions: mediaFile.descriptions }),
     ...(storageFile && {
       mediaStorage: { plugin: storageFile.plugin, url: storageFile.url, files: storageFile.files },
     }),
