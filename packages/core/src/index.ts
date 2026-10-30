@@ -387,6 +387,17 @@ export {
 } from "./content/feeds.js";
 export { languageLinksAt } from "./content/language-map.js";
 export {
+  type AdminTextString,
+  type AdminTextTableName,
+  fromLanguagePack,
+  type LanguagePack,
+  type LanguagePackManifest,
+  type LanguagePackOptions,
+  type LanguagePackPlan,
+  languagePackManifestSchema,
+  planLanguagePack,
+} from "./content/language-packs.js";
+export {
   contentForPage,
   contentInLanguage,
   entryLanguage,
@@ -880,6 +891,16 @@ export {
   keptDrafts,
   memoryKeeper,
 } from "./kept-drafts.js";
+export {
+  chooseLanguagePackRelease,
+  fetchLanguagePack,
+  isLanguagePackName,
+  LANGUAGE_PACK_KEYWORD,
+  LANGUAGE_PACK_MANIFEST,
+  languagePackReleases,
+  MAX_LANGUAGE_PACKS,
+  searchLanguagePacks,
+} from "./language-packs.js";
 export {
   EARLY_CHECK,
   EARLY_COMMAND,

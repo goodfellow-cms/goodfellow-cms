@@ -2048,4 +2048,52 @@ export const strings: Strings = {
   "adminText.noService": "Primero elige un servicio de IA y su clave, en Servicio de IA.",
   "adminText.manual":
     "Para traducir hace falta un servicio de IA al que el panel pueda preguntar por sí mismo; una app de chat no sirve. Elige otro servicio en Servicio de IA.",
+  "adminText.pack.title": "Paquetes de idioma",
+  "adminText.pack.intro":
+    "Los paquetes de idioma son traducciones del panel de administración que otras personas han compartido. Solo tienen palabras, así que instalar uno no ejecuta nada, y cada texto se comprueba al usarlo, como los tuyos.",
+  "adminText.pack.installedAs": "{name}, versión {version}, para {code}",
+  "adminText.pack.search": "Buscar paquetes de idioma",
+  "adminText.pack.searchButton": "Buscar",
+  "adminText.pack.loading": "Buscando paquetes de idioma…",
+  "adminText.pack.noneFound": "No se encontró ningún paquete de idioma.",
+  "adminText.pack.show": "Ver",
+  "adminText.pack.showLabel": "Ver {name}",
+  "adminText.pack.byPublisher": "{name}, publicado por {publisher}",
+  "adminText.pack.installedBadge": "Instalado",
+  "adminText.pack.from": "De {name}, versión {version}",
+  "adminText.pack.language": "El panel de administración en {language} ({code})",
+  "adminText.pack.releaseDetails": "{name}, versión {version}, publicada el {date}",
+  "adminText.pack.provenance": "Hecho a partir de {source}, que npm comprobó al publicarlo.",
+  "adminText.pack.noProvenance": "npm no dice dónde se hizo esta versión.",
+  "adminText.pack.waiting": "La versión {version} se ofrecerá cuando tenga {days} días.",
+  "adminText.pack.incompatible": "La versión {version} no dice que funcione con Goodfellow {goodfellow}.",
+  "adminText.pack.tooNew": "Este paquete de idioma tiene menos de {days} días, así que aún no se ofrece.",
+  "adminText.pack.notCompatible":
+    "Ninguna versión de este paquete de idioma dice que funcione con Goodfellow {version}.",
+  "adminText.pack.coverage": "Con él, {current} de los {total} textos del panel de administración están en {language}.",
+  "adminText.pack.builtIn": "Goodfellow ya habla {language}: las palabras del paquete van sobre las de Goodfellow.",
+  "adminText.pack.other":
+    "{language} viene ahora de {name}. Las palabras del paquete sustituyen a las de ese, salvo las que cambiaste.",
+  "adminText.pack.kept":
+    "Tienes palabras propias para {count} textos que el paquete dice de otra forma; se quedan como las pusiste.",
+  "adminText.pack.replaceOwn": "Usar también las palabras del paquete para esos",
+  "adminText.pack.replaced": "Las palabras del paquete sustituyen a las tuyas en {count} textos.",
+  "adminText.pack.removed": "Se quitan {count} textos que tenía la versión anterior y esta no.",
+  "adminText.pack.upToDate": "Está instalada la versión {version}, la más reciente que se ofrece.",
+  "adminText.pack.install": "Instalar y publicar",
+  "adminText.pack.update": "Actualizar a {version}",
+  "adminText.pack.installMessage": "Instalar {name} {version}, el panel de administración en {language}",
+  "adminText.pack.updateMessage": "Actualizar {name} a {version}, el panel de administración en {language}",
+  "adminText.pack.installed": "El panel de administración en {language} está instalado desde {name}.",
+  "adminText.pack.remove": "Quitar el paquete",
+  "adminText.pack.removeTitle": "¿Quitar {name}?",
+  "adminText.pack.removeBody":
+    "Esto quita las palabras del paquete que nadie ha cambiado. Las que escribiste o cambiaste tú se quedan, y {language} sale del menú de idiomas si no queda ninguna.",
+  "adminText.pack.removeMessage": "Quitar {name}, el panel de administración en {language}",
+  "adminText.pack.removedNotice": "{name} se ha quitado.",
+  "adminText.pack.error.unreachable":
+    "Ahora no se pueden buscar paquetes de idioma. Comprueba tu conexión a internet y vuelve a intentarlo.",
+  "adminText.pack.error.badFile":
+    "No se puede leer el archivo de este paquete de idioma, así que no se puede instalar.",
+  "adminText.pack.error.notAPack": "Este paquete no es un paquete de idioma de Goodfellow.",
 };

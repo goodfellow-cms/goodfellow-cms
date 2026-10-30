@@ -165,4 +165,24 @@ describe("a language's translation", () => {
     expect(next.strings).not.toHaveProperty("not.asked");
     expect(next.strings["deletePage.title"]).toEqual(file.strings["deletePage.title"]);
   });
+
+  it("keeps a language pack's record and marks, so an update knows what's still the pack's", () => {
+    const packed: AdminTextFile = {
+      ...file,
+      strings: { "nav.pages": { text: "Pages", pack: englishHash("Pages") } },
+      pack: { name: "goodfellow-language-fr", release: "1.0.0" },
+    };
+    const read = withEdits(
+      packed,
+      "Français",
+      new Map([["strings:nav.pages", { text: "Pages", reviewed: true }]]),
+      sources,
+    );
+    expect(read.pack).toEqual(packed.pack);
+    expect(read.strings["nav.pages"]).toMatchObject({ text: "Pages", reviewed: true, pack: englishHash("Pages") });
+    const translated = withTranslations(packed, "Français", new Map([["strings:nav.pages", "Les pages"]]), sources);
+    expect(translated.pack).toEqual(packed.pack);
+    // The mark stays the pack's text's hash, so the new text is no longer the pack's.
+    expect(translated.strings["nav.pages"]?.pack).toBe(englishHash("Pages"));
+  });
 });

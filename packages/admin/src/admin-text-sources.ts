@@ -164,13 +164,16 @@ export function withTranslations(
     strings: { ...file?.strings },
     puck: { ...file?.puck },
     labels: { ...file?.labels },
+    ...(file?.pack && { pack: file.pack }),
   };
   const english = new Map(sources.map((source) => [source.key, source.english]));
   for (const [key, text] of translated) {
     const split = splitKey(key);
     const source = english.get(key);
     if (!split || source === undefined) continue;
-    next[split.table][split.key] = { text, source: englishHash(source) };
+    // A language pack's mark stays: it's the pack's text's hash, so it no longer matches.
+    const pack = entryOf(file, key)?.pack;
+    next[split.table][split.key] = { text, source: englishHash(source), ...(pack && { pack }) };
   }
   return next;
 }
@@ -225,6 +228,7 @@ export function withEdits(
     strings: { ...file?.strings },
     puck: { ...file?.puck },
     labels: { ...file?.labels },
+    ...(file?.pack && { pack: file.pack }),
   };
   const english = new Map(sources.map((source) => [source.key, source.english]));
   for (const [key, edit] of edits) {
@@ -236,7 +240,14 @@ export function withEdits(
       delete next[split.table][split.key];
       continue;
     }
-    next[split.table][split.key] = { text, source: englishHash(source), ...(edit.reviewed && { reviewed: true }) };
+    // A language pack's mark stays, so text read but not changed is still the pack's, which updates may change.
+    const pack = entryOf(file, key)?.pack;
+    next[split.table][split.key] = {
+      text,
+      source: englishHash(source),
+      ...(edit.reviewed && { reviewed: true }),
+      ...(pack && { pack }),
+    };
   }
   return next;
 }

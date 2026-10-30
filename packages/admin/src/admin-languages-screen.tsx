@@ -7,7 +7,8 @@
  * publish, even when the service stopped part way, so it's never asked for
  * twice. Every string is checked again as it's used (`composeAdminText()`).
  * Each language, Goodfellow's own included, opens in `AdminTextEditor` at
- * `#/settings/admin-languages/<code>`, to change its words by hand.
+ * `#/settings/admin-languages/<code>`, to change its words by hand, and
+ * languages can come from language packs on npm (`LanguagePacks`).
  */
 import { translateAdminText } from "@goodfellow-cms/ai";
 import {
@@ -31,6 +32,7 @@ import {
   withTranslations,
 } from "./admin-text-sources.js";
 import { problemKey, ServiceSettings, useAiService } from "./ai-panel.js";
+import { LanguagePacks } from "./language-packs.js";
 import { PUCK_ENGLISH } from "./languages/en-puck.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
 import { useRoute } from "./router.js";
@@ -243,6 +245,7 @@ export function AdminLanguagesScreen() {
                 key={languageCode}
                 code={languageCode}
                 name={file.name}
+                {...(file.pack && { pack: file.pack })}
                 status={languageStatus(file, sources)}
                 disabled={working || !canAsk}
                 onTranslate={(outdated) => void translate({ code: languageCode, name: file.name }, { outdated })}
@@ -307,6 +310,8 @@ export function AdminLanguagesScreen() {
           </tbody>
         </table>
       </section>
+
+      {files && sources && <LanguagePacks files={files} sources={sources} />}
 
       <section>
         <h2 className="gfa-section-title">{t("adminText.add.title")}</h2>
@@ -374,6 +379,7 @@ export function AdminLanguagesScreen() {
 function LanguageRow({
   code,
   name,
+  pack,
   status,
   disabled,
   onTranslate,
@@ -381,6 +387,8 @@ function LanguageRow({
 }: {
   code: string;
   name: string;
+  /** The language pack it came from, where it did. */
+  pack?: { name: string; release: string };
   status: LanguageStatus;
   disabled: boolean;
   onTranslate: (outdated: boolean) => void;
@@ -391,6 +399,7 @@ function LanguageRow({
     <tr>
       <td>
         <strong lang={code}>{name}</strong> <code>{code}</code>
+        {pack && <div className="gfa-hint">{t("adminText.pack.from", { name: pack.name, version: pack.release })}</div>}
       </td>
       <td>
         {t("adminText.status", { current: String(status.current), total: String(status.total) })}

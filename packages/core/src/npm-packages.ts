@@ -18,7 +18,13 @@ export const GOODFELLOW_PEER = "@goodfellow-cms/core";
  */
 export const RELEASE_AGE_DAYS = 3;
 
-export type PackageErrorCode = "unavailable" | "not-found" | "not-a-theme" | "not-a-plugin" | "bad-file";
+export type PackageErrorCode =
+  | "unavailable"
+  | "not-found"
+  | "not-a-theme"
+  | "not-a-plugin"
+  | "not-a-language-pack"
+  | "bad-file";
 
 /** Thrown when a package can't be found or read; the admin panel says what happened from `code`. */
 export class PackageError extends Error {

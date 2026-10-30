@@ -4,6 +4,7 @@
  * shipped: import it from `@goodfellow-cms/core/testing` in tests only.
  */
 import { serializeContent } from "./content/serialize.js";
+import { LANGUAGE_PACK_KEYWORD, LANGUAGE_PACK_MANIFEST } from "./language-packs.js";
 import { PLUGIN_MANIFEST } from "./plugin-packages.js";
 import { PLUGIN_KEYWORD } from "./plugins.js";
 import { THEME_KEYWORD, THEME_MANIFEST } from "./themes.js";
@@ -71,6 +72,14 @@ export interface FakePluginsOptions {
 export function fakeThemes(options: FakeThemesOptions) {
   return fakeNpm({
     packages: options.themes.map((theme) => ({ ...theme, keywords: theme.keywords ?? [THEME_KEYWORD] })),
+    ...(options.now && { now: options.now }),
+  });
+}
+
+/** The same fake for language packs: their keywords are `goodfellow-language` if left out. */
+export function fakeLanguagePacks(options: { packs: FakeTheme[]; now?: Date }) {
+  return fakeNpm({
+    packages: options.packs.map((pack) => ({ ...pack, keywords: pack.keywords ?? [LANGUAGE_PACK_KEYWORD] })),
     ...(options.now && { now: options.now }),
   });
 }
@@ -363,5 +372,31 @@ export function samplePluginFiles(
       overrides.code ??
       "export default { screens: { entries(element) { fetch('https://guestbook.example.com/entries'); } } };\n",
     "index.d.ts": "declare const plugin: unknown;\nexport default plugin;\n",
+  };
+}
+
+/**
+ * A made-up French language pack's files: a few of the admin panel's strings,
+ * one of Puck's and a label, with any more given.
+ */
+export function sampleLanguagePackFiles(
+  overrides: { code?: string; name?: string; strings?: Record<string, string> } = {},
+): Record<string, string> {
+  const strings: Record<string, string> = {
+    "publish.button": "Publier",
+    "nav.pages": "Pages",
+    "nav.settings": "Paramètres du site",
+    ...overrides.strings,
+  };
+  return {
+    [LANGUAGE_PACK_MANIFEST]: serializeContent({
+      version: 1,
+      code: overrides.code ?? "fr",
+      name: overrides.name ?? "Français",
+      description: "Le panneau d'administration en français.",
+      strings: Object.fromEntries(Object.entries(strings).map(([key, text]) => [key, { text, reviewed: true }])),
+      puck: { "header-publish": { text: "Publier", reviewed: true } },
+      labels: { Heading: { text: "Titre", reviewed: true } },
+    }),
   };
 }

@@ -277,9 +277,11 @@ export {
   type FakeThemeRelease,
   type FakeThemesOptions,
   type FakeThemesResponse,
+  fakeLanguagePacks,
   fakePlugins,
   fakeThemes,
   fakeVerifier,
+  sampleLanguagePackFiles,
   samplePluginFiles,
   sampleThemeFiles,
 } from "./themes-testing.js";

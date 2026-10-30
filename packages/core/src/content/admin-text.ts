@@ -53,9 +53,15 @@ const entrySchema = z.object({
   source: z.string().optional(),
   /** Whether someone who speaks the language has read it, rather than it coming from machine translation alone. */
   reviewed: z.boolean().optional(),
+  /**
+   * `englishHash()` of the text as a language pack installed it, so an update
+   * of the pack replaces only text that's still the pack's (`fromLanguagePack()`).
+   */
+  pack: z.string().optional(),
 });
 
-const tableSchema = z
+/** One table of strings, by key. */
+export const adminTextTableSchema = z
   .record(z.string(), entrySchema)
   .default({})
   .refine((table) => Object.keys(table).length <= MAX_ADMIN_TEXT_ENTRIES, "has too many strings");
@@ -65,11 +71,21 @@ export const adminTextFileSchema = z.object({
   /** The language's name in itself, as the admin panel's language menu shows it: `Français`. */
   name: z.string().trim().min(1).max(60),
   /** The admin panel's own strings, by key (`Strings` in `@goodfellow-cms/admin`). */
-  strings: tableSchema,
+  strings: adminTextTableSchema,
   /** Puck's text, by its dictionary's keys. */
-  puck: tableSchema,
+  puck: adminTextTableSchema,
   /** Blocks' names, settings' labels and choices, by their English wording. */
-  labels: tableSchema,
+  labels: adminTextTableSchema,
+  /** The language pack on npm the text came from, where it did (`planLanguagePack()`). */
+  pack: z
+    .object({
+      /** Its package, such as `goodfellow-language-fr`. */
+      name: z.string(),
+      release: z.string(),
+      /** Its `peerDependencies` range on `@goodfellow-cms/core`. */
+      goodfellow: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type AdminTextEntry = z.output<typeof entrySchema>;
