@@ -163,6 +163,20 @@ describe("goodfellow update", () => {
     });
   });
 
+  it("says when a newer release is out than the fixes it installs, and how to install it", async () => {
+    await site();
+    const { run } = commands();
+    const lines: string[] = [];
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, log: (line) => lines.push(line), env: {} });
+    expect(result).toMatchObject({ state: "updated", to: "0.4.2" });
+    lines.length = 0;
+    expect(
+      await update({ root, fetchJson, run, registry: REGISTRY, log: (line) => lines.push(line), env: {} }),
+    ).toEqual({ state: "up-to-date", from: "0.4.2" });
+    expect(lines.join("\n")).toContain("0.5.0 is a newer release");
+    expect(lines.join("\n")).toContain("--to latest");
+  });
+
   it("doesn't install fixes automatically when the site's settings turn that off", async () => {
     await site();
     await mkdir(join(root, "content"), { recursive: true });
