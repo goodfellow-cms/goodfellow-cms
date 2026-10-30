@@ -34,6 +34,7 @@ import {
 } from "./registry.js";
 import { gitlabTaskJob } from "./task-setup.js";
 import { trimChars } from "./trim.js";
+import { withSiteOverrides } from "./updates.js";
 
 /** The sites a new site can start from. The keys are what `--template` takes. */
 export const TEMPLATES = {
@@ -168,7 +169,8 @@ export function parseRepo(host: Backend["host"], input: string): string | undefi
 /** The template's `package.json`, named for the new site and with workspace links replaced by published versions. */
 export function sitePackageJson(source: string, name: string, versions: Record<string, string>): string {
   const pkg = JSON.parse(source) as Record<string, unknown> & { version?: string };
-  const result: Record<string, unknown> = { ...pkg, name };
+  // Overrides apply only in the site's own package.json, so they're added to it rather than to the templates.
+  const result: Record<string, unknown> = { ...pkg, name, overrides: withSiteOverrides(pkg.overrides).overrides };
   for (const key of ["dependencies", "devDependencies"] as const) {
     const deps = pkg[key] as Record<string, string> | undefined;
     if (!deps) continue;

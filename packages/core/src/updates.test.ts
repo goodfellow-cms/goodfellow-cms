@@ -8,8 +8,10 @@ import {
   formatUpdateResult,
   parseUpdateSettings,
   releaseVersions,
+  SITE_OVERRIDES,
   siteVersion,
   updateSettingsFile,
+  withSiteOverrides,
 } from "./updates.js";
 
 const versions = ["0.3.0", "0.4.0", "0.4.1", "0.4.2-beta.1", "0.4.3", "0.5.0", "0.5.1", "1.0.0-rc.1"];
@@ -49,6 +51,23 @@ describe("choosing an update", () => {
     expect(siteVersion(JSON.stringify({ dependencies: { "@goodfellow-cms/react": "0.4.1" } }))).toBe("0.4.1");
     expect(siteVersion(JSON.stringify({ dependencies: { "@goodfellow-cms/react": "workspace:*" } }))).toBeUndefined();
     expect(siteVersion("not json")).toBeUndefined();
+  });
+});
+
+describe("sites' overrides", () => {
+  it("adds the overrides sites need, keeping the site's own", () => {
+    expect(withSiteOverrides(undefined)).toEqual({
+      overrides: SITE_OVERRIDES,
+      added: [["@puckeditor/core", "happy-dom"]],
+    });
+    const own = { react: "19.3.0", "@puckeditor/core": { "happy-dom": "^22.0.0", tslib: "2.8.0" } };
+    expect(withSiteOverrides(own)).toEqual({ overrides: own, added: [] });
+    // A site that overrides Puck itself chose its own.
+    expect(withSiteOverrides({ "@puckeditor/core": "0.24.0" })).toEqual({
+      overrides: { "@puckeditor/core": "0.24.0" },
+      added: [],
+    });
+    expect(withSiteOverrides({ react: "19.3.0" }).overrides).toEqual({ react: "19.3.0", ...SITE_OVERRIDES });
   });
 });
 

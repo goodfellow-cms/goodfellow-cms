@@ -11,6 +11,7 @@ import {
   sitePackageName,
   withoutRepositoryNotes,
 } from "./site-setup.js";
+import { SITE_OVERRIDES } from "./updates.js";
 
 const config = `import { defineConfig } from "@goodfellow-cms/core";
 // import { github } from "@goodfellow-cms/github";
@@ -78,6 +79,8 @@ describe("planSite", () => {
     expect(JSON.parse(siteFileText(files.get("package.json") ?? ""))).toEqual({
       name: "my-parish",
       dependencies: { "@goodfellow-cms/core": "^1.2.3" },
+      // npm reads overrides only in the site's own package.json, so new sites get them.
+      overrides: SITE_OVERRIDES,
     });
     expect(files.get("README.md")).toBe("# Site\n\nHello\n");
     expect(files.get("goodfellow.config.tsx")).toContain('backend: github({ repo: "someone/my-parish" }),');
