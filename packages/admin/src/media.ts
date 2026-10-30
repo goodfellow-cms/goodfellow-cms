@@ -45,19 +45,36 @@ export function formatSize(bytes: number): string {
 export function mediaUsage(
   content: SiteContent,
   url: string,
-  names: { header: string; footer: string; settings: string; css: string },
+  names: {
+    header: string;
+    footer: string;
+    settings: string;
+    css: string;
+    menus?: string;
+    code?: string;
+    redirects?: string;
+  },
 ): string[] {
-  const uses = (value: unknown) => JSON.stringify(value).includes(url);
+  // The address on its own, never the start of another, such as /media/a.jpg in /media/a.jpg-old.jpg.
+  const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const address = new RegExp(`(?<![\\w.~%/:-])${escaped}(?![\\w~%-]|[./][\\w])`);
+  const uses = (value: unknown) => value !== undefined && address.test(JSON.stringify(value));
   const used: string[] = [];
-  if (uses(content.settings)) used.push(names.settings);
-  if (uses(content.header)) used.push(names.header);
-  if (uses(content.footer)) used.push(names.footer);
+  const add = (name: string | undefined, value: unknown) => {
+    if (name && !used.includes(name) && uses(value)) used.push(name);
+  };
+  add(names.settings, content.settings);
+  add(names.menus, [content.menus, content.languageMenus]);
+  add(names.header, [content.header, Object.values(content.languageLayouts ?? {}).map((layout) => layout.header)]);
+  add(names.footer, [content.footer, Object.values(content.languageLayouts ?? {}).map((layout) => layout.footer)]);
   for (const page of content.pages) if (uses(page.content)) used.push(pageTitle(page));
   for (const collection of content.collections) {
     if (uses(collection.settings)) used.push(collection.settings.name);
     for (const entry of collection.entries) if (uses(entry.content)) used.push(entryTitle(entry));
   }
-  if (content.customCss.includes(url)) used.push(names.css);
+  add(names.css, content.customCss);
+  add(names.code, content.code);
+  add(names.redirects, content.redirects);
   return used;
 }
 

@@ -839,7 +839,7 @@ export {
   type FeedOptions,
   readCalendar,
 } from "./ics.js";
-export { type ImageSize, imageSize } from "./image-size.js";
+export { exifOrientation, type ImageSize, imageSize, withoutImageDetails } from "./image-size.js";
 export {
   type DraftKeeper,
   type KeptDraft,

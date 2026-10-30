@@ -29,6 +29,7 @@ import type { Page, SiteContent } from "./load.js";
 import { allPages } from "./load.js";
 import { storedAddresses } from "./media-storage.js";
 import { SITE_FILE } from "./paths.js";
+import { redirectFrom, redirectProblems } from "./redirects.js";
 import type { ThemeColor } from "./schemas.js";
 import { sitePages } from "./site-pages.js";
 
@@ -258,7 +259,12 @@ export function checkSite(content: SiteContent, options: SiteCheckOptions): Site
     options.pages ??
     (options.blocks && options.today ? sitePages(content, options.today, options.blocks) : allPages(content));
   const addresses = new Set(pages.map((page) => page.path));
-  for (const redirect of content.redirects ?? []) addresses.add(redirect.from);
+  // Old addresses spelled as visitors' links reach them, and only those of redirects builds write.
+  const redirects = content.redirects ?? [];
+  redirectProblems(redirects).forEach((problem, index) => {
+    const from = redirects[index] && redirectFrom(redirects[index].from);
+    if (problem === undefined && from?.ok) addresses.add(from.path);
+  });
   // Media a plugin keeps outside the repository is the site's too.
   const media = new Set([...options.media, ...storedAddresses(content.mediaStorage)]);
 

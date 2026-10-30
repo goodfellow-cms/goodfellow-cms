@@ -6,6 +6,7 @@ import {
   keepsSvgElement,
   MEDIA_DIR,
   SVG_NAMESPACE,
+  withoutImageDetails,
 } from "@goodfellow-cms/core";
 import { extensionOf, MAX_UPLOAD_BYTES, mediaKind } from "./media.js";
 import { mediaType } from "./media-previews.js";
@@ -70,8 +71,9 @@ async function resized(file: File, extension: string): Promise<Blob | undefined>
   canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   const blob = await canvasBlob(canvas, type);
-  // Keep the original if re-saving didn't help, such as for an already well-compressed small photo.
-  return blob && (scale < 1 || blob.size < file.size) ? blob : undefined;
+  // A JPEG is always kept re-saved, even a little larger, since the original holds where it was taken.
+  // Other photos are kept as they were if re-saving didn't help, and lose their details another way.
+  return blob && (scale < 1 || type === "image/jpeg" || blob.size < file.size) ? blob : undefined;
 }
 
 /** Whether an element can stay, once its attributes are cleaned. */
@@ -142,6 +144,12 @@ async function prepared(file: File, maxBytes: number): Promise<Blob> {
     blob = new Blob([cleaned], { type: "image/svg+xml" });
   } else if (mediaKind(file.name) === "image") {
     blob = (await resized(file, extension)) ?? file;
+    if (blob === file && (extension === "png" || extension === "webp")) {
+      // Kept as it was, which keeps animations, but without the details hidden in it, such as Exif's.
+      blob = new Blob([withoutImageDetails(new Uint8Array(await file.arrayBuffer())) as Uint8Array<ArrayBuffer>], {
+        type: file.type,
+      });
+    }
   }
 
   if (blob.size > maxBytes) {

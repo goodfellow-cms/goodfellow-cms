@@ -78,13 +78,15 @@ function feedItems(content: SiteContent, collection: Collection): FeedItem[] {
 function rssFeed(content: SiteContent, collection: Collection, items: FeedItem[]): string {
   const { settings } = content;
   const site = settings.url ?? "";
-  const self = absoluteUrl(site, feedPath(collection.id, "rss"));
+  // The feed in its own language, at its own address, so readers never take it for another language's.
+  const prefix = settingsPrefix(settings);
+  const self = absoluteUrl(site, feedPath(collection.id, "rss", prefix));
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
     "  <channel>",
     `    <title>${xml(feedTitle(collection, settings.title))}</title>`,
-    `    <link>${xml(absoluteUrl(site, "/"))}</link>`,
+    `    <link>${xml(absoluteUrl(site, `${prefix}/`))}</link>`,
     `    <description>${xml(settings.description || settings.title)}</description>`,
     `    <language>${xml(settings.language)}</language>`,
     `    <atom:link href="${xml(self)}" rel="self" type="application/rss+xml"/>`,
@@ -107,7 +109,9 @@ function rssFeed(content: SiteContent, collection: Collection, items: FeedItem[]
 function atomFeed(content: SiteContent, collection: Collection, items: FeedItem[], now: Date): string {
   const { settings } = content;
   const site = settings.url ?? "";
-  const self = absoluteUrl(site, feedPath(collection.id, "atom"));
+  // The feed in its own language, at its own address, so readers never take it for another language's.
+  const prefix = settingsPrefix(settings);
+  const self = absoluteUrl(site, feedPath(collection.id, "atom", prefix));
   // Atom needs a time each item and the feed were last changed: when they were published, or else the build's.
   const updated = (item: FeedItem) => (item.published ?? now).toISOString();
   const newest = items.reduce<Date | undefined>(
@@ -121,7 +125,7 @@ function atomFeed(content: SiteContent, collection: Collection, items: FeedItem[
     ...(settings.description ? [`  <subtitle>${xml(settings.description)}</subtitle>`] : []),
     `  <id>${xml(self)}</id>`,
     `  <link rel="self" type="application/atom+xml" href="${xml(self)}"/>`,
-    `  <link rel="alternate" type="text/html" href="${xml(absoluteUrl(site, "/"))}"/>`,
+    `  <link rel="alternate" type="text/html" href="${xml(absoluteUrl(site, `${prefix}/`))}"/>`,
     `  <updated>${(newest ?? now).toISOString()}</updated>`,
     `  <author><name>${xml(settings.title)}</name></author>`,
   ];

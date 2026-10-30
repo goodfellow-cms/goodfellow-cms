@@ -88,6 +88,15 @@ describe("redirectProblems", () => {
     ).toEqual(["reserved", "reserved", "reserved", "reserved", "loop", "loop", "loop", undefined]);
   });
 
+  it("keeps old addresses off the sitemap and robots.txt, which builds write", () => {
+    expect(
+      redirectProblems([
+        { from: "/sitemap.xml", to: "/" },
+        { from: "/robots.txt", to: "/" },
+      ]),
+    ).toEqual(["reserved", "reserved"]);
+  });
+
   it("stores them spelled one way", () => {
     expect(storedRedirects([{ from: " https://old.example.org/about-us/ ", to: " /about " }])).toEqual([
       { from: "/about-us", to: "/about" },
@@ -131,6 +140,23 @@ describe("redirectFiles", () => {
     expect(page).toContain('<script>location.replace("/about" + location.hash);</script>');
     expect(page).toContain('This page has moved to <a href="/about" style="color:#171717">/about</a>.');
     expect(external).toContain('<link rel="canonical" href="https://news.example.org/">');
+  });
+
+  it("leaves out an old address that's a page's in other capitals, which would take its place on some hosts", () => {
+    const files = redirectFiles(
+      {
+        ...content,
+        redirects: [
+          { from: "/About", to: "/about-us" },
+          { from: "/Media/a.jpg", to: "/" },
+          { from: "/Old", to: "/a" },
+          { from: "/old", to: "/b" },
+        ],
+      },
+      { taken: ["/", "/about"] },
+    );
+    // The first of two that differ only in capitals, which would be one file there.
+    expect(files.map((file) => file.from)).toEqual(["/Old"]);
   });
 
   it("names the page it goes to, in the site's own words and colors", () => {

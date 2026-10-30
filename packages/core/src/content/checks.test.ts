@@ -83,6 +83,23 @@ describe("site checks", () => {
     ]);
   });
 
+  it("counts a redirect's old address however it's written", async () => {
+    const content = await site({
+      "content/pages/about.json": page("About", [
+        block("Button", "Button-1", { href: "/old-page", label: "Old" }),
+        block("Button", "Button-2", { href: "/caf%C3%A9", label: "Café" }),
+      ]),
+      "content/redirects.json": {
+        version: 1,
+        redirects: [
+          { from: "/old-page/", to: "/about" },
+          { from: "https://old.example/café", to: "/about" },
+        ],
+      },
+    });
+    expect(errors(checkSite(content, { media: [], blocks, today: "2026-10-20" }))).toEqual([]);
+  });
+
   it("knows the pages blocks add, items' pages, and links in items and settings", async () => {
     const content = await site({
       "content/pages/news.json": page("News", [block("Pages", "Pages-1")]),
