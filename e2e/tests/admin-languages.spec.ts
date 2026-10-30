@@ -123,3 +123,40 @@ test("translates the admin panel into a new language with the editor's AI servic
   await page.getByRole("combobox", { name: "Language of the admin panel" }).selectOption("fr");
   await expect(page.getByRole("link", { name: "FR Pages", exact: true })).toBeVisible();
 });
+
+test("changes the admin panel's own English words, and edits a site's language string by string", async ({ page }) => {
+  await page.goto("/admin#/settings/admin-languages");
+  await page.getByRole("link", { name: "Change words" }).first().click();
+  await expect(page.getByRole("heading", { name: "English: the admin panel's words" })).toBeVisible();
+  await page.getByLabel("Search").fill("nav.pages");
+  const pages = page.getByRole("textbox", { name: "Pages (strings:nav.pages)" });
+  await expect(pages).toHaveAttribute("placeholder", "Pages");
+  await pages.fill("Our pages");
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  const english = JSON.parse(readSiteFile("content/admin-text/en.json"));
+  expect(english.strings["nav.pages"]).toMatchObject({ text: "Our pages" });
+  // The admin panel says it at once, with no English beside its own English.
+  await expect(page.getByRole("link", { name: "Our pages", exact: true })).toBeVisible();
+
+  // A site's own language: mark a string read, and fix one that can't be used.
+  writeSiteFile("content/admin-text/fr.json", french);
+  await page.goto("/admin#/settings/admin-languages/fr");
+  // Only the address's # changed, so the page loads again to read the file just written.
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Français: the admin panel's words" })).toBeVisible();
+  await page.getByLabel("Show").selectOption("unusable");
+  const redirect = page.getByRole("textbox", { name: /strings:signIn\.redirect/ });
+  await redirect.fill("Se connecter");
+  await expect(page.getByText("This needs the same words in curly braces as the English")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
+  await redirect.fill("Se connecter avec {host}");
+  await page.getByLabel("Show").selectOption("all");
+  await page.getByLabel("Search").fill("nav.pages");
+  await page.getByRole("checkbox", { name: "Read by someone who speaks it" }).check();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  const file = JSON.parse(readSiteFile("content/admin-text/fr.json"));
+  expect(file.strings["signIn.redirect"]).toMatchObject({ text: "Se connecter avec {host}" });
+  expect(file.strings["nav.pages"]).toMatchObject({ text: "Les pages", reviewed: true });
+});

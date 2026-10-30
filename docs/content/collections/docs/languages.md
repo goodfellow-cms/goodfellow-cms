@@ -69,6 +69,10 @@ A site can have the admin panel in any other language too, with its text in a fi
 
 Owners add one in **Site Settings → Admin panel languages**: give the language's code and its name in that language, choose the [AI service](/docs/ai-assistant) and its key, as in the editor's AI panel, and **Add and translate**. The service translates the admin panel's words, the editor's controls and your blocks' labels, a batch at a time, with a glossary that keeps words such as Publish, Draft and Version history the same throughout and never uses git's. What comes back is published as the language's file, even if the service stops part way, so nothing is translated twice. The screen then shows how much of the admin panel each language says, with **Translate what's missing**, **Translate again what's out of date** for strings whose English has changed in a later release, and **Remove**. A box says anything the translation should know, such as how formal to be. A chat app can't do it, since the admin panel asks the service itself.
 
+**Edit** opens a language's words one by one: each string's English beside what the admin panel shows, a box to change it, and **Read by someone who speaks it** to mark the ones a person has checked. Search finds a string by its English, its translation or its key, and **Show** narrows the list to strings not written yet, out of date, that can't be used, or not read yet. A string with other words in curly braces than the English can't be published until it's fixed; emptying a box takes the string out of the file, so it shows the English again. **Publish** saves every change together.
+
+The same screen changes Goodfellow's own words: **Change words** beside English or Español opens the admin panel's words in that language, to write the ones you'd rather it used, such as your parish's word for an editor. Only what you change is kept, in `content/admin-text/en.json` or `es.json`; everything else stays as Goodfellow writes it and follows its updates. Your own English words show without English beside them.
+
 A developer or a translation tool can write the files too:
 
 ```json

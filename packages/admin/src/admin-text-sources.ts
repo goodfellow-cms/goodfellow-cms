@@ -82,7 +82,8 @@ export function adminTextSources(labels: readonly string[]): AdminTextSource[] {
   ];
 }
 
-function entryOf(file: AdminTextFile | undefined, key: string): AdminTextEntry | undefined {
+/** A string's entry in a language's file, by `sourceKey()`. */
+export function entryOf(file: AdminTextFile | undefined, key: string): AdminTextEntry | undefined {
   const split = splitKey(key);
   if (!file || !split) return undefined;
   const table = file[split.table];
@@ -170,6 +171,72 @@ export function withTranslations(
     const source = english.get(key);
     if (!split || source === undefined) continue;
     next[split.table][split.key] = { text, source: englishHash(source) };
+  }
+  return next;
+}
+
+/** What the editor shows: every string, or only those in one state, or not yet read by someone who speaks it. */
+export type SourceFilter = "all" | "missing" | "outdated" | "unusable" | "unreviewed";
+
+/**
+ * The strings an editor of a language's file shows: those the filter keeps
+ * whose English, key or text in the file holds every word searched for,
+ * ignoring case.
+ */
+export function filterSources(
+  file: AdminTextFile | undefined,
+  sources: readonly AdminTextSource[],
+  options: { query?: string; show?: SourceFilter } = {},
+): AdminTextSource[] {
+  const words = (options.query ?? "").toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const show = options.show ?? "all";
+  return sources.filter((source) => {
+    const state = sourceState(file, source);
+    const entry = entryOf(file, source.key);
+    if (show === "unreviewed" ? state !== "current" || entry?.reviewed : show !== "all" && state !== show) {
+      return false;
+    }
+    const haystack = `${source.key} ${source.english} ${entry?.text ?? ""}`.toLocaleLowerCase();
+    return words.every((word) => haystack.includes(word));
+  });
+}
+
+/** A change an owner makes to one string: its text, where empty means it goes back to the default, and whether it's been read. */
+export interface AdminTextEdit {
+  text: string;
+  reviewed: boolean;
+}
+
+/**
+ * A language's file with an owner's edits in it, by `sourceKey()`. Text
+ * written or read against today's English is current, so it gets today's
+ * English's hash; empty text takes the string out of the file, so it shows
+ * the default again.
+ */
+export function withEdits(
+  file: AdminTextFile | undefined,
+  name: string,
+  edits: ReadonlyMap<string, AdminTextEdit>,
+  sources: readonly AdminTextSource[],
+): AdminTextFile {
+  const next: AdminTextFile = {
+    version: 1,
+    name: file?.name ?? name,
+    strings: { ...file?.strings },
+    puck: { ...file?.puck },
+    labels: { ...file?.labels },
+  };
+  const english = new Map(sources.map((source) => [source.key, source.english]));
+  for (const [key, edit] of edits) {
+    const split = splitKey(key);
+    const source = english.get(key);
+    if (!split || source === undefined) continue;
+    const text = edit.text.trim();
+    if (!text) {
+      delete next[split.table][split.key];
+      continue;
+    }
+    next[split.table][split.key] = { text, source: englishHash(source), ...(edit.reviewed && { reviewed: true }) };
   }
   return next;
 }
