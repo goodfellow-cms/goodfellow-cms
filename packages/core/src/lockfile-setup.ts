@@ -32,12 +32,24 @@ export const EARLY_CHECK =
   'const fs = require("fs"); let record; try { record = JSON.parse(fs.readFileSync("plugins/installed/installed.json", "utf8")); } catch { process.exit(0); } process.exit(Object.values(record.plugins || {}).some((plugin) => plugin && plugin.early) ? 1 : 0);';
 
 /**
+ * A Node.js script, on one line with no single quotes, that prints the
+ * release of `@goodfellow-cms/core` the site's `package.json` names, such as
+ * `^0.9.0`, and exits with 1 for anything else: a URL, a git repository or an
+ * alias there would have npm install whatever it names, where jobs run
+ * Goodfellow's own commands from npm rather than the site's packages.
+ */
+export const CORE_RELEASE = String.raw`const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);`;
+
+/** Sets `core` to `CORE_RELEASE`'s release, stopping the job where there's none: a command of its own, since `&&` wouldn't. */
+export const CORE_RELEASE_COMMAND = `core=$(node -e '${CORE_RELEASE}') || exit 1`;
+
+/**
  * Writes the lockfile where a plugin was installed early, once its provenance
  * checks out (`goodfellow-early`, `writeEarlyLockfile()`), failing otherwise:
  * run from npm at the release of `@goodfellow-cms/core` the site names, never
  * from the site's own packages, which the lockfile isn't written for yet.
  */
-export const EARLY_COMMAND = `npm exec --yes --package="@goodfellow-cms/core@$(node -p 'require("./package.json").dependencies["@goodfellow-cms/core"]')" -- goodfellow-early`;
+export const EARLY_COMMAND = `${CORE_RELEASE_COMMAND}; npm exec --yes --package="@goodfellow-cms/core@$core" -- goodfellow-early`;
 
 const COMMIT_AS = '-c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid';
 const COMMIT_MESSAGE = "Write package-lock.json for the packages package.json names";

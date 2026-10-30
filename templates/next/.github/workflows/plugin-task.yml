@@ -3,10 +3,12 @@
 # repository_dispatch event, and it leaves the task's answer, sealed to a key
 # only that admin panel holds, on a branch of its own, which the admin panel
 # reads and deletes. Plugins' secrets, such as S3_ACCESS_KEY_ID, are the
-# repository's Actions secrets (Settings → Secrets and variables → Actions):
-# each task gets only those its plugin declared. The job that runs the site's
-# code can only read the repository, and the job that leaves the answer runs
-# none of it. See README.md.
+# repository's Actions secrets (Settings → Secrets and variables → Actions).
+# The site's code, its config and the packages it loads, runs in a job with
+# none of them. The job with them runs Goodfellow's task runner, installed
+# from npm apart from the site's packages, which gives each task only the
+# secrets its plugin declared. Both can only read the repository, and the job
+# that leaves the answer runs none of the site's code. See README.md.
 name: Plugin task
 run-name: Plugin task ${{ github.event.client_payload.request }}
 
@@ -17,7 +19,35 @@ on:
 permissions: {}
 
 jobs:
+  describe:
+    # Loads the site's config and writes down the task, with no secrets.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      description: ${{ steps.describe.outputs.description }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          check-latest: true
+          cache: npm
+      - run: npm ci
+      - id: describe
+        env:
+          GOODFELLOW_TASK_PLUGIN: ${{ github.event.client_payload.plugin }}
+          GOODFELLOW_TASK_NAME: ${{ github.event.client_payload.task }}
+        run: |
+          npx goodfellow-next task --describe --out "$RUNNER_TEMP/goodfellow-task.json"
+          echo "description=$(cat "$RUNNER_TEMP/goodfellow-task.json")" >> "$GITHUB_OUTPUT"
+
   task:
+    # Runs the task with the secrets, from Goodfellow's task runner, running none of the site's other code.
+    needs: describe
+    if: always()
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,8 +61,12 @@ jobs:
         with:
           node-version: 22
           check-latest: true
-          cache: npm
-      - run: npm ci
+      - name: Install Goodfellow's task runner from npm, apart from the site's packages
+        run: |
+          core=$(node -e 'const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);') || exit 1
+          mkdir -p "$RUNNER_TEMP/goodfellow-runner"
+          (cd "$RUNNER_TEMP/goodfellow-runner" && npm install --prefix . --no-save --no-package-lock --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ "@goodfellow-cms/core@$core")
+      - run: npm ci --ignore-scripts
       - id: task
         env:
           GOODFELLOW_TASK_REQUEST: ${{ github.event.client_payload.request }}
@@ -40,9 +74,11 @@ jobs:
           GOODFELLOW_TASK_NAME: ${{ github.event.client_payload.task }}
           GOODFELLOW_TASK_INPUT: ${{ github.event.client_payload.input }}
           GOODFELLOW_TASK_KEY: ${{ github.event.client_payload.key }}
+          GOODFELLOW_TASK_DESCRIPTION: ${{ needs.describe.outputs.description }}
           GOODFELLOW_SECRETS: ${{ toJSON(secrets) }}
         run: |
-          npx goodfellow-next task --out "$RUNNER_TEMP/goodfellow-task-result.json"
+          printf '%s' "$GOODFELLOW_TASK_DESCRIPTION" > "$RUNNER_TEMP/goodfellow-task.json"
+          node "$RUNNER_TEMP/goodfellow-runner/node_modules/@goodfellow-cms/core/bin/goodfellow-task.js" --description "$RUNNER_TEMP/goodfellow-task.json" --out "$RUNNER_TEMP/goodfellow-task-result.json"
           echo "result=$(cat "$RUNNER_TEMP/goodfellow-task-result.json")" >> "$GITHUB_OUTPUT"
 
   answer:

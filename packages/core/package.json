@@ -54,7 +54,8 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "goodfellow-early": "./bin/goodfellow-early.js"
+    "goodfellow-early": "./bin/goodfellow-early.js",
+    "goodfellow-task": "./bin/goodfellow-task.js"
   },
   "files": [
     "bin",

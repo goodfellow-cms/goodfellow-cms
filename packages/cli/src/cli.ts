@@ -27,6 +27,7 @@ import {
   setAdminAddress,
   setBrokerAddress,
   setUpContentRepository,
+  TASK_DESCRIPTION_FILE,
   update,
 } from "@goodfellow-cms/core/node";
 import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
@@ -39,7 +40,7 @@ import { dev } from "./dev.js";
 import { preview } from "./preview.js";
 import { buildCause, reportBuildCause } from "./problems.js";
 import { SiteSetupError } from "./site.js";
-import { runTask } from "./task.js";
+import { describeTask, runTask } from "./task.js";
 
 const BROKER_HOSTS = ["github-pages", "gitlab-pages", "cloudflare-pages", "vercel"] as const;
 
@@ -90,7 +91,10 @@ Commands:
             workflow or pipeline does, with the request in GOODFELLOW_TASK_REQUEST,
             GOODFELLOW_TASK_PLUGIN, GOODFELLOW_TASK_NAME, GOODFELLOW_TASK_INPUT and
             GOODFELLOW_TASK_KEY, writing its sealed answer to --out (default:
-            goodfellow-task-result.json)
+            goodfellow-task-result.json). With --describe, it only loads the
+            site's config and writes down the task to --out (default:
+            goodfellow-task.json), for a job with no secrets, which the job with
+            them runs with @goodfellow-cms/core's goodfellow-task
   content   For a site whose content is kept in a repository of its own:
             content link [folder]  links content/ and public/media/ to the content
                                    repository in folder (default: content-repository)
@@ -118,6 +122,7 @@ Options:
   --react         For build: run Client Components with React even where they all work with Preact,
                   as GOODFELLOW_REACT=1 does
   --dry-run       For import: say what importing would bring across, and change nothing
+  --describe      For task: only write down the task, for the job with the secrets
   --registry <dir>
                   For blocks add: write the block into the block registry in dir
   --native <dir>  For blocks add: also make the block's version for the Expo app in dir
@@ -147,6 +152,7 @@ async function main(): Promise<void> {
       host: { type: "string" },
       domain: { type: "string" },
       strict: { type: "boolean" },
+      describe: { type: "boolean" },
       react: { type: "boolean" },
       network: { type: "boolean" },
       "dry-run": { type: "boolean" },
@@ -215,6 +221,15 @@ async function main(): Promise<void> {
     }
     case "task": {
       const env = process.env;
+      if (values.describe) {
+        await describeTask({
+          root: values.root ?? ".",
+          plugin: env.GOODFELLOW_TASK_PLUGIN ?? "",
+          task: env.GOODFELLOW_TASK_NAME ?? "",
+          out: values.out ?? TASK_DESCRIPTION_FILE,
+        });
+        return;
+      }
       await runTask({
         root: values.root ?? ".",
         request: env.GOODFELLOW_TASK_REQUEST ?? "",

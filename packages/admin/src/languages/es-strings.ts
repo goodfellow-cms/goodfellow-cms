@@ -1324,7 +1324,7 @@ export const strings: Strings = {
   "plugins.secrets.gitlab.open":
     "Abre los ajustes de CI/CD del sitio en GitLab con el enlace de abajo y despliega Variables. Añade allí cada clave, de una en una.",
   "plugins.secrets.gitlab.add":
-    "Para {name}: elige Add variable, elige Masked en Visibility, deja marcado Protect variable, escribe {name} en Key, pega su valor en Value y elige Add variable.",
+    "Para {name}: elige Add variable, elige Masked en Visibility, deja marcado Protect variable, escribe goodfellow-tasks en Environments donde GitLab lo ofrezca, para que solo la tarea lo reciba, escribe {name} en Key, pega su valor en Value y elige Add variable.",
   "plugins.secrets.gitlab.who":
     "Solo quienes son propietarios del sitio (Maintainers) en GitLab pueden cambiar sus ajustes de CI/CD.",
   "plugins.secrets.bitbucket.title": "Añádelos en Bitbucket",

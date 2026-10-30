@@ -17,7 +17,7 @@
 import { EARLY_CHECK, EARLY_COMMAND, LOCKFILE_CHECK, LOCKFILE_COMMAND } from "./lockfile-setup.js";
 import { RELEASE_AGE_DAYS } from "./npm-packages.js";
 import { TASK_BRANCH_PREFIX, TASK_JOB, TASK_RESULT_FILE } from "./plugin-tasks.js";
-import type { SiteCli } from "./task-setup.js";
+import { type SiteCli, TASK_DESCRIPTION, taskRunner, taskRunnerInstall } from "./task-setup.js";
 
 /** Bitbucket Pipelines' setup file. */
 export const BITBUCKET_PIPELINES = "bitbucket-pipelines.yml";
@@ -191,9 +191,11 @@ ${bitbucketRebuildStep("Scheduled change")}
 
     ${task}:
       # Runs a plugin's task for the admin panel, such as S3 storage signing uploads with keys kept in the
-      # repository's variables, each task getting only those its plugin declared. The admin panel starts it with
-      # these variables, and it leaves the answer, sealed to a key only that admin panel holds, on a branch of its
-      # own, which the admin panel reads and deletes.
+      # repository's variables: the first step loads the site's config and writes down the task, and the second
+      # runs it from Goodfellow's task runner, installed from npm apart from the site's packages, which gives each
+      # task only the variables its plugin declared. Bitbucket gives every step the repository's variables. The
+      # admin panel starts it with these variables, and it leaves the answer, sealed to a key only that admin
+      # panel holds, on a branch of its own, which the admin panel reads and deletes.
       - variables:
           - name: GOODFELLOW_TASK_REQUEST
           - name: GOODFELLOW_TASK_PLUGIN
@@ -201,11 +203,19 @@ ${bitbucketRebuildStep("Scheduled change")}
           - name: GOODFELLOW_TASK_INPUT
           - name: GOODFELLOW_TASK_KEY
       - step:
-          name: Plugin task
+          name: Describe the plugin task
           caches: [npm]
           script:
-            - npm ci --prefer-offline
-            - npx ${cli} task --out "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" || true
+            - npm ci --prefer-offline || true
+            - npx ${cli} task --describe --out ${TASK_DESCRIPTION} || true
+          artifacts:
+            - ${TASK_DESCRIPTION}
+      - step:
+          name: Plugin task
+          script:
+${taskRunnerInstall("/tmp/goodfellow-runner", "            - ")}
+            - npm ci --ignore-scripts
+            - ${taskRunner("/tmp/goodfellow-runner")} --description ${TASK_DESCRIPTION} --out "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" || true
             - |
               case "$GOODFELLOW_TASK_REQUEST" in "" | *[!a-z0-9]*) echo "That isn't a request from the admin panel."; exit 1 ;; esac
               answer="$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}"

@@ -496,10 +496,14 @@ export async function checkPages(pages: readonly BuiltPage[], root = process.cwd
 }
 
 /**
- * Runs one of a plugin's tasks for the admin panel, as `goodfellow task`
- * does for other sites, with the site's config loaded in Node, and writes its
- * answer sealed to the request's key, even when the task fails. The config
- * loads in a process of its own, with none of the job's secrets.
+ * Runs one of a plugin's tasks for the admin panel in one job, as
+ * `goodfellow task` does for other sites, with the site's config loaded in
+ * Node, and writes its answer sealed to the request's key, even when the task
+ * fails: for sites' task setups from before 0.9. The config loads in a process
+ * of its own, without the job's secrets in its environment, but where it can
+ * read its parent's, so the starters now write the task down with
+ * `goodfellow-next task --describe` in a job with no secrets and run it with
+ * `@goodfellow-cms/core`'s `goodfellow-task`.
  */
 export async function writeTaskResult(
   root: string,

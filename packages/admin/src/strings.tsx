@@ -1320,7 +1320,7 @@ export const defaultStrings = {
   "plugins.secrets.gitlab.open":
     "Open the site's CI/CD settings on GitLab with the link below, and expand Variables. Add each key there, one at a time.",
   "plugins.secrets.gitlab.add":
-    "For {name}: choose Add variable, choose Masked under Visibility, keep Protect variable ticked, type {name} in Key, paste its value in Value, and choose Add variable.",
+    "For {name}: choose Add variable, choose Masked under Visibility, keep Protect variable ticked, type goodfellow-tasks under Environments where GitLab offers it, so only the task gets it, type {name} in Key, paste its value in Value, and choose Add variable.",
   "plugins.secrets.gitlab.who": "Only the site's owners (Maintainers) on GitLab can change its CI/CD settings.",
   "plugins.secrets.bitbucket.title": "Add them on Bitbucket",
   "plugins.secrets.bitbucket.link": "Open the site's Pipelines variables on Bitbucket",
