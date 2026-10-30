@@ -124,11 +124,13 @@ describe("hostFonts", () => {
       expect(await readFile(join(pub, (fonts as { stylesheet: string }).stylesheet), "utf8")).toContain(
         "url(s/lora/v1/a.woff2)",
       );
-      expect(existsSync(join(pub, "fonts/google/s/old"))).toBe(false);
+      expect(existsSync(join(pub, "fonts/google/s/old/b.woff2"))).toBe(false);
       // The site's own fonts beside them stay.
       expect(await readFile(join(pub, "fonts/mine/c.woff2"), "utf8")).toBe("the site's own");
 
+      // Where Google can't be reached, what's there stays: another of the build's processes may have written it.
       expect(await hostFonts(pub, site, { read: async () => undefined })).toEqual({ unavailable: true });
+      expect(existsSync(join(pub, (fonts as { stylesheet: string }).stylesheet))).toBe(true);
       expect(await hostFonts(pub, theme({}))).toBeUndefined();
       expect(existsSync(join(pub, "fonts/google"))).toBe(false);
     } finally {

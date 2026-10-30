@@ -75,7 +75,8 @@ export async function selfHostFonts(
 /**
  * Puts a full-stack site's Google Fonts in its `public/` folder
  * (`selfHostedFonts()`), in `FONTS_DIR`, in place of what an earlier build
- * put there, before Next.js renders any page, since it can't change pages
+ * put there (which stays where Google can't be reached, since another of
+ * the build's processes may have written it), before Next.js renders any page, since it can't change pages
  * once they're rendered. Gives where they are, which the renderer points
  * pages at as it renders them, or `{ unavailable: true }` where Google can't
  * be reached, so pages keep loading them from Google, and `undefined` for a
@@ -86,14 +87,26 @@ export async function hostFonts(
   theme: Theme,
   options: { read?: ReadStylesheet; readFont?: ReadFontFile } = {},
 ): Promise<HostedFonts | { unavailable: true } | undefined> {
-  await rm(join(publicDir, FONTS_DIR), { recursive: true, force: true });
-  if (!googleFontsUrl(theme)) return undefined;
+  const folder = join(publicDir, FONTS_DIR);
+  if (!googleFontsUrl(theme)) {
+    await rm(folder, { recursive: true, force: true });
+    return undefined;
+  }
+  // `next build` loads the config in several processes, each of which comes here: one that can't reach Google
+  // leaves what another wrote, which pages may already point at.
   const fonts = await selfHostedFonts(theme, options.read ?? readStylesheet, options.readFont ?? readFontFile);
   if (!fonts) return { unavailable: true };
+  const kept = new Set<string>();
   for (const file of fonts.files) {
     const target = join(publicDir, file.path);
+    kept.add(target);
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, "content" in file ? file.content : file.bytes);
+  }
+  // What an earlier build put there goes, once this one's files are in place.
+  for (const entry of await readdir(folder, { recursive: true, withFileTypes: true })) {
+    const path = join(entry.parentPath, entry.name);
+    if (entry.isFile() && !kept.has(path)) await rm(path, { force: true });
   }
   return { source: fonts.source, stylesheet: fonts.stylesheet, fonts: fonts.fonts };
 }
