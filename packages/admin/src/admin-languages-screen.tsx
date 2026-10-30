@@ -6,6 +6,9 @@
  * a batch at a time with its glossary), publishing what came back in one
  * publish, even when the service stopped part way, so it's never asked for
  * twice. Every string is checked again as it's used (`composeAdminText()`).
+ * Each language, Goodfellow's own included, opens in `AdminTextEditor` at
+ * `#/settings/admin-languages/<code>`, to change its words by hand, and
+ * languages can come from language packs on npm (`LanguagePacks`).
  */
 import { translateAdminText } from "@goodfellow-cms/ai";
 import {
@@ -15,21 +18,58 @@ import {
   isLanguageCode,
   readAdminText,
 } from "@goodfellow-cms/core";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin } from "./admin-context.js";
-import { ADMIN_LANGUAGES } from "./admin-language.js";
+import { ADMIN_LANGUAGES, type AdminText } from "./admin-language.js";
+import { AdminTextEditor } from "./admin-text-editor.js";
 import {
   adminTextSources,
   type LanguageStatus,
   labelSources,
   languageStatus,
+  sourceKey,
   sourcesToTranslate,
   withTranslations,
 } from "./admin-text-sources.js";
 import { problemKey, ServiceSettings, useAiService } from "./ai-panel.js";
+import { LanguagePacks } from "./language-packs.js";
+import { PUCK_ENGLISH } from "./languages/en-puck.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
-import { useStrings } from "./strings.js";
+import { useRoute } from "./router.js";
+import { defaultStrings, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
+import { AppLink } from "./use-link.js";
+
+const isBuiltIn = (code: string) => ADMIN_LANGUAGES.some((language) => language.code === code);
+
+/** What each string shows in one of Goodfellow's languages, by `sourceKey()`, before the site changes any. */
+function shippedDefaults(text: AdminText | undefined): Map<string, string> {
+  const strings = text?.strings ?? defaultStrings;
+  return new Map<string, string>([
+    ...Object.entries(strings).map(([key, value]) => [sourceKey("strings", key), value] as [string, string]),
+    ...Object.entries({ ...PUCK_ENGLISH, ...text?.puck }).map(
+      ([key, value]) => [sourceKey("puck", key), value] as [string, string],
+    ),
+    ...Object.entries(text?.labels ?? {}).map(([key, value]) => [sourceKey("labels", key), value] as [string, string]),
+  ]);
+}
+
+/** The defaults the editor shows for a language: Goodfellow's words where it ships the language, else English. */
+function useDefaults(code: string | undefined): Map<string, string> | undefined {
+  const [spanish, setSpanish] = useState<AdminText>();
+  useEffect(() => {
+    if (code !== "es" || spanish) return;
+    let live = true;
+    void import("./languages/es.js").then((module) => live && setSpanish(module.spanish));
+    return () => {
+      live = false;
+    };
+  }, [code, spanish]);
+  return useMemo(() => {
+    if (code === "es") return spanish && shippedDefaults(spanish);
+    return shippedDefaults(undefined);
+  }, [code, spanish]);
+}
 
 type Status =
   | { type: "idle" }
@@ -45,6 +85,9 @@ async function siteSources(description: Parameters<typeof labelSources>[0]) {
 
 export function AdminLanguagesScreen() {
   const t = useStrings();
+  const { segments } = useRoute();
+  const editing = segments[0] === "settings" && segments[1] === "admin-languages" ? segments[2] : undefined;
+  const defaults = useDefaults(editing);
   const { site, state, readFile, listFiles, publish } = useAdmin();
   const ai = useAiService();
   const revision = state.status === "ready" ? state.revision : undefined;
@@ -151,7 +194,29 @@ export function AdminLanguagesScreen() {
     else setFailure(result);
   };
 
-  const languages = Object.entries(files ?? {}).sort(([a], [b]) => a.localeCompare(b));
+  const languages = Object.entries(files ?? {})
+    .filter(([languageCode]) => !isBuiltIn(languageCode))
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  // A language's words, opened from its row.
+  if (editing && files && sources && defaults) {
+    const builtIn = ADMIN_LANGUAGES.find((language) => language.code === editing);
+    const file = files[editing];
+    const languageName = builtIn?.name ?? file?.name;
+    if (languageName) {
+      return (
+        <AdminTextEditor
+          key={editing}
+          code={editing}
+          name={languageName}
+          file={file}
+          sources={sources}
+          defaults={defaults}
+          builtIn={Boolean(builtIn)}
+        />
+      );
+    }
+  }
 
   return (
     <div className="gfa-screen">
@@ -180,6 +245,7 @@ export function AdminLanguagesScreen() {
                 key={languageCode}
                 code={languageCode}
                 name={file.name}
+                {...(file.pack && { pack: file.pack })}
                 status={languageStatus(file, sources)}
                 disabled={working || !canAsk}
                 onTranslate={(outdated) => void translate({ code: languageCode, name: file.name }, { outdated })}
@@ -213,6 +279,39 @@ export function AdminLanguagesScreen() {
           </div>
         ))}
       <PublishFailure failure={failure} />
+
+      <section>
+        <h2 className="gfa-section-title">{t("adminText.own.title")}</h2>
+        <p className="gfa-hint">{t("adminText.own.intro")}</p>
+        <table className="gfa-table">
+          <tbody>
+            {ADMIN_LANGUAGES.map((language) => {
+              const file = files?.[language.code];
+              const changed = file
+                ? Object.keys(file.strings).length + Object.keys(file.puck).length + Object.keys(file.labels).length
+                : 0;
+              return (
+                <tr key={language.code}>
+                  <td>
+                    <strong lang={language.code}>{language.name}</strong> <code>{language.code}</code>
+                  </td>
+                  <td>{changed > 0 && t("adminText.own.changed", { count: String(changed) })}</td>
+                  <td className="gfa-row-actions">
+                    <AppLink
+                      href={`#/settings/admin-languages/${language.code}`}
+                      className="gfa-button gfa-button-secondary"
+                    >
+                      {t("adminText.own.change")}
+                    </AppLink>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+
+      {files && sources && <LanguagePacks files={files} sources={sources} />}
 
       <section>
         <h2 className="gfa-section-title">{t("adminText.add.title")}</h2>
@@ -280,6 +379,7 @@ export function AdminLanguagesScreen() {
 function LanguageRow({
   code,
   name,
+  pack,
   status,
   disabled,
   onTranslate,
@@ -287,6 +387,8 @@ function LanguageRow({
 }: {
   code: string;
   name: string;
+  /** The language pack it came from, where it did. */
+  pack?: { name: string; release: string };
   status: LanguageStatus;
   disabled: boolean;
   onTranslate: (outdated: boolean) => void;
@@ -297,6 +399,7 @@ function LanguageRow({
     <tr>
       <td>
         <strong lang={code}>{name}</strong> <code>{code}</code>
+        {pack && <div className="gfa-hint">{t("adminText.pack.from", { name: pack.name, version: pack.release })}</div>}
       </td>
       <td>
         {t("adminText.status", { current: String(status.current), total: String(status.total) })}
@@ -311,6 +414,9 @@ function LanguageRow({
         )}
       </td>
       <td className="gfa-row-actions">
+        <AppLink href={`#/settings/admin-languages/${code}`} className="gfa-button gfa-button-secondary">
+          {t("adminText.edit")}
+        </AppLink>
         {status.missing + status.unusable > 0 && (
           <Button variant="primary" disabled={disabled} onClick={() => onTranslate(false)}>
             {t("adminText.translate")}

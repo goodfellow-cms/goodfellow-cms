@@ -69,6 +69,36 @@ A site can have the admin panel in any other language too, with its text in a fi
 
 Owners add one in **Site Settings → Admin panel languages**: give the language's code and its name in that language, choose the [AI service](/docs/ai-assistant) and its key, as in the editor's AI panel, and **Add and translate**. The service translates the admin panel's words, the editor's controls and your blocks' labels, a batch at a time, with a glossary that keeps words such as Publish, Draft and Version history the same throughout and never uses git's. What comes back is published as the language's file, even if the service stops part way, so nothing is translated twice. The screen then shows how much of the admin panel each language says, with **Translate what's missing**, **Translate again what's out of date** for strings whose English has changed in a later release, and **Remove**. A box says anything the translation should know, such as how formal to be. A chat app can't do it, since the admin panel asks the service itself.
 
+**Edit** opens a language's words one by one: each string's English beside what the admin panel shows, a box to change it, and **Read by someone who speaks it** to mark the ones a person has checked. Search finds a string by its English, its translation or its key, and **Show** narrows the list to strings not written yet, out of date, that can't be used, or not read yet. A string with other words in curly braces than the English can't be published until it's fixed; emptying a box takes the string out of the file, so it shows the English again. **Publish** saves every change together.
+
+The same screen changes Goodfellow's own words: **Change words** beside English or Español opens the admin panel's words in that language, to write the ones you'd rather it used, such as your parish's word for an editor. Only what you change is kept, in `content/admin-text/en.json` or `es.json`; everything else stays as Goodfellow writes it and follows its updates. Your own English words show without English beside them.
+
+#### Language packs
+
+A language pack is someone else's translation of the admin panel, shared on npm, so a site needn't make its own. **Language packs** on the same screen searches for them; **Show** says which language a pack is for, how much of the admin panel it says, and where npm says it was built, and **Install and publish** writes its words into the language's file. A pack holds only words, so installing one runs nothing, and its words are checked as they're used, as your own are.
+
+- **Your own words stay.** Where you already have words for a string the pack says differently, yours are kept, unless you tick **Use the pack's words for those too**. Words you change after installing are yours too.
+- **Updates are offered, never made by themselves.** **Show** beside an installed pack offers **Update to …** when a newer version is out, which replaces only the pack's words that nobody has changed and takes out the ones the new version dropped. Versions are offered as themes' are: once they're 3 days old, not marked as not to be used, and only where they say they work with your Goodfellow.
+- **Removing it** takes out the pack's words nobody changed; any you wrote stay, and the language goes from the menu when none are left.
+
+To publish one, make an npm package named `goodfellow-language-<name>`, or `@someone/goodfellow-language-<name>`, with the `goodfellow-language` keyword and a `peerDependencies` range on `@goodfellow-cms/core`, as a [theme](/docs/themes#publish-a-theme) has. At its root, `goodfellow-language.json` is a language's file as below, with the language's `code` and, optionally, a `description`:
+
+```json
+{
+  "version": 1,
+  "code": "fr",
+  "name": "Français",
+  "description": "Le panneau d'administration en français.",
+  "strings": {
+    "nav.pages": { "text": "Les pages", "source": "7decab7f", "reviewed": true }
+  },
+  "puck": {},
+  "labels": {}
+}
+```
+
+The quickest start is a site's own file, made and checked on the Admin panel languages screen, with `code` added.
+
 A developer or a translation tool can write the files too:
 
 ```json
@@ -90,6 +120,7 @@ A developer or a translation tool can write the files too:
 - **Anything the file leaves out is in English**, or in Goodfellow's own translation where it ships one, so a file for `es` changes only the strings it has.
 - **Every string is checked as it's used**: one that's empty, very long, or has other `{placeholders}` than the English, such as `{title}`, is shown in English instead.
 - **The English is shown beside** the site's own words where a wrong translation could cost something: signing in and tokens, owners' screens, plugins, and what can't be undone, such as deleting a page.
+- **`pack`** says which language pack the file came from, and each string the pack wrote has a `pack` hash of its text, so an update can tell which strings someone has changed since.
 - **Only owners** change these files, as they do Site Settings.
 - **Builds publish them** beside the admin panel, in `admin/text/`, so the sign-in screen speaks them before it can read the site's files; once someone has signed in, the admin panel reads the site's own, which may be newer. A file that can't be read is left out, with a note in the build's output, and never stops the build.
 

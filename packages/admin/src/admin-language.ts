@@ -234,10 +234,15 @@ export function showsEnglish(key: string): boolean {
  * it ships one, over the English, each string checked as it's used. The
  * site's strings in `showsEnglish()` have the English after them.
  */
-export function composeAdminText(base: AdminText | undefined, file: AdminTextFile | undefined): AdminText {
+export function composeAdminText(
+  base: AdminText | undefined,
+  file: AdminTextFile | undefined,
+  /** Whether the language is English, whose own words the site changes, which need no English beside them. */
+  options: { english?: boolean } = {},
+): AdminText {
   if (!file) return base ?? ENGLISH;
   const { table, fromFile } = adminTextTable(defaultStrings, file.strings, base?.strings);
-  for (const key of fromFile) {
+  for (const key of options.english ? [] : fromFile) {
     const english = defaultStrings[key as StringKey];
     if (showsEnglish(key) && table[key] !== english) table[key] = `${table[key]} (${english})`;
   }
@@ -279,7 +284,7 @@ export function useAdminText(): AdminText | undefined {
       base.catch(() => undefined),
       siteFile(code).catch(() => undefined),
     ]).then(([shipped, file]) => {
-      if (live) setLoaded({ code, text, value: composeAdminText(shipped, file) });
+      if (live) setLoaded({ code, text, value: composeAdminText(shipped, file, { english: code === "en" }) });
     });
     return () => {
       live = false;

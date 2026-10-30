@@ -113,6 +113,9 @@ describe("the admin panel in a site's own language", () => {
     expect(text.strings["deletePage.body"]).toBe(
       `La page {path} sera supprimée. (${defaultStrings["deletePage.body"]})`,
     );
+    // Not for the site's own English, which only changes Goodfellow's English words.
+    const english = composeAdminText(undefined, french, { english: true });
+    expect(english.strings["deletePage.body"]).toBe("La page {path} sera supprimée.");
     expect(showsEnglish("signIn.token.step1")).toBe(true);
     expect(showsEnglish("owner.token.paste")).toBe(true);
     expect(showsEnglish("draft.discardBody")).toBe(true);

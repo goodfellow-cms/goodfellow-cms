@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fakeAi } from "@goodfellow-cms/ai/testing";
+import { type FakeTheme, fakeLanguagePacks, sampleLanguagePackFiles } from "@goodfellow-cms/core/testing";
+import type { Page } from "@playwright/test";
 import { GITHUB_SITE, routeToFake } from "./backends.js";
 import { canvas, editor, expect, openPageEditor, readSiteFile, test, writeSiteFile } from "./helpers";
 
@@ -122,4 +124,112 @@ test("translates the admin panel into a new language with the editor's AI servic
   // Editors can then choose it.
   await page.getByRole("combobox", { name: "Language of the admin panel" }).selectOption("fr");
   await expect(page.getByRole("link", { name: "FR Pages", exact: true })).toBeVisible();
+});
+
+test("changes the admin panel's own English words, and edits a site's language string by string", async ({ page }) => {
+  await page.goto("/admin#/settings/admin-languages");
+  await page.getByRole("link", { name: "Change words" }).first().click();
+  await expect(page.getByRole("heading", { name: "English: the admin panel's words" })).toBeVisible();
+  await page.getByLabel("Search").fill("nav.pages");
+  const pages = page.getByRole("textbox", { name: "Pages (strings:nav.pages)" });
+  await expect(pages).toHaveAttribute("placeholder", "Pages");
+  await pages.fill("Our pages");
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  const english = JSON.parse(readSiteFile("content/admin-text/en.json"));
+  expect(english.strings["nav.pages"]).toMatchObject({ text: "Our pages" });
+  // The admin panel says it at once, with no English beside its own English.
+  await expect(page.getByRole("link", { name: "Our pages", exact: true })).toBeVisible();
+
+  // A site's own language: mark a string read, and fix one that can't be used.
+  writeSiteFile("content/admin-text/fr.json", french);
+  await page.goto("/admin#/settings/admin-languages/fr");
+  // Only the address's # changed, so the page loads again to read the file just written.
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Français: the admin panel's words" })).toBeVisible();
+  await page.getByLabel("Show").selectOption("unusable");
+  const redirect = page.getByRole("textbox", { name: /strings:signIn\.redirect/ });
+  await redirect.fill("Se connecter");
+  await expect(page.getByText("This needs the same words in curly braces as the English")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
+  await redirect.fill("Se connecter avec {host}");
+  await page.getByLabel("Show").selectOption("all");
+  await page.getByLabel("Search").fill("nav.pages");
+  await page.getByRole("checkbox", { name: "Read by someone who speaks it" }).check();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  const file = JSON.parse(readSiteFile("content/admin-text/fr.json"));
+  expect(file.strings["signIn.redirect"]).toMatchObject({ text: "Se connecter avec {host}" });
+  expect(file.strings["nav.pages"]).toMatchObject({ text: "Les pages", reviewed: true });
+});
+
+/** npm's registry and jsDelivr, answering for the language packs given, in place of any routed before. */
+async function routeToPacks(page: Page, packs: FakeTheme[]) {
+  const fake = fakeLanguagePacks({ packs });
+  for (const origin of ["https://registry.npmjs.org", "https://cdn.jsdelivr.net"]) {
+    await page.unroute(`${origin}/**`);
+    await page.route(`${origin}/**`, (route) => {
+      const answer = fake.handle(route.request().url());
+      return route.fulfill({ status: answer.status, headers: answer.headers, body: answer.body });
+    });
+  }
+}
+
+function german(releases: { version: string; strings: Record<string, string> }[]): FakeTheme {
+  return {
+    name: "goodfellow-language-de",
+    description: "Das Admin-Panel auf Deutsch.",
+    publisher: "sprachen",
+    releases: releases.map(({ version, strings }) => ({
+      version,
+      files: sampleLanguagePackFiles({ code: "de", name: "Deutsch", strings }),
+    })),
+  };
+}
+
+test("installs a language pack, updates it keeping the owner's words, and removes it", async ({ page }) => {
+  test.setTimeout(120_000);
+  await routeToPacks(page, [
+    german([{ version: "1.0.0", strings: { "publish.button": "Veröffentlichen", "nav.pages": "Seiten" } }]),
+  ]);
+  await page.goto("/admin#/settings/admin-languages");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("button", { name: "Show goodfellow-language-de" }).click();
+  await expect(page.getByText("The admin panel in Deutsch (de)")).toBeVisible();
+  await expect(page.getByText(/^With it, \d+ of the admin panel's \d+ strings are in Deutsch\.$/)).toBeVisible();
+  await page.getByRole("button", { name: "Install and publish" }).click();
+  await expect(page.getByText("The admin panel in Deutsch is installed from goodfellow-language-de.")).toBeVisible();
+  const installed = JSON.parse(readSiteFile("content/admin-text/de.json"));
+  expect(installed.pack).toMatchObject({ name: "goodfellow-language-de", release: "1.0.0" });
+  expect(installed.strings["nav.pages"]).toMatchObject({ text: "Seiten", pack: expect.any(String) });
+  await expect(page.getByText("From goodfellow-language-de, version 1.0.0")).toBeVisible();
+
+  // The owner changes one of the pack's words, then a new release changes both.
+  installed.strings["nav.pages"] = { text: "Unsere Seiten" };
+  writeSiteFile("content/admin-text/de.json", `${JSON.stringify(installed, null, 2)}\n`);
+  await routeToPacks(page, [
+    german([
+      { version: "1.0.0", strings: {} },
+      { version: "1.1.0", strings: { "publish.button": "Jetzt veröffentlichen", "nav.pages": "Alle Seiten" } },
+    ]),
+  ]);
+  await page.reload();
+  await page.getByRole("button", { name: "Show goodfellow-language-de" }).click();
+  await expect(page.getByText("You have your own words for 1 strings", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Update to 1.1.0" }).click();
+  await expect(page.getByText("The admin panel in Deutsch is installed from goodfellow-language-de.")).toBeVisible();
+  const updated = JSON.parse(readSiteFile("content/admin-text/de.json"));
+  expect(updated.pack.release).toBe("1.1.0");
+  expect(updated.strings["publish.button"].text).toBe("Jetzt veröffentlichen");
+  expect(updated.strings["nav.pages"].text).toBe("Unsere Seiten");
+
+  // Removing it keeps only what the owner wrote.
+  await page.getByRole("button", { name: "Show goodfellow-language-de" }).click();
+  await expect(page.getByText("Version 1.1.0 is installed, the newest offered.")).toBeVisible();
+  await page.getByRole("button", { name: "Remove the pack" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Remove the pack" }).click();
+  await expect(page.getByText("goodfellow-language-de is removed.")).toBeVisible();
+  const left = JSON.parse(readSiteFile("content/admin-text/de.json"));
+  expect(left).not.toHaveProperty("pack");
+  expect(left.strings).toEqual({ "nav.pages": { text: "Unsere Seiten" } });
 });

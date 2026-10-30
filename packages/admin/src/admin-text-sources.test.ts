@@ -2,10 +2,12 @@ import { type AdminTextFile, englishHash } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
 import {
   adminTextSources,
+  filterSources,
   labelSources,
   languageStatus,
   sourceKey,
   sourcesToTranslate,
+  withEdits,
   withTranslations,
 } from "./admin-text-sources.js";
 import { PUCK_ENGLISH } from "./languages/en-puck.js";
@@ -126,5 +128,61 @@ describe("a language's translation", () => {
       puck: {},
       labels: {},
     });
+  });
+
+  it("finds strings by their English, key or text, and by where they stand", () => {
+    const keys = (found: { key: string }[]) => found.map((source) => source.key);
+    expect(keys(filterSources(file, sources, { query: "PUBLISH" }))).toEqual(["strings:publish.button"]);
+    expect(keys(filterSources(file, sources, { query: "publier" }))).toEqual(["strings:publish.button"]);
+    expect(keys(filterSources(file, sources, { query: "delete title" }))).toEqual(["strings:deletePage.title"]);
+    expect(keys(filterSources(file, sources, { show: "missing" }))).toEqual(["labels:Size"]);
+    expect(keys(filterSources(file, sources, { show: "outdated" }))).toEqual(["strings:nav.pages"]);
+    expect(keys(filterSources(file, sources, { show: "unusable" }))).toEqual(["strings:deletePage.title"]);
+    // Current strings no one has read: none here, since the only current one is reviewed.
+    expect(keys(filterSources(file, sources, { show: "unreviewed" }))).toEqual([]);
+    expect(filterSources(file, sources)).toHaveLength(4);
+  });
+
+  it("writes an owner's edits against today's English, and takes emptied ones out", () => {
+    const next = withEdits(
+      file,
+      "Français",
+      new Map([
+        [sourceKey("strings", "nav.pages"), { text: " Les pages ", reviewed: true }],
+        [sourceKey("strings", "publish.button"), { text: "", reviewed: false }],
+        [sourceKey("labels", "Size"), { text: "Taille", reviewed: false }],
+        ["strings:not.asked", { text: "Ignoré", reviewed: true }],
+      ]),
+      sources,
+    );
+    expect(next.strings["nav.pages"]).toEqual({
+      text: "Les pages",
+      source: englishHash(defaultStrings["nav.pages"]),
+      reviewed: true,
+    });
+    expect(next.strings).not.toHaveProperty("publish.button");
+    expect(next.labels.Size).toEqual({ text: "Taille", source: englishHash("Size") });
+    expect(next.strings).not.toHaveProperty("not.asked");
+    expect(next.strings["deletePage.title"]).toEqual(file.strings["deletePage.title"]);
+  });
+
+  it("keeps a language pack's record and marks, so an update knows what's still the pack's", () => {
+    const packed: AdminTextFile = {
+      ...file,
+      strings: { "nav.pages": { text: "Pages", pack: englishHash("Pages") } },
+      pack: { name: "goodfellow-language-fr", release: "1.0.0" },
+    };
+    const read = withEdits(
+      packed,
+      "Français",
+      new Map([["strings:nav.pages", { text: "Pages", reviewed: true }]]),
+      sources,
+    );
+    expect(read.pack).toEqual(packed.pack);
+    expect(read.strings["nav.pages"]).toMatchObject({ text: "Pages", reviewed: true, pack: englishHash("Pages") });
+    const translated = withTranslations(packed, "Français", new Map([["strings:nav.pages", "Les pages"]]), sources);
+    expect(translated.pack).toEqual(packed.pack);
+    // The mark stays the pack's text's hash, so the new text is no longer the pack's.
+    expect(translated.strings["nav.pages"]?.pack).toBe(englishHash("Pages"));
   });
 });
