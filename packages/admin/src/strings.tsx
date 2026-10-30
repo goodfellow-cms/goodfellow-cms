@@ -1122,6 +1122,24 @@ export const defaultStrings = {
   "comments.disqus.moderate": "Moderate comments on Disqus",
   "comments.disqus.stopBody":
     "Pages stop showing comments once the site has been rebuilt. Everything visitors wrote stays on Disqus, so you can use it again later.",
+  "comments.garrul.title": "Use Garrul",
+  "comments.garrul.intro":
+    "Garrul keeps comments in a Cloudflare account of your own, on Cloudflare's free plan, with no ads. Visitors comment as guests or sign in with GitHub, Google, Facebook, X or Discord. It needs setting up on Cloudflare first, by someone used to running commands on a computer.",
+  "comments.garrul.start": "Garrul's instructions",
+  "comments.garrul.then": " say how to set it up. Then paste its address, or the code it gives you for a page.",
+  "comments.garrul.label": "Garrul's address, or its code",
+  "comments.garrul.invalid":
+    "That isn't an address or Garrul's code. Garrul's address starts with https://, such as https://comments.example.org.",
+  "comments.garrul.button": "Use Garrul",
+  "comments.garrul.message": "Use Garrul for comments",
+  "comments.garrul.kept": "Comments are kept by Garrul, at",
+  "comments.garrul.origins":
+    "Garrul shows comments only at the addresses its settings allow, so its ALLOWED_ORIGINS must include the site's address.",
+  "comments.garrul.moderateHint":
+    "Approve, hide and delete comments on Garrul's own pages, signed in with an email address its settings name as an admin.",
+  "comments.garrul.moderate": "Moderate comments on Garrul",
+  "comments.garrul.stopBody":
+    "Pages stop showing comments once the site has been rebuilt. Everything visitors wrote stays in Garrul, so you can use it again later.",
   "comments.moderate.title": "What visitors have written",
   "comments.moderate.empty": "No one has commented yet.",
   "comments.moderate.more": "Show more pages",

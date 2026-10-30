@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { wallClock } from "../calendar.js";
-import { COMMENTS_ID, COMMENTS_REPO, DISQUS_SHORTNAME } from "../comments.js";
+import { COMMENTS_ID, COMMENTS_REPO, DISQUS_SHORTNAME, garrulAddress } from "../comments.js";
 import { addressPatternProblem } from "./paths.js";
 
 /** Theme color names. They map to shadcn-compatible CSS variables (`primaryForeground` → `--primary-foreground`). */
@@ -360,7 +360,7 @@ export const siteSettingsSchema = z
     /**
      * Where visitors' comments are kept, as the Comments block shows them:
      * through Giscus, a public GitHub repository's discussions in one category,
-     * or by Disqus, its site's shortname.
+     * by Disqus, its site's shortname, or by Garrul, its Worker's origin.
      */
     comments: z
       .union([
@@ -371,6 +371,7 @@ export const siteSettingsSchema = z
           categoryId: z.string().regex(COMMENTS_ID),
         }),
         z.object({ disqus: z.string().regex(DISQUS_SHORTNAME) }),
+        z.object({ garrul: z.string().refine((value) => garrulAddress(value) === value) }),
       ])
       .optional(),
     /**

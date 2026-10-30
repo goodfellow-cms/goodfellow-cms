@@ -32,3 +32,22 @@ test("an owner uses Disqus for comments on any site, and stops using it", async 
   await expect(page.getByRole("button", { name: "Use Disqus" })).toBeVisible();
   expect(readJson("content/site.json").comments).toBeUndefined();
 });
+
+test("an owner uses Garrul, on a Cloudflare account of their own, for comments", async ({ page }) => {
+  await page.goto("/admin/#/settings/comments");
+  const field = page.getByLabel("Garrul's address, or its code");
+  await field.fill("http://comments.example.org");
+  await page.getByRole("button", { name: "Use Garrul" }).click();
+  await expect(page.getByText("That isn't an address or Garrul's code.", { exact: false })).toBeVisible();
+
+  // Garrul's code for a page names its Worker's address.
+  await field.fill(`<div id="garrul" data-slug="my-post-slug" data-api="https://comments.example.org"></div>
+<script src="https://comments.example.org/embed.js" defer></script>`);
+  await page.getByRole("button", { name: "Use Garrul" }).click();
+  await expect(page.getByRole("link", { name: "Moderate comments on Garrul" })).toHaveAttribute(
+    "href",
+    "https://comments.example.org/admin/queue?status=pending",
+  );
+  await expect(page.getByText("its ALLOWED_ORIGINS must include the site's address", { exact: false })).toBeVisible();
+  expect(readJson("content/site.json").comments).toEqual({ garrul: "https://comments.example.org" });
+});

@@ -1,13 +1,14 @@
 /**
  * Site Settings' Comments screen: visitors' comments, kept as discussions in a
  * public GitHub repository of their own and shown on pages by Giscus, or kept
- * by Disqus. Owners make that repository or pick one
- * (`SiteComments.create()`, `find()`), or name Disqus's site, publish where
- * comments are as `content/site.json`'s `comments`, which the Comments block
- * reads, and moderate what visitors write on GitHub here (Disqus's are
- * moderated on Disqus). Only backends with `comments` (GitHub) set up
- * Giscus; elsewhere the screen says how it's done on GitHub itself. Disqus
- * works on every site.
+ * by Disqus, or by the owner's own Garrul. Owners make that repository or
+ * pick one (`SiteComments.create()`, `find()`), or name Disqus's site or
+ * Garrul's address, publish where comments are as `content/site.json`'s
+ * `comments`, which the Comments block reads, and moderate what visitors
+ * write on GitHub here (Disqus's are
+ * moderated on Disqus, and Garrul's on Garrul). Only backends with `comments`
+ * (GitHub) set up Giscus; elsewhere the screen says how it's done on GitHub
+ * itself. Disqus and Garrul work on every site.
  */
 import {
   CommentsError,
@@ -18,11 +19,17 @@ import {
   type DisqusPlace,
   disqusModerationUrl,
   disqusShortname,
+  GARRUL_URL,
+  type GarrulPlace,
   GISCUS_APP_URL,
+  garrulAddress,
+  garrulModerationUrl,
   HIDE_REASONS,
   type HideReason,
   isDisqus,
+  isGarrul,
   type SiteComment,
+  type SiteCommentsPlace,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useState } from "react";
 import { siteRepoName } from "./add-broker.js";
@@ -46,19 +53,25 @@ export function CommentsScreen() {
 
   let body: React.ReactNode;
   if (demo) body = <p>{t("comments.demo")}</p>;
-  else if (place && isDisqus(place)) body = <DisqusPlaceSection place={place} />;
+  else if (place && (isDisqus(place) || isGarrul(place))) body = <NamedServicePlace place={place} />;
   else if (!versions || !comments) {
     body = (
       <>
         <p>{t(versions ? "comments.unavailable" : "comments.local")}</p>
-        {!place && <DisqusSetup />}
+        {!place && (
+          <>
+            <NamedServiceSetup service={DISQUS} />
+            <NamedServiceSetup service={GARRUL} />
+          </>
+        )}
       </>
     );
   } else if (!place) {
     body = (
       <>
         <CommentsSetup onMade={setMade} />
-        <DisqusSetup />
+        <NamedServiceSetup service={DISQUS} />
+        <NamedServiceSetup service={GARRUL} />
       </>
     );
   } else {
@@ -379,8 +392,68 @@ function StopComments({ body }: { body: string }) {
   );
 }
 
-/** Names Disqus's site for comments, from its shortname or the code Disqus gives, and publishes it. */
-function DisqusSetup() {
+/** A comments service the screen names by what an owner pastes, and links to for moderating. */
+interface NamedService {
+  id: "disqus" | "garrul";
+  /** What `content/site.json`'s `comments` is, from what was pasted, or nothing where it can't be read. */
+  read(pasted: string): SiteCommentsPlace | undefined;
+  /** Where to start with the service. */
+  start: string;
+  placeholder: string;
+  keys: {
+    title: StringKey;
+    intro: StringKey;
+    start: StringKey;
+    then: StringKey;
+    label: StringKey;
+    invalid: StringKey;
+    button: StringKey;
+    message: StringKey;
+  };
+}
+
+const DISQUS: NamedService = {
+  id: "disqus",
+  read: (pasted) => {
+    const disqus = disqusShortname(pasted);
+    return disqus ? { disqus } : undefined;
+  },
+  start: DISQUS_CREATE_URL,
+  placeholder: "stjoseph",
+  keys: {
+    title: "comments.disqus.title",
+    intro: "comments.disqus.intro",
+    start: "comments.disqus.create",
+    then: "comments.disqus.then",
+    label: "comments.disqus.label",
+    invalid: "comments.disqus.invalid",
+    button: "comments.disqus.button",
+    message: "comments.disqus.message",
+  },
+};
+
+const GARRUL: NamedService = {
+  id: "garrul",
+  read: (pasted) => {
+    const garrul = garrulAddress(pasted);
+    return garrul ? { garrul } : undefined;
+  },
+  start: GARRUL_URL,
+  placeholder: "https://comments.example.org",
+  keys: {
+    title: "comments.garrul.title",
+    intro: "comments.garrul.intro",
+    start: "comments.garrul.start",
+    then: "comments.garrul.then",
+    label: "comments.garrul.label",
+    invalid: "comments.garrul.invalid",
+    button: "comments.garrul.button",
+    message: "comments.garrul.message",
+  },
+};
+
+/** Names a service's place for comments, from what the service gives an owner to paste, and publishes it. */
+function NamedServiceSetup({ service }: { service: NamedService }) {
   const t = useStrings();
   const { publish } = useAdmin();
   const { content } = useSiteContent();
@@ -388,18 +461,17 @@ function DisqusSetup() {
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
+  const { keys } = service;
 
   const use = async () => {
-    const disqus = disqusShortname(pasted);
-    setInvalid(!disqus);
-    if (!disqus) return;
+    const comments = service.read(pasted);
+    setInvalid(!comments);
+    if (!comments) return;
     setBusy(true);
     setFailure(null);
-    const result = await publish(
-      [siteSettingsFileChange({ ...content.settings, comments: { disqus } })],
-      t("comments.disqus.message"),
-      { checks: false },
-    );
+    const result = await publish([siteSettingsFileChange({ ...content.settings, comments })], t(keys.message), {
+      checks: false,
+    });
     setBusy(false);
     if (!result.ok) setFailure(result);
   };
@@ -407,26 +479,26 @@ function DisqusSetup() {
   return (
     <form
       className="gfa-form"
-      aria-labelledby="gfa-comments-disqus"
+      aria-labelledby={`gfa-comments-${service.id}`}
       onSubmit={(event) => {
         event.preventDefault();
         void use();
       }}
     >
-      <h2 className="gfa-section-title" id="gfa-comments-disqus">
-        {t("comments.disqus.title")}
+      <h2 className="gfa-section-title" id={`gfa-comments-${service.id}`}>
+        {t(keys.title)}
       </h2>
-      <p>{t("comments.disqus.intro")}</p>
+      <p>{t(keys.intro)}</p>
       <p>
-        <a href={DISQUS_CREATE_URL} target="_blank" rel="noreferrer">
-          {t("comments.disqus.create")}
+        <a href={service.start} target="_blank" rel="noreferrer">
+          {t(keys.start)}
         </a>
-        {t("comments.disqus.then")}
+        {t(keys.then)}
       </p>
       <TextField
-        label={t("comments.disqus.label")}
-        placeholder="stjoseph"
-        error={invalid ? t("comments.disqus.invalid") : undefined}
+        label={t(keys.label)}
+        placeholder={service.placeholder}
+        error={invalid ? t(keys.invalid) : undefined}
         value={pasted}
         onChange={(value) => {
           setPasted(value);
@@ -436,36 +508,39 @@ function DisqusSetup() {
       <PublishFailure failure={failure} />
       <div>
         <Button type="submit" variant="primary" disabled={busy || !pasted.trim()}>
-          {busy ? t("comments.setup.working") : t("comments.disqus.button")}
+          {busy ? t("comments.setup.working") : t(keys.button)}
         </Button>
       </div>
     </form>
   );
 }
 
-/** Disqus's site, where its comments are moderated, and stopping. */
-function DisqusPlaceSection({ place }: { place: DisqusPlace }) {
+/** Where a service keeps comments, where they're moderated, and stopping. */
+function NamedServicePlace({ place }: { place: DisqusPlace | GarrulPlace }) {
   const t = useStrings();
+  const disqus = isDisqus(place);
   return (
     <section className="gfa-form" aria-labelledby="gfa-comments-place">
       <h2 className="gfa-section-title" id="gfa-comments-place">
         {t("comments.place.title")}
       </h2>
       <p>
-        {t("comments.disqus.kept")} <strong>{place.disqus}</strong>
+        {t(disqus ? "comments.disqus.kept" : "comments.garrul.kept")}{" "}
+        <strong>{disqus ? place.disqus : place.garrul}</strong>
       </p>
-      <p>{t("comments.disqus.moderateHint")}</p>
+      {!disqus && <p className="gfa-hint">{t("comments.garrul.origins")}</p>}
+      <p>{t(disqus ? "comments.disqus.moderateHint" : "comments.garrul.moderateHint")}</p>
       <p>
         <a
           className="gfa-button gfa-button-primary"
-          href={disqusModerationUrl(place.disqus)}
+          href={disqus ? disqusModerationUrl(place.disqus) : garrulModerationUrl(place.garrul)}
           target="_blank"
           rel="noreferrer"
         >
-          {t("comments.disqus.moderate")}
+          {t(disqus ? "comments.disqus.moderate" : "comments.garrul.moderate")}
         </a>
       </p>
-      <StopComments body={t("comments.disqus.stopBody")} />
+      <StopComments body={t(disqus ? "comments.disqus.stopBody" : "comments.garrul.stopBody")} />
     </section>
   );
 }

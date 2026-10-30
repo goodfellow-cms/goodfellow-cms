@@ -1120,6 +1120,25 @@ export const strings: Strings = {
   "comments.disqus.moderate": "Moderar los comentarios en Disqus",
   "comments.disqus.stopBody":
     "Las páginas dejan de mostrar comentarios cuando el sitio se haya reconstruido. Todo lo que escribieron los visitantes se queda en Disqus, así que puedes volver a usarlo más adelante.",
+  "comments.garrul.title": "Usar Garrul",
+  "comments.garrul.intro":
+    "Garrul guarda los comentarios en una cuenta de Cloudflare propia, con el plan gratuito de Cloudflare y sin anuncios. Los visitantes comentan como invitados o inician sesión con GitHub, Google, Facebook, X o Discord. Antes hay que configurarlo en Cloudflare, algo que debe hacer alguien acostumbrado a escribir comandos en un ordenador.",
+  "comments.garrul.start": "Las instrucciones de Garrul",
+  "comments.garrul.then":
+    " explican cómo configurarlo. Después pega su dirección, o el código que te da para una página.",
+  "comments.garrul.label": "Dirección de Garrul, o su código",
+  "comments.garrul.invalid":
+    "Eso no es una dirección ni el código de Garrul. La dirección de Garrul empieza por https://, como https://comentarios.example.org.",
+  "comments.garrul.button": "Usar Garrul",
+  "comments.garrul.message": "Usar Garrul para los comentarios",
+  "comments.garrul.kept": "Garrul guarda los comentarios, en",
+  "comments.garrul.origins":
+    "Garrul solo muestra comentarios en las direcciones que permite su configuración, así que su ALLOWED_ORIGINS debe incluir la dirección del sitio.",
+  "comments.garrul.moderateHint":
+    "Aprueba, oculta y elimina comentarios en las páginas de Garrul, con una sesión iniciada con una dirección de correo que su configuración nombra como administradora.",
+  "comments.garrul.moderate": "Moderar los comentarios en Garrul",
+  "comments.garrul.stopBody":
+    "Las páginas dejan de mostrar comentarios cuando el sitio se haya reconstruido. Todo lo que escribieron los visitantes se queda en Garrul, así que puedes volver a usarlo más adelante.",
   "comments.moderate.title": "Lo que han escrito los visitantes",
   "comments.moderate.empty": "Todavía no ha comentado nadie.",
   "comments.moderate.more": "Mostrar más páginas",

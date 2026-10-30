@@ -5,19 +5,25 @@ import {
   consentSource,
   disqusEmbedUrl,
   disqusShortname,
+  garrulAddress,
+  garrulEmbedUrl,
+  garrulSlug,
   isDisqus,
+  isGarrul,
 } from "@goodfellow-cms/core";
 import { classNameField, useParts, useSite, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import type { ReactNode } from "react";
 import { DisqusFrame, type DisqusPage } from "./disqus-frame";
+import { GarrulFrame } from "./garrul-frame";
 import { GiscusFrame } from "./giscus-frame";
 
 export interface CommentsProps {
   heading: string;
   /**
    * Giscus's code from giscus.app, which names the repository and the
-   * discussions' category, or Disqus's code or shortname, for comments kept
+   * discussions' category, Disqus's code or shortname, or Garrul's code or
+   * address, for comments kept
    * somewhere other than where Site Settings' Comments says; left empty, the
    * block shows those.
    */
@@ -64,6 +70,15 @@ export function disqusLoader({ script, identifier, url }: DisqusPage): string {
   return `(function(){var w=window,c=function(){this.page.identifier=${identifier ? json(identifier) : "location.pathname"};this.page.url=${url ? json(url) : "location.href"}};if(w.DISQUS){w.DISQUS.reset({reload:true,config:c});return}w.disqus_config=c;var s=document.createElement("script");s.src=${json(script)};s.async=true;s.setAttribute("data-timestamp",String(Date.now()));document.head.appendChild(s)})();`;
 }
 
+/**
+ * Names Garrul's thread by the browser's address, as `garrulSlug()` does,
+ * where the block can't know the page (in a Next.js layout), for a site that
+ * asks visitors first.
+ */
+export function garrulSlugScript(): string {
+  return `(function(){var e=document.getElementById("garrul");if(e&&!e.dataset.slug)e.dataset.slug=location.pathname.replace(/[^a-zA-Z0-9_\\-./]/g,"-").slice(0,200)||"/"})();`;
+}
+
 /** The page's full address, where the site has a Site address. */
 function pageUrl(siteUrl: string | undefined, path: string): string | undefined {
   if (!siteUrl) return undefined;
@@ -82,12 +97,13 @@ function CommentsView({
   puck,
 }: CommentsProps & { puck?: { isEditing?: boolean } }) {
   const part = useParts();
-  const { settings, adminLink, path } = useSite();
+  const { settings, adminLink, path, pages, entry } = useSite();
   const pasted = code?.trim() ?? "";
   const giscus = giscusSettings(pasted);
   const disqus = giscus ? undefined : disqusShortname(pasted);
+  const garrul = giscus || disqus ? undefined : garrulAddress(pasted);
   const kept = pasted ? undefined : settings.comments;
-  const place = giscus ?? (disqus ? { disqus } : kept);
+  const place = giscus ?? (disqus ? { disqus } : garrul ? { garrul } : kept);
   if (!place && !puck?.isEditing) return null;
   // Pages are built on the server: in the browser, it's the editor or a preview, which never load comments.
   const onSite = typeof document === "undefined" && !puck?.isEditing;
@@ -106,7 +122,7 @@ function CommentsView({
   if (!place) {
     const link = pasted ? undefined : adminLink?.("comments-settings");
     const text = pasted
-      ? "This isn't Giscus's or Disqus's code. On giscus.app, choose the repository and category, then copy the code at the end of the page; or paste Disqus's code or its site's shortname."
+      ? "This isn't Giscus's, Disqus's or Garrul's code. On giscus.app, choose the repository and category, then copy the code at the end of the page; or paste Disqus's code or its site's shortname, or Garrul's code or its address."
       : "Set up comments in Site settings' Comments to show them here.";
     body = (
       <p className="rounded-lg bg-muted p-6 text-muted-foreground">
@@ -124,7 +140,9 @@ function CommentsView({
       <p className="rounded-lg bg-muted p-6 text-muted-foreground">
         {isDisqus(place)
           ? `Comments from Disqus, for its site ${place.disqus}, show here on the site.`
-          : `Comments from ${place.repo}'s discussions show here on the site.`}
+          : isGarrul(place)
+            ? `Comments from Garrul, at ${place.garrul}, show here on the site.`
+            : `Comments from ${place.repo}'s discussions show here on the site.`}
       </p>
     );
   } else if (isDisqus(place)) {
@@ -142,6 +160,31 @@ function CommentsView({
     ) : (
       <DisqusFrame {...page} className={frameClass} />
     );
+  } else if (isGarrul(place)) {
+    const script = garrulEmbedUrl(place.garrul);
+    const title =
+      (entry?.content.fields.title as string | undefined) || pages?.find((page) => page.path === path)?.title;
+    const url = path ? pageUrl(settings.url, path) : undefined;
+    // In a Next.js layout, where the page isn't known, Garrul names the thread by the browser's address.
+    const attributes: Record<string, string> = {
+      "data-api": place.garrul,
+      ...(path ? { "data-slug": garrulSlug(path) } : {}),
+      ...(title ? { "data-title": title } : {}),
+      ...(url ? { "data-url": url } : {}),
+      "data-lang": (settings.language ?? "en").split("-")[0] ?? "en",
+      ...(settings.theme?.darkMode ? {} : { "data-theme": "light" }),
+    };
+    if (!path) attributes["data-slug"] = "";
+    if (consent) {
+      const element = `<div id="garrul" class="${escapeText(frameClass)}"${Object.entries(attributes)
+        .map(([name, value]) => ` ${name}="${escapeText(value)}"`)
+        .join("")}></div>`;
+      // Fills in the thread's name from the browser's address where the page isn't known, then loads Garrul.
+      const name = path ? "" : `<script>${garrulSlugScript()}</script>`;
+      body = held(element, `${name}<script src="${escapeText(script)}" async></script>`, place.garrul);
+    } else {
+      body = <GarrulFrame script={script} attributes={attributes} className={frameClass} />;
+    }
   } else {
     const attributes: Record<string, string> = {
       "data-repo": place.repo,
@@ -179,10 +222,10 @@ function CommentsView({
 
 /**
  * Comments on the page, kept as GitHub Discussions in a repository of their
- * own, through Giscus, where visitors sign in with GitHub to comment, or by
- * Disqus. Where they're kept is Site Settings' Comments (`content/site.json`'s
- * `comments`), unless the block is given Giscus's or Disqus's code for
- * somewhere else.
+ * own, through Giscus, where visitors sign in with GitHub to comment, by
+ * Disqus, or by Garrul, which the site's owner runs on Cloudflare. Where they're kept is Site Settings' Comments (`content/site.json`'s
+ * `comments`), unless the block is given Giscus's, Disqus's or Garrul's code
+ * for somewhere else.
  * Either loads only on the built site, never in the editor or previews, and
  * on a site that asks visitors before loading other sites' content, it waits
  * until they agree.
@@ -194,7 +237,7 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
       heading: { type: "text", label: "Heading", contentEditable: true },
       code: {
         type: "textarea",
-        label: "Giscus's or Disqus's code, for comments kept elsewhere than Site settings says (optional)",
+        label: "Giscus's, Disqus's or Garrul's code, for comments kept elsewhere than Site settings says (optional)",
       },
       reactions: {
         type: "radio",
@@ -224,4 +267,13 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
   },
 );
 
-export default withKeywords(Comments, ["comments", "discussion", "giscus", "disqus", "replies", "feedback", "github"]);
+export default withKeywords(Comments, [
+  "comments",
+  "discussion",
+  "giscus",
+  "disqus",
+  "garrul",
+  "replies",
+  "feedback",
+  "github",
+]);
