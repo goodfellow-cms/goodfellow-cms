@@ -63,6 +63,32 @@ The [site checks](/docs/publishing#site-checks) suggest translating pages and it
 
 The admin panel speaks English or Spanish, whichever each editor's browser asks for first, or chooses with the language menu at the top right. That's each editor's own, kept in their browser, and has nothing to do with the site's languages, so a Spanish-speaking editor can work on the English pages, and the other way round.
 
+### The admin panel in other languages
+
+A site can have the admin panel in any other language too, with its text in a file of the site's own: `content/admin-text/fr.json` for French, named by the language's code. The language menu then offers it, named as the file names it, and editors whose browser asks for it first start in it. There's no screen for these files yet, so a developer or a translation tool writes them.
+
+```json
+{
+  "version": 1,
+  "name": "Français",
+  "strings": {
+    "nav.pages": { "text": "Les pages", "source": "7decab7f" }
+  },
+  "puck": {},
+  "labels": {
+    "Link text": { "text": "Texte du lien" }
+  }
+}
+```
+
+- **`strings`** are the admin panel's own words, by the keys in `packages/admin/src/strings.tsx`; **`puck`** is the editor's controls, by Puck's dictionary's keys; **`labels`** are blocks' names, settings and choices, by their English wording.
+- **`source`** is a hash of the English the text was made from, `englishHash()` from `@goodfellow-cms/core`, so text whose English has changed since can be found again. **`reviewed`** can mark text someone who speaks the language has read.
+- **Anything the file leaves out is in English**, or in Goodfellow's own translation where it ships one, so a file for `es` changes only the strings it has.
+- **Every string is checked as it's used**: one that's empty, very long, has other `{placeholders}` than the English, such as `{title}`, or uses git's words, which the admin panel never uses, is shown in English instead.
+- **The English is shown beside** the site's own words where a wrong translation could cost something: signing in and tokens, owners' screens, plugins, and what can't be undone, such as deleting a page.
+- **Only owners** change these files, as they do Site Settings.
+- **Builds publish them** beside the admin panel, in `admin/text/`, so the sign-in screen speaks them before it can read the site's files; once someone has signed in, the admin panel reads the site's own, which may be newer. A file that can't be read is left out, with a note in the build's output, and never stops the build.
+
 ## For developers
 
 What the languages are and what translates what is all in [content files](/docs/content-files):

@@ -1,8 +1,9 @@
 import { blocks, categories } from "@goodfellow-cms/blocks";
+import { englishHash } from "@goodfellow-cms/core";
 import { createPuckConfig } from "@goodfellow-cms/react";
 import type { Config, Field, Fields } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
-import { ADMIN_LANGUAGES, browserAdminLanguage } from "./admin-language.js";
+import { ADMIN_LANGUAGES, browserAdminLanguage, composeAdminText, showsEnglish } from "./admin-language.js";
 import { withLabels } from "./frame/labels.js";
 import { labels as spanishLabels } from "./languages/es-labels.js";
 import { puck as spanishPuck } from "./languages/es-puck.js";
@@ -75,6 +76,58 @@ describe("the admin panel's language", () => {
     expect(browserAdminLanguage(["fr-FR", "es"])).toBe("es");
     expect(browserAdminLanguage(["fr-FR"])).toBe("en");
     expect(browserAdminLanguage([])).toBe("en");
+    // With the site's own languages, the whole tag first.
+    expect(browserAdminLanguage(["pt-BR", "es"], ["en", "es", "pt-BR", "pt"])).toBe("pt-BR");
+    expect(browserAdminLanguage(["fr-CA"], ["en", "es", "fr"])).toBe("fr");
+  });
+});
+
+describe("the admin panel in a site's own language", () => {
+  const french = {
+    version: 1 as const,
+    name: "Français",
+    strings: {
+      "publish.button": { text: "Publier", source: englishHash(defaultStrings["publish.button"]) },
+      "deletePage.body": { text: "La page {path} sera supprimée." },
+      "nav.pages": { text: "Faire un commit" },
+    },
+    puck: { "header-publish": { text: "Publier" } },
+    labels: { "Link text": { text: "Texte du lien" } },
+  };
+
+  it("takes the site's strings that can be used, and English for the rest", () => {
+    const text = composeAdminText(undefined, french);
+    expect(text.strings["publish.button"]).toBe("Publier");
+    // Git's words never reach editors.
+    expect(text.strings["nav.pages"]).toBe(defaultStrings["nav.pages"]);
+    expect(text.strings["app.title"]).toBe(defaultStrings["app.title"]);
+    expect(Object.keys(text.strings).sort()).toEqual(Object.keys(defaultStrings).sort());
+    expect(text.puck["header-publish"]).toBe("Publier");
+    expect(text.labels["Link text"]).toBe("Texte du lien");
+  });
+
+  it("shows the English beside the site's words where a wrong translation could cost something", () => {
+    const text = composeAdminText(undefined, french);
+    expect(text.strings["deletePage.body"]).toBe(
+      `La page {path} sera supprimée. (${defaultStrings["deletePage.body"]})`,
+    );
+    expect(showsEnglish("signIn.token.step1")).toBe(true);
+    expect(showsEnglish("owner.token.paste")).toBe(true);
+    expect(showsEnglish("draft.discardBody")).toBe(true);
+    expect(showsEnglish("unsaved.confirm")).toBe(true);
+    expect(showsEnglish("publish.button")).toBe(false);
+    expect(showsEnglish("nav.pages")).toBe(false);
+  });
+
+  it("lays the site's words over Goodfellow's own translation, which fills in the rest", () => {
+    const text = composeAdminText({ strings: spanish, puck: spanishPuck, labels: spanishLabels }, french);
+    expect(text.strings["publish.button"]).toBe("Publier");
+    expect(text.strings["app.title"]).toBe(spanish["app.title"]);
+    expect(text.labels["Link text"]).toBe("Texte du lien");
+    expect(text.puck["viewport-switch"]).toBe(spanishPuck["viewport-switch"]);
+    // Without a file of the site's, Goodfellow's own as it is.
+    const shipped = { strings: spanish, puck: spanishPuck, labels: spanishLabels };
+    expect(composeAdminText(shipped, undefined)).toBe(shipped);
   });
 });
 

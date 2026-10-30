@@ -44,6 +44,8 @@ import {
   readMediaSizes,
   runPluginBuildSteps,
   selfHostFonts,
+  type WrittenAdminText,
+  writeAdminText,
   writeBuildRecord,
   writeImageSizes,
   writeSiteHeaders,
@@ -128,6 +130,8 @@ export interface BuildResult {
   islands?: { runtime: "preact" } | { runtime: "react"; because: ReactReason; needReact: string[] };
   /** How many pages the content API has, at `/api/`, unless the config turns it off. */
   apiPages?: number;
+  /** The admin panel's text in the site's own languages, published beside it (`writeAdminText()`). */
+  adminText?: WrittenAdminText;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -217,6 +221,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const content = shownContent(loaded, now);
     const styles = await writeStylesEntries(root, config);
     const withAdmin = Boolean(config.backend || config.demo);
+    let adminText: WrittenAdminText | undefined;
 
     // Build the CSS (Tailwind scans content/ for class names), the admin panel if the site has
     // a backend or is a demo, the Client Components if it has any, and copy public/ into the output.
@@ -309,6 +314,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       await writeFile(join(outDir, "admin/index.html"), html);
       // A demo's admin panel starts from a copy of the site's content, since visitors don't sign in.
       if (config.demo) await writeFile(join(outDir, DEMO_CONTENT_PATH), await demoContent(fileSystemSource(root)));
+      // The admin panel's text in the site's own languages, for the sign-in screen, which can't read the site yet.
+      adminText = await writeAdminText(outDir, root);
     }
 
     // What tools that edit the site without its code, such as the Claude connector, need to know about its blocks.
@@ -444,6 +451,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
         islands: runtime === "preact" ? { runtime } : { runtime, because: because ?? "components", needReact: needed },
       }),
       ...(apiFiles.length > 0 && { apiPages: pages.length }),
+      ...(adminText && { adminText }),
       ...(robotsElsewhere && { robotsElsewhere }),
       ...(url && { sitemap: absoluteUrl(url, "/sitemap.xml") }),
     };

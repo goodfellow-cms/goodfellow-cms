@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { test as base, expect, type Page } from "@playwright/test";
 import { resetContent, site } from "../scripts/site.mjs";
 
@@ -43,6 +43,7 @@ export function readSiteFile(path: string): string {
 }
 
 export function writeSiteFile(path: string, content: string): void {
+  mkdirSync(dirname(join(site as string, path)), { recursive: true });
   writeFileSync(join(site as string, path), content);
 }
 

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "labels": {
+    "Section": {
+      "text": "Bloc de section"
+    }
+  },
+  "name": "Français",
+  "puck": {},
+  "strings": {
+    "nav.pages": {
+      "source": "7decab7f",
+      "text": "Les pages"
+    },
+    "signIn.redirect": {
+      "source": "721fed91",
+      "text": "Se connecter au repository avec {host}"
+    },
+    "signIn.title": {
+      "source": "6451769b",
+      "text": "Connectez-vous pour modifier ce site"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import {
   type AdminSite,
+  type AdminTextFile,
   BROKER_AI_ADDRESS,
   COLLECTIONS_DIR,
   ContentError,
@@ -7,17 +8,20 @@ import {
   FOOTER_FILE,
   type GitHost,
   HEADER_FILE,
+  readAdminText,
 } from "@goodfellow-cms/core";
 import { Menu as MenuIcon, Moon, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AdminProvider, type PreviewOptions, useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import {
-  ADMIN_LANGUAGES,
   isAdminLanguage,
   setAdminLanguage,
   useAdminLanguage,
+  useAdminLanguages,
   useAdminText,
+  usePublishedAdminText,
+  useSiteAdminTextFiles,
 } from "./admin-language.js";
 import { forgetAiKeys } from "./ai-settings.js";
 import { appServer } from "./app-server.js";
@@ -483,7 +487,8 @@ function AccountMenu() {
 /** The admin panel's language, remembered in this browser; each named in itself, so anyone finds their own. */
 function LanguageMenu() {
   const t = useStrings();
-  const language = useAdminLanguage();
+  const language = useAdminLanguage() ?? "en";
+  const languages = useAdminLanguages();
   return (
     <label className="gfa-language">
       <span className="gfa-visually-hidden">{t("adminLanguage.label")}</span>
@@ -494,7 +499,7 @@ function LanguageMenu() {
           if (isAdminLanguage(event.target.value)) setAdminLanguage(event.target.value);
         }}
       >
-        {ADMIN_LANGUAGES.map(({ code, name }) => (
+        {languages.map(({ code, name }) => (
           <option key={code} value={code} lang={code}>
             {name}
           </option>
@@ -574,9 +579,30 @@ function versionsSection(file: string): "pages" | "collections" | "layout" {
   return file === HEADER_FILE || file === FOOTER_FILE ? "layout" : "pages";
 }
 
+/** The site's own languages for the admin panel (`content/admin-text/`), read again with each revision it loads. */
+function useSiteAdminText() {
+  const { state, readFile, listFiles } = useAdmin();
+  const revision = state.status === "ready" ? state.revision : undefined;
+  const [files, setFiles] = useState<Record<string, AdminTextFile>>();
+  useEffect(() => {
+    if (!revision) return;
+    let live = true;
+    readAdminText({ read: readFile, list: listFiles }).then(
+      (read) => live && setFiles(read.files),
+      // Without them, the admin panel speaks the languages Goodfellow ships.
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [revision, readFile, listFiles]);
+  useSiteAdminTextFiles(files);
+}
+
 function Shell() {
   const t = useStrings();
   const { state, siteUrl, contentOnly } = useAdmin();
+  useSiteAdminText();
   const owner = useCanChangeSettings();
   const { segments, params } = useRoute();
   const menu = useTopbarMenu();
@@ -667,7 +693,9 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
   // Light or dark everywhere, signing in included.
   useApplyThemeChoice();
   const demo = useMemo(() => (site.demo ? createDemoStore(siteUrl, store) : undefined), [site.demo, siteUrl, store]);
-  // The admin panel's language, with any strings it was given over it.
+  // The admin panel's language, with any strings it was given over it: the site's own languages too, from the copy
+  // published beside the admin panel until the site's files load.
+  usePublishedAdminText(siteUrl);
   const language = useAdminText();
   const text = useMemo(() => {
     const table = { ...(language?.strings ?? defaultStrings), ...strings };
