@@ -97,6 +97,15 @@ const items: Record<string, unknown> = {
     ],
     meta: { goodfellow: { category: "Pages" } },
   },
+  "https://registry.example/r/head-code.json": {
+    name: "head-code",
+    type: "registry:block",
+    files: [
+      { path: "block.tsx", type: "registry:block", content: "" },
+      { path: "head.html", type: "registry:file", target: "~/content/code/head.html", content: "" },
+    ],
+    meta: { goodfellow: { category: "Pages" } },
+  },
   "https://registry.example/r/button.json": { name: "button", type: "registry:ui", files: [] },
 };
 
@@ -246,6 +255,11 @@ describe("planInstall", () => {
       path: "app/page.tsx",
     });
     expect(await problem(install(site, "@goodfellow/sneaky"))).toMatchObject({ code: "unsupported-file" });
+    // Editable, but no place for a block's files: the site's own code, as here, media, plugins or another block.
+    expect(await problem(install(site, "@goodfellow/head-code"))).toEqual({
+      code: "unsupported-file",
+      path: "head.html",
+    });
     expect(await problem(install(site, "@elsewhere/shadcn-faq"))).toMatchObject({ code: "untrusted" });
     expect(await problem(install(site, "@goodfellow/missing"))).toMatchObject({ code: "unreachable" });
 

@@ -312,9 +312,11 @@ describe("connecting with GitHub", () => {
     expect(html).toContain("Sign in with GitHub");
     expect(html).toContain("Sign in with GitLab");
     expect(html).toContain("Sign in with Bitbucket");
-    expect(html).toContain("claude.ai");
+    // Any app can call itself Claude, so the page names where it goes back to first.
+    expect(html).toContain("<h1>Connect claude.ai to your sites</h1>");
 
     const { page, verifier, callback } = await signInWithGitHub(clientId);
+    expect(page).toContain("Allow claude.ai</button>");
     expect(callback.status).toBe(200);
     expect(page).toContain('value="parish/site"');
     // The form may go on to Claude's address, and nowhere else.

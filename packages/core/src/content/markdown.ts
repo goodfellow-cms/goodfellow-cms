@@ -111,15 +111,20 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (character) => escapes[character] ?? character);
 }
 
-/** Lowercase words joined by hyphens, as GitHub makes heading anchors: "Writing blocks" → `writing-blocks`. */
+/**
+ * Lowercase words joined by hyphens, as GitHub makes heading anchors:
+ * "Writing blocks" → `writing-blocks`. Ids starting `gf-` are Goodfellow's
+ * own, which its scripts look up (`gf-site`, `gf-consent`), so a heading's
+ * gets `section-` before it.
+ */
 export function headingSlug(text: string): string {
-  return (
+  const slug =
     withoutTags(text.toLowerCase())
       .replace(/&[a-z]+;|&#\d+;/g, "")
       .replace(/[^\p{L}\p{N}\s-]/gu, "")
       .trim()
-      .replace(/\s+/g, "-") || "section"
-  );
+      .replace(/\s+/g, "-") || "section";
+  return slug.startsWith("gf-") ? `section-${slug}` : slug;
 }
 
 /** Gives headings unique ids in document order, numbering repeats: `setup`, `setup-1`. */

@@ -88,9 +88,18 @@ export function classStyle(
   // twrnc warns about every class it has no style for, and most of a website's have none.
   const warn = console.warn;
   console.warn = () => {};
-  let styles: Record<string, unknown>;
+  let styles: Record<string, unknown> = {};
   try {
     styles = tw.style(classes) as Record<string, unknown>;
+  } catch {
+    // Content brings classes no build has seen, and one twrnc can't read throws: the rest still apply, each on its own.
+    for (const name of classes) {
+      try {
+        Object.assign(styles, tw.style(name));
+      } catch {
+        // Left out.
+      }
+    }
   } finally {
     console.warn = warn;
   }

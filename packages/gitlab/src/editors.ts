@@ -26,7 +26,8 @@ interface Invitation {
 }
 
 interface ProtectedBranch {
-  push_access_levels?: Array<{ access_level: number | null }>;
+  push_access_levels?: Array<{ id?: number; access_level: number | null }>;
+  merge_access_levels?: Array<{ id?: number; access_level: number | null }>;
 }
 
 const MEMBER = "member:";
@@ -161,13 +162,45 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
 
     async letEditorsPublish() {
       // GitLab's free plan can only choose who may push when a branch is protected, so the
-      // branch is protected again, with Developers allowed to push and nobody to force-push.
-      // Developers may merge too, which adding pipeline schedules for scheduled changes needs.
+      // branch's protection lets Developers push and nobody force-push. Developers may merge
+      // too, which adding pipeline schedules for scheduled changes needs.
+      const read = async () => {
+        const answer = await gitlabRequest(api, protectedPath, { allow: [404] }).catch(notAllowed);
+        return answer.ok ? ((await answer.json()) as ProtectedBranch) : undefined;
+      };
+      const developersMay = (protection: ProtectedBranch | undefined) =>
+        !protection ||
+        (["push_access_levels", "merge_access_levels"] as const).every((kind) =>
+          (protection[kind] ?? []).some((level) => level.access_level !== null && level.access_level <= DEVELOPER),
+        );
       const protect = (level: number) =>
         gitlabRequest(api, `${base}/protected_branches`, {
           method: "POST",
           body: { name: branch, push_access_level: level, merge_access_level: level, allow_force_push: false },
         });
+      const current = await read();
+      if (!current) {
+        await protect(DEVELOPER).catch(notAllowed);
+        return;
+      }
+      if (developersMay(current)) return;
+      // In one change where GitLab can (15.6 and later), so the branch is never left unprotected:
+      // Developers' levels in, the others out.
+      const swap = (levels: ProtectedBranch["push_access_levels"] = []) => [
+        { access_level: DEVELOPER },
+        ...levels.flatMap((level) => (level.id === undefined ? [] : [{ id: level.id, _destroy: true }])),
+      ];
+      const patched = await gitlabRequest(api, protectedPath, {
+        method: "PATCH",
+        body: {
+          allow_force_push: false,
+          allowed_to_push: swap(current.push_access_levels),
+          allowed_to_merge: swap(current.merge_access_levels),
+        },
+        allow: [400, 404, 405, 422],
+      }).catch(notAllowed);
+      if (patched.ok && developersMay(await read())) return;
+      // Older GitLab: the protection is removed and made again, then checked.
       await gitlabRequest(api, protectedPath, { method: "DELETE", allow: [404] }).catch(notAllowed);
       try {
         await protect(DEVELOPER);
@@ -175,6 +208,11 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
         // Put the protection back as it was, rather than leave the branch unprotected.
         await protect(MAINTAINER).catch(() => undefined);
         notAllowed(error);
+      }
+      const after = await read();
+      if (!after || !developersMay(after)) {
+        if (!after) await protect(MAINTAINER).catch(() => undefined);
+        throw new Error("GitLab didn't keep the main branch's new protection. Try again.");
       }
     },
   };

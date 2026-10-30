@@ -7,6 +7,8 @@ import {
   MANIFEST_FILE,
   mediaAddresses,
   memoryStorage,
+  readManifest,
+  readSiteFiles,
   readsContent,
   redirectFor,
   siteAddress,
@@ -138,6 +140,19 @@ describe("syncSite", () => {
     const page = await loadPage({ site: SITE, storage, fetch: site.fetch }, manifest as ApiManifest, "/about/");
     expect(page?.path).toBe("/about");
     expect(storage.files.has("pages/about.json")).toBe(true);
+  });
+
+  it("downloads a kept page again where it can't be read, and reads no corrupt site files", async () => {
+    const site = fakeSite();
+    const storage = memoryStorage();
+    const { manifest } = await syncSite({ site: SITE, storage, fetch: site.fetch });
+    storage.files.set("pages/about.json", "{ not JSON");
+    const page = await loadPage({ site: SITE, storage, fetch: site.fetch }, manifest as ApiManifest, "/about");
+    expect(page?.path).toBe("/about");
+    storage.files.set("site.json", "{ not JSON");
+    expect(await readSiteFiles(storage, manifest as ApiManifest)).toBeUndefined();
+    storage.files.set(MANIFEST_FILE, "{ not JSON");
+    expect(await readManifest(storage)).toBeUndefined();
   });
 
   it("keeps its copy offline, and when the site's content is newer than the app reads", async () => {

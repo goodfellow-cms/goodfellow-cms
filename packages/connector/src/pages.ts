@@ -63,12 +63,14 @@ export function connectPage(options: {
   const buttons = options.links
     .map(([label, href]) => `<a class="button" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`)
     .join("\n");
+  // Any app can register with any name, so where it goes back to is what says who it is.
+  const host = escapeHtml(redirectHost(options.redirectUri));
   return page(
-    "Connect Claude to your sites",
-    `<p><strong>${escapeHtml(options.client)}</strong> wants to work on the Goodfellow sites you choose: read their pages and settings, make changes in drafts, and publish them when you say so.</p>
+    `Connect ${redirectHost(options.redirectUri)} to your sites`,
+    `<p><strong>${escapeHtml(options.client)}</strong>, at <strong>${host}</strong>, wants to work on the Goodfellow sites you choose: read their pages and settings, make changes in drafts, and publish them when you say so. Go on only if you started connecting there.</p>
 <p>Sign in with the host your site is stored on:</p>
 <p>${buttons}</p>
-<p class="note">You'll go back to <strong>${escapeHtml(redirectHost(options.redirectUri))}</strong> once you've chosen your sites.</p>`,
+<p class="note">You'll go back to <strong>${host}</strong> once you've chosen your sites.</p>`,
   );
 }
 
@@ -91,7 +93,7 @@ export function sitesPage(options: {
 <form method="post" action="/connect/confirm">
 <input type="hidden" name="picker" value="${escapeHtml(options.picker)}">
 ${boxes}
-<p><button type="submit">Allow</button></p>
+<p><button type="submit">Allow ${escapeHtml(redirectHost(options.redirectUri))}</button></p>
 </form>
 <p class="note">You'll go back to <strong>${escapeHtml(redirectHost(options.redirectUri))}</strong>.</p>`,
     { formAction: [options.formAction] },

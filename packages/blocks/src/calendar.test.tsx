@@ -252,6 +252,12 @@ describe("Calendar", () => {
     const missing = { ...props, feed: "https://calendar.example.org/missing.ics" };
     expect(await readFeed(missing, content.settings, failing as unknown as typeof fetch)).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("couldn't be read"));
+
+    // Never this computer or a private network, which only builds' computers can reach.
+    const local = vi.fn(async () => new Response(feed));
+    const inside = { ...props, feed: "webcal://169.254.169.254/latest" };
+    expect(await readFeed(inside, content.settings, local as unknown as typeof fetch)).toBeUndefined();
+    expect(local).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 });

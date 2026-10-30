@@ -128,17 +128,37 @@ function isOtherSite(href: string, siteUrl: string | undefined): boolean {
   return isExternalLink(address, siteUrl);
 }
 
+/** The addresses CSS loads: `@import "…"` and `url(…)`, unquoted or not, with CSS's escapes left as they are. */
+function cssAddresses(css: string): string[] {
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  return [
+    ...[...text.matchAll(/@import\s+(?:url\(\s*)?["']?([^"')\s;]+)/gi)].map((match) => match[1] ?? ""),
+    ...[...text.matchAll(/url\(\s*["']?([^"')\s]+)/gi)].map((match) => match[1] ?? ""),
+  ];
+}
+
 /**
  * Whether a head element waits for visitors' agreement on a site that asks:
- * scripts and `noscript`, which could load anything, and links to other sites,
- * such as another site's stylesheet. Links on the site itself (its own
- * stylesheet, manifest or icons, by a root-relative address or the Site
- * address, `siteUrl`) and `meta` tags stay in the page.
+ * scripts and `noscript`, which could load anything; links to other sites,
+ * such as another site's stylesheet; styles that load from other sites
+ * (`@import` or `url()`, or any CSS escape, which could spell one); a `base`,
+ * which would send the page's own addresses elsewhere; and a `meta` refresh.
+ * Links on the site itself (its own stylesheet, manifest or icons, by a
+ * root-relative address or the Site address, `siteUrl`), styles that load
+ * only from it and other `meta` tags stay in the page.
  */
 export function isHeldHeadElement(element: HeadElement, siteUrl?: string): boolean {
-  if (HELD_TAGS.has(element.tag)) return true;
+  if (HELD_TAGS.has(element.tag) || element.tag === "base") return true;
+  const attribute = (key: string) => element.attributes.find(([name]) => name.toLowerCase() === key)?.[1];
+  if (element.tag === "meta") return attribute("http-equiv")?.trim().toLowerCase() === "refresh";
+  if (element.tag === "style") {
+    const css = element.content ?? "";
+    // Escapes can spell `url(` or an address in ways the addresses read here wouldn't see.
+    if (css.includes("\\")) return true;
+    return cssAddresses(css).some((address) => !/^data:/i.test(address) && isOtherSite(address, siteUrl));
+  }
   if (element.tag !== "link") return false;
-  const href = element.attributes.find(([name]) => name === "href")?.[1];
+  const href = attribute("href");
   return href === undefined || isOtherSite(href, siteUrl);
 }
 

@@ -1,7 +1,13 @@
 import { type HTMLElement, type HTMLInputElement, Window } from "happy-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import { CONSENT_STORAGE_KEY, consentScript, consentSource } from "./consent.js";
-import { endsHeldTemplate, headElementHtml, isHeldHeadElement, parseHeadCode } from "./content/code.js";
+import {
+  endsHeldTemplate,
+  type HeadElement,
+  headElementHtml,
+  isHeldHeadElement,
+  parseHeadCode,
+} from "./content/code.js";
 import { localizedSettings } from "./content/languages.js";
 import { consentKinds, heldCode, siteSettingsSchema } from "./content/schemas.js";
 
@@ -300,6 +306,24 @@ describe("held-back head code", () => {
     ]);
     // Without the Site address, a full address is another site's.
     expect(isHeldHeadElement(elements[2] as (typeof elements)[number])).toBe(true);
+  });
+
+  it("holds back styles that load from other sites, a base and a refresh", () => {
+    const held = (html: string) => isHeldHeadElement(parseHeadCode(html)[0] as HeadElement, "https://example.org");
+    expect(held("<style>@import url(https://tracker.example.com/a.css);</style>")).toBe(true);
+    expect(held('<style>@import "//tracker.example.com/a.css";</style>')).toBe(true);
+    expect(held("<style>body { background: url('https://tracker.example.com/p.gif') }</style>")).toBe(true);
+    expect(held("<style>body { background: u\\72l(https://tracker.example.com/p.gif) }</style>")).toBe(true);
+    expect(held('<base href="https://elsewhere.example.com/">')).toBe(true);
+    expect(held('<meta http-equiv="Refresh" content="0; url=https://elsewhere.example.com/">')).toBe(true);
+    // What loads only from the site, or nothing, stays.
+    expect(held("<style>body { color: red; background: url(/media/a.png) }</style>")).toBe(false);
+    expect(
+      held(
+        "<style>@import url(https://example.org/extra.css); a { background: url(data:image/png;base64,AA) }</style>",
+      ),
+    ).toBe(false);
+    expect(held('<meta name="theme-color" content="#fff">')).toBe(false);
   });
 
   it("finds code that would end the template it's held in", () => {

@@ -1,12 +1,13 @@
 import { writeChanges } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
 import { gitlab } from "./index.js";
-import { fakeGitLab } from "./testing.js";
+import { type FakeGitLabOptions, fakeGitLab } from "./testing.js";
 
 const FILES = { "content/site.json": '{"version":1,"title":"St. Joseph"}' };
 
-async function signIn(token = "maintainer") {
+async function signIn(token = "maintainer", options: Partial<FakeGitLabOptions> = {}) {
   const fake = fakeGitLab({
+    ...options,
     project: "parish/site",
     files: FILES,
     tokens: {
@@ -79,7 +80,19 @@ describe("GitLab editors", () => {
     await editors.letEditorsPublish?.();
     expect((await editors.list()).editorsCanPublish).toBe(true);
     expect(fake.protectedBranches.get("main")).toEqual({ push: 30, merge: 30, forcePush: false });
+    // In one change, so the branch is never left unprotected.
+    expect(fake.protectionChanges).toEqual(["PATCH main"]);
     await expect(publish()).resolves.toBeDefined();
+  });
+
+  it("removes and protects the branch again where GitLab can't change a protection, checking it after", async () => {
+    const { fake, editors } = await signIn("maintainer", { noProtectionChanges: true });
+    await editors.letEditorsPublish?.();
+    expect(fake.protectedBranches.get("main")).toEqual({ push: 30, merge: 30, forcePush: false });
+    expect(fake.protectionChanges).toEqual(["DELETE main", "POST main"]);
+    // Nothing to change the second time.
+    await editors.letEditorsPublish?.();
+    expect(fake.protectionChanges).toHaveLength(2);
   });
 
   it("says Developers can't change who edits the site", async () => {

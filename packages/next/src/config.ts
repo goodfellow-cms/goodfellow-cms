@@ -28,6 +28,7 @@ import {
   DEV_API_PREFIX,
   handleDevApi,
   hostFonts,
+  isAllowedDevHost,
   isLocalOrigin,
   localFileStore,
   localRegistryDir,
@@ -119,6 +120,14 @@ function startDevApi(root: string): Promise<number> {
       server: "next-dev" as const,
     };
     const server = createServer(async (req, res) => {
+      // A website can point its own name at this computer, so nothing here, the frames' bundle of the site's
+      // config included, answers a request for any other name. Next.js passes requests on with this server's
+      // own name, and the one the browser asked for as `x-forwarded-host`, so both must be this computer's.
+      const forwarded = req.headers["x-forwarded-host"];
+      if (!isAllowedDevHost(req.headers.host) || (forwarded !== undefined && !isAllowedDevHost(String(forwarded)))) {
+        res.writeHead(403).end();
+        return;
+      }
       if (await (await editor).serve(req, res)) return;
       // Requests come through Next.js's development server, so they're from its address rather than this one's.
       if (!(await handleDevApi(store, req, res, { trustOrigin: isLocalOrigin, registryDir, tasks }))) {
@@ -161,6 +170,27 @@ function redirectSource(path: string): string {
 }
 
 /**
+ * A redirect's target as Next.js's destination: Next.js reads `:name`, `*`,
+ * `+`, `(`, `)`, `{` and `}` in its path and hash as a pattern, which would
+ * fail the build (`/a/:b` names a value the source doesn't have), so they're
+ * percent-encoded there, which browsers and servers read as the same address.
+ * Next.js escapes its query values itself.
+ */
+export function redirectDestination(to: string): string {
+  const target = to.trim();
+  const origin = /^https:\/\/[^/?#]*/i.exec(target)?.[0] ?? "";
+  const rest = target.slice(origin.length);
+  const query = rest.indexOf("?");
+  const hash = rest.indexOf("#");
+  const encode = (part: string) =>
+    part.replace(/[:*+(){}]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  const pathEnd = [query, hash].filter((index) => index >= 0).reduce((a, b) => Math.min(a, b), rest.length);
+  const search = query >= 0 && (hash < 0 || query < hash) ? rest.slice(query, hash > query ? hash : undefined) : "";
+  const fragment = hash >= 0 ? rest.slice(hash) : "";
+  return `${origin}${encode(rest.slice(0, pathEnd))}${search}${encode(fragment)}`;
+}
+
+/**
  * The site's redirects (`content/redirects.json`) for hosts that send them
  * themselves, such as Vercel, which reads them from the build. Redirects from
  * an address a page or a collection's item has are left out, since pages win,
@@ -175,7 +205,7 @@ async function siteRedirects(root: string): Promise<Redirects> {
   return content.redirects.flatMap((redirect, index) => {
     const from = redirectFrom(redirect.from);
     if (problems[index] || !from.ok || taken.has(from.path)) return [];
-    return [{ source: redirectSource(from.path), destination: redirect.to.trim(), permanent: true }];
+    return [{ source: redirectSource(from.path), destination: redirectDestination(redirect.to), permanent: true }];
   });
 }
 

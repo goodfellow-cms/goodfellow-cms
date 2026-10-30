@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
 import { type StyleProp, View, type ViewStyle } from "react-native";
 import { WebView } from "react-native-webview";
+import { frameRequest } from "./frames.js";
 import { useNativeSite } from "./site.js";
 
 /** An HTML attribute's value, escaped. */
@@ -9,14 +10,6 @@ function attribute(value: string): string {
 }
 
 type LoadRequest = Parameters<NonNullable<ComponentProps<typeof WebView>["onShouldStartLoadWithRequest"]>>[0];
-
-function hostOf(url: string): string | undefined {
-  try {
-    return new URL(url).host;
-  } catch {
-    return undefined;
-  }
-}
 
 /**
  * Another site's page in a frame of the app's own, such as a video player or a
@@ -38,11 +31,10 @@ export function WebFrame({
   style?: StyleProp<ViewStyle>;
 }) {
   const site = useNativeSite();
-  const host = hostOf(uri);
   const stay = (request: LoadRequest) => {
-    if (!request.isTopFrame || hostOf(request.url) === host) return true;
-    site.open(request.url);
-    return false;
+    const go = frameRequest(uri, request);
+    if (go === "open") site.open(request.url);
+    return go === "stay";
   };
   return (
     <View

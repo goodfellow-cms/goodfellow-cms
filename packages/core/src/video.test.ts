@@ -105,6 +105,9 @@ describe("other sites' players", () => {
     expect(embedPlayerUrl("/media/video.mp4")).toEqual({ problem: "not-an-address" });
     expect(embedPlayerUrl("https://localhost:4321/admin")).toEqual({ problem: "same-site" });
     expect(embedPlayerUrl("https://127.0.0.1/")).toEqual({ problem: "same-site" });
+    expect(embedPlayerUrl("https://localhost./")).toEqual({ problem: "same-site" });
+    expect(embedPlayerUrl("https://admin.localhost/")).toEqual({ problem: "same-site" });
+    expect(embedPlayerUrl("https://[::ffff:127.0.0.1]/")).toEqual({ problem: "same-site" });
     expect(embedPlayerUrl("https://parish.example.org/admin", ["parish.example.org"])).toEqual({
       problem: "same-site",
     });

@@ -281,8 +281,20 @@ function targetPath(item: RegistryItem, file: RegistryItem["files"][number], isB
   else if (file.type === "registry:lib") path = `${LIB_DIR}/${basename(file.path)}`;
   else if (file.type === "registry:hook") path = `${HOOKS_DIR}/${basename(file.path)}`;
   else throw new RegistryError({ code: "unsupported-file", path: file.path });
-  if (!isEditablePath(path)) throw new RegistryError({ code: "unsupported-file", path: file.path });
+  if (!isEditablePath(path) || !mayHold(path, item.name))
+    throw new RegistryError({ code: "unsupported-file", path: file.path });
   return path;
+}
+
+/**
+ * Whether an item's file may go where it says: in its own block's folder or
+ * the shared components, never into another block's, the installed blocks'
+ * index, content, media or plugins, however its `target` spells it.
+ */
+function mayHold(path: string, name: string): boolean {
+  return [`${INSTALLED_BLOCKS_DIR}/${name}/`, `${COMPONENTS_DIR}/`, `${LIB_DIR}/`, `${HOOKS_DIR}/`].some((folder) =>
+    path.startsWith(folder),
+  );
 }
 
 /** A hex SHA-256 of a file's text, to tell later whether someone changed it. */
