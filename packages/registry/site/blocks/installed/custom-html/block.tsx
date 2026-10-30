@@ -51,7 +51,8 @@ const CustomHtml: ComponentConfig<CustomHtmlProps> = withParts(
   {
     label: "Custom HTML",
     fields: {
-      html: { type: "textarea", label: "HTML" },
+      // HTML, so an item's values filled into a collection's template are escaped here, as in rich text.
+      html: { type: "textarea", label: "HTML", metadata: { html: true } },
       sanitize: {
         type: "radio",
         label: "Make it safe",

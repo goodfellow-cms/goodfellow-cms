@@ -599,6 +599,8 @@ export function createConnector(options: ConnectorOptions = {}) {
         backend,
         fetch: fetcher,
         ...(screenshots && { screenshots }),
+        // Reading the whole site twice takes more than a Worker's free plan gives a request; builds check it.
+        siteChecks: false,
       });
       const transport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: undefined,

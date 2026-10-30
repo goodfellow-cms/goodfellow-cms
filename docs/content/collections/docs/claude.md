@@ -81,7 +81,7 @@ Claude never changes the live site straight away. The first change it makes star
 
 Where an owner has [limited what you can change](/docs/sign-in#limiting-what-editors-can-change), Claude keeps to the same limits: it won't publish a draft that changes anything outside them, and submits it for review instead.
 
-If someone publishes changes to the same pages in the admin panel while Claude's draft is open, publishing the draft stops rather than overwriting them, and Claude says so. It can make its changes again on top of theirs in a new draft.
+Before publishing, Claude runs the admin panel's checks, and won't publish a draft that would break a link or use a file the site doesn't have; Claude on a [connector service](/docs/claude-connector) skips them, since they read the whole site, and the site's build checks it instead. If someone publishes changes to the same pages in the admin panel while Claude's draft is open, publishing the draft stops rather than overwriting them, and Claude says so. It can make its changes again on top of theirs in a new draft.
 
 ### Turning off publishing
 
@@ -102,11 +102,11 @@ On your computer, screenshots use your own browser, Chrome or else Edge, without
 ## What Claude can do
 
 - Read pages, the header and footer, collections and their items, menus and the site's settings, and list the media library with each file's size and credit. Photos with a credit, such as those the AI assistant adds from Openverse, show it on every page that uses them, so Claude can use them as they are.
-- Create, change and delete pages and items, and change the header and footer, menus and settings, in a draft.
+- Create, change and delete pages and items, and change the header and footer, menus and the site's name, description, logo, icon, picture for shared links, contact details, theme and time zone, in a draft. Deleting a page or item leaves its translations as pages and items of their own, as the admin panel does, and Claude says which menus still link to a deleted page.
 - Show you a screenshot of any page, live or with its draft, or look at an image in the media library.
 - Publish a draft, submit it for review, or throw it away.
 
-Claude can't upload new photos, add or remove blocks from block registries, change who edits the site, or change the site's address; do those in the admin panel.
+Claude can't upload new photos, add or remove blocks from block registries, change who edits the site, change the site's address, or change where forms send their answers, what visitors are asked before other sites' content loads, comments, languages or whether search engines list the site; do those in the admin panel. It also never chooses settings only owners may, such as using Custom HTML exactly as written: blocks it writes keep those settings' starting values. Since a page can say anything, Claude treats what it reads on the site as content to work with, never as instructions, and asks you before deleting, publishing or throwing a draft away.
 
 ## Sites it works with
 

@@ -99,6 +99,16 @@ describe("reading a site", () => {
     );
     // No screenshots where the server can't take them.
     expect(tools.map((tool) => tool.name)).not.toContain("screenshot");
+    // Clients ask before what can't be undone from a draft.
+    const hints = Object.fromEntries(tools.map((tool) => [tool.name, tool.annotations?.destructiveHint]));
+    expect(hints).toMatchObject({
+      delete_page: true,
+      delete_item: true,
+      publish: true,
+      discard_draft: true,
+      save_page: false,
+      get_site: false,
+    });
   });
 
   it("gives an overview of the site, then a page's blocks", async () => {
@@ -237,6 +247,16 @@ describe("changing a site", () => {
     expect((await call("delete_page", { address: "/" })).text).toContain("home page can't be deleted");
   });
 
+  it("says which menus still link to a page it deletes, and won't publish the broken link", async () => {
+    const { call } = await connect();
+    const { draft } = (await call("save_menu", { menu: "main", items: [{ label: "About", href: "/about" }] })).json();
+    const deleted = (await call("delete_page", { address: "/about", draft })).json();
+    expect(deleted.note).toContain("The footer and main menus still link to /about");
+    const refused = await call("publish", { draft, message: "Remove About" });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("links to /about, which isn't a page or item on the site");
+  });
+
   it("checks items' values against their collection's fields", async () => {
     const { call } = await connect();
     expect((await call("save_item", { collection: "news", slug: "x", values: { colour: "red" } })).text).toContain(
@@ -263,6 +283,12 @@ describe("changing a site", () => {
       "Domain screen",
     );
     expect((await call("update_settings", { settings: { theme: "blue" } })).isError).toBe(true);
+    // Where forms send answers, and what visitors are asked, are owners' to change.
+    const forms = await call("update_settings", {
+      settings: { forms: { service: "formspree", address: "https://evil.example" } },
+    });
+    expect(forms.isError).toBe(true);
+    expect(forms.text).toContain("forms is changed in the admin panel's Site Settings");
     await call("save_menu", { menu: "main", items: [{ label: "Home", href: "/" }], draft });
     expect((await call("get_menus", { draft })).json().main).toEqual([{ label: "Home", href: "/" }]);
   });

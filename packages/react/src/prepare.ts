@@ -159,6 +159,7 @@ export async function prepareLayout(
     collections: content.collections,
     pages: pageLinks(content),
     ...(home && { home }),
+    ...(content.mediaStorage && { mediaStorage: content.mediaStorage.url }),
     ...options,
   };
   const [header, footer] = await Promise.all([
@@ -193,6 +194,7 @@ export async function preparePage(
     ...(found && { collection: found.collection, entry: found.entry }),
     ...(page.view && { view: page.view }),
     ...(languages.length > 0 && { languages, home: languageHome(loaded, pageLanguage(loaded, page)) }),
+    ...(content.mediaStorage && { mediaStorage: content.mediaStorage.url }),
     ...options,
   };
   // An entry's page is its collection's template, with the entry's values filled in.

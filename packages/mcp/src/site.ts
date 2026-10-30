@@ -32,6 +32,12 @@ export interface ConnectorContext {
   fetch?: typeof fetch;
   /** Takes screenshots, where this server can. */
   screenshots?: Screenshotter;
+  /**
+   * Whether `publish` runs the admin panel's checks first, which read the
+   * whole site twice: on unless turned off, as the connector service does on
+   * Workers' free plan, whose requests have 10 ms of CPU.
+   */
+  siteChecks?: boolean;
   /** For tests. */
   now?: () => Date;
 }

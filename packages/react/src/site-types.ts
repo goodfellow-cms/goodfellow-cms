@@ -79,6 +79,12 @@ export interface SiteContextValue {
   base?: string;
   /** Replacements for plain links and images, such as Next.js's. */
   components?: SiteComponents;
+  /**
+   * Where a plugin keeps the site's media, the address its files are public
+   * at, as `content/media-storage.json` says: its files are the media
+   * library's, wherever they're served.
+   */
+  mediaStorage?: string;
   /** The sizes of the site's images, by address (`/media/photo.jpg`), where they're known. */
   media?: Record<string, ImageSize>;
   /**

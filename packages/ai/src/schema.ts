@@ -1,3 +1,4 @@
+import { isOwnersOnlyField } from "@goodfellow-cms/core";
 import type { ComponentConfig, ComponentData, Config, Content, Field, Fields } from "@puckeditor/core";
 
 /** A JSON Schema, in the subset structured outputs accept: no recursion, `additionalProperties: false` everywhere. */
@@ -131,7 +132,8 @@ export function objectSchema(fields: Fields | undefined): JsonSchema | undefined
   const properties = Object.fromEntries(
     Object.entries(fields ?? {}).flatMap(([name, field]) => {
       // Hidden fields are filled in by the block itself, such as an Entry field's value.
-      if ((field as AnyField).visible === false) return [];
+      // Hidden fields aren't edited, and owners-only ones, such as running Custom HTML as written, aren't the AI's.
+      if ((field as AnyField).visible === false || isOwnersOnlyField(field)) return [];
       const schema = fieldSchema(field as AnyField);
       return schema ? [[name, schema]] : [];
     }),
@@ -294,7 +296,9 @@ export function cleanProps(
   const result: Record<string, unknown> = {};
   for (const [name, field] of Object.entries(fields ?? {})) {
     if ((field as AnyField).type === "slot" || (field as AnyField).visible === false) continue;
-    const cleaned = name in given ? cleanValue(field as AnyField, given[name]) : ({ ok: false } as const);
+    // Only owners choose these, and a page's own words could ask for them, so they keep their starting values.
+    const owners = isOwnersOnlyField(field);
+    const cleaned = name in given && !owners ? cleanValue(field as AnyField, given[name]) : ({ ok: false } as const);
     if (cleaned.ok) result[name] = cleaned.value;
     else if (defaults && name in defaults) result[name] = structuredClone(defaults[name]);
   }
