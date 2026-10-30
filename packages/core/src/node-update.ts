@@ -16,6 +16,7 @@ import {
   RegistryError,
 } from "./registry.js";
 import {
+  availableUpdates,
   chooseUpdate,
   compareReleases,
   NPM_REGISTRY,
@@ -167,18 +168,27 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     return { state: "up-to-date", from, paused: true };
   }
   const packument = await fetchJson(`${NPM_REGISTRY}/${VERSION_PACKAGE}`);
-  const to = chooseUpdate(from, releaseVersions(packument), target === "automatic" ? "fixes" : target, settings.skip);
+  const versions = releaseVersions(packument);
+  const to = chooseUpdate(from, versions, target === "automatic" ? "fixes" : target, settings.skip);
+  // Fixes leave out newer releases, such as 0.8.0 for a site on 0.7.x, which are only installed when asked for.
+  const newer =
+    !to && (target === "fixes" || target === "automatic")
+      ? availableUpdates(from, versions, settings.skip).newer
+      : undefined;
+  const upToDate = newer
+    ? `Goodfellow ${from} has every fix for its release. ${newer} is a newer release, with new features and changes: update with \`--to latest\` to install it.`
+    : `Goodfellow ${from} is up to date.`;
   const siteFiles = options.siteFiles ?? [];
   const current = to ? undefined : await siteFileChanges(siteFiles, from, read);
   if (!to && current?.changes.length === 0) {
-    log(`Goodfellow ${from} is up to date.`);
+    log(upToDate);
     if (current.kept.length > 0) log(keptMessage(current.kept));
     return { state: "up-to-date", from, ...(current.kept.length > 0 && { kept: current.kept }) };
   }
   const rollback = to !== undefined && compareReleases(to, from) < 0;
   log(
     !to
-      ? `Goodfellow ${from} is up to date. Bringing the site's own files up to date for it…`
+      ? `${upToDate} Bringing the site's own files up to date for it…`
       : rollback
         ? `Going back from Goodfellow ${from} to ${to}…`
         : `Updating Goodfellow from ${from} to ${to}…`,

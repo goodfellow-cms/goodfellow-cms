@@ -264,6 +264,20 @@ async function publish({ ci, dryRun, yes }) {
     }
     requireStaging();
   } else requireNpmSignIn({ dryRun });
+
+  // Versions an earlier run staged are waiting for approval already, and npm won't stage them twice.
+  const staged = ci ? alreadyStaged(toPublish) : new Set();
+  const toPack = toPublish.filter((pkg) => !staged?.has(pkg.name));
+  if (ci && staged === undefined) {
+    console.log("\nnpm didn't say which versions are staged already, so this stages them all.");
+  }
+  if (toPack.length === 0) {
+    if (!dryRun) setOutput("waiting", "true");
+    report(
+      `Every package npm doesn't have at ${next} is staged already, by an earlier run. Approve them with \`pnpm release:approve\` on your computer; this workflow waits for the approval, then tags the release and deploys the docs.`,
+    );
+    return;
+  }
   // CI has passed on the commit the workflow publishes, end-to-end tests included.
   for (const step of ci ? ["build"] : ["lint", "typecheck", "test", "build"]) run("pnpm", [step]);
 
@@ -271,7 +285,7 @@ async function publish({ ci, dryRun, yes }) {
   const failed = [];
   try {
     // pnpm writes the package's dependencies on other packages here (workspace:*) as their versions.
-    const tarballs = toPublish.map((pkg) => {
+    const tarballs = toPack.map((pkg) => {
       const packed = JSON.parse(read("pnpm", ["pack", "--json", "--pack-destination", out], { cwd: pkg.dir }));
       return { ...pkg, tarball: packed.filename };
     });
@@ -281,6 +295,7 @@ async function publish({ ci, dryRun, yes }) {
     for (const pkg of tarballs) console.log(`  ${pkg.name}`);
     const skipped = list.filter((pkg) => !toPublish.includes(pkg));
     if (skipped.length > 0) console.log(`Already on npm: ${skipped.map((pkg) => pkg.name).join(", ")}`);
+    if (staged?.size) console.log(`Already staged, waiting for approval: ${[...staged].join(", ")}`);
 
     if (!ci && !dryRun && !yes && !(await confirm(`\nPublish ${tarballs.length} packages to npm?`))) {
       throw new ReleaseError("Nothing was published.");
@@ -294,13 +309,11 @@ async function publish({ ci, dryRun, yes }) {
     ];
     if (ci) {
       // Staging needs no two-factor code, and doesn't publish anything until a maintainer approves it.
-      // One that fails doesn't stop the others: it may only have been staged by an earlier run.
+      // One that fails doesn't stop the others: it may only have been staged by an earlier run npm didn't list.
       for (const pkg of tarballs) {
         // What a maintainer compares with what `approve` shows, so they approve the files this run built.
         report(`${pkg.name}@${pkg.version}: ${integrity(pkg.tarball)}`);
-        console.log(`\n$ npm stage publish ${pkg.tarball} ${flags.join(" ")}`);
-        const result = spawn("npm", ["stage", "publish", pkg.tarball, ...flags], { stdio: "inherit" });
-        if (result.error || result.status !== 0) failed.push(pkg.name);
+        if (!(await stage(pkg.tarball, flags))) failed.push(pkg.name);
       }
     } else {
       for (const pkg of tarballs) {
@@ -331,6 +344,52 @@ async function publish({ ci, dryRun, yes }) {
     console.log(
       `\nReleased ${next}. To update the docs site, run the "Deploy docs" workflow in the repository's Actions tab.`,
     );
+  }
+}
+
+/** How many times a package is staged before its failure is given up on, where npm says it may work again. */
+const STAGE_ATTEMPTS = 3;
+
+/**
+ * npm's failures that staging again may get past, since nothing was staged: Sigstore's transparency log refusing a
+ * package's provenance statement as one it has already, which is how npm's own retry of an upload the log was slow to
+ * answer, but took, fails. Staging again signs afresh.
+ */
+const STAGE_AGAIN = /TLOG_CREATE_ENTRY_ERROR/;
+
+/** Stages a tarball on npm, showing what npm says, and returns whether it was staged. */
+async function stage(tarball, flags) {
+  for (let attempt = 1; ; attempt += 1) {
+    console.log(`\n$ npm stage publish ${tarball} ${flags.join(" ")}`);
+    const result = spawn("npm", ["stage", "publish", tarball, ...flags], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    process.stdout.write(result.stdout ?? "");
+    process.stderr.write(result.stderr ?? "");
+    if (!result.error && result.status === 0) return true;
+    if (attempt >= STAGE_ATTEMPTS || !STAGE_AGAIN.test(`${result.stdout ?? ""}${result.stderr ?? ""}`)) return false;
+    console.log(
+      `\nSigstore's transparency log refused the package's provenance as a duplicate, as it does when it was slow to answer npm, and nothing was staged. Staging it again in 30 seconds (attempt ${attempt + 1} of ${STAGE_ATTEMPTS}).`,
+    );
+    await sleep(30_000);
+  }
+}
+
+/**
+ * The names of these packages npm has staged at their versions already, or
+ * `undefined` where npm won't say, as it may not to a workflow that signs in
+ * with trusted publishing.
+ */
+function alreadyStaged(list) {
+  try {
+    return new Set(
+      stagedVersions(list)
+        .filter((item) => item.version === item.pkg.version)
+        .map((item) => item.pkg.name),
+    );
+  } catch {
+    return undefined;
   }
 }
 

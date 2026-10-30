@@ -23,7 +23,7 @@ The site's `/admin` then opens straight away, with a banner saying it's a demo. 
 
 ## Put a demo online
 
-A demo is best kept as a site of its own, separate from any real site, so trying it never gets in the way of real content. To make one from the parish example and put it online with GitHub Pages, as Goodfellow's demo is:
+A demo is best kept as a site of its own, separate from any real site, so trying it never gets in the way of real content. To make one from the parish example and put it online with GitHub Pages:
 
 1. Create the site, here in a folder called `goodfellow-demo`:
 
