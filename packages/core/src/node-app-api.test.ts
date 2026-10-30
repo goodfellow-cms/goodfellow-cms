@@ -353,8 +353,76 @@ describe("appApi", () => {
     signIn(OWEN);
     expect((await write(page(false))).status).toBe(200);
     signIn(ALICE);
-    expect((await write(page(false, "<p>Changed</p>"))).status).toBe(200);
+    // The owner's block used as written is theirs whole: its HTML would run as the editor wrote it.
+    expect((await write(page(false, "<p>Changed</p>"))).status).toBe(403);
     expect((await write(page(true))).status).toBe(403);
+    // Sent as bytes, the page is read all the same.
+    signIn(OWEN);
+    expect((await write(page())).status).toBe(200);
+    signIn(ALICE);
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const bytes = await post("write", {
+      changes: [
+        {
+          path: "content/pages/about.json",
+          base64: encodeBase64Bytes(new TextEncoder().encode(page(false, "<script>x</script>"))),
+        },
+      ],
+      message: "Edit About",
+      expectedRevision: revision,
+    });
+    expect(bytes.status).toBe(403);
+  });
+
+  it("refuses media the site can't use, and SVGs that skipped the admin panel's cleaning", async () => {
+    const { call, post, repo } = setup(OWEN);
+    const write = async (path: string, text: string) => {
+      const { revision } = (await (await call("revision")).json()) as { revision: string };
+      return post("write", {
+        changes: [{ path, base64: encodeBase64Bytes(new TextEncoder().encode(text)) }],
+        message: "Upload",
+        expectedRevision: revision,
+      });
+    };
+    const page = await write("public/media/x.html", "<script>fetch('/api/goodfellow/write')</script>");
+    expect(page.status).toBe(400);
+    expect(await page.json()).toEqual({ error: "unsafe-media", paths: ["public/media/x.html"] });
+    const svg = (body: string) => `<svg xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+    expect((await write("public/media/x.svg", svg("<script>alert(1)</script>"))).status).toBe(400);
+    expect((await write("public/media/x.Svg", svg('<rect onload="alert(1)"/>'))).status).toBe(400);
+    expect((await write("public/media/logo.svg", svg('<rect width="4" height="4"/>'))).status).toBe(200);
+    expect(repo.files(repo.head()).has("public/media/x.html")).toBe(false);
+  });
+
+  it("lets editors add files to the media storage, but not move it", async () => {
+    const storage = (url: string, files: Record<string, unknown> = {}) =>
+      JSON.stringify({ version: 1, plugin: "goodfellow-plugin-s3", url, files });
+    const { call, post, signIn } = setup(OWEN);
+    const write = async (content: string) => {
+      const { revision } = (await (await call("revision")).json()) as { revision: string };
+      return post("write", {
+        changes: [{ path: "content/media-storage.json", content }],
+        message: "Storage",
+        expectedRevision: revision,
+      });
+    };
+    expect((await write(storage("https://media.example.org"))).status).toBe(200);
+    signIn(ALICE);
+    expect((await write(storage("https://media.example.org", { "/media/a.mp4": { size: 4 } }))).status).toBe(200);
+    const moved = await write(storage("https://evil.example", { "/media/a.mp4": { size: 4 } }));
+    expect(moved.status).toBe(403);
+    expect(await moved.json()).toEqual({ error: "owners-only", paths: ["content/media-storage.json"] });
+  });
+
+  it("never takes settings from editors for review either", async () => {
+    const { call, post } = setup();
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const response = await post("review", {
+      changes: [{ path: "content/site.json", content: "{}" }],
+      title: "New address",
+      from: revision,
+    });
+    expect(response.status).toBe(403);
   });
 
   it("adds plugins only through a review, which only owners can ask for", async () => {

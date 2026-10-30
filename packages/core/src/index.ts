@@ -441,6 +441,7 @@ export {
 export {
   isStorableAddress,
   isStorageUrl,
+  keepsStorageSettings,
   type MediaStorage,
   type MediaStorageFile,
   mediaStorageFileChange,
@@ -1129,6 +1130,19 @@ export {
   type TemplateName,
   withoutRepositoryNotes,
 } from "./site-setup.js";
+export {
+  type CleanedAttribute,
+  cleanedSvgAttribute,
+  cssWithoutOutsideAddresses,
+  keepsSvgElement,
+  normalizedSvgValue,
+  SVG_ATTRIBUTE_NAMESPACES,
+  SVG_ELEMENTS,
+  SVG_NAMESPACE,
+  XLINK_NAMESPACE,
+  XML_NAMESPACE,
+  XMLNS_NAMESPACE,
+} from "./svg-rules.js";
 export { type TableCells, tableCells } from "./table-cells.js";
 export { GITLAB_TASK_RULE, githubTaskWorkflow, gitlabTaskJob, type SiteCli } from "./task-setup.js";
 export {

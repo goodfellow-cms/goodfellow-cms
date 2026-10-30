@@ -372,6 +372,9 @@ export const SITE_HEADERS: Readonly<Record<string, string>> = {
  */
 export const SVG_MEDIA_HEADERS: Readonly<Record<string, string>> = { "Content-Security-Policy": "sandbox" };
 
+/** Every spelling of `svg`, since browsers open `x.Svg` as an SVG as they do `x.svg`. */
+const SVG_SPELLINGS = ["s", "S"].flatMap((s) => ["v", "V"].flatMap((v) => ["g", "G"].map((g) => `${s}${v}${g}`)));
+
 /** Starts Goodfellow's rules in `_headers`, so a build adds them once to a site's own file. */
 export const SITE_HEADERS_MARK = "# Goodfellow's header rules";
 
@@ -392,9 +395,8 @@ export function cloudflareSiteHeaders(
     Object.entries(record).map(([name, value]) => `${name}: ${value}`);
   const blocks = [
     block(`${root}*`, headers(SITE_HEADERS)),
-    // A rule takes one splat, so each spelling of the extension has its own.
-    block(`${root}media/*.svg`, headers(SVG_MEDIA_HEADERS)),
-    block(`${root}media/*.SVG`, headers(SVG_MEDIA_HEADERS)),
+    // A rule takes one splat and matches case as it is, so each spelling of the extension has its own.
+    ...SVG_SPELLINGS.map((extension) => block(`${root}media/*.${extension}`, headers(SVG_MEDIA_HEADERS))),
   ];
   if (!adminOrigin(admin)) {
     const adminPath = `${root}admin/`;
@@ -419,7 +421,7 @@ export function vercelSiteHeaders(
     Object.entries(record).map(([key, value]) => ({ key, value }));
   const rules: HostHeaderRule[] = [
     { source: `${prefix}/(.*)`, headers: list(SITE_HEADERS) },
-    { source: `${prefix}/media/(.*)\\.(svg|SVG)`, headers: list(SVG_MEDIA_HEADERS) },
+    { source: `${prefix}/media/(.*)\\.([sS][vV][gG])`, headers: list(SVG_MEDIA_HEADERS) },
   ];
   if (adminOrigin(admin)) return rules;
   return [

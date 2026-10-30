@@ -12,8 +12,11 @@ import {
   isContentPath,
   isEditablePath,
   isSettingsPath,
+  keepsStorageSettings,
   limitsContent,
   limitsFor,
+  MEDIA_DIR,
+  MEDIA_STORAGE_FILE,
   newDraftName,
   type OwnersOnlyFields,
   outsideLimits,
@@ -28,6 +31,7 @@ import {
   taskRequestProblem,
 } from "./index.js";
 import type { PluginServer } from "./node-plugins.js";
+import { unsafeMediaChanges } from "./svg-check.js";
 
 export interface AppApiOptions {
   /** The site's repository, through a token of the site's own: `config.backend.server({ token })`. */
@@ -155,8 +159,44 @@ function toFileChange(value: unknown, pathOf: (value: unknown) => string = edita
   const path = pathOf(change.path);
   if (change.delete === true) return { path, delete: true };
   if (typeof change.content === "string") return { path, content: change.content };
-  if (typeof change.base64 === "string") return { path, bytes: decodeBase64(change.base64) };
+  if (typeof change.base64 === "string") {
+    const bytes = decodeBase64(change.base64);
+    // Content files are text, read as text by every check here, so they're never let through as bytes unread.
+    if (!isTextContentPath(path)) return { path, bytes };
+    try {
+      return { path, content: new TextDecoder("utf-8", { fatal: true }).decode(bytes) };
+    } catch {
+      throw new BadRequest("That isn't a content file.");
+    }
+  }
   throw new BadRequest("That isn't a change.");
+}
+
+/** Files the site's content is read from as text: content's JSON and Markdown, and the site's code. */
+function isTextContentPath(path: string): boolean {
+  return !path.startsWith(`${MEDIA_DIR}/`) && /\.(json|md|tsx?|jsx?|css|html)$/i.test(path);
+}
+
+/**
+ * What a change can't do, wherever it comes from, before it's written: media
+ * that isn't safe on the site's address, and, for someone who isn't an owner,
+ * a different plugin or address for the media storage (they may add and
+ * remove its files, as uploading does). An answer to send, or nothing.
+ */
+async function refusedChanges(
+  changes: readonly FileChange[],
+  editor: AppEditor,
+  read: (path: string) => Promise<string | undefined>,
+): Promise<Response | undefined> {
+  const unsafe = unsafeMediaChanges(changes);
+  if (unsafe.length > 0) return json(400, { error: "unsafe-media", paths: unsafe });
+  if (editor.role !== "owner") {
+    const storage = changes.find((change) => change.path === MEDIA_STORAGE_FILE);
+    if (storage && !(await keepsStorageSettings(await read(MEDIA_STORAGE_FILE), storage))) {
+      return json(403, { error: "owners-only", paths: [MEDIA_STORAGE_FILE] });
+    }
+  }
+  return undefined;
 }
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {
@@ -281,6 +321,8 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       // So is the code this server runs, unless the site lets owners publish it.
       if (codeReview && changes.some((change) => isCodePath(change.path))) return json(403, { error: "review-only" });
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
+      const refused = await refusedChanges(changes, editor, (path) => backend.read(path));
+      if (refused) return refused;
       // Block settings only owners may change, such as Custom HTML used exactly as written.
       if (editor.role !== "owner" && options.ownersOnly) {
         const changed = await ownersOnlyChanges(changes, options.ownersOnly, (path) => backend.read(path));
@@ -309,10 +351,20 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       if (options.git.contentOnly && changes.some((change) => !isContentPath(change.path))) {
         throw new BadRequest("The site's code is kept in a repository of its own.");
       }
+      // Settings are owners' whether they're published or submitted for review.
+      if (editor.role !== "owner" && changes.some((change) => isSettingsPath(change.path))) {
+        return json(403, { error: "owners-only" });
+      }
       const backend = await options.git.at(from, { name: editor.name, email: editor.email });
       if (!backend.drafts) throw new BadRequest("This site's repository can't take changes for review.");
       const code = changes.some((change) => isCodePath(change.path));
       if (code && editor.role !== "owner") return json(403, { error: "owners-only" });
+      const refused = await refusedChanges(changes, editor, (path) => backend.read(path));
+      if (refused) return refused;
+      if (editor.role !== "owner" && options.ownersOnly) {
+        const changed = await ownersOnlyChanges(changes, options.ownersOnly, (path) => backend.read(path));
+        if (changed.length > 0) return json(403, { error: "owners-only", paths: changed });
+      }
       const reviewers = plugins || code ? [] : reviewersFor(await readPermissions(backend), []);
       const draft = await backend.drafts.create(newDraftName(), { from });
       await draft.store.write(changes, { message: title, expectedRevision: await draft.store.revision() });

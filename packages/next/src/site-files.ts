@@ -3,6 +3,9 @@ import type { SiteFile } from "@goodfellow-cms/core/node";
 /** The release whose Next.js sites have the editor's sandboxed frames at `app/admin/editor/`. */
 const FRAMES_RELEASE = "0.5.0";
 
+/** The release whose Next.js sites tell Vercel not to build drafts' and plugins' tasks' branches. */
+const VERCEL_BRANCHES_RELEASE = "0.9.0";
+
 /** `app/admin/page.tsx` as every release before the frames wrote it, loading the site's config itself. */
 const CLIENT_ADMIN_PAGE = `"use client";
 
@@ -40,7 +43,24 @@ export default function EditorPage() {
  * where nobody has changed them, as the starter now has them. A test checks
  * they match `templates/next`.
  */
+/**
+ * Vercel builds a preview of every branch, with the project's settings and
+ * secrets, unless told not to: drafts are kept on branches named
+ * `goodfellow-draft-…`, with code owners and editors submitted for review, and
+ * plugins' tasks answer on `goodfellow-task-…`, neither of which visitors see.
+ */
+export const VERCEL_JSON = `{
+  "git": {
+    "deploymentEnabled": {
+      "goodfellow-draft-*": false,
+      "goodfellow-task-*": false
+    }
+  }
+}
+`;
+
 export const NEXT_SITE_FILES: readonly SiteFile[] = [
   { path: "app/admin/page.tsx", since: FRAMES_RELEASE, content: ADMIN_PAGE, earlier: [CLIENT_ADMIN_PAGE] },
   { path: "app/admin/editor/page.tsx", since: FRAMES_RELEASE, content: EDITOR_PAGE, earlier: [] },
+  { path: "vercel.json", since: VERCEL_BRANCHES_RELEASE, content: VERCEL_JSON, earlier: [] },
 ];

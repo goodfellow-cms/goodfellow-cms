@@ -76,4 +76,28 @@ describe("owners-only settings", () => {
     ];
     expect(await ownersOnlyChanges(changes, fields, read)).toEqual(["content/pages/b.json"]);
   });
+
+  it("read a page sent as bytes, and count two blocks with one id as a change", async () => {
+    const read = async () => page(block("a"));
+    const bytes = new TextEncoder().encode(page(block("a", { sanitize: false, html: "<script>x</script>" })));
+    expect(await ownersOnlyChanges([{ path: "content/pages/a.json", bytes }], fields, read)).toEqual([
+      "content/pages/a.json",
+    ]);
+    // The first one is drawn too, though the second looks like the one that was there.
+    const twice = page(block("a", { sanitize: false, html: "<script>x</script>" }), block("a"));
+    expect(await ownersOnlyChanges([{ path: "content/pages/a.json", content: twice }], fields, read)).toEqual([
+      "content/pages/a.json",
+    ]);
+  });
+
+  it("keep an owner's block used exactly as written as the owner left it, every setting of it", async () => {
+    const read = async () => page(block("a", { sanitize: false, html: "<p>As written</p>" }));
+    const check = (content: string) => ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, read);
+    expect(await check(page(block("a", { sanitize: false, html: "<script>x</script>" })))).toEqual([
+      "content/pages/a.json",
+    ]);
+    expect(await check(page(block("a", { sanitize: false, html: "<p>As written</p>" })))).toEqual([]);
+    // Taking it away is fine: what's left can't run anything.
+    expect(await check(page())).toEqual([]);
+  });
 });

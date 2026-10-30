@@ -170,3 +170,25 @@ export function withStoredFiles(
   for (const address of removed) delete files[address];
   return { ...storage, files };
 }
+
+/**
+ * Whether a change to `content/media-storage.json` keeps which plugin keeps the
+ * files and where they're public, changing only which files it keeps, as
+ * uploading and removing files do: what someone who isn't an owner may change,
+ * since the address decides where every `/media/` address on the site points.
+ * `before` is the file's text as it was, if there was one.
+ */
+export function keepsStorageSettings(before: string | undefined, change: FileChange): boolean {
+  if (before === undefined || !("content" in change)) return false;
+  const read = (text: string) => {
+    try {
+      const parsed = mediaStorageFileSchema.safeParse(JSON.parse(text));
+      return parsed.success ? parsed.data : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const was = read(before);
+  const now = read(change.content);
+  return was !== undefined && now !== undefined && was.plugin === now.plugin && was.url === now.url;
+}

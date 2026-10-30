@@ -104,6 +104,23 @@ describe("cleanSvg", () => {
   });
 });
 
+describe("cleanSvg's addresses", () => {
+  it("keeps what loads with the picture to the file itself and the site, however the address is spelled", () => {
+    const cleaned =
+      cleanSvg(
+        svg(
+          '<use href="/\\tracker.example/a.svg#x"/><use href="\\\\tracker.example/b.svg#x"/>' +
+            '<rect fill="URL(https://tracker.example/c.svg#p)"/><rect fill="\\75 rl(https://tracker.example/d.png)"/>' +
+            "<rect style=\"background:image-set('https://tracker.example/e.png' 1x)\"/>" +
+            '<use href="/media/sprite.svg#icon"/><rect fill="url(#g)"/>',
+        ),
+      ) ?? "";
+    expect(cleaned).not.toContain("tracker.example");
+    expect(cleaned).toContain('href="/media/sprite.svg#icon"');
+    expect(cleaned).toContain('fill="url(#g)"');
+  });
+});
+
 describe("safeMediaChanges", () => {
   const bytes = (text: string) => new TextEncoder().encode(text);
 

@@ -157,7 +157,7 @@ function headers() {
         "Content-Security-Policy": "object-src 'none'; base-uri 'self'",
       }),
     },
-    { source: "/media/(.*)\\.(svg|SVG)", headers: list({ "Content-Security-Policy": "sandbox" }) },
+    { source: "/media/(.*)\\.([sS][vV][gG])", headers: list({ "Content-Security-Policy": "sandbox" }) },
   ];
   if (!url) {
     return [

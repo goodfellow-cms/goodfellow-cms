@@ -90,3 +90,4 @@ export {
   readWordPressSource,
   withoutJpegDetails,
 } from "./node-wordpress.js";
+export { isCleanSvg, unsafeMediaChanges } from "./svg-check.js";
