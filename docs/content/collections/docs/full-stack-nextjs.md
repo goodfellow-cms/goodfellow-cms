@@ -20,6 +20,8 @@ We strongly recommend keeping a full-stack site's content in a [repository of it
 
 The server holds its token all the time, and runs code from many places: the app's own, its packages, its blocks and plugins' server modules. A token that can write to the site's repository can also change that code, which the host then builds and runs with every secret the server has. So anyone who gets the token, through a bug or a package with something added to it, could take over the site and its server for good, not just change its pages. A token that can reach only the content can change only the content, which [version history](/docs/publishing#version-history) can put back. The server also refuses to write anything but content then, whoever asks.
 
+It only helps if the token reaches nothing but the content repository. Make it a token for that one repository, as [step 5](#setting-it-up) says for each host, rather than one that reaches everything its account can. On GitLab, members of a group reach every project in it, and on Bitbucket, a workspace's admins reach every repository in it. So make sure the token's account, and the people who manage it, can't reach the code repository some other way.
+
 The cost is a second repository to set up. Blocks and plugins are then added by a developer in the code repository, since the admin panel can't change code. And where the host builds from the code repository, as hosts that run Next.js do, the admin panel can't say when a change is live.
 
 ## Setting it up
@@ -78,7 +80,7 @@ The cost is a second repository to set up. Blocks and plugins are then added by 
 5. Give the server its token as `GOODFELLOW_GIT_TOKEN` in the host's environment variables. Make it for the content repository if the site has one, as we recommend, and never for the code's:
 
    - **GitHub:** a fine-grained token for that one repository only, with Contents read and write, and Deployments and Actions read, which the admin panel uses to say when a change is live and why a rebuild failed. Make it from an account kept for the site, such as a machine user, rather than a person's own.
-   - **GitLab:** a project access token with the Developer role (Maintainer if the main branch only lets Maintainers push) and the `api` scope.
+   - **GitLab:** a project access token with the Developer role (Maintainer if the main branch only lets Maintainers push) and the `api` scope. GitLab.com's free plan has no project access tokens; there, use a fine-grained personal access token (GitLab 19.2 and later) that reaches only that project, from an account kept for the site that's a Developer there. Never use a personal access token without that limit: it reaches every project its account can, the code's too if the account can reach it, directly or through a group.
    - **Bitbucket:** a repository access token with Repositories read and write and Pipelines read. Commits still name each editor as their author.
 
 ## Who may do what
