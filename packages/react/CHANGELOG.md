@@ -1,5 +1,65 @@
 # @goodfellow-cms/react
 
+## 0.8.0
+
+### Minor Changes
+
+- d21884a: On sites kept on GitHub, Site Settings has a Comments screen that sets up comments: it makes a public repository of their own beside the site's, with Discussions turned on, or connects one you already have, and publishes where they're kept as `content/site.json`'s `comments`, which the Comments block now shows without Giscus's code. The same screen lists visitors' comments page by page, and hides, shows and deletes them and closes pages to new ones. Where the sign-in can't reach that repository, as with the sign-in service, it asks for a GitHub token of the owner's own, kept only in the tab. GitHub backends offer this as `comments` (`SiteComments`), and the token broker asks before making the repository or deleting a comment.
+- 293bbf0: Visitors' consent asks about kinds of content: other sites' content, and statistics and advertising where Site Settings → Code says the site's code is for them. Visitors can allow each kind on its own from the notice's Choose, and code marked as needed for the site to work loads without asking. A visitor's answer now lasts as many days as Site Settings says (180 by default, at most 395), and the notice asks again once it's older, or when the site asks about a kind it didn't before. Answers kept by earlier releases are asked again once.
+- 90e3369: The built-in blocks no longer need React in visitors' browsers. The Code block's copy button, the Dark mode switch and the Search box are plain HTML, each made to work by a small script of its own in `@goodfellow-cms/core` (`copyScript()`, `darkModeScript()`, `searchScript()`), which `goodfellow build` adds only to the pages that use it (`blockScriptsFor()`) and Next.js sites' layout has all of. A page made of built-in blocks now loads no React at all, about 70 kB less on pages with search or a Dark mode switch. `CodeView` no longer takes `code`: the copy button copies the `<pre>` beside it. Search results are plain links, which Next.js sites' layout opens with Next.js's navigation and loads ahead, as `next/link` does.
+- 7a9a116: `goodfellow build` runs a site's Client Components with Preact (`preact/compat`) instead of React where every one of them says it works with it (`export const worksWithPreact = true` in its `"use client"` file), which every interactive block in Goodfellow's registry now does: pages with them load about 32 kB of JavaScript instead of about 230 kB. Islands are rendered with Preact where pages are built too, so `useId()` gives the same ids as in the browser, each island's with a prefix of its own. A Client Component that doesn't say so keeps the site on React, and the build names it; `preact: false` in the config keeps React whatever they say, and `goodfellow build --react` or `GOODFELLOW_REACT=1` uses React for one build, such as to find out whether a problem is Preact's. `goodfellow dev` and Next.js always use React. `@goodfellow-cms/react/island` has `setIslandRenderer()` for this.
+- 5869562: Builds make smaller copies of the media library's photos, 480, 800, 1200 and 1600 pixels wide, and images list them in `srcset`, so phones download no more than they show. `goodfellow build` and `goodfellow-next finish` (for static exports without an image loader of their own) write them into `media-sizes/`. Base paths now also apply to `srcset` as React spells it.
+- 5e9a95b: Sites can ask visitors before showing content from other sites. With **Site Settings → General → Visitors' consent** on, a notice at the bottom of each page asks, and until visitors agree, YouTube, Vimeo and other sites' players, Google forms and maps load nothing and show a note with a button in their place, hCaptcha waits, and the site's custom code (all of the end of the page's, and the head's scripts, links and `noscript`) waits too. The answer is kept in the visitor's browser, links to `#consent` open the notice again, and every word of it can be changed, in each of the site's languages.
+
+### Patch Changes
+
+- 2e22322: Fixes to asking visitors before loading other sites' content:
+  
+  - The head's links to the site's own files, such as a stylesheet or icons, stay on the page; only links to other sites wait for visitors to agree (`isHeldHeadElement(element, siteUrl)`).
+  - Code that has `</template>` in it, which would run before visitors agree, is left out of pages while the site asks. Site Settings won't publish it, and Custom HTML used as written is made safe instead (`endsHeldTemplate()`).
+  - The consent script finds the notice by `data-gf-consent-notice`, so an element in rich text with the same id can't hide it. The notice is named by its message for screen readers, and a link to `#consent` moves the keyboard's focus to it.
+  - The notice's words come in the site's main language where there are default words for it (English and Spanish), and each language's pages get their own default words (`consentDefaults()`, `consentInLanguage()`). Turning asking off and on again keeps the words that were written.
+  - Google forms and maps keep their Style on the box around them, in the editor and on the site alike (`ConsentFrame`'s `boxClassName`).
+  - The docs say that full-stack Next.js sites load fonts from Google before visitors agree.
+- 9ccc5bb: On Next.js sites that ask visitors before loading other sites' content, a visitor who had agreed before no longer gets every player, script and piece of custom code loaded twice: the consent script now leaves the page's elements where React expects them. Custom HTML used exactly as written now waits for visitors to agree too, when it loads or runs anything. The notice and placeholders stay hidden whatever else styles them.
+- 141a23d: Every block's Style settings can hide it on phones (narrower than 640px), tablets (640px to 1023px) or computers (1024px and wider), so a page can show something different on each without writing Tailwind classes. The choice is kept as Tailwind's breakpoint classes (`max-sm:hidden`, `sm:max-lg:hidden`, `lg:hidden`), which `readBlockStyle()` reads as `hiddenOn` and `withBlockStyle()` writes, and apps hide the block on the same sizes of screen, since they now read `max-` breakpoint classes too. The documentation site's header uses it to put the menu button and dark mode switch at the top right on phones and tablets, with the search on a line of its own on phones.
+  
+  Builds' accessibility checks look at pages that hide blocks on some screens as each size of screen shows them, so a menu for phones and one for computers aren't reported as two parts of the page with the same name.
+  
+  `SiteImage` gives images the build knows the size of their `width` and `height` even where it doesn't list smaller copies, such as SVG logos in `goodfellow build`, so browsers keep their space before they load, as Next.js's `next/image` already did.
+- e558acd: Links that would run code, such as `javascript:` or `data:` addresses in menus, buttons or items' link fields, are left out of built pages, and the site checks stop a publish that adds one. A file replaced in the media library must be the same kind as the one it replaces, and every file published into the media library, a plugin's included, is checked by the name it's saved under, with SVGs cleaned again.
+- Updated dependencies [a341e5f]
+- Updated dependencies [8d9d46c]
+- Updated dependencies [d21884a]
+- Updated dependencies [2e22322]
+- Updated dependencies [9ccc5bb]
+- Updated dependencies [293bbf0]
+- Updated dependencies [46cf9d9]
+- Updated dependencies [368f04e]
+- Updated dependencies [b9f619e]
+- Updated dependencies [65239e6]
+- Updated dependencies [b072536]
+- Updated dependencies [141a23d]
+- Updated dependencies [ecfbab6]
+- Updated dependencies [8622adc]
+- Updated dependencies [90e3369]
+- Updated dependencies [7a9a116]
+- Updated dependencies [5869562]
+- Updated dependencies [5113b06]
+- Updated dependencies [4e12d00]
+- Updated dependencies [1a25a31]
+- Updated dependencies [e558acd]
+- Updated dependencies [4744a5f]
+- Updated dependencies [9731fc0]
+- Updated dependencies [86ad949]
+- Updated dependencies [7be53b5]
+- Updated dependencies [fcb4100]
+- Updated dependencies [51a992a]
+- Updated dependencies [a10f9ae]
+- Updated dependencies [5e9a95b]
+- Updated dependencies [1335733]
+  - @goodfellow-cms/core@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

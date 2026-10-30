@@ -1,5 +1,63 @@
 # goodfellow
 
+## 0.8.0
+
+### Minor Changes
+
+- 7a9a116: `goodfellow build` runs a site's Client Components with Preact (`preact/compat`) instead of React where every one of them says it works with it (`export const worksWithPreact = true` in its `"use client"` file), which every interactive block in Goodfellow's registry now does: pages with them load about 32 kB of JavaScript instead of about 230 kB. Islands are rendered with Preact where pages are built too, so `useId()` gives the same ids as in the browser, each island's with a prefix of its own. A Client Component that doesn't say so keeps the site on React, and the build names it; `preact: false` in the config keeps React whatever they say, and `goodfellow build --react` or `GOODFELLOW_REACT=1` uses React for one build, such as to find out whether a problem is Preact's. `goodfellow dev` and Next.js always use React. `@goodfellow-cms/react/island` has `setIslandRenderer()` for this.
+- 5869562: Builds make smaller copies of the media library's photos, 480, 800, 1200 and 1600 pixels wide, and images list them in `srcset`, so phones download no more than they show. `goodfellow build` and `goodfellow-next finish` (for static exports without an image loader of their own) write them into `media-sizes/`. Base paths now also apply to `srcset` as React spells it.
+
+### Patch Changes
+
+- b9f619e: `goodfellow dev` and `next dev`'s local backend now refuse requests to any name other than this computer's (`localhost`, its IP addresses, and Vite's `server.allowedHosts`), so a website that points its own name at your computer can't save to your files through the admin panel's API. The terminal's "Saved:" line leaves out control characters.
+- 65239e6: Editor plugins' frames show the site's media as the standard editor does: from the site's folder on a site in a folder of its domain, from memory for a picture just uploaded that the site doesn't have yet, and from the storage a plugin keeps the site's media in, whose address their frames may now load images and videos from. Text edited in place keeps content's `/media/` addresses. Plugins can tell from `session.showsMedia` and leave the addresses as they are.
+- 4e12d00: Publishing refuses, rather than retries on top, when GitHub or GitLab can't list every file someone else changed meanwhile, so a large change such as a WordPress import is never written over. `goodfellow preview` answers only this computer unless given `--network`. AI services' addresses must be `https://`, unless the service runs on this computer, and the assistant is told the site's own text is content, not instructions. Registry addresses are compared as they'd be fetched, so `..` can't leave a trusted registry. New sites ignore every `.env` file but `.env.example`.
+- 86ad949: Security fixes from a review:
+  
+  - The token broker refuses calls it doesn't list, and asks before changing domains, taking someone's access away, running a plugin's task, setting up updates or throwing away a draft. It also never publishes `bitbucket-pipelines.yml`.
+  - `goodfellow task` and `goodfellow-next task` load the site's config in a process of its own that has none of the job's secrets, so the config and the packages it loads can't read them.
+  - The GitHub backend lists every pending invitation and organization, not only the first 100.
+  - GitLab removes a scheduled-change pipeline schedule it couldn't give its variable.
+- 7be53b5: Sites on Cloudflare Pages and Vercel get safer headers: every file is sent with `X-Content-Type-Options: nosniff` and a referrer policy, the media library's SVGs open sandboxed, so they can never run as the site, and the admin panel can't be framed by another site and opens in a window the site's pages can't reach. Builds add the rules to `_headers` after the site's own; the starters' `vercel.ts` and `withGoodfellow()` give them to Vercel. A static site on Vercel from before this keeps its own `vercel.ts`: copy the starter's to get them.
+- a10f9ae: `goodfellow update` installs only the packages npm had a day after the release it installs came out (`npm install --before`), so a package published, or taken over, since then isn't installed into every site that updates overnight.
+- 1335733: On Windows, `goodfellow update --commit` and `--publish` no longer fail on the commit message, and `goodfellow blocks add` keeps addresses with `&` in them whole: npm and npx get their arguments quoted for cmd.exe, and git runs without a shell. `goodfellow dev` no longer watches `content/` and `public/media/` on Windows, which reloaded the admin panel in the middle of publishing.
+- Updated dependencies [a341e5f]
+- Updated dependencies [911f778]
+- Updated dependencies [8d9d46c]
+- Updated dependencies [d21884a]
+- Updated dependencies [f3e81fb]
+- Updated dependencies [2e22322]
+- Updated dependencies [9ccc5bb]
+- Updated dependencies [293bbf0]
+- Updated dependencies [46cf9d9]
+- Updated dependencies [368f04e]
+- Updated dependencies [b9f619e]
+- Updated dependencies [65239e6]
+- Updated dependencies [b072536]
+- Updated dependencies [141a23d]
+- Updated dependencies [ecfbab6]
+- Updated dependencies [676ab5c]
+- Updated dependencies [8622adc]
+- Updated dependencies [90e3369]
+- Updated dependencies [7a9a116]
+- Updated dependencies [5869562]
+- Updated dependencies [5113b06]
+- Updated dependencies [4e12d00]
+- Updated dependencies [1a25a31]
+- Updated dependencies [e558acd]
+- Updated dependencies [4744a5f]
+- Updated dependencies [9731fc0]
+- Updated dependencies [86ad949]
+- Updated dependencies [7be53b5]
+- Updated dependencies [fcb4100]
+- Updated dependencies [51a992a]
+- Updated dependencies [a10f9ae]
+- Updated dependencies [5e9a95b]
+- Updated dependencies [1335733]
+  - @goodfellow-cms/core@0.8.0
+  - @goodfellow-cms/admin@0.8.0
+  - @goodfellow-cms/react@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

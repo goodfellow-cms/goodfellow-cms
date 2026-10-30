@@ -1,5 +1,77 @@
 # @goodfellow-cms/next
 
+## 0.8.0
+
+### Minor Changes
+
+- a341e5f: Sites with an admin address on Vercel now send pages opened at the wrong address to the right one before they load: a site page opened at the admin address goes to the Site address, and, once the address is checked, the admin panel opened at the Site address goes to the admin address. Only pages opened in a tab are sent, so the admin panel's previews and what pages load stay where they are. The starters' `vercel.ts`, `withGoodfellow()` and content repositories' `vercel.ts` (`withVercelAdminAddress()`, kept in step by `goodfellow admin`) add them, from `vercelAdminRedirects()`. The docs give Cloudflare redirect rules that do the same on Cloudflare Pages. Existing sites on Vercel get them by copying the starter's `vercel.ts`.
+- 90e3369: The built-in blocks no longer need React in visitors' browsers. The Code block's copy button, the Dark mode switch and the Search box are plain HTML, each made to work by a small script of its own in `@goodfellow-cms/core` (`copyScript()`, `darkModeScript()`, `searchScript()`), which `goodfellow build` adds only to the pages that use it (`blockScriptsFor()`) and Next.js sites' layout has all of. A page made of built-in blocks now loads no React at all, about 70 kB less on pages with search or a Dark mode switch. `CodeView` no longer takes `code`: the copy button copies the `<pre>` beside it. Search results are plain links, which Next.js sites' layout opens with Next.js's navigation and loads ahead, as `next/link` does.
+- 5869562: Builds make smaller copies of the media library's photos, 480, 800, 1200 and 1600 pixels wide, and images list them in `srcset`, so phones download no more than they show. `goodfellow build` and `goodfellow-next finish` (for static exports without an image loader of their own) write them into `media-sizes/`. Base paths now also apply to `srcset` as React spells it.
+- 5e9a95b: Sites can ask visitors before showing content from other sites. With **Site Settings → General → Visitors' consent** on, a notice at the bottom of each page asks, and until visitors agree, YouTube, Vimeo and other sites' players, Google forms and maps load nothing and show a note with a button in their place, hCaptcha waits, and the site's custom code (all of the end of the page's, and the head's scripts, links and `noscript`) waits too. The answer is kept in the visitor's browser, links to `#consent` open the notice again, and every word of it can be changed, in each of the site's languages.
+
+### Patch Changes
+
+- 2e22322: Fixes to asking visitors before loading other sites' content:
+  
+  - The head's links to the site's own files, such as a stylesheet or icons, stay on the page; only links to other sites wait for visitors to agree (`isHeldHeadElement(element, siteUrl)`).
+  - Code that has `</template>` in it, which would run before visitors agree, is left out of pages while the site asks. Site Settings won't publish it, and Custom HTML used as written is made safe instead (`endsHeldTemplate()`).
+  - The consent script finds the notice by `data-gf-consent-notice`, so an element in rich text with the same id can't hide it. The notice is named by its message for screen readers, and a link to `#consent` moves the keyboard's focus to it.
+  - The notice's words come in the site's main language where there are default words for it (English and Spanish), and each language's pages get their own default words (`consentDefaults()`, `consentInLanguage()`). Turning asking off and on again keeps the words that were written.
+  - Google forms and maps keep their Style on the box around them, in the editor and on the site alike (`ConsentFrame`'s `boxClassName`).
+  - The docs say that full-stack Next.js sites load fonts from Google before visitors agree.
+- 293bbf0: Visitors' consent asks about kinds of content: other sites' content, and statistics and advertising where Site Settings → Code says the site's code is for them. Visitors can allow each kind on its own from the notice's Choose, and code marked as needed for the site to work loads without asking. A visitor's answer now lasts as many days as Site Settings says (180 by default, at most 395), and the notice asks again once it's older, or when the site asks about a kind it didn't before. Answers kept by earlier releases are asked again once.
+- 368f04e: On full-stack Next.js sites, only owners can choose to use Custom HTML exactly as written, which runs it on the site. Editors see the setting but can't change it, and the site's server refuses a publish that changes it or adds the block with it. Blocks of a site's own can mark settings like that with `metadata: { owners: true }` (`ownersOnlyFields()` and `ownersOnlyChanges()` in `@goodfellow-cms/core`, `AppApiOptions.ownersOnly`).
+- 65239e6: Editor plugins' frames show the site's media as the standard editor does: from the site's folder on a site in a folder of its domain, from memory for a picture just uploaded that the site doesn't have yet, and from the storage a plugin keeps the site's media in, whose address their frames may now load images and videos from. Text edited in place keeps content's `/media/` addresses. Plugins can tell from `session.showsMedia` and leave the addresses as they are.
+- 676ab5c: Menus work on phones. The Menu block's **Show the links behind a menu button (☰)** shows every link, every level of them, under a button on phones, on phones and small tablets, on phones and tablets, always or never, with no JavaScript; the editor says when a menu's submenus can't be reached on phones because it never shows the button. The starters' and the example's headers show it on phones and small tablets. In Next.js sites, the menu button's links close after moving to another page.
+  
+  The admin panel works in narrow windows: its links, View site and the account are under a menu button there, and a Dark mode switch takes the place of the list of colors.
+- 4744a5f: Full-stack Next.js sites submit owners' changes to the site's code, such as adding blocks on the Blocks screen, for review by default, since their server runs that code with its token and keys; `goodfellowApi({ codeChanges: "publish" })` lets owners publish them. The sign-in service says the app isn't installed as soon as it's uninstalled, rather than that signing in isn't working. New sites' setup asks whether you have a domain, starts with an admin address where you do and the host can serve one, and otherwise recommends a sign-in page of its own; the Security and Code tabs say when editors' sign-in is within reach of the site's pages.
+- 86ad949: Security fixes from a review:
+  
+  - The token broker refuses calls it doesn't list, and asks before changing domains, taking someone's access away, running a plugin's task, setting up updates or throwing away a draft. It also never publishes `bitbucket-pipelines.yml`.
+  - `goodfellow task` and `goodfellow-next task` load the site's config in a process of its own that has none of the job's secrets, so the config and the packages it loads can't read them.
+  - The GitHub backend lists every pending invitation and organization, not only the first 100.
+  - GitLab removes a scheduled-change pipeline schedule it couldn't give its variable.
+- 7be53b5: Sites on Cloudflare Pages and Vercel get safer headers: every file is sent with `X-Content-Type-Options: nosniff` and a referrer policy, the media library's SVGs open sandboxed, so they can never run as the site, and the admin panel can't be framed by another site and opens in a window the site's pages can't reach. Builds add the rules to `_headers` after the site's own; the starters' `vercel.ts` and `withGoodfellow()` give them to Vercel. A static site on Vercel from before this keeps its own `vercel.ts`: copy the starter's to get them.
+- fcb4100: Full-stack Next.js sites (`withGoodfellow(config, { server: true })`) serve their Google Fonts themselves, as static exports do. `next build` copies them into `public/fonts/google/` before it renders any page, so pages rendered while it builds and while the site runs both point at the copies, and visitors' browsers never ask Google for them. Where Google can't be reached while building, the build says so and pages load the fonts from Google. New sites' `.gitignore` leaves out `public/fonts/google/`.
+- Updated dependencies [a341e5f]
+- Updated dependencies [911f778]
+- Updated dependencies [8d9d46c]
+- Updated dependencies [d21884a]
+- Updated dependencies [f3e81fb]
+- Updated dependencies [2e22322]
+- Updated dependencies [9ccc5bb]
+- Updated dependencies [293bbf0]
+- Updated dependencies [46cf9d9]
+- Updated dependencies [368f04e]
+- Updated dependencies [b9f619e]
+- Updated dependencies [65239e6]
+- Updated dependencies [b072536]
+- Updated dependencies [141a23d]
+- Updated dependencies [ecfbab6]
+- Updated dependencies [676ab5c]
+- Updated dependencies [8622adc]
+- Updated dependencies [90e3369]
+- Updated dependencies [7a9a116]
+- Updated dependencies [5869562]
+- Updated dependencies [5113b06]
+- Updated dependencies [4e12d00]
+- Updated dependencies [1a25a31]
+- Updated dependencies [e558acd]
+- Updated dependencies [4744a5f]
+- Updated dependencies [9731fc0]
+- Updated dependencies [86ad949]
+- Updated dependencies [7be53b5]
+- Updated dependencies [fcb4100]
+- Updated dependencies [51a992a]
+- Updated dependencies [a10f9ae]
+- Updated dependencies [5e9a95b]
+- Updated dependencies [1335733]
+  - @goodfellow-cms/core@0.8.0
+  - @goodfellow-cms/admin@0.8.0
+  - @goodfellow-cms/react@0.8.0
+  - @goodfellow-cms/ai@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

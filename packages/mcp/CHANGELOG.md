@@ -1,5 +1,47 @@
 # @goodfellow-cms/mcp
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies [a341e5f]
+- Updated dependencies [8d9d46c]
+- Updated dependencies [d21884a]
+- Updated dependencies [2e22322]
+- Updated dependencies [9ccc5bb]
+- Updated dependencies [293bbf0]
+- Updated dependencies [46cf9d9]
+- Updated dependencies [368f04e]
+- Updated dependencies [b9f619e]
+- Updated dependencies [65239e6]
+- Updated dependencies [b072536]
+- Updated dependencies [27cf03a]
+- Updated dependencies [141a23d]
+- Updated dependencies [ecfbab6]
+- Updated dependencies [8622adc]
+- Updated dependencies [90e3369]
+- Updated dependencies [7a9a116]
+- Updated dependencies [5869562]
+- Updated dependencies [5113b06]
+- Updated dependencies [4010248]
+- Updated dependencies [4e12d00]
+- Updated dependencies [1a25a31]
+- Updated dependencies [e558acd]
+- Updated dependencies [4744a5f]
+- Updated dependencies [9731fc0]
+- Updated dependencies [86ad949]
+- Updated dependencies [7be53b5]
+- Updated dependencies [fcb4100]
+- Updated dependencies [51a992a]
+- Updated dependencies [a10f9ae]
+- Updated dependencies [5e9a95b]
+- Updated dependencies [1335733]
+  - @goodfellow-cms/core@0.8.0
+  - @goodfellow-cms/github@0.8.0
+  - @goodfellow-cms/gitlab@0.8.0
+  - @goodfellow-cms/bitbucket@0.8.0
+  - @goodfellow-cms/ai@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

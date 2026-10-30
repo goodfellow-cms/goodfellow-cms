@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/core",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Goodfellow's content model, config and file format. Runs in Node and the browser.",
   "keywords": [
     "goodfellow",

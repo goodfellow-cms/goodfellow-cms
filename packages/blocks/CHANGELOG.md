@@ -1,5 +1,65 @@
 # @goodfellow-cms/blocks
 
+## 0.8.0
+
+### Minor Changes
+
+- 8d9d46c: A Breadcrumbs block shows the way from the home page to the page shown, through the pages above it by address, such as Home › News › The parish fair, marked up as schema.org's `BreadcrumbList` for search engines. Items' pages come under their collection's page, pages blocks add after the page they're on, and sites in several languages start from the language's home page. It has a version for apps too. Core's `breadcrumbs()` works out the way from a list of pages.
+- ecfbab6: Three built-in blocks: a Document viewer that shows a PDF from the media library on the page, a Donate button to a giving page such as a Stripe payment link, and Share buttons that link to share the page on social sites or by email. Donate and Share are links only, so pages load nothing from those services. WordPress imports bring PDFs WordPress shows on the page across as Document viewers, and exports write the Document viewer and Donate button as WordPress's own blocks.
+- 676ab5c: Menus work on phones. The Menu block's **Show the links behind a menu button (☰)** shows every link, every level of them, under a button on phones, on phones and small tablets, on phones and tablets, always or never, with no JavaScript; the editor says when a menu's submenus can't be reached on phones because it never shows the button. The starters' and the example's headers show it on phones and small tablets. In Next.js sites, the menu button's links close after moving to another page.
+  
+  The admin panel works in narrow windows: its links, View site and the account are under a menu button there, and a Dark mode switch takes the place of the list of colors.
+- 8622adc: A Newsletter signup block: an email box that signs visitors up through Mailchimp, Buttondown, Kit, any other service whose signup form is HTML, or the site's form service, as a plain form that loads nothing from the service until someone signs up.
+- 90e3369: The built-in blocks no longer need React in visitors' browsers. The Code block's copy button, the Dark mode switch and the Search box are plain HTML, each made to work by a small script of its own in `@goodfellow-cms/core` (`copyScript()`, `darkModeScript()`, `searchScript()`), which `goodfellow build` adds only to the pages that use it (`blockScriptsFor()`) and Next.js sites' layout has all of. A page made of built-in blocks now loads no React at all, about 70 kB less on pages with search or a Dark mode switch. `CodeView` no longer takes `code`: the copy button copies the `<pre>` beside it. Search results are plain links, which Next.js sites' layout opens with Next.js's navigation and loads ahead, as `next/link` does.
+- 51a992a: A Social post block shows posts from Bluesky, Mastodon, Instagram and X, and Spotify's and SoundCloud's players, from the post's address or its site's embed code, sandboxed and held back until visitors agree where the site asks. WordPress imports bring such embeds across as Social posts, and exports write them as WordPress's own embeds.
+- 5e9a95b: Sites can ask visitors before showing content from other sites. With **Site Settings → General → Visitors' consent** on, a notice at the bottom of each page asks, and until visitors agree, YouTube, Vimeo and other sites' players, Google forms and maps load nothing and show a note with a button in their place, hCaptcha waits, and the site's custom code (all of the end of the page's, and the head's scripts, links and `noscript`) waits too. The answer is kept in the visitor's browser, links to `#consent` open the notice again, and every word of it can be changed, in each of the site's languages.
+
+### Patch Changes
+
+- 2e22322: Fixes to asking visitors before loading other sites' content:
+  
+  - The head's links to the site's own files, such as a stylesheet or icons, stay on the page; only links to other sites wait for visitors to agree (`isHeldHeadElement(element, siteUrl)`).
+  - Code that has `</template>` in it, which would run before visitors agree, is left out of pages while the site asks. Site Settings won't publish it, and Custom HTML used as written is made safe instead (`endsHeldTemplate()`).
+  - The consent script finds the notice by `data-gf-consent-notice`, so an element in rich text with the same id can't hide it. The notice is named by its message for screen readers, and a link to `#consent` moves the keyboard's focus to it.
+  - The notice's words come in the site's main language where there are default words for it (English and Spanish), and each language's pages get their own default words (`consentDefaults()`, `consentInLanguage()`). Turning asking off and on again keeps the words that were written.
+  - Google forms and maps keep their Style on the box around them, in the editor and on the site alike (`ConsentFrame`'s `boxClassName`).
+  - The docs say that full-stack Next.js sites load fonts from Google before visitors agree.
+- 293bbf0: Visitors' consent asks about kinds of content: other sites' content, and statistics and advertising where Site Settings → Code says the site's code is for them. Visitors can allow each kind on its own from the notice's Choose, and code marked as needed for the site to work loads without asking. A visitor's answer now lasts as many days as Site Settings says (180 by default, at most 395), and the notice asks again once it's older, or when the site asks about a kind it didn't before. Answers kept by earlier releases are asked again once.
+- 7a9a116: `goodfellow build` runs a site's Client Components with Preact (`preact/compat`) instead of React where every one of them says it works with it (`export const worksWithPreact = true` in its `"use client"` file), which every interactive block in Goodfellow's registry now does: pages with them load about 32 kB of JavaScript instead of about 230 kB. Islands are rendered with Preact where pages are built too, so `useId()` gives the same ids as in the browser, each island's with a prefix of its own. A Client Component that doesn't say so keeps the site on React, and the build names it; `preact: false` in the config keeps React whatever they say, and `goodfellow build --react` or `GOODFELLOW_REACT=1` uses React for one build, such as to find out whether a problem is Preact's. `goodfellow dev` and Next.js always use React. `@goodfellow-cms/react/island` has `setIslandRenderer()` for this.
+- Updated dependencies [a341e5f]
+- Updated dependencies [8d9d46c]
+- Updated dependencies [d21884a]
+- Updated dependencies [2e22322]
+- Updated dependencies [9ccc5bb]
+- Updated dependencies [293bbf0]
+- Updated dependencies [46cf9d9]
+- Updated dependencies [368f04e]
+- Updated dependencies [b9f619e]
+- Updated dependencies [65239e6]
+- Updated dependencies [b072536]
+- Updated dependencies [141a23d]
+- Updated dependencies [ecfbab6]
+- Updated dependencies [8622adc]
+- Updated dependencies [90e3369]
+- Updated dependencies [7a9a116]
+- Updated dependencies [5869562]
+- Updated dependencies [5113b06]
+- Updated dependencies [4e12d00]
+- Updated dependencies [1a25a31]
+- Updated dependencies [e558acd]
+- Updated dependencies [4744a5f]
+- Updated dependencies [9731fc0]
+- Updated dependencies [86ad949]
+- Updated dependencies [7be53b5]
+- Updated dependencies [fcb4100]
+- Updated dependencies [51a992a]
+- Updated dependencies [a10f9ae]
+- Updated dependencies [5e9a95b]
+- Updated dependencies [1335733]
+  - @goodfellow-cms/core@0.8.0
+  - @goodfellow-cms/react@0.8.0
+  - @goodfellow-cms/expo@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes
