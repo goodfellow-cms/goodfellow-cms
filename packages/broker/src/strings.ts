@@ -20,6 +20,12 @@ export const STRINGS = {
   badSiteAddress: "The site's address, {address}, isn't one this page can show the admin panel from.",
   sameOrigin:
     "The admin panel is at this page's own address, {address}, where it could read your sign-in. Give the sign-in page an address of its own.",
+  pinnedElsewhere:
+    "The site's settings say its admin panel is at {address}, but this sign-in page only shows it from {pinned}, as its broker.json says. If you moved the site, change broker.json's admin to the new address.",
+  movedTitle: "The admin panel has moved",
+  moved:
+    "Last time, this page showed the admin panel from {pinned}. The site's settings now say it's at {address}. Only go on if you or another owner changed the site's address: anyone who can edit the site can change its settings, and the page at that address would act as you.",
+  movedGoOn: "Go on to {address}",
   signedInAs: "Signed in as {name}",
   showing: "Showing {address}",
   aiKeys: "AI keys",

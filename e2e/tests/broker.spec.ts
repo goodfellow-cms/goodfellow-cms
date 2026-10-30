@@ -86,6 +86,24 @@ test("won't show an admin panel at its own address, where it could read the sign
   await expect(page.locator(".broker-frame")).toHaveCount(0);
 });
 
+test("asks before showing the admin panel from an address it hasn't shown it from before", async ({ page }) => {
+  const fake = await setup(page);
+  await signIn(page);
+  await expect(page.locator(".broker-bar")).toContainText(`Showing ${new URL(site).origin}`);
+
+  // Someone who can edit the site changes its address on the git host, where the broker never sees it.
+  const settings = JSON.parse(String(fake.repo.files().get("content/site.json") ?? "{}"));
+  fake.repo.write("content/site.json", `${JSON.stringify({ ...settings, url: "https://evil.example/" }, null, 2)}\n`);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "The admin panel has moved" })).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toContainText(
+    `Last time, this page showed the admin panel from ${new URL(site).origin}`,
+  );
+  expect(page.frames().some((frame) => frame.url().startsWith("https://evil.example"))).toBe(false);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to edit parish/site" })).toBeVisible();
+});
+
 test("edits a page in the editor's frame, inside the admin panel's", async ({ page }) => {
   const fake = await setup(page);
   const admin = await signIn(page);

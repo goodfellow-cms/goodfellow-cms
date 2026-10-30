@@ -24,15 +24,25 @@ import {
 import { type BrokerQuestion, decide } from "./policy.js";
 import { type StringKey, t } from "./strings.js";
 
-/** `broker.json`, beside the page: the sites it signs in to, each as its config's backend makes it (`GitHost.source`). */
+/**
+ * A site the broker signs in to: as its config's backend makes it
+ * (`GitHost.source`), and, where its owner sets one, the address its admin
+ * panel is at, which the broker then frames and no other, whatever the site's
+ * settings say, since editors can change those.
+ */
+export type BrokerSite = HostSource & { admin?: string };
+
+/** `broker.json`, beside the page: the sites it signs in to. */
 export interface BrokerConfig {
-  sites: HostSource[];
+  sites: BrokerSite[];
 }
 
 /** How the broker makes each git host it knows. */
 export type HostLoaders = Record<string, () => Promise<Record<string, unknown>>>;
 
 const ROUTE_KEY = "goodfellow:broker:route";
+/** The admin panel's address each site was last shown from, by the site's name. */
+const SHOWN_KEY = "goodfellow:broker:shown";
 const AI_KEY = "goodfellow:broker:ai";
 const CONFIG_FILE = "goodfellow.config.tsx";
 
@@ -83,6 +93,36 @@ function loadKeys(): ServerKeys {
 function saveKeys(keys: ServerKeys, remember: boolean): void {
   forgetKeys();
   (remember ? localStorage : sessionStorage).setItem(AI_KEY, JSON.stringify(keys));
+}
+
+/** The origin a site's admin panel was last shown from, if this browser has shown it. */
+function shownOrigin(site: string): string | undefined {
+  try {
+    const shown = JSON.parse(localStorage.getItem(SHOWN_KEY) ?? "{}") as Record<string, unknown>;
+    const origin = shown[site];
+    return typeof origin === "string" ? origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function rememberShown(site: string, origin: string): void {
+  try {
+    const shown = JSON.parse(localStorage.getItem(SHOWN_KEY) ?? "{}") as Record<string, unknown>;
+    localStorage.setItem(SHOWN_KEY, JSON.stringify({ ...shown, [site]: origin }));
+  } catch {
+    // A browser that keeps nothing asks each time the address changes within a visit only.
+  }
+}
+
+/** The origin of a broker.json's `admin`, or `undefined` where it has none or it isn't an address. */
+function pinnedOrigin(site: BrokerSite): string | undefined {
+  if (typeof site.admin !== "string") return undefined;
+  try {
+    return new URL(site.admin).origin;
+  } catch {
+    return "null";
+  }
 }
 
 function forgetKeys(): void {
@@ -232,6 +272,47 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
       show(element("p", { class: "broker-note", role: "alert" }, t("sameOrigin", { address: frameOrigin })));
       return;
     }
+    // Editors can change the site's settings on the git host, where this page never sees it, so the admin
+    // panel is framed only at the address broker.json names, or, without one, a new address only once the
+    // person here says so: the page it frames gets everything the sign-in can do.
+    const name = siteName(source as HostSource);
+    const pinned = pinnedOrigin(source as BrokerSite);
+    if (pinned !== undefined && pinned !== frameOrigin) {
+      show(
+        element("p", { class: "broker-note", role: "alert" }, t("pinnedElsewhere", { address: frameOrigin, pinned })),
+      );
+      return;
+    }
+    const shown = shownOrigin(name);
+    if (pinned === undefined && shown !== undefined && shown !== frameOrigin) {
+      const goOn = element(
+        "button",
+        { type: "button", class: "broker-primary" },
+        t("movedGoOn", { address: frameOrigin }),
+      );
+      const leave = element("button", { type: "button" }, t("signOut"));
+      goOn.addEventListener("click", () => {
+        rememberShown(name, frameOrigin);
+        void showAdmin(signedIn);
+      });
+      leave.addEventListener("click", () => {
+        signedIn.signOut();
+        forgetKeys();
+        sessionStorage.removeItem(ROUTE_KEY);
+        showSignIn();
+      });
+      show(
+        element(
+          "div",
+          { class: "broker-sign-in", role: "alertdialog", "aria-labelledby": "broker-moved" },
+          element("h1", { id: "broker-moved" }, t("movedTitle")),
+          element("p", {}, t("moved", { address: frameOrigin, pinned: shown })),
+          element("div", {}, goOn, " ", leave),
+        ),
+      );
+      return;
+    }
+    rememberShown(name, frameOrigin);
     const route = sessionStorage.getItem(ROUTE_KEY) ?? "";
     const frame = element("iframe", {
       class: "broker-frame",

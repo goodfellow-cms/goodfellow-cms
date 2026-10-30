@@ -718,6 +718,7 @@ export function createWorker(options: WorkerOptions = {}) {
       const installation = await installationFor(app, code);
       if (installation === undefined) return undefined;
       let issued: { token: string; expiresAt: string } | undefined;
+      let given = false;
       try {
         issued = await installationToken(
           config,
@@ -726,12 +727,16 @@ export function createWorker(options: WorkerOptions = {}) {
           code,
           CODE_PERMISSIONS[session.purpose],
         );
-        if ((await namesSite(code, repo, issued.token)) && (await mayUseCode(session, code, issued.token)))
+        if ((await namesSite(code, repo, issued.token)) && (await mayUseCode(session, code, issued.token))) {
+          given = true;
           return issued;
+        }
       } catch (error) {
         if (!(error instanceof GitHubError)) throw error;
+      } finally {
+        // Whatever stopped it, a token that isn't given is revoked, so none is left that nobody holds.
+        if (issued && !given) await revoke(issued.token);
       }
-      if (issued) await revoke(issued.token);
       return undefined;
     }
 

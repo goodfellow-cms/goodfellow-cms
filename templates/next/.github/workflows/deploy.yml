@@ -167,8 +167,13 @@ jobs:
           name: update
           path: ${{ runner.temp }}
       - id: publish
+        env:
+          # The update was made where the site's code ran, so only what an update changes is published.
+          CHECK: 'const { execFileSync } = require("child_process"); const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 1 << 28 }); const files = ["package.json","package-lock.json","content/updates.json","vercel.json","app/admin/page.tsx","app/admin/editor/page.tsx"]; const folders = ["blocks/installed/","components/","lib/","hooks/"]; const refused = []; const raw = git("diff", "--no-renames", "--raw", "-z", process.env.BASE, "HEAD").split("\0"); for (let i = 0; i + 1 < raw.length; i += 2) { const mode = raw[i].split(" ")[1]; const path = raw[i + 1]; const plain = ["000000", "100644", "100755"].includes(mode); const named = files.includes(path) || folders.some((folder) => path.startsWith(folder)); if (!plain || !named) refused.push(path); } const found = (value, into) => { if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) { if (key === "resolved") into.add(String(item)); else found(item, into); } return into; }; const lock = (rev) => { try { return JSON.parse(git("show", rev + ":package-lock.json")); } catch { return undefined; } }; const before = found(lock(process.env.BASE), new Set()); for (const address of found(lock("HEAD"), new Set())) { if (!before.has(address) && !address.startsWith("https://registry.npmjs.org/")) refused.push("package-lock.json: " + address); } for (const path of refused) console.log("::error::The update changed what an update never does, so it was not published: " + path); process.exit(refused.length > 0 ? 1 : 0);'
         run: |
+          base=$(git rev-parse HEAD)
           git -c user.name="Goodfellow updates" -c user.email=updates@goodfellow.invalid am "$RUNNER_TEMP/update.patch"
+          BASE="$base" node -e "$CHECK"
           git push origin "HEAD:$GITHUB_REF_NAME"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
