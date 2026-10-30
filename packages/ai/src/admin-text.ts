@@ -120,7 +120,7 @@ export function adminTextRequest(job: AdminTextJob): AiRequest {
 /**
  * The translations an answer gives for the strings asked for, each checked
  * against its English: answers for other keys, and strings with other
- * placeholders, git's words or nothing in them, are left out.
+ * placeholders or nothing in them, are left out.
  */
 export function readAdminTextAnswer(answer: unknown, asked: readonly AdminTextSource[]): Map<string, string> {
   const english = new Map(asked.map((source) => [source.key, source.english]));

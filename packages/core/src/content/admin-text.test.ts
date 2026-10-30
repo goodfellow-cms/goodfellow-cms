@@ -51,19 +51,15 @@ describe("the admin panel's text in a site's languages", () => {
     expect(isSettingsPath("content/admin-text/fr.json")).toBe(true);
   });
 
-  it("uses a string only with the English's placeholders, and never with git's words", () => {
+  it("uses a string only with the English's placeholders", () => {
     expect(adminTextProblem("Publier", "Publish")).toBeUndefined();
     expect(adminTextProblem("  ", "Publish")).toBe("empty");
     expect(adminTextProblem("Supprimer ?", "Delete {title}?")).toBe("placeholders");
     expect(adminTextProblem("Supprimer {titre} ?", "Delete {title}?")).toBe("placeholders");
     expect(adminTextProblem("Supprimer {title} {extra}", "Delete {title}?")).toBe("placeholders");
     expect(adminTextProblem("x".repeat(2001), "Publish")).toBe("too-long");
-    expect(adminTextProblem("Faire un commit", "Publish")).toBe("git-terms");
-    expect(adminTextProblem("Créer une pull request", "Submit for review")).toBe("git-terms");
-    // A word that only contains one, and English that uses one itself, as screens for developers do.
-    expect(adminTextProblem("Repousser", "Publish")).toBeUndefined();
-    expect(adminTextProblem("Dépôt de code", "Code repository")).toBeUndefined();
-    expect(adminTextProblem("Repository du code", "Code repository")).toBeUndefined();
+    // Whatever words a translation chooses, git's included, are its own.
+    expect(adminTextProblem("Faire un commit", "Publish")).toBeUndefined();
   });
 
   it("gives every English string, from the file where it can, else Goodfellow's translation, else the English", () => {
@@ -81,14 +77,14 @@ describe("the admin panel's text in a site's languages", () => {
     const broken = adminTextTable(english, {
       "publish.button": { text: "" },
       "pages.deleteConfirm": { text: "Supprimer ?" },
-      "app.title": { text: "Le commit" },
+      "app.title": { text: "x".repeat(2001) },
       "gone.key": { text: "Ancien" },
     });
     expect(broken.table).toEqual(english);
     expect(broken.problems).toEqual([
       { key: "publish.button", problem: "empty" },
       { key: "pages.deleteConfirm", problem: "placeholders" },
-      { key: "app.title", problem: "git-terms" },
+      { key: "app.title", problem: "too-long" },
     ]);
     expect(broken.table).not.toHaveProperty("gone.key");
   });

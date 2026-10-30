@@ -42,7 +42,7 @@ describe("translating the admin panel", () => {
       {
         strings: [
           { key: "nav.pages", text: " Pages " },
-          { key: "publish.button", text: "Faire un commit" },
+          { key: "publish.button", text: "   " },
           { key: "deletePage.title", text: "Supprimer ?" },
           { key: "other.key", text: "Autre" },
           { key: "nav.pages", text: "Encore" },

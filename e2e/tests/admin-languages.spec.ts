@@ -79,8 +79,8 @@ test.describe("in a browser set to French", () => {
       page.getByRole("heading", { name: "Connectez-vous pour modifier ce site (Sign in to edit this site)" }),
     ).toBeVisible();
     await expect(page.locator("html")).toHaveAttribute("lang", "fr");
-    // A string with git's words in it isn't used.
-    await expect(page.getByText("repository avec")).toHaveCount(0);
+    // A string without the English's placeholders isn't used.
+    await expect(page.getByText("Se connecter avec")).toHaveCount(0);
   });
 });
 

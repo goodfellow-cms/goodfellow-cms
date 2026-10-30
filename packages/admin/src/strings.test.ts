@@ -89,7 +89,8 @@ describe("the admin panel in a site's own language", () => {
     strings: {
       "publish.button": { text: "Publier", source: englishHash(defaultStrings["publish.button"]) },
       "deletePage.body": { text: "La page {path} sera supprimée." },
-      "nav.pages": { text: "Faire un commit" },
+      "nav.pages": { text: "Les pages" },
+      "nav.media": { text: "Médias {extra}" },
     },
     puck: { "header-publish": { text: "Publier" } },
     labels: { "Link text": { text: "Texte du lien" } },
@@ -98,8 +99,9 @@ describe("the admin panel in a site's own language", () => {
   it("takes the site's strings that can be used, and English for the rest", () => {
     const text = composeAdminText(undefined, french);
     expect(text.strings["publish.button"]).toBe("Publier");
-    // Git's words never reach editors.
-    expect(text.strings["nav.pages"]).toBe(defaultStrings["nav.pages"]);
+    expect(text.strings["nav.pages"]).toBe("Les pages");
+    // A string with other placeholders than the English's is left to the English.
+    expect(text.strings["nav.media"]).toBe(defaultStrings["nav.media"]);
     expect(text.strings["app.title"]).toBe(defaultStrings["app.title"]);
     expect(Object.keys(text.strings).sort()).toEqual(Object.keys(defaultStrings).sort());
     expect(text.puck["header-publish"]).toBe("Publier");

@@ -14,7 +14,7 @@
     },
     "signIn.redirect": {
       "source": "721fed91",
-      "text": "Se connecter au repository avec {host}"
+      "text": "Se connecter avec GitHub"
     },
     "signIn.title": {
       "source": "6451769b",

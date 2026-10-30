@@ -8,9 +8,9 @@
  *
  * Owners change these files (`isSettingsPath()` covers them), but their words
  * reach every editor, so every string is checked as it's used, never trusted:
- * the same `{placeholders}` as the English, not empty, not too long, and no
- * git terms, which the admin panel never uses (`adminTextProblem()`). A string
- * that fails falls back to Goodfellow's own translation, else the English.
+ * the same `{placeholders}` as the English, not empty and not too long
+ * (`adminTextProblem()`). A string that fails falls back to Goodfellow's own
+ * translation, else the English.
  * Builds publish the files beside the admin panel (`publishedAdminText()`), so
  * the sign-in screen, which can't read the site's files yet, speaks them too.
  */
@@ -89,12 +89,9 @@ export function englishHash(english: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
-/** Words for git the admin panel never uses, in any language, since editors have never used git. */
-export const GIT_TERMS = /(?<![\p{L}])(commit|push|pull request|merge request|branch|repository|repo)(?![\p{L}])/iu;
-
 const placeholdersOf = (text: string) => (text.match(/\{\w+\}/g) ?? []).sort().join(" ");
 
-export type AdminTextProblem = "empty" | "placeholders" | "too-long" | "git-terms";
+export type AdminTextProblem = "empty" | "placeholders" | "too-long";
 
 /**
  * What's wrong with a string, or nothing: compared with its English where
@@ -105,8 +102,6 @@ export function adminTextProblem(text: string, english: string | undefined): Adm
   if (text.trim() === "") return "empty";
   if (text.length > MAX_ADMIN_TEXT_LENGTH) return "too-long";
   if (english !== undefined && placeholdersOf(text) !== placeholdersOf(english)) return "placeholders";
-  // Only words the English doesn't use itself, as "Repository" in the screens for developers.
-  if (GIT_TERMS.test(text) && !(english !== undefined && GIT_TERMS.test(english))) return "git-terms";
   return undefined;
 }
 

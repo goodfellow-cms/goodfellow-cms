@@ -264,7 +264,6 @@ export {
   adminTextProblem,
   adminTextTable,
   englishHash,
-  GIT_TERMS,
   MAX_ADMIN_TEXT_ENTRIES,
   MAX_ADMIN_TEXT_LENGTH,
   PUBLISHED_ADMIN_TEXT_DIR,
