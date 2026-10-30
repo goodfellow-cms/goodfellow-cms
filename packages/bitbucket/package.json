@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/bitbucket",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Edit a Goodfellow site stored on Bitbucket, straight from the browser.",
   "keywords": [
     "goodfellow",

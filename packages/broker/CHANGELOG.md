@@ -1,5 +1,21 @@
 # @goodfellow-cms/broker
 
+## 0.8.0
+
+### Minor Changes
+
+- d21884a: On sites kept on GitHub, Site Settings has a Comments screen that sets up comments: it makes a public repository of their own beside the site's, with Discussions turned on, or connects one you already have, and publishes where they're kept as `content/site.json`'s `comments`, which the Comments block now shows without Giscus's code. The same screen lists visitors' comments page by page, and hides, shows and deletes them and closes pages to new ones. Where the sign-in can't reach that repository, as with the sign-in service, it asks for a GitHub token of the owner's own, kept only in the tab. GitHub backends offer this as `comments` (`SiteComments`), and the token broker asks before making the repository or deleting a comment.
+
+### Patch Changes
+
+- 382fe4f: The token broker refuses to show an admin panel at its own address, where the admin panel could read the sign-in and AI keys it keeps, as a site's settings pointing at another site on a shared host would make it, and its bar now names the address of the admin panel it shows.
+- 86ad949: Security fixes from a review:
+  
+  - The token broker refuses calls it doesn't list, and asks before changing domains, taking someone's access away, running a plugin's task, setting up updates or throwing away a draft. It also never publishes `bitbucket-pipelines.yml`.
+  - `goodfellow task` and `goodfellow-next task` load the site's config in a process of its own that has none of the job's secrets, so the config and the packages it loads can't read them.
+  - The GitHub backend lists every pending invitation and organization, not only the first 100.
+  - GitLab removes a scheduled-change pipeline schedule it couldn't give its variable.
+
 ## 0.7.0
 
 ### Minor Changes

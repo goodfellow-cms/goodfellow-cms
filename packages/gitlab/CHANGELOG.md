@@ -1,5 +1,50 @@
 # @goodfellow-cms/gitlab
 
+## 0.8.0
+
+### Patch Changes
+
+- 27cf03a: Editors signed in with GitLab are no longer signed out when several requests need a new access token at once: they now share one renewal, since GitLab accepts each refresh token only once. Coming back from signing in with GitLab or Bitbucket in a tab that didn't start it now takes the sign-in details out of the address too, so a Bitbucket token never stays in the address bar or history.
+- 4010248: Backends list every draft and review, past the first hundred, on GitHub and GitLab. The Bitbucket backend sends its sign-in only to Bitbucket's API, even when an answer names another address. It also reads what others published when its own commit is too far down the branch to find, rather than showing old text. And it refuses a `repo` that isn't `workspace/repository`, as the GitHub backend does.
+- 4e12d00: Publishing refuses, rather than retries on top, when GitHub or GitLab can't list every file someone else changed meanwhile, so a large change such as a WordPress import is never written over. `goodfellow preview` answers only this computer unless given `--network`. AI services' addresses must be `https://`, unless the service runs on this computer, and the assistant is told the site's own text is content, not instructions. Registry addresses are compared as they'd be fetched, so `..` can't leave a trusted registry. New sites ignore every `.env` file but `.env.example`.
+- 86ad949: Security fixes from a review:
+  
+  - The token broker refuses calls it doesn't list, and asks before changing domains, taking someone's access away, running a plugin's task, setting up updates or throwing away a draft. It also never publishes `bitbucket-pipelines.yml`.
+  - `goodfellow task` and `goodfellow-next task` load the site's config in a process of its own that has none of the job's secrets, so the config and the packages it loads can't read them.
+  - The GitHub backend lists every pending invitation and organization, not only the first 100.
+  - GitLab removes a scheduled-change pipeline schedule it couldn't give its variable.
+- Updated dependencies [a341e5f]
+- Updated dependencies [8d9d46c]
+- Updated dependencies [d21884a]
+- Updated dependencies [2e22322]
+- Updated dependencies [9ccc5bb]
+- Updated dependencies [293bbf0]
+- Updated dependencies [46cf9d9]
+- Updated dependencies [368f04e]
+- Updated dependencies [b9f619e]
+- Updated dependencies [65239e6]
+- Updated dependencies [b072536]
+- Updated dependencies [141a23d]
+- Updated dependencies [ecfbab6]
+- Updated dependencies [8622adc]
+- Updated dependencies [90e3369]
+- Updated dependencies [7a9a116]
+- Updated dependencies [5869562]
+- Updated dependencies [5113b06]
+- Updated dependencies [4e12d00]
+- Updated dependencies [1a25a31]
+- Updated dependencies [e558acd]
+- Updated dependencies [4744a5f]
+- Updated dependencies [9731fc0]
+- Updated dependencies [86ad949]
+- Updated dependencies [7be53b5]
+- Updated dependencies [fcb4100]
+- Updated dependencies [51a992a]
+- Updated dependencies [a10f9ae]
+- Updated dependencies [5e9a95b]
+- Updated dependencies [1335733]
+  - @goodfellow-cms/core@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

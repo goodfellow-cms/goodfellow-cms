@@ -1,5 +1,46 @@
 # create-goodfellow
 
+## 0.8.0
+
+### Patch Changes
+
+- 4e12d00: Publishing refuses, rather than retries on top, when GitHub or GitLab can't list every file someone else changed meanwhile, so a large change such as a WordPress import is never written over. `goodfellow preview` answers only this computer unless given `--network`. AI services' addresses must be `https://`, unless the service runs on this computer, and the assistant is told the site's own text is content, not instructions. Registry addresses are compared as they'd be fetched, so `..` can't leave a trusted registry. New sites ignore every `.env` file but `.env.example`.
+- 1a25a31: Sites on Cloudflare Pages and Vercel send a Content Security Policy of `object-src 'none'; base-uri 'self'` with every page: no plugins (`<object>`, `<embed>`), and no `<base>` pointing the page's links at another site. Scripts, styles and frames stay unlimited, since custom code and embeds need them. A Vercel site from before this keeps its own `vercel.ts` until a developer copies the starter's.
+- 4744a5f: Full-stack Next.js sites submit owners' changes to the site's code, such as adding blocks on the Blocks screen, for review by default, since their server runs that code with its token and keys; `goodfellowApi({ codeChanges: "publish" })` lets owners publish them. The sign-in service says the app isn't installed as soon as it's uninstalled, rather than that signing in isn't working. New sites' setup asks whether you have a domain, starts with an admin address where you do and the host can serve one, and otherwise recommends a sign-in page of its own; the Security and Code tabs say when editors' sign-in is within reach of the site's pages.
+- 7be53b5: Sites on Cloudflare Pages and Vercel get safer headers: every file is sent with `X-Content-Type-Options: nosniff` and a referrer policy, the media library's SVGs open sandboxed, so they can never run as the site, and the admin panel can't be framed by another site and opens in a window the site's pages can't reach. Builds add the rules to `_headers` after the site's own; the starters' `vercel.ts` and `withGoodfellow()` give them to Vercel. A static site on Vercel from before this keeps its own `vercel.ts`: copy the starter's to get them.
+- fcb4100: Full-stack Next.js sites (`withGoodfellow(config, { server: true })`) serve their Google Fonts themselves, as static exports do. `next build` copies them into `public/fonts/google/` before it renders any page, so pages rendered while it builds and while the site runs both point at the copies, and visitors' browsers never ask Google for them. Where Google can't be reached while building, the build says so and pages load the fonts from Google. New sites' `.gitignore` leaves out `public/fonts/google/`.
+- Updated dependencies [a341e5f]
+- Updated dependencies [8d9d46c]
+- Updated dependencies [d21884a]
+- Updated dependencies [2e22322]
+- Updated dependencies [9ccc5bb]
+- Updated dependencies [293bbf0]
+- Updated dependencies [46cf9d9]
+- Updated dependencies [368f04e]
+- Updated dependencies [b9f619e]
+- Updated dependencies [65239e6]
+- Updated dependencies [b072536]
+- Updated dependencies [141a23d]
+- Updated dependencies [ecfbab6]
+- Updated dependencies [8622adc]
+- Updated dependencies [90e3369]
+- Updated dependencies [7a9a116]
+- Updated dependencies [5869562]
+- Updated dependencies [5113b06]
+- Updated dependencies [4e12d00]
+- Updated dependencies [1a25a31]
+- Updated dependencies [e558acd]
+- Updated dependencies [4744a5f]
+- Updated dependencies [9731fc0]
+- Updated dependencies [86ad949]
+- Updated dependencies [7be53b5]
+- Updated dependencies [fcb4100]
+- Updated dependencies [51a992a]
+- Updated dependencies [a10f9ae]
+- Updated dependencies [5e9a95b]
+- Updated dependencies [1335733]
+  - @goodfellow-cms/core@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes

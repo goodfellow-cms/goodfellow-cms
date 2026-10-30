@@ -1,5 +1,83 @@
 # @goodfellow-cms/admin
 
+## 0.8.0
+
+### Minor Changes
+
+- 911f778: The admin panel speaks Spanish as well as English. Each editor gets the language their browser asks for first, or chooses one with the new language menu beside their account, which their browser remembers. Everything follows it:
+  - the admin panel's own text;
+  - Puck's controls in the editor, through its `dictionary`;
+  - the names, groups, settings, choices and placeholders of the built-in blocks and the page settings.
+  
+  A site's own blocks are translated wherever their labels are worded like the built-in ones. The Spanish text loads only when someone chooses it. The language is each editor's, separate from the site's languages, and the `strings` an `Admin` is given still apply on top of it.
+- d21884a: On sites kept on GitHub, Site Settings has a Comments screen that sets up comments: it makes a public repository of their own beside the site's, with Discussions turned on, or connects one you already have, and publishes where they're kept as `content/site.json`'s `comments`, which the Comments block now shows without Giscus's code. The same screen lists visitors' comments page by page, and hides, shows and deletes them and closes pages to new ones. Where the sign-in can't reach that repository, as with the sign-in service, it asks for a GitHub token of the owner's own, kept only in the tab. GitHub backends offer this as `comments` (`SiteComments`), and the token broker asks before making the repository or deleting a comment.
+- 293bbf0: Visitors' consent asks about kinds of content: other sites' content, and statistics and advertising where Site Settings → Code says the site's code is for them. Visitors can allow each kind on its own from the notice's Choose, and code marked as needed for the site to work loads without asking. A visitor's answer now lasts as many days as Site Settings says (180 by default, at most 395), and the notice asks again once it's older, or when the site asks about a kind it didn't before. Answers kept by earlier releases are asked again once.
+- 141a23d: Every block's Style settings can hide it on phones (narrower than 640px), tablets (640px to 1023px) or computers (1024px and wider), so a page can show something different on each without writing Tailwind classes. The choice is kept as Tailwind's breakpoint classes (`max-sm:hidden`, `sm:max-lg:hidden`, `lg:hidden`), which `readBlockStyle()` reads as `hiddenOn` and `withBlockStyle()` writes, and apps hide the block on the same sizes of screen, since they now read `max-` breakpoint classes too. The documentation site's header uses it to put the menu button and dark mode switch at the top right on phones and tablets, with the search on a line of its own on phones.
+  
+  Builds' accessibility checks look at pages that hide blocks on some screens as each size of screen shows them, so a menu for phones and one for computers aren't reported as two parts of the page with the same name.
+  
+  `SiteImage` gives images the build knows the size of their `width` and `height` even where it doesn't list smaller copies, such as SVG logos in `goodfellow build`, so browsers keep their space before they load, as Next.js's `next/image` already did.
+- ecfbab6: Three built-in blocks: a Document viewer that shows a PDF from the media library on the page, a Donate button to a giving page such as a Stripe payment link, and Share buttons that link to share the page on social sites or by email. Donate and Share are links only, so pages load nothing from those services. WordPress imports bring PDFs WordPress shows on the page across as Document viewers, and exports write the Document viewer and Donate button as WordPress's own blocks.
+- 676ab5c: Menus work on phones. The Menu block's **Show the links behind a menu button (☰)** shows every link, every level of them, under a button on phones, on phones and small tablets, on phones and tablets, always or never, with no JavaScript; the editor says when a menu's submenus can't be reached on phones because it never shows the button. The starters' and the example's headers show it on phones and small tablets. In Next.js sites, the menu button's links close after moving to another page.
+  
+  The admin panel works in narrow windows: its links, View site and the account are under a menu button there, and a Dark mode switch takes the place of the list of colors.
+- 8622adc: A Newsletter signup block: an email box that signs visitors up through Mailchimp, Buttondown, Kit, any other service whose signup form is HTML, or the site's form service, as a plain form that loads nothing from the service until someone signs up.
+- 51a992a: A Social post block shows posts from Bluesky, Mastodon, Instagram and X, and Spotify's and SoundCloud's players, from the post's address or its site's embed code, sandboxed and held back until visitors agree where the site asks. WordPress imports bring such embeds across as Social posts, and exports write them as WordPress's own embeds.
+- 5e9a95b: Sites can ask visitors before showing content from other sites. With **Site Settings → General → Visitors' consent** on, a notice at the bottom of each page asks, and until visitors agree, YouTube, Vimeo and other sites' players, Google forms and maps load nothing and show a note with a button in their place, hCaptcha waits, and the site's custom code (all of the end of the page's, and the head's scripts, links and `noscript`) waits too. The answer is kept in the visitor's browser, links to `#consent` open the notice again, and every word of it can be changed, in each of the site's languages.
+
+### Patch Changes
+
+- f3e81fb: After publishing stops because someone else changed the same page, **Reload** now shows their version in the editor, so publishing again can't put the old one back over theirs. **Put my changes back** brings back what you'd made, to publish it over theirs on purpose.
+- 2e22322: Fixes to asking visitors before loading other sites' content:
+  
+  - The head's links to the site's own files, such as a stylesheet or icons, stay on the page; only links to other sites wait for visitors to agree (`isHeldHeadElement(element, siteUrl)`).
+  - Code that has `</template>` in it, which would run before visitors agree, is left out of pages while the site asks. Site Settings won't publish it, and Custom HTML used as written is made safe instead (`endsHeldTemplate()`).
+  - The consent script finds the notice by `data-gf-consent-notice`, so an element in rich text with the same id can't hide it. The notice is named by its message for screen readers, and a link to `#consent` moves the keyboard's focus to it.
+  - The notice's words come in the site's main language where there are default words for it (English and Spanish), and each language's pages get their own default words (`consentDefaults()`, `consentInLanguage()`). Turning asking off and on again keeps the words that were written.
+  - Google forms and maps keep their Style on the box around them, in the editor and on the site alike (`ConsentFrame`'s `boxClassName`).
+  - The docs say that full-stack Next.js sites load fonts from Google before visitors agree.
+- 368f04e: On full-stack Next.js sites, only owners can choose to use Custom HTML exactly as written, which runs it on the site. Editors see the setting but can't change it, and the site's server refuses a publish that changes it or adds the block with it. Blocks of a site's own can mark settings like that with `metadata: { owners: true }` (`ownersOnlyFields()` and `ownersOnlyChanges()` in `@goodfellow-cms/core`, `AppApiOptions.ownersOnly`).
+- 65239e6: Editor plugins' frames show the site's media as the standard editor does: from the site's folder on a site in a folder of its domain, from memory for a picture just uploaded that the site doesn't have yet, and from the storage a plugin keeps the site's media in, whose address their frames may now load images and videos from. Text edited in place keeps content's `/media/` addresses. Plugins can tell from `session.showsMedia` and leave the addresses as they are.
+- 5113b06: The admin panel checks what Puck's editor hands back before publishing it (`checkPuckData()`), as it does editor plugins': only plain data, and only the site's blocks. Uploaded SVGs keep what they load as they draw to the file itself and the site, so opening one tells no other site. Media addresses are checked once decoded, so `%2e%2e` can't name another folder and a stray `%` no longer stops the admin panel. Blocks are installed from the registry release the admin panel came with, even where a build bundles its source, never the newest one.
+- e558acd: Links that would run code, such as `javascript:` or `data:` addresses in menus, buttons or items' link fields, are left out of built pages, and the site checks stop a publish that adds one. A file replaced in the media library must be the same kind as the one it replaces, and every file published into the media library, a plugin's included, is checked by the name it's saved under, with SVGs cleaned again.
+- 4744a5f: Full-stack Next.js sites submit owners' changes to the site's code, such as adding blocks on the Blocks screen, for review by default, since their server runs that code with its token and keys; `goodfellowApi({ codeChanges: "publish" })` lets owners publish them. The sign-in service says the app isn't installed as soon as it's uninstalled, rather than that signing in isn't working. New sites' setup asks whether you have a domain, starts with an admin address where you do and the host can serve one, and otherwise recommends a sign-in page of its own; the Security and Code tabs say when editors' sign-in is within reach of the site's pages.
+- 9731fc0: Uploaded SVGs keep only SVG's own drawing elements and safe attributes, so scripts written with another prefix, links to scripts spelled with entities and animations that set links are removed. A plugin's server requests stay under its own address, however `..` is spelled. The token broker asks about a new Site address however the site's settings are written, and when they're deleted.
+- Updated dependencies [a341e5f]
+- Updated dependencies [8d9d46c]
+- Updated dependencies [d21884a]
+- Updated dependencies [2e22322]
+- Updated dependencies [9ccc5bb]
+- Updated dependencies [293bbf0]
+- Updated dependencies [46cf9d9]
+- Updated dependencies [368f04e]
+- Updated dependencies [b9f619e]
+- Updated dependencies [65239e6]
+- Updated dependencies [b072536]
+- Updated dependencies [141a23d]
+- Updated dependencies [ecfbab6]
+- Updated dependencies [8622adc]
+- Updated dependencies [90e3369]
+- Updated dependencies [7a9a116]
+- Updated dependencies [6b674a8]
+- Updated dependencies [5869562]
+- Updated dependencies [5113b06]
+- Updated dependencies [4e12d00]
+- Updated dependencies [1a25a31]
+- Updated dependencies [e558acd]
+- Updated dependencies [4744a5f]
+- Updated dependencies [9731fc0]
+- Updated dependencies [86ad949]
+- Updated dependencies [7be53b5]
+- Updated dependencies [fcb4100]
+- Updated dependencies [51a992a]
+- Updated dependencies [a10f9ae]
+- Updated dependencies [5e9a95b]
+- Updated dependencies [1335733]
+  - @goodfellow-cms/core@0.8.0
+  - @goodfellow-cms/registry@0.8.0
+  - @goodfellow-cms/react@0.8.0
+  - @goodfellow-cms/ai@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes
