@@ -23,6 +23,7 @@
 # starts, which build nothing. See README.md.
 variables:
   LOCKFILE_CHECK: 'const fs = require("fs"); const read = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; } }; const site = read("package.json") || {}; const root = ((read("package-lock.json") || {}).packages || {})[""]; const same = (a, b) => JSON.stringify(Object.entries(a || {}).sort()) === JSON.stringify(Object.entries(b || {}).sort()); process.exit(root && ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].every((key) => same(site[key], root[key])) ? 0 : 1);'
+  EARLY_CHECK: 'const fs = require("fs"); let record; try { record = JSON.parse(fs.readFileSync("plugins/installed/installed.json", "utf8")); } catch { process.exit(0); } process.exit(Object.values(record.plugins || {}).some((plugin) => plugin && plugin.early) ? 1 : 0);'
 
 pages:
   image: node:22
@@ -36,7 +37,9 @@ pages:
     # releases at least 3 days old for what it adds, and publishes it.
     - |
       if ! node -e "$LOCKFILE_CHECK"; then
-        npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+        # A plugin installed before it was 3 days old is checked against its provenance first,
+        # and the job fails if it doesn't check out.
+        if node -e "$EARLY_CHECK"; then npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"; else npm exec --yes --package="@goodfellow-cms/core@$(node -p 'require("./package.json").dependencies["@goodfellow-cms/core"]')" -- goodfellow-early; fi
         git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_FQDN:-$CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
         git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names" package-lock.json
         git push -o ci.skip origin "HEAD:$CI_COMMIT_BRANCH" || echo "package-lock.json wasn't published: turn on \"Allow Git push requests to the repository\" under Settings → CI/CD → Job token permissions."

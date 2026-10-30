@@ -58,6 +58,30 @@ describe("what the broker asks before making a call", () => {
     });
   });
 
+  it("asks about a theme installed before it's three days old, naming where it says it was built", async () => {
+    const early = {
+      from: "1.0.0",
+      repository: "https://github.com/example/goodfellow-theme-harbor",
+      workflow: ".github/workflows/release.yml",
+    };
+    const changes = [
+      {
+        path: "content/styles/theme.json",
+        content: JSON.stringify({
+          version: 1,
+          name: "goodfellow-theme-harbor",
+          release: "1.1.0",
+          title: "Harbor",
+          early,
+        }),
+      },
+    ];
+    expect(await decide({ path: "write", args: [changes], target: {} }, SITE)).toEqual({
+      action: "ask",
+      questions: [{ kind: "theme-early", name: "goodfellow-theme-harbor", release: "1.1.0", ...early }],
+    });
+  });
+
   it("refuses workflows, even beside content", async () => {
     const changes = [
       { path: "content/pages/about.json", content: "{}" },

@@ -11,6 +11,16 @@ function escapeHtml(text: string): string {
 
 type Values = Map<string, string>;
 
+/**
+ * Whether a field holds HTML a block shows as it is, such as Custom HTML's,
+ * marked `metadata: { html: true }`: an item's values go into it escaped, so
+ * whoever writes an item never writes the page's markup.
+ */
+export function isHtmlField(field: unknown): boolean {
+  const metadata = (field as { metadata?: unknown } | null | undefined)?.metadata;
+  return typeof metadata === "object" && metadata !== null && (metadata as { html?: unknown }).html === true;
+}
+
 function fillText(text: string, values: Values, html: boolean): string {
   return text.replace(PLACEHOLDER, (match, name: string) => {
     const value = values.get(name);
@@ -41,7 +51,10 @@ function fillProps(
       if (type === "slot" && Array.isArray(value)) {
         return [key, value.map((child) => fillComponent(child as ComponentData, values, config))];
       }
-      if (type === "richtext" && typeof value === "string") return [key, fillText(value, values, true)];
+      // Rich text, and text a block shows as HTML, such as Custom HTML's, get values as text, never markup.
+      if ((type === "richtext" || isHtmlField(fields?.[key])) && typeof value === "string") {
+        return [key, fillText(value, values, true)];
+      }
       return [key, fillValue(value, values)];
     }),
   );
@@ -71,7 +84,8 @@ export function placeholderValues(collection: Collection, entry: Entry, language
  * Fills an entry's values into its collection's template. Wherever the
  * template's text says `{name}` for one of the collection's fields, such as
  * `{title}` in a heading or `{video}` in a link, the entry's value goes in its
- * place. Values are plain text, escaped where the text is rich text. Text in
+ * place. Values are plain text, escaped where the text is rich text or a block's
+ * HTML (`isHtmlField()`). Text in
  * braces that isn't a field name is left as it is.
  */
 export function applyEntry(

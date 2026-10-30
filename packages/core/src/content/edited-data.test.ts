@@ -190,6 +190,20 @@ describe("checkPuckData", () => {
     });
   });
 
+  it("refuses two blocks with one id, which checks of the page would see only one of", () => {
+    const twice = {
+      root: { props: {} },
+      content: [
+        { type: "Heading", props: { id: "h1" } },
+        { type: "Section", props: { id: "s1", content: [{ type: "Heading", props: { id: "h1" } }] } },
+      ],
+    };
+    const checked = checkPuckData(twice, { description, kind: "page" });
+    expect(checked.ok).toBe(false);
+    if (!checked.ok)
+      expect(checked.problems.map((problem) => problem.path)).toEqual(["content[1].props.content[0].props.id"]);
+  });
+
   it("refuses blocks that aren't the site's, in slots and drop zones too, and what isn't data", () => {
     const nested = {
       root: { props: {} },

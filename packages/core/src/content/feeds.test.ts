@@ -16,7 +16,7 @@ function memorySource(files: Record<string, unknown>): ContentSource {
 
 const field = (name: string, type: string) => ({ name, label: name, type });
 
-const site = (settings: Record<string, unknown> = {}) =>
+const site = (settings: Record<string, unknown> = {}, files: Record<string, unknown> = {}) =>
   loadSiteContent(
     memorySource({
       "content/site.json": {
@@ -64,6 +64,7 @@ const site = (settings: Record<string, unknown> = {}) =>
           summary: "Midnight Mass </script>",
         },
       },
+      ...files,
     }),
   );
 
@@ -87,6 +88,30 @@ describe("feeds", () => {
     expect(atom).toContain("<updated>2026-11-08T05:00:00.000Z</updated>");
     expect(atom).toContain('<link rel="alternate" type="text/html" href="https://parish.example/news/choir"/>');
     expect(feedLinks(content)).toEqual([{ title: "News – St. Joseph", href: "/feeds/news.rss" }]);
+  });
+
+  it("gives each language's feed its own address, as its own and Atom's id", async () => {
+    const content = await site(
+      { languages: [{ code: "es", name: "Español" }] },
+      {
+        "content/collections/news/feria.json": {
+          version: 1,
+          inLanguage: "es",
+          translationOf: "fair",
+          fields: { title: "La feria", date: "2026-11-01" },
+        },
+      },
+    );
+    const files = feedFiles(content, new Date("2026-12-01T00:00:00Z"));
+    const rss = files.find((file) => file.path === "/es/feeds/news.rss")?.content ?? "";
+    const atom = files.find((file) => file.path === "/es/feeds/news.atom")?.content ?? "";
+    expect(rss).toContain('<atom:link href="https://parish.example/es/feeds/news.rss" rel="self"');
+    expect(rss).toContain("<link>https://parish.example/es/</link>");
+    expect(atom).toContain("<id>https://parish.example/es/feeds/news.atom</id>");
+    expect(atom).toContain(
+      '<link rel="self" type="application/atom+xml" href="https://parish.example/es/feeds/news.atom"/>',
+    );
+    expect(atom).toContain('<link rel="alternate" type="text/html" href="https://parish.example/es/"/>');
   });
 
   it("needs the site's address, since feeds link with full addresses", async () => {
@@ -168,5 +193,7 @@ describe("structured data", () => {
     expect(zonedIso("2026-07-04T09:00", "Asia/Kolkata")).toBe("2026-07-04T09:00:00+05:30");
     expect(zonedIso("2026-07-04", "America/New_York")).toBe("2026-07-04");
     expect(zonedIso("2026-07-04T09:00", undefined)).toBe("2026-07-04T09:00:00");
+    // 2:30 doesn't happen the night clocks go forward: it's the instant of 3:30, as everything else reads it.
+    expect(zonedIso("2026-03-08T02:30", "America/New_York")).toBe("2026-03-08T03:30:00-04:00");
   });
 });

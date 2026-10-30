@@ -179,6 +179,8 @@ describe("host rules", () => {
     expect(rules.startsWith(`${SITE_HEADERS_MARK}\n/site/*\n  X-Content-Type-Options: nosniff\n`)).toBe(true);
     expect(rules).toContain("/site/media/*.svg\n  Content-Security-Policy: sandbox\n");
     expect(rules).toContain("/site/media/*.SVG\n  Content-Security-Policy: sandbox\n");
+    // Browsers open x.Svg as an SVG too.
+    expect(rules).toContain("/site/media/*.sVg\n  Content-Security-Policy: sandbox\n");
     expect(rules).toContain(
       "/site/admin/*\n  Cross-Origin-Opener-Policy: same-origin\n  Content-Security-Policy: frame-ancestors 'none'\n",
     );
@@ -199,13 +201,13 @@ describe("host rules", () => {
   it("does the same on Vercel, then adds an admin address's rules", () => {
     expect(vercelHeaders().map((rule) => rule.source)).toEqual([
       "/(.*)",
-      "/media/(.*)\\.(svg|SVG)",
+      "/media/(.*)\\.([sS][vV][gG])",
       "/admin/((?!editor/|editor$|plugins/).*)",
       "/admin/editor/:path*",
       "/admin/plugins/:path*",
     ]);
     expect(vercelHeaders().every((rule) => rule.has === undefined)).toBe(true);
-    expect(vercelHeaders({ base: "/site/" })[1]?.source).toBe("/site/media/(.*)\\.(svg|SVG)");
+    expect(vercelHeaders({ base: "/site/" })[1]?.source).toBe("/site/media/(.*)\\.([sS][vV][gG])");
     expect(vercelHeaders({ admin })).toEqual([...vercelSiteHeaders("/", { admin }), ...vercelAdminHeaders(admin)]);
     expect(vercelSiteHeaders("/", { admin })).toHaveLength(2);
   });

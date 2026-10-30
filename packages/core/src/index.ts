@@ -441,6 +441,7 @@ export {
 export {
   isStorableAddress,
   isStorageUrl,
+  keepsStorageSettings,
   type MediaStorage,
   type MediaStorageFile,
   mediaStorageFileChange,
@@ -819,6 +820,7 @@ export {
   type StorageLike,
   type TokenLink,
 } from "./git.js";
+export { UPDATE_CHECK, UPDATE_FILES, UPDATE_FOLDERS, UPDATE_REGISTRY } from "./github-workflows.js";
 export {
   absoluteUrl,
   getPageHead,
@@ -837,7 +839,7 @@ export {
   type FeedOptions,
   readCalendar,
 } from "./ics.js";
-export { type ImageSize, imageSize } from "./image-size.js";
+export { exifOrientation, type ImageSize, imageSize, withoutImageDetails } from "./image-size.js";
 export {
   type DraftKeeper,
   type KeptDraft,
@@ -846,6 +848,8 @@ export {
   memoryKeeper,
 } from "./kept-drafts.js";
 export {
+  EARLY_CHECK,
+  EARLY_COMMAND,
   GITLAB_LOCKFILE_VARIABLES,
   githubLockfileJobs,
   gitlabLockfileScript,
@@ -927,6 +931,7 @@ export {
   unapproved,
   withDependency,
   withInstalledPluginsConfig,
+  writesEarlyLockfile,
   writesLockfile,
 } from "./plugin-packages.js";
 export {
@@ -1012,6 +1017,25 @@ export {
   pluginProblems,
   withPlugins,
 } from "./plugins.js";
+export {
+  attestationsUrl,
+  type EarlyDecision,
+  type EarlyInstallRecord,
+  type EarlyRefusal,
+  earlyInstallSchema,
+  type InstalledRelease,
+  mayInstallEarly,
+  normalizedRepository,
+  type ProvenanceAttestation,
+  type ProvenanceFetch,
+  type ProvenanceSource,
+  type ProvenanceStatement,
+  provenanceAttestation,
+  provenanceSourceSchema,
+  readProvenanceSource,
+  SLSA_PROVENANCE,
+  sameSource,
+} from "./provenance.js";
 export {
   MAX_RATE_LIMIT_WAIT_MS,
   RateLimitError,
@@ -1129,6 +1153,19 @@ export {
   type TemplateName,
   withoutRepositoryNotes,
 } from "./site-setup.js";
+export {
+  type CleanedAttribute,
+  cleanedSvgAttribute,
+  cssWithoutOutsideAddresses,
+  keepsSvgElement,
+  normalizedSvgValue,
+  SVG_ATTRIBUTE_NAMESPACES,
+  SVG_ELEMENTS,
+  SVG_NAMESPACE,
+  XLINK_NAMESPACE,
+  XML_NAMESPACE,
+  XMLNS_NAMESPACE,
+} from "./svg-rules.js";
 export { type TableCells, tableCells } from "./table-cells.js";
 export { GITLAB_TASK_RULE, githubTaskWorkflow, gitlabTaskJob, type SiteCli } from "./task-setup.js";
 export {

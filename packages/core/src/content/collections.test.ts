@@ -6,6 +6,7 @@ import {
   type Entry,
   entryFieldProblems,
   formatFieldValue,
+  isDateValue,
   isEmptyValue,
   richTextToPlainText,
   sortEntries,
@@ -98,6 +99,8 @@ describe("language paths and names", () => {
       collectionFileSchema.safeParse({ ...valid, path: "/videos/{slug}", languagePaths });
     expect(parse({ es: "/es/videos/{slug}" }).success).toBe(true);
     expect(parse({ es: "/videos-es/{slug}" }).error?.issues[0]?.message).toMatch(/must start with "\/es\/"/);
+    // A code with capitals has a lowercase address.
+    expect(parse({ "pt-BR": "/pt-br/videos/{slug}" }).success).toBe(true);
   });
 
   it("writes no file for a collection or item whose name isn't one part of an address", () => {
@@ -126,6 +129,14 @@ describe("entry values", () => {
     ]);
   });
 
+  it("takes only dates that exist", () => {
+    expect(isDateValue("2028-02-29")).toBe(true);
+    expect(isDateValue("2026-02-29")).toBe(false);
+    expect(isDateValue("2026-02-30")).toBe(false);
+    expect(isDateValue("2026-13-01")).toBe(false);
+    expect(entryFieldProblems(fields, { date: "2026-04-31" })).toEqual(["date must be a date written as YYYY-MM-DD"]);
+  });
+
   it("formats values for placeholders", () => {
     expect(formatFieldValue(fields[1], "2026-12-24", "en")).toBe("December 24, 2026");
     expect(formatFieldValue(fields[1], "2026-12-24", "es")).toBe("24 de diciembre de 2026");
@@ -139,6 +150,12 @@ describe("entry values", () => {
     expect(isEmptyValue("<p></p>")).toBe(true);
     expect(isEmptyValue("")).toBe(true);
     expect(isEmptyValue(0)).toBe(false);
+    expect(isEmptyValue("<p><br></p><p><strong> </strong></p>")).toBe(true);
+    // What shows without words isn't empty.
+    expect(isEmptyValue('<p><img src="/media/a.jpg" alt=""></p>')).toBe(false);
+    expect(isEmptyValue('<iframe src="https://www.youtube-nocookie.com/embed/x"></iframe>')).toBe(false);
+    expect(isEmptyValue("<hr>")).toBe(false);
+    expect(isEmptyValue("<table><tr><td></td></tr></table>")).toBe(false);
     expect(richTextToPlainText("<p>a</p><ul><li>b</li></ul>")).toBe("a b");
   });
 });

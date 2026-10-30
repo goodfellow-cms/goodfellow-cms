@@ -1,4 +1,4 @@
-import { eventValueProblem, formatOccurrence, isEventLike, shownOccurrence, todayIn } from "../calendar.js";
+import { eventValueProblem, formatOccurrence, isEventLike, shownOccurrence, todayIn, wallClock } from "../calendar.js";
 import type { CollectionField, CollectionFile, EntryFile } from "./schemas.js";
 import { TITLE_FIELD } from "./schemas.js";
 import { withoutTags } from "./tags.js";
@@ -28,9 +28,9 @@ export interface Entry {
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Whether text is a calendar date written as `YYYY-MM-DD`, such as `2026-12-24`. */
+/** Whether text is a calendar date written as `YYYY-MM-DD`, such as `2026-12-24`, that exists: never February 30. */
 export function isDateValue(value: unknown): value is string {
-  return typeof value === "string" && DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+  return typeof value === "string" && DATE.test(value) && wallClock(value) !== undefined;
 }
 
 /**
@@ -75,12 +75,16 @@ export function entryFieldProblems(fields: CollectionField[], values: Record<str
   return problems;
 }
 
+/** A tag that shows something without words: anything but paragraphs, line breaks and formatting. */
+const SHOWN_TAG = /<(?!\/|(?:p|br|span|strong|b|em|i|u|s|sub|sup|mark|code|a)\b)[a-z]/i;
+
 /** Whether a field has no value worth showing. */
 export function isEmptyValue(value: unknown): boolean {
   if (value === undefined || value === null) return true;
   if (Array.isArray(value)) return value.length === 0;
   if (typeof value === "object") return !isEventLike(value);
-  if (typeof value === "string") return richTextToPlainText(value) === "" && !/<img\b/i.test(value);
+  // Rich text with no words can still show something: a picture, a video, a line, a table.
+  if (typeof value === "string") return richTextToPlainText(value) === "" && !SHOWN_TAG.test(value);
   return false;
 }
 

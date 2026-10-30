@@ -45,6 +45,16 @@ describe("Markdown entries", () => {
     expect(parseMarkdownEntry(text, "body").fields).toEqual({ title: "2026", order: 1, body: "" });
   });
 
+  it("end front matter only at a line of its own", () => {
+    const text = "---\nversion: 1\ntitle: Before and after ---\nsummary: Still front matter\n---\nThe body\n";
+    expect(parseMarkdownEntry(text, "body").fields).toEqual({
+      title: "Before and after ---",
+      summary: "Still front matter",
+      body: "The body",
+    });
+    expect(parseMarkdownEntry("---\n---\nOnly a body\n", "body").fields).toEqual({ body: "Only a body" });
+  });
+
   it("explain files they can't read", () => {
     expect(() => parseMarkdownEntry("# Hello", "body")).toThrow(/front matter/);
     expect(() => parseMarkdownEntry("---\ntitle: [unclosed\n---\n", "body")).toThrow(/isn't valid YAML/);

@@ -131,7 +131,11 @@ export function listChanges(collection: Collection | undefined, items: CalendarI
   for (const entry of collection.entries) {
     const event = entry.content.fields[when];
     if (!isEventLike(event)) continue;
-    const [next] = occurrences(event, { from: addDays(to, 1), to: "9999-12-31", limit: 1 });
+    // An event of several days can start within the list and end after it, so it's on it already: the next to
+    // come within it is the first that starts after it.
+    const next = occurrences(event, { from: addDays(to, 1), to: "9999-12-31", limit: 2 }).find(
+      (occurrence) => datePart(occurrence.start) > to,
+    );
     if (next) changesOn(addDays(datePart(next.start), -days));
   }
 }

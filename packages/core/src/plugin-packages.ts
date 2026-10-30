@@ -33,6 +33,7 @@ import {
   pluginEditorKinds,
   pluginProblems,
 } from "./plugins.js";
+import { earlyInstallSchema, type ProvenanceSource, provenanceSourceSchema } from "./provenance.js";
 import { inRange } from "./updates.js";
 
 /** The site's config, which an install changes only to list installed plugins, for sites made before it did. */
@@ -174,6 +175,10 @@ export const installedPluginSchema = z.object({
   goodfellow: z.string().optional(),
   /** What the owner approved. */
   manifest: pluginManifestSchema,
+  /** Where its release was built, from its provenance, which updates installed early must match. */
+  provenance: provenanceSourceSchema.optional(),
+  /** Installed before it was old enough, as an update with the same provenance, which the site's build checks. */
+  early: earlyInstallSchema.optional(),
 });
 
 /** The record of plugins installed from the admin panel, by package name. */
@@ -400,7 +405,16 @@ function recordChanges(record: InstalledPlugins): FileChange[] {
 export function planPluginInstall(
   site: PluginInstallSite,
   plugin: PluginPackage,
-  options: { today: string },
+  options: {
+    today: string;
+    /** Where the release was built, from its provenance, for the record, which early updates are checked against. */
+    provenance?: ProvenanceSource;
+    /**
+     * Installs it before it's old enough, as an update built by the same source as the release installed
+     * (`mayInstallEarly()`'s `source`), which the site's build checks. Only an update of an installed plugin can be.
+     */
+    early?: ProvenanceSource;
+  },
 ): PluginPlan {
   const record = parseInstalledPlugins(site.record);
   const before = record.plugins[plugin.name];
@@ -419,6 +433,8 @@ export function planPluginInstall(
         installed: options.today,
         ...(plugin.release.goodfellow && { goodfellow: plugin.release.goodfellow }),
         manifest: plugin.manifest,
+        ...(options.provenance && { provenance: options.provenance }),
+        ...(options.early && before && { early: { from: before.release, ...options.early } }),
       },
     },
   };
@@ -470,5 +486,16 @@ export function pluginsOutOfRange(
  */
 export function writesLockfile(files: Iterable<string | undefined>): boolean {
   for (const text of files) if (text?.includes("--package-lock-only")) return true;
+  return false;
+}
+
+/**
+ * Whether the site's setup writes the lockfile for plugins installed before
+ * they're `RELEASE_AGE_DAYS` old, checking their provenance first
+ * (`EARLY_COMMAND`), as the starters' do since that was possible; without it,
+ * the lockfile can't be written for one.
+ */
+export function writesEarlyLockfile(files: Iterable<string | undefined>): boolean {
+  for (const text of files) if (text?.includes("goodfellow-early")) return true;
   return false;
 }

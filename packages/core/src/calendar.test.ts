@@ -38,6 +38,23 @@ describe("event values", () => {
     expect(eventValueProblem({ start: "2026-12-24", repeat: { every: "fortnight" } })).toMatch(/every day/);
     expect(eventValueProblem({ start: "2026-12-24", repeat: { every: "week", days: ["monday"] } })).toMatch(/mo, tu/);
     expect(eventValueProblem({ start: "2026-12-24", repeat: { every: "week", skip: ["Christmas"] } })).toMatch(/skip/);
+    expect(eventValueProblem({ start: "2026-12-24T19:00", repeat: { every: "week", until: "2026-12-01" } })).toBe(
+      "must stop repeating on or after the day it starts",
+    );
+    expect(eventValueProblem({ start: "2026-12-24T19:00", repeat: { every: "week", until: "2026-12-24" } })).toBe(
+      undefined,
+    );
+  });
+
+  it("show a daily event that started long ago on its next day, however long ago", () => {
+    const prayer = { start: "1901-01-01T07:00", repeat: { every: "day" as const } };
+    expect(shownOccurrence(prayer, "2026-10-10")?.start).toBe("2026-10-10T07:00");
+    // Every third day from its start, still.
+    const every3 = { start: "1901-01-01", repeat: { every: "day" as const, interval: 3 } };
+    const [next] = occurrences(every3, { from: "2026-10-10", to: "2026-12-31", limit: 1 });
+    const days = ((wallClock(next?.start ?? "") ?? 0) - (wallClock("1901-01-01") ?? 0)) / 86_400_000;
+    expect(days % 3).toBe(0);
+    expect(next?.start.slice(0, 7)).toBe("2026-10");
   });
 
   it("are tidied before they're saved", () => {

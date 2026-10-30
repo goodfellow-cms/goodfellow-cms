@@ -1,6 +1,9 @@
-import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type FakeTheme, fakeThemes, sampleThemeFiles } from "@goodfellow-cms/core/testing";
+import { checkEarlyTheme, EarlyInstallError } from "@goodfellow-cms/core/node";
+import { type FakeTheme, fakeThemes, fakeVerifier, sampleThemeFiles } from "@goodfellow-cms/core/testing";
 import type { Page } from "@playwright/test";
 import { site } from "../scripts/site.mjs";
 import { expect, readJson, readSiteFile, test, writeSiteFile } from "./helpers.js";
@@ -129,4 +132,72 @@ test("says when no release of a theme works with this Goodfellow release", async
     page.getByText("No version of this theme says it works with Goodfellow", { exact: false }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Install and publish" })).toHaveCount(0);
+});
+
+test("updates a theme before it's three days old when it was built where the version installed was, which the build checks", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const repository = "https://github.com/harbor-studio/goodfellow-theme-harbor";
+  const theme = harbor();
+  const newer = theme.releases[1];
+  if (newer) Object.assign(newer, { provenance: true, repository });
+  await routeToThemes(page, [theme]);
+
+  await page.goto("/admin#/settings/themes");
+  await page.getByRole("button", { name: "Show Harbor" }).click();
+  const details = page.getByRole("region", { name: "Harbor" });
+  // A first install always waits: only 1.0.0 is offered.
+  await expect(details.getByRole("button", { name: "Install and publish" })).toBeVisible();
+  await expect(details.getByRole("button", { name: "Install 1.1.0 now" })).toHaveCount(0);
+  await publishPast(page, "Install and publish", /^Harbor is installed\./);
+  const installed = readSiteFile("content/styles/theme.json");
+  expect(JSON.parse(installed)).toMatchObject({ release: "1.0.0", provenance: { repository } });
+
+  await page.reload();
+  await page.locator(".gfa-theme-installed").getByRole("button").first().click();
+  await expect(details).toContainText("1.1.0 was built from the same place as 1.0.0");
+  await details.getByRole("button", { name: "Install 1.1.0 now" }).click();
+  await expect(details).toContainText("Installing 1.1.0 before it's 3 days old");
+  await publishPast(page, "Update to 1.1.0", /^Harbor is updated to version 1\.1\.0\./);
+  const updated = readSiteFile("content/styles/theme.json");
+  expect(JSON.parse(updated)).toMatchObject({
+    release: "1.1.0",
+    early: { from: "1.0.0", repository, workflow: ".github/workflows/release.yml" },
+  });
+
+  // The site's build, on a repository with both records in its history, checks the provenance itself.
+  const npm = fakeThemes({
+    themes: [
+      {
+        ...theme,
+        releases: [
+          ...theme.releases,
+          { version: "1.2.0", age: 1, provenance: true, builtBy: "https://github.com/evil/harbor", files: {} },
+        ],
+      },
+    ],
+  });
+  const build = async (record: string) => {
+    const dir = mkdtempSync(join(tmpdir(), "goodfellow-build-"));
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.org", ...args], { cwd: dir });
+    try {
+      git("init", "--quiet");
+      mkdirSync(join(dir, "content/styles"), { recursive: true });
+      for (const text of [installed, record]) {
+        writeFileSync(join(dir, "content/styles/theme.json"), text);
+        git("add", "--all");
+        git("commit", "--quiet", "--message", "Theme");
+      }
+      return await checkEarlyTheme(dir, { fetch: npm.fetch, verify: fakeVerifier });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  await expect(build(updated)).resolves.toMatchObject({ release: "1.1.0" });
+  // A browser that lies: the same record, for 1.2.0, built somewhere else.
+  const lie = build(updated.replace('"release": "1.1.0"', '"release": "1.2.0"'));
+  await expect(lie).rejects.toBeInstanceOf(EarlyInstallError);
+  await expect(lie).rejects.toThrow(/evil\/harbor/);
 });

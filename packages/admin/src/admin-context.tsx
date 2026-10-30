@@ -747,26 +747,28 @@ export function AdminProvider({
     [backendDrafts, draftNames, draftReviews, draft, draftPaths, openDraft, publishAll, submitDraft, discardDraft],
   );
 
-  // Where the host builds the site at each scheduled time (GitLab's pipeline schedules), keeps its builds in step
-  // with the site's schedules: once the site loads, if anything is scheduled, then whenever they change.
+  // Where the host builds the site at each scheduled time (GitLab's and Bitbucket's pipeline schedules), keeps its
+  // builds in step with the live site's schedules: once the site loads, even with nothing scheduled, so a schedule
+  // left from before is removed (GitLab's have no year, so one would build again a year later), then whenever they
+  // change. Never from a draft, whose schedules aren't live: the live site's are synced once it's back.
   const syncedTimes = useRef<string>(undefined);
   useEffect(() => {
     const sync = scheduledBuilds?.sync?.bind(scheduledBuilds);
-    if (!sync || state.status !== "ready") return;
+    if (!sync || state.status !== "ready" || draft) return;
     const times = [...new Set(upcomingChanges(state.content).map((change) => change.at.getTime()))];
     const key = times.join(" ");
-    if (key === syncedTimes.current || (syncedTimes.current === undefined && times.length === 0)) return;
+    if (key === syncedTimes.current) return;
     syncedTimes.current = key;
     void sync(times.map((time) => new Date(time))).then(
       () => setScheduleSyncProblem(undefined),
       (error: unknown) => {
-        // Changes still go live with the next nightly build; screens say so.
-        if (error instanceof ScheduledBuildsError) setScheduleSyncProblem(error.problem);
+        // Changes still go live with the next nightly build; screens say so, where anything is scheduled.
+        if (error instanceof ScheduledBuildsError) setScheduleSyncProblem(times.length > 0 ? error.problem : undefined);
         // Another time, such as when the network is back.
         else syncedTimes.current = undefined;
       },
     );
-  }, [scheduledBuilds, state]);
+  }, [scheduledBuilds, state, draft]);
 
   // Follows the latest publish until it's live (or fails), so editors know when visitors will see it.
   useEffect(() => {

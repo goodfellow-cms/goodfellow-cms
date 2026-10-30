@@ -1214,6 +1214,10 @@ export const defaultStrings = {
     "There's no record of where this version was built, so nobody has checked it came from its publisher's own code.",
   "themes.waiting":
     "Version {version} can be installed once it's {days} days old, since most harmful versions are found by then.",
+  "themes.installNow": "Install {version} now",
+  "themes.early":
+    "{version} was built from the same place as {installed}, the version installed ({source}), by the same publishing setup, so it can be installed now, without the wait. The site's build checks that before it uses it.",
+  "themes.earlyNotice": "Installing {version} before it's {days} days old, since it was built where {installed} was.",
   "themes.incompatible": "Version {version} doesn't say it works with Goodfellow {goodfellow}.",
   "themes.tooNew":
     "This theme's versions are too new to install. Versions can be installed once they're {days} days old.",
@@ -1282,6 +1286,11 @@ export const defaultStrings = {
     "There's no record of where this version was built, so nobody has checked it came from its publisher's own code.",
   "plugins.waiting":
     "Version {version} can be installed once it's {days} days old, since most harmful versions are found by then.",
+  "plugins.installNow": "Install {version} now",
+  "plugins.early":
+    "{version} was built from the same place as {installed}, the version installed ({source}), by the same publishing setup, so it can be installed now, without the wait. The site's build checks that before it uses it.",
+  "plugins.earlyNotice": "Installing {version} before it's {days} days old, since it was built where {installed} was.",
+  "plugins.earlyRefused": "The site wouldn't take {version} before it's {days} days old: {reasons}",
   "plugins.incompatible": "Version {version} doesn't say it works with Goodfellow {goodfellow}.",
   "plugins.tooNew":
     "This plugin's versions are too new to install. Versions can be installed once they're {days} days old.",

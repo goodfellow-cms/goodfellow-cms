@@ -12,6 +12,7 @@ import {
   pageTranslations,
   type SiteContent,
   type SiteLanguage,
+  scheduleOf,
   siteLanguages,
   translationState,
 } from "@goodfellow-cms/core";
@@ -183,6 +184,8 @@ function AddPageTranslationDialog({
     const result = await publish(
       [
         pageFileChange(check.path, page.content.data as Data, {
+          // A page that isn't shown yet isn't shown in another language either.
+          ...scheduleOf(page.content),
           translationOf: page.path,
           translatedFrom: pageSourceHash(page),
         }),
@@ -347,6 +350,7 @@ function AddEntryTranslationDialog({
     const result = await publish(
       [
         entryFileChange(collection, check.slug, entry.content.fields, {
+          ...scheduleOf(entry.content),
           inLanguage: language.code,
           translationOf: entry.slug,
           translatedFrom: entrySourceHash(entry),

@@ -33,7 +33,7 @@ import {
   localRegistryDir,
 } from "@goodfellow-cms/core/node";
 import type { NextConfig } from "next";
-import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
+import { DIST_DIR_RECORD, IMAGE_SIZES_ENV, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 
 export interface GoodfellowNextOptions {
   /** The site's folder, holding `content/` and `public/media/`. Defaults to the folder Next.js runs in. */
@@ -244,6 +244,9 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
     // Pages are rendered in several processes, which each write the dates what they show changes on for
     // `goodfellow-next finish`'s build record.
     if (phase === PHASE_PRODUCTION_BUILD) {
+      // Where the build goes, for `goodfellow-next finish`, which reads what it wrote there.
+      await mkdir(dirname(join(root, DIST_DIR_RECORD)), { recursive: true });
+      await writeFile(join(root, DIST_DIR_RECORD), nextConfig.distDir ?? ".next");
       const dates = join(root, nextConfig.distDir ?? ".next", BUILD_DATES_DIR);
       await rm(dates, { recursive: true, force: true });
       process.env[BUILD_DATES_ENV] = dates;

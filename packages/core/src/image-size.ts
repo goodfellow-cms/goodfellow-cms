@@ -18,19 +18,116 @@ function gifSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
   return { width: view.getUint16(6, true), height: view.getUint16(8, true) };
 }
 
-/** Reads the frame header (SOF), skipping other segments. */
+/**
+ * The orientation an Exif segment (a JPEG's APP1, from its marker on) gives
+ * a photo, 1 to 8 as Exif numbers them, or `undefined` where it says none.
+ * Phones save photos as their sensor took them and say how to turn them.
+ */
+export function exifOrientation(segment: Uint8Array): number | undefined {
+  const exif = 10;
+  if (segment.length < exif + 8 || String.fromCharCode(...segment.subarray(4, 8)) !== "Exif") return undefined;
+  const little = segment[exif] === 0x49;
+  const read16 = (offset: number) =>
+    little
+      ? (segment[exif + offset] ?? 0) | ((segment[exif + offset + 1] ?? 0) << 8)
+      : ((segment[exif + offset] ?? 0) << 8) | (segment[exif + offset + 1] ?? 0);
+  const read32 = (offset: number) =>
+    little ? read16(offset) | (read16(offset + 2) << 16) : (read16(offset) << 16) | read16(offset + 2);
+  const ifd = read32(4);
+  const count = read16(ifd);
+  for (let entry = 0; entry < count && exif + ifd + 2 + entry * 12 + 12 <= segment.length; entry++) {
+    const at = ifd + 2 + entry * 12;
+    if (read16(at) === 0x0112) {
+      const orientation = read16(at + 8);
+      return orientation >= 1 && orientation <= 8 ? orientation : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Reads the frame header (SOF), skipping other segments, with width and
+ * height swapped where Exif says the photo is shown turned a quarter, as
+ * browsers show it.
+ */
 function jpegSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
   if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return undefined;
   let offset = 2;
+  let orientation: number | undefined;
   while (offset + 9 < bytes.length) {
     if (bytes[offset] !== 0xff) return undefined;
     const marker = bytes[offset + 1] ?? 0;
     const length = view.getUint16(offset + 2);
+    if (marker === 0xe1 && orientation === undefined) {
+      orientation = exifOrientation(bytes.subarray(offset, offset + 2 + length));
+    }
     const isFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
-    if (isFrame) return { width: view.getUint16(offset + 7), height: view.getUint16(offset + 5) };
+    if (isFrame) {
+      const width = view.getUint16(offset + 7);
+      const height = view.getUint16(offset + 5);
+      return orientation !== undefined && orientation >= 5 ? { width: height, height: width } : { width, height };
+    }
     offset += 2 + length;
   }
   return undefined;
+}
+
+function joined(parts: Uint8Array[]): Uint8Array {
+  const result = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.length;
+  }
+  return result;
+}
+
+/** PNG chunks that hold details about the file rather than the picture: Exif, text, and when it was made. */
+const PNG_DETAILS = new Set(["eXIf", "tEXt", "iTXt", "zTXt", "tIME"]);
+
+/**
+ * A PNG or WebP without the details hidden in it, such as where a photo was
+ * taken (Exif) and who made it (text and XMP), and otherwise as it was, so
+ * nothing is re-saved and animations keep moving. Anything else, or a file
+ * that can't be read, comes back as it is.
+ */
+export function withoutImageDetails(bytes: Uint8Array): Uint8Array {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.length > 8 && ascii(bytes, 1, 3) === "PNG") {
+    const kept: Uint8Array[] = [bytes.subarray(0, 8)];
+    let at = 8;
+    while (at + 12 <= bytes.length) {
+      const length = view.getUint32(at);
+      const end = at + 12 + length;
+      if (end > bytes.length) return bytes;
+      if (!PNG_DETAILS.has(ascii(bytes, at + 4, 4))) kept.push(bytes.subarray(at, end));
+      at = end;
+    }
+    return at === bytes.length ? joined(kept) : bytes;
+  }
+  if (bytes.length > 20 && ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WEBP") {
+    if (ascii(bytes, 12, 4) !== "VP8X") return bytes;
+    const kept: Uint8Array[] = [];
+    let at = 12;
+    while (at + 8 <= bytes.length) {
+      const length = view.getUint32(at + 4, true);
+      // Chunks are padded to an even length.
+      const end = at + 8 + length + (length % 2);
+      if (end > bytes.length) return bytes;
+      const name = ascii(bytes, at, 4);
+      if (name !== "EXIF" && name !== "XMP ") kept.push(bytes.subarray(at, end));
+      at = end;
+    }
+    if (at !== bytes.length) return bytes;
+    const body = joined(kept);
+    // The extended header says which chunks follow: no longer Exif (0x08) or XMP (0x04).
+    body[8] = (body[8] ?? 0) & ~0x0c;
+    const header = new Uint8Array(12);
+    header.set(bytes.subarray(0, 12));
+    new DataView(header.buffer).setUint32(4, body.length + 4, true);
+    return joined([header, body]);
+  }
+  return bytes;
 }
 
 function webpSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {

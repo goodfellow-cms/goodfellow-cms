@@ -588,10 +588,12 @@ export const collectionFileSchema = z
       if (problem) ctx.addIssue({ code: "custom", path: ["path"], message: problem });
     }
     for (const [code, pattern] of Object.entries(file.languagePaths ?? {})) {
-      // A page's language is read from its address, so a language's items' addresses start with its code.
+      // A page's language is read from its address, so a language's items' addresses start with its code,
+      // in lowercase as addresses are (`languagePrefix()`, which imports this file): /pt-br/ for pt-BR.
+      const prefix = `/${code.toLowerCase()}/`;
       const problem =
         addressPatternProblem(pattern) ??
-        (pattern.startsWith(`/${code}/`) ? undefined : `must start with "/${code}/", the language's own address.`);
+        (pattern.startsWith(prefix) ? undefined : `must start with "${prefix}", the language's own address.`);
       if (problem) ctx.addIssue({ code: "custom", path: ["languagePaths", code], message: problem });
     }
     if (file.sort && !names.has(file.sort.field)) {

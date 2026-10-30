@@ -73,6 +73,44 @@ describe("toContent", () => {
     expect(content[1]?.props).toMatchObject({ label: "Go", href: "/about", variant: "primary" });
   });
 
+  it("never sets what only owners choose, such as running HTML as written, and doesn't offer it", () => {
+    const withHtml = createPuckConfig(
+      {
+        blocks: {
+          ...blocks,
+          Html: {
+            fields: {
+              html: { type: "textarea" },
+              sanitize: {
+                type: "radio",
+                options: [
+                  { value: true, label: "Yes" },
+                  { value: false, label: "No" },
+                ],
+                metadata: { owners: true },
+              },
+            },
+            defaultProps: { html: "", sanitize: true },
+            render: () => <div />,
+          },
+        },
+        categories,
+      },
+      "page",
+    );
+    const [html] = toContent(
+      {
+        blocks: [
+          { type: "Html", id: "x", parent: null, slot: null, props: { html: "<script>x</script>", sanitize: false } },
+        ],
+      },
+      withHtml,
+      newId,
+    );
+    expect(html?.props).toMatchObject({ html: "<script>x</script>", sanitize: true });
+    expect(JSON.stringify(blocksSchema(withHtml))).not.toContain('"sanitize"');
+  });
+
   it("gives an empty answer for nonsense", () => {
     expect(toContent("nope", config, newId)).toEqual([]);
     expect(toContent({ blocks: [null, 3, { type: 1 }] }, config, newId)).toEqual([]);

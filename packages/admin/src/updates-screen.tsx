@@ -35,6 +35,10 @@ import { Button, ErrorMessage } from "./ui.js";
 const RELEASES_URL = "https://github.com/goodfellow-cms/goodfellow-cms/releases";
 /** How often the screen checks on an update while one is running. */
 const CHECK_INTERVAL = 15_000;
+/** How far the host's clock may be behind the computer's when it says when the run started. */
+const START_SLACK = 2 * 60_000;
+/** How long to wait for the run an update started to show before showing the last one again. */
+const START_LIMIT = 10 * 60_000;
 /** How many versions of `package.json` to look through for the release before this one. */
 const HISTORY_DEPTH = 30;
 
@@ -130,7 +134,9 @@ function UpdatesPanel() {
   const [loaded, setLoaded] = useState<Loaded>();
   const [error, setError] = useState<unknown>();
   const [problem, setProblem] = useState<unknown>();
-  const [started, setStarted] = useState(false);
+  // When this screen started an update: the host makes the run a moment later, so until a run that started then
+  // shows, the last run is the one before.
+  const [started, setStarted] = useState<number | false>(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -189,14 +195,17 @@ function UpdatesPanel() {
   }, [load]);
 
   // While an update runs, check on it now and then.
-  const running = started || loaded?.last?.state === "running";
+  const running = started !== false || loaded?.last?.state === "running";
   useEffect(() => {
     if (!running) return;
     const timer = setInterval(() => void load(), CHECK_INTERVAL);
     return () => clearInterval(timer);
   }, [running, load]);
   useEffect(() => {
-    if (started && loaded?.last && loaded.last.state !== "running") setStarted(false);
+    if (!started || !loaded?.last || loaded.last.state === "running") return;
+    const date = loaded.last.date ? Date.parse(loaded.last.date) : Number.NaN;
+    // A run that ended since it was started, allowing for the host's clock; or, if none shows, stop asking.
+    if (date >= started - START_SLACK || Number.isNaN(date) || Date.now() - started > START_LIMIT) setStarted(false);
   }, [started, loaded]);
 
   const act = async (run: () => Promise<void>, after?: () => void) => {
@@ -214,7 +223,7 @@ function UpdatesPanel() {
   const start = (target: string) =>
     act(
       () => updates?.start(target) ?? Promise.resolve(),
-      () => setStarted(true),
+      () => setStarted(Date.now()),
     );
   /**
    * Goes back to an older release. Where the code is kept apart from the
@@ -233,7 +242,7 @@ function UpdatesPanel() {
         );
         if (!result.ok) throw new SaveError(result.error);
       },
-      () => setStarted(true),
+      () => setStarted(Date.now()),
     );
   const rebuild = () =>
     act(

@@ -16,7 +16,7 @@
 // the token broker, in goodfellow.config.tsx, as `goodfellow admin` and `goodfellow broker` do.
 import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { buildNotes, CLOUDFLARE_REDIRECTS_LIMIT, configAdmin, formatUpdateResult } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
@@ -24,6 +24,7 @@ import {
   AdminSetupError,
   BrokerSetupError,
   ContentRepositoryError,
+  checkEarlyTheme,
   checkSiteAdminAddress,
   contentRepositoryProblem,
   exportWordPress,
@@ -52,6 +53,7 @@ import {
   fixSegmentFiles,
   guardExport,
   NEXT_SITE_FILES,
+  nextDistDir,
   writeBuildRecordFile,
   writeCalendarFiles,
   writeContentApi,
@@ -71,6 +73,17 @@ const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfell
 // A full-stack site (withGoodfellow(config, { server: true })): Next.js serves its pages and sends redirects
 // itself, so the calendar files, feeds and the search index are written into public/, which `next start` and hosts
 // serve as static files, as they are for an export.
+// A theme installed before it was three days old is used only once its provenance checks out, whatever the
+// admin panel said, since a browser can lie.
+if (command === "finish") {
+  try {
+    const theme = await checkEarlyTheme(process.cwd());
+    if (theme) console.log(`${theme.name} ${theme.release} was installed early: its provenance checks out.`);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
 if (command === "finish" && dir === "--server") {
   // Next.js renders a full-stack site's pages as it serves them, so nothing can put a guard first in each.
   const config = CONFIG_FILES.find((file) => existsSync(file));
@@ -82,7 +95,7 @@ if (command === "finish" && dir === "--server") {
   }
   for (const folder of await buildFileFolders()) await rm(`public/${folder}`, { recursive: true, force: true });
   // The editor's frames' page, which next start serves as it was rendered.
-  await writeEditorPolicy(".next/server/app");
+  await writeEditorPolicy(join(await nextDistDir(), "server/app"));
   const calendars = await writeCalendarFiles("public");
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files, in public/calendars`);
   const feeds = await writeFeedFiles("public");

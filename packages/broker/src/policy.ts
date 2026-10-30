@@ -10,6 +10,8 @@ import {
   outsideLimits,
   parseInstalledPlugins,
   readPermissions,
+  THEME_FILE,
+  themeRecordSchema,
 } from "@goodfellow-cms/core";
 
 /** A plugin a publish installs or updates, as its new record says, for the broker's dialog. */
@@ -39,7 +41,9 @@ export type BrokerQuestion =
   /** Making a public repository for visitors' comments. */
   | { kind: "comments-create"; name: string }
   /** Deleting a visitor's comment, which can't be undone. */
-  | { kind: "comments-delete" };
+  | { kind: "comments-delete" }
+  /** Updating the theme before its release is three days old, which its provenance is to allow. */
+  | { kind: "theme-early"; name: string; release: string; from: string; repository: string; workflow: string };
 
 /** What the broker does with a call: makes it, asks first, or refuses it. */
 export type BrokerDecision =
@@ -138,6 +142,21 @@ async function pluginQuestion(
   }
 }
 
+/** The theme a set of changes installs early, if it does, which the broker asks about since it skips the wait. */
+function themeEarlyQuestion(changes: readonly FileChange[]): BrokerQuestion | undefined {
+  const change = changes.find((candidate) => candidate.path === THEME_FILE);
+  if (!change || !("content" in change)) return undefined;
+  try {
+    const record = themeRecordSchema.safeParse(JSON.parse(change.content));
+    const early = record.success ? record.data.early : undefined;
+    return record.success && early
+      ? { kind: "theme-early", name: record.data.name, release: record.data.release, ...early }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function questionsFor(
   changes: readonly FileChange[],
   siteUrl: string | undefined,
@@ -148,8 +167,10 @@ async function questionsFor(
   const kinds = new Map<BrokerConfirmKind, string[]>();
   for (const { path, kind } of check.confirm) kinds.set(kind, [...(kinds.get(kind) ?? []), path]);
   const plugins = await pluginQuestion(changes, read);
+  const theme = themeEarlyQuestion(changes);
   const questions: BrokerQuestion[] = [
     ...(plugins ? [plugins] : []),
+    ...(theme ? [theme] : []),
     ...[...kinds].map(([kind, paths]) => ({ kind, paths })),
   ];
   return questions.length > 0 ? { action: "ask", questions } : { action: "allow" };

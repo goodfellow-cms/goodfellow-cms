@@ -303,6 +303,9 @@ function DeleteMediaDialog({ url, onClose }: { url: string; onClose: () => void 
     footer: t("layout.footer"),
     settings: t("nav.settings"),
     css: t("settings.tab.css"),
+    menus: t("settings.tab.menus"),
+    code: t("settings.tab.code"),
+    redirects: t("settings.tab.redirects"),
   });
 
   const { storage, client } = useMediaStorage();

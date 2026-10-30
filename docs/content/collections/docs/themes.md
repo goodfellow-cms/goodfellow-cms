@@ -28,6 +28,7 @@ A theme replaces the theme before it: settings the old theme gave and nobody cha
 
 - **Only themes:** the list shows only npm packages named `goodfellow-theme-<name>`, or `@someone/goodfellow-theme-<name>`, with the `goodfellow-theme` keyword.
 - **A few days old:** a new version is offered once it's 3 days old, since most harmful versions of npm packages are found and removed by then. The Themes screen says when a newer one is waiting.
+- **An update, sooner, where its provenance allows:** where the theme installed and its newer version both have provenance from the same repository and the same workflow file, an owner can choose **Install now**. A first install always waits, and so does a version without provenance or built anywhere else. The site's build checks it again (`goodfellow build` and `goodfellow-next finish`, on every host), verifying both versions' Sigstore signatures from npm's registry and, where the checkout has it, that git's history had the version it updates, and stops if anything doesn't match.
 - **Made for your Goodfellow:** a version is offered only if it says it works with your site's version of Goodfellow. Versions its publisher marked as not to be used aren't offered.
 
 ## Updates

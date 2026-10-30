@@ -569,7 +569,15 @@ const SECRET = /^[A-Z_][A-Z0-9_]*$/;
  * Environment variables no build step gets, whatever it declares: tokens that
  * can publish to the repository, and variables that change how Node runs.
  */
-const RESERVED_SECRETS = /^(GITHUB_TOKEN|GH_TOKEN|CI_JOB_TOKEN|GOODFELLOW_GIT_TOKEN|ACTIONS_.*|NODE_.*|NPM_.*|npm_.*)$/;
+/**
+ * Variables no plugin may ask for: the git hosts' and CI services' own
+ * credentials and settings (GitHub's, GitLab's `CI_*`, such as
+ * `CI_REGISTRY_PASSWORD` and `CI_JOB_JWT`, Bitbucket's, such as
+ * `BITBUCKET_STEP_OIDC_TOKEN`, the runners'), the hosts' that deploy sites,
+ * Goodfellow's own git token, and Node's and npm's, which change what runs.
+ */
+const RESERVED_SECRETS =
+  /^(GH_TOKEN|GITHUB_.*|ACTIONS_.*|RUNNER_.*|CI|CI_.*|GITLAB_.*|BITBUCKET_.*|VERCEL|VERCEL_.*|CF_.*|CLOUDFLARE_.*|GOODFELLOW_GIT_TOKEN|NODE_.*|NPM_.*)$/;
 
 /** Whether an origin is one a plugin may declare in `connect`. */
 export function isPluginOrigin(origin: string): boolean {

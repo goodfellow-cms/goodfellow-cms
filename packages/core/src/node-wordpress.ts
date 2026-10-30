@@ -7,7 +7,15 @@
  */
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
-import { extensionOf, type FileChange, loadSiteContent, MAX_UPLOAD_BYTES, MEDIA_DIR } from "./index.js";
+import {
+  exifOrientation,
+  extensionOf,
+  type FileChange,
+  loadSiteContent,
+  MAX_UPLOAD_BYTES,
+  MEDIA_DIR,
+  withoutImageDetails,
+} from "./index.js";
 import { fileSystemSource } from "./node-fs-source.js";
 import { localFileStore } from "./node-local-files.js";
 import {
@@ -89,22 +97,7 @@ export function withoutJpegDetails(bytes: Uint8Array): Uint8Array {
 
 /** Whether an Exif segment says the photo is shown turned or flipped. */
 function turned(segment: Uint8Array): boolean {
-  const exif = 10;
-  if (String.fromCharCode(...segment.subarray(4, 8)) !== "Exif") return false;
-  const little = segment[exif] === 0x49;
-  const read16 = (offset: number) =>
-    little
-      ? (segment[exif + offset] ?? 0) | ((segment[exif + offset + 1] ?? 0) << 8)
-      : ((segment[exif + offset] ?? 0) << 8) | (segment[exif + offset + 1] ?? 0);
-  const read32 = (offset: number) =>
-    little ? read16(offset) | (read16(offset + 2) << 16) : (read16(offset) << 16) | read16(offset + 2);
-  const ifd = read32(4);
-  const count = read16(ifd);
-  for (let entry = 0; entry < count; entry++) {
-    const at = ifd + 2 + entry * 12;
-    if (read16(at) === 0x0112) return read16(at + 8) > 1;
-  }
-  return false;
+  return (exifOrientation(segment) ?? 1) > 1;
 }
 
 async function download(url: string, fetcher: Fetch): Promise<{ bytes: Uint8Array } | { reason: MediaSkipReason }> {
@@ -117,7 +110,9 @@ async function download(url: string, fetcher: Fetch): Promise<{ bytes: Uint8Arra
   if (!response.ok) return { reason: "download" };
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.length > MAX_UPLOAD_BYTES) return { reason: "size" };
-  return { bytes: ["jpg", "jpeg"].includes(extensionOf(url)) ? withoutJpegDetails(bytes) : bytes };
+  const extension = extensionOf(url);
+  if (["jpg", "jpeg"].includes(extension)) return { bytes: withoutJpegDetails(bytes) };
+  return { bytes: ["png", "webp"].includes(extension) ? withoutImageDetails(bytes) : bytes };
 }
 
 /**

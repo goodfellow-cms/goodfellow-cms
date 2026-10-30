@@ -79,7 +79,7 @@ For other sites' video players, use the [Video](#video) block's **Another site's
 
 ## Documents
 
-The Document viewer shows a PDF from the media library on the page, in the browser's own viewer, as tall as **Height in pixels** says. Below it, a link opens the document on its own, which phones need: their browsers show only a PDF's first page inside a page. Give it a description for screen readers if its file name isn't clear. Only PDFs can be shown this way; link other files with the File block. In the editor, the viewer is a box with the document's name: the site shows the document there.
+The Document viewer shows a PDF from the media library on the page, in the browser's own viewer, as tall as **Height in pixels** says. Below it, a link opens the document on its own, which phones need: their browsers show only a PDF's first page inside a page. Give it a description for screen readers if its file name isn't clear. Only PDFs can be shown this way; link other files with the File block. PDFs from the media library are shown, including where a [storage plugin](/docs/plugins#media-storage) keeps them; a PDF from another site is only linked, since browsers won't show a PDF in a sealed-off frame and another site could answer for a `.pdf` address with a page of its own. In the editor, the viewer is a box with the document's name: the site shows the document there.
 
 ## Giving and sharing
 

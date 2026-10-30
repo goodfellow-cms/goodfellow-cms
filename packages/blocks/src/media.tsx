@@ -1,7 +1,7 @@
 import { fileName, mediaKind, withBase } from "@goodfellow-cms/core";
 import { classNameField, mediaField, SiteImage, SiteLink, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Slot, SlotComponent } from "@puckeditor/core";
-import { type DocumentProps, documentAddress, documentHeight } from "./media-data.js";
+import { type DocumentProps, documentAddress, documentHeight, isFramedDocument } from "./media-data.js";
 import { options, yesNo } from "./options.js";
 import { AUDIO_PARTS, DOCUMENT_PARTS, FILE_PARTS, GALLERY_PARTS, MEDIA_TEXT_PARTS } from "./parts.js";
 
@@ -77,7 +77,7 @@ function DocumentView({
   className,
   isEditing,
 }: DocumentProps & { isEditing: boolean }) {
-  const { base } = useSite();
+  const { base, mediaStorage } = useSite();
   const part = useParts();
   const address = documentAddress(file);
   if (!address) {
@@ -90,9 +90,17 @@ function DocumentView({
   }
   const shown = withBase(address, base);
   const name = title || fileName(address);
+  const framed = isFramedDocument(address, mediaStorage);
   return (
     <figure className={part("gf-document", "my-4", className)}>
-      {isEditing ? (
+      {!framed ? (
+        isEditing && (
+          <EditorPlaceholder
+            text={`${name} is on another site, so the page links to it rather than showing it. Upload it to the media library to show it here.`}
+            className="h-24"
+          />
+        )
+      ) : isEditing ? (
         // The editor can't open the site's files in a frame; the page shows the document here.
         <EditorPlaceholder text={`${name}: shown here on the site`} className="h-40" />
       ) : (

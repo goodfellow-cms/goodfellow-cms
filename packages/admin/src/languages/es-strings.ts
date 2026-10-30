@@ -1216,6 +1216,10 @@ export const strings: Strings = {
     "No consta dónde se generó esta versión, así que nadie ha comprobado que viene del propio código de quien la publica.",
   "themes.waiting":
     "La versión {version} se podrá instalar cuando tenga {days} días, porque para entonces se descubren la mayoría de las versiones dañinas.",
+  "themes.installNow": "Instalar {version} ahora",
+  "themes.early":
+    "{version} se compiló desde el mismo sitio que {installed}, la versión instalada ({source}), con la misma configuración de publicación, así que se puede instalar ahora, sin esperar. La compilación del sitio lo comprueba antes de usarla.",
+  "themes.earlyNotice": "Se instala {version} antes de que tenga {days} días, porque se compiló donde {installed}.",
   "themes.incompatible": "La versión {version} no dice que funcione con Goodfellow {goodfellow}.",
   "themes.tooNew":
     "Las versiones de este tema son demasiado recientes para instalarlas. Se pueden instalar cuando tienen {days} días.",
@@ -1286,6 +1290,11 @@ export const strings: Strings = {
     "No consta dónde se generó esta versión, así que nadie ha comprobado que viene del propio código de quien la publica.",
   "plugins.waiting":
     "La versión {version} se podrá instalar cuando tenga {days} días, porque para entonces se descubren la mayoría de las versiones dañinas.",
+  "plugins.installNow": "Instalar {version} ahora",
+  "plugins.early":
+    "{version} se compiló desde el mismo sitio que {installed}, la versión instalada ({source}), con la misma configuración de publicación, así que se puede instalar ahora, sin esperar. La compilación del sitio lo comprueba antes de usarla.",
+  "plugins.earlyNotice": "Se instala {version} antes de que tenga {days} días, porque se compiló donde {installed}.",
+  "plugins.earlyRefused": "El sitio no aceptó {version} antes de que tenga {days} días: {reasons}",
   "plugins.incompatible": "La versión {version} no dice que funcione con Goodfellow {goodfellow}.",
   "plugins.tooNew":
     "Las versiones de este complemento son demasiado recientes para instalarlas. Se pueden instalar cuando tienen {days} días.",

@@ -279,6 +279,7 @@ export {
   type FakeThemesResponse,
   fakePlugins,
   fakeThemes,
+  fakeVerifier,
   samplePluginFiles,
   sampleThemeFiles,
 } from "./themes-testing.js";

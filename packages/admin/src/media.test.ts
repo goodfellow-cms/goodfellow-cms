@@ -82,6 +82,32 @@ describe("mediaUsage", () => {
     expect(mediaUsage(content, "/media/logo.svg", names)).toEqual(["Site settings"]);
     expect(mediaUsage(content, "/media/unused.png", names)).toEqual([]);
   });
+
+  it("finds files menus link to, and never counts another file whose name starts the same", () => {
+    const empty: SiteContent["header"] = { version: 1, data: { root: {}, content: [] } };
+    const content: SiteContent = {
+      settings: siteSettingsSchema.parse({ version: 1 }),
+      menus: { main: [{ label: "Bulletin", href: "/media/bulletin.pdf" }] },
+      header: empty,
+      footer: empty,
+      languageLayouts: {
+        es: {
+          footer: {
+            version: 1,
+            data: { root: {}, content: [{ type: "Image", props: { id: "i", src: "/media/logo-es.png" } }] },
+          },
+        },
+      },
+      pages: [],
+      collections: [],
+      customCss: ".a { background: url(/media/a.jpg-old.jpg); } /* See /media/b.jpg. */",
+    };
+    const names = { header: "Header", footer: "Footer", settings: "Site settings", css: "Custom CSS", menus: "Menus" };
+    expect(mediaUsage(content, "/media/bulletin.pdf", names)).toEqual(["Menus"]);
+    expect(mediaUsage(content, "/media/logo-es.png", names)).toEqual(["Footer"]);
+    expect(mediaUsage(content, "/media/a.jpg", names)).toEqual([]);
+    expect(mediaUsage(content, "/media/b.jpg", names)).toEqual(["Custom CSS"]);
+  });
 });
 
 describe("media a plugin keeps", () => {

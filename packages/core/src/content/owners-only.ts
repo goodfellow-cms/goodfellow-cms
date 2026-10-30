@@ -48,26 +48,45 @@ function isBlock(value: unknown): value is Block {
   );
 }
 
-/** Every block anywhere in a content file, by id: pages' blocks, slots, drop zones, headers' and footers'. */
-function blocksOf(text: string | undefined): Map<string, Block> {
-  const found = new Map<string, Block>();
-  if (text === undefined) return found;
+/**
+ * Every block anywhere in a content file, by id (pages' blocks, slots, drop
+ * zones, headers' and footers'), and the ids more than one block has, which
+ * Puck would draw every one of.
+ */
+function blocksOf(text: string | undefined): { blocks: Map<string, Block>; repeated: Set<string> } {
+  const blocks = new Map<string, Block>();
+  const repeated = new Set<string>();
+  if (text === undefined) return { blocks, repeated };
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    return found;
+    return { blocks, repeated };
   }
   const visit = (value: unknown) => {
     if (Array.isArray(value)) {
       for (const item of value) visit(item);
     } else if (typeof value === "object" && value !== null) {
-      if (isBlock(value) && typeof value.props.id === "string") found.set(value.props.id, value);
+      if (isBlock(value) && typeof value.props.id === "string") {
+        if (blocks.has(value.props.id)) repeated.add(value.props.id);
+        blocks.set(value.props.id, value);
+      }
       for (const item of Object.values(value)) visit(item);
     }
   };
   visit(parsed);
-  return found;
+  return { blocks, repeated };
+}
+
+/** A change's text, for a file sent as bytes too, so sending a page as bytes never skips the check. */
+function changedText(change: FileChange): string | undefined {
+  if ("delete" in change) return undefined;
+  if ("content" in change) return change.content;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(change.bytes);
+  } catch {
+    return "";
+  }
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -75,7 +94,11 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 /**
  * The files in `changes` where an owners-only setting changed: a block that
  * was there keeps its value, and a new one keeps its block's starting value.
- * `read` gives a file as it was before the changes.
+ * A block whose owners-only setting isn't its starting value, such as Custom
+ * HTML used exactly as written, is the owners' whole: none of its settings may
+ * change, since its HTML would run as written. Two blocks with one id, which
+ * Puck would draw both of, count as a change. `read` gives a file as it was
+ * before the changes.
  */
 export async function ownersOnlyChanges(
   changes: readonly FileChange[],
@@ -85,19 +108,24 @@ export async function ownersOnlyChanges(
   if (Object.keys(fields).length === 0) return [];
   const changed: string[] = [];
   for (const change of changes) {
-    if (!("content" in change) || typeof change.content !== "string" || !change.path.endsWith(".json")) continue;
-    const after = blocksOf(change.content);
-    const marked = [...after.entries()].filter(([, block]) => Object.hasOwn(fields, block.type));
+    if (!change.path.endsWith(".json")) continue;
+    const text = changedText(change);
+    if (text === undefined) continue;
+    const after = blocksOf(text);
+    const marked = [...after.blocks.entries()].filter(([, block]) => Object.hasOwn(fields, block.type));
     if (marked.length === 0) continue;
-    const before = blocksOf(await read(change.path));
+    const before = blocksOf(await read(change.path)).blocks;
     const breaks = marked.some(([id, block]) => {
       const owned = fields[block.type];
       if (!owned) return false;
+      if (after.repeated.has(id)) return true;
       const was = before.get(id);
       const previous = was?.type === block.type ? was.props : {};
-      return owned.fields.some(
-        (field) => !same(block.props[field] ?? owned.defaults[field], previous[field] ?? owned.defaults[field]),
-      );
+      const value = (props: Record<string, unknown>, field: string) => props[field] ?? owned.defaults[field];
+      if (owned.fields.some((field) => !same(value(block.props, field), value(previous, field)))) return true;
+      // An owner's block as they set it stays as they left it, every setting of it.
+      const owners = owned.fields.some((field) => !same(value(previous, field), owned.defaults[field]));
+      return owners && !same(block.props, previous);
     });
     if (breaks) changed.push(change.path);
   }

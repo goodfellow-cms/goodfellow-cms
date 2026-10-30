@@ -4,8 +4,9 @@ import type { OwnersOnlyFields } from "./content/owners-only.js";
 import { ConflictError, type FileChange } from "./content/store.js";
 import { type CommitAuthor, encodeBase64Bytes, GitApiError, type GitBackend, type ServerGit } from "./git.js";
 import { appApi } from "./node-app-api.js";
+import type { ProvenanceOptions } from "./node-provenance.js";
 import { newTaskRequestId, PluginTaskError, type PluginTaskRequest, taskKeys } from "./plugin-tasks.js";
-import { FakeRepo, fakeFileBytes } from "./testing.js";
+import { FakeRepo, fakeFileBytes, fakePlugins, fakeVerifier } from "./testing.js";
 
 const FILES = {
   "content/site.json": '{"version":1,"title":"St. Joseph"}',
@@ -132,7 +133,13 @@ function setup(
     contentOnly = false,
     codeChanges,
     ownersOnly,
-  }: { contentOnly?: boolean; codeChanges?: "review" | "publish"; ownersOnly?: OwnersOnlyFields } = {},
+    provenance,
+  }: {
+    contentOnly?: boolean;
+    codeChanges?: "review" | "publish";
+    ownersOnly?: OwnersOnlyFields;
+    provenance?: ProvenanceOptions;
+  } = {},
 ) {
   const repo = new FakeRepo(FILES);
   const server = fakeServerGit(repo);
@@ -146,6 +153,7 @@ function setup(
     onError: (error) => errors.push(error),
     ...(codeChanges && { codeChanges }),
     ...(ownersOnly && { ownersOnly }),
+    ...(provenance && { provenance }),
   });
   const call = (endpoint: string, init: RequestInit & { query?: Record<string, string> } = {}) => {
     const url = new URL(`https://parish.example/api/goodfellow/${endpoint}`);
@@ -353,8 +361,124 @@ describe("appApi", () => {
     signIn(OWEN);
     expect((await write(page(false))).status).toBe(200);
     signIn(ALICE);
-    expect((await write(page(false, "<p>Changed</p>"))).status).toBe(200);
+    // The owner's block used as written is theirs whole: its HTML would run as the editor wrote it.
+    expect((await write(page(false, "<p>Changed</p>"))).status).toBe(403);
     expect((await write(page(true))).status).toBe(403);
+    // Sent as bytes, the page is read all the same.
+    signIn(OWEN);
+    expect((await write(page())).status).toBe(200);
+    signIn(ALICE);
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const bytes = await post("write", {
+      changes: [
+        {
+          path: "content/pages/about.json",
+          base64: encodeBase64Bytes(new TextEncoder().encode(page(false, "<script>x</script>"))),
+        },
+      ],
+      message: "Edit About",
+      expectedRevision: revision,
+    });
+    expect(bytes.status).toBe(403);
+  });
+
+  it("refuses media the site can't use, and SVGs that skipped the admin panel's cleaning", async () => {
+    const { call, post, repo } = setup(OWEN);
+    const write = async (path: string, text: string) => {
+      const { revision } = (await (await call("revision")).json()) as { revision: string };
+      return post("write", {
+        changes: [{ path, base64: encodeBase64Bytes(new TextEncoder().encode(text)) }],
+        message: "Upload",
+        expectedRevision: revision,
+      });
+    };
+    const page = await write("public/media/x.html", "<script>fetch('/api/goodfellow/write')</script>");
+    expect(page.status).toBe(400);
+    expect(await page.json()).toEqual({ error: "unsafe-media", paths: ["public/media/x.html"] });
+    const svg = (body: string) => `<svg xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+    expect((await write("public/media/x.svg", svg("<script>alert(1)</script>"))).status).toBe(400);
+    expect((await write("public/media/x.Svg", svg('<rect onload="alert(1)"/>'))).status).toBe(400);
+    expect((await write("public/media/logo.svg", svg('<rect width="4" height="4"/>'))).status).toBe(200);
+    expect(repo.files(repo.head()).has("public/media/x.html")).toBe(false);
+  });
+
+  it("lets editors add files to the media storage, but not move it", async () => {
+    const storage = (url: string, files: Record<string, unknown> = {}) =>
+      JSON.stringify({ version: 1, plugin: "goodfellow-plugin-s3", url, files });
+    const { call, post, signIn } = setup(OWEN);
+    const write = async (content: string) => {
+      const { revision } = (await (await call("revision")).json()) as { revision: string };
+      return post("write", {
+        changes: [{ path: "content/media-storage.json", content }],
+        message: "Storage",
+        expectedRevision: revision,
+      });
+    };
+    expect((await write(storage("https://media.example.org"))).status).toBe(200);
+    signIn(ALICE);
+    expect((await write(storage("https://media.example.org", { "/media/a.mp4": { size: 4 } }))).status).toBe(200);
+    const moved = await write(storage("https://evil.example", { "/media/a.mp4": { size: 4 } }));
+    expect(moved.status).toBe(403);
+    expect(await moved.json()).toEqual({ error: "owners-only", paths: ["content/media-storage.json"] });
+  });
+
+  it("never takes settings from editors for review either", async () => {
+    const { call, post } = setup();
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const response = await post("review", {
+      changes: [{ path: "content/site.json", content: "{}" }],
+      title: "New address",
+      from: revision,
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it("takes a plugin installed early only from an owner, and only when its provenance checks out", async () => {
+    const NAME = "goodfellow-plugin-guestbook";
+    const REPO = "https://github.com/example/goodfellow-plugin-guestbook";
+    const source = { repository: REPO, workflow: ".github/workflows/release.yml" };
+    const npm = fakePlugins({
+      plugins: [
+        {
+          name: NAME,
+          releases: [
+            { version: "1.0.0", provenance: true, repository: REPO, files: {} },
+            { version: "1.1.0", provenance: true, repository: REPO, age: 1, files: {} },
+            { version: "1.2.0", provenance: true, builtBy: "https://github.com/evil/guestbook", age: 1, files: {} },
+          ],
+        },
+      ],
+    });
+    const { repo, call, post, signIn } = setup(OWEN, { provenance: { fetch: npm.fetch, verify: fakeVerifier } });
+    const entry = (release: string, extra: Record<string, unknown> = {}) => ({
+      release,
+      installed: "2026-10-30",
+      manifest: { version: 1, title: "Guestbook" },
+      provenance: source,
+      ...extra,
+    });
+    const record = (release: string, extra: Record<string, unknown> = {}) =>
+      `${JSON.stringify({ version: 1, plugins: { [NAME]: entry(release, extra) } }, null, 2)}\n`;
+    repo.commit([{ path: "plugins/installed/installed.json", content: record("1.0.0") }], "Install the Guestbook");
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const update = (release: string) => ({
+      changes: [
+        { path: "package.json", content: `{"dependencies":{"${NAME}":"${release}"}}` },
+        { path: "plugins/installed/installed.json", content: record(release, { early: { from: "1.0.0", ...source } }) },
+      ],
+      title: `Update the Guestbook to ${release}`,
+      from: revision,
+    });
+    // The browser says 1.2.0 was built by the same workflow; it wasn't.
+    const lie = await post("review", update("1.2.0"));
+    expect(lie.status).toBe(403);
+    expect(await lie.json()).toMatchObject({
+      error: "early-refused",
+      reasons: [expect.stringMatching(/evil\/guestbook/)],
+    });
+    expect((await post("review", update("1.1.0"))).status).toBe(200);
+    signIn({ ...OWEN, role: "editor" });
+    expect(await (await post("review", update("1.1.0"))).json()).toMatchObject({ error: "owners-only" });
   });
 
   it("adds plugins only through a review, which only owners can ask for", async () => {

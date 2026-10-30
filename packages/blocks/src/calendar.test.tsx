@@ -11,6 +11,7 @@ import {
 import { createPageRenderer } from "@goodfellow-cms/react/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type CalendarProps, googleCalendarLink, outlookLink, readFeed } from "./calendar.js";
+import { listChanges } from "./calendar-data.js";
 import { blocks, categories } from "./index.js";
 
 const renderPage = createPageRenderer({ blocks, categories });
@@ -147,6 +148,15 @@ describe("Calendar", () => {
     resetDateChanges();
     await render([calendar({ view: "month" })]);
     expect(nextDateChange()).toBe("2026-10-11");
+    resetDateChanges();
+  });
+
+  it("never reports a day already past for an event that starts in a list and ends after it", () => {
+    resetDateChanges();
+    const fair = { ...events, entries: events.entries.filter((entry) => entry.slug === "fair") };
+    // The fair, on the 16th and 17th, starts on the list's last day, so it's on the list already.
+    listChanges(fair, [], "2026-10-16", 7);
+    expect(nextDateChange()).toBeUndefined();
     resetDateChanges();
   });
 

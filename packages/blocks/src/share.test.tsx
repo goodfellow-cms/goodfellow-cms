@@ -97,4 +97,20 @@ describe("Document viewer", () => {
     expect(await render("Document", { file: "/media/photo.jpg" })).not.toContain("<iframe");
     expect(await render("Document", { file: "/media/../admin/index.pdf" })).not.toContain("<iframe");
   });
+
+  it("shows the media storage's PDFs, and only links to other sites', which could be pages", async () => {
+    const stored = {
+      ...site("https://parish.example.org"),
+      mediaStorage: { plugin: "goodfellow-plugin-s3", url: "https://media.example.org/site", files: {} },
+    };
+    expect(await render("Document", { file: "https://media.example.org/site/bulletin.pdf" }, stored)).toContain(
+      '<iframe src="https://media.example.org/site/bulletin.pdf"',
+    );
+    const elsewhere = await render("Document", { file: "https://elsewhere.example/x.pdf" }, stored);
+    expect(elsewhere).not.toContain("<iframe");
+    expect(elsewhere).toContain('href="https://elsewhere.example/x.pdf"');
+    expect(await render("Document", { file: "https://media.example.org/site/../x.pdf" }, stored)).not.toContain(
+      "<iframe",
+    );
+  });
 });

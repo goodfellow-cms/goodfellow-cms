@@ -11,12 +11,13 @@ import {
   exportedPages,
   fixSegmentFiles,
   guardExport,
+  nextDistDir,
   writeExportHeaders,
   writeImageFiles,
   writePluginFiles,
   writeRedirectFiles,
 } from "./export.js";
-import { IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
+import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -132,6 +133,17 @@ describe("writeImageFiles", () => {
     expect(await writeImageFiles(join(out, "out"), join(out, "site"))).toEqual({ written: 2, failed: [] });
     const copy = await sharp(await readFile(join(out, "out/media-sizes/480/hall.jpg"))).metadata();
     expect([copy.width, copy.height]).toEqual([480, 240]);
+  });
+
+  it("reads the mark where next build wrote, with a distDir of the site's own", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-export-"));
+    const site = join(out, "site");
+    expect(await nextDistDir(site)).toBe(join(site, ".next"));
+    await write(`site/${DIST_DIR_RECORD}`, "build");
+    expect(await nextDistDir(site)).toBe(join(site, "build"));
+    await mkdir(join(site, "public/media"), { recursive: true });
+    await write(`site/build/${IMAGE_SIZES_MARK}`, "");
+    expect(await writeImageFiles(join(out, "out"), site)).toEqual({ written: 0, failed: [] });
   });
 });
 

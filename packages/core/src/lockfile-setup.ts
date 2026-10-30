@@ -23,6 +23,22 @@ export const LOCKFILE_CHECK =
 /** Writes the lockfile, taking only releases at least `RELEASE_AGE_DAYS` old for the packages it adds. */
 export const LOCKFILE_COMMAND = `npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '${RELEASE_AGE_DAYS} days ago' +%Y-%m-%dT%H:%M:%SZ)"`;
 
+/**
+ * A Node.js script, on one line with no single quotes, that exits with 1 when
+ * a plugin's record says it was installed before it was `RELEASE_AGE_DAYS`
+ * old (`early`), so the lockfile is written by `EARLY_COMMAND` instead.
+ */
+export const EARLY_CHECK =
+  'const fs = require("fs"); let record; try { record = JSON.parse(fs.readFileSync("plugins/installed/installed.json", "utf8")); } catch { process.exit(0); } process.exit(Object.values(record.plugins || {}).some((plugin) => plugin && plugin.early) ? 1 : 0);';
+
+/**
+ * Writes the lockfile where a plugin was installed early, once its provenance
+ * checks out (`goodfellow-early`, `writeEarlyLockfile()`), failing otherwise:
+ * run from npm at the release of `@goodfellow-cms/core` the site names, never
+ * from the site's own packages, which the lockfile isn't written for yet.
+ */
+export const EARLY_COMMAND = `npm exec --yes --package="@goodfellow-cms/core@$(node -p 'require("./package.json").dependencies["@goodfellow-cms/core"]')" -- goodfellow-early`;
+
 const COMMIT_AS = '-c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid';
 const COMMIT_MESSAGE = "Write package-lock.json for the packages package.json names";
 
@@ -52,11 +68,17 @@ export function githubLockfileJobs(): string {
       - id: lockfile
         env:
           CHECK: '${LOCKFILE_CHECK}'
+          EARLY: '${EARLY_CHECK}'
         run: |
           if node -e "$CHECK"; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
+          elif node -e "$EARLY"; then
             ${LOCKFILE_COMMAND}
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            # A plugin installed before it was ${RELEASE_AGE_DAYS} days old, which only its provenance allows:
+            # checked first, and if it doesn't check out the job fails, publishing nothing.
+            ${EARLY_COMMAND}
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.lockfile.outputs.changed == 'true'
@@ -92,6 +114,7 @@ export function githubLockfileJobs(): string {
 /** What GitLab's jobs need for `gitlabLockfileScript()`: the check, as a variable. */
 export const GITLAB_LOCKFILE_VARIABLES = `variables:
   LOCKFILE_CHECK: '${LOCKFILE_CHECK}'
+  EARLY_CHECK: '${EARLY_CHECK}'
 `;
 
 /**
@@ -107,7 +130,9 @@ export function gitlabLockfileScript({ skipPipeline }: { skipPipeline: boolean }
     # releases at least ${RELEASE_AGE_DAYS} days old for what it adds, and publishes it.
     - |
       if ! node -e "$LOCKFILE_CHECK"; then
-        ${LOCKFILE_COMMAND}
+        # A plugin installed before it was ${RELEASE_AGE_DAYS} days old is checked against its provenance first,
+        # and the job fails if it doesn't check out.
+        if node -e "$EARLY_CHECK"; then ${LOCKFILE_COMMAND}; else ${EARLY_COMMAND}; fi
         git remote set-url origin "https://gitlab-ci-token:\${CI_JOB_TOKEN}@\${CI_SERVER_FQDN:-$CI_SERVER_HOST}/\${CI_PROJECT_PATH}.git"
         git ${COMMIT_AS} commit -m "${COMMIT_MESSAGE}" package-lock.json
         git push${skipPipeline ? " -o ci.skip" : ""} origin "HEAD:$CI_COMMIT_BRANCH" || echo "package-lock.json wasn't published: turn on \\"Allow Git push requests to the repository\\" under Settings → CI/CD → Job token permissions."

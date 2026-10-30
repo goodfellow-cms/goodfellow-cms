@@ -65,6 +65,26 @@ test("adds a language, translates a page and says when the translation is out of
   expect(readJson("content/pages/es/about.json").translatedFrom).not.toBe(copy.translatedFrom);
 });
 
+test("a translation of a page that isn't shown yet keeps its schedule", async ({ page }) => {
+  addSpanish();
+  writeSiteFile(
+    "content/pages/about.json",
+    json({ ...readJson("content/pages/about.json"), showFrom: "2099-01-01T09:00" }),
+  );
+  await page.goto("/admin#/pages");
+  await page
+    .getByRole("row")
+    .filter({ hasText: "/about" })
+    .getByRole("button", { name: "Translate into Español" })
+    .click();
+  await page.getByRole("dialog").getByRole("button", { name: "Make the copy" }).click();
+  await expect(canvas(page).getByRole("heading", { name: "About us" })).toBeVisible();
+  expect(readJson("content/pages/es/about.json")).toMatchObject({
+    showFrom: "2099-01-01T09:00",
+    translationOf: "/about",
+  });
+});
+
 test("shows each page in its language, with links to its translations", async ({ page }) => {
   addSpanish({ url: "https://site.example/" });
   const about = readJson("content/pages/about.json") as { data: { root: { props: Record<string, unknown> } } };

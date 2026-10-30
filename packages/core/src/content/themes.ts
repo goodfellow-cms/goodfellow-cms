@@ -8,6 +8,7 @@
  */
 import { z } from "zod";
 import { CURRENT_VERSION } from "../migrations/index.js";
+import { earlyInstallSchema, type ProvenanceSource, provenanceSourceSchema } from "../provenance.js";
 import { hashText } from "../registry.js";
 import { customCssFileChange, layoutFileChange, siteSettingsFileChange, storedCss } from "./changes.js";
 import { ContentError } from "./errors.js";
@@ -70,6 +71,10 @@ export const themeRecordSchema = z.object({
   css: hash.optional(),
   header: hash.optional(),
   footer: hash.optional(),
+  /** Where its release was built, from its provenance, which updates installed early must match. */
+  provenance: provenanceSourceSchema.optional(),
+  /** Installed before it was old enough, as an update with the same provenance, which the site's build checks. */
+  early: earlyInstallSchema.optional(),
 });
 export type ThemeRecord = z.output<typeof themeRecordSchema>;
 
@@ -177,6 +182,13 @@ export type ThemeChanged = { kind: "setting"; key: string } | { kind: "css" | "h
 export interface ThemeOptions {
   /** Whether to use the theme's header and footer. On an update, they're used where the release before was. */
   layout?: boolean;
+  /** Where the release was built, from its provenance, for the record, which early updates are checked against. */
+  provenance?: ProvenanceSource;
+  /**
+   * Installs it before it's old enough, as an update built by the same source as the release installed
+   * (`mayInstallEarly()`'s `source`), which the site's build checks. Only an update of the installed theme can be.
+   */
+  early?: ProvenanceSource;
 }
 
 export interface ThemePlan {
@@ -289,6 +301,8 @@ export async function planTheme(
       theme: theme.manifest.theme,
       ...(nextHash && { css: nextHash }),
       ...hashes,
+      ...(options.provenance && { provenance: options.provenance }),
+      ...(options.early && update && { early: { from: old.release, ...options.early } }),
     };
     changes.push({ path: THEME_FILE, content: serializeContent(record) });
   } else if (old) {

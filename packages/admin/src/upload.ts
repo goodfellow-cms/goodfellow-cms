@@ -1,4 +1,13 @@
-import { type FileChange, fileName, MEDIA_DIR } from "@goodfellow-cms/core";
+import {
+  cleanedSvgAttribute,
+  cssWithoutOutsideAddresses,
+  type FileChange,
+  fileName,
+  keepsSvgElement,
+  MEDIA_DIR,
+  SVG_NAMESPACE,
+  withoutImageDetails,
+} from "@goodfellow-cms/core";
 import { extensionOf, MAX_UPLOAD_BYTES, mediaKind } from "./media.js";
 import { mediaType } from "./media-previews.js";
 
@@ -62,146 +71,29 @@ async function resized(file: File, extension: string): Promise<Blob | undefined>
   canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   const blob = await canvasBlob(canvas, type);
-  // Keep the original if re-saving didn't help, such as for an already well-compressed small photo.
-  return blob && (scale < 1 || blob.size < file.size) ? blob : undefined;
-}
-
-const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
-/** Namespaces an SVG's attributes may be in, besides none. */
-const SVG_ATTRIBUTE_NAMESPACES = new Set([
-  "http://www.w3.org/1999/xlink",
-  "http://www.w3.org/XML/1998/namespace",
-  "http://www.w3.org/2000/xmlns/",
-]);
-/** The SVG elements uploads keep: drawing, text, links, styles and animation, but nothing that loads a page or runs code. */
-const SVG_ELEMENTS = new Set([
-  "svg",
-  "g",
-  "defs",
-  "symbol",
-  "use",
-  "title",
-  "desc",
-  "switch",
-  "view",
-  "path",
-  "rect",
-  "circle",
-  "ellipse",
-  "line",
-  "polyline",
-  "polygon",
-  "text",
-  "tspan",
-  "textPath",
-  "image",
-  "a",
-  "style",
-  "clipPath",
-  "mask",
-  "pattern",
-  "marker",
-  "linearGradient",
-  "radialGradient",
-  "stop",
-  "filter",
-  "feBlend",
-  "feColorMatrix",
-  "feComponentTransfer",
-  "feComposite",
-  "feConvolveMatrix",
-  "feDiffuseLighting",
-  "feDisplacementMap",
-  "feDistantLight",
-  "feDropShadow",
-  "feFlood",
-  "feFuncA",
-  "feFuncB",
-  "feFuncG",
-  "feFuncR",
-  "feGaussianBlur",
-  "feImage",
-  "feMerge",
-  "feMergeNode",
-  "feMorphology",
-  "feOffset",
-  "fePointLight",
-  "feSpecularLighting",
-  "feSpotLight",
-  "feTile",
-  "feTurbulence",
-  "animate",
-  "animateMotion",
-  "animateTransform",
-  "mpath",
-]);
-/** Addresses links and images may have: within the file, on the web, relative ones, and pictures. */
-const SAFE_SVG_ADDRESS = /^(#|https?:|data:image\/(png|jpeg|gif|webp)[;,]|(?![a-z][a-z\d+.-]*:))/;
-
-/**
- * Addresses an SVG loads as it draws (images, filters' images, `use` and CSS's
- * `url()`): within the file, the site's own, and pictures in the file, so an
- * SVG opened on its own never asks another site for anything.
- */
-const LOADED_SVG_ADDRESS = /^(#|data:image\/(png|jpeg|gif|webp)[;,]|(?![a-z][a-z\d+.-]*:)(?!\/\/))/;
-
-/**
- * CSS with what would load from another site taken out: `@import`, and
- * `url()`s other than the file's own and the site's. Escapes could spell
- * either some other way, so CSS with any is left out whole (`undefined`).
- */
-function cssWithoutOutsideAddresses(css: string): string | undefined {
-  if (css.includes("\\")) return undefined;
-  return css
-    .replace(/@import[^;]*;?/gi, "")
-    .replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (whole, _quote: string, address: string) =>
-      LOADED_SVG_ADDRESS.test(normalized(address)) ? whole : "none",
-    );
-}
-
-/** An attribute's value as a browser reads an address: without the spaces and control characters it skips. */
-function normalized(value: string): string {
-  return value.replace(/[\s\p{Cc}]/gu, "").toLowerCase();
-}
-
-function isLink(name: string): boolean {
-  return name === "href" || name === "xlink:href";
+  // A JPEG is always kept re-saved, even a little larger, since the original holds where it was taken.
+  // Other photos are kept as they were if re-saving didn't help, and lose their details another way.
+  return blob && (scale < 1 || type === "image/jpeg" || blob.size < file.size) ? blob : undefined;
 }
 
 /** Whether an element can stay, once its attributes are cleaned. */
 function keepsElement(element: Element): boolean {
-  if (element.namespaceURI !== SVG_NAMESPACE || !SVG_ELEMENTS.has(element.localName)) return false;
-  if (element.localName.startsWith("animate")) {
-    // Animating a link or an event handler sets it after the file's been cleaned.
-    const name = normalized(element.getAttribute("attributeName") ?? "");
-    if (isLink(name) || name.startsWith("on")) return false;
-  }
-  return true;
+  return (
+    element.namespaceURI === SVG_NAMESPACE && keepsSvgElement(element.localName, element.getAttribute("attributeName"))
+  );
 }
 
 function cleanElement(element: Element): void {
-  // Only links are followed when someone chooses to; everything else's addresses load with the picture.
-  const loads = element.localName !== "a";
   for (const attribute of [...element.attributes]) {
-    const value = normalized(attribute.value);
-    if (attribute.value.includes("url(") || (attribute.localName === "style" && attribute.value.includes("\\"))) {
-      const css = cssWithoutOutsideAddresses(attribute.value);
-      if (css === undefined) {
-        element.removeAttributeNode(attribute);
-        continue;
-      }
-      attribute.value = css;
-    }
-    if (
-      (attribute.namespaceURI !== null && !SVG_ATTRIBUTE_NAMESPACES.has(attribute.namespaceURI)) ||
-      (attribute.name.includes(":") && !/^(xlink|xml|xmlns):/.test(attribute.name)) ||
-      attribute.localName.toLowerCase().startsWith("on") ||
-      value.includes("javascript:") ||
-      value.includes("vbscript:") ||
-      (isLink(attribute.name.toLowerCase()) && !(loads ? LOADED_SVG_ADDRESS : SAFE_SVG_ADDRESS).test(value))
-    ) {
-      element.removeAttributeNode(attribute);
-    }
+    const cleaned = cleanedSvgAttribute(
+      element.localName,
+      attribute.name,
+      attribute.localName,
+      attribute.namespaceURI,
+      attribute.value,
+    );
+    if (!cleaned.keep) element.removeAttributeNode(attribute);
+    else if (cleaned.value !== attribute.value) attribute.value = cleaned.value;
   }
   for (const child of [...element.childNodes]) {
     if (child.nodeType === Node.ELEMENT_NODE) {
@@ -252,6 +144,12 @@ async function prepared(file: File, maxBytes: number): Promise<Blob> {
     blob = new Blob([cleaned], { type: "image/svg+xml" });
   } else if (mediaKind(file.name) === "image") {
     blob = (await resized(file, extension)) ?? file;
+    if (blob === file && (extension === "png" || extension === "webp")) {
+      // Kept as it was, which keeps animations, but without the details hidden in it, such as Exif's.
+      blob = new Blob([withoutImageDetails(new Uint8Array(await file.arrayBuffer())) as Uint8Array<ArrayBuffer>], {
+        type: file.type,
+      });
+    }
   }
 
   if (blob.size > maxBytes) {

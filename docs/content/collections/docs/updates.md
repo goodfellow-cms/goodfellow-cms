@@ -40,7 +40,7 @@ When there are fixes to install, the site's build first runs `goodfellow update`
 4. It installs the packages, taking only what npm had a day after the release came out, so a package someone published, or took over, since then isn't installed into the site overnight, and builds the site. If either fails, every file goes back as it was, and the site is built as it was before.
 5. If the site built, the update is published as one change, named "Update Goodfellow to …", which the site's version history shows.
 
-On GitHub, the job that installs the update and builds the site can only read the repository, so packages it installs can't publish anything. A second job, which runs none of the site's code, publishes the change the first one made. On GitLab, any job in the site's project can publish once updates are turned on, since GitLab gives every job the same permissions. Bitbucket lets every pipeline step publish, as GitLab does.
+On GitHub, the job that installs the update and builds the site can only read the repository, so packages it installs can't publish anything. A second job, which runs none of the site's code, publishes the change the first one made, and only if it changes nothing but what an update does (`package.json`, `package-lock.json`, `content/updates.json`, the starter's own files a release brings and installed blocks' code) and takes every new package from npm's registry, since the first job ran the site's code, which could have changed anything. On GitLab, any job in the site's project can publish once updates are turned on, since GitLab gives every job the same permissions. Bitbucket lets every pipeline step publish, as GitLab does.
 
 The rest of the build then puts the site online as usual, with the update if it worked.
 

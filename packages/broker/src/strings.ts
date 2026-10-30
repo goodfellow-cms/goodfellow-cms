@@ -20,6 +20,12 @@ export const STRINGS = {
   badSiteAddress: "The site's address, {address}, isn't one this page can show the admin panel from.",
   sameOrigin:
     "The admin panel is at this page's own address, {address}, where it could read your sign-in. Give the sign-in page an address of its own.",
+  pinnedElsewhere:
+    "The site's settings say its admin panel is at {address}, but this sign-in page only shows it from {pinned}, as its broker.json says. If you moved the site, change broker.json's admin to the new address.",
+  movedTitle: "The admin panel has moved",
+  moved:
+    "Last time, this page showed the admin panel from {pinned}. The site's settings now say it's at {address}. Only go on if you or another owner changed the site's address: anyone who can edit the site can change its settings, and the page at that address would act as you.",
+  movedGoOn: "Go on to {address}",
   signedInAs: "Signed in as {name}",
   showing: "Showing {address}",
   aiKeys: "AI keys",
@@ -36,6 +42,9 @@ export const STRINGS = {
   confirmPlugin:
     "Installing the plugin {title} ({name} {release}), whose code is included when the site is built and runs on its pages. It asks to:",
   confirmPluginRemove: "Removing the plugin {name}.",
+  confirmThemeEarly: "Updating the theme {name} to {release}.",
+  confirmEarly:
+    "This installs {release} before it's three days old, skipping the wait that protects against harmful releases, since it says it was built by {repository} ({workflow}), as {from} was. The site's build checks that before it uses it.",
   pluginConnect: "Reach these addresses from the admin panel: {list}",
   pluginFiles: "Read and publish these files: {list}",
   pluginSecrets: "Get these secrets when the site is built: {list}",

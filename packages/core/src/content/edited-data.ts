@@ -320,6 +320,7 @@ export function checkPuckData(
     return { ok: false, problems: [{ path: "", message: "isn't a page's data" }] };
   }
   const problems: EditedDataProblem[] = [];
+  const ids = new Set<string>();
   const visit = (list: Json, path: string) => {
     if (!Array.isArray(list)) {
       problems.push({ path, message: "should be a list of blocks" });
@@ -335,6 +336,12 @@ export function checkPuckData(
       if (!block || (block.templateOnly && kind !== "template")) {
         problems.push({ path: at, message: `uses "${item.type}", which isn't one of the site's blocks here` });
         return;
+      }
+      // Puck draws every block with an id, so a second one would be drawn wherever checks only see the first.
+      const id = item.props.id;
+      if (typeof id === "string") {
+        if (ids.has(id)) problems.push({ path: `${at}.props.id`, message: "is another block's too" });
+        ids.add(id);
       }
       const fields = block.fields as Record<string, FieldJson>;
       for (const [name, field] of Object.entries(fields)) {

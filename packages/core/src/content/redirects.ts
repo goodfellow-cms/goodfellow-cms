@@ -66,6 +66,8 @@ const RESERVED_PREFIXES = [
   "/404.html",
   "/goodfellow-site.json",
   "/goodfellow-build.json",
+  "/sitemap.xml",
+  "/robots.txt",
 ];
 
 /** Characters a part of an old address can't have, since builds write a folder named after it. */
@@ -281,13 +283,18 @@ export function redirectFiles(
   content: Pick<SiteContent, "settings" | "redirects" | "redirectMessage"> & Partial<Pick<SiteContent, "pages">>,
   options: { taken?: Iterable<string>; base?: string } = {},
 ): RedirectFile[] {
-  const taken = new Set(options.taken ?? []);
+  // Pages, files and the first of two redirects win, whatever their capitals: `About/index.html` and
+  // `about/index.html` are one file on some computers and hosts, as `Media/` is `media/`.
+  const taken = new Set([...(options.taken ?? [])].map((path) => path.toLowerCase()));
   const redirects = content.redirects ?? [];
   const problems = redirectProblems(redirects);
   return redirects.flatMap((redirect, index) => {
     const from = redirectFrom(redirect.from);
     const to = redirectTarget(redirect.to);
-    if (problems[index] !== undefined || !from.ok || !to || taken.has(from.path)) return [];
+    if (problems[index] !== undefined || !from.ok || !to) return [];
+    const lower = from.path.toLowerCase();
+    if (taken.has(lower) || isReservedRedirect(lower)) return [];
+    taken.add(lower);
     return [
       {
         path: `/${redirectOutputFile(from.path)}`,
