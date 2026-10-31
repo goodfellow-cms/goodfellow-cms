@@ -256,6 +256,34 @@ describe("renderPage", () => {
     expect(plain).not.toContain("goodfellow-consent");
   });
 
+  it("counts visits with the site's service, waiting for visitors' agreement where the site asks", async () => {
+    const stats = { service: "goatcounter", endpoint: "https://parish.goatcounter.com/count" } as const;
+    const script =
+      '<script async="" data-goatcounter="https://parish.goatcounter.com/count" src="https://gc.zgo.at/count.js"></script>';
+    const head = (html: string) => html.slice(html.indexOf("<head>"), html.indexOf("</head>"));
+
+    const plain = await renderPage(makeContent({ settings: { ...settings, stats } }), makePage([]));
+    expect(head(plain)).toContain(script);
+    expect(plain).not.toContain("gf-consent");
+
+    const asks = siteSettingsSchema.parse({ ...settings, stats, consent: {} });
+    const held = await renderPage(makeContent({ settings: asks }), makePage([]));
+    expect(head(held)).toContain(
+      '<template data-gf-consent-code="head" data-gf-consent-kind="statistics"><script async data-goatcounter="https://parish.goatcounter.com/count" src="https://gc.zgo.at/count.js"></script></template>',
+    );
+    expect(held).toContain('data-gf-consent-kinds="content statistics"');
+
+    // Counting the site says needs no agreement loads straight away, and isn't asked about.
+    const needed = siteSettingsSchema.parse({ ...asks, stats: { ...stats, purpose: "needed" } });
+    const straight = await renderPage(makeContent({ settings: needed }), makePage([]));
+    expect(head(straight)).toContain(script);
+    expect(straight).toContain('data-gf-consent-kinds="content"');
+
+    // "Page not found" isn't counted.
+    const missing = await renderPage(makeContent({ settings: { ...settings, stats } }), makePage([], {}, "/404"));
+    expect(missing).not.toContain("goatcounter");
+  });
+
   it("renders the header and footer around the page", async () => {
     const html = await renderPage(
       makeContent({

@@ -1171,6 +1171,41 @@ export const strings: Strings = {
   "comments.intro":
     "Los comentarios de los visitantes se muestran en las páginas con el bloque Comentarios. Se guardan en GitHub, en un proyecto público propio, mediante Giscus, donde los visitantes inician sesión con una cuenta de GitHub para comentar, o en Disqus, donde inician sesión con Disqus u otra cuenta que ofrezca Disqus, o comentan como invitados si su configuración lo permite.",
   "comments.demo": "Los comentarios no se pueden configurar en la demostración.",
+  "settings.tab.stats": "Visitas",
+  "stats.intro":
+    "Cuenta cuántas personas visitan las páginas del sitio, y cuáles, con Plausible, Umami o GoatCounter. Cuentan sin cookies y guardan los números en sus propios sitios, donde los consultas. No se cuentan las visitas mientras pruebas el sitio en tu ordenador ni en el panel de administración.",
+  "stats.state.title": "Contando visitas",
+  "stats.state.counting":
+    "Las visitas a las páginas del sitio se cuentan con {service}. Los cambios aparecen en el sitio cuando se vuelve a generar.",
+  "stats.dashboard": "Abrir el panel de {service}",
+  "stats.consent.label": "Contar solo a quienes lo acepten",
+  "stats.consent.hint":
+    "En un sitio que pregunta primero a los visitantes (General → Consentimiento de los visitantes), el aviso pregunta por las estadísticas y las visitas solo se cuentan cuando el visitante lo permite. Desmárcalo solo si estás seguro de que la ley donde están tus visitantes te permite contar sin preguntar.",
+  "stats.consent.notAsking":
+    "El sitio todavía no pregunta primero a los visitantes (General → Consentimiento de los visitantes), así que las visitas se cuentan desde el principio.",
+  "stats.consent.onMessage": "Contar visitas solo cuando los visitantes lo acepten",
+  "stats.consent.offMessage": "Contar visitas sin preguntar",
+  "stats.change": "Cambiar",
+  "stats.stop": "Dejar de contar",
+  "stats.stop.title": "¿Dejar de contar visitas?",
+  "stats.stop.body":
+    "Las páginas del sitio dejarán de enviar las visitas a {service}. Los números que ya tienes se quedan en {service}.",
+  "stats.stop.message": "Dejar de contar visitas",
+  "stats.form.title": "Contar visitas",
+  "stats.service": "Servicio",
+  "stats.paste": "Código o datos",
+  "stats.paste.plausible":
+    "Pega el script que te da Plausible en Site settings → Site installation, o solo el dominio de tu sitio en Plausible, como example.org.",
+  "stats.paste.umami":
+    "Pega el código de seguimiento que te da Umami en Settings → Websites → Edit, o solo el ID del sitio web.",
+  "stats.paste.goatcounter":
+    "Pega el script que te da GoatCounter en Settings → Site code, o solo el código de tu sitio, como mysite para mysite.goatcounter.com.",
+  "stats.domain": "El dominio de tu sitio en Plausible",
+  "stats.domainHint": "Tal como aparece en Plausible, como example.org. Su panel se llama así.",
+  "stats.unreadable":
+    "Esto no parece el código de ese servicio. Comprueba que elegiste el servicio correcto y que lo pegaste entero. Solo funcionan direcciones https:// de internet.",
+  "stats.publish": "Empezar a contar",
+  "stats.message": "Contar visitas con {service}",
   "comments.local":
     "Los comentarios en GitHub se configuran desde el panel de administración del sitio publicado, que inicia sesión en GitHub. Las páginas de aquí los muestran en cuanto estén configurados. Disqus se puede configurar aquí.",
   "comments.unavailable":

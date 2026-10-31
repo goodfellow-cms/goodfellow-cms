@@ -4,7 +4,7 @@
 export { sanitizeHtml } from "@goodfellow-cms/core";
 export { ConsentFrame, ConsentScript } from "./consent.server.js";
 export { ConsentNotice } from "./consent-shared.js";
-export { BodyCode, HeadCode } from "./custom-code.js";
+export { BodyCode, HeadCode, StatsCode } from "./custom-code.js";
 export { cx } from "./cx.js";
 export {
   applyEntry,

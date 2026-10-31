@@ -10,6 +10,8 @@ import {
   type GoodfellowConfig,
   googleFontsUrl,
   heldCode,
+  heldStats,
+  neverIndexed,
   type Page,
   pageHead,
   robotsContent,
@@ -18,7 +20,7 @@ import {
 } from "@goodfellow-cms/core";
 import { fontStandIns, readStylesheet } from "@goodfellow-cms/core/node";
 import { prerender } from "react-dom/static";
-import { BodyCode, HeadCode } from "./custom-code.js";
+import { BodyCode, HeadCode, StatsCode } from "./custom-code.js";
 import { fillSlots } from "./island.js";
 import { ISLAND_TAG, SITE_DATA_ID } from "./island-shared.js";
 import { PageBody } from "./page-body.js";
@@ -31,6 +33,8 @@ export interface PageAssets {
   scripts?: string[];
   /** What pages with Client Components load to run them in the browser. Pages without any load nothing. */
   islands?: IslandAssets;
+  /** The page is for `goodfellow dev`, which never counts visits, so trying the site doesn't. */
+  development?: boolean;
 }
 
 export interface IslandAssets {
@@ -141,6 +145,9 @@ export function createPageRenderer(config: GoodfellowConfig) {
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: themeToCss escapes its output */}
           <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme, standIns) }} />
           <HeadCode code={content.code?.head} held={heldCode(settings.consent, "head")} siteUrl={settings.url} />
+          {!assets.development && !neverIndexed(page.path) && (
+            <StatsCode stats={settings.stats} held={heldStats(settings.consent, settings.stats)} />
+          )}
         </head>
         <body>
           <PageBody

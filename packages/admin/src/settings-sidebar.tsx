@@ -1,5 +1,6 @@
 import {
   Braces,
+  ChartColumn,
   CodeXml,
   FileInput,
   Globe,
@@ -43,6 +44,7 @@ export type SettingsPlace =
   | "updates"
   | "history"
   | "comments"
+  | "stats"
   | "import"
   | "security";
 
@@ -73,6 +75,7 @@ const SCREEN_ITEMS: SidebarItem[] = [
   { place: "updates", label: "settings.tab.updates", icon: RefreshCw },
   { place: "history", label: "settings.tab.history", icon: History },
   { place: "comments", label: "settings.tab.comments", icon: MessageSquare },
+  { place: "stats", label: "settings.tab.stats", icon: ChartColumn },
   { place: "import", label: "settings.tab.import", icon: FileInput },
   { place: "security", label: "settings.tab.security", icon: ShieldCheck },
 ];

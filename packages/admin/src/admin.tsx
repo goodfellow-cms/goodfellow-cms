@@ -56,6 +56,7 @@ import { type SettingsPlace, SettingsSidebar } from "./settings-sidebar.js";
 import { SignInGate } from "./sign-in.js";
 import { SiteHistoryScreen } from "./site-history-screen.js";
 import { isPreviewAddress, SitePreview } from "./site-preview.js";
+import { StatsScreen } from "./stats-screen.js";
 import { defaultStrings, type StringKey, type Strings, StringsProvider, useStrings } from "./strings.js";
 import { SyncedBlockEditorScreen, SyncedBlocksScreen } from "./synced-blocks-screen.js";
 import { setDarkMode, useApplyThemeChoice, useDarkMode } from "./theme.js";
@@ -197,6 +198,7 @@ function SettingsLayout({ sub, rest, params }: { sub?: string; rest: string[]; p
     updates: UpdatesScreen,
     history: SiteHistoryScreen,
     comments: CommentsScreen,
+    stats: StatsScreen,
     import: ImportScreen,
     security: SecurityScreen,
   } as const;
