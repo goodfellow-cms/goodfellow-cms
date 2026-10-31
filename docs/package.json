@@ -8,6 +8,7 @@
     "dev": "node scripts/starters.mjs && node scripts/llms.mjs && goodfellow dev",
     "build": "node scripts/starters.mjs && node scripts/llms.mjs && goodfellow build",
     "preview": "goodfellow preview",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

@@ -81,6 +81,8 @@ describe("Donate button", () => {
     expect(givingPage("javascript:alert(1)")).toBeUndefined();
     expect(givingPage("https://www.paypal.com/donate/?hosted_button_id=X")?.service).toBe("PayPal");
     expect(givingPage("https://give.example.org/")?.service).toBeUndefined();
+    expect(givingPage("https://github.com/sponsors/goodfellow-cms")?.service).toBe("GitHub Sponsors");
+    expect(givingPage("https://github.com/goodfellow-cms")?.service).toBeUndefined();
   });
 });
 

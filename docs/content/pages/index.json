@@ -389,6 +389,14 @@
         }
       },
       {
+        "type": "Sponsors",
+        "props": {
+          "id": "Sponsors-1",
+          "heading": "Sponsors",
+          "text": "Thank you to everyone who sponsors Goodfellow."
+        }
+      },
+      {
         "type": "SoftwareDetails",
         "props": {
           "id": "SoftwareDetails-1"

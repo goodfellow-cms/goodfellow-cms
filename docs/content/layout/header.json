@@ -59,6 +59,19 @@
                           }
                         },
                         {
+                          "type": "Donate",
+                          "props": {
+                            "id": "Donate-10",
+                            "align": "left",
+                            "buttonLabel": "Sponsor",
+                            "className": "",
+                            "heading": "",
+                            "showNote": false,
+                            "text": "",
+                            "url": "https://github.com/sponsors/goodfellow-cms"
+                          }
+                        },
+                        {
                           "type": "DarkModeSwitch",
                           "props": {
                             "id": "DarkModeSwitch-7",

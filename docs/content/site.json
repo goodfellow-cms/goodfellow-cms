@@ -44,6 +44,9 @@
       "bodyCategory": "sans-serif",
       "heading": "Fraunces",
       "headingCategory": "serif"
+    },
+    "parts": {
+      "gf-donate-button": "h-9 px-4 text-sm"
     }
   },
   "title": "Goodfellow CMS",
