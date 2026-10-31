@@ -268,11 +268,12 @@ export async function writeImageFiles(outDir: string, root = process.cwd()): Pro
   return writeImageSizes(dir, outDir, { resize: await sharpResizer() });
 }
 
-/** Makes the copies with sharp, turned as each photo's details say and without them, unless it can't load here. */
+/** Makes the copies with sharp, as WebP, turned as each photo's details say and without them, unless it can't load here. */
 async function sharpResizer(): Promise<ImageResizer | undefined> {
   try {
     const { default: sharp } = await import("sharp");
-    return async (image, width) => new Uint8Array(await sharp(image).rotate().resize({ width }).toBuffer());
+    return async (image, width) =>
+      new Uint8Array(await sharp(image).rotate().resize({ width }).webp({ quality: 80 }).toBuffer());
   } catch {
     return undefined;
   }

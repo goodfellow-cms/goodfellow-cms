@@ -90,9 +90,11 @@ function SectionView({
   minHeight = "none",
   className,
 }: Omit<SectionProps, "content"> & { content: SlotComponent }) {
-  const { base } = useSite();
+  const { base, focus: focalPoints } = useSite();
   const part = useParts();
   const image = backgroundImage && withBase(backgroundImage, base);
+  // The media library's focal point, where the Section's own "Keep in view" is left in the middle.
+  const position = image && focus === "center" ? focalPoints?.[backgroundImage] : undefined;
   const tinted = overlay !== "none";
   return (
     <section
@@ -104,7 +106,11 @@ function SectionView({
         tinted && overlayTextClasses[overlay],
         className,
       )}
-      style={image ? { backgroundImage: `url(${JSON.stringify(image)})` } : undefined}
+      style={
+        image
+          ? { backgroundImage: `url(${JSON.stringify(image)})`, ...(position && { backgroundPosition: position }) }
+          : undefined
+      }
     >
       {tinted && (
         <span

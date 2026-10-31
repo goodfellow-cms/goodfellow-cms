@@ -67,9 +67,10 @@ export interface ImageSizesResult {
 /**
  * Writes the smaller copies of the media library's photos that pages list in
  * their `srcset` (see `imageSrcSet()`) into a built site, at each of `widths`
- * smaller than the photo: `dist/media-sizes/800/photo.jpg`. A photo that can't
- * be made smaller, or every one without a `resize`, is copied as it is, so
- * every address pages list is there. Copies already there are kept.
+ * smaller than the photo, as WebP: `dist/media-sizes/800/photo.jpg.webp`. A
+ * photo that can't be made smaller, or every one without a `resize`, is
+ * copied as it is, so every address pages list is there (browsers read an
+ * image by what it is, not its name). Copies already there are kept.
  */
 export async function writeImageSizes(
   root: string,

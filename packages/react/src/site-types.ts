@@ -115,6 +115,12 @@ export interface SiteContextValue {
    * image's `alt` empty and doesn't hide it with `aria-hidden`.
    */
   descriptions?: Record<string, string>;
+  /**
+   * The media library's focal points of the images the page shows, as CSS
+   * positions (`30% 60%`), by address, which `SiteImage` and backgrounds keep
+   * in view wherever they're cut to fit.
+   */
+  focus?: Record<string, string>;
   /** In the admin panel's editor only: links to its screens, so a block's note can say where to fix something. */
   adminLink?: (place: AdminPlace) => AdminLinkProps;
   /**

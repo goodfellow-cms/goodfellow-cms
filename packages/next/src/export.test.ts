@@ -131,8 +131,8 @@ describe("writeImageFiles", () => {
 
     await write(`site/.next/${IMAGE_SIZES_MARK}`, "");
     expect(await writeImageFiles(join(out, "out"), join(out, "site"))).toEqual({ written: 2, failed: [] });
-    const copy = await sharp(await readFile(join(out, "out/media-sizes/480/hall.jpg"))).metadata();
-    expect([copy.width, copy.height]).toEqual([480, 240]);
+    const copy = await sharp(await readFile(join(out, "out/media-sizes/480/hall.jpg.webp"))).metadata();
+    expect([copy.format, copy.width, copy.height]).toEqual(["webp", 480, 240]);
   });
 
   it("reads the mark where next build wrote, with a distDir of the site's own", async () => {

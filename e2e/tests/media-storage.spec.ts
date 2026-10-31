@@ -65,7 +65,8 @@ test("keeps media in a plugin's storage, and moves the site's own media there an
   const upload = page.getByLabel("Upload files", { exact: true });
   await upload.setInputFiles({ name: "Refused.mp4", mimeType: "video/mp4", buffer: Buffer.from("video") });
   await expect(page.getByText("Keeper couldn't keep refused.mp4.")).toBeVisible({ timeout: 15_000 });
-  await page.getByText("Details", { exact: true }).click();
+  // The upload problem's own Details, not a file's Details button.
+  await page.locator("summary").getByText("Details", { exact: true }).click();
   await expect(page.getByText("Keeper won't keep /media/refused.mp4.")).toBeVisible();
 
   // Uploads are signed by the plugin's task, go to the storage, and the site lists them.

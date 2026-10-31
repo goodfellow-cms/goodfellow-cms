@@ -18,6 +18,11 @@ overrides:
   "@expo/code-signing-certificates>node-forge": "^1.4.1"
   # Express, which the MCP SDK uses, asks for qs 6.16.0; 6.16.1 fixes GHSA-6pq8-jhm2-2vcw.
   "express>qs": "^6.16.1"
+  # Sigstore's packages (cacache and @tufjs/models) and Expo's tools ask for glob 13
+  # and minimatch 10; glob 14.0.2 fixes GHSA-3g3m-2fjr-6pw4 and minimatch 11.0.1
+  # fixes GHSA-g3hv-75wg-m249, and both keep the functions they call.
+  "glob@<14.0.2": "^14.0.2"
+  "minimatch@<11.0.1": "^11.0.1"
 
 auditConfig:
   ignoreGhsas:

@@ -184,8 +184,8 @@ test("describes an image once, for every block that leaves its description empty
   await page.goto("/admin#/media");
   const card = page.locator(".gfa-media-card", { hasText: "placeholder.svg" });
   await expect(card).toContainText("No description yet");
-  await card.getByRole("button", { name: "Describe" }).click();
-  const dialog = page.getByRole("dialog", { name: "Describe placeholder.svg" });
+  await card.getByRole("button", { name: "Details" }).click();
+  const dialog = page.getByRole("dialog", { name: "Details of placeholder.svg" });
   await dialog.getByLabel("Description").fill("A hillside in the sun");
   await dialog.getByRole("button", { name: "Publish" }).click();
   await expect(dialog).toBeHidden();
@@ -223,4 +223,76 @@ test("deletes several files at once", async ({ page }) => {
   expect(existsSync(join(site, "public/media/rota.pdf"))).toBe(false);
   // Choosing ends with the delete.
   await expect(page.getByRole("button", { name: "Select files" })).toBeVisible();
+});
+
+test("keeps an image's focal point in view, and tags files to find them by", async ({ page }) => {
+  await page.goto("/admin#/media");
+  const card = page.locator(".gfa-media-card", { hasText: "placeholder.svg" });
+  await card.getByRole("button", { name: "Details" }).click();
+  const dialog = page.getByRole("dialog", { name: "Details of placeholder.svg" });
+  // Clicking a quarter of the way across and three quarters down.
+  const picture = dialog.getByRole("button", { name: "placeholder.svg: choose its focal point" });
+  const shownPicture = picture.locator("img");
+  await expect.poll(() => shownPicture.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  const size = await shownPicture.evaluate((image) => ({ width: image.clientWidth, height: image.clientHeight }));
+  await shownPicture.click({ position: { x: size.width * 0.25, y: size.height * 0.75 } });
+  await expect(dialog).toContainText(/2[45](\.\d)?% · 7[45](\.\d)?%/);
+  const tags = dialog.getByLabel("Tags");
+  await tags.fill("Events");
+  await tags.press("Enter");
+  await tags.fill("Parish life,");
+  await dialog.getByRole("button", { name: "Publish" }).click();
+  await expect(dialog).toBeHidden();
+  const media = JSON.parse(readSiteFile("content/media.json"));
+  expect(media.focus["/media/placeholder.svg"].x).toBeCloseTo(25, 0);
+  expect(media.focus["/media/placeholder.svg"].y).toBeCloseTo(75, 0);
+  expect(media.tags).toEqual({ "/media/placeholder.svg": ["Events", "Parish life"] });
+
+  // The Media screen shows only the files with a tag.
+  await expect(card).toContainText("Events · Parish life");
+  await page.getByRole("group", { name: "Show files tagged" }).getByRole("button", { name: "Events" }).click();
+  await expect(page.locator(".gfa-media-name")).toHaveText(["placeholder.svg"]);
+
+  // Pages cut the image around its focal point.
+  await page.goto("/about");
+  const shown = page.locator('main img[src="/media/placeholder.svg"]');
+  await expect(shown).toHaveAttribute("style", /object-position: ?2[45](\.\d)?% 7[45](\.\d)?%/);
+});
+
+test("tags several files at once", async ({ page }) => {
+  await page.goto("/admin#/media");
+  await page.getByRole("button", { name: "Select files" }).click();
+  await page.getByLabel("Select logo.svg").check();
+  await page.getByLabel("Select placeholder.svg").check();
+  await page.getByRole("button", { name: "Tag selected (2)" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tag 2 files" });
+  await dialog.getByLabel("Add these tags").fill("Brand");
+  await dialog.getByLabel("Add these tags").press("Enter");
+  await dialog.getByRole("button", { name: "Publish" }).click();
+  await expect(dialog).toBeHidden();
+  expect(JSON.parse(readSiteFile("content/media.json")).tags).toEqual({
+    "/media/logo.svg": ["Brand"],
+    "/media/placeholder.svg": ["Brand"],
+  });
+});
+
+test("crops and turns a photo, saving it as a new image", async ({ page }) => {
+  await page.goto("/admin#/media");
+  const photo = await makeImage(page, 800, 600);
+  await uploadInput(page).setInputFiles({ name: "hall.jpg", mimeType: "image/jpeg", buffer: photo });
+  await expect(page.getByText("Uploaded.", { exact: false })).toBeVisible();
+
+  await page.locator(".gfa-media-card", { hasText: "hall.jpg" }).getByRole("button", { name: "Details" }).click();
+  await page.getByRole("dialog", { name: "Details of hall.jpg" }).getByRole("button", { name: "Crop or turn" }).click();
+  const dialog = page.getByRole("dialog", { name: "Crop or turn hall.jpg" });
+  await dialog.getByLabel("Shape").selectOption("square");
+  await expect(dialog).toContainText("600 × 600 pixels");
+  await dialog.getByRole("button", { name: "Turn right" }).click();
+  await expect(dialog).toContainText("600 × 600 pixels");
+  await dialog.getByRole("button", { name: "Save as a new image" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText("Saved hall-cropped.jpg.")).toBeVisible();
+  expect(existsSync(join(site, "public/media/hall-cropped.jpg"))).toBe(true);
+  expect(existsSync(join(site, "public/media/hall.jpg"))).toBe(true);
+  await expect.poll(() => imageSize(page, "/media/hall-cropped.jpg").catch(() => null)).toEqual([600, 600]);
 });

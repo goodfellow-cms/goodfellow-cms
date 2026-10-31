@@ -12,6 +12,7 @@ import {
   type Page,
   pageCredits,
   pageDescriptions,
+  pageFocus,
   pageLanguage,
   pageLinks,
   type SiteContent,
@@ -169,8 +170,13 @@ export async function prepareLayout(
   ]);
   const rebase = rebaser(options, content.settings);
   const descriptions = pageDescriptions(content, [header, footer], content.settings.language);
+  const focus = pageFocus(content, [header, footer]);
   return {
-    site: Object.keys(descriptions).length > 0 ? { ...site, descriptions } : site,
+    site: {
+      ...site,
+      ...(Object.keys(descriptions).length > 0 && { descriptions }),
+      ...(Object.keys(focus).length > 0 && { focus }),
+    },
     layoutConfig: configs.layout,
     header: rebase(header),
     footer: rebase(footer),
@@ -218,12 +224,14 @@ export async function preparePage(
   const credits = pageCredits(content, [data, header, footer]);
   // What the images it shows look like, for those whose blocks leave it empty.
   const descriptions = pageDescriptions(content, [data, header, footer], settings.language);
+  const focus = pageFocus(content, [data, header, footer]);
   const structured = structuredDataScript(structuredData(loaded, page, todayIn(settings.timeZone)));
   return {
     site: {
       ...site,
       ...(credits.length > 0 && { credits }),
       ...(Object.keys(descriptions).length > 0 && { descriptions }),
+      ...(Object.keys(focus).length > 0 && { focus }),
     },
     page: applied,
     pageConfig,

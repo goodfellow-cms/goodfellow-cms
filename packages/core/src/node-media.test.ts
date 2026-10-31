@@ -68,8 +68,8 @@ describe("writeImageSizes", () => {
     });
     expect(result).toEqual({ written: 2, failed: [] });
     expect(asked.sort()).toEqual([480, 800]);
-    expect(await readFile(join(out, "media-sizes/480/news/hall.png"), "utf8")).toBe("480 wide");
-    expect(await readFile(join(out, "media-sizes/800/news/hall.png"), "utf8")).toBe("800 wide");
+    expect(await readFile(join(out, "media-sizes/480/news/hall.png.webp"), "utf8")).toBe("480 wide");
+    expect(await readFile(join(out, "media-sizes/800/news/hall.png.webp"), "utf8")).toBe("800 wide");
     // Copies already there are kept.
     expect(await writeImageSizes(root, out, { resize: async () => new Uint8Array() })).toEqual({
       written: 0,
@@ -85,7 +85,9 @@ describe("writeImageSizes", () => {
       },
     });
     expect(result).toEqual({ written: 2, failed: ["/media/news/hall.png"] });
-    expect([...(await readFile(join(elsewhere, "media-sizes/800/news/hall.png")))]).toEqual([...pngHeader(1000, 500)]);
+    expect([...(await readFile(join(elsewhere, "media-sizes/800/news/hall.png.webp")))]).toEqual([
+      ...pngHeader(1000, 500),
+    ]);
     expect(await writeImageSizes(root, join(root, "without"))).toEqual({
       written: 2,
       failed: ["/media/news/hall.png"],

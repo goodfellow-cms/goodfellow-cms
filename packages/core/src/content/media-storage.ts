@@ -152,6 +152,9 @@ export function withStoredMedia(content: SiteContent): SiteContent {
         Object.entries(content.descriptions).map(([url, description]) => [map(url), description]),
       ),
     }),
+    ...(content.focus && {
+      focus: Object.fromEntries(Object.entries(content.focus).map(([url, point]) => [map(url), point])),
+    }),
   };
 }
 

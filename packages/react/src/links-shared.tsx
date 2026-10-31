@@ -46,11 +46,17 @@ export function createSiteLinks(useSite: () => SiteContextValue) {
    * the size of, such as an SVG logo, gets its `width` and `height` too.
    */
   function SiteImage(given: SiteImageProps) {
-    const { base, components, media, imageWidths, descriptions } = useSite();
+    const { base, components, media, imageWidths, descriptions, focus } = useSite();
     // An empty description takes the media library's, unless the image is only there to look nice.
     const hidden = given["aria-hidden"] === true || given["aria-hidden"] === "true" || given.role === "presentation";
     const described = given.alt === "" && !hidden ? descriptions?.[given.src] : undefined;
-    const props = described ? { ...given, alt: described } : given;
+    // Its focal point stays in view wherever it's cut to fit, unless the block places it itself.
+    const position = focus?.[given.src];
+    const placed = position && !given.style?.objectPosition ? { ...given.style, objectPosition: position } : undefined;
+    const props =
+      described || placed
+        ? { ...given, ...(described && { alt: described }), ...(placed && { style: placed }) }
+        : given;
     const size = media?.[props.src];
     const src = withBase(props.src, base);
     const srcSet = imageWidths && imageSrcSet(props.src, size, imageWidths);

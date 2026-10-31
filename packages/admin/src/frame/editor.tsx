@@ -9,6 +9,7 @@ import {
   contentInLanguage,
   describedIn,
   findEntry,
+  focusPosition,
   hasLanguages,
   languageHome,
   languageLinks,
@@ -342,6 +343,9 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
             describedIn(description, content.settings.language),
           ]),
         ),
+      }),
+      ...(content.focus && {
+        focus: Object.fromEntries(Object.entries(content.focus).map(([url, point]) => [url, focusPosition(point)])),
       }),
       adminLink,
       callPlugin,

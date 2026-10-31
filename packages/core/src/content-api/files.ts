@@ -5,7 +5,7 @@
  * `preparePage()` leaves it), never the content files as they're stored.
  */
 
-import { describedIn, type PageCredit } from "../content/credits.js";
+import { describedIn, focusPosition, type PageCredit } from "../content/credits.js";
 import type { LanguageLink } from "../content/language-map.js";
 import { contentInLanguage, languagePrefix, mainLanguage, siteLanguages } from "../content/languages.js";
 import type { Page, SiteContent } from "../content/load.js";
@@ -86,6 +86,8 @@ export interface ApiSiteFile {
   pages: PageLink[];
   /** The media library's descriptions of its images in this language, by address, for images whose blocks leave theirs empty. */
   descriptions?: Record<string, string>;
+  /** The media library's focal points of its images, as CSS positions (`30% 60%`), by address. */
+  focus?: Record<string, string>;
 }
 
 /** An item, as `/api/collections.json` has it. */
@@ -393,6 +395,9 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
         descriptions: Object.fromEntries(
           Object.entries(content.descriptions).map(([url, description]) => [url, describedIn(description, code)]),
         ),
+      }),
+      ...(content.focus && {
+        focus: Object.fromEntries(Object.entries(content.focus).map(([url, point]) => [url, focusPosition(point)])),
       }),
     };
     languages[code] = {

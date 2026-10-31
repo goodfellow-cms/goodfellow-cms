@@ -1614,8 +1614,159 @@ body,
   font-weight: 600;
 }
 
-.gfa-media-describe-thumb {
-  max-height: 200px;
+.gfa-media-tags {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--gfa-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* An image's focal point: the picture, clicked where it must stay in view, with a dot there. */
+.gfa-focus-picker {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  cursor: crosshair;
+  background: repeating-conic-gradient(var(--gfa-checker) 0 25%, var(--gfa-checker-alt) 0 50%) 50% / 16px 16px;
+  border: 1px solid var(--gfa-border);
+  border-radius: 4px;
+}
+
+.gfa-focus-picker img {
+  display: block;
+  /* SVGs that give only their shape would otherwise have no width in a box that takes the picture's. */
+  min-width: 200px;
+  max-width: 100%;
+  max-height: 280px;
+  user-select: none;
+}
+
+.gfa-focus-dot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: var(--gfa-accent);
+  border: 3px solid var(--gfa-surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--gfa-text);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.gfa-focus-actions {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.gfa-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gfa-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gfa-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 10px;
+  font-size: 13px;
+  background: var(--gfa-bg);
+  border: 1px solid var(--gfa-border);
+  border-radius: 999px;
+}
+
+.gfa-tag-remove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font: inherit;
+  line-height: 1;
+  color: var(--gfa-muted);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 50%;
+}
+
+.gfa-tag-remove:hover,
+.gfa-tag-remove:focus-visible {
+  color: var(--gfa-text);
+  background: var(--gfa-surface);
+}
+
+.gfa-tag-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+}
+
+.gfa-tag-filter legend {
+  float: left;
+  margin-right: 8px;
+}
+
+.gfa-crop-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The picture being cropped, with the box that keeps part of it over it. */
+.gfa-crop-area {
+  position: relative;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
+  touch-action: none;
+  background: repeating-conic-gradient(var(--gfa-checker) 0 25%, var(--gfa-checker-alt) 0 50%) 50% / 16px 16px;
+}
+
+.gfa-crop-area canvas {
+  display: block;
+  max-width: 100%;
+}
+
+.gfa-crop-box {
+  position: absolute;
+  padding: 0;
+  cursor: move;
+  background: transparent;
+  border: 2px solid var(--gfa-accent-text);
+  outline: 1px solid var(--gfa-accent);
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.5);
+}
+
+.gfa-crop-box:focus-visible {
+  outline: 3px solid var(--gfa-accent);
+}
+
+.gfa-crop-handle {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  background: var(--gfa-accent);
+  border: 2px solid var(--gfa-accent-text);
+  border-radius: 3px;
 }
 
 .gfa-media-chooser {

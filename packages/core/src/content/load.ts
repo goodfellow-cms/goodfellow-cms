@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import { type ContentKind, migrateContent } from "../migrations/index.js";
 import { type Collection, type Entry, entryFieldProblems, sortCollectionEntries } from "./collections.js";
-import { type MediaDescription, mediaFileSchema, type PhotoCredit } from "./credits.js";
+import { type MediaDescription, type MediaFocus, mediaFileSchema, type PhotoCredit } from "./credits.js";
 import { ContentError, type ContentProblem } from "./errors.js";
 import { entryLanguage, entryPathIn, isOtherLanguage, siteLanguages } from "./languages.js";
 import { parseMarkdownEntry } from "./markdown.js";
@@ -113,6 +113,10 @@ export interface SiteContent {
   credits?: Record<string, PhotoCredit>;
   /** Images' descriptions, by address (`content/media.json`), which images use where a block leaves theirs empty. Missing means none. */
   descriptions?: Record<string, MediaDescription>;
+  /** Images' focal points, by address (`content/media.json`), which stay in view wherever they're cut to fit. Missing means none. */
+  focus?: Record<string, MediaFocus>;
+  /** Files' tags, by address (`content/media.json`), which sort the media library. Missing means none. */
+  mediaTags?: Record<string, string[]>;
   /** The media a plugin keeps outside the repository (`content/media-storage.json`). Missing means none. */
   mediaStorage?: MediaStorage;
   /** What each editor may change, and who reviews the rest (`content/permissions.json`). Missing means no limits. */
@@ -340,6 +344,8 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     ...(redirectsFile.message !== undefined && { redirectMessage: redirectsFile.message }),
     credits: mediaFile.credits,
     ...(mediaFile.descriptions && { descriptions: mediaFile.descriptions }),
+    ...(mediaFile.focus && { focus: mediaFile.focus }),
+    ...(mediaFile.tags && { mediaTags: mediaFile.tags }),
     ...(storageFile && {
       mediaStorage: { plugin: storageFile.plugin, url: storageFile.url, files: storageFile.files },
     }),

@@ -7,7 +7,13 @@ import type { ImageSize } from "./image-size.js";
  */
 export const IMAGE_WIDTHS: readonly number[] = [480, 800, 1200, 1600];
 
-/** Where builds write the smaller copies, beside `media/`: `/media/a/photo.jpg` at 800 is `/media-sizes/800/a/photo.jpg`. */
+/**
+ * Where builds write the smaller copies, beside `media/`, as WebP, which is a
+ * third or so smaller than the same photo as a JPEG: `/media/a/photo.jpg` at
+ * 800 is `/media-sizes/800/a/photo.jpg.webp`, keeping the photo's own name so
+ * `photo.jpg` and `photo.png` don't share one. The photo itself, in `src`,
+ * stays as it was uploaded.
+ */
 export const MEDIA_SIZES_DIR = "media-sizes";
 
 /** The media library's files builds make smaller copies of: photos a browser can show, but not GIFs, which may move. */
@@ -25,7 +31,7 @@ export function imageWidths(
 
 /** The address of the copy of the media library's image at `src` that's `width` wide. */
 export function imageVariantPath(src: string, width: number): string {
-  return `/${MEDIA_SIZES_DIR}/${width}/${src.slice("/media/".length)}`;
+  return `/${MEDIA_SIZES_DIR}/${width}/${src.slice("/media/".length)}.webp`;
 }
 
 /**
