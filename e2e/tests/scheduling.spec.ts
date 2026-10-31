@@ -104,9 +104,9 @@ test("leaves pages out of the site until they're shown, and their links out of m
     /<nav aria-label="main"[\s\S]*?<\/nav>/.exec(await (await page.request.get("/")).text())?.[0];
   writeSiteFile("content/pages/about.json", `${JSON.stringify({ ...about, showFrom: "2099-11-29T09:00" }, null, 2)}\n`);
   expect((await page.request.get("/about")).status()).toBe(404);
-  expect(await menu()).not.toContain('href="/about"');
+  expect(await menu()).not.toContain('href="/about/"');
 
   writeSiteFile("content/pages/about.json", `${JSON.stringify({ ...about, showFrom: "2000-01-01T00:00" }, null, 2)}\n`);
   expect((await page.request.get("/about")).status()).toBe(200);
-  expect(await menu()).toContain('href="/about"');
+  expect(await menu()).toContain('href="/about/"');
 });

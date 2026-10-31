@@ -148,7 +148,7 @@ test("changes a page's address, updates links to it, and sends visitors on from 
   expect(readJson("content/redirects.json")).toEqual({ version: 1, redirects: [{ from: "/about", to: "/about-us" }] });
 
   await page.goto("/about");
-  await expect(page).toHaveURL(/\/about-us$/);
+  await expect(page).toHaveURL(/\/about-us\/$/);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 

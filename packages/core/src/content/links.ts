@@ -14,15 +14,8 @@ import { isScriptUrl } from "../external-links.js";
 import type { Collection } from "./collections.js";
 import { allPages, type SiteContent } from "./load.js";
 import { markdownToHtml } from "./markdown.js";
-import {
-  FOOTER_FILE,
-  HEADER_FILE,
-  languageLayoutFile,
-  MENUS_FILE,
-  REDIRECTS_FILE,
-  RESERVED_PAGE_PATHS,
-  SITE_FILE,
-} from "./paths.js";
+import { linkTarget } from "./page-address.js";
+import { FOOTER_FILE, HEADER_FILE, languageLayoutFile, MENUS_FILE, REDIRECTS_FILE, SITE_FILE } from "./paths.js";
 import type { MenuItem, Menus } from "./schemas.js";
 
 type Blocks = Record<string, ComponentConfig> | undefined;
@@ -32,28 +25,6 @@ export interface LinkVisitor {
   link(link: string): string;
   /** A Markdown body, which is Markdown's own to read. Defaults to changing its links with `link`. */
   markdown?(markdown: string): string;
-}
-
-/** Addresses on the site that aren't pages or media, which links aren't checked or moved. */
-const NOT_PAGES = ["/calendars/", "/pagefind/", "/__goodfellow/"];
-
-/** Where a link goes on the site, or `undefined` for a link elsewhere, or to a file only the build knows about. */
-export function linkTarget(link: string): { kind: "page" | "media"; path: string } | undefined {
-  const raw = link.trim().split("#")[0]?.split("?")[0] ?? "";
-  if (!raw.startsWith("/") || raw.startsWith("//") || /\s/.test(raw)) return undefined;
-  let path: string;
-  try {
-    path = decodeURI(raw);
-  } catch {
-    path = raw;
-  }
-  if (path.startsWith("/media/")) return path.length > "/media/".length ? { kind: "media", path } : undefined;
-  if (NOT_PAGES.some((prefix) => path.startsWith(prefix))) return undefined;
-  if (RESERVED_PAGE_PATHS.some((reserved) => path === reserved || path.startsWith(`${reserved}/`))) return undefined;
-  // Other files, such as /favicon.ico or a feed, are the site's code's: only the build knows they're there.
-  if (/\.[a-z0-9]+$/i.test(path.split("/").at(-1) ?? "")) return undefined;
-  const trimmed = path.replace(/\/+$/, "");
-  return { kind: "page", path: trimmed || "/" };
 }
 
 const ATTRIBUTE = /\b(href|src|poster)(\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi;

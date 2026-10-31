@@ -35,7 +35,7 @@ test("shows a documentation page with its navigation, headings and highlighted, 
   ).toHaveAttribute("href", "#try-it-on-your-computer");
   await expect(page.getByRole("link", { name: /Next\s*Put it online/ })).toHaveAttribute(
     "href",
-    "/goodfellow-cms/docs/put-it-online",
+    "/goodfellow-cms/docs/put-it-online/",
   );
 
   const code = page.locator("figure.gf-code").first();

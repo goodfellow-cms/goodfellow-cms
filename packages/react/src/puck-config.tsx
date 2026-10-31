@@ -88,6 +88,31 @@ const pageRootFields: Fields = {
       { label: "Hide from search results", value: true },
     ],
   },
+  noFollow: {
+    type: "radio",
+    label: "This page's links",
+    options: [
+      { label: "Search engines follow them", value: false },
+      { label: "Ask search engines not to follow them", value: true },
+    ],
+  },
+  noSnippet: {
+    type: "radio",
+    label: "Text under the title in search results",
+    options: [
+      { label: "Show some of the page's text", value: false },
+      { label: "Show none", value: true },
+    ],
+  },
+  card: {
+    type: "select",
+    label: "Picture size when shared",
+    options: [
+      { label: "Large where the page has a picture", value: "auto" },
+      { label: "Large", value: "large" },
+      { label: "Small", value: "small" },
+    ],
+  },
   className: classNameField,
 };
 

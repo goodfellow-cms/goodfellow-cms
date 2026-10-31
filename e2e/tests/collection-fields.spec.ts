@@ -58,7 +58,7 @@ test("ticks yes or no and links to other items, which the page shows by their ti
     fields: { featured: true, related: ["open-house"], schedule: [{ time: "9:00", place: "Hall" }] },
   });
   const html = await (await request.get("/news/welcome")).text();
-  expect(html).toMatch(/href="\/news\/open-house"[^>]*>Open house this Saturday<\/a>/);
+  expect(html).toMatch(/href="\/news\/open-house\/"[^>]*>Open house this Saturday<\/a>/);
   expect(html).toContain(">Hall</span>");
 });
 

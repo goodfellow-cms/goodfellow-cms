@@ -270,7 +270,7 @@ function FormView({ isEditing, id, ...stored }: FormProps & { isEditing: boolean
     );
   }
 
-  const redirect = formRedirect(settings.url, props.thankYou);
+  const redirect = formRedirect(settings.url, props.thankYou, settings.trailingSlash !== false);
   const target = formTarget(settings.forms, {
     subject: props.title.trim() || undefined,
     from: settings.title,

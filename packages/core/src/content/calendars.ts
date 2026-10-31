@@ -5,7 +5,7 @@
  */
 
 import { isEventLike } from "../calendar.js";
-import { absoluteUrl } from "../head.js";
+import { pageUrl } from "../head.js";
 import { type CalendarEvent, calendarFile } from "../ics.js";
 import { type Collection, entryTitle, richTextToPlainText } from "./collections.js";
 import { contentInLanguage, settingsPrefix, siteLanguages } from "./languages.js";
@@ -68,7 +68,7 @@ export interface CollectionEvent extends CalendarEvent {
 }
 
 /** A calendar collection's events, for its calendar files. */
-export function collectionEvents(collection: Collection, siteUrl?: string): CollectionEvent[] {
+export function collectionEvents(collection: Collection, siteUrl?: string, trailingSlash = true): CollectionEvent[] {
   const calendar = collection.settings.calendar;
   if (!calendar) return [];
   const host = siteUrl ? new URL(siteUrl).hostname : "goodfellow.invalid";
@@ -85,7 +85,7 @@ export function collectionEvents(collection: Collection, siteUrl?: string): Coll
         event,
         ...(place && { place }),
         ...(description && { description }),
-        ...(siteUrl && entry.path && { url: absoluteUrl(siteUrl, entry.path) }),
+        ...(siteUrl && entry.path && { url: pageUrl({ trailingSlash }, siteUrl, entry.path) }),
       },
     ];
   });
@@ -114,7 +114,7 @@ function languageCalendarFiles(content: SiteContent, now: Date): BuildFile[] {
   const options = { timeZone: settings.timeZone, now };
   const prefix = settingsPrefix(settings);
   return calendarCollections(content).flatMap((collection) => {
-    const events = collectionEvents(collection, settings.url);
+    const events = collectionEvents(collection, settings.url, settings.trailingSlash !== false);
     const name = `${collection.settings.name} – ${settings.title}`;
     // A site in one language has a file for each collection; in several, one for each language that has events.
     if (prefix && events.length === 0) return [];

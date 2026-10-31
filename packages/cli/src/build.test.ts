@@ -72,7 +72,7 @@ describe("build", () => {
   it("applies the config's base path to every root-relative URL", async () => {
     const html = await read("index.html");
     expect(html).toMatch(/<link rel="stylesheet" href="\/from-config\/assets\/styles-[\w-]+\.css"\/>/);
-    expect(html).toContain('href="/from-config/news"');
+    expect(html).toContain('href="/from-config/news/"');
   });
 
   it("builds CSS that includes classes from the content and config, plus custom CSS", async () => {
@@ -91,7 +91,7 @@ describe("build", () => {
     expect(islands).toEqual({ runtime: "react", because: "components", needReact: ["blocks/counter.tsx"] });
     const news = await read("news/index.html");
     expect(news).toMatch(
-      /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked!<!-- --> <!-- -->0<!-- --> times on <!-- -->\/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news">News<\/a><\/div><\/gf-island>/,
+      /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked!<!-- --> <!-- -->0<!-- --> times on <!-- -->\/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news\/">News<\/a><\/div><\/gf-island>/,
     );
     expect(news).toContain('"base":"/from-config/"');
     const script = news.match(
@@ -119,8 +119,8 @@ describe("build", () => {
 
   it("writes a page at each old address that sends visitors on, where no page is", async () => {
     const html = await read("old-news/index.html");
-    expect(html).toContain('<meta http-equiv="refresh" content="0; url=/from-config/news">');
-    expect(html).toContain('<link rel="canonical" href="https://example.org/site/news">');
+    expect(html).toContain('<meta http-equiv="refresh" content="0; url=/from-config/news/">');
+    expect(html).toContain('<link rel="canonical" href="https://example.org/site/news/">');
     expect(await read("2019/talk.html")).toContain('content="0; url=https://talks.example.org/hope"');
     // The page at /news wins over the redirect from it.
     expect(await read("news/index.html")).not.toContain("http-equiv");
@@ -132,8 +132,8 @@ describe("build", () => {
     // Each old address without and with a trailing slash, with the base path, and none from /news, a page's.
     expect(await read("_redirects")).toBe(
       [
-        "/from-config/old-news /from-config/news 301",
-        "/from-config/old-news/ /from-config/news 301",
+        "/from-config/old-news /from-config/news/ 301",
+        "/from-config/old-news/ /from-config/news/ 301",
         "/from-config/2019/talk.html https://talks.example.org/hope 301",
         "",
       ].join("\n"),
@@ -151,8 +151,8 @@ describe("build", () => {
   it("writes a sitemap and robots.txt when the site's address is set", async () => {
     const sitemap = await read("sitemap.xml");
     expect(sitemap).toContain("<loc>https://example.org/site/</loc>");
-    expect(sitemap).toContain("<loc>https://example.org/site/news</loc>");
-    expect(sitemap).toContain("<loc>https://example.org/site/talks/hope</loc>");
+    expect(sitemap).toContain("<loc>https://example.org/site/news/</loc>");
+    expect(sitemap).toContain("<loc>https://example.org/site/talks/hope/</loc>");
     expect(sitemap).not.toContain("404");
     // Pages hidden from search engines are built, but not in the sitemap.
     expect(sitemap).not.toContain("private");
@@ -161,7 +161,7 @@ describe("build", () => {
   });
 
   it("writes feeds of dated collections, and tells search engines about the site and its items", async () => {
-    expect(await read("feeds/talks.rss")).toContain("<link>https://example.org/site/talks/hope</link>");
+    expect(await read("feeds/talks.rss")).toContain("<link>https://example.org/site/talks/hope/</link>");
     expect(await read("feeds/talks.atom")).toContain("<published>2026-03-01T00:00:00.000Z</published>");
     const home = await read("index.html");
     expect(home).toContain(
@@ -222,7 +222,7 @@ describe("build", () => {
       expect(spanish).toContain('<html lang="es">');
       expect(spanish).toContain("<title>Horarios de misa | Parroquia de San José</title>");
       expect(spanish).toContain('aria-label="Languages"');
-      expect(spanish).toMatch(/<a href="\/mass-times" hrefLang="en"[^>]*>English<\/a>/);
+      expect(spanish).toMatch(/<a href="\/mass-times\/" hrefLang="en"[^>]*>English<\/a>/);
       // The footer has words of its own in Spanish, and the home page's lists show the Spanish items.
       expect(spanish).toContain("Una familia parroquial católica en Anytown.");
       const spanishHome = await readFile(join(parishOut, "es/index.html"), "utf8");
@@ -232,7 +232,7 @@ describe("build", () => {
       const bulletin = await readFile(join(parishOut, "bulletins/2026-10-04/index.html"), "utf8");
       expect(bulletin).toContain('href="/media/bulletin-example.pdf"');
       // The home page's news has a heading, and a link to the rest.
-      expect(home).toMatch(/Parish news<\/h2><a href="\/news"[^>]*>All news/);
+      expect(home).toMatch(/Parish news<\/h2><a href="\/news\/"[^>]*>All news/);
       const about = await readFile(join(parishOut, "about/index.html"), "utf8");
       // The staff are shown with Collection loop: each one's photo, name and role.
       expect(about.indexOf("Fr. Thomas Reed")).toBeLessThan(about.indexOf("Maria Chen"));
@@ -249,7 +249,7 @@ describe("build", () => {
       // This month in the parish's time zone, as the build has it.
       const month = todayIn("America/New_York").slice(0, 7);
       const calendar = await readFile(join(parishOut, `calendar/${month}/index.html`), "utf8");
-      expect(calendar).toContain('href="/calendar"');
+      expect(calendar).toContain('href="/calendar/"');
       // Month pages aren't searched: the calendar's own page is.
       expect(calendar).not.toContain("data-pagefind-body");
       const feed = await readFile(join(parishOut, "calendars/events.ics"), "utf8");
@@ -459,7 +459,7 @@ describe("a site whose Client Components all work with Preact", () => {
       const news = await readFile(join(site, "dist/news/index.html"), "utf8");
       // Rendered by Preact as React would render it, with the content passed to it in its slot.
       expect(news).toMatch(
-        /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked! 0 times on \/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news">News<\/a><\/div><\/gf-island>/,
+        /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked! 0 times on \/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news\/">News<\/a><\/div><\/gf-island>/,
       );
       const script = news.match(
         /<script type="module" src="\/from-config\/(assets\/islands-[\w-]+\.js)"><\/script>/,
@@ -566,7 +566,7 @@ describe("a copy of the site, such as staging", () => {
       }
 
       const html = await readFile(join(out, "news/index.html"), "utf8");
-      expect(html).toContain('<link rel="canonical" href="https://staging.example.org/site/news"/>');
+      expect(html).toContain('<link rel="canonical" href="https://staging.example.org/site/news/"/>');
       expect(html).toContain('<meta name="robots" content="noindex"/>');
       expect(await readFile(join(out, "sitemap.xml"), "utf8")).not.toContain("<loc>");
       expect(await readFile(join(out, "robots.txt"), "utf8")).toContain("https://staging.example.org/site/sitemap.xml");

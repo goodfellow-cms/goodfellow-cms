@@ -132,13 +132,13 @@ describe("redirectFiles", () => {
     const files = redirectFiles(content, { taken: ["/", "/about"] });
     expect(files.map((file) => file.path)).toEqual(["/about-us/index.html", "/news.html"]);
     const [page, external] = files.map((file) => file.content);
-    expect(page).toContain('<meta http-equiv="refresh" content="0; url=/about">');
-    expect(page).toContain('<link rel="canonical" href="https://parish.example.org/about">');
+    expect(page).toContain('<meta http-equiv="refresh" content="0; url=/about/">');
+    expect(page).toContain('<link rel="canonical" href="https://parish.example.org/about/">');
     expect(page).toContain('<meta name="robots" content="noindex">');
     expect(page).toContain('<html lang="en">');
     // Replaces itself in the browser's history, so Back skips it, keeping what's after # of the old address.
-    expect(page).toContain('<script>location.replace("/about" + location.hash);</script>');
-    expect(page).toContain('This page has moved to <a href="/about" style="color:#171717">/about</a>.');
+    expect(page).toContain('<script>location.replace("/about/" + location.hash);</script>');
+    expect(page).toContain('This page has moved to <a href="/about/" style="color:#171717">/about</a>.');
     expect(external).toContain('<link rel="canonical" href="https://news.example.org/">');
   });
 
@@ -172,15 +172,15 @@ describe("redirectFiles", () => {
         },
       ],
     });
-    expect(file?.content).toContain('Diese Seite ist umgezogen: <a href="/about" style="color:#153823">Über uns</a>');
+    expect(file?.content).toContain('Diese Seite ist umgezogen: <a href="/about/" style="color:#153823">Über uns</a>');
     expect(file?.content).toContain("background:#f5ece2");
     expect(file?.content).toContain('<p style="margin:0 0 .5rem;font-weight:600">St. Joseph</p>');
   });
 
   it("adds the base path to addresses on the site", () => {
     const [file] = redirectFiles(content, { taken: ["/about"], base: "/parish/" });
-    expect(file?.content).toContain('content="0; url=/parish/about"');
-    expect(file?.content).toContain('href="https://parish.example.org/about"');
+    expect(file?.content).toContain('content="0; url=/parish/about/"');
+    expect(file?.content).toContain('href="https://parish.example.org/about/"');
   });
 
   it("escapes what it writes into the page", () => {
@@ -190,7 +190,7 @@ describe("redirectFiles", () => {
       redirectMessage: "<b>{page}</b>",
     });
     expect(file?.content).toContain("/b&quot;&gt;&lt;/script&gt;&lt;script&gt;alert(1)");
-    expect(file?.content).toContain('location.replace("/b\\">\\u003c/script>\\u003cscript>alert(1)"');
+    expect(file?.content).toContain('location.replace("/b\\">\\u003c/script>\\u003cscript>alert(1)/"');
     expect(file?.content).toContain("&lt;b&gt;<a ");
     expect(file?.content?.match(/<script>/g)).toHaveLength(1);
   });

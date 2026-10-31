@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { builtSiteSource, fileSystemSource } from "./node-fs-source.js";
+import { withConfiguredTrailingSlash } from "./site-copy.js";
 
 describe("fileSystemSource", () => {
   let root: string;
@@ -36,6 +37,17 @@ describe("fileSystemSource", () => {
 
   it("reads files as text", async () => {
     expect(await fileSystemSource(root).read("public/media/note.txt")).toBe("hello\n");
+  });
+
+  it("reads how pages' addresses end where the build says, from its environment or else the config", async () => {
+    const read = async (env: Record<string, string | undefined>) =>
+      JSON.parse((await builtSiteSource(root, env).read("content/site.json")) ?? "").trailingSlash;
+    expect(await read({ GOODFELLOW_TRAILING_SLASH: "false" })).toBe(false);
+    expect(await read({})).toBeUndefined();
+    expect(await read(withConfiguredTrailingSlash({}, false))).toBe(false);
+    // The environment wins over the config.
+    expect(await read(withConfiguredTrailingSlash({ GOODFELLOW_TRAILING_SLASH: "true" }, false))).toBe(true);
+    expect(() => builtSiteSource(root, { GOODFELLOW_TRAILING_SLASH: "sometimes" })).toThrow(/true or false/);
   });
 
   it("reads a copy's address and search engine setting only where asked, for builds", async () => {

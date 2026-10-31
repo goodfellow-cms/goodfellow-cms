@@ -89,10 +89,10 @@ test("adds tags to a collection, tags an item, and lists each tag on pages of it
   await page.goto("/news/page/2");
   await expect(page.getByRole("navigation", { name: "Pages" }).getByRole("link", { name: "1" })).toHaveAttribute(
     "href",
-    "/news",
+    "/news/",
   );
   await page.getByRole("link", { name: "Music" }).click();
-  await expect(page).toHaveURL(/\/news\/topics\/music$/);
+  await expect(page).toHaveURL(/\/news\/topics\/music\/$/);
   await expect(page.getByRole("link", { name: "Music" })).toHaveAttribute("aria-current", "page");
 });
 
@@ -128,7 +128,7 @@ test("shows blocks designed in the editor once for each item", async ({ page, re
   const html = await (await request.get("/news")).text();
   expect(html).toContain("Story: Open house");
   expect(html).toContain("Story: Welcome to our new website");
-  expect(html).toContain('href="/news/welcome"');
+  expect(html).toContain('href="/news/welcome/"');
 
   // The editor shows the design once, with its placeholders.
   await page.goto(`/admin#/pages/edit?path=${encodeURIComponent("/news")}`);

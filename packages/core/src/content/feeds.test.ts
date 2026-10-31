@@ -81,12 +81,12 @@ describe("feeds", () => {
       '<atom:link href="https://parish.example/feeds/news.rss" rel="self" type="application/rss+xml"/>',
     );
     expect(rss.indexOf("The choir")).toBeLessThan(rss.indexOf("The &lt;fair&gt;"));
-    expect(rss).toContain('<guid isPermaLink="true">https://parish.example/news/fair</guid>');
+    expect(rss).toContain('<guid isPermaLink="true">https://parish.example/news/fair/</guid>');
     // Midnight in the site's time zone.
     expect(rss).toContain("<pubDate>Sun, 01 Nov 2026 04:00:00 GMT</pubDate>");
     expect(rss).toContain("<description>Games &amp; food.</description>");
     expect(atom).toContain("<updated>2026-11-08T05:00:00.000Z</updated>");
-    expect(atom).toContain('<link rel="alternate" type="text/html" href="https://parish.example/news/choir"/>');
+    expect(atom).toContain('<link rel="alternate" type="text/html" href="https://parish.example/news/choir/"/>');
     expect(feedLinks(content)).toEqual([{ title: "News – St. Joseph", href: "/feeds/news.rss" }]);
   });
 
@@ -159,7 +159,7 @@ describe("structured data", () => {
         endDate: "2026-12-24T23:30:00-05:00",
         location: { "@type": "Place", name: "The church", address: "The church" },
         description: "Midnight Mass </script>",
-        url: "https://parish.example/events/mass",
+        url: "https://parish.example/events/mass/",
       }),
     ]);
     expect(await page("/news/fair")).toEqual([

@@ -48,7 +48,10 @@ function NewsletterView({ isEditing, id, ...stored }: NewsletterProps & { isEdit
   // Stored props can leave settings out, such as an AI assistant's answer.
   const given = Object.fromEntries(Object.entries(stored).filter(([, value]) => value !== undefined));
   const props = { ...Newsletter.defaultProps, ...given } as NewsletterProps;
-  const redirect = props.service === "forms" ? formRedirect(settings.url, props.thankYou) : undefined;
+  const redirect =
+    props.service === "forms"
+      ? formRedirect(settings.url, props.thankYou, settings.trailingSlash !== false)
+      : undefined;
   const target = newsletterTarget(props, settings.forms, { from: settings.title, redirect });
   if ("problem" in target && !isEditing) return null;
   // Pages are rendered on the server, so a form rendered in the browser is the admin panel's, which never sends.

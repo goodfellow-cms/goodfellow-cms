@@ -12,6 +12,7 @@ import {
   heldCode,
   type Page,
   pageHead,
+  robotsContent,
   type SiteContent,
   themeToCss,
 } from "@goodfellow-cms/core";
@@ -92,6 +93,8 @@ export function createPageRenderer(config: GoodfellowConfig) {
     const schemeScript = colorSchemeScript(settings.theme);
     const consent = settings.consent !== undefined;
     const socialImage = toAbsolute(settings.url, head.socialImage);
+    // The picture's size, where it's the media library's, so the first preview of a link shows it.
+    const socialSize = head.socialImage ? options.media?.[head.socialImage] : undefined;
 
     const document = (
       <html lang={head.language}>
@@ -103,17 +106,24 @@ export function createPageRenderer(config: GoodfellowConfig) {
           {schemeScript && <script dangerouslySetInnerHTML={{ __html: schemeScript }} />}
           <title>{head.title}</title>
           {head.description && <meta name="description" content={head.description} />}
-          {head.noIndex && <meta name="robots" content="noindex" />}
+          <meta name="robots" content={robotsContent(head)} />
           {head.canonicalUrl && <link rel="canonical" href={head.canonicalUrl} />}
           {head.alternates?.map((alternate) => (
             <link key={alternate.language} rel="alternate" hrefLang={alternate.language} href={alternate.href} />
           ))}
           {head.favicon && <link rel="icon" href={head.favicon} />}
-          <meta property="og:type" content="website" />
+          <meta property="og:type" content={head.type} />
+          <meta property="og:site_name" content={head.siteName} />
+          <meta property="og:locale" content={head.locale} />
           <meta property="og:title" content={head.title} />
           {head.description && <meta property="og:description" content={head.description} />}
           {head.canonicalUrl && <meta property="og:url" content={head.canonicalUrl} />}
           {socialImage && <meta property="og:image" content={socialImage} />}
+          {socialImage && socialSize && <meta property="og:image:width" content={String(socialSize.width)} />}
+          {socialImage && socialSize && <meta property="og:image:height" content={String(socialSize.height)} />}
+          {socialImage && head.socialImageAlt && <meta property="og:image:alt" content={head.socialImageAlt} />}
+          {head.publishedTime && <meta property="article:published_time" content={head.publishedTime} />}
+          <meta name="twitter:card" content={head.card} />
           {feedLinks(shown).map((feed) => (
             <link key={feed.href} rel="alternate" type="application/rss+xml" title={feed.title} href={feed.href} />
           ))}

@@ -17,6 +17,49 @@ export const SITE_URL_VARIABLE = "GOODFELLOW_SITE_URL";
 /** Set to `true` (or `1`) to ask search engines not to list any of the copy's pages. */
 export const NO_INDEX_VARIABLE = "GOODFELLOW_NO_INDEX";
 
+/**
+ * Set to `false` where the host serves pages at addresses without a `/` at
+ * the end, such as `/about`, and redirects `/about/` there: pages' full
+ * addresses then end without one. `true`, the default, ends them with one, as
+ * hosts serve the folders builds write (`about/index.html`). Builds set it
+ * from the config's `trailingSlash`, and Next.js sites from Next.js's.
+ */
+export const TRAILING_SLASH_VARIABLE = "GOODFELLOW_TRAILING_SLASH";
+
+/** What `GOODFELLOW_TRAILING_SLASH` says, or `undefined` where it isn't set. Throws, in words, for values it can't use. */
+export function trailingSlashFrom(env: Readonly<Record<string, string | undefined>>): boolean | undefined {
+  const value = env[TRAILING_SLASH_VARIABLE]?.trim().toLowerCase() ?? "";
+  if (value === "") return undefined;
+  if (YES.has(value)) return true;
+  if (NO.has(value)) return false;
+  throw new Error(`${TRAILING_SLASH_VARIABLE} is "${env[TRAILING_SLASH_VARIABLE]}": set it to true or false.`);
+}
+
+/**
+ * The environment a build reads the site with: `GOODFELLOW_TRAILING_SLASH`
+ * from the config's `trailingSlash` where the environment doesn't set it.
+ */
+export function withConfiguredTrailingSlash(
+  env: Readonly<Record<string, string | undefined>>,
+  trailingSlash: boolean | undefined,
+): Readonly<Record<string, string | undefined>> {
+  if (trailingSlash === undefined || env[TRAILING_SLASH_VARIABLE]?.trim()) return env;
+  return { ...env, [TRAILING_SLASH_VARIABLE]: String(trailingSlash) };
+}
+
+/** `content/site.json`'s text as a build shows the site, with how pages' addresses end (`trailingSlash`) set. */
+export function withTrailingSlash(text: string, trailingSlash: boolean | undefined): string {
+  if (trailingSlash === undefined) return text;
+  let settings: unknown;
+  try {
+    settings = JSON.parse(text);
+  } catch {
+    return text;
+  }
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return text;
+  return JSON.stringify({ ...settings, trailingSlash });
+}
+
 /** What a copy of the site has of its own. */
 export interface SiteCopy {
   /** Its address, in place of Site settings' `url`. */

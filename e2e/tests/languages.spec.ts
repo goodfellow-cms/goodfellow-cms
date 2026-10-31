@@ -110,15 +110,15 @@ test("shows each page in its language, with links to its translations", async ({
   expect(html).toContain('<html lang="es">');
   // The title template has the site's name in Spanish.
   expect(html).toContain("<title>Quiénes somos | Mi sitio</title>");
-  expect(html).toContain('hrefLang="en" href="https://site.example/about"');
-  expect(html).toContain('hrefLang="x-default" href="https://site.example/about"');
+  expect(html).toContain('hrefLang="en" href="https://site.example/about/"');
+  expect(html).toContain('hrefLang="x-default" href="https://site.example/about/"');
   expect(await (await page.request.get("/about")).text()).toContain('<html lang="en">');
 
   await page.goto("/es/sobre");
   const languages = page.getByRole("navigation", { name: "Languages" });
   await expect(languages.getByRole("link", { name: "Español" })).toHaveAttribute("aria-current", "true");
   await languages.getByRole("link", { name: "English" }).click();
-  await expect(page).toHaveURL(/\/about$/);
+  await expect(page).toHaveURL(/\/about\/$/);
 
   // Items in Spanish are under the language's code, and only Spanish pages list them.
   expect((await page.request.get("/es/news/bienvenida")).status()).toBe(200);
@@ -130,7 +130,7 @@ test("shows each page in its language, with links to its translations", async ({
 
   // Their translations are linked too.
   const story = await (await page.request.get("/news/welcome")).text();
-  expect(story).toContain('hrefLang="es" href="https://site.example/es/news/bienvenida"');
+  expect(story).toContain('hrefLang="es" href="https://site.example/es/news/bienvenida/"');
   expect(readSiteFile("content/pages/about.json")).not.toContain("translationOf");
 });
 

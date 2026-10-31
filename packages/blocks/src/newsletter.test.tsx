@@ -176,7 +176,7 @@ describe("Newsletter", () => {
     expect(await render(site(), { form: "" })).not.toContain("gf-newsletter");
     expect(await render(site(), { service: "forms" })).not.toContain("gf-newsletter");
     expect(await render(site({ accessKey: KEY }), { service: "forms", thankYou: "/thanks" })).toContain(
-      '<input type="hidden" name="redirect" value="https://parish.example.org/thanks"/>',
+      '<input type="hidden" name="redirect" value="https://parish.example.org/thanks/"/>',
     );
   });
 });

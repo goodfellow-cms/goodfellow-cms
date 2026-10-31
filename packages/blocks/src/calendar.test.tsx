@@ -128,7 +128,7 @@ describe("Calendar", () => {
     expect(days).toEqual(["2026-10-11", "2026-10-16", "2026-10-25", "2026-11-01"]);
     expect(html).toContain("Sunday, October 11, 2026");
     expect(html).toContain("9:00 AM – 10:00 AM");
-    expect(html).toContain('href="/events/mass"');
+    expect(html).toContain('href="/events/mass/"');
     expect(html).toContain("Church");
     expect(html).toContain("Games &amp; food");
     expect(html).toContain("Oct 16, 2026 – Oct 17, 2026");
@@ -163,8 +163,8 @@ describe("Calendar", () => {
   it("shows a month at a time, with links to the months around it", async () => {
     const html = await render([calendar({ view: "month", monthsBefore: 1, monthsAfter: 1 })]);
     expect(html).toContain("October 2026");
-    expect(html).toContain('href="/calendar/2026-09"');
-    expect(html).toContain('href="/calendar/2026-11"');
+    expect(html).toContain('href="/calendar/2026-09/"');
+    expect(html).toContain('href="/calendar/2026-11/"');
     // The fair lasts two days, and shows on both.
     expect(html.match(/Fall fair/g)).toHaveLength(2);
     // October 1, 2026 is a Thursday: four empty days come before it when weeks start on Sunday.
@@ -185,7 +185,7 @@ describe("Calendar", () => {
       calendar({ view: "month", monthsBefore: 1, monthsAfter: 1 }),
       calendar({ id: "second", view: "month", monthsBefore: 1, monthsAfter: 1 }),
     ]);
-    expect(html.match(/href="\/calendar\/2026-09"/g)).toHaveLength(1);
+    expect(html.match(/href="\/calendar\/2026-09\/"/g)).toHaveLength(1);
     expect(html.match(/October 2026/g)).toHaveLength(2);
   });
 
@@ -197,7 +197,7 @@ describe("Calendar", () => {
     );
     expect(html).toContain("November 2026");
     // The current month is the calendar's own page.
-    expect(html).toContain('href="/calendar"');
+    expect(html).toContain('href="/calendar/"');
     expect(html).not.toContain("December 2026");
     expect(html).toContain("2026-11-01");
     // November has 30 days: every Sunday in it, and nothing after.

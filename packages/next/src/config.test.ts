@@ -25,11 +25,13 @@ describe("withGoodfellow", () => {
       trailingSlash: true,
       reactStrictMode: true,
       images: { unoptimized: true },
-      env: { GOODFELLOW_BASE_PATH: "" },
+      env: { GOODFELLOW_BASE_PATH: "", GOODFELLOW_TRAILING_SLASH: "true" },
       redirects: expect.any(Function),
     });
+    // Pages' full addresses end as Next.js serves them.
     expect(await withGoodfellow({ trailingSlash: false }, { root })("phase-production-build")).toMatchObject({
       trailingSlash: false,
+      env: { GOODFELLOW_TRAILING_SLASH: "false" },
     });
   });
 
@@ -38,7 +40,7 @@ describe("withGoodfellow", () => {
     expect(config).toEqual({
       trailingSlash: true,
       images: undefined,
-      env: { GOODFELLOW_BASE_PATH: "" },
+      env: { GOODFELLOW_BASE_PATH: "", GOODFELLOW_TRAILING_SLASH: "true" },
       outputFileTracingIncludes: { "/**": ["./content/**/*", "./public/media/**/*"] },
       redirects: expect.any(Function),
       headers: expect.any(Function),
@@ -68,10 +70,12 @@ describe("withGoodfellow", () => {
       // Starting the server copies nothing: the build wrote the fonts and where they are into its code.
       expect((await withGoodfellow({}, { root: site, server: true })("phase-production-server")).env).toEqual({
         GOODFELLOW_BASE_PATH: "",
+        GOODFELLOW_TRAILING_SLASH: "true",
       });
       // Static exports are left to `goodfellow-next finish`.
       expect((await withGoodfellow({}, { root: site })("phase-production-build")).env).toEqual({
         GOODFELLOW_BASE_PATH: "",
+        GOODFELLOW_TRAILING_SLASH: "true",
       });
     } finally {
       vi.unstubAllGlobals();

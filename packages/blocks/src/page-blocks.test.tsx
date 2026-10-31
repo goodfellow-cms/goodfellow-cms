@@ -119,7 +119,7 @@ describe("Announcement bar", () => {
     // The script before the bar hides it as the page is read, and the one at the end makes Close work.
     expect(html.lastIndexOf("__gfAnnouncementHidden", bar)).toBeGreaterThan(0);
     expect(html.indexOf("__gfAnnouncement=1")).toBeGreaterThan(bar);
-    expect(html).toContain('href="/christmas"');
+    expect(html).toContain('href="/christmas/"');
 
     const lasting = await render([], [block("AnnouncementBar", "a", { message, closable: false })]);
     expect(lasting).toContain(message);
@@ -146,7 +146,7 @@ describe("Table", () => {
         ],
       }),
     ]);
-    expect(html).toContain('<strong>Sunday</strong> <a href="/mass">Mass</a></td>');
+    expect(html).toContain('<strong>Sunday</strong> <a href="/mass/">Mass</a></td>');
     expect(html).toContain("9:00<br>10:30");
     expect(html).not.toContain("x()");
     expect(html).toContain("Fish &amp; chips &lt;large&gt;");

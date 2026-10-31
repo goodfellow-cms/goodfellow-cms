@@ -479,7 +479,6 @@ export {
 export {
   type AddressMove,
   type LinkVisitor,
-  linkTarget,
   mapSiteLinks,
   relinkSite,
   siteLinks,
@@ -543,6 +542,7 @@ export {
   ownersOnlyChanges,
   ownersOnlyFields,
 } from "./content/owners-only.js";
+export { linkTarget, pageAddressPath, pageLink, pageLinksInHtml } from "./content/page-address.js";
 export { type HeadingDetails, headingAnchors, type PageHeading } from "./content/page-headings.js";
 export {
   type Breadcrumbs,
@@ -928,11 +928,17 @@ export {
 } from "./git.js";
 export { UPDATE_CHECK, UPDATE_FILES, UPDATE_FOLDERS, UPDATE_REGISTRY } from "./github-workflows.js";
 export {
+  AI_TRAINING_CRAWLERS,
   absoluteUrl,
   getPageHead,
   neverIndexed,
   type PageHead,
   pageHead,
+  pageUrl,
+  type RobotsRule,
+  robotsContent,
+  robotsRules,
+  robotsTxt,
   rootRobotsUrl,
   type SitemapPage,
   sitemapPages,
@@ -1239,7 +1245,11 @@ export {
   SITE_URL_VARIABLE,
   type SiteCopy,
   siteCopyFrom,
+  TRAILING_SLASH_VARIABLE,
+  trailingSlashFrom,
+  withConfiguredTrailingSlash,
   withSiteCopy,
+  withTrailingSlash,
 } from "./site-copy.js";
 export {
   type BlockDescription,

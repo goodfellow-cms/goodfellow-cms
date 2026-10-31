@@ -63,7 +63,7 @@ test("a visitor sends a form to Web3Forms, which sends them back to the thank-yo
     access_key: KEY,
     subject: "Prayer request",
     from_name: "My site",
-    redirect: "https://parish.example.org/thank-you",
+    redirect: "https://parish.example.org/thank-you/",
     Name: "Maria Example",
     email: "maria@example.org",
     Mass: "Sunday 9 am",

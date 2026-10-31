@@ -269,7 +269,7 @@ async function main(): Promise<void> {
   const content = contentRepo === undefined ? undefined : separateContent(contentRepo, build, backend, host);
   if (admin !== undefined && !allowsAdminAddress(host as Host | undefined)) {
     throw new ScaffoldError(
-      "An admin address needs a host that serves a site at more than one address (--host gitlab-pages, cloudflare-pages or vercel).",
+      "An admin address needs a host that serves a site at more than one address (--host gitlab-pages, cloudflare-pages or vercel). On a host of your own choosing, add it once the site is online with goodfellow admin add.",
     );
   }
   if (broker !== undefined) {

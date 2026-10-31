@@ -97,7 +97,7 @@ test("creates a collection of events, adds a weekly one, and shows it in calenda
   );
   const calendar = await (await request.get("/calendar")).text();
   expect(calendar).toContain("Choir practice");
-  expect(calendar).toContain(`href="/calendar/${nextMonth(start)}"`);
+  expect(calendar).toContain(`href="/calendar/${nextMonth(start)}/"`);
   const following = await request.get(`/calendar/${nextMonth(start)}`);
   expect(following.status()).toBe(200);
   expect(await following.text()).toContain("<title>Calendar: ");

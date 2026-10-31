@@ -98,8 +98,12 @@ describe("renderPage", () => {
 
     expect(html.startsWith('<!DOCTYPE html><html lang="en">')).toBe(true);
     expect(html).toContain("<title>About | St. Joseph</title>");
-    expect(html).toContain('<link rel="canonical" href="https://example.org/about"/>');
+    expect(html).toContain('<link rel="canonical" href="https://example.org/about/"/>');
     expect(html).toContain('<meta property="og:image" content="https://example.org/media/share.png"/>');
+    // Search engines may show its pictures large, and link previews show the site's name and a large picture.
+    expect(html).toContain('<meta name="robots" content="max-image-preview:large"/>');
+    expect(html).toContain('<meta property="og:site_name" content="St. Joseph"/>');
+    expect(html).toContain('<meta name="twitter:card" content="summary_large_image"/>');
     expect(html).toContain('<link rel="stylesheet" href="/assets/site.css"/>');
     expect(html).toContain("family=Cinzel:wght@");
     expect(html).toContain("--primary:#1e3a8a");
@@ -212,7 +216,7 @@ describe("renderPage", () => {
     // With only other sites' content to ask about, there's nothing to choose between.
     expect(html).not.toContain('data-gf-consent-choose=""');
     expect(html).toContain('<p id="gf-consent-message">');
-    expect(html).toContain('<a href="/privacy">Privacy</a>');
+    expect(html).toContain('<a href="/privacy/">Privacy</a>');
     expect(html.indexOf('id="gf-consent"')).toBeLessThan(html.indexOf("goodfellow-consent"));
 
     // The site's own stylesheet stays in the page; code that would end its template early is left out.
@@ -326,7 +330,7 @@ describe("renderPage", () => {
     const html = await renderPage(makeContent(), makePage([{ type: "Body", props: { id: "b", body } }]));
 
     expect(html).toContain("Hello <strong>world</strong>");
-    expect(html).toContain('href="/about"');
+    expect(html).toContain('href="/about/"');
     expect(html).not.toMatch(/<script|onclick|onerror|javascript:/i);
   });
 
@@ -335,7 +339,7 @@ describe("renderPage", () => {
     const page = makePage([{ type: "Body", props: { id: "b", body } }]);
     const newTabs = await renderPage(makeContent({ settings: { ...settings, externalLinksInNewTab: true } }), page);
     expect(newTabs).toContain('<a target="_blank" rel="noopener noreferrer" href="https://github.com">GitHub</a>');
-    expect(newTabs).toContain('<a target="_self" rel="" href="/about">About</a>');
+    expect(newTabs).toContain('<a target="_self" rel="" href="/about/">About</a>');
     // Puck would open every link in a new tab, marked nofollow, without a target of its own.
     const sameTabs = await renderPage(makeContent(), page);
     expect(sameTabs).toContain('<a target="_self" rel="" href="https://github.com">GitHub</a>');

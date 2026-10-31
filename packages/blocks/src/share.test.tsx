@@ -43,7 +43,7 @@ describe("Share buttons", () => {
     const html = await render("ShareButtons", {});
     expect(html).toContain("Share this page");
     expect(html).toMatch(
-      /href="https:\/\/www\.facebook\.com\/sharer\/sharer\.php\?u=https%3A%2F%2Fparish\.example\.org%2Fnews"[^>]* target="_blank"/,
+      /href="https:\/\/www\.facebook\.com\/sharer\/sharer\.php\?u=https%3A%2F%2Fparish\.example\.org%2Fnews%2F"[^>]* target="_blank"/,
     );
     expect(html).toContain('href="mailto:?subject=');
     expect(html).not.toContain("linkedin");

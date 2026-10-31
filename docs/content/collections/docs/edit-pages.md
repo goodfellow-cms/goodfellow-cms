@@ -48,4 +48,4 @@ Select a block, and its **Style** settings are at the end of its settings:
 
 ## A page's settings
 
-Click outside every block to see the page's own settings: its title (shown in the browser's tab and in search results), a description for search engines and link previews, an image for link previews, and whether search engines show it, with a preview of how links to it look when shared (see [Search engines and feeds](/docs/search-engines)).
+Click outside every block to see the page's own settings: its title (shown in the browser's tab and in search results), a description for search engines and link previews, an image for link previews and how large it shows, and whether search engines show it, follow its links and show its text, with a preview of how links to it look when shared (see [Search engines and feeds](/docs/search-engines)).

@@ -1,4 +1,4 @@
-import { imageSrcSet, isExternalLink, isScriptUrl, NEW_TAB, withBase } from "@goodfellow-cms/core";
+import { imageSrcSet, isExternalLink, isScriptUrl, NEW_TAB, pageLink, withBase } from "@goodfellow-cms/core";
 import type { SiteContextValue, SiteImageProps, SiteLinkProps } from "./site-types.js";
 
 /** Whether a link goes to one of the site's own pages, rather than a file, another site, or a new tab. */
@@ -20,7 +20,10 @@ export function createSiteLinks(useSite: () => SiteContextValue) {
    * such as Next.js's `next/link`. Links to other sites open in a new tab if
    * the site's settings say so, unless the link says where it opens itself.
    * An address that could run code (`javascript:`, `data:` and the like, which
-   * `isScriptUrl()` finds) leaves the link's words without one.
+   * `isScriptUrl()` finds) leaves the link's words without one. Links to the
+   * site's own pages point at their canonical address, with or without a `/`
+   * at the end as the build says (`pageLink()`), so following one needs no
+   * redirect.
    */
   function SiteLink(given: SiteLinkProps) {
     const { base, components, settings } = useSite();
@@ -28,9 +31,9 @@ export function createSiteLinks(useSite: () => SiteContextValue) {
       const { href: _href, ...rest } = given;
       return <a {...rest} />;
     }
-    const newTab =
-      settings?.externalLinksInNewTab && given.target === undefined && isExternalLink(given.href, settings.url);
-    const props = newTab ? { ...given, ...NEW_TAB } : given;
+    const href = pageLink(given.href, settings?.trailingSlash !== false);
+    const newTab = settings?.externalLinksInNewTab && given.target === undefined && isExternalLink(href, settings.url);
+    const props = newTab ? { ...given, href, ...NEW_TAB } : { ...given, href };
     const Link = components?.Link;
     if (Link && isPageLink(props)) return <Link {...props} />;
     return <a {...props} href={withBase(props.href, base)} />;

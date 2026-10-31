@@ -27,7 +27,7 @@ const components: SiteComponents = {
 describe("SiteLink", () => {
   it("adds the base path to the site's own addresses only", () => {
     expect(render({ base: "/repo/" }, <SiteLink href="/about">About</SiteLink>)).toBe(
-      '<a href="/repo/about">About</a>',
+      '<a href="/repo/about/">About</a>',
     );
     expect(render({ base: "/repo/" }, <SiteLink href="https://example.org">X</SiteLink>)).toBe(
       '<a href="https://example.org">X</a>',
@@ -36,7 +36,7 @@ describe("SiteLink", () => {
 
   it("uses the renderer's link component for pages, but not files or new tabs", () => {
     expect(render({ base: "/repo/", components }, <SiteLink href="/about">A</SiteLink>)).toBe(
-      '<a data-router="" href="/about">A</a>',
+      '<a data-router="" href="/about/">A</a>',
     );
     expect(render({ base: "/repo/", components }, <SiteLink href="/media/a.pdf">B</SiteLink>)).toBe(
       '<a href="/repo/media/a.pdf">B</a>',
@@ -48,7 +48,7 @@ describe("SiteLink", () => {
           C
         </SiteLink>,
       ),
-    ).toBe('<a href="/about" target="_blank">C</a>');
+    ).toBe('<a href="/about/" target="_blank">C</a>');
   });
 
   it("leaves out addresses that would run code, keeping the link's words, and keeps calendar links", () => {
@@ -68,7 +68,11 @@ describe("SiteLink with links to other sites in new tabs", () => {
     expect(render({ settings }, <SiteLink href="https://github.com">G</SiteLink>)).toBe(
       '<a href="https://github.com" target="_blank" rel="noopener noreferrer">G</a>',
     );
-    expect(render({ settings }, <SiteLink href="/about">A</SiteLink>)).toBe('<a href="/about">A</a>');
+    expect(render({ settings }, <SiteLink href="/about">A</SiteLink>)).toBe('<a href="/about/">A</a>');
+    // Where the host serves pages without a slash at the end, links don't have one either.
+    expect(render({ settings: { ...settings, trailingSlash: false } }, <SiteLink href="/about/">A</SiteLink>)).toBe(
+      '<a href="/about">A</a>',
+    );
     expect(render({ settings }, <SiteLink href="https://example.org/news">N</SiteLink>)).toBe(
       '<a href="https://example.org/news">N</a>',
     );

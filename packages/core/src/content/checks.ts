@@ -27,10 +27,11 @@ import {
   siteLanguages,
   translationState,
 } from "./languages.js";
-import { linkTarget, siteLinks } from "./links.js";
+import { siteLinks } from "./links.js";
 import type { Page, SiteContent } from "./load.js";
 import { allPages } from "./load.js";
 import { storedAddresses } from "./media-storage.js";
+import { linkTarget } from "./page-address.js";
 import { SITE_FILE } from "./paths.js";
 import { redirectFrom, redirectProblems } from "./redirects.js";
 import type { ThemeColor } from "./schemas.js";

@@ -159,8 +159,8 @@ describe("built-in blocks", () => {
     ]);
     expect(html).toContain('<nav aria-label="main" class="gf-menu" data-gf-menu="">');
     // The current page's section, and the page itself, which is the current one.
-    expect(html).toMatch(/href="\/about" class="[^"]*data-current:font-semibold" data-current="">/);
-    expect(html).toMatch(/href="\/about\/staff" class="[^"]*" data-current="" aria-current="page">/);
+    expect(html).toMatch(/href="\/about\/" class="[^"]*data-current:font-semibold" data-current="">/);
+    expect(html).toMatch(/href="\/about\/staff\/" class="[^"]*" data-current="" aria-current="page">/);
     expect(html).not.toMatch(/href="\/" class="[^"]*" data-current/);
   });
 
@@ -184,9 +184,9 @@ describe("built-in blocks", () => {
       expect(html).toContain(
         '<nav aria-label="main" class="gf-menu bg-primary text-primary-foreground" data-gf-menu="">',
       );
-      expect(html).toMatch(/href="\/about\/staff\/deacons" class="[^"]*">Deacons<\/a>/);
+      expect(html).toMatch(/href="\/about\/staff\/deacons\/" class="[^"]*">Deacons<\/a>/);
       expect(html).toMatch(
-        /href="\/about\/staff\/pastor" class="[^"]*" data-current="" aria-current="page">Our pastor/,
+        /href="\/about\/staff\/pastor\/" class="[^"]*" data-current="" aria-current="page">Our pastor/,
       );
       // "About" is the last item, so its submenu opens leftwards, and its pages too.
       expect(html).toMatch(/class="gf-menu-submenu [^"]*bg-primary\/90[^"]* right-0"/);
@@ -212,7 +212,7 @@ describe("built-in blocks", () => {
       // The panel lists the submenu's link and the page under it, which a tap couldn't open.
       const panel = html.slice(html.indexOf("gf-menu-panel"), html.indexOf("</details>"));
       expect(panel).toContain(">About</a>");
-      expect(panel).toMatch(/href="\/about\/staff" class="[^"]*" data-current="" aria-current="page">Staff/);
+      expect(panel).toMatch(/href="\/about\/staff\/" class="[^"]*" data-current="" aria-current="page">Staff/);
       expect(panel).toContain(">Our pastor</a>");
       expect(html).toMatch(/<ul class="gf-menu-list [^"]*max-md:hidden">/);
 
@@ -419,7 +419,7 @@ describe("built-in blocks", () => {
       '<time dateTime="2026-07-12" class="gf-card-date text-sm text-muted-foreground">July 12, 2026</time>',
     );
     expect(html).toContain(
-      '<a href="/events/picnic" class="after:absolute after:inset-0 hover:underline">Parish picnic</a>',
+      '<a href="/events/picnic/" class="after:absolute after:inset-0 hover:underline">Parish picnic</a>',
     );
     expect(html).toContain("Food &amp; games");
   });
@@ -669,8 +669,8 @@ describe("built-in blocks", () => {
     expect(main).toContain('href="#requirements"');
     expect(main).toContain('href="#steps"');
     expect(main).not.toContain('href="#node"');
-    expect(main).toMatch(/href="\/docs\/intro" rel="prev"[^>]*>.*Introduction/);
-    expect(main).toMatch(/href="\/docs\/pages" rel="next"[^>]*>.*Pages/);
+    expect(main).toMatch(/href="\/docs\/intro\/" rel="prev"[^>]*>.*Introduction/);
+    expect(main).toMatch(/href="\/docs\/pages\/" rel="next"[^>]*>.*Pages/);
   });
 
   it("leaves entry fields out of the page editor", () => {
