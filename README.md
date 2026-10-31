@@ -28,6 +28,13 @@ flowchart TB
 - **Content is plain files.** One JSON file per page, readable in any diff and portable to other tools.
 - **Apps too.** Builds also write the content as [static JSON](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-api), which an [Expo app](https://goodfellow-cms.github.io/goodfellow-cms/docs/apps) for iPhone and Android shows natively, offline too.
 
+## Sponsor Goodfellow
+
+Goodfellow is free and open source. If it's useful to you, [become a sponsor](https://github.com/sponsors/goodfellow-cms) to help keep it going.
+
+<!-- sponsors:start -->
+<!-- sponsors:end -->
+
 ## Contributing
 
 To report a problem or suggest a feature, [open an issue](https://github.com/goodfellow-cms/goodfellow-cms/issues/new/choose); for security problems, see [SECURITY.md](SECURITY.md). To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md); [AGENTS.md](AGENTS.md) has the architecture rules and conventions. They apply to human contributors as well as coding agents. [RELEASING.md](RELEASING.md) explains how versions are released to npm.

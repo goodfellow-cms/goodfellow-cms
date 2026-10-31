@@ -84,6 +84,9 @@ const SERVICES: Array<[RegExp, string]> = [
   [/(^|\.)opencollective\.com$/, "Open Collective"],
 ];
 
+/** GitHub's own giving pages, which are on github.com beside everything else. */
+const GITHUB_SPONSORS = /^\/sponsors\/[^/]+/;
+
 /**
  * The giving page, if it's one a visitor can trust with their card: a secure
  * (`https://`) address, with the service's name where it's one people know.
@@ -97,7 +100,12 @@ export function givingPage(url: string): { url: string; service?: string } | und
   }
   if (parsed.protocol !== "https:") return undefined;
   const host = parsed.hostname.toLowerCase();
-  const service = SERVICES.find(([pattern]) => pattern.test(host))?.[1];
+  const service =
+    host === "github.com"
+      ? GITHUB_SPONSORS.test(parsed.pathname)
+        ? "GitHub Sponsors"
+        : undefined
+      : SERVICES.find(([pattern]) => pattern.test(host))?.[1];
   return { url: parsed.href, ...(service && { service }) };
 }
 

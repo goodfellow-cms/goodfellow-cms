@@ -12,6 +12,10 @@
   ],
   "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/nextjs",
   "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/goodfellow-cms"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",

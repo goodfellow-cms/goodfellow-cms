@@ -16,7 +16,7 @@
                 "id": "Text-7",
                 "align": "left",
                 "className": "text-sm text-muted-foreground",
-                "content": "<p>Goodfellow is free software under the MIT license. These pages are built with Goodfellow, and their text is in <a href=\"https://github.com/goodfellow-cms/goodfellow-cms/tree/master/docs\">the repository</a>. Found a problem, or have an idea? <a href=\"https://github.com/goodfellow-cms/goodfellow-cms/issues/new/choose\">Open an issue</a>.</p>"
+                "content": "<p>Goodfellow is free software under the MIT license. These pages are built with Goodfellow, and their text is in <a href=\"https://github.com/goodfellow-cms/goodfellow-cms/tree/master/docs\">the repository</a>. Found a problem, or have an idea? <a href=\"https://github.com/goodfellow-cms/goodfellow-cms/issues/new/choose\">Open an issue</a>. Want to help keep it going? <a href=\"https://github.com/sponsors/goodfellow-cms\">Become a sponsor</a>.</p>"
               }
             }
           ],

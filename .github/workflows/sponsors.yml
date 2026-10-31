@@ -1,0 +1,55 @@
+# Keeps the Sponsors list in the README and .github/sponsors.json up to date each day, from GitHub Sponsors, with
+# the SPONSORS_TOKEN secret (a classic token with read:org and read:user from an owner of goodfellow-cms). The
+# docs site shows the same file, read from master as each page loads, so it needs no new release. master takes
+# changes only through pull requests, so a change goes in a pull request of its own, merged at once; that needs
+# "Allow GitHub Actions to create and approve pull requests" in the repository's Actions settings. Run it from the
+# Actions tab to update the list straight away.
+name: Sponsors
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: sponsors
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          check-latest: true
+      # Reads GitHub Sponsors and writes the list. It needs no packages.
+      - run: node docs/scripts/sponsors.mjs
+        env:
+          SPONSORS_TOKEN: ${{ secrets.SPONSORS_TOKEN }}
+      - name: Publish the list if it changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: sponsors/${{ github.run_id }}
+        run: |
+          if git diff --quiet -- README.md .github/sponsors.json; then
+            echo "The Sponsors list hasn't changed."
+            exit 0
+          fi
+          gh auth setup-git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --create "$BRANCH"
+          git commit --quiet --message "Update the Sponsors list" -- README.md .github/sponsors.json
+          git push --quiet origin "$BRANCH"
+          gh pr create --base master --head "$BRANCH" --title "Update the Sponsors list" \
+            --body "The Sponsors list from GitHub Sponsors, updated by the Sponsors workflow."
+          gh pr merge "$BRANCH" --merge --delete-branch
