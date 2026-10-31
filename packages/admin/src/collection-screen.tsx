@@ -6,6 +6,7 @@ import {
   entryLanguage,
   entryPathIn,
   entryTitle,
+  itemsLinkingTo,
   mainLanguage,
   siteLanguages,
 } from "@goodfellow-cms/core";
@@ -17,6 +18,7 @@ import {
   collectionFileChange,
   type EntryNameProblem,
   entryFileChange,
+  itemLinkRemovalChanges,
   moveEntryChanges,
   slugify,
   uniqueName,
@@ -287,16 +289,26 @@ function DeleteEntryDialog({
 }) {
   const t = useStrings();
   const { publish } = useAdmin();
+  const { content } = useSiteContent();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
   const title = entryTitle(entry);
   const name = collection.settings.name;
+  const linking = itemsLinkingTo(content, collection.id, entry.slug).filter((other) => other.file !== entry.file);
 
   const onDelete = async () => {
     setBusy(true);
+    // Its translations stay, as items of their own.
+    const unlinked = unlinkEntryTranslations(collection, entry);
     const result = await publish(
-      // Its translations stay, as items of their own.
-      [{ path: entry.file, delete: true }, ...unlinkEntryTranslations(collection, entry)],
+      [
+        { path: entry.file, delete: true },
+        ...unlinked,
+        // Items that link to it stop linking to it.
+        ...itemLinkRemovalChanges(content, collection, entry).filter(
+          (change) => !unlinked.some((other) => other.path === change.path),
+        ),
+      ],
       t("deleteEntry.message", { entry: inSentence(collection.settings.entryName), title }),
     );
     setBusy(false);
@@ -311,6 +323,17 @@ function DeleteEntryDialog({
           ? t("deleteEntry.bodyPage", { title, name, path: entry.path })
           : t("deleteEntry.body", { title, name })}
       </p>
+      {linking.length > 0 && (
+        <>
+          <p>{t("deleteEntry.linked")}</p>
+          <ul>
+            {linking.slice(0, 10).map((other) => (
+              <li key={other.file}>{entryTitle(other)}</li>
+            ))}
+            {linking.length > 10 && <li>{t("deleteEntry.linkedMore", { count: String(linking.length - 10) })}</li>}
+          </ul>
+        </>
+      )}
       <PublishFailure failure={failure} />
       <div className="gfa-dialog-actions">
         <Button onClick={onClose}>{t("action.cancel")}</Button>

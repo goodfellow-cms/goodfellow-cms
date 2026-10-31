@@ -4,7 +4,8 @@
  * worked out from content files alone, so they run in the browser and in
  * Node alike, without rendering pages.
  *
- * - Errors: links to pages, items or media that don't exist.
+ * - Errors: links to pages, items or media that don't exist, and items'
+ *   links to items that don't exist.
  * - Warnings: pages without a title or description, theme colors that text
  *   is hard to read on, and translations of something that isn't in the main
  *   language.
@@ -13,6 +14,7 @@ import type { ComponentConfig } from "@puckeditor/core";
 import { contrastRatio, MINIMUM_CONTRAST } from "../contrast.js";
 import { isScriptUrl } from "../external-links.js";
 import { DEFAULT_THEME_COLORS, darkThemeColor } from "../theme.js";
+import { missingItemLinks } from "./item-links.js";
 import {
   entryLanguage,
   entrySourceHash,
@@ -36,6 +38,8 @@ import { sitePages } from "./site-pages.js";
 export type SiteProblem =
   /** A link to a page or item the site doesn't have. */
   | { kind: "missing-page"; severity: "error"; file: string; target: string }
+  /** An item's link to an item (`target`, its name) that isn't in `collection`. */
+  | { kind: "missing-item"; severity: "error"; file: string; target: string; collection: string }
   /** A link to, or an image or video from, a media file the site doesn't have. */
   | { kind: "missing-media"; severity: "error"; file: string; target: string }
   /** A link that would run code (`javascript:` and the like), which pages leave out. */
@@ -287,6 +291,19 @@ export function checkSite(content: SiteContent, options: SiteCheckOptions): Site
       }
     }
   }
+  const seenItems = new Set<string>();
+  for (const missing of missingItemLinks(content)) {
+    const key = `${missing.entry.file} ${missing.target} ${missing.slug}`;
+    if (seenItems.has(key)) continue;
+    seenItems.add(key);
+    errors.push({
+      kind: "missing-item",
+      severity: "error",
+      file: missing.entry.file,
+      target: missing.slug,
+      collection: missing.target,
+    });
+  }
   const warnings = [
     ...content.pages.flatMap((page) => pageWarnings(content, page)),
     ...translationProblems(content),
@@ -302,6 +319,8 @@ export function problemKey(problem: SiteProblem): string {
     case "missing-media":
     case "unsafe-link":
       return `${problem.kind} ${problem.file} ${problem.target}`;
+    case "missing-item":
+      return `${problem.kind} ${problem.file} ${problem.collection} ${problem.target}`;
     case "no-title":
     case "no-description":
       return `${problem.kind} ${problem.file}`;
@@ -357,6 +376,8 @@ export function formatSiteProblem(problem: SiteProblem): string {
   switch (problem.kind) {
     case "missing-page":
       return `${problem.file} links to ${problem.target}, which isn't a page or item on the site.`;
+    case "missing-item":
+      return `${problem.file} links to ${problem.target} in ${problem.collection}, which isn't an item there.`;
     case "missing-media":
       return `${problem.file} uses ${problem.target}, which isn't in public/media/.`;
     case "unsafe-link":

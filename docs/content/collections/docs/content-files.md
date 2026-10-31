@@ -31,7 +31,7 @@ Every JSON file has a `version`, and is written with two-space indentation, keys
 
 A collection's `_collection.json` has its `name`, `entryName` (what one item is called), its `fields`, an optional `path` such as `/events/{slug}` for items' pages, an optional `sort`, and its `template`, the page design. Every collection has a text field named `title`. A field's `name` is what content refers to, so it never changes once items use it.
 
-An item's JSON file holds `{ "version": 1, "fields": { … } }`. A choice field (`select`) holds one of its `options`' values, and a tags field (`tags`) a list of them, such as `["music", "youth"]`.
+An item's JSON file holds `{ "version": 1, "fields": { … } }`. A choice field (`select`) holds one of its `options`' values, and a tags field (`tags`) a list of them, such as `["music", "youth"]`. A yes or no field (`yesno`) holds `true`, and nothing when it's off. A link to items (`item`, with the `collection` it links to and `multiple` for several) holds an item's name, or a list of them, such as `["anna-reyes", "ben-okafor"]`; a translation is reached through the item it translates, so links name the main language's items. Several images (`images`) are a list of addresses, a file (`file`) one address, and a repeating group (`group`, with its own `fields`) a list of rows, each an object of its fields' values, such as `[{ "time": "9:00", "place": "Hall" }]`.
 
 ## Editors' limits
 

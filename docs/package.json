@@ -2,11 +2,11 @@
   "name": "@goodfellow-cms/docs",
   "version": "0.0.0",
   "private": true,
-  "description": "Goodfellow's documentation site, built with Goodfellow.",
+  "description": "The documentation site of Goodfellow CMS, built with Goodfellow.",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/starters.mjs && goodfellow dev",
-    "build": "node scripts/starters.mjs && goodfellow build",
+    "dev": "node scripts/starters.mjs && node scripts/llms.mjs && goodfellow dev",
+    "build": "node scripts/starters.mjs && node scripts/llms.mjs && goodfellow build",
     "preview": "goodfellow preview",
     "typecheck": "tsc -p tsconfig.json"
   },

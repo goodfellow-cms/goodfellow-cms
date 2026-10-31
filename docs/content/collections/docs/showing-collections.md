@@ -13,7 +13,8 @@ Two blocks show a collection's items on other pages: **Collection list**, ready 
 Collection list shows items as a list or as cards, with each item's picture, date and summary, linking to its page if the collection gives items pages. Its settings choose:
 
 - **Heading**, and a **link beside the heading**, such as "See all" to the page with every item, for a home page section like "Parish news".
-- **Only items with** a choice, from a choice or tags field, such as news about music only.
+- **Only items with** a choice, from a choice or tags field, such as news about music only, or a yes or no field that's on, such as featured stories only.
+- **Only the items this one links to**, in a collection's page design: on each item's page, only the items its link field names, such as a talk's speakers. Such a list has no pages of its own.
 - **Date**, and **Show** everything, today and later, or before today, for events and other dated items.
 - **Order**: the collection's own order, newest or oldest first, A to Z or Z to A, or by any field, lowest or highest first.
 - **How many**, such as the three latest stories.

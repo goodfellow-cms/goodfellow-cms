@@ -5,12 +5,16 @@ import {
   type CollectionField,
   type CollectionFile,
   collectionFileSchema,
+  collectionsLinkingTo,
   entryLanguage,
   entryPathIn,
   entryTitle,
   FIELD_TYPES,
   type FieldType,
+  GROUP_FIELD_TYPES,
+  type GroupFieldType,
   isReservedPagePath,
+  MAX_GROUP_FIELDS,
   type SiteSettings,
   serializeContent,
   TITLE_FIELD,
@@ -33,6 +37,19 @@ interface DraftField {
   required: boolean;
   hint: string;
   options: Array<{ value?: string; label: string }>;
+  /** For a link to items, the collection it links to, and whether it holds several. */
+  collection: string;
+  multiple: boolean;
+  /** For a repeating group, each row's fields. */
+  subFields: DraftSubField[];
+}
+
+/** One of a repeating group's fields being edited, named from its label when published. */
+interface DraftSubField {
+  key: string;
+  name?: string;
+  label: string;
+  type: GroupFieldType;
 }
 
 interface Draft {
@@ -74,6 +91,14 @@ function toDraft(settings: CollectionFile): Draft {
       required: field.required ?? false,
       hint: field.hint ?? "",
       options: field.options ?? [],
+      collection: field.collection ?? "",
+      multiple: field.multiple ?? false,
+      subFields: (field.fields ?? []).map((sub) => ({
+        key: newKey(),
+        name: sub.name,
+        label: sub.label,
+        type: sub.type,
+      })),
     })),
   };
 }
@@ -97,7 +122,14 @@ function named(draft: Draft): DraftField[] {
       values.push(value);
       return { ...option, value };
     });
-    return { ...field, name, options };
+    const subNames = field.subFields.flatMap((sub) => (sub.name ? [sub.name] : []));
+    const subFields = field.subFields.map((sub) => {
+      if (sub.name) return sub;
+      const subName = fieldNameFor(sub.label, subNames);
+      subNames.push(subName);
+      return { ...sub, name: subName };
+    });
+    return { ...field, name, options, subFields };
   });
 }
 
@@ -113,6 +145,10 @@ function fromDraft(settings: CollectionFile, draft: Draft): CollectionFile {
       options: field.options
         .filter((option) => option.label.trim())
         .map((option) => ({ value: option.value ?? "", label: option.label.trim() })),
+    }),
+    ...(field.type === "item" && { collection: field.collection, ...(field.multiple && { multiple: true }) }),
+    ...(field.type === "group" && {
+      fields: field.subFields.map((sub) => ({ name: sub.name ?? "", label: sub.label.trim(), type: sub.type })),
     }),
   }));
   const sortField = fields.some((field) => field.name === draft.sortField) ? draft.sortField : TITLE_FIELD;
@@ -144,6 +180,16 @@ const CALENDAR_TYPES: Record<"when" | "place" | "summary", FieldType[]> = {
   summary: ["text", "textarea", "richtext"],
 };
 
+const groupTypeLabels: Record<GroupFieldType, StringKey> = {
+  text: "fields.type.text",
+  textarea: "fields.type.textarea",
+  number: "fields.type.number",
+  date: "fields.type.date",
+  link: "fields.type.link",
+  image: "fields.type.image",
+  yesno: "fields.type.yesno",
+};
+
 const typeLabels: Record<FieldType, StringKey> = {
   text: "fields.type.text",
   textarea: "fields.type.textarea",
@@ -155,6 +201,11 @@ const typeLabels: Record<FieldType, StringKey> = {
   image: "fields.type.image",
   select: "fields.type.select",
   tags: "fields.type.tags",
+  yesno: "fields.type.yesno",
+  item: "fields.type.item",
+  images: "fields.type.images",
+  file: "fields.type.file",
+  group: "fields.type.group",
 };
 
 /** Field types whose values are choices the collection's settings list. */
@@ -173,6 +224,7 @@ function move<T>(list: T[], index: number, by: -1 | 1): T[] {
 function FieldEditor({
   field,
   placeholder,
+  collections,
   index,
   count,
   error,
@@ -182,6 +234,8 @@ function FieldEditor({
 }: {
   field: DraftField;
   placeholder: string;
+  /** The collections a link to items can link to. */
+  collections: Array<{ id: string; name: string }>;
   index: number;
   count: number;
   error?: string;
@@ -207,7 +261,18 @@ function FieldEditor({
               className="gfa-input"
               value={field.type}
               disabled={Boolean(field.name)}
-              onChange={(event) => onChange({ ...field, type: event.target.value as FieldType })}
+              onChange={(event) => {
+                const type = event.target.value as FieldType;
+                onChange({
+                  ...field,
+                  type,
+                  ...(type === "item" && !field.collection && { collection: collections[0]?.id ?? "" }),
+                  ...(type === "group" &&
+                    field.subFields.length === 0 && {
+                      subFields: [{ key: newKey(), label: t("fields.newLabel"), type: "text" as const }],
+                    }),
+                });
+              }}
             >
               {FIELD_TYPES.map((type) => (
                 <option key={type} value={type}>
@@ -271,6 +336,88 @@ function FieldEditor({
           ))}
           <Button onClick={() => onChange({ ...field, options: [...field.options, { label: "" }] })}>
             {t("fields.addOption")}
+          </Button>
+        </fieldset>
+      )}
+      {field.type === "item" && (
+        <>
+          <Field label={t("fields.linksTo")}>
+            {(props) => (
+              <select
+                {...props}
+                className="gfa-input"
+                value={field.collection}
+                disabled={Boolean(field.name)}
+                onChange={(event) => onChange({ ...field, collection: event.target.value })}
+              >
+                {collections.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <label className="gfa-checkbox">
+            <input
+              type="checkbox"
+              checked={field.multiple}
+              onChange={(event) => onChange({ ...field, multiple: event.target.checked })}
+            />
+            {t("fields.multiple")}
+          </label>
+        </>
+      )}
+      {field.type === "group" && (
+        <fieldset className="gfa-choices">
+          <legend className="gfa-label">{t("fields.groupFields")}</legend>
+          {field.subFields.map((sub, subIndex) => {
+            const setSub = (changed: DraftSubField) =>
+              onChange({ ...field, subFields: field.subFields.map((other, i) => (i === subIndex ? changed : other)) });
+            return (
+              <div key={sub.key} className="gfa-inline-form">
+                <TextField
+                  label={t("fields.label")}
+                  value={sub.label}
+                  onChange={(label) => setSub({ ...sub, label })}
+                />
+                <Field label={t("fields.type")}>
+                  {(props) => (
+                    <select
+                      {...props}
+                      className="gfa-input"
+                      value={sub.type}
+                      disabled={Boolean(sub.name)}
+                      onChange={(event) => setSub({ ...sub, type: event.target.value as GroupFieldType })}
+                    >
+                      {GROUP_FIELD_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {t(groupTypeLabels[type])}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+                <Button
+                  variant="ghost"
+                  disabled={field.subFields.length === 1}
+                  onClick={() => onChange({ ...field, subFields: field.subFields.filter((_, i) => i !== subIndex) })}
+                >
+                  {t("menus.remove")}
+                </Button>
+              </div>
+            );
+          })}
+          <Button
+            disabled={field.subFields.length >= MAX_GROUP_FIELDS}
+            onClick={() =>
+              onChange({
+                ...field,
+                subFields: [...field.subFields, { key: newKey(), label: t("fields.newLabel"), type: "text" }],
+              })
+            }
+          >
+            {t("fields.addGroupField")}
           </Button>
         </fieldset>
       )}
@@ -419,9 +566,12 @@ function CalendarSetting({
 function DeleteCollectionDialog({ collection, onClose }: { collection: Collection; onClose: () => void }) {
   const t = useStrings();
   const { publish } = useAdmin();
+  const { content } = useSiteContent();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
   const name = collection.settings.name;
+  // Collections whose fields link to this one's items keep it, since their items name its items.
+  const linking = collectionsLinkingTo(content, collection.id);
 
   const onDelete = async () => {
     setBusy(true);
@@ -437,11 +587,20 @@ function DeleteCollectionDialog({ collection, onClose }: { collection: Collectio
 
   return (
     <Dialog title={t("collectionSettings.deleteTitle", { name })} onClose={onClose}>
-      <p>{t("collectionSettings.deleteBody", { name, count: String(collection.entries.length) })}</p>
+      {linking.length > 0 ? (
+        <p>
+          {t("collectionSettings.deleteLinked", {
+            name,
+            collections: linking.map((other) => other.settings.name).join(", "),
+          })}
+        </p>
+      ) : (
+        <p>{t("collectionSettings.deleteBody", { name, count: String(collection.entries.length) })}</p>
+      )}
       <PublishFailure failure={failure} />
       <div className="gfa-dialog-actions">
         <Button onClick={onClose}>{t("action.cancel")}</Button>
-        <Button variant="danger" disabled={busy} onClick={() => void onDelete()}>
+        <Button variant="danger" disabled={busy || linking.length > 0} onClick={() => void onDelete()}>
           {busy ? t("publish.publishing") : t("collectionSettings.delete")}
         </Button>
       </div>
@@ -492,6 +651,10 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
       if (!field.label) result[`fields.${index}.label`] = t("field.required");
       if (hasChoices(field.type) && !field.options?.length)
         result[`fields.${index}.options`] = t("fields.optionsRequired");
+      if (field.type === "item" && !content.collections.some((candidate) => candidate.id === field.collection))
+        result[`fields.${index}.collection`] = t("fields.collectionRequired");
+      if (field.type === "group" && field.fields?.some((sub) => !sub.label))
+        result[`fields.${index}.fields`] = t("field.required");
     });
     if (next.path !== undefined) {
       if (addressPatternProblem(next.path)) result.path = t("address.invalid");
@@ -671,7 +834,17 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
                 placeholder={`{${names[index]?.name ?? ""}}`}
                 index={index}
                 count={draft.fields.length}
-                error={shown[`fields.${index}.label`] ?? shown[`fields.${index}.options`]}
+                collections={content.collections.map((candidate) => ({
+                  id: candidate.id,
+                  name:
+                    candidate.id === collection.id ? draft.name || candidate.settings.name : candidate.settings.name,
+                }))}
+                error={
+                  shown[`fields.${index}.label`] ??
+                  shown[`fields.${index}.options`] ??
+                  shown[`fields.${index}.collection`] ??
+                  shown[`fields.${index}.fields`]
+                }
                 onChange={(changed) => setField(index, changed)}
                 onMove={(by) => setDraft({ ...draft, fields: move(draft.fields, index, by) })}
                 onRemove={() => setDraft({ ...draft, fields: draft.fields.filter((_, i) => i !== index) })}
@@ -693,6 +866,9 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
                       required: false,
                       hint: "",
                       options: [],
+                      collection: "",
+                      multiple: false,
+                      subFields: [],
                     },
                   ],
                 })

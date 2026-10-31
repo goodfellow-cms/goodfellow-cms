@@ -1,7 +1,7 @@
 {
   "name": "create-goodfellow",
   "version": "0.8.0",
-  "description": "Creates a new Goodfellow site: npm create goodfellow@latest my-site",
+  "description": "Creates a new Goodfellow CMS site: npm create goodfellow@latest my-site",
   "keywords": [
     "goodfellow",
     "cms",

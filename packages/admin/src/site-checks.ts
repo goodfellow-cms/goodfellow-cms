@@ -137,6 +137,14 @@ export function describeProblem(t: Translate, content: SiteContent, problem: Sit
     case "no-title":
     case "no-description":
       return t(`checks.${problem.kind}`, { place: problemPlace(t, content, problem.file) });
+    case "missing-item":
+      return t("checks.missing-item", {
+        place: problemPlace(t, content, problem.file),
+        target: problem.target,
+        collection:
+          content.collections.find((collection) => collection.id === problem.collection)?.settings.name ??
+          problem.collection,
+      });
     case "bad-translation":
       return t("checks.bad-translation", { place: problemPlace(t, content, problem.file), target: problem.target });
     case "missing-translation":

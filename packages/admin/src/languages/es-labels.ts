@@ -244,6 +244,7 @@ export const labels: Record<string, string> = {
   "On this page": "En esta página",
   "Only decoration, with nothing to describe": "Solo decorativa, sin nada que describir",
   "Only items with": "Solo elementos con",
+  "Only the items this one links to, in": "Solo los elementos a los que enlaza este, en",
   "Only pages under this address (empty for every page)": "Solo páginas bajo esta dirección (vacío para todas)",
   "Open at first": "Abierto al principio",
   "Open in a new tab": "Abrir en una pestaña nueva",

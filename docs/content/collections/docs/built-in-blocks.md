@@ -166,7 +166,7 @@ Every part of a built-in block has a name, which is on the part as a class, and 
 - **Contact details:** `gf-contact` (Contact details), `gf-contact-address` (Address), `gf-contact-phone` (Phone number), `gf-contact-email` (Email address).
 - **Details:** `gf-details` (Details), `gf-details-summary` (Summary), `gf-details-content` (What it shows).
 - **Dark mode switch:** `gf-dark-mode-switch` (Dark mode switch), `gf-dark-mode-switch-track` (Switch's track), `gf-dark-mode-switch-thumb` (Switch's knob).
-- **Entry field:** `gf-entry-field` (Entry field), `gf-entry-field-link` (Field's link), `gf-code` (Code), `gf-code-title` (Code's title), `gf-code-copy` (Copy button).
+- **Entry field:** `gf-entry-field` (Entry field), `gf-entry-field-link` (Field's link), `gf-entry-field-image` (Each of several images), `gf-entry-field-row` (Each of a group's rows), `gf-code` (Code), `gf-code-title` (Code's title), `gf-code-copy` (Copy button).
 - **File:** `gf-file` (File), `gf-file-link` (File's link), `gf-file-button` (Download button).
 - **Form:** `gf-form` (Form), `gf-form-embed` (Google Form), `gf-form-questions` (Questions), `gf-form-question` (Question), `gf-form-label` (Question's wording), `gf-form-hint` (Help text), `gf-form-input` (Answer field), `gf-form-choice` (Choice), `gf-form-check` (Checkbox or option), `gf-form-required` (Required mark), `gf-form-submit` (Send button).
 - **Newsletter signup:** `gf-newsletter` (Newsletter signup), `gf-newsletter-heading` (Heading), `gf-newsletter-text` (Text), `gf-newsletter-form` (Form), `gf-newsletter-field` (Field), `gf-newsletter-label` (Field's label), `gf-newsletter-input` (Email box), `gf-newsletter-submit` (Subscribe button), `gf-newsletter-note` (Words under the form).

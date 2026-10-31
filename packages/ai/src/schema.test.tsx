@@ -161,13 +161,15 @@ describe("values", () => {
         },
       },
     },
+    featured: { type: "custom", label: "Featured", render: () => <span />, metadata: { ai: { type: "boolean" } } },
     secret: { type: "custom", label: "Secret", render: () => <span /> },
   };
 
   it("describes fields, including custom ones that say what they hold", () => {
     const schema = valuesSchema(fields) as { properties: { values: { properties: Record<string, Loose> } } };
     const properties = schema.properties.values.properties;
-    expect(Object.keys(properties)).toEqual(["title", "date", "kind", "topics"]);
+    expect(Object.keys(properties)).toEqual(["title", "date", "kind", "topics", "featured"]);
+    expect(properties.featured.type).toBe("boolean");
     expect(properties.kind.enum).toEqual(["", "homily"]);
     expect(properties.topics).toMatchObject({ type: "array", items: { enum: ["music", "youth"] } });
   });
@@ -176,12 +178,26 @@ describe("values", () => {
     expect(
       toValues(
         {
-          values: { title: "New", date: "next week", kind: "homily", topics: ["youth", "sport", "music"], secret: "x" },
+          values: {
+            title: "New",
+            date: "next week",
+            kind: "homily",
+            topics: ["youth", "sport", "music"],
+            featured: "yes",
+            secret: "x",
+          },
         },
         fields,
-        { title: "Old", date: "2026-01-01", secret: "kept" },
+        { title: "Old", date: "2026-01-01", featured: true, secret: "kept" },
       ),
-    ).toEqual({ title: "New", date: "2026-01-01", kind: "homily", topics: ["music", "youth"], secret: "kept" });
+    ).toEqual({
+      title: "New",
+      date: "2026-01-01",
+      kind: "homily",
+      topics: ["music", "youth"],
+      featured: true,
+      secret: "kept",
+    });
   });
 });
 

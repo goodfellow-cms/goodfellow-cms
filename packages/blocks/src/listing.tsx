@@ -49,7 +49,10 @@ export function pagesNotice(view: SiteContextValue["view"], shows: "page" | "mon
 /** Whether a list would have pages of its own: later pages, or a page for each choice. */
 export function wantsPages(listing: Listing, stored: Partial<ListingProps>): boolean {
   const props = { ...listingDefaults, ...stored };
-  return listing.pages > 1 || (!!props.choicePages && choicePageList(listing.collection, props.choicePages).length > 0);
+  return (
+    listing.pages > 1 ||
+    (!props.linkedFrom && !!props.choicePages && choicePageList(listing.collection, props.choicePages).length > 0)
+  );
 }
 
 /** In the editor, why a list that would have pages of its own doesn't. */
@@ -151,6 +154,7 @@ export const listingFields: Fields<ListingProps> = {
   collection: { type: "select", label: "Collection", options: [] },
   filterField: { type: "select", label: "Only items with", options: [NONE] },
   filterValue: { type: "select", label: "Choice", options: [NONE] },
+  linkedFrom: { type: "select", label: "Only the items this one links to, in", options: [NONE] },
   dateField: { type: "select", label: "Date", options: [NONE] },
   show: {
     type: "select",
@@ -189,6 +193,8 @@ export function resolveListingFields<Props extends ListingProps>(
   fields: Fields<Props>,
   props: ListingProps,
   collections: Collection[],
+  /** In a collection's template, that collection, whose items' links the list can follow. */
+  template?: Collection,
 ): Partial<Fields<Props>> {
   const collection = collections.find((candidate) => candidate.id === props.collection);
   const fieldsOf = (accept: (field: CollectionField) => boolean) => [
@@ -196,6 +202,9 @@ export function resolveListingFields<Props extends ListingProps>(
     ...(collection?.settings.fields ?? []).filter(accept).map((field) => ({ label: field.label, value: field.name })),
   ];
   const filterDefinition = collection && fieldOf(collection, props.filterField);
+  const linkFields = (template?.settings.fields ?? []).filter(
+    (field) => field.type === "item" && !!props.collection && field.collection === props.collection,
+  );
   const resolved: Partial<Fields<ListingProps>> = {
     ...(fields as Partial<Fields<ListingProps>>),
     collection: {
@@ -203,7 +212,16 @@ export function resolveListingFields<Props extends ListingProps>(
       label: "Collection",
       options: [{ label: "Choose…", value: "" }, ...collections.map((c) => ({ label: c.settings.name, value: c.id }))],
     },
-    filterField: { type: "select", label: "Only items with", options: fieldsOf(isChoiceField) },
+    filterField: {
+      type: "select",
+      label: "Only items with",
+      options: fieldsOf((field) => isChoiceField(field) || field.type === "yesno"),
+    },
+    linkedFrom: {
+      type: "select",
+      label: "Only the items this one links to, in",
+      options: [NONE, ...linkFields.map((field) => ({ label: field.label, value: field.name }))],
+    },
     filterValue: {
       type: "select",
       label: "Choice",
@@ -217,15 +235,20 @@ export function resolveListingFields<Props extends ListingProps>(
     },
     choicePages: { type: "select", label: "A page for each choice of", options: fieldsOf(isChoiceField) },
   };
-  if (!props.filterField) delete resolved.filterValue;
+  if (!props.filterField || filterDefinition?.type === "yesno") delete resolved.filterValue;
+  if (linkFields.length === 0 && !props.linkedFrom) delete resolved.linkedFrom;
+  if (props.linkedFrom) {
+    delete resolved.paginate;
+    delete resolved.choicePages;
+  }
   if (!props.dateField) delete resolved.show;
   if (props.order !== "field-asc" && props.order !== "field-desc") delete resolved.sortField;
-  if (!props.paginate || !(props.limit > 0)) {
+  if (!props.paginate || !(props.limit > 0) || props.linkedFrom) {
     delete resolved.previousLabel;
     delete resolved.nextLabel;
     delete resolved.pageTitle;
     if (!props.choicePages) delete resolved.pagesLabel;
   }
-  if (!props.choicePages) delete resolved.allLabel;
+  if (!props.choicePages || props.linkedFrom) delete resolved.allLabel;
   return resolved as Partial<Fields<Props>>;
 }

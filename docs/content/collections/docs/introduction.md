@@ -1,12 +1,12 @@
 ---
 version: 1
 title: Introduction
-description: What Goodfellow is, how a Goodfellow site works, and where to start.
+description: What Goodfellow CMS is, how a Goodfellow site works, and where to start.
 section: start
 order: 1
 ---
 
-Goodfellow is a website builder for people who aren't developers, from a volunteer running a club's site to a company's marketing team working alongside its developers. Editors build pages from blocks in a visual editor, built on [Puck](https://puckeditor.com), at `/admin` on their own site. There's no server, database or monthly hosting bill: every page is a file in the site's own GitHub, GitLab or Bitbucket repository, and a free static host puts the site online.
+Goodfellow CMS (Goodfellow for short) is a website builder for people who aren't developers, from a volunteer running a club's site to a company's marketing team working alongside its developers. Editors build pages from blocks in a visual editor, built on [Puck](https://puckeditor.com), at `/admin` on their own site. There's no server, database or monthly hosting bill: every page is a file in the site's own GitHub, GitLab or Bitbucket repository, and a free static host puts the site online.
 
 > Goodfellow is in early development. Everything these pages describe works today, and the [open issues](https://github.com/goodfellow-cms/goodfellow-cms/issues) show what's planned. If something doesn't work, or you'd like it to do something it doesn't, [open an issue](https://github.com/goodfellow-cms/goodfellow-cms/issues/new/choose).
 

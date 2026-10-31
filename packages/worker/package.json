@@ -2,7 +2,7 @@
   "name": "@goodfellow-cms/worker",
   "version": "0.2.0",
   "private": true,
-  "description": "Goodfellow's sign-in worker: editors sign in with GitHub, and the admin panel gets a token for one repository, lasting an hour.",
+  "description": "Goodfellow CMS's sign-in worker: editors sign in with GitHub, and the admin panel gets a token for one repository, lasting an hour.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,

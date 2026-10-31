@@ -9,7 +9,7 @@ export type JsonSchema = { [key: string]: unknown };
  * say what they hold. Set it as `metadata: { ai: … }` on the field.
  */
 export interface AiFieldHint {
-  type: "string" | "number" | "date" | "choice" | "choices" | "table";
+  type: "string" | "number" | "boolean" | "date" | "choice" | "choices" | "table";
   /** The choices, for `choice` (one of them) and `choices` (any number of them). */
   options?: Array<{ value: string; label: string }>;
   description?: string;
@@ -95,6 +95,7 @@ export function fieldSchema(field: AnyField): JsonSchema | undefined {
       if (!hint) return undefined;
       const description = describe(field, hint.description);
       if (hint.type === "number") return withDescription({ type: "number" }, description);
+      if (hint.type === "boolean") return withDescription({ type: "boolean" }, description);
       if (hint.type === "table") {
         return withDescription(
           { type: "array", items: { type: "array", items: { type: "string" } } },
@@ -255,6 +256,7 @@ function cleanValue(field: AnyField, value: unknown): { ok: true; value: unknown
       if (hint.type === "number") {
         return typeof value === "number" && Number.isFinite(value) ? { ok: true, value } : { ok: false };
       }
+      if (hint.type === "boolean") return typeof value === "boolean" ? { ok: true, value } : { ok: false };
       if (hint.type === "table") {
         if (!Array.isArray(value)) return { ok: false };
         const rows = value

@@ -48,7 +48,7 @@ const tools = [
 const manifest = {
   manifest_version: "0.3",
   name: "goodfellow",
-  display_name: "Goodfellow",
+  display_name: "Goodfellow CMS",
   version,
   description,
   author: { name: "Goodfellow", url: "https://goodfellow-cms.github.io/goodfellow-cms/" },

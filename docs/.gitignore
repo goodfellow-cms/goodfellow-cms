@@ -1,6 +1,10 @@
 node_modules/
 dist/
 public/starters/
+# Written for AI tools by scripts/llms.mjs.
+public/llms.txt
+public/llms-full.txt
+public/docs/
 # Environment files, which hold secrets.
 .env
 .env*.local

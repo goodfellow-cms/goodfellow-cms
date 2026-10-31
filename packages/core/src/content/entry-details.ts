@@ -6,7 +6,7 @@
  * summary (a calendar's, or its first plain-text area), its body (the first
  * formatted-text field) and its first image.
  */
-import { type Collection, type Entry, entryTitle, isDateValue, richTextToPlainText } from "./collections.js";
+import { type Collection, type Entry, entryTitle, imagesOf, isDateValue, richTextToPlainText } from "./collections.js";
 import { markdownText } from "./markdown.js";
 import type { CollectionField } from "./schemas.js";
 
@@ -70,8 +70,16 @@ export function entryDetails(collection: Collection, entry: Entry): EntryDetails
   const body = fields.find((field) => field.type === "richtext");
   const text = plainText(collection, body, body && values[body.name]);
   const summary = plainText(collection, summaryField(collection), values[summaryField(collection)?.name ?? ""]);
-  const imageField = fields.find((field) => field.type === "image" && typeof values[field.name] === "string");
-  const image = imageField ? String(values[imageField.name]).trim() : "";
+  const image =
+    fields
+      .map((field) =>
+        field.type === "image" && typeof values[field.name] === "string"
+          ? String(values[field.name]).trim()
+          : field.type === "images"
+            ? (imagesOf(values[field.name])[0] ?? "")
+            : "",
+      )
+      .find((address) => address !== "") ?? "";
   return {
     title: entryTitle(entry),
     ...(isDateValue(dated) && { date: dated }),

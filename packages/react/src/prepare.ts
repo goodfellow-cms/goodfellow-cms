@@ -94,6 +94,7 @@ export function applyPageEntry(configs: PuckConfigs, content: SiteContent, page:
     found.entry,
     content.settings.language,
     content.settings.timeZone,
+    content.collections,
   );
   return { ...page, content: { ...page.content, data: data as Page["content"]["data"] } };
 }
