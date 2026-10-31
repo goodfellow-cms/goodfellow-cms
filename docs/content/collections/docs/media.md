@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Images and files
-description: Upload, choose, replace and delete images and files in the media library.
+description: Upload, choose, describe, replace and delete images and files in the media library.
 section: editors
 order: 4
 ---
@@ -18,9 +18,17 @@ Choose files, or drop them onto the Media screen. Wherever an image goes, such a
 - New uploads show in the editor straight away, even before the live site has been rebuilt with them.
 - When the site is built, smaller copies of each JPEG, PNG and WebP photo are made, 480, 800, 1200 and 1600 pixels wide (only those narrower than the photo), so phones download no more than they show. The photo itself is kept as it was uploaded. Sites that keep media in a storage service, full-stack Next.js sites and Next.js sites with an image loader of their own don't get the copies.
 
+## Describe
+
+Each image on the Media screen has **Describe**: say what it shows, for people who can't see it, such as "Children singing in the choir at the Christmas service". Wherever a block leaves an image's own description empty, such as an Image block's **Description for screen readers**, it uses the media library's, so an image described once is described everywhere, and changing it changes it everywhere. A block's own description, where it has one, comes first, and images only there to look nice, such as a card's picture beside its title, stay undescribed. On a site in [several languages](/docs/languages), each language has a box of its own; one left empty uses the main language's.
+
+Descriptions also help find files: the Media screen's search looks in them as well as in names. They're kept in `content/media.json`, and apps get them through the [content API](/docs/content-api).
+
 ## Replace and delete
 
-Replacing a file keeps its address, so everything that uses it shows the new version. The new file has to be the same kind as the one it replaces, such as a `.jpg` for a `.jpg`, since it's saved under the same name. Deleting a file first lists everything that uses it, and can't be published until they use another file (see [Site checks](/docs/publishing#site-checks)).
+Replacing a file keeps its address, so everything that uses it shows the new version. The new file has to be the same kind as the one it replaces, such as a `.jpg` for a `.jpg`, since it's saved under the same name. Deleting a file first lists everything that uses it, and can't be published until they use another file (see [Site checks](/docs/publishing#site-checks)). Replacing or deleting a file also removes its description and credit, since they were for that file.
+
+To delete several files at once, choose **Select files**, tick them (or **Select all shown**, after a search), then **Delete selected**. They go in one publish, with the same list of what uses each.
 
 ## Media kept in a storage service
 

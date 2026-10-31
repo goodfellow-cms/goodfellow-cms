@@ -23,6 +23,7 @@ import { storedData } from "./changes.js";
 import { applyEditorChange, findBlock } from "./editor-change.js";
 import { type FrameClient, useFrame, useFrameUpdates } from "./frame/host.js";
 import type { EditorChange, EditorOpen, EditorState } from "./frame/protocol.js";
+import { editKeeper, type KeptEdit, keptEditKey } from "./kept-edits.js";
 import { useMayChange } from "./limits.js";
 import {
   type PluginEditorChange,
@@ -94,6 +95,14 @@ function writeWidths(key: string, widths: Partial<Widths>) {
   }
 }
 
+/** When unpublished changes were kept, as the computer writes dates and times. */
+function keptTime(savedAt: number): string {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(savedAt);
+}
+
+/** How long typing has to stop before what's edited is kept in the browser. */
+const KEEP_AFTER_MS = 1000;
+
 /** The widths the editor previews pages at: the editor's own, a tablet's and a phone's. */
 const VIEWPORTS = [
   { width: null, label: "editor.viewport.full" },
@@ -116,7 +125,7 @@ export function PuckEditor({
   language,
 }: PuckEditorProps) {
   const t = useStrings();
-  const { site, publish, reload, drafts } = useAdmin();
+  const { site, siteUrl, publish, reload, drafts } = useAdmin();
   const editable = useMayChange(
     kind === "page"
       ? { kind, path }
@@ -138,6 +147,8 @@ export function PuckEditor({
     | { type: "failed"; reason: "conflict" | "error"; error: unknown }
     // Someone else's version is open after a conflict, and this editor's own is kept to put back.
     | { type: "reloaded" }
+    // Changes this browser kept that weren't published, offered back; `theirs` when someone has published since.
+    | { type: "kept"; edit: KeptEdit; theirs: boolean }
   >({ type: "idle" });
 
   // What's published, as the editor's frame opened it: files saved by older versions of Puck are upgraded there.
@@ -149,6 +160,46 @@ export function PuckEditor({
   const widthsKey = kind === "entry" ? ENTRY_WIDTHS_KEY : WIDTHS_KEY;
   // Settings only owners may change, such as Custom HTML used as written, which full-stack sites' servers refuse from editors.
   const owner = useCanChangeSettings();
+  // Where changes are kept in this browser as they're made, until they're published: the screen opens again for
+  // another draft, so this stays the same while it's open.
+  const keptKey = keptEditKey(
+    siteUrl,
+    {
+      kind,
+      path,
+      ...(collection && { collection: collection.id }),
+      ...(entry && { entry }),
+      ...(language && { language }),
+    },
+    drafts.current?.name,
+  );
+  // Whether changes kept before have been looked for, which keeping new ones waits for, and whether any have been kept since.
+  const [keptChecked, setKeptChecked] = useState(false);
+  const lookedForKept = useRef(false);
+  const keptSaved = useRef(false);
+  /** Offers changes kept from before, once, when what's edited first opens as `opened` is published. */
+  const offerKept = useCallback(
+    async (opened: string) => {
+      if (lookedForKept.current) return;
+      lookedForKept.current = true;
+      const edit = readOnly
+        ? undefined
+        : await editKeeper()
+            .load(keptKey)
+            .catch(() => undefined);
+      if (edit && serializeContent(storedData(edit.data)) !== opened) {
+        setStatus({ type: "kept", edit, theirs: edit.published !== opened });
+      } else if (edit) {
+        await editKeeper()
+          .remove(keptKey)
+          .catch(() => undefined);
+      }
+      setKeptChecked(true);
+    },
+    [readOnly, keptKey],
+  );
+  const offerKeptOnOpen = useRef(offerKept);
+  offerKeptOnOpen.current = offerKept;
 
   // What the frame opens with, and opens again with if it starts again, such as when the dev server reloads it.
   const latest = useRef({ data, viewport });
@@ -192,6 +243,7 @@ export function PuckEditor({
       });
       setConfig(opened.config);
       published.current ??= serializeContent(storedData(opened.data));
+      void offerKeptOnOpen.current(published.current);
       if (latest.current.viewport) await client.call("editor.viewport", latest.current.viewport);
     },
     [open, widthsKey],
@@ -254,6 +306,58 @@ export function PuckEditor({
     serializeContent(storedData(state.data)) !== published.current;
   useUnsavedChanges(dirty);
 
+  // Keeps what's edited in this browser once typing stops, and forgets it once nothing is left to publish. Not while
+  // changes from before are offered, or this editor's own are kept to put back after someone else's were loaded.
+  const keepPaused = status.type === "kept" || status.type === "reloaded";
+  useEffect(() => {
+    if (!keptChecked || keepPaused || readOnly || !state) return;
+    const from = published.current;
+    if (!dirty || from === undefined) {
+      if (keptSaved.current) {
+        keptSaved.current = false;
+        void editKeeper()
+          .remove(keptKey)
+          .catch(() => undefined);
+      }
+      return;
+    }
+    const edited = state.data;
+    const timer = setTimeout(() => {
+      keptSaved.current = true;
+      void editKeeper()
+        .save(keptKey, { data: edited, published: from, savedAt: Date.now() })
+        .catch(() => undefined);
+    }, KEEP_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [keptChecked, keepPaused, readOnly, state, dirty, keptKey]);
+
+  /** Opens the changes kept from before, if they're still something the site can publish. */
+  const putKeptBack = (edit: KeptEdit) => {
+    const checked = checkPuckData(edit.data, { description: site.description, kind });
+    if (!checked.ok) {
+      void editKeeper()
+        .remove(keptKey)
+        .catch(() => undefined);
+      setStatus({
+        type: "invalid",
+        message: t("kept.invalid", { time: keptTime(edit.savedAt) }),
+        details: checked.problems.map((problem) => `${problem.path}: ${problem.message}`).join("\n"),
+      });
+      return;
+    }
+    // Kept again as soon as the editor has them, in case they change nothing more.
+    keptSaved.current = true;
+    setStatus({ type: "idle" });
+    void reopen(checked.data, false);
+  };
+
+  const throwKeptAway = () => {
+    void editKeeper()
+      .remove(keptKey)
+      .catch(() => undefined);
+    setStatus({ type: "idle" });
+  };
+
   /** What an editor plugin has now, if it's something the site can publish, or why not. */
   const pluginData = useCallback(
     async (given: { handle: PluginEditorHandle; opened: Data }, fallback: Data) => {
@@ -270,6 +374,7 @@ export function PuckEditor({
   const onPluginOpen = useCallback((handle: PluginEditorHandle, opened: Data) => {
     setPluginEditor({ handle, opened });
     published.current ??= serializeContent(storedData(opened));
+    void offerKeptOnOpen.current(published.current);
     latest.current.data = opened;
     setState({
       data: opened,
@@ -351,9 +456,15 @@ export function PuckEditor({
     }
     setStatus({ type: "publishing" });
     const { changes, message } = toChanges(next);
+    // Where the changes were kept: adding to a draft opens the screen again for it.
+    const keptAt = keptKey;
     const result = await publish(changes, message, { draft });
     if (result.ok) {
       published.current = serializeContent(storedData(next));
+      keptSaved.current = false;
+      void editKeeper()
+        .remove(keptAt)
+        .catch(() => undefined);
       setStatus({ type: "done" });
     } else if (result.reason === "checks") {
       setStatus({ type: "idle" });
@@ -521,6 +632,18 @@ export function PuckEditor({
               error={status.details}
               action={<Button onClick={() => setStatus({ type: "idle" })}>{t("action.close")}</Button>}
             />
+          )}
+          {status.type === "kept" && (
+            <div className="gfa-notice" role="status">
+              <p>{t("kept.found", { time: keptTime(status.edit.savedAt) })}</p>
+              {status.theirs && <p>{t("kept.theirs")}</p>}
+              <div className="gfa-dialog-actions">
+                <Button onClick={() => putKeptBack(status.edit)}>{t("kept.putBack")}</Button>
+                <Button variant="secondary" onClick={throwKeptAway}>
+                  {t("kept.throwAway")}
+                </Button>
+              </div>
+            </div>
           )}
           {status.type === "reloaded" && (
             <div className="gfa-notice" role="status">

@@ -13,7 +13,7 @@ Everything the admin panel edits is a file in `content/` or `public/media/`, in 
 | `content/site.json` | Site Settings: name, address, logo, icons, contact details, theme |
 | `content/menus.json` | Navigation menus, by name |
 | `content/redirects.json` | Redirects: old addresses, and where they send visitors |
-| `content/media.json` | Credits for media files, such as photos the AI assistant found, by address |
+| `content/media.json` | Credits for media files, such as photos the AI assistant found, and images' descriptions, by address |
 | `content/media-storage.json` | Where a [plugin keeps media](/docs/media#media-kept-in-a-storage-service): the plugin, the public address it keeps files at, and each file it keeps by its `/media/` address, with its size |
 | `content/permissions.json` | What [editors with limits](/docs/sign-in#limiting-what-editors-can-change) may change, by username, and who reviews the rest |
 | `content/layout/header.json`, `footer.json` | The header and footer, as Puck data |

@@ -109,6 +109,12 @@ export interface SiteContextValue {
   home?: string;
   /** The credits of the photos the page shows, such as ones from Openverse, which the page lists at its end. */
   credits?: PageCredit[];
+  /**
+   * The media library's descriptions of the images the page shows, in its
+   * language, by address, which `SiteImage` uses where a block leaves an
+   * image's `alt` empty and doesn't hide it with `aria-hidden`.
+   */
+  descriptions?: Record<string, string>;
   /** In the admin panel's editor only: links to its screens, so a block's note can say where to fix something. */
   adminLink?: (place: AdminPlace) => AdminLinkProps;
   /**

@@ -45,8 +45,12 @@ export function createSiteLinks(useSite: () => SiteContextValue) {
    * where the image is narrower than the page. Any other image the build knows
    * the size of, such as an SVG logo, gets its `width` and `height` too.
    */
-  function SiteImage(props: SiteImageProps) {
-    const { base, components, media, imageWidths } = useSite();
+  function SiteImage(given: SiteImageProps) {
+    const { base, components, media, imageWidths, descriptions } = useSite();
+    // An empty description takes the media library's, unless the image is only there to look nice.
+    const hidden = given["aria-hidden"] === true || given["aria-hidden"] === "true" || given.role === "presentation";
+    const described = given.alt === "" && !hidden ? descriptions?.[given.src] : undefined;
+    const props = described ? { ...given, alt: described } : given;
     const size = media?.[props.src];
     const src = withBase(props.src, base);
     const srcSet = imageWidths && imageSrcSet(props.src, size, imageWidths);

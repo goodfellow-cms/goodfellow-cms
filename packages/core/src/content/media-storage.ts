@@ -147,6 +147,11 @@ export function withStoredMedia(content: SiteContent): SiteContent {
     ...(content.credits && {
       credits: Object.fromEntries(Object.entries(content.credits).map(([url, credit]) => [map(url), credit])),
     }),
+    ...(content.descriptions && {
+      descriptions: Object.fromEntries(
+        Object.entries(content.descriptions).map(([url, description]) => [map(url), description]),
+      ),
+    }),
   };
 }
 

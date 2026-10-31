@@ -77,7 +77,11 @@ On a [full-stack Next.js site](/docs/full-stack-nextjs), in a [demo](/docs/demo-
 
 ## Unpublished changes
 
-Leaving a screen with unpublished changes asks first, so nothing is lost by accident. Changes aren't saved anywhere until you publish them or add them to a draft, so do one or the other before closing the tab.
+Leaving a screen with unpublished changes asks first, so nothing is lost by accident.
+
+While you edit a page, the header or footer, a collection's design or an item, the admin panel keeps your changes in the browser as you go, so closing the tab, a crash or a sign-in that runs out doesn't lose them. Open the same thing again in that browser, and a bar says you have changes from then that weren't published, with **Put them back** and **Throw them away**. If someone has published changes to it since, the bar says so: putting yours back and publishing them replaces theirs.
+
+Kept changes aren't published, and nobody else sees them: only that browser has them. They go once you publish them or add them to a draft, or undo them, and after 30 days. Signing out forgets them, so the next person on the computer doesn't find them. Site Settings and the other screens with forms don't keep their changes, so publish those before closing the tab.
 
 ## In development
 

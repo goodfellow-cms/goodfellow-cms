@@ -43,6 +43,7 @@ import { EditorsScreen } from "./editors-screen.js";
 import { EntryEditorScreen } from "./entry-editor.js";
 import type { FrameSource } from "./frame/host.js";
 import { ImportScreen } from "./import-screen.js";
+import { forgetKeptEdits } from "./kept-edits.js";
 import { MediaScreen } from "./media-library.js";
 import { PagesScreen } from "./pages-screen.js";
 import { PluginScreenFrame } from "./plugin-frames.js";
@@ -478,7 +479,14 @@ function AccountMenu() {
       {user.avatarUrl && <img src={user.avatarUrl} alt="" width={24} height={24} />}
       <span title={t("account.signedInAs", { name: user.login })}>{user.name || user.login}</span>
       {account.signOut && (
-        <Button variant="ghost" onClick={account.signOut}>
+        <Button
+          variant="ghost"
+          onClick={async () => {
+            // Changes kept in this browser go too, so the next person on this computer doesn't find them.
+            await forgetKeptEdits();
+            account.signOut?.();
+          }}
+        >
           {t("account.signOut")}
         </Button>
       )}

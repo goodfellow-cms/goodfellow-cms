@@ -144,6 +144,13 @@ export const strings: Strings = {
   "publish.reloaded":
     "Esta es la página tal como la dejó la otra persona. Vuelve a hacer tus cambios o recupera los tuyos para publicarlos encima de los suyos.",
   "publish.putMineBack": "Recuperar mis cambios",
+  "kept.found": "Tienes cambios aquí del {time} que no se publicaron.",
+  "kept.theirs":
+    "Otra persona ha publicado cambios aquí desde entonces. Si recuperas los tuyos, al publicarlos sustituirán a los suyos.",
+  "kept.putBack": "Recuperarlos",
+  "kept.throwAway": "Descartarlos",
+  "kept.invalid":
+    "Tus cambios del {time} no se pueden recuperar, porque los bloques del sitio han cambiado desde entonces.",
   "publish.invalid": "Corrige los problemas marcados antes de publicar.",
   "draft.label": "Borrador",
   "draft.add": "Añadir al borrador",
@@ -630,6 +637,30 @@ export const strings: Strings = {
   "media.deleteUsed":
     "Se usa en: {places}. Elige otro archivo allí primero, porque el sitio no se puede publicar usando un archivo que ya no está.",
   "media.notUsed": "Nada del sitio lo usa.",
+  "media.select": "Seleccionar archivos",
+  "media.selection": "Archivos seleccionados",
+  "media.selected": "{count} seleccionados",
+  "media.selectShown": "Seleccionar todos los mostrados",
+  "media.selectFile": "Seleccionar {name}",
+  "media.selectDone": "Listo",
+  "media.deleteSelected": "Eliminar seleccionados ({count})",
+  "media.deleteManyMessage": "Eliminar {count} archivos",
+  "media.deleteManyTitle": "¿Eliminar {count} archivos?",
+  "media.deleteManyBody": "Estos {count} archivos se quitarán del sitio.",
+  "media.deleteManyUsed":
+    "Algunos se usan en el sitio. Elige otros archivos allí primero, porque el sitio no se puede publicar usando archivos que ya no están:",
+  "media.usedIn": "{name}: {places}",
+  "media.noneUsed": "Nada del sitio los usa.",
+  "media.describe": "Describir",
+  "media.editDescription": "Editar descripción",
+  "media.noDescription": "Aún sin descripción",
+  "media.describeTitle": "Describir {name}",
+  "media.describeHint":
+    "Di qué muestra la imagen, para quienes no pueden verla, por ejemplo «Niños cantando en el coro en la misa de Navidad». Dondequiera que la descripción propia de la imagen quede vacía, se usa esta.",
+  "media.description": "Descripción",
+  "media.descriptionIn": "Descripción en {language}",
+  "media.describeLanguages": "Los idiomas que dejes vacíos usan la descripción en el idioma principal del sitio.",
+  "media.describeMessage": "Describir {name}",
   "media.error.type":
     "{name} no se puede subir. El sitio puede usar imágenes (JPEG, PNG, GIF, WebP, AVIF y SVG), PDF, documentos de oficina, audio MP3, vídeo MP4 y WebM, y subtítulos para vídeos (WebVTT).",
   "media.error.size":
@@ -1463,7 +1494,7 @@ export const strings: Strings = {
   "siteHistory.subject.settings": "Ajustes del sitio",
   "siteHistory.subject.menus": "Menús",
   "siteHistory.subject.redirects": "Redirecciones",
-  "siteHistory.subject.credits": "Créditos de las fotos",
+  "siteHistory.subject.credits": "Créditos y descripciones de las fotos",
   "siteHistory.subject.css": "CSS propio",
   "siteHistory.subject.theme": "Qué tema está instalado",
   "siteHistory.subject.code": "Código añadido a todas las páginas",

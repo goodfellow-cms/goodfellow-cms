@@ -5,7 +5,7 @@
  * `preparePage()` leaves it), never the content files as they're stored.
  */
 
-import type { PageCredit } from "../content/credits.js";
+import { describedIn, type PageCredit } from "../content/credits.js";
 import type { LanguageLink } from "../content/language-map.js";
 import { contentInLanguage, languagePrefix, mainLanguage, siteLanguages } from "../content/languages.js";
 import type { Page, SiteContent } from "../content/load.js";
@@ -84,6 +84,8 @@ export interface ApiSiteFile {
   menus: SiteContent["menus"];
   /** The site's pages in this language, for lists of pages (`pageLinks()`). */
   pages: PageLink[];
+  /** The media library's descriptions of its images in this language, by address, for images whose blocks leave theirs empty. */
+  descriptions?: Record<string, string>;
 }
 
 /** An item, as `/api/collections.json` has it. */
@@ -387,6 +389,11 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
       settings: shown.settings,
       menus: shown.menus,
       pages: pageLinks(shown),
+      ...(content.descriptions && {
+        descriptions: Object.fromEntries(
+          Object.entries(content.descriptions).map(([url, description]) => [url, describedIn(description, code)]),
+        ),
+      }),
     };
     languages[code] = {
       site: await add(`${folder}site.json`, site),

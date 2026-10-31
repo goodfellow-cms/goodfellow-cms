@@ -124,16 +124,23 @@ export function SiteText({
 
 const ASPECTS = { auto: undefined, square: 1, landscape: 4 / 3, wide: 16 / 9, tall: 9 / 16 } as const;
 
-/** One of the site's pictures, from the app's copy where it has one. Decorative ones are hidden from screen readers. */
+/**
+ * One of the site's pictures, from the app's copy where it has one. An empty
+ * `alt` takes the media library's description, unless it's `decorative`, and
+ * pictures with neither are hidden from screen readers.
+ */
 export function NativeImage({
   src,
   alt,
+  decorative = false,
   aspect = "wide",
   rounded = true,
   style,
 }: {
   src: string;
   alt: string;
+  /** Only there to look nice, as the web's `aria-hidden` images are. */
+  decorative?: boolean;
   /** Its shape; `auto` keeps the picture's own, once it's loaded. */
   aspect?: keyof typeof ASPECTS;
   rounded?: boolean;
@@ -142,10 +149,11 @@ export function NativeImage({
   const site = useNativeSite();
   const [own, setOwn] = useState<number | undefined>();
   const ratio = ASPECTS[aspect] ?? own ?? 16 / 9;
+  const label = alt || (decorative ? undefined : site.describe(src));
   return (
     <Image
       source={{ uri: site.media(src) }}
-      {...(alt ? { accessibilityLabel: alt, accessible: true } : { accessible: false })}
+      {...(label ? { accessibilityLabel: label, accessible: true } : { accessible: false })}
       resizeMode="cover"
       onLoad={(event) => {
         const { width, height } = event.nativeEvent.source ?? {};

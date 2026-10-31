@@ -148,6 +148,12 @@ export const defaultStrings = {
   "publish.reloaded":
     "This is the page as the other person left it. Make your changes again, or put yours back to publish them over theirs.",
   "publish.putMineBack": "Put my changes back",
+  "kept.found": "You have changes here from {time} that weren't published.",
+  "kept.theirs":
+    "Someone has published changes here since then. If you put yours back, publishing them replaces theirs.",
+  "kept.putBack": "Put them back",
+  "kept.throwAway": "Throw them away",
+  "kept.invalid": "Your changes from {time} can't be put back, since the site's blocks have changed since.",
   "publish.invalid": "Fix the highlighted problems before publishing.",
   "draft.label": "Draft",
   "draft.add": "Add to draft",
@@ -644,6 +650,30 @@ export const defaultStrings = {
   "media.deleteUsed":
     "It's used in: {places}. Choose another file there first, since the site can't be published using a file that's gone.",
   "media.notUsed": "Nothing on the site uses it.",
+  "media.select": "Select files",
+  "media.selection": "Selected files",
+  "media.selected": "{count} selected",
+  "media.selectShown": "Select all shown",
+  "media.selectFile": "Select {name}",
+  "media.selectDone": "Done",
+  "media.deleteSelected": "Delete selected ({count})",
+  "media.deleteManyMessage": "Delete {count} files",
+  "media.deleteManyTitle": "Delete {count} files?",
+  "media.deleteManyBody": "These {count} files will be removed from the site.",
+  "media.deleteManyUsed":
+    "Some are used on the site. Choose other files there first, since the site can't be published using files that are gone:",
+  "media.usedIn": "{name}: {places}",
+  "media.noneUsed": "Nothing on the site uses them.",
+  "media.describe": "Describe",
+  "media.editDescription": "Edit description",
+  "media.noDescription": "No description yet",
+  "media.describeTitle": "Describe {name}",
+  "media.describeHint":
+    "Say what the image shows, for people who can't see it, such as \"Children singing in the choir at the Christmas service\". Wherever the image's own description is left empty, it uses this one.",
+  "media.description": "Description",
+  "media.descriptionIn": "Description in {language}",
+  "media.describeLanguages": "Languages left empty use the description in the site's main language.",
+  "media.describeMessage": "Describe {name}",
   "media.error.type":
     "{name} can't be uploaded. The site can use images (JPEG, PNG, GIF, WebP, AVIF and SVG), PDFs, office documents, MP3 audio, MP4 and WebM video, and captions for videos (WebVTT).",
   "media.error.size":
@@ -1576,7 +1606,7 @@ export const defaultStrings = {
   "siteHistory.subject.settings": "Site settings",
   "siteHistory.subject.menus": "Menus",
   "siteHistory.subject.redirects": "Redirects",
-  "siteHistory.subject.credits": "Photo credits",
+  "siteHistory.subject.credits": "Photo credits and descriptions",
   "siteHistory.subject.css": "Custom CSS",
   "siteHistory.subject.theme": "Which theme is installed",
   "siteHistory.subject.code": "Code added to every page",

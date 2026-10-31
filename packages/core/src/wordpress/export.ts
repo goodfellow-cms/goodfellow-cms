@@ -446,11 +446,17 @@ export function wordPressExport(content: SiteContent, options: WordPressExportOp
   const newId = () => nextId++;
 
   /* The media library. */
-  const attachments = new Map<string, { id: number; url: string; name: string }>();
+  const attachments = new Map<string, { id: number; url: string; name: string; alt: string }>();
   for (const path of options.mediaFiles ?? []) {
     if (!path.startsWith(`${MEDIA_DIR}/`) || !mediaKind(path)) continue;
     const address = `/media/${path.slice(MEDIA_DIR.length + 1)}`;
-    attachments.set(address, { id: newId(), url: `${siteUrl}${address}`, name: path.slice(path.lastIndexOf("/") + 1) });
+    attachments.set(address, {
+      id: newId(),
+      url: `${siteUrl}${address}`,
+      name: path.slice(path.lastIndexOf("/") + 1),
+      // The media library's description, as WordPress's own alt text.
+      alt: content.descriptions?.[address]?.text ?? "",
+    });
   }
   const absolute = (address: string) =>
     siteUrl && address.startsWith("/") && !address.startsWith("//") ? `${siteUrl}${address}` : address;
@@ -684,7 +690,7 @@ ${item.image ? postmeta("_thumbnail_id", String(item.image)) : ""}
 <wp:status>${cdata("inherit")}</wp:status>
 <wp:post_parent>0</wp:post_parent>
 <wp:post_type>${cdata("attachment")}</wp:post_type>
-<wp:attachment_url>${cdata(file.url)}</wp:attachment_url>
+<wp:attachment_url>${cdata(file.url)}</wp:attachment_url>${file.alt ? `\n${postmeta("_wp_attachment_image_alt", file.alt)}` : ""}
 </item>`,
   );
 

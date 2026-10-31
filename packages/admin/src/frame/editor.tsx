@@ -7,6 +7,7 @@ import {
   allPages,
   type BlockIcon,
   contentInLanguage,
+  describedIn,
   findEntry,
   hasLanguages,
   languageHome,
@@ -334,6 +335,14 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
       collection,
       ...(view && { view }),
       ...(languages && { languages, home: languageHome(loaded, language) }),
+      ...(content.descriptions && {
+        descriptions: Object.fromEntries(
+          Object.entries(content.descriptions).map(([url, description]) => [
+            url,
+            describedIn(description, content.settings.language),
+          ]),
+        ),
+      }),
       adminLink,
       callPlugin,
     }),

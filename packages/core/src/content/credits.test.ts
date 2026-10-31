@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Collection } from "./collections.js";
-import { pageCredits } from "./credits.js";
+import { describedIn, pageCredits, pageDescriptions } from "./credits.js";
 import { loadSiteContent } from "./load.js";
 
 const credit = (title: string) => ({ title, creator: "Ann", source: "Flickr", license: "CC BY 2.0" });
@@ -40,6 +40,28 @@ describe("pageCredits", () => {
   });
 });
 
+describe("pageDescriptions", () => {
+  const descriptions = {
+    "/media/choir.jpg": { text: "The choir singing", translations: { es: "El coro cantando" } },
+    "/media/leaves.jpg": { text: "Autumn leaves" },
+  };
+
+  it("gives the descriptions of the images a page uses, in its language", () => {
+    const page = { content: [{ type: "Image", props: { src: "/media/choir.jpg", alt: "" } }] };
+    expect(pageDescriptions({ descriptions, collections: [] }, [page])).toEqual({
+      "/media/choir.jpg": "The choir singing",
+    });
+    expect(pageDescriptions({ descriptions, collections: [] }, [page], "es")).toEqual({
+      "/media/choir.jpg": "El coro cantando",
+    });
+    expect(pageDescriptions({ collections: [] }, [page])).toEqual({});
+  });
+
+  it("falls back on the main language's", () => {
+    expect(describedIn(descriptions["/media/leaves.jpg"], "es")).toBe("Autumn leaves");
+  });
+});
+
 describe("loading credits", () => {
   it("loads content/media.json, linking only web addresses", async () => {
     const files: Record<string, string> = {
@@ -60,5 +82,23 @@ describe("loading credits", () => {
       credits: { "/media/a.jpg": { ...credit("A"), sourceUrl: "javascript:alert(1)" } },
     });
     await expect(loadSiteContent(source)).rejects.toThrow(/sourceUrl must start with https:\/\//);
+  });
+});
+
+describe("loading descriptions", () => {
+  it("loads them from content/media.json, and refuses empty ones", async () => {
+    const files: Record<string, string> = {
+      "content/media.json": JSON.stringify({
+        version: 1,
+        credits: {},
+        descriptions: { "/media/choir.jpg": { text: "The choir singing", translations: { es: "El coro" } } },
+      }),
+    };
+    const source = { read: async (path: string) => files[path], list: async () => [] };
+    expect((await loadSiteContent(source)).descriptions).toEqual({
+      "/media/choir.jpg": { text: "The choir singing", translations: { es: "El coro" } },
+    });
+    files["content/media.json"] = JSON.stringify({ version: 1, descriptions: { "/media/a.jpg": { text: " " } } });
+    await expect(loadSiteContent(source)).rejects.toThrow();
   });
 });

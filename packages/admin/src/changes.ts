@@ -52,7 +52,7 @@ export {
   storedEntryFields,
   uniqueName,
   updateSettingsFileChange,
-  withoutCredits,
+  withoutMediaDetails,
 } from "@goodfellow-cms/core";
 
 /**

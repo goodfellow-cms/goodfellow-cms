@@ -11,6 +11,7 @@ import {
   normalizeBase,
   type Page,
   pageCredits,
+  pageDescriptions,
   pageLanguage,
   pageLinks,
   type SiteContent,
@@ -167,7 +168,13 @@ export async function prepareLayout(
     prepareData(content.footer.data, configs.layout, site),
   ]);
   const rebase = rebaser(options, content.settings);
-  return { site, layoutConfig: configs.layout, header: rebase(header), footer: rebase(footer) };
+  const descriptions = pageDescriptions(content, [header, footer], content.settings.language);
+  return {
+    site: Object.keys(descriptions).length > 0 ? { ...site, descriptions } : site,
+    layoutConfig: configs.layout,
+    header: rebase(header),
+    footer: rebase(footer),
+  };
 }
 
 /**
@@ -209,9 +216,15 @@ export async function preparePage(
   const rebase = rebaser(options, content.settings);
   // The credits of the photos the page shows, which their licenses ask for.
   const credits = pageCredits(content, [data, header, footer]);
+  // What the images it shows look like, for those whose blocks leave it empty.
+  const descriptions = pageDescriptions(content, [data, header, footer], settings.language);
   const structured = structuredDataScript(structuredData(loaded, page, todayIn(settings.timeZone)));
   return {
-    site: credits.length > 0 ? { ...site, credits } : site,
+    site: {
+      ...site,
+      ...(credits.length > 0 && { credits }),
+      ...(Object.keys(descriptions).length > 0 && { descriptions }),
+    },
     page: applied,
     pageConfig,
     layoutConfig: configs.layout,

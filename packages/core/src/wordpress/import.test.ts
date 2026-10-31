@@ -125,6 +125,16 @@ describe("planning an import", () => {
     expect(staff).toContain('"src":"/media/choir.jpg"');
   });
 
+  it("keeps the media library's alt text as images' descriptions", async () => {
+    const { files } = await importSample();
+    const descriptions = json(files["content/media.json"]).descriptions;
+    expect(descriptions["/media/church.jpg"]).toEqual({ text: "St. Brendan's church" });
+    expect(descriptions["/media/picnic.jpg"]).toEqual({ text: "Families at the picnic" });
+    expect(descriptions["/media/choir.jpg"]).toEqual({ text: "The choir" });
+    // Only what's copied: the unused file isn't, and has no alt text anyway.
+    expect(Object.keys(descriptions).some((url) => url.includes("unused"))).toBe(false);
+  });
+
   it("makes posts a collection of Markdown items, listed on WordPress's posts page", async () => {
     const { plan, files } = await importSample();
     // Addresses with dates can't be an address pattern, so posts move, with redirects.

@@ -21,7 +21,7 @@ Start with `/api/manifest.json`. Every other file's address in it is relative to
 |---|---|
 | `manifest.json` | The Goodfellow release (`goodfellow`), the version of each kind of content file the site reads (`content`), `base`, `url`, `mainLanguage`, each language's files (`languages`), every page with its file and hash (`pages`), the blocks the site's pages, headers and footers use (`blocks`), and the site's [redirects](/docs/layout-and-settings#redirects) (`redirects`). |
 | `pages/….json` | One page, named from its address: `/` is `pages/index.json`, `/news/fair` is `pages/news/fair.json` and Spanish's home page is `pages/es.json`. It holds its `path`, `language`, `head` (the title as the browser shows it, description, social image, `noIndex`, the canonical address and translations), `entry` on an item's page, `view` on a page a block adds, such as a calendar's month, `data` (its blocks, as Puck stores them), `richText` (see below) and `credits` for the photos it shows. |
-| `site.json` | The site's settings, menus and pages (the same list the Page list block shows), as blocks read them with `useSite()`. |
+| `site.json` | The site's settings, menus and pages (the same list the Page list block shows), as blocks read them with `useSite()`, and `descriptions`: the media library's descriptions of its images in that language, by address, for images whose blocks leave theirs empty. |
 | `collections.json` | Every collection's settings, without its template, and its items' values. |
 | `header.json`, `footer.json` | The header and footer, prepared as they're shown on every page. |
 
