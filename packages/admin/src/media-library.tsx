@@ -111,6 +111,7 @@ const uploadProblems: Record<UploadError["problem"], StringKey> = {
   type: "media.error.type",
   size: "media.error.size",
   unreadable: "media.error.unreadable",
+  font: "media.error.font",
 };
 
 export type UploadResult =
@@ -709,7 +710,8 @@ function matchesMedia(
 export function MediaScreen() {
   const t = useStrings();
   const { content, media: own } = useSiteContent();
-  const media = useMemo(() => allMedia(content, own), [content, own]);
+  // The site's own fonts are managed under Colors & fonts, with the theme that names them.
+  const media = useMemo(() => allMedia(content, own).filter((path) => mediaKind(path) !== "font"), [content, own]);
   const { status, run } = useUploads();
   const [query, setQuery] = useState("");
   const [deleting, setDeleting] = useState<string[] | null>(null);
@@ -983,7 +985,7 @@ export function MediaPickerDialog({
 }) {
   const t = useStrings();
   const { content, media: own } = useSiteContent();
-  const media = allMedia(content, own);
+  const media = allMedia(content, own).filter((path) => mediaKind(path) !== "font");
   const { status, run } = useUploads();
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<string>();

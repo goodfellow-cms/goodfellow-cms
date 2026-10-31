@@ -29,8 +29,16 @@ export const themeManifestSchema = z.object({
   /** What owners call it, such as "Forest". */
   title: z.string().trim().min(1).max(80),
   description: z.string().max(500).optional(),
-  /** Its colors, fonts and other settings, as `content/site.json`'s `theme` has them. */
-  theme: themeSchema.default({ colors: {}, fonts: {} }),
+  /**
+   * Its colors, fonts and other settings, as `content/site.json`'s `theme` has
+   * them, except the site's own fonts, which are files a theme can't install.
+   */
+  theme: themeSchema
+    .refine((theme) => theme.fonts.custom === undefined, {
+      message: "a theme's fonts must be Google Fonts",
+      path: ["fonts", "custom"],
+    })
+    .default({ colors: {}, fonts: {} }),
   /** Its CSS, which goes at the start of the site's custom CSS. */
   css: packagePath.optional(),
   /** A header and footer design, as `content/layout/header.json` and `footer.json` have them, using only built-in blocks. */
@@ -249,7 +257,13 @@ export async function planTheme(
     if (changed && now !== next) replaced.push({ kind: "setting", key });
     values[key] = next;
   }
-  const settings = { ...site.settings, theme: themeFromValues(values) };
+  // The site's own fonts are its files, which themes don't touch.
+  const nextTheme = themeFromValues(values);
+  const custom = site.settings.theme.fonts.custom;
+  const settings = {
+    ...site.settings,
+    theme: custom ? { ...nextTheme, fonts: { ...nextTheme.fonts, custom } } : nextTheme,
+  };
 
   // The CSS, at the start of the custom CSS.
   const region = themeCssRegion(site.customCss);

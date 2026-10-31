@@ -283,6 +283,7 @@ describe("changing a site", () => {
       "Domain screen",
     );
     expect((await call("update_settings", { settings: { theme: "blue" } })).isError).toBe(true);
+
     // Where forms send answers, and what visitors are asked, are owners' to change.
     const forms = await call("update_settings", {
       settings: { forms: { service: "formspree", address: "https://evil.example" } },
@@ -291,6 +292,29 @@ describe("changing a site", () => {
     expect(forms.text).toContain("forms is changed in the admin panel's Site Settings");
     await call("save_menu", { menu: "main", items: [{ label: "Home", href: "/" }], draft });
     expect((await call("get_menus", { draft })).json().main).toEqual([{ label: "Home", href: "/" }]);
+  });
+
+  it("keeps the site's own fonts, which only owners add, whatever theme Claude gives", async () => {
+    const files = starterFiles();
+    const custom = [{ family: "Mine", files: [{ src: "/media/fonts/mine-400.woff2", weight: 400 }] }];
+    const site = JSON.parse(files["content/site.json"] ?? "{}");
+    files["content/site.json"] = JSON.stringify({ ...site, theme: { ...site.theme, fonts: { custom } } });
+    const { call, fake } = await connect({ files });
+    const { draft } = (
+      await call("update_settings", {
+        settings: {
+          theme: {
+            colors: {},
+            fonts: {
+              heading: "Mine",
+              custom: [{ family: "Other", files: [{ src: "/media/fonts/x.woff2", weight: 400 }] }],
+            },
+          },
+        },
+      })
+    ).json();
+    const saved = JSON.parse(String(fake.repo.files(`goodfellow-draft-${draft}`).get("content/site.json") ?? "{}"));
+    expect(saved.theme.fonts).toEqual({ heading: "Mine", custom });
   });
 
   it("makes and changes synced blocks, which pages place by name", async () => {

@@ -172,10 +172,15 @@ export function PluginEditorFrame({
       styles: async () => {
         const { services, content, themeCss } = latest.current;
         const fonts = googleFontsUrl(content.settings.theme);
+        const customFonts = content.settings.theme.fonts.custom;
         return {
-          stylesheets: [...(await services.siteCss()), themeToCss(content.settings.theme)],
+          stylesheets: [
+            ...(await services.siteCss()),
+            themeToCss(content.settings.theme, undefined, { fontFaces: false }),
+          ],
           tailwind: `${themeCss}\n${content.customCss}`,
           ...(fonts && { fonts }),
+          ...(customFonts && { customFonts }),
         };
       },
     }),

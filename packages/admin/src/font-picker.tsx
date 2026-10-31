@@ -1,5 +1,5 @@
-import type { FontCategory } from "@goodfellow-cms/core";
-import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import type { CustomFont, FontCategory } from "@goodfellow-cms/core";
+import { Fragment, type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { type StringKey, useStrings } from "./strings.js";
 
 export type { FontCategory };
@@ -57,6 +57,7 @@ function FontOption({
   selected,
   onPick,
   onHover,
+  own = false,
 }: {
   font: Font;
   id: string;
@@ -64,6 +65,8 @@ function FontOption({
   selected: boolean;
   onPick: () => void;
   onHover: () => void;
+  /** One of the site's own fonts, which the admin panel shows from its file rather than asking Google. */
+  own?: boolean;
 }) {
   const t = useStrings();
   const ref = useRef<HTMLDivElement>(null);
@@ -71,7 +74,7 @@ function FontOption({
 
   useEffect(() => {
     const element = ref.current;
-    if (!element || typeof IntersectionObserver === "undefined") return;
+    if (own || !element || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) {
         previewFont(family);
@@ -80,7 +83,7 @@ function FontOption({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [family]);
+  }, [family, own]);
 
   useEffect(() => {
     if (active) ref.current?.scrollIntoView({ block: "nearest" });
@@ -108,19 +111,23 @@ function FontOption({
 }
 
 /**
- * Chooses a Google Fonts family, by searching a list of them, or the site's
- * default font (an empty value). A font the list doesn't have, such as one
- * set before, is still shown and kept.
+ * Chooses a font: one of the site's own (`own`), listed first, a Google Fonts
+ * family, by searching a list of them, or the site's default font (an empty
+ * value). A font the list doesn't have, such as one set before, is still
+ * shown and kept.
  */
 export function FontPicker({
   label,
   value,
   error,
+  own = [],
   onChange,
 }: {
   label: string;
   value: string;
   error?: string;
+  /** The site's own fonts. */
+  own?: readonly CustomFont[];
   /** The family, empty for the site's default, and its kind, which pages fall back to while it loads. */
   onChange: (value: string, category: FontCategory | undefined) => void;
 }) {
@@ -134,17 +141,25 @@ export function FontPicker({
   useEffect(() => {
     if (open && !fonts) void loadFonts().then(setFonts);
   }, [open, fonts]);
+  const ownFonts = useMemo<Font[]>(
+    () => own.map((font) => [font.family, font.category ?? "sans-serif"] as const),
+    [own],
+  );
+  const isOwn = ownFonts.some(([family]) => family === value);
   useEffect(() => {
-    if (value) previewFont(value);
-  }, [value]);
+    if (value && !isOwn) previewFont(value);
+  }, [value, isOwn]);
 
-  // "Site default" first, then the matching fonts.
+  // "Site default" first, then the site's own fonts, then Google's matching fonts.
+  const ownMatches = useMemo(() => searchFonts(ownFonts, query), [ownFonts, query]);
   const options = useMemo<Array<Font | null>>(() => {
     const matches = fonts ? searchFonts(fonts, query) : [];
-    const known = fonts?.some(([family]) => family === value) ?? true;
+    const known = isOwn || (fonts?.some(([family]) => family === value) ?? true);
     const current: Font[] = value && !known && !query ? [[value, "sans-serif"]] : [];
-    return [...(query ? [] : [null]), ...current, ...matches];
-  }, [fonts, query, value]);
+    return [...(query ? [] : [null]), ...ownMatches, ...current, ...matches];
+  }, [fonts, query, value, ownMatches, isOwn]);
+  const firstOwn = query ? 0 : 1;
+  const firstGoogle = firstOwn + ownMatches.length;
 
   const close = () => {
     setOpen(false);
@@ -218,15 +233,22 @@ export function FontPicker({
           {fonts && options.length === 0 && <div className="gfa-font-empty">{t("font.noMatch", { query })}</div>}
           {options.map((option, index) =>
             option ? (
-              <FontOption
-                key={option[0]}
-                font={option}
-                id={optionId(index)}
-                active={index === active}
-                selected={option[0] === value}
-                onPick={() => pick(option)}
-                onHover={() => setActive(index)}
-              />
+              <Fragment key={`${index < firstGoogle ? "own" : "google"}-${option[0]}`}>
+                {ownMatches.length > 0 && (index === firstOwn || index === firstGoogle) && (
+                  <div role="presentation" className="gfa-font-group">
+                    {t(index === firstOwn ? "font.own.group" : "font.google.group")}
+                  </div>
+                )}
+                <FontOption
+                  font={option}
+                  id={optionId(index)}
+                  active={index === active}
+                  selected={option[0] === value}
+                  own={index >= firstOwn && index < firstGoogle}
+                  onPick={() => pick(option)}
+                  onHover={() => setActive(index)}
+                />
+              </Fragment>
             ) : (
               // biome-ignore lint/a11y/useKeyWithClickEvents: the search box handles the keyboard
               <div

@@ -672,6 +672,8 @@ export {
   type ConsentKind,
   type ConsentSettings,
   type ConsentWords,
+  type CustomFont,
+  type CustomFontFile,
   collectionFileSchema,
   consentDefaults,
   consentInLanguage,
@@ -811,6 +813,26 @@ export {
   separateSetupLinks,
 } from "./content-repository-setup.js";
 export { contrastRatio, MINIMUM_CONTRAST, parseColor } from "./contrast.js";
+export {
+  CUSTOM_FONT_ADDRESS,
+  customFont,
+  customFontFaces,
+  customFontFileChanges,
+  customFontPaths,
+  customFontPreloads,
+  customFonts,
+  FONTS_MEDIA_DIR,
+  fontCategory,
+  fontFileFor,
+  fontFileName,
+  guessFontFamily,
+  guessFontFile,
+  isSafeFontFile,
+  isWoff2,
+  MAX_CUSTOM_FONTS,
+  MAX_FONT_BYTES,
+  MAX_FONT_FILES,
+} from "./custom-fonts.js";
 export {
   DEMO_CONTENT_PATH,
   type DemoChanges,

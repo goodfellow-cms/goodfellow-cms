@@ -360,6 +360,7 @@ function devPlugin(
               stylesheets: [`${devUrl(root, styles().site)}?direct`],
               islands: { script: ISLANDS_DEV_URL },
               development: true,
+              root,
             });
             res.statusCode = match.status;
             if (match.status === 404) {

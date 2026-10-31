@@ -1,5 +1,6 @@
 import { COLOR_SCHEME_ATTRIBUTE } from "./color-scheme.js";
 import { type FontCategory, THEME_COLORS, type Theme, type ThemeColor } from "./content/schemas.js";
+import { customFont, customFontFaces, fontCategory } from "./custom-fonts.js";
 
 /** The theme used for anything a site doesn't set. Neutral grays, so any brand color works on top. */
 export const DEFAULT_THEME_COLORS: Record<ThemeColor, string> = {
@@ -160,18 +161,34 @@ export function escapeStyleText(css: string): string {
  * `--gf-font-heading` and `--gf-font-body`, with `standIns` after each font
  * where a build gives them.
  */
-export function themeToCss(theme: Theme, standIns?: FontStandIns): string {
+export function themeToCss(
+  theme: Theme,
+  standIns?: FontStandIns,
+  options: {
+    /** The site's base path, for its own fonts' addresses, which `applyBasePath()` doesn't reach in CSS. */
+    base?: string | undefined;
+    /**
+     * Whether to write the site's own fonts' `@font-face` rules. The admin
+     * panel's frames leave them out: they can't load the site's files, so they
+     * add the fonts from their bytes (`installCustomFonts()`).
+     */
+    fontFaces?: boolean;
+  } = {},
+): string {
   const declarations = THEME_COLORS.map(
     (name) => `--${kebab(name)}:${theme.colors[name] ?? DEFAULT_THEME_COLORS[name]}`,
   );
   const darkRules = theme.darkMode ? darkModeCss(theme) : "";
   declarations.push(`--radius:${theme.radius ?? DEFAULT_RADIUS}`);
-  const { heading, body, headingCategory, bodyCategory } = theme.fonts;
+  const { heading, body } = theme.fonts;
+  const headingCategory = fontCategory(theme, "heading");
+  const bodyCategory = fontCategory(theme, "body");
   declarations.push(`--gf-font-body:${body ? fontStack(body, bodyCategory, standIns?.body) : SANS_SERIF}`);
   declarations.push(
     `--gf-font-heading:${heading ? fontStack(heading, headingCategory, standIns?.heading) : "var(--gf-font-body)"}`,
   );
-  return escapeStyleText(`${standIns?.css ?? ""}:root{${declarations.join(";")}}${darkRules}`);
+  const faces = options.fontFaces === false ? "" : customFontFaces(theme, options.base);
+  return escapeStyleText(`${faces}${standIns?.css ?? ""}:root{${declarations.join(";")}}${darkRules}`);
 }
 
 /** A color in dark mode: the site's own, or the default. */
@@ -209,7 +226,10 @@ export function colorSchemeMeta(theme: Theme): string | undefined {
  * hidden; `fontPreloads()` has pages fetch the fonts early, so it rarely shows.
  */
 export function googleFontsUrl(theme: Theme): string | undefined {
-  const families = [...new Set([theme.fonts.heading, theme.fonts.body].filter(Boolean))] as string[];
+  // The site's own fonts come from its own files.
+  const families = [
+    ...new Set([theme.fonts.heading, theme.fonts.body].filter((family) => family && !customFont(theme, family))),
+  ] as string[];
   if (families.length === 0) return undefined;
   const params = families.map((family) => `family=${family.trim().replace(/ +/g, "+")}:wght@400;500;600;700`).join("&");
   return `https://fonts.googleapis.com/css2?${params}&display=swap`;

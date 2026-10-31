@@ -269,7 +269,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
     () => ({ theme: loaded.settings.theme, customCss: loaded.customCss, scheme: dark ? "dark" : "light" }) as const,
     [loaded.settings.theme, loaded.customCss, dark],
   );
-  useCanvasStyles(preview, canvasStyles);
+  useCanvasStyles(preview, canvasStyles, mediaPreviews);
   useEffect(() => showMediaInPreview(document, mediaPreviews), [mediaPreviews]);
   // Links on the canvas don't go anywhere, so the frame never leaves the editor; blocks' notes go through the admin panel.
   useEffect(() => {

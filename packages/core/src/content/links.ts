@@ -343,6 +343,19 @@ export function mapSiteLinks(
       },
     }),
     ...(settings.socialImage !== undefined && { socialImage: media(settings.socialImage) }),
+    // The site's own fonts' files, so a missing one is reported like any missing media.
+    ...(settings.theme.fonts.custom && {
+      theme: {
+        ...settings.theme,
+        fonts: {
+          ...settings.theme.fonts,
+          custom: settings.theme.fonts.custom.map((font) => ({
+            ...font,
+            files: font.files.map((file) => ({ ...file, src: media(file.src) ?? file.src })),
+          })),
+        },
+      },
+    }),
     ...(settings.consent?.policy !== undefined && {
       consent: { ...settings.consent, policy: media(settings.consent.policy) },
     }),

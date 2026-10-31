@@ -336,7 +336,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const imageOptions = { media: await readMediaSizes(root), imageWidths: IMAGE_WIDTHS };
     for (const page of pages) {
       const html = applyBasePath(
-        await renderPage(content, page, { stylesheets, ...(islands && { islands }) }, imageOptions),
+        await renderPage(content, page, { stylesheets, ...(islands && { islands }), base, root }, imageOptions),
         base,
       );
       built.push({ path: page.path, file: page.file, html });

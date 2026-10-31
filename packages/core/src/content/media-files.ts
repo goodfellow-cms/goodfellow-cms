@@ -1,7 +1,7 @@
 /** The kinds of media file a site can have, and the names uploads are saved under. */
 import { slugify, uniqueName } from "./changes.js";
 
-export type MediaKind = "image" | "document" | "audio" | "video";
+export type MediaKind = "image" | "document" | "audio" | "video" | "font";
 
 /** The kinds of file that can be uploaded, by extension. Pages, scripts and other files that could run code aren't allowed. */
 const KINDS: Record<string, MediaKind> = {
@@ -31,6 +31,8 @@ const KINDS: Record<string, MediaKind> = {
   webm: "video",
   // Captions and subtitles for videos.
   vtt: "document",
+  // The site's own fonts, added on the Theme tab into the fonts folder (`custom-fonts.ts`), never other uploads.
+  woff2: "font",
 };
 
 export const ALLOWED_EXTENSIONS = Object.keys(KINDS);
