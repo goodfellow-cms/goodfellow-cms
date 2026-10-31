@@ -183,7 +183,7 @@ function countBlocks(content: Content, config: Config): number {
 /**
  * The settings Claude may change: how the site looks and what it's called.
  * Where forms send their answers, what visitors are asked before other sites'
- * content loads, comments, languages and search engines are owners', in Site
+ * content loads, comments, visit counts, languages and search engines are owners', in Site
  * Settings, since a page's own words could ask an assistant to change them.
  */
 const CLAUDE_SETTINGS: ReadonlySet<string> = new Set([

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { wallClock } from "../calendar.js";
 import { COMMENTS_ID, COMMENTS_REPO, DISQUS_SHORTNAME, garrulAddress } from "../comments.js";
+import { PLAUSIBLE_DOMAIN, STATS_PURPOSES, statsAddress, UMAMI_ID } from "../stats.js";
 import { addressPatternProblem } from "./paths.js";
 
 /** Theme color names. They map to shadcn-compatible CSS variables (`primaryForeground` → `--primary-foreground`). */
@@ -248,10 +249,13 @@ export type ConsentSettings = z.output<typeof consentSchema>;
 
 /**
  * What the site asks visitors about, in `CONSENT_KINDS`' order: other sites'
- * content always, and the kinds its code is for.
+ * content always, the kinds its code is for, and statistics where it counts
+ * visits (`stats`) and hasn't said the counting needs no agreement.
  */
-export function consentKinds(consent: ConsentSettings): ConsentKind[] {
+export function consentKinds(consent: ConsentSettings, stats?: { purpose?: string }): ConsentKind[] {
   const used = new Set<string>(["content", consent.code.head, consent.code.body]);
+  // Visit counts wait for visitors to allow statistics, unless the site says they need no agreement.
+  if (stats && stats.purpose !== "needed") used.add("statistics");
   return CONSENT_KINDS.filter((kind) => used.has(kind));
 }
 
@@ -269,6 +273,11 @@ const settingsTranslation = z.object({
   /** The consent notice's words in the language. */
   consent: z.object(consentWords).partial().optional(),
 });
+
+/** An address visit counts load from or send to, as `statsAddress()` accepts it. */
+const statsAddressSchema = z.string().refine((value) => statsAddress(value) === value, "must be an https:// address");
+
+const statsPurpose = z.enum(STATS_PURPOSES).optional();
 
 export const siteSettingsSchema = z
   .object({
@@ -387,6 +396,36 @@ export const siteSettingsSchema = z
         }),
         z.object({ disqus: z.string().regex(DISQUS_SHORTNAME) }),
         z.object({ garrul: z.string().refine((value) => garrulAddress(value) === value) }),
+      ])
+      .optional(),
+    /**
+     * Where visits are counted, without cookies: Plausible (the site's domain
+     * there and its script), Umami (the website's id and its script) or
+     * GoatCounter (where visits are sent, and its script where it isn't
+     * GoatCounter's own). `stats.ts` writes the script and the dashboard's
+     * address. `purpose` `needed` loads it without asking on a site that asks
+     * visitors first; otherwise it waits for them to allow statistics.
+     */
+    stats: z
+      .discriminatedUnion("service", [
+        z.object({
+          service: z.literal("plausible"),
+          domain: z.string().regex(PLAUSIBLE_DOMAIN),
+          script: statsAddressSchema,
+          purpose: statsPurpose,
+        }),
+        z.object({
+          service: z.literal("umami"),
+          website: z.string().regex(UMAMI_ID),
+          script: statsAddressSchema,
+          purpose: statsPurpose,
+        }),
+        z.object({
+          service: z.literal("goatcounter"),
+          endpoint: statsAddressSchema,
+          script: statsAddressSchema.optional(),
+          purpose: statsPurpose,
+        }),
       ])
       .optional(),
     /**

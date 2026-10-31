@@ -18,6 +18,7 @@ import {
   type HostedFonts,
   hasLanguages,
   heldCode,
+  heldStats,
   IMAGE_WIDTHS,
   type ImageSize,
   loadSiteContent,
@@ -62,12 +63,21 @@ import {
   prepareLayout,
   preparePage,
   type SiteComponents,
+  StatsCode,
 } from "@goodfellow-cms/react";
 import type { Metadata, MetadataRoute } from "next";
 import { notFound, redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { preload } from "react-dom";
-import { ByLanguage, CurrentMenuLinks, NextImage, NextLink, PageLanguage, SearchResultLinks } from "./components.js";
+import {
+  ByLanguage,
+  CurrentMenuLinks,
+  GoatCounterNavigation,
+  NextImage,
+  NextLink,
+  PageLanguage,
+  SearchResultLinks,
+} from "./components.js";
 import { IMAGE_SIZES_ENV } from "./image-sizes-mark.js";
 
 export interface GoodfellowPagesOptions {
@@ -396,10 +406,18 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
             held={heldCode(content.settings.consent, "head")}
             siteUrl={content.settings.url}
           />
+          {/* Visit counts, on every page but "Page not found", which is shown outside this layout. */}
+          <StatsCode
+            stats={content.settings.stats}
+            held={heldStats(content.settings.consent, content.settings.stats)}
+          />
           {header}
           {children}
           {footer}
           <CurrentMenuLinks basePath={basePath()} />
+          {content.settings.stats?.service === "goatcounter" && process.env.NODE_ENV !== "development" && (
+            <GoatCounterNavigation />
+          )}
           <SearchResultLinks basePath={basePath()} />
           <BodyCode code={content.code?.body} held={heldCode(content.settings.consent, "body")} />
           <ConsentAsk content={content} />

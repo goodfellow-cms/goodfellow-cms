@@ -115,7 +115,7 @@ export function createConsent(useSite: () => SiteContextValue) {
 export function ConsentNotice({ site }: { site: SiteContextValue }) {
   const consent = site.settings.consent;
   if (!consent) return null;
-  const kinds = consentKinds(consent);
+  const kinds = consentKinds(consent, site.settings.stats);
   const choices = kinds.length > 1;
   return (
     <div

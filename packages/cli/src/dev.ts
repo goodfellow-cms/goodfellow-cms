@@ -359,6 +359,7 @@ function devPlugin(
             const html = await renderPage(content, match.page, {
               stylesheets: [`${devUrl(root, styles().site)}?direct`],
               islands: { script: ISLANDS_DEV_URL },
+              development: true,
             });
             res.statusCode = match.status;
             if (match.status === 404) {

@@ -1298,6 +1298,40 @@ export const defaultStrings = {
   "comments.intro":
     "Visitors' comments are shown on pages with the Comments block. They're kept either on GitHub, in a public project of their own, through Giscus, where visitors sign in with a GitHub account to comment, or by Disqus, where visitors sign in with Disqus or another account Disqus offers, or comment as guests where its settings allow it.",
   "comments.demo": "Comments can't be set up in the demo.",
+  "settings.tab.stats": "Visit counts",
+  "stats.intro":
+    "Count how many people visit the site's pages, and which pages, with Plausible, Umami or GoatCounter. They count without cookies, and keep the counts on their own sites, where you read them. Visits aren't counted while you try the site on your computer, or in the admin panel.",
+  "stats.state.title": "Counting visits",
+  "stats.state.counting":
+    "Visits to the site's pages are counted with {service}. Changes show on the site once it has been rebuilt.",
+  "stats.dashboard": "Open {service}'s dashboard",
+  "stats.consent.label": "Count only visitors who agree",
+  "stats.consent.hint":
+    "On a site that asks visitors first (General → Visitors' consent), the notice asks about statistics, and visits are counted only once a visitor allows them. Untick this only if you're sure the law where your visitors are lets you count without asking.",
+  "stats.consent.notAsking":
+    "The site doesn't ask visitors first yet (General → Visitors' consent), so visits are counted straight away.",
+  "stats.consent.onMessage": "Count visits only once visitors agree",
+  "stats.consent.offMessage": "Count visits without asking",
+  "stats.change": "Change",
+  "stats.stop": "Stop counting",
+  "stats.stop.title": "Stop counting visits?",
+  "stats.stop.body": "The site's pages will stop sending visits to {service}. The counts you have stay in {service}.",
+  "stats.stop.message": "Stop counting visits",
+  "stats.form.title": "Count visits",
+  "stats.service": "Service",
+  "stats.paste": "Code or details",
+  "stats.paste.plausible":
+    "Paste the script Plausible gives you under Site settings → Site installation, or just your site's domain in Plausible, such as example.org.",
+  "stats.paste.umami":
+    "Paste the tracking code Umami gives you under Settings → Websites → Edit, or just the website ID.",
+  "stats.paste.goatcounter":
+    "Paste the script GoatCounter gives you under Settings → Site code, or just your site's code, such as mysite for mysite.goatcounter.com.",
+  "stats.domain": "Your site's domain in Plausible",
+  "stats.domainHint": "As Plausible lists it, such as example.org. Its dashboard is named by it.",
+  "stats.unreadable":
+    "This doesn't look like that service's code. Check you chose the right service and pasted all of it. Only https:// addresses on the internet work.",
+  "stats.publish": "Start counting",
+  "stats.message": "Count visits with {service}",
   "comments.local":
     "Comments on GitHub are set up from the admin panel on the live site, which signs in to GitHub. Pages here show them once they are. Disqus can be set up here.",
   "comments.unavailable":

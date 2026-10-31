@@ -1288,6 +1288,26 @@ export {
   withoutRepositoryNotes,
 } from "./site-setup.js";
 export {
+  GOATCOUNTER_SCRIPT,
+  type GoatCounterStats,
+  heldStats,
+  PLAUSIBLE_DOMAIN,
+  PLAUSIBLE_SCRIPT,
+  type PlausibleStats,
+  readStatsCode,
+  STATS_PURPOSES,
+  STATS_SERVICES,
+  type StatsPurpose,
+  type StatsService,
+  type StatsSettings,
+  statsAddress,
+  statsDashboard,
+  statsElements,
+  UMAMI_ID,
+  UMAMI_SCRIPT,
+  type UmamiStats,
+} from "./stats.js";
+export {
   type CleanedAttribute,
   cleanedSvgAttribute,
   cssWithoutOutsideAddresses,

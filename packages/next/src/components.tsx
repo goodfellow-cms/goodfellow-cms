@@ -6,7 +6,7 @@ import { CurrentPathProvider } from "@goodfellow-cms/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 // A Client Component module, so Server Components can pass these to the browser for Client Components in blocks.
 
@@ -53,6 +53,28 @@ export function CurrentMenuLinks({ basePath = "" }: { basePath?: string }) {
       panel.open = false;
     }
   }, [pathname, basePath]);
+  return null;
+}
+
+/**
+ * Counts each page visitors move to with GoatCounter, whose script counts only
+ * the page it loads on. Plausible's and Umami's scripts follow Next.js's
+ * navigations themselves. Does nothing until the script has loaded, which on a
+ * site that asks visitors first is once they allow statistics.
+ */
+export function GoatCounterNavigation() {
+  const pathname = usePathname();
+  const first = useRef(true);
+  useEffect(() => {
+    void pathname;
+    if (first.current) {
+      // The script counts the page it loads on.
+      first.current = false;
+      return;
+    }
+    const counter = (window as { goatcounter?: { count?: (options: { path: string }) => void } }).goatcounter;
+    counter?.count?.({ path: location.pathname + location.search });
+  }, [pathname]);
   return null;
 }
 

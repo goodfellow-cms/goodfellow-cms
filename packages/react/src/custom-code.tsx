@@ -7,6 +7,8 @@ import {
   headElementHtml,
   isHeldHeadElement,
   parseHeadCode,
+  type StatsSettings,
+  statsElements,
 } from "@goodfellow-cms/core";
 import { createElement } from "react";
 
@@ -111,4 +113,29 @@ export function BodyCode({ code, held = false }: { code?: string; held?: boolean
   }
   // biome-ignore lint/security/noDangerouslySetInnerHtml: admin-written code, which is the point; never shown in the admin panel
   return <div data-goodfellow-code="" style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: code }} />;
+}
+
+/**
+ * The site's visit counts' script (`stats` in `content/site.json`), or, where
+ * the site asks visitors first and the counting waits for them (`held`, from
+ * `heldStats()`), the same script in a template the consent script adds once
+ * they allow statistics. Never in the development servers, so trying the site
+ * counts nothing (`next dev` sets `NODE_ENV`; `goodfellow dev` says so with
+ * `PageAssets.development`), and never in the admin panel, whose previews
+ * render pages without the page shell this goes in.
+ */
+export function StatsCode({ stats, held = false }: { stats?: StatsSettings; held?: false | ConsentKind }) {
+  if (process.env.NODE_ENV === "development") return null;
+  const elements = statsElements(stats);
+  if (elements.length === 0) return null;
+  if (!held) return <>{elements.map(headElement)}</>;
+  return (
+    <template
+      {...{ [CONSENT_CODE_ATTRIBUTE]: "head", [CONSENT_KIND_ATTRIBUTE]: held }}
+      // The consent script marks it done once it has added the script.
+      suppressHydrationWarning
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: statsElements() writes only the service's own script, from checked addresses
+      dangerouslySetInnerHTML={{ __html: elements.map(headElementHtml).join("") }}
+    />
+  );
 }
