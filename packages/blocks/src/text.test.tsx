@@ -139,10 +139,10 @@ describe("Page list", () => {
     expect(titles).toEqual(["Home", "About us", "Staff", "Clergy", "Mass times"]);
     // Staff is under About us, and Clergy under Staff; Mass times has no page above it, so it's at the top.
     expect(html).toMatch(
-      /About us<\/a><ul class="gf-page-list-children[^"]*"><li class="gf-page-list-item"><a href="\/about\/staff"/,
+      /About us<\/a><ul class="gf-page-list-children[^"]*"><li class="gf-page-list-item"><a href="\/about\/staff\/"/,
     );
     expect(html).toMatch(
-      /href="\/about\/staff" aria-current="page" class="gf-page-list-link hover:underline font-semibold"/,
+      /href="\/about\/staff\/" aria-current="page" class="gf-page-list-link hover:underline font-semibold"/,
     );
   });
 
@@ -175,7 +175,7 @@ describe("Breadcrumbs", () => {
     expect(names).toEqual(["Parish", "About us", "Staff", "Clergy"]);
     expect(html).toContain('<nav aria-label="Breadcrumbs" class="gf-breadcrumbs text-sm">');
     expect(html).toContain('itemScope="" itemType="https://schema.org/BreadcrumbList"');
-    expect(html).toContain('<a href="/about" itemProp="item"');
+    expect(html).toContain('<a href="/about/" itemProp="item"');
     expect(html).toContain('<meta itemProp="position" content="4"/>');
     expect(html).toMatch(/<span itemProp="name" aria-current="page"[^>]*>Clergy<\/span>/);
     expect([...html.matchAll(/aria-hidden="true"[^>]*>›</g)]).toHaveLength(3);

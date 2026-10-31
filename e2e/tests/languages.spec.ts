@@ -118,7 +118,7 @@ test("shows each page in its language, with links to its translations", async ({
   const languages = page.getByRole("navigation", { name: "Languages" });
   await expect(languages.getByRole("link", { name: "Español" })).toHaveAttribute("aria-current", "true");
   await languages.getByRole("link", { name: "English" }).click();
-  await expect(page).toHaveURL(/\/about$/);
+  await expect(page).toHaveURL(/\/about\/$/);
 
   // Items in Spanish are under the language's code, and only Spanish pages list them.
   expect((await page.request.get("/es/news/bienvenida")).status()).toBe(200);

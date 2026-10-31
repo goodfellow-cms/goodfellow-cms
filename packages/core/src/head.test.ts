@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Page } from "./content/load.js";
+import { pageAddressPath } from "./content/page-address.js";
 import { siteSettingsSchema } from "./content/schemas.js";
 import {
   AI_TRAINING_CRAWLERS,
   getPageHead,
-  pageAddressPath,
   pageHead,
   pageUrl,
   robotsContent,

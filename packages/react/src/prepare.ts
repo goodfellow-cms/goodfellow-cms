@@ -21,6 +21,7 @@ import {
   pageFocus,
   pageLanguage,
   pageLinks,
+  pageLinksInHtml,
   type SiteContent,
   type SiteSettings,
   type StructuredData,
@@ -140,11 +141,22 @@ function linkTargetsInHtml(value: unknown, settings: SiteSettings): unknown {
   return value;
 }
 
-/** What rich text needs once resolved: the base path, and where its links open. */
+/** Points rich text's links to the site's pages at their canonical addresses, as `<SiteLink>` does (`pageLinksInHtml()`). */
+function pageLinksIn(value: unknown, trailingSlash: boolean): unknown {
+  if (typeof value === "string") return value.includes("<a") ? pageLinksInHtml(value, trailingSlash) : value;
+  if (Array.isArray(value)) return value.map((item) => pageLinksIn(item, trailingSlash));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, pageLinksIn(item, trailingSlash)]));
+  }
+  return value;
+}
+
+/** What rich text needs once resolved: links to pages' canonical addresses, the base path, and where links open. */
 function rebaser(options: RenderOptions, settings: SiteSettings) {
   const base = normalizeBase(options.base);
   return <T>(value: T): T => {
-    const rebased = base === "/" ? value : (withBaseInHtml(value, base) as T);
+    const linked = pageLinksIn(value, settings.trailingSlash !== false) as T;
+    const rebased = base === "/" ? linked : (withBaseInHtml(linked, base) as T);
     return linkTargetsInHtml(rebased, settings) as T;
   };
 }

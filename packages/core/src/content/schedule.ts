@@ -11,9 +11,9 @@
 import { wallClock, zonedInstant } from "../calendar.js";
 import { pageTitle } from "./changes.js";
 import { type Collection, type Entry, entryTitle } from "./collections.js";
-import { linkTarget } from "./links.js";
 import type { Page, SiteContent } from "./load.js";
 import { withStoredMedia } from "./media-storage.js";
+import { linkTarget } from "./page-address.js";
 import type { MenuItem, Menus } from "./schemas.js";
 
 /** When a page or entry is on the site. Either time can be left out. */

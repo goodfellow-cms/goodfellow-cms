@@ -479,7 +479,6 @@ export {
 export {
   type AddressMove,
   type LinkVisitor,
-  linkTarget,
   mapSiteLinks,
   relinkSite,
   siteLinks,
@@ -543,6 +542,7 @@ export {
   ownersOnlyChanges,
   ownersOnlyFields,
 } from "./content/owners-only.js";
+export { linkTarget, pageAddressPath, pageLink, pageLinksInHtml } from "./content/page-address.js";
 export { type HeadingDetails, headingAnchors, type PageHeading } from "./content/page-headings.js";
 export {
   type Breadcrumbs,
@@ -933,7 +933,6 @@ export {
   getPageHead,
   neverIndexed,
   type PageHead,
-  pageAddressPath,
   pageHead,
   pageUrl,
   type RobotsRule,

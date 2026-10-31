@@ -65,7 +65,7 @@ test("imports a WordPress export file: its pages, posts, menus, media and old ad
   await page.goto("/about/staff");
   await expect(page.getByRole("heading", { name: "Our staff", level: 1 })).toBeVisible();
   await page.goto("/2026/06/parish-picnic");
-  await expect(page).toHaveURL(/\/posts\/parish-picnic$/);
+  await expect(page).toHaveURL(/\/posts\/parish-picnic\/$/);
   await expect(page.getByRole("heading", { name: "Parish picnic", level: 1 })).toBeVisible();
 });
 

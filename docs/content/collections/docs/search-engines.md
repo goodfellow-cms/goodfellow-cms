@@ -45,7 +45,7 @@ Every page also lets search engines show its pictures large in results (`max-ima
 
 ## Addresses with or without a slash
 
-The addresses the site gives search engines, in each page's canonical link, the sitemap and `hreflang` links, end with a slash, such as `https://example.org/about/`, as most hosts serve the site's pages there. Where the host serves them without one, a developer sets that in the site's code (see [Host anywhere](/docs/any-host#addresses-with-or-without-a-slash)).
+The addresses the site gives search engines, in each page's canonical link, the sitemap and `hreflang` links, end with a slash, such as `https://example.org/about/`, as most hosts serve the site's pages there, and so do links from one page to another. Where the host serves them without one, a developer sets that in the site's code (see [Host anywhere](/docs/any-host#addresses-with-or-without-a-slash)).
 
 ## Sites in a subfolder
 

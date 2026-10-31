@@ -31,7 +31,7 @@ Build again whenever the main branch changes, since every Publish in the admin p
 
 ## Addresses with or without a slash
 
-Hosts differ in which address they serve a folder's page at: GitHub Pages, Cloudflare Pages and Netlify serve `/about/` and send `/about` there, while others, such as Vercel with `trailingSlash: false`, do the opposite, and some serve both. The site tells search engines each page's address, in its canonical link, sitemap, `hreflang` links, feeds, calendar files and structured data, so it should be the one the host serves without sending visitors on.
+Hosts differ in which address they serve a folder's page at: GitHub Pages, Cloudflare Pages and Netlify serve `/about/` and send `/about` there, while others, such as Vercel with `trailingSlash: false`, do the opposite, and some serve both. The site tells search engines each page's address, in its canonical link, sitemap, `hreflang` links, feeds, calendar files and structured data, so it should be the one the host serves without sending visitors on. Links from one page to another, in menus, buttons and text, end the same way, so following them doesn't go through a redirect either.
 
 By default those addresses end with a slash (`https://example.org/about/`), as most hosts serve the folders the build writes. Where yours serves them without one, set it in `goodfellow.config.tsx`:
 

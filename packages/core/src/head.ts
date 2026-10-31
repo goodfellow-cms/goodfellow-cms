@@ -2,6 +2,7 @@ import { describedIn } from "./content/credits.js";
 import { dateField, entryDetails } from "./content/entry-details.js";
 import { contentForPage, isLanguageHome, mainLanguage, pageAlternates } from "./content/languages.js";
 import { findEntry, type Page, type SiteContent } from "./content/load.js";
+import { pageAddressPath } from "./content/page-address.js";
 import type { SiteSettings } from "./content/schemas.js";
 import { trimChars } from "./trim.js";
 
@@ -72,21 +73,6 @@ export function rootRobotsUrl(siteUrl: string | undefined): string | undefined {
   if (!match) return undefined;
   const path = trimChars(match[2] ?? "", "/");
   return path ? `${match[1]}/robots.txt` : undefined;
-}
-
-/**
- * A page's path as its full address ends it: with a `/` (`/about/`) unless
- * `trailingSlash` is `false`. The home page, files (a last part with a dot,
- * such as `/media/bulletin.pdf`) and paths already ending in one stay as they
- * are, and a `?…` or `#…` stays after it.
- */
-export function pageAddressPath(path: string, trailingSlash = true): string {
-  const end = path.search(/[?#]/);
-  const bare = end === -1 ? path : path.slice(0, end);
-  const rest = end === -1 ? "" : path.slice(end);
-  if (!trailingSlash) return `${bare === "/" ? bare : bare.replace(/\/+$/, "")}${rest}`;
-  const last = bare.slice(bare.lastIndexOf("/") + 1);
-  return bare.endsWith("/") || last.includes(".") ? path : `${bare}/${rest}`;
 }
 
 /**

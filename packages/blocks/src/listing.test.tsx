@@ -109,7 +109,7 @@ describe("Collection list", () => {
     ]);
     const html = pages.get("/news");
     expect(html).toContain("Music news");
-    expect(html).toContain('href="/news/all"');
+    expect(html).toContain('href="/news/all/"');
     expect(titles(html)).toEqual(["Choir returns", "New organ"]);
     // Without pages of its own, there's no list of them.
     expect([...pages.keys()]).toEqual(["/news"]);
@@ -135,8 +135,8 @@ describe("Collection list", () => {
     expect(titles(pages.get("/news/page/2"))).toEqual(["Youth retreat", "New organ"]);
     expect(titles(pages.get("/news/page/3"))).toEqual(["Summer camp"]);
     const second = pages.get("/news/page/2") ?? "";
-    expect(second).toContain('href="/news" rel="prev"');
-    expect(second).toContain('href="/news/page/3" rel="next"');
+    expect(second).toContain('href="/news/" rel="prev"');
+    expect(second).toContain('href="/news/page/3/" rel="next"');
     expect(second).toMatch(/aria-current="page"[^>]*>2</);
     expect(second).toContain('aria-label="Pages"');
     // Pages a list adds aren't in the site's search.
@@ -156,10 +156,10 @@ describe("Collection list", () => {
     const youth = pages.get("/news/topics/youth/page/2") ?? "";
     expect(titles(youth)).toEqual(["Summer camp"]);
     // The choice is the current one, though this is its second page.
-    expect(youth).toContain('href="/news/topics/youth" aria-current="true"');
-    expect(youth).toContain('href="/news/topics/youth/page/2" aria-current="page"');
-    expect(youth).toMatch(/href="\/news" class="[^"]*">All</);
-    expect(youth).toMatch(/href="\/news\/topics\/music" class="[^"]*">Music</);
+    expect(youth).toContain('href="/news/topics/youth/" aria-current="true"');
+    expect(youth).toContain('href="/news/topics/youth/page/2/" aria-current="page"');
+    expect(youth).toMatch(/href="\/news\/" class="[^"]*">All</);
+    expect(youth).toMatch(/href="\/news\/topics\/music\/" class="[^"]*">Music</);
   });
 
   it("titles the pages it adds", () => {
@@ -205,7 +205,7 @@ describe("Collection loop", () => {
     expect(html).not.toContain("New organ");
     // Rich text gets the value escaped.
     expect(html).toContain("About Choir returns &amp; more");
-    expect(html).toContain('href="/news/choir"');
+    expect(html).toContain('href="/news/choir/"');
     expect(html).not.toContain("{title}");
   });
 

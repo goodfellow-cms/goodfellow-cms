@@ -72,7 +72,7 @@ describe("build", () => {
   it("applies the config's base path to every root-relative URL", async () => {
     const html = await read("index.html");
     expect(html).toMatch(/<link rel="stylesheet" href="\/from-config\/assets\/styles-[\w-]+\.css"\/>/);
-    expect(html).toContain('href="/from-config/news"');
+    expect(html).toContain('href="/from-config/news/"');
   });
 
   it("builds CSS that includes classes from the content and config, plus custom CSS", async () => {
@@ -91,7 +91,7 @@ describe("build", () => {
     expect(islands).toEqual({ runtime: "react", because: "components", needReact: ["blocks/counter.tsx"] });
     const news = await read("news/index.html");
     expect(news).toMatch(
-      /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked!<!-- --> <!-- -->0<!-- --> times on <!-- -->\/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news">News<\/a><\/div><\/gf-island>/,
+      /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked!<!-- --> <!-- -->0<!-- --> times on <!-- -->\/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news\/">News<\/a><\/div><\/gf-island>/,
     );
     expect(news).toContain('"base":"/from-config/"');
     const script = news.match(
@@ -222,7 +222,7 @@ describe("build", () => {
       expect(spanish).toContain('<html lang="es">');
       expect(spanish).toContain("<title>Horarios de misa | Parroquia de San José</title>");
       expect(spanish).toContain('aria-label="Languages"');
-      expect(spanish).toMatch(/<a href="\/mass-times" hrefLang="en"[^>]*>English<\/a>/);
+      expect(spanish).toMatch(/<a href="\/mass-times\/" hrefLang="en"[^>]*>English<\/a>/);
       // The footer has words of its own in Spanish, and the home page's lists show the Spanish items.
       expect(spanish).toContain("Una familia parroquial católica en Anytown.");
       const spanishHome = await readFile(join(parishOut, "es/index.html"), "utf8");
@@ -232,7 +232,7 @@ describe("build", () => {
       const bulletin = await readFile(join(parishOut, "bulletins/2026-10-04/index.html"), "utf8");
       expect(bulletin).toContain('href="/media/bulletin-example.pdf"');
       // The home page's news has a heading, and a link to the rest.
-      expect(home).toMatch(/Parish news<\/h2><a href="\/news"[^>]*>All news/);
+      expect(home).toMatch(/Parish news<\/h2><a href="\/news\/"[^>]*>All news/);
       const about = await readFile(join(parishOut, "about/index.html"), "utf8");
       // The staff are shown with Collection loop: each one's photo, name and role.
       expect(about.indexOf("Fr. Thomas Reed")).toBeLessThan(about.indexOf("Maria Chen"));
@@ -249,7 +249,7 @@ describe("build", () => {
       // This month in the parish's time zone, as the build has it.
       const month = todayIn("America/New_York").slice(0, 7);
       const calendar = await readFile(join(parishOut, `calendar/${month}/index.html`), "utf8");
-      expect(calendar).toContain('href="/calendar"');
+      expect(calendar).toContain('href="/calendar/"');
       // Month pages aren't searched: the calendar's own page is.
       expect(calendar).not.toContain("data-pagefind-body");
       const feed = await readFile(join(parishOut, "calendars/events.ics"), "utf8");
@@ -459,7 +459,7 @@ describe("a site whose Client Components all work with Preact", () => {
       const news = await readFile(join(site, "dist/news/index.html"), "utf8");
       // Rendered by Preact as React would render it, with the content passed to it in its slot.
       expect(news).toMatch(
-        /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked! 0 times on \/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news">News<\/a><\/div><\/gf-island>/,
+        /<gf-island data-gf-island="blocks\/counter.tsx" data-gf-export="Counter" [^>]*><div class="counter"><button type="button">Clicked! 0 times on \/news<\/button><gf-slot data-gf-slot="[\w-]+\.0" style="display:contents"><p>From the server<\/p><\/gf-slot><a href="\/from-config\/news\/">News<\/a><\/div><\/gf-island>/,
       );
       const script = news.match(
         /<script type="module" src="\/from-config\/(assets\/islands-[\w-]+\.js)"><\/script>/,

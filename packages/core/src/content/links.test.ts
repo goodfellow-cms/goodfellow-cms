@@ -2,6 +2,7 @@ import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
 import { relinkSite } from "./links.js";
 import { type ContentSource, loadSiteContent } from "./load.js";
+import { pageLink, pageLinksInHtml } from "./page-address.js";
 
 function memorySource(files: Record<string, unknown>): ContentSource {
   const text = Object.fromEntries(
@@ -106,5 +107,31 @@ describe("relinkSite", () => {
   it("changes nothing when nothing moves", async () => {
     const content = await loadSiteContent(memorySource({ "content/site.json": { version: 1, title: "Parish" } }));
     expect(relinkSite(content, [{ from: "/a", to: "/a" }])).toEqual({ content, files: [] });
+  });
+});
+
+describe("links to the site's pages", () => {
+  it("point at their canonical address, with or without a slash as the build says", () => {
+    expect(pageLink("/about")).toBe("/about/");
+    expect(pageLink("/about?x=1#staff")).toBe("/about/?x=1#staff");
+    expect(pageLink("/about/", false)).toBe("/about");
+    expect(pageLink("/")).toBe("/");
+    // Files, the admin panel, other sites and fragments stay as they are.
+    expect(pageLink("/media/bulletin.pdf")).toBe("/media/bulletin.pdf");
+    expect(pageLink("/feeds/news.rss")).toBe("/feeds/news.rss");
+    expect(pageLink("/admin")).toBe("/admin");
+    expect(pageLink("https://other.example/about")).toBe("https://other.example/about");
+    expect(pageLink("#top")).toBe("#top");
+  });
+
+  it("change in rich text's links only, never in code shown as text", () => {
+    expect(pageLinksInHtml('<p><a href="/about" class="x">Us</a> and <a href="/media/a.pdf">a file</a></p>')).toBe(
+      '<p><a href="/about/" class="x">Us</a> and <a href="/media/a.pdf">a file</a></p>',
+    );
+    expect(pageLinksInHtml("<p><a class='x' href='/news/'>News</a></p>", false)).toBe(
+      "<p><a class='x' href='/news'>News</a></p>",
+    );
+    const code = '<pre>&lt;a href="/about"&gt;Us&lt;/a&gt;</pre>';
+    expect(pageLinksInHtml(code)).toBe(code);
   });
 });

@@ -2,8 +2,8 @@ import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
 import { contrastRatio, parseColor } from "../contrast.js";
 import { checkSite, contrastProblems, publishProblems, type SiteProblem } from "./checks.js";
-import { linkTarget } from "./links.js";
 import { type ContentSource, loadSiteContent } from "./load.js";
+import { linkTarget } from "./page-address.js";
 import { withPages } from "./site-pages.js";
 
 function memorySource(files: Record<string, unknown>): ContentSource {

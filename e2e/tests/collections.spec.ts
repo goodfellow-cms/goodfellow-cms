@@ -8,7 +8,7 @@ function sidebarField(page: Page, label: string) {
 
 test("builds a page for each item, and lists items on other pages", async ({ request }) => {
   const list = await (await request.get("/news")).text();
-  expect(list).toContain('<a href="/news/welcome" class="after:absolute after:inset-0 hover:underline">');
+  expect(list).toContain('<a href="/news/welcome/" class="after:absolute after:inset-0 hover:underline">');
   expect(list.indexOf("Welcome to our new website")).toBeLessThan(list.indexOf("Open house this Saturday"));
 
   const story = await (await request.get("/news/welcome")).text();

@@ -2,8 +2,10 @@
  * Forms without a server: where a form posts its answers, the hidden fields
  * each form service reads, and Google Forms' embedded forms.
  */
+
+import { pageAddressPath } from "./content/page-address.js";
 import type { SiteSettings } from "./content/schemas.js";
-import { absoluteUrl, pageAddressPath } from "./head.js";
+import { absoluteUrl } from "./head.js";
 import { embedSource } from "./video.js";
 
 export type FormService = NonNullable<SiteSettings["forms"]>["service"];

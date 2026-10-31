@@ -16,6 +16,7 @@ import {
   consentKinds,
   consentSource,
   isScriptUrl,
+  pageLink,
   withBase,
 } from "@goodfellow-cms/core";
 import type { IframeHTMLAttributes, ReactNode } from "react";
@@ -137,7 +138,9 @@ export function ConsentNotice({ site }: { site: SiteContextValue }) {
         {consent.policy && !isScriptUrl(consent.policy) && (
           <>
             {" "}
-            <a href={withBase(consent.policy, site.base)}>{consent.policyLabel}</a>
+            <a href={withBase(pageLink(consent.policy, site.settings.trailingSlash !== false), site.base)}>
+              {consent.policyLabel}
+            </a>
           </>
         )}
       </p>

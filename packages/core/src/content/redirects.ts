@@ -6,10 +6,11 @@
  */
 import { z } from "zod";
 import { withBase } from "../base-path.js";
-import { pageAddressPath, pageUrl } from "../head.js";
+import { pageUrl } from "../head.js";
 import { DEFAULT_THEME_COLORS, darkThemeColor, escapeStyleText } from "../theme.js";
 import type { BuildFile } from "./calendars.js";
 import type { SiteContent } from "./load.js";
+import { pageAddressPath } from "./page-address.js";
 import { isReservedPagePath } from "./paths.js";
 
 export const redirectSchema = z.object({

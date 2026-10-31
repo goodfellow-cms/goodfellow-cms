@@ -117,13 +117,15 @@ describe("collection fields in blocks", () => {
       entry: { collection: "talks", slug: "advent" },
     });
     // Items it links to, by their titles, linked to their pages, in its order.
-    expect(html).toMatch(/href="\/speakers\/carla"[^>]*>Carla Diaz<\/a><\/span><span>, <a[^>]*href="\/speakers\/anna"/);
+    expect(html).toMatch(
+      /href="\/speakers\/carla\/"[^>]*>Carla Diaz<\/a><\/span><span>, <a[^>]*href="\/speakers\/anna\/"/,
+    );
     expect(html).toContain(">Recorded</p>");
     expect(html.match(/gf-entry-field-image/g)).toHaveLength(2);
     expect(html).toMatch(/<a[^>]*download=""[^>]*>Advent notes\.pdf<\/a>/);
     expect(html.match(/gf-entry-field-row/g)).toHaveLength(2);
     expect(html).toContain(">9:00</span>");
-    expect(html).toMatch(/href="\/hall"[^>]*>Map<\/a>/);
+    expect(html).toMatch(/href="\/hall\/"[^>]*>Map<\/a>/);
     // The list of the items it links to shows only those, in the list's own order.
     const linked = html.slice(html.indexOf("Meet the speakers"));
     expect([...linked.matchAll(/gf-list-item-title[^>]*>(?:<a[^>]*>)?([^<]+)/g)].map((m) => m[1])).toEqual([
