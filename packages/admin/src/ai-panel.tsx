@@ -23,6 +23,7 @@ import {
   entryTitle,
   hasLanguages,
   mainLanguage,
+  mediaDetailsOf,
   pageLanguage,
   pageTranslations,
   pathLanguage,
@@ -412,7 +413,7 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
       for (const photo of added) mediaPreviews.remember(photo.url, photo.bytes);
       const credits = { ...content.credits, ...Object.fromEntries(added.map((photo) => [photo.url, photo.credit])) };
       const result = await publish(
-        [...stockPhotoChanges(added), mediaFileChange({ credits, descriptions: content.descriptions })],
+        [...stockPhotoChanges(added), mediaFileChange({ ...mediaDetailsOf(content), credits })],
         t("ai.photos.message", { names: added.map((photo) => fileName(photo.url)).join(", ") }),
         { checks: false },
       );

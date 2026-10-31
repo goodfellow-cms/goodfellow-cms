@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Images and files
-description: Upload, choose, describe, replace and delete images and files in the media library.
+description: Upload, choose, describe, crop, tag, replace and delete images and files in the media library.
 section: editors
 order: 4
 ---
@@ -16,17 +16,27 @@ Choose files, or drop them onto the Media screen. Wherever an image goes, such a
 - SVG images have anything that could run code removed, and anything they would load from other sites as they draw, so opening one tells no one.
 - Images, PDFs, office documents, MP3 audio, MP4 and WebM video, and captions for videos (WebVTT `.vtt` files) can be uploaded, up to 25 MB each. Web pages, scripts and other files that could run code can't. Uploads stay in the site's repository for good, even after they're replaced, so longer videos are better on YouTube or Vimeo, which the [Video](/docs/built-in-blocks#video) block shows too. On a site published with Cloudflare Pages, whose terms ask free plans to serve video through its paid services, the media library says so once it has a video in it ([Hosts and business sites](/docs/hosts#business-and-commercial-sites)).
 - New uploads show in the editor straight away, even before the live site has been rebuilt with them.
-- When the site is built, smaller copies of each JPEG, PNG and WebP photo are made, 480, 800, 1200 and 1600 pixels wide (only those narrower than the photo), so phones download no more than they show. The photo itself is kept as it was uploaded. Sites that keep media in a storage service, full-stack Next.js sites and Next.js sites with an image loader of their own don't get the copies.
+- When the site is built, smaller copies of each JPEG, PNG and WebP photo are made, 480, 800, 1200 and 1600 pixels wide (only those narrower than the photo), so phones download no more than they show. The copies are WebP, about a third smaller than JPEGs, whatever the photo was; the photo itself is kept as it was uploaded, and browsers too old for WebP (Safari before version 14, from 2020) show it instead only where they don't pick a copy. Sites that keep media in a storage service, full-stack Next.js sites and Next.js sites with an image loader of their own don't get the copies.
 
-## Describe
+## Details
 
-Each image on the Media screen has **Describe**: say what it shows, for people who can't see it, such as "Children singing in the choir at the Christmas service". Wherever a block leaves an image's own description empty, such as an Image block's **Description for screen readers**, it uses the media library's, so an image described once is described everywhere, and changing it changes it everywhere. A block's own description, where it has one, comes first, and images only there to look nice, such as a card's picture beside its title, stay undescribed. On a site in [several languages](/docs/languages), each language has a box of its own; one left empty uses the main language's.
+Each file on the Media screen has **Details**, which publishes what the site knows about it in one go.
 
-Descriptions also help find files: the Media screen's search looks in them as well as in names. They're kept in `content/media.json`, and apps get them through the [content API](/docs/content-api).
+- **Focal point:** click the part of an image that must stay in view wherever it's cut to fit, such as a face. Cards, wide banners, galleries and section backgrounds then cut it around that point, not its middle. A Section's own **Keep in view** setting, where it's set to anything but the middle, comes first. Apps don't use focal points yet.
+- **Description:** say what an image shows, for people who can't see it, such as "Children singing in the choir at the Christmas service". Wherever a block leaves an image's own description empty, such as an Image block's **Description for screen readers**, it uses the media library's, so an image described once is described everywhere, and changing it changes it everywhere. A block's own description, where it has one, comes first, and images only there to look nice, such as a card's picture beside its title, stay undescribed. On a site in [several languages](/docs/languages), each language has a box of its own; one left empty uses the main language's.
+- **Tags:** words to find files by, such as "Events" or "Staff", which visitors never see. Buttons above the files, and in the picker that **Choose image** opens, show only the files with a tag. **Select files**, then **Tag selected**, adds tags to several files at once, or takes them off.
+
+The Media screen's search looks in descriptions and tags as well as names. All of it is kept in `content/media.json`, and apps get descriptions through the [content API](/docs/content-api).
+
+## Crop and turn
+
+**Details** of a JPEG, PNG or WebP photo in the site's own files offers **Crop or turn**: drag the box to choose what to keep, pick a shape (any, square, photo or wide), and turn the picture a quarter at a time. The keyboard works too: with the box chosen, the arrow keys move it, and with Shift change its size.
+
+**Save as a new image** keeps the original, and the new one is used only where you choose it. **Replace the original** changes the picture everywhere it's used, and clears its description and focal point, which were for the picture before. Either way it goes through the same checks as an upload, so it's web-sized and loses any hidden details. SVG images and GIFs can't be cropped here, nor files a storage service keeps.
 
 ## Replace and delete
 
-Replacing a file keeps its address, so everything that uses it shows the new version. The new file has to be the same kind as the one it replaces, such as a `.jpg` for a `.jpg`, since it's saved under the same name. Deleting a file first lists everything that uses it, and can't be published until they use another file (see [Site checks](/docs/publishing#site-checks)). Replacing or deleting a file also removes its description and credit, since they were for that file.
+Replacing a file keeps its address, so everything that uses it shows the new version. The new file has to be the same kind as the one it replaces, such as a `.jpg` for a `.jpg`, since it's saved under the same name. Deleting a file first lists everything that uses it, and can't be published until they use another file (see [Site checks](/docs/publishing#site-checks)). Replacing or deleting a file also removes its description, focal point and credit, since they were for that file; a replaced file keeps its tags.
 
 To delete several files at once, choose **Select files**, tick them (or **Select all shown**, after a search), then **Delete selected**. They go in one publish, with the same list of what uses each.
 

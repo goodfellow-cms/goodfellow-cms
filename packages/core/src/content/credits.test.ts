@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { Collection } from "./collections.js";
-import { describedIn, pageCredits, pageDescriptions } from "./credits.js";
+import {
+  cleanTags,
+  describedIn,
+  focusPosition,
+  hasTag,
+  mediaDetailsOf,
+  mediaTags,
+  pageCredits,
+  pageDescriptions,
+  pageFocus,
+} from "./credits.js";
 import { loadSiteContent } from "./load.js";
 
 const credit = (title: string) => ({ title, creator: "Ann", source: "Flickr", license: "CC BY 2.0" });
@@ -100,5 +110,41 @@ describe("loading descriptions", () => {
     });
     files["content/media.json"] = JSON.stringify({ version: 1, descriptions: { "/media/a.jpg": { text: " " } } });
     await expect(loadSiteContent(source)).rejects.toThrow();
+  });
+});
+
+describe("focal points and tags", () => {
+  it("gives the focal points of the images a page uses as CSS positions", () => {
+    const page = { content: [{ type: "Image", props: { src: "/media/choir.jpg" } }] };
+    const focus = { "/media/choir.jpg": { x: 30, y: 62.25 }, "/media/other.jpg": { x: 0, y: 0 } };
+    expect(pageFocus({ focus }, [page])).toEqual({ "/media/choir.jpg": "30% 62.3%" });
+    expect(focusPosition({ x: 100, y: 0 })).toBe("100% 0%");
+  });
+
+  it("keeps tags trimmed, once whatever their case, and no more than the limit", () => {
+    expect(cleanTags([" Events ", "events", "", "Staff  rota"])).toEqual(["Events", "Staff rota"]);
+    expect(cleanTags(Array.from({ length: 30 }, (_, index) => `tag ${index}`))).toHaveLength(20);
+    expect(mediaTags({ "/media/a.jpg": ["Staff", "events"], "/media/b.jpg": ["Events"] })).toEqual(["events", "Staff"]);
+    expect(hasTag(["Events"], "EVENTS")).toBe(true);
+    expect(hasTag(undefined, "Events")).toBe(false);
+  });
+
+  it("reads everything content/media.json says from a loaded site", async () => {
+    const files: Record<string, string> = {
+      "content/media.json": JSON.stringify({
+        version: 1,
+        credits: {},
+        focus: { "/media/a.jpg": { x: 10, y: 20 } },
+        tags: { "/media/a.jpg": ["Events"] },
+      }),
+    };
+    const content = await loadSiteContent({ read: async (path) => files[path], list: async () => [] });
+    expect(mediaDetailsOf(content)).toEqual({
+      credits: {},
+      focus: { "/media/a.jpg": { x: 10, y: 20 } },
+      tags: { "/media/a.jpg": ["Events"] },
+    });
+    files["content/media.json"] = JSON.stringify({ version: 1, focus: { "/media/a.jpg": { x: 120, y: 0 } } });
+    await expect(loadSiteContent({ read: async (path) => files[path], list: async () => [] })).rejects.toThrow();
   });
 });

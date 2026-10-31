@@ -27,7 +27,7 @@ import {
   uniqueName,
 } from "../content/changes.js";
 import { type Collection, choiceSlug } from "../content/collections.js";
-import { MAX_DESCRIPTION_LENGTH, type MediaDescription } from "../content/credits.js";
+import { MAX_DESCRIPTION_LENGTH, type MediaDescription, mediaDetailsOf } from "../content/credits.js";
 import { SUMMARY_LENGTH } from "../content/entry-details.js";
 import { allPages, type SiteContent } from "../content/load.js";
 import { isSafeUrl } from "../content/markdown.js";
@@ -880,7 +880,7 @@ export function planWordPressImport(
   }
   if (Object.keys(described).length > 0) {
     changes.push(
-      mediaFileChange({ credits: content.credits, descriptions: { ...content.descriptions, ...described } }),
+      mediaFileChange({ ...mediaDetailsOf(content), descriptions: { ...content.descriptions, ...described } }),
     );
   }
 

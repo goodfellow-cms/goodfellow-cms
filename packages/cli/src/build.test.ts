@@ -532,11 +532,11 @@ describe("a site with photos", () => {
 
       const html = await readFile(join(out, "hall/index.html"), "utf8");
       expect(html).toContain(
-        'srcSet="/from-config/media-sizes/480/hall.jpg 480w, /from-config/media-sizes/800/hall.jpg 800w, /from-config/media-sizes/1200/hall.jpg 1200w, /from-config/media/hall.jpg 1300w"',
+        'srcSet="/from-config/media-sizes/480/hall.jpg.webp 480w, /from-config/media-sizes/800/hall.jpg.webp 800w, /from-config/media-sizes/1200/hall.jpg.webp 1200w, /from-config/media/hall.jpg 1300w"',
       );
       expect(html).toContain('width="1300"');
-      const copy = await sharp(await readFile(join(out, "media-sizes/800/hall.jpg"))).metadata();
-      expect([copy.width, copy.height]).toEqual([800, 369]);
+      const copy = await sharp(await readFile(join(out, "media-sizes/800/hall.jpg.webp"))).metadata();
+      expect([copy.format, copy.width, copy.height]).toEqual(["webp", 800, 369]);
     } finally {
       await rm(site, { recursive: true, force: true });
     }

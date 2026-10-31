@@ -1,19 +1,20 @@
 import {
   type FileChange,
+  hasTag,
   isStorableAddress,
-  MAX_DESCRIPTION_LENGTH,
   MEDIA_DIR,
+  mediaDetailsOf,
   mediaStorageFileChange,
+  mediaTags,
   type PhotoCredit,
   type PluginTasks,
   type StoredFile,
-  siteLanguages,
   storedMediaUrl,
   withStoredFiles,
 } from "@goodfellow-cms/core";
 import { createContext, type ReactNode, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
-import { mediaFileChange, withoutMediaDetails } from "./changes.js";
+import { withoutMediaDetails } from "./changes.js";
 import { useMayChange } from "./limits.js";
 import {
   allMedia,
@@ -29,6 +30,7 @@ import {
   mediaUsage,
   uploadName,
 } from "./media.js";
+import { CropDialog, MediaDetailsDialog, TagFilesDialog, TagFilter } from "./media-details.js";
 import { mediaType } from "./media-previews.js";
 import { type PluginMediaClient, type PluginMediaUpload, usePluginMedia } from "./plugin-frames.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
@@ -240,7 +242,9 @@ export function useUploadMedia() {
     const changes: FileChange[] = [mediaStorageFileChange(withStoredFiles(storage, added))];
     // A file in the site's own files that's replaced is kept by the plugin from now on.
     if (replace && media.includes(replace)) changes.push({ path: replace, delete: true });
-    const credits = replace ? withoutMediaDetails(content, [mediaUrl(replace)]) : undefined;
+    const credits = replace
+      ? withoutMediaDetails(mediaDetailsOf(content), [mediaUrl(replace)], { keepTags: true })
+      : undefined;
     if (credits) changes.push(credits);
     const names = urls.map(fileName).join(", ");
     return published(
@@ -279,7 +283,9 @@ export function useUploadMedia() {
     for (const upload of uploads) mediaPreviews.remember(upload.url, upload.bytes);
     const names = changes.map((change) => fileName(change.path)).join(", ");
     // A replaced photo's credit was for the photo it replaces.
-    const credits = replace ? withoutMediaDetails(content, [mediaUrl(replace)]) : undefined;
+    const credits = replace
+      ? withoutMediaDetails(mediaDetailsOf(content), [mediaUrl(replace)], { keepTags: true })
+      : undefined;
     // A stored file replaced without its plugin comes back into the site's own files.
     const unstored =
       replace && storage && isStoredMedia(content, mediaUrl(replace))
@@ -320,7 +326,7 @@ function DeleteMediaDialog({ urls, onClose }: { urls: string[]; onClose: (delete
     const stored = storage ? urls.filter((url) => isStoredMedia(content, url)) : [];
     const paths = urls.filter((url) => !stored.includes(url)).flatMap((url) => mediaPath(url) ?? []);
     setBusy(true);
-    const details = withoutMediaDetails(content, urls);
+    const details = withoutMediaDetails(mediaDetailsOf(content), urls);
     const result = await publish(
       [
         ...paths.map((path) => ({ path, delete: true as const })),
@@ -372,84 +378,6 @@ function DeleteMediaDialog({ urls, onClose }: { urls: string[]; onClose: (delete
         <Button variant="danger" disabled={busy} onClick={() => void onDelete()}>
           {busy ? t("publish.publishing") : t("media.delete")}
         </Button>
-      </div>
-    </Dialog>
-  );
-}
-
-/** What an image shows, in words for people who can't see it, in each of the site's languages. */
-function DescribeMediaDialog({ url, onClose }: { url: string; onClose: () => void }) {
-  const t = useStrings();
-  const { publish } = useAdmin();
-  const { content } = useSiteContent();
-  const languages = siteLanguages(content.settings);
-  const several = languages.length > 1;
-  const before = content.descriptions?.[url];
-  const [texts, setTexts] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      languages.map((language) => [
-        language.code,
-        (language.main ? before?.text : before?.translations?.[language.code]) ?? "",
-      ]),
-    ),
-  );
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<Failure>(null);
-  const name = fileName(url);
-  const id = useId();
-
-  const onPublish = async () => {
-    const [main, ...others] = languages;
-    const text = main ? (texts[main.code] ?? "").trim() : "";
-    const translations = Object.fromEntries(
-      others.flatMap((language) => {
-        const translated = (texts[language.code] ?? "").trim();
-        return translated ? [[language.code, translated]] : [];
-      }),
-    );
-    const { [url]: _left, ...rest } = content.descriptions ?? {};
-    // Without words in the main language there's nothing to fall back on, so the description goes.
-    const descriptions = text
-      ? { ...rest, [url]: { text, ...(Object.keys(translations).length > 0 && { translations }) } }
-      : rest;
-    setBusy(true);
-    const result = await publish(
-      [mediaFileChange({ credits: content.credits, descriptions })],
-      t("media.describeMessage", { name }),
-    );
-    setBusy(false);
-    if (!result.ok) return setFailure(result);
-    onClose();
-  };
-
-  return (
-    <Dialog title={t("media.describeTitle", { name })} onClose={onClose}>
-      <div className="gfa-form">
-        <MediaThumb url={url} className="gfa-media-describe-thumb" />
-        <p className="gfa-hint">{t("media.describeHint")}</p>
-        {languages.map((language) => (
-          <div key={language.code} className="gfa-field">
-            <label htmlFor={`${id}-${language.code}`} className="gfa-label">
-              {several ? t("media.descriptionIn", { language: language.name }) : t("media.description")}
-            </label>
-            <textarea
-              id={`${id}-${language.code}`}
-              className="gfa-input"
-              rows={3}
-              maxLength={MAX_DESCRIPTION_LENGTH}
-              value={texts[language.code] ?? ""}
-              onChange={(event) => setTexts({ ...texts, [language.code]: event.target.value })}
-            />
-          </div>
-        ))}
-        {several && <p className="gfa-hint">{t("media.describeLanguages")}</p>}
-        <PublishFailure failure={failure} />
-        <div className="gfa-dialog-actions">
-          <Button onClick={onClose}>{t("action.cancel")}</Button>
-          <Button variant="primary" disabled={busy} onClick={() => void onPublish()}>
-            {busy ? t("publish.publishing") : t("publish.button")}
-          </Button>
-        </div>
       </div>
     </Dialog>
   );
@@ -763,6 +691,21 @@ function replacementAccept(url: string): string {
 /** Cloudflare's terms for its CDN, which limit serving video on its free plans. */
 const CLOUDFLARE_TERMS = "https://www.cloudflare.com/service-specific-terms-application-services/";
 
+/** Whether a file is one a search finds: by its name, an image's description or its tags. */
+function matchesMedia(
+  content: { descriptions?: Record<string, { text: string }>; mediaTags?: Record<string, string[]> },
+  url: string,
+  query: string,
+): boolean {
+  const words = query.trim().toLowerCase();
+  if (!words) return true;
+  return (
+    fileName(url).toLowerCase().includes(words) ||
+    (content.descriptions?.[url]?.text.toLowerCase().includes(words) ?? false) ||
+    (content.mediaTags?.[url]?.some((own) => own.toLowerCase().includes(words)) ?? false)
+  );
+}
+
 export function MediaScreen() {
   const t = useStrings();
   const { content, media: own } = useSiteContent();
@@ -770,7 +713,11 @@ export function MediaScreen() {
   const { status, run } = useUploads();
   const [query, setQuery] = useState("");
   const [deleting, setDeleting] = useState<string[] | null>(null);
-  const [describing, setDescribing] = useState<string | null>(null);
+  const [detailing, setDetailing] = useState<string | null>(null);
+  const [cropping, setCropping] = useState<string | null>(null);
+  const [tagging, setTagging] = useState<string[] | null>(null);
+  const [tag, setTag] = useState<string>();
+  const tags = useMemo(() => mediaTags(content.mediaTags), [content.mediaTags]);
   // Files chosen to delete together, while choosing.
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -795,15 +742,15 @@ export function MediaScreen() {
   const outside = useOutsideHost();
   const cloudflareVideos =
     outside === "cloudflare-pages" && media.some((path) => mediaKind(mediaUrl(path)) === "video");
-  // Found by name, or by what an image's description says.
-  const urls = useMemo(() => {
-    const words = query.trim().toLowerCase();
-    const described = (url: string) => content.descriptions?.[url]?.text.toLowerCase().includes(words) ?? false;
-    return media
-      .map(mediaUrl)
-      .filter((url) => fileName(url).toLowerCase().includes(words) || described(url))
-      .sort((a, b) => fileName(a).localeCompare(fileName(b)));
-  }, [media, query, content.descriptions]);
+  // Found by name, by what an image's description says, or by its tags, and narrowed to a tag.
+  const urls = useMemo(
+    () =>
+      media
+        .map(mediaUrl)
+        .filter((url) => matchesMedia(content, url, query) && (!tag || hasTag(content.mediaTags?.[url], tag)))
+        .sort((a, b) => fileName(a).localeCompare(fileName(b))),
+    [media, query, tag, content],
+  );
   const toggle = (url: string) => {
     if (!selected) return;
     const next = new Set(selected);
@@ -868,11 +815,16 @@ export function MediaScreen() {
         </div>
       )}
 
+      <TagFilter tags={tags} chosen={tag} onChoose={setTag} />
+
       {selected && (
         <section className="gfa-media-selection" aria-label={t("media.selection")}>
           <span>{t("media.selected", { count: String(selected.size) })}</span>
           <Button variant="ghost" onClick={() => setSelected(new Set([...selected, ...urls]))}>
             {t("media.selectShown")}
+          </Button>
+          <Button variant="ghost" disabled={selected.size === 0} onClick={() => setTagging([...selected])}>
+            {t("media.tagSelected", { count: String(selected.size) })}
           </Button>
           <Button variant="danger" disabled={selected.size === 0} onClick={() => setDeleting([...selected])}>
             {t("media.deleteSelected", { count: String(selected.size) })}
@@ -911,6 +863,9 @@ export function MediaScreen() {
                   ) : (
                     <span className="gfa-hint gfa-media-description">{t("media.noDescription")}</span>
                   ))}
+                {(content.mediaTags?.[url]?.length ?? 0) > 0 && (
+                  <span className="gfa-media-tags">{content.mediaTags?.[url]?.join(" · ")}</span>
+                )}
                 {content.credits?.[url] && <MediaCredit credit={content.credits[url]} />}
                 {isStoredMedia(content, url) && (
                   <span className="gfa-badge">{t("media.stored", { plugin: content.mediaStorage?.plugin ?? "" })}</span>
@@ -937,11 +892,9 @@ export function MediaScreen() {
                         disabled={status.type === "uploading"}
                         onFiles={(files) => void run(files.slice(0, 1), mediaPath(url))}
                       />
-                      {mediaKind(url) === "image" && (
-                        <Button variant="ghost" onClick={() => setDescribing(url)}>
-                          {content.descriptions?.[url] ? t("media.editDescription") : t("media.describe")}
-                        </Button>
-                      )}
+                      <Button variant="ghost" onClick={() => setDetailing(url)}>
+                        {t("media.details")}
+                      </Button>
                       <Button variant="ghost" onClick={() => setDeleting([url])}>
                         {t("media.delete")}
                       </Button>
@@ -963,7 +916,34 @@ export function MediaScreen() {
           }}
         />
       )}
-      {describing && <DescribeMediaDialog url={describing} onClose={() => setDescribing(null)} />}
+      {detailing && (
+        <MediaDetailsDialog
+          url={detailing}
+          onClose={() => setDetailing(null)}
+          onCrop={(url) => {
+            setDetailing(null);
+            setCropping(url);
+          }}
+        />
+      )}
+      {cropping && (
+        <CropDialog
+          url={cropping}
+          onClose={(saved) => {
+            setCropping(null);
+            if (saved) setMoved(t("media.cropSaved", { name: fileName(saved) }));
+          }}
+        />
+      )}
+      {tagging && (
+        <TagFilesDialog
+          urls={tagging}
+          onClose={(done) => {
+            setTagging(null);
+            if (done) setSelected(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1005,10 +985,14 @@ export function MediaPickerDialog({
   const { content, media: own } = useSiteContent();
   const media = allMedia(content, own);
   const { status, run } = useUploads();
-  const urls = media
-    .map(mediaUrl)
-    .filter((url) => kind === "file" || mediaKind(url) === kind)
+  const [query, setQuery] = useState("");
+  const [tag, setTag] = useState<string>();
+  const ofKind = media.map(mediaUrl).filter((url) => kind === "file" || mediaKind(url) === kind);
+  const tags = mediaTags(Object.fromEntries(ofKind.map((url) => [url, content.mediaTags?.[url] ?? []])));
+  const urls = ofKind
+    .filter((url) => matchesMedia(content, url, query) && (!tag || hasTag(content.mediaTags?.[url], tag)))
     .sort((a, b) => fileName(a).localeCompare(fileName(b)));
+  const searchId = useId();
 
   return (
     <Dialog title={t(PICKER_TITLES[kind])} onClose={onClose}>
@@ -1030,8 +1014,25 @@ export function MediaPickerDialog({
           />
         </div>
         <UploadStatus status={status} />
-        {urls.length === 0 ? (
+        {ofKind.length > 0 && (
+          <div className="gfa-field gfa-media-search">
+            <label htmlFor={searchId} className="gfa-label">
+              {t("media.search")}
+            </label>
+            <input
+              id={searchId}
+              className="gfa-input"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+        )}
+        <TagFilter tags={tags} chosen={tag} onChoose={setTag} />
+        {ofKind.length === 0 ? (
           <p className="gfa-hint">{t("media.pickerEmpty")}</p>
+        ) : urls.length === 0 ? (
+          <p className="gfa-hint">{t("media.noMatches")}</p>
         ) : (
           <ul className="gfa-media-grid gfa-media-picker">
             {urls.map((url) => (

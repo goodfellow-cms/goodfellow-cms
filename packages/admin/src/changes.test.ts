@@ -499,6 +499,22 @@ describe("media credits and descriptions", () => {
     const descriptions = { "/media/choir.jpg": description, "/media/leaves.jpg": description };
     const left = withoutMediaDetails({ credits, descriptions }, ["/media/choir.jpg", "/media/leaves.jpg"]);
     expect(left).toEqual({ path: "content/media.json", delete: true });
+    // A replaced file keeps its tags, but not its focal point.
+    const replaced = withoutMediaDetails(
+      { focus: { "/media/choir.jpg": { x: 1, y: 2 } }, tags: { "/media/choir.jpg": ["Events"] } },
+      ["/media/choir.jpg"],
+      { keepTags: true },
+    );
+    expect(JSON.parse(replaced && "content" in replaced ? String(replaced.content) : "{}")).toEqual({
+      version: 1,
+      credits: {},
+      tags: { "/media/choir.jpg": ["Events"] },
+    });
+    // Tags left empty go.
+    expect(mediaFileChange({ tags: { "/media/choir.jpg": [" "] } })).toEqual({
+      path: "content/media.json",
+      delete: true,
+    });
     const kept = withoutMediaDetails({ descriptions }, ["/media/choir.jpg"]);
     expect(JSON.parse(kept && "content" in kept ? String(kept.content) : "{}").descriptions).toEqual({
       "/media/leaves.jpg": description,

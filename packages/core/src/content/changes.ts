@@ -8,7 +8,7 @@ import { CURRENT_VERSION } from "../migrations/index.js";
 import { updateSettingsFile } from "../updates.js";
 import { storedCode } from "./code.js";
 import { type Collection, type Entry, isEmptyValue } from "./collections.js";
-import type { MediaDetails } from "./credits.js";
+import { cleanTags, type MediaDetails } from "./credits.js";
 import { entryPathIn } from "./languages.js";
 import { relinkSite } from "./links.js";
 import type { Page, SiteCode, SiteContent } from "./load.js";
@@ -162,26 +162,61 @@ export function redirectsFileChange({ redirects, message }: SiteRedirects): File
     : { path: REDIRECTS_FILE, delete: true };
 }
 
-/** `content/media.json` with these credits and descriptions, or its removal once no file has either. */
+/**
+ * `content/media.json` with these credits, descriptions, focal points and
+ * tags, or its removal once no file has any. Files left with no tags lose
+ * their entry.
+ */
 export function mediaFileChange(details: MediaDetails): FileChange {
   const credits = details.credits ?? {};
-  const descriptions = details.descriptions ?? {};
-  const described = Object.keys(descriptions).length > 0;
-  return Object.keys(credits).length > 0 || described
+  const some = <T>(record: Record<string, T> | undefined) =>
+    record && Object.keys(record).length > 0 ? record : undefined;
+  const descriptions = some(details.descriptions);
+  const focus = some(details.focus);
+  const tags = some(
+    Object.fromEntries(
+      Object.entries(details.tags ?? {}).flatMap(([url, own]) => {
+        const kept = cleanTags(own);
+        return kept.length > 0 ? [[url, kept]] : [];
+      }),
+    ),
+  );
+  return Object.keys(credits).length > 0 || descriptions || focus || tags
     ? {
         path: MEDIA_FILE,
-        content: serializeContent({ version: CURRENT_VERSION.media, credits, ...(described && { descriptions }) }),
+        content: serializeContent({
+          version: CURRENT_VERSION.media,
+          credits,
+          ...(descriptions && { descriptions }),
+          ...(focus && { focus }),
+          ...(tags && { tags }),
+        }),
       }
     : { path: MEDIA_FILE, delete: true };
 }
 
-/** The change that drops the credits and descriptions of files being deleted or replaced, if any of them has one. */
-export function withoutMediaDetails(details: MediaDetails, urls: readonly string[]): FileChange | undefined {
+/**
+ * The change that drops what `content/media.json` says about files being
+ * deleted or replaced, if it says anything. A replaced file keeps its tags
+ * (`keepTags`), which say what it's for rather than what it shows.
+ */
+export function withoutMediaDetails(
+  details: MediaDetails,
+  urls: readonly string[],
+  { keepTags = false }: { keepTags?: boolean } = {},
+): FileChange | undefined {
   const has = (record: Record<string, unknown> | undefined) => record && urls.some((url) => url in record);
-  if (!has(details.credits) && !has(details.descriptions)) return undefined;
+  if (!has(details.credits) && !has(details.descriptions) && !has(details.focus) && (keepTags || !has(details.tags))) {
+    return undefined;
+  }
   const without = <T>(record: Record<string, T> | undefined) =>
     record && Object.fromEntries(Object.entries(record).filter(([url]) => !urls.includes(url)));
-  return mediaFileChange({ credits: without(details.credits), descriptions: without(details.descriptions) });
+  return mediaFileChange({
+    credits: without(details.credits),
+    descriptions: without(details.descriptions),
+    focus: without(details.focus),
+    tags: keepTags ? details.tags : without(details.tags),
+  });
 }
 
 /**

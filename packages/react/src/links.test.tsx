@@ -115,6 +115,18 @@ describe("SiteImage with the media library's descriptions", () => {
   });
 });
 
+describe("SiteImage with the media library's focal points", () => {
+  it("keeps an image's focal point in view, unless the block places it itself", () => {
+    const focus = { "/media/choir.jpg": "30% 60%" };
+    expect(render({ focus }, <SiteImage src="/media/choir.jpg" alt="Choir" className="object-cover" />)).toContain(
+      'style="object-position:30% 60%"',
+    );
+    expect(
+      render({ focus }, <SiteImage src="/media/choir.jpg" alt="Choir" style={{ objectPosition: "top" }} />),
+    ).toContain('style="object-position:top"');
+  });
+});
+
 describe("SiteImage with smaller copies of photos", () => {
   const media = { "/media/photo.jpg": { width: 1000, height: 500 }, "/media/logo.svg": { width: 2000, height: 100 } };
 
@@ -124,7 +136,7 @@ describe("SiteImage with smaller copies of photos", () => {
       <SiteImage src="/media/photo.jpg" alt="Hall" sizes="50vw" />,
     );
     expect(html).toContain(
-      '<img width="1000" height="500" src="/repo/media/photo.jpg" alt="Hall" sizes="50vw" srcSet="/repo/media-sizes/480/photo.jpg 480w, /repo/media-sizes/800/photo.jpg 800w, /repo/media/photo.jpg 1000w"/>',
+      '<img width="1000" height="500" src="/repo/media/photo.jpg" alt="Hall" sizes="50vw" srcSet="/repo/media-sizes/480/photo.jpg.webp 480w, /repo/media-sizes/800/photo.jpg.webp 800w, /repo/media/photo.jpg 1000w"/>',
     );
   });
 

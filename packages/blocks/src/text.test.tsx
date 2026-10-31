@@ -232,6 +232,27 @@ describe("Section's cover options", () => {
     );
   });
 
+  it("keeps the media library's focal point of its background in view, unless it keeps a part of its own", async () => {
+    const section = (focus: string) => ({
+      type: "Section",
+      props: {
+        id: "s",
+        content: [],
+        width: "normal",
+        padding: "md",
+        background: "none",
+        backgroundImage: "/media/church.jpg",
+        focus,
+        className: "",
+      },
+    });
+    const focused = { ...content, focus: { "/media/church.jpg": { x: 20, y: 75 } } };
+    const centred = await renderPage(focused, page("/about/staff", "Here", [section("center")]));
+    expect(centred).toContain("background-image:url(&quot;/media/church.jpg&quot;);background-position:20% 75%");
+    const top = await renderPage(focused, page("/about/staff", "Here", [section("top")]));
+    expect(top).not.toContain("background-position");
+  });
+
   it("draws sections stored before the cover options as they were", async () => {
     const html = await render([
       {

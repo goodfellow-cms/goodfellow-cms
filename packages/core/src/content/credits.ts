@@ -42,22 +42,91 @@ export const mediaDescriptionSchema = z.object({
   translations: z.record(z.string(), descriptionText).optional(),
 });
 
+/** The point of an image that stays in view wherever it's cut to fit, in percent from its left and top. */
+export const mediaFocusSchema = z.object({
+  x: z.number().min(0).max(100),
+  y: z.number().min(0).max(100),
+});
+
+/** The longest tag a file can have, and how many it can have. */
+export const MAX_TAG_LENGTH = 40;
+export const MAX_TAGS = 20;
+
+const tagText = z.string().trim().min(1).max(MAX_TAG_LENGTH);
+
 export const mediaFileSchema = z.object({
   version: z.literal(1),
   /** Each credited file's credit, by its address, such as `/media/choir.jpg`. */
   credits: z.record(z.string(), photoCreditSchema).default({}),
   /** Each described image's description, by its address. */
   descriptions: z.record(z.string(), mediaDescriptionSchema).optional(),
+  /** Each image's focal point, by its address. */
+  focus: z.record(z.string(), mediaFocusSchema).optional(),
+  /** Each file's tags, which the media library is sorted by, by its address. */
+  tags: z.record(z.string(), z.array(tagText).max(MAX_TAGS)).optional(),
 });
 
 export type PhotoCredit = z.output<typeof photoCreditSchema>;
 export type MediaDescription = z.output<typeof mediaDescriptionSchema>;
+export type MediaFocus = z.output<typeof mediaFocusSchema>;
 export type MediaFile = z.output<typeof mediaFileSchema>;
 
 /** What `content/media.json` holds, as a loaded site has it. */
 export interface MediaDetails {
   credits?: Record<string, PhotoCredit>;
   descriptions?: Record<string, MediaDescription>;
+  focus?: Record<string, MediaFocus>;
+  tags?: Record<string, string[]>;
+}
+
+/** What a loaded site's `content/media.json` says, to change with `mediaFileChange()`. */
+export function mediaDetailsOf(
+  content: Pick<SiteContent, "credits" | "descriptions" | "focus" | "mediaTags">,
+): MediaDetails {
+  return {
+    ...(content.credits && { credits: content.credits }),
+    ...(content.descriptions && { descriptions: content.descriptions }),
+    ...(content.focus && { focus: content.focus }),
+    ...(content.mediaTags && { tags: content.mediaTags }),
+  };
+}
+
+/** A focal point as CSS writes positions: `30% 60%`. */
+export function focusPosition(focus: MediaFocus): string {
+  return `${round(focus.x)}% ${round(focus.y)}%`;
+}
+
+function round(value: number): number {
+  return Math.round(Math.min(100, Math.max(0, value)) * 10) / 10;
+}
+
+/**
+ * Tags as they're kept: trimmed, each once whatever its case (the first
+ * spelling wins), at most `MAX_TAG_LENGTH` long and `MAX_TAGS` of them, in
+ * the order given.
+ */
+export function cleanTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const tag of tags) {
+    const text = tag.trim().replace(/\s+/g, " ").slice(0, MAX_TAG_LENGTH).trim();
+    const key = text.toLocaleLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    kept.push(text);
+  }
+  return kept.slice(0, MAX_TAGS);
+}
+
+/** Every tag the media library uses, each once, sorted as people read them. */
+export function mediaTags(tags: Record<string, readonly string[]> | undefined): string[] {
+  return cleanTags(Object.values(tags ?? {}).flat()).sort((a, b) => a.localeCompare(b));
+}
+
+/** Whether a file has a tag, whatever its case. */
+export function hasTag(tags: readonly string[] | undefined, tag: string): boolean {
+  const key = tag.toLocaleLowerCase();
+  return tags?.some((own) => own.toLocaleLowerCase() === key) ?? false;
 }
 
 /** An image's description in a language, or in the main language where it has none in that one. */
@@ -102,6 +171,16 @@ export function pageDescriptions(
     descriptions
       .filter(([url]) => mentions(text, url))
       .map(([url, description]) => [url, describedIn(description, language)]),
+  );
+}
+
+/** The focal points of the images a page uses (`data`, as prepared to render), as CSS positions, for `SiteImage`. */
+export function pageFocus(content: Pick<SiteContent, "focus">, data: readonly unknown[]): Record<string, string> {
+  const focus = Object.entries(content.focus ?? {});
+  if (focus.length === 0) return {};
+  const text = JSON.stringify(data);
+  return Object.fromEntries(
+    focus.filter(([url]) => mentions(text, url)).map(([url, point]) => [url, focusPosition(point)]),
   );
 }
 

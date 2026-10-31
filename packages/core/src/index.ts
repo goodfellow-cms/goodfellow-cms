@@ -359,17 +359,27 @@ export {
   sortEntries,
 } from "./content/collections.js";
 export {
+  cleanTags,
   describedIn,
+  focusPosition,
+  hasTag,
   MAX_DESCRIPTION_LENGTH,
+  MAX_TAG_LENGTH,
+  MAX_TAGS,
   type MediaDescription,
   type MediaDetails,
   type MediaFile,
+  type MediaFocus,
   mediaDescriptionSchema,
+  mediaDetailsOf,
   mediaFileSchema,
+  mediaFocusSchema,
+  mediaTags,
   type PageCredit,
   type PhotoCredit,
   pageCredits,
   pageDescriptions,
+  pageFocus,
   photoCreditSchema,
 } from "./content/credits.js";
 export {
