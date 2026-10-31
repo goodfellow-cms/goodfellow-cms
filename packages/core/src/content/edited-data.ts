@@ -10,6 +10,7 @@
 import type { ComponentData, Data } from "@puckeditor/core";
 import type { PluginEditorKind } from "../plugins.js";
 import type { SiteDescription } from "../site-description.js";
+import { SYNCED_BLOCK } from "./synced-blocks.js";
 
 /** The longest page an editor may hand back, as JSON. */
 export const MAX_EDITED_DATA = 2_000_000;
@@ -300,7 +301,7 @@ export function checkEditedData(
  * with the site's blocks' code, so its values are trusted as they are, but not
  * its shape: only plain JSON is kept, and every block, in slots and drop zones
  * too, must be one of the site's blocks, template-only ones only in a
- * collection's template.
+ * collection's template, and no Synced block in a synced block.
  */
 export function checkPuckData(
   edited: unknown,
@@ -333,7 +334,8 @@ export function checkPuckData(
         return;
       }
       const block = Object.hasOwn(description.blocks, item.type) ? description.blocks[item.type] : undefined;
-      if (!block || (block.templateOnly && kind !== "template")) {
+      // A synced block can't place another, so nothing loops.
+      if (!block || (block.templateOnly && kind !== "template") || (kind === "synced" && item.type === SYNCED_BLOCK)) {
         problems.push({ path: at, message: `uses "${item.type}", which isn't one of the site's blocks here` });
         return;
       }

@@ -25,6 +25,8 @@ export interface FrameCode {
   pageConfig: Config;
   layoutConfig: Config;
   templateConfig: Config;
+  /** A synced block's blocks: a page's, without the Synced block, since one can't place another. */
+  syncedConfig: Config;
   code: SiteCodeService;
 }
 
@@ -104,6 +106,7 @@ export function FrameProviders({
       pageConfig: createPuckConfig(config, "page"),
       layoutConfig: createPuckConfig(config, "layout"),
       templateConfig: createPuckConfig(config, "template"),
+      syncedConfig: createPuckConfig(config, "synced"),
       code: localSiteCode(config),
     }),
     [config],

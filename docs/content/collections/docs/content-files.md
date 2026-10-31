@@ -17,6 +17,7 @@ Everything the admin panel edits is a file in `content/` or `public/media/`, in 
 | `content/media-storage.json` | Where a [plugin keeps media](/docs/media#media-kept-in-a-storage-service): the plugin, the public address it keeps files at, and each file it keeps by its `/media/` address, with its size |
 | `content/permissions.json` | What [editors with limits](/docs/sign-in#limiting-what-editors-can-change) may change, by username, and who reviews the rest |
 | `content/layout/header.json`, `footer.json` | The header and footer, as Puck data |
+| `content/synced-blocks/<name>.json` | A [synced block](/docs/synced-blocks): its title and its blocks, as Puck data; `<name>.<code>.json` is a language's own version |
 | `content/pages/about.json` | The page at `/about`, as Puck data; `index.json` is a folder's own page |
 | `content/collections/<id>/_collection.json` | A collection's settings, fields and page design |
 | `content/collections/<id>/<slug>.json` or `.md` | One item: its field values |
@@ -49,12 +50,22 @@ An item's JSON file holds `{ "version": 1, "fields": { … } }`. A choice field 
 
 - **`pages`:** page sections by address, each with the pages under it and their translations; `/` is every page.
 - **`collections`:** collections by their folder's name: their items, not their settings.
-- **`media`, `layout`, `menus`:** the media library, the header and footer, and the menus.
+- **`media`, `layout`, `menus`:** the media library, the header and footer with the synced blocks, and the menus.
 - **`languages`:** only pages, items, headers, footers and menus in these languages. Without it, every language.
 
 ## Pages' settings
 
 A page's `root.props` hold its settings: `title`, `description`, `image` (for link previews), `className` and `noIndex`, which is `true` for a page hidden from search engines (see [Search engines and feeds](/docs/search-engines)). A collection's `template` has the same, which its items' pages share.
+
+## Synced blocks
+
+A [synced block](/docs/synced-blocks) is a file in `content/synced-blocks/`, named for how pages place it: lowercase letters, numbers and hyphens, such as `mass-times.json`. It holds a `title`, for editors, and `data`, Puck data whose `content` is its blocks. Pages, collections' page designs, the header and the footer place it with the `SyncedBlock` block, naming it as its `block` prop:
+
+```json
+{ "type": "SyncedBlock", "props": { "id": "SyncedBlock-1", "block": "mass-times" } }
+```
+
+Where pages are built, the synced block's blocks go in its place, each with its id after the placement's (`SyncedBlock-1-Heading-1`), so a page that shows it twice has no two blocks with the same id. Another language's own version is `mass-times.es.json`; languages without one show the main language's. A synced block can't place another, and the build reports a page placing one that isn't there.
 
 ## Scheduled pages and items
 

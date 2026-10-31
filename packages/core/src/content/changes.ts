@@ -12,7 +12,7 @@ import { cleanTags, type MediaDetails } from "./credits.js";
 import { changeItemLinks } from "./item-links.js";
 import { entryPathIn } from "./languages.js";
 import { relinkSite } from "./links.js";
-import type { Page, SiteCode, SiteContent } from "./load.js";
+import type { Page, SiteCode, SiteContent, SyncedBlock } from "./load.js";
 import { serializeMarkdownEntry } from "./markdown.js";
 import {
   BODY_CODE_FILE,
@@ -33,6 +33,7 @@ import {
   REDIRECTS_FILE,
   SITE_FILE,
   SLUG_PLACEHOLDER,
+  syncedBlockFile,
   UPDATES_FILE,
 } from "./paths.js";
 import { type Redirect, redirectFrom } from "./redirects.js";
@@ -267,6 +268,14 @@ export function relinkedChanges(
         }
       }
       if (file === MENUS_FILE) return [menusFileChange(content)];
+      for (const block of content.syncedBlocks ?? []) {
+        if (file === block.file) return [syncedBlockFileChange(block.name, block.content.title, block.content.data)];
+        for (const [language, own] of Object.entries(block.languages ?? {})) {
+          if (file === own.file) {
+            return [syncedBlockFileChange(block.name, own.content.title, own.content.data, language)];
+          }
+        }
+      }
       if (file === REDIRECTS_FILE) {
         return [redirectsFileChange({ redirects: content.redirects ?? [], message: content.redirectMessage })];
       }
@@ -608,6 +617,27 @@ export function moveEntryChanges(
 export function itemLinkRemovalChanges(content: SiteContent, collection: Collection, entry: Entry): FileChange[] {
   const unlinked = changeItemLinks(content, collection.id, (name) => (name === entry.slug ? undefined : name));
   return relinkedChanges(unlinked, [entry.file]);
+}
+
+/** A synced block's file, in a language of its own or the main one, in canonical form. */
+export function syncedBlockFileChange(name: string, title: string, data: Data, language?: string): FileChange {
+  assertNames(name);
+  return {
+    path: syncedBlockFile(name, language),
+    content: serializeContent({
+      version: CURRENT_VERSION["synced-block"],
+      title: title.trim(),
+      data: storedData(data),
+    }),
+  };
+}
+
+/** Deletes a synced block, with its own in every language. Callers check first that nothing places it (`syncedBlockUses()`). */
+export function deleteSyncedBlockChanges(block: SyncedBlock): FileChange[] {
+  return [block.file, ...Object.values(block.languages ?? {}).map((own) => own.file)].map((path) => ({
+    path,
+    delete: true,
+  }));
 }
 
 /** Deletes a collection and all its entries. */

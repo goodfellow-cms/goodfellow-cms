@@ -2865,3 +2865,41 @@ body,
   margin-bottom: 6px;
   font-weight: 600;
 }
+
+/* A synced block on the editor's canvas, drawn read-only in place of its Synced block, with a link to edit it. */
+.gfa-synced-block {
+  outline: 2px dashed var(--gfa-accent);
+  outline-offset: -2px;
+}
+
+.gfa-synced-block-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: var(--gfa-accent);
+  color: var(--gfa-accent-text);
+  font:
+    13px / 1.4 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+.gfa-synced-block-bar a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.gfa-synced-block-missing p {
+  margin: 0;
+  padding: 16px;
+  color: var(--gfa-text);
+  background: var(--gfa-surface);
+  font:
+    14px / 1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}

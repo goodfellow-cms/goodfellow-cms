@@ -51,8 +51,9 @@ describe("build", () => {
     const description = JSON.parse(await read("goodfellow-site.json"));
     expect(description).toMatchObject({ version: 1, content: { page: 1 } });
     expect(Object.keys(description.blocks).length).toBeGreaterThan(0);
-    for (const block of Object.values(description.blocks) as Array<{ fields: object }>) {
-      expect(block.fields).toHaveProperty("className");
+    for (const [name, block] of Object.entries(description.blocks) as Array<[string, { fields: object }]>) {
+      // A Synced block's synced block's blocks have their own Style, so it has none.
+      if (name !== "SyncedBlock") expect(block.fields, name).toHaveProperty("className");
     }
   });
 

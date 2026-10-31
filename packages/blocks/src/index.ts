@@ -19,6 +19,7 @@ import { Breadcrumbs, Menu, PageList, SiteBrand } from "./navigation.js";
 import { Newsletter } from "./newsletter.js";
 import { Search } from "./search.js";
 import { Donate, ShareButtons } from "./share.js";
+import { SyncedBlock } from "./synced.js";
 import { Details, Preformatted, Pullquote, Separator, Table, Verse } from "./text.js";
 import { Video } from "./video.js";
 
@@ -124,6 +125,7 @@ export {
 } from "./newsletter.js";
 export { Search, type SearchProps } from "./search.js";
 export { Donate, type DonateProps, ShareButtons, type ShareButtonsProps, type ShareSite } from "./share.js";
+export { SyncedBlock, type SyncedBlockProps } from "./synced.js";
 export {
   Details,
   type DetailsProps,
@@ -187,6 +189,7 @@ export const blocks = {
   Document,
   ShareButtons,
   Donate,
+  SyncedBlock,
 };
 
 for (const [name, keywords] of Object.entries(BLOCK_KEYWORDS)) {
@@ -205,7 +208,10 @@ for (const [name, icon] of Object.entries(BLOCK_ICONS)) {
  * and Collections for pages, Layout and Navigation for the header and footer.
  */
 export const categories = {
-  layout: { title: "Layout", components: ["Section", "Grid", "Flex", "Space", "Separator", "MediaText", "Details"] },
+  layout: {
+    title: "Layout",
+    components: ["Section", "Grid", "Flex", "Space", "Separator", "MediaText", "Details", "SyncedBlock"],
+  },
   content: {
     title: "Text",
     components: ["Heading", "Text", "Pullquote", "Table", "Preformatted", "Verse", "Code"],

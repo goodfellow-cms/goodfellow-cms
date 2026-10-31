@@ -7,6 +7,7 @@ import {
   GOODFELLOW_VERSION,
   type GoodfellowConfig,
   type SiteDescription,
+  SYNCED_BLOCK,
   type TableCells,
   tableCells,
 } from "@goodfellow-cms/core";
@@ -188,8 +189,12 @@ export function blockIcon(component: object): BlockIcon | undefined {
   return (component as { [ICON]?: BlockIcon })[ICON];
 }
 
-/** Pages; the header and footer; or a collection's template, which is a page that can also show the entry's fields. */
-export type PuckConfigKind = "page" | "layout" | "template";
+/**
+ * Pages; the header and footer; a collection's template, which is a page that
+ * can also show the entry's fields; or a synced block, which can't place
+ * another (`SYNCED_BLOCK`), so nothing loops.
+ */
+export type PuckConfigKind = "page" | "layout" | "template" | "synced";
 
 /**
  * The built-in blocks' groups that start open in each editor, by their key in
@@ -201,6 +206,7 @@ export const OPEN_CATEGORIES: Readonly<Record<PuckConfigKind, readonly string[]>
   page: ["layout", "content", "forms", "media"],
   layout: ["layout", "navigation"],
   template: ["layout", "content", "collections"],
+  synced: ["layout", "content", "forms", "media"],
 };
 
 /** The built-in blocks' groups, which `OPEN_CATEGORIES` opens and closes. */
@@ -213,10 +219,14 @@ const BUILT_IN_CATEGORIES = new Set(["layout", "content", "forms", "media", "nav
  */
 export function createPuckConfig(config: GoodfellowConfig, kind: PuckConfigKind): Config {
   const included = Object.entries(config.blocks).filter(
-    ([, component]) => kind === "template" || !isTemplateOnly(component),
+    ([name, component]) =>
+      (kind === "template" || !isTemplateOnly(component)) && !(kind === "synced" && name === SYNCED_BLOCK),
   );
   const names = new Set(included.map(([name]) => name));
-  const components = Object.fromEntries(included.map(([name, component]) => [name, withClassName(component)]));
+  // A Synced block leaves its synced block's own blocks in its place, each with its own Style, so it has none.
+  const components = Object.fromEntries(
+    included.map(([name, component]) => [name, name === SYNCED_BLOCK ? component : withClassName(component)]),
+  );
   const categories =
     config.categories &&
     Object.fromEntries(
@@ -235,7 +245,7 @@ export function createPuckConfig(config: GoodfellowConfig, kind: PuckConfigKind)
     components,
     ...(categories && { categories }),
     root: {
-      fields: kind === "layout" ? {} : pageRootFields,
+      fields: kind === "layout" || kind === "synced" ? {} : pageRootFields,
       render: ({ children }: { children?: ReactNode }) => <>{children}</>,
     },
   } as Config;

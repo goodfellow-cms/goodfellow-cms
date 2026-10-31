@@ -5,7 +5,8 @@
  * Node alike, without rendering pages.
  *
  * - Errors: links to pages, items or media that don't exist, and items'
- *   links to items that don't exist.
+ *   links to items that don't exist, and synced blocks that aren't there or
+ *   that place others.
  * - Warnings: pages without a title or description, theme colors that text
  *   is hard to read on, and translations of something that isn't in the main
  *   language.
@@ -34,12 +35,17 @@ import { SITE_FILE } from "./paths.js";
 import { redirectFrom, redirectProblems } from "./redirects.js";
 import type { ThemeColor } from "./schemas.js";
 import { sitePages } from "./site-pages.js";
+import { syncedBlockProblems } from "./synced-blocks.js";
 
 export type SiteProblem =
   /** A link to a page or item the site doesn't have. */
   | { kind: "missing-page"; severity: "error"; file: string; target: string }
   /** An item's link to an item (`target`, its name) that isn't in `collection`. */
   | { kind: "missing-item"; severity: "error"; file: string; target: string; collection: string }
+  /** A Synced block block (in `file`) placing a synced block (`target`, its name) the site doesn't have. */
+  | { kind: "missing-synced-block"; severity: "error"; file: string; target: string }
+  /** A synced block (`file`) that places another (`target`), which isn't shown, so nothing loops. */
+  | { kind: "nested-synced-block"; severity: "error"; file: string; target: string }
   /** A link to, or an image or video from, a media file the site doesn't have. */
   | { kind: "missing-media"; severity: "error"; file: string; target: string }
   /** A link that would run code (`javascript:` and the like), which pages leave out. */
@@ -304,6 +310,7 @@ export function checkSite(content: SiteContent, options: SiteCheckOptions): Site
       collection: missing.target,
     });
   }
+  for (const problem of syncedBlockProblems(content)) errors.push({ ...problem, severity: "error" });
   const warnings = [
     ...content.pages.flatMap((page) => pageWarnings(content, page)),
     ...translationProblems(content),
@@ -321,6 +328,9 @@ export function problemKey(problem: SiteProblem): string {
       return `${problem.kind} ${problem.file} ${problem.target}`;
     case "missing-item":
       return `${problem.kind} ${problem.file} ${problem.collection} ${problem.target}`;
+    case "missing-synced-block":
+    case "nested-synced-block":
+      return `${problem.kind} ${problem.file} ${problem.target}`;
     case "no-title":
     case "no-description":
       return `${problem.kind} ${problem.file}`;
@@ -378,6 +388,12 @@ export function formatSiteProblem(problem: SiteProblem): string {
       return `${problem.file} links to ${problem.target}, which isn't a page or item on the site.`;
     case "missing-item":
       return `${problem.file} links to ${problem.target} in ${problem.collection}, which isn't an item there.`;
+    case "missing-synced-block":
+      return problem.target
+        ? `${problem.file} places the synced block ${problem.target}, which the site doesn't have.`
+        : `${problem.file} has a Synced block block that doesn't say which synced block it places.`;
+    case "nested-synced-block":
+      return `${problem.file} places the synced block ${problem.target}, but synced blocks can't place others, so it isn't shown.`;
     case "missing-media":
       return `${problem.file} uses ${problem.target}, which isn't in public/media/.`;
     case "unsafe-link":

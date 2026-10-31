@@ -105,6 +105,11 @@ export function problemPlace(t: Translate, content: SiteContent, file: string): 
   if (file === REDIRECTS_FILE) return t("checks.place.redirects");
   const page = content.pages.find((candidate) => candidate.file === file);
   if (page) return t("checks.place.page", { title: pageTitle(page) });
+  for (const block of content.syncedBlocks ?? []) {
+    if (block.file === file) return t("checks.place.synced", { title: block.content.title });
+    const language = Object.values(block.languages ?? {}).find((own) => own.file === file);
+    if (language) return t("checks.place.synced", { title: language.content.title });
+  }
   for (const collection of content.collections) {
     if (collection.file === file) return t("checks.place.design", { collection: collection.settings.name });
     const entry = collection.entries.find((candidate) => candidate.file === file);
@@ -145,6 +150,12 @@ export function describeProblem(t: Translate, content: SiteContent, problem: Sit
           content.collections.find((collection) => collection.id === problem.collection)?.settings.name ??
           problem.collection,
       });
+    case "missing-synced-block":
+      return problem.target
+        ? t("checks.missing-synced-block", { place: problemPlace(t, content, problem.file), target: problem.target })
+        : t("checks.unchosen-synced-block", { place: problemPlace(t, content, problem.file) });
+    case "nested-synced-block":
+      return t("checks.nested-synced-block", { place: problemPlace(t, content, problem.file) });
     case "bad-translation":
       return t("checks.bad-translation", { place: problemPlace(t, content, problem.file), target: problem.target });
     case "missing-translation":

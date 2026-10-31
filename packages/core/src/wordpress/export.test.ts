@@ -73,7 +73,18 @@ const FILES: Record<string, string> = {
   }),
   "content/pages/about.json": json({
     version: 1,
-    data: { root: { props: { title: "About", description: "Who we are" } } },
+    data: {
+      root: { props: { title: "About", description: "Who we are" } },
+      content: [{ type: "SyncedBlock", props: { id: "SyncedBlock-1", block: "visit-us" } }],
+    },
+  }),
+  "content/synced-blocks/visit-us.json": json({
+    version: 1,
+    title: "Visit us",
+    data: {
+      root: { props: {} },
+      content: [{ type: "Heading", props: { id: "Heading-9", text: "Come and visit", level: "h2" } }],
+    },
   }),
   "content/pages/about/staff.json": json({ version: 1, data: { root: { props: { title: "Staff" } } } }),
   "content/pages/404.json": json({ version: 1, data: { root: { props: { title: "Page not found" } } } }),
@@ -231,6 +242,19 @@ describe("WordPress export files", () => {
     expect(plan.media.map((file) => file.path)).toEqual(["public/media/church.jpg", "public/media/picnic.jpg"]);
     const home = plan.changes.find((change) => change.path === "content/pages/index.json");
     expect(home && "content" in home ? home.content : "").toContain('"text": "Visit"');
+    // Synced blocks go as synced patterns, which pages place, and come back as synced blocks.
+    expect(result.xml).toContain("<wp:post_type><![CDATA[wp_block]]></wp:post_type>");
+    const about = plan.changes.find((change) => change.path === "content/pages/about.json");
+    expect(about && "content" in about ? about.content : "").toContain('"block": "visit-us"');
+    const synced = plan.changes.find((change) => change.path === "content/synced-blocks/visit-us.json");
+    expect(JSON.parse(synced && "content" in synced ? String(synced.content) : "{}")).toMatchObject({
+      title: "Visit us",
+      data: {
+        content: [
+          expect.objectContaining({ type: "Heading", props: expect.objectContaining({ text: "Come and visit" }) }),
+        ],
+      },
+    });
     // Images' descriptions go as WordPress's alt text, and come back.
     expect(result.xml).toContain("<wp:meta_key><![CDATA[_wp_attachment_image_alt]]></wp:meta_key>");
     const media = plan.changes.find((change) => change.path === "content/media.json");

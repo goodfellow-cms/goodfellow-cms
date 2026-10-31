@@ -46,9 +46,11 @@ import {
   readPermissions,
   reviewersFor,
   SignInError,
+  SYNCED_BLOCK,
   siteLanguages,
   siteSettingsFileChange,
   siteSettingsSchema,
+  syncedBlockFileChange,
   writeChanges,
 } from "@goodfellow-cms/core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -63,6 +65,7 @@ import {
   listCollections,
   listMedia,
   listPages,
+  listSyncedBlocks,
   mediaImage,
   pageAddress,
   readCollection,
@@ -71,6 +74,7 @@ import {
   readMenus,
   readPage,
   readSettings,
+  readSyncedBlock,
   ToolError,
   takenAddresses,
 } from "./content.js";
@@ -641,6 +645,105 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         `Update ${part}`,
       );
       return text({ draft: draft.name, part, saved: "changed", ...(built.ignored > 0 && { ignored: built.ignored }) });
+    },
+  );
+
+  tool(
+    "list_synced_blocks",
+    "The site's synced blocks: blocks kept once and shown wherever a page, a collection's template, the header or the footer places them, so changing one changes them all. Each has a name, which places it, a title, and the languages with versions of their own. To show one on a page, add a SyncedBlock block with its name as the block prop.",
+    { site: siteArg, draft: draftArg },
+    async ({ site: given, draft }) => {
+      const site = await open(given);
+      return text(await listSyncedBlocks(await reading(site, draft)));
+    },
+    true,
+  );
+
+  tool(
+    "get_synced_block",
+    "One synced block: its title and its blocks, as a flat list. On a site in several languages, give a language's code for its version; a language without a version of its own shows the main language's.",
+    {
+      site: siteArg,
+      name: z.string().describe("The synced block's name, from list_synced_blocks."),
+      language: languageArg,
+      draft: draftArg,
+    },
+    async ({ site: given, name, language, draft }) => {
+      const site = await open(given);
+      const source = await reading(site, draft);
+      const main = await readSyncedBlock(source, name);
+      if (!main) throw new ToolError(`The site has no synced block "${name}". list_synced_blocks lists them.`);
+      const own =
+        language !== undefined && language !== mainLanguage(site.settings)
+          ? await readSyncedBlock(source, name, language)
+          : undefined;
+      const shown = own ?? main;
+      return text({
+        name,
+        title: shown.title,
+        ...(language !== undefined && !own && language !== mainLanguage(site.settings) && { sameAsMainLanguage: true }),
+        blocks: toFlatBlocks(shown.data.content, site.pageConfig),
+      });
+    },
+    true,
+  );
+
+  tool(
+    "save_synced_block",
+    "Creates a synced block, or changes one, in a draft. Give the whole list of blocks: it replaces its blocks, on every page that shows it. A synced block can't hold a SyncedBlock block. On a site in several languages, give a language's code to save that language's own version.",
+    {
+      site: siteArg,
+      name: z
+        .string()
+        .describe(
+          "The synced block's name: lowercase letters, numbers and hyphens, such as mass-times. A new name makes a new synced block.",
+        ),
+      title: z.string().optional().describe("What editors see when they choose it. Needed for a new one."),
+      blocks: z.array(flatBlock).optional().describe("Its blocks. Leave them out to change only its title."),
+      language: languageArg,
+      draft: draftArg,
+    },
+    async ({ site: given, name, title, blocks, language, draft: draftName }) => {
+      const site = await open(given);
+      if (!isAddressSegment(name)) {
+        throw new ToolError(`"${name}" can't be a synced block's name: use lowercase letters, numbers and hyphens.`);
+      }
+      if (blocks?.some((block) => block.type === SYNCED_BLOCK)) {
+        throw new ToolError("A synced block can't hold another synced block. Put that one's blocks in instead.");
+      }
+      const draft = await changing(site, draftName);
+      const settings = await readSettings(draft.store);
+      const other = language !== undefined && language !== mainLanguage(settings);
+      if (other && !isOtherLanguage(settings, language)) {
+        throw new ToolError(`${language} isn't one of the site's languages. get_site lists them.`);
+      }
+      const main = await readSyncedBlock(draft.store, name);
+      if (other && !main) {
+        throw new ToolError(
+          `The site has no synced block "${name}" to make a version of. Save it without a language first.`,
+        );
+      }
+      const before = (other ? await readSyncedBlock(draft.store, name, language) : main) ?? main;
+      const named = title?.trim() || before?.title;
+      if (!named) throw new ToolError("A new synced block needs a title.");
+      const built = blocks
+        ? blocksFrom(blocks, site.pageConfig)
+        : { content: (before?.data.content ?? []) as Content, ignored: 0 };
+      const data: Data = { root: { props: {} }, ...(before?.data as Data | undefined), content: built.content };
+      const exists = other ? Boolean(await readSyncedBlock(draft.store, name, language)) : Boolean(main);
+      await save(
+        draft,
+        [syncedBlockFileChange(name, named, data, other ? language : undefined)],
+        `${exists ? "Update" : "Add"} synced block "${named}"`,
+      );
+      return text({
+        draft: draft.name,
+        name,
+        saved: exists ? "changed" : "created",
+        ...(built.ignored > 0 && {
+          ignored: `${built.ignored} block(s) weren't saved: their type isn't one of the site's blocks, or they were in a block that wasn't.`,
+        }),
+      });
     },
   );
 

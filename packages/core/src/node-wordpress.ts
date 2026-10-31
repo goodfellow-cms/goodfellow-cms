@@ -224,6 +224,11 @@ export function formatWordPressImport(result: ImportWordPressResult): string {
       ? [`- ${plural(summary.categories, "category", "categories")} and ${plural(summary.tags, "tag")}`]
       : []),
     ...(summary.menus.length ? [`- Menus: ${summary.menus.join(", ")}`] : []),
+    ...(summary.syncedBlocks?.length
+      ? [
+          `- ${plural(summary.syncedBlocks.length, "synced block")} from synced patterns: ${summary.syncedBlocks.join(", ")}`,
+        ]
+      : []),
     ...(summary.redirects ? [`- ${plural(summary.redirects, "redirect")} from old addresses`] : []),
     `- ${plural(result.written ? result.copied.length : result.plan.media.length, "media file")}`,
   ];

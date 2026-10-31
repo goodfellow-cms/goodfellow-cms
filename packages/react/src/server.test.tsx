@@ -266,6 +266,41 @@ describe("renderPage", () => {
     expect(html).toContain('<footer class="gf-footer"><div><h1>Bye</h1></div></footer>');
   });
 
+  it("puts each synced block's own blocks in place of where it's placed, header and footer too", async () => {
+    const synced = {
+      name: "welcome",
+      file: "content/synced-blocks/welcome.json",
+      content: {
+        version: 1 as const,
+        title: "Welcome",
+        data: {
+          root: { props: {} },
+          content: [
+            { type: "Heading", props: { id: "h", text: "Welcome" } },
+            { type: "Resolved", props: { id: "r", text: "inside" } },
+          ],
+        },
+      },
+    };
+    const html = await renderPage(
+      makeContent({
+        syncedBlocks: [synced],
+        footer: {
+          version: 1,
+          data: { root: {}, content: [{ type: "SyncedBlock", props: { id: "s2", block: "welcome" } }] },
+        },
+      }),
+      makePage([
+        { type: "SyncedBlock", props: { id: "s1", block: "welcome" } },
+        { type: "SyncedBlock", props: { id: "s3", block: "gone" } },
+      ]),
+    );
+    expect(html).toContain(
+      '<main class="gf-main" data-pagefind-body=""><div><h1>Welcome</h1><p>resolved inside</p></div></main>',
+    );
+    expect(html).toContain('<footer class="gf-footer"><div><h1>Welcome</h1><p>resolved inside</p></div></footer>');
+  });
+
   it("wraps blocks in their CSS classes only when set", async () => {
     const html = await renderPage(
       makeContent(),

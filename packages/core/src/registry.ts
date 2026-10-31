@@ -547,6 +547,7 @@ export async function planUpdate(options: UpdateOptions): Promise<UpdatePlan> {
 export type BlockUse =
   | { kind: "page"; path: string; title?: string }
   | { kind: "template"; collection: string; name: string }
+  | { kind: "synced-block"; name: string; title: string }
   | { kind: "header" }
   | { kind: "footer" };
 
@@ -575,6 +576,12 @@ export function blockUses(content: SiteContent, name: string): BlockUse[] {
   }
   if (usesBlock(content.header.data, name)) uses.push({ kind: "header" });
   if (usesBlock(content.footer.data, name)) uses.push({ kind: "footer" });
+  for (const block of content.syncedBlocks ?? []) {
+    const files = [block.content, ...Object.values(block.languages ?? {}).map((own) => own.content)];
+    if (files.some((file) => usesBlock(file.data, name))) {
+      uses.push({ kind: "synced-block", name: block.name, title: block.content.title });
+    }
+  }
   return uses;
 }
 

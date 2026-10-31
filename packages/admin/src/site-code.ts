@@ -12,6 +12,7 @@ import {
   type PageView,
   type SiteContent,
   type SiteProblem,
+  syncedBlockUses,
 } from "@goodfellow-cms/core";
 import type { ComponentData } from "@puckeditor/core";
 
@@ -75,8 +76,8 @@ export const MAX_RENDERED = 10;
 
 /**
  * The pages a publish changes, each with the file its own content comes from:
- * a page or item, an item's page for its collection's design, and the home
- * page for the header and footer.
+ * a page or item, an item's page for its collection's design, the first page
+ * showing a synced block, and the home page for the header and footer.
  */
 export function pagesToRender(content: SiteContent, changed: ReadonlySet<string>): RenderTarget[] {
   const pages = allPages(content);
@@ -85,6 +86,23 @@ export function pagesToRender(content: SiteContent, changed: ReadonlySet<string>
     if (!changed.has(collection.file)) continue;
     const first = pages.find((page) => page.entry?.collection === collection.id);
     if (first && !targets.some((target) => target.page === first)) targets.push({ page: first, file: collection.file });
+  }
+  // A synced block on the first page that shows it, or that shows the design, header or footer placing it.
+  for (const block of content.syncedBlocks ?? []) {
+    const file = [block.file, ...Object.values(block.languages ?? {}).map((own) => own.file)].find((path) =>
+      changed.has(path),
+    );
+    if (!file) continue;
+    const use = syncedBlockUses(content, block.name)[0];
+    const shown =
+      use?.kind === "page"
+        ? pages.find((page) => page.file === use.file)
+        : use?.kind === "template"
+          ? pages.find((page) => page.entry?.collection === use.collection)
+          : use
+            ? (pages.find((page) => page.path === "/") ?? pages[0])
+            : undefined;
+    if (shown && !targets.some((target) => target.page === shown)) targets.push({ page: shown, file });
   }
   if ((changed.has(HEADER_FILE) || changed.has(FOOTER_FILE)) && targets.length === 0) {
     const home = pages.find((page) => page.path === "/") ?? pages[0];

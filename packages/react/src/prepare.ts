@@ -2,6 +2,7 @@ import {
   applyBasePath,
   contentForPage,
   contentInLanguage,
+  expandSyncedBlocks,
   findEntry,
   type GoodfellowConfig,
   hasLanguages,
@@ -166,8 +167,8 @@ export async function prepareLayout(
     ...options,
   };
   const [header, footer] = await Promise.all([
-    prepareData(content.header.data, configs.layout, site),
-    prepareData(content.footer.data, configs.layout, site),
+    prepareData(expandSyncedBlocks(content.header.data, content, language), configs.layout, site),
+    prepareData(expandSyncedBlocks(content.footer.data, content, language), configs.layout, site),
   ]);
   const rebase = rebaser(options, content.settings);
   const descriptions = pageDescriptions(content, [header, footer], content.settings.language);
@@ -211,14 +212,20 @@ export async function preparePage(
     ...(content.mediaStorage && { mediaStorage: content.mediaStorage.url }),
     ...options,
   };
-  // An entry's page is its collection's template, with the entry's values filled in.
+  // An entry's page is its collection's template, with the entry's values filled in. Synced blocks go in
+  // first, in the page's language, so placeholders in them are filled in too.
   const pageConfig = found ? configs.template : configs.page;
-  const applied = applyPageEntry(configs, content, page);
+  const language = settings.language;
+  const synced = {
+    ...page,
+    content: { ...page.content, data: expandSyncedBlocks(page.content.data, content, language) },
+  };
+  const applied = applyPageEntry(configs, content, synced);
 
   const [data, header, footer] = await Promise.all([
     prepareData(applied.content.data, pageConfig, site),
-    prepareData(content.header.data, configs.layout, site),
-    prepareData(content.footer.data, configs.layout, site),
+    prepareData(expandSyncedBlocks(content.header.data, content, language), configs.layout, site),
+    prepareData(expandSyncedBlocks(content.footer.data, content, language), configs.layout, site),
   ]);
   const rebase = rebaser(options, content.settings);
   // The credits of the photos the page shows, which their licenses ask for.
