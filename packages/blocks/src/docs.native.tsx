@@ -3,7 +3,7 @@ import type { RichTextBlock } from "@goodfellow-cms/core/content-api";
 import { NativeLink, SiteText, TEXT, useNativeSite } from "@goodfellow-cms/expo";
 import { View } from "react-native";
 import type { CollectionNavProps, EntryPagerProps, OnThisPageProps } from "./docs.js";
-import { chosenCollection, navGroups } from "./docs-data.js";
+import { chosenCollection, listedHeadings, navGroups } from "./docs-data.js";
 
 /** Links to every item in a collection, grouped by one of its choice fields. The current page's item stands out. */
 export function CollectionNav({ collection: id, groupBy, heading }: CollectionNavProps) {
@@ -104,13 +104,16 @@ function headingsOf(nodes: RichTextBlock[]): Array<{ id: string; level: number; 
   });
 }
 
-/** Links to the headings of the item's text, for items stored as Markdown files. */
+/** Links to the page's headings: its Heading blocks, or the headings of an item's text stored as Markdown. */
 export function OnThisPage({ heading, depth }: OnThisPageProps) {
   const site = useNativeSite();
   const { collection, entry } = site;
   const body = collection?.settings.markdown?.body;
   const nodes = body && entry ? collection.richText[entry.slug]?.[body] : undefined;
-  const headings = headingsOf(nodes ?? []).filter((item) => item.level >= 2 && item.level <= Number(depth));
+  const all = nodes
+    ? headingsOf(nodes)
+    : listedHeadings(undefined, undefined, site.headings, Number(depth)).map((item) => ({ ...item }));
+  const headings = all.filter((item) => item.level >= 2 && item.level <= Number(depth));
   if (headings.length === 0) return null;
   return (
     <View accessibilityLabel={heading} style={{ gap: 8 }}>

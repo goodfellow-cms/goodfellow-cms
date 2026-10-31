@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeHtml } from "./sanitize.js";
+import { escapeCellText, sanitizeHtml, tableCellHtml } from "./sanitize.js";
 
 describe("sanitizeHtml", () => {
   it("keeps text, formatting, links, images and classes", () => {
@@ -22,5 +22,20 @@ describe("sanitizeHtml", () => {
     expect(sanitizeHtml('<h2 id="hours">Hours</h2><div id="gf-consent">Fake</div>')).toBe(
       '<h2 id="hours">Hours</h2><div>Fake</div>',
     );
+  });
+});
+
+describe("tableCellHtml", () => {
+  it("keeps bold, italics, links and line breaks, and nothing else", () => {
+    expect(tableCellHtml('<strong>Sunday</strong><br><em>and</em> <a href="/mass" title="Times">Mass</a>')).toBe(
+      '<strong>Sunday</strong><br><em>and</em> <a href="/mass" title="Times">Mass</a>',
+    );
+    expect(tableCellHtml('<p class="x">One</p><h2>Two</h2><img src="/media/a.jpg">')).toBe("OneTwo");
+    expect(tableCellHtml('<b onclick="steal()">Hi</b><script>steal()</script>')).toBe("<b>Hi</b>");
+    expect(tableCellHtml('<a href="javascript:steal()" target="_blank">Click</a>')).toBe("<a href>Click</a>");
+  });
+
+  it("keeps plain text from before cells could be formatted saying the same once escaped", () => {
+    expect(tableCellHtml(escapeCellText("Fish & chips <£5"))).toBe("Fish &amp; chips &lt;£5");
   });
 });

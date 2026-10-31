@@ -11,7 +11,8 @@ import {
   useNativeSite,
   useWide,
 } from "@goodfellow-cms/expo";
-import { View } from "react-native";
+import { useState } from "react";
+import { Modal, Pressable, View } from "react-native";
 import type { AudioProps, FileProps, GalleryProps, MediaTextProps } from "./media.js";
 import { type DocumentProps, documentAddress } from "./media-data.js";
 
@@ -95,24 +96,86 @@ export function MediaText({
 const GALLERY_COLUMNS = { "2": { base: 2 }, "3": { base: 2, md: 3 }, "4": { base: 2, md: 4 } } as const;
 
 /** Pictures in a grid, each with an optional caption. */
-export function Gallery({ images, columns = "3", crop, rounded, caption }: GalleryProps) {
+export function Gallery({
+  images,
+  columns = "3",
+  crop,
+  rounded,
+  caption,
+  lightbox,
+  closeLabel = "Close",
+  previousLabel = "Previous picture",
+  nextLabel = "Next picture",
+}: GalleryProps) {
+  const [open, setOpen] = useState<number>();
   const shown = (images ?? []).filter((image) => image.src);
   if (shown.length === 0) return null;
+  const current = open === undefined ? undefined : shown[open];
+  const move = (by: number) => setOpen((index) => ((((index ?? 0) + by) % shown.length) + shown.length) % shown.length);
   return (
     <View style={{ gap: 12, marginVertical: 24 }}>
       <Columns columns={GALLERY_COLUMNS[columns] ?? GALLERY_COLUMNS["3"]} gap={16}>
-        {shown.map((image, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: the same picture can be shown twice
-          <View key={`${image.src}-${index}`} style={{ gap: 4 }}>
+        {shown.map((image, index) => {
+          const picture = (
             <NativeImage src={image.src} alt={image.alt} aspect={crop ? "square" : "auto"} rounded={rounded} />
-            {image.caption ? (
-              <SiteText muted style={{ fontSize: TEXT.sm }}>
-                {image.caption}
-              </SiteText>
-            ) : null}
-          </View>
-        ))}
+          );
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the same picture can be shown twice
+            <View key={`${image.src}-${index}`} style={{ gap: 4 }}>
+              {lightbox === true ? (
+                <Pressable accessibilityRole="imagebutton" onPress={() => setOpen(index)}>
+                  {picture}
+                </Pressable>
+              ) : (
+                picture
+              )}
+              {image.caption ? (
+                <SiteText muted style={{ fontSize: TEXT.sm }}>
+                  {image.caption}
+                </SiteText>
+              ) : null}
+            </View>
+          );
+        })}
       </Columns>
+      {lightbox === true && (
+        <Modal
+          visible={current !== undefined}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setOpen(undefined)}
+        >
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.9)", justifyContent: "center", padding: 16, gap: 12 }}>
+            {current ? (
+              <>
+                <NativeImage src={current.src} alt={current.alt} aspect="auto" rounded={false} />
+                {current.caption ? (
+                  <SiteText style={{ color: "#ffffff", textAlign: "center" }}>{current.caption}</SiteText>
+                ) : null}
+              </>
+            ) : null}
+            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+              {shown.length > 1 ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={previousLabel} onPress={() => move(-1)}>
+                  <SiteText style={{ color: "#ffffff", fontSize: TEXT["3xl"] }}>‹</SiteText>
+                </Pressable>
+              ) : (
+                <View />
+              )}
+              <Pressable accessibilityRole="button" accessibilityLabel={closeLabel} onPress={() => setOpen(undefined)}>
+                <SiteText style={{ color: "#ffffff", fontSize: TEXT["3xl"] }}>×</SiteText>
+              </Pressable>
+              {shown.length > 1 ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={nextLabel} onPress={() => move(1)}>
+                  <SiteText style={{ color: "#ffffff", fontSize: TEXT["3xl"] }}>›</SiteText>
+                </Pressable>
+              ) : (
+                <View />
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
       {caption ? (
         <SiteText muted style={{ fontSize: TEXT.sm, textAlign: "center" }}>
           {caption}

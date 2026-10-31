@@ -287,6 +287,7 @@ function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string[] {
                 footer: props.footer === true,
                 caption: text(props.caption),
                 striped: props.striped === true,
+                ...(props.format === "html" && { link: context.link }),
               }),
             ]
           : [];

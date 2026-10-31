@@ -34,16 +34,21 @@ export {
   type PreparedLayout,
   type PreparedPage,
   type PuckConfigs,
+  pageHeadings,
   prepareLayout,
   preparePage,
   type RenderOptions,
 } from "./prepare.js";
 export {
   adminSite,
+  type BlockHeading,
   type BlockParts,
+  type BlockStructuredData,
+  blockHeading,
   blockIcon,
   blockKeywords,
   blockParts,
+  blockStructuredData,
   classNameField,
   createPuckConfig,
   describeSite,
@@ -60,9 +65,11 @@ export {
   tableField,
   templateOnly,
   withClassName,
+  withHeading,
   withIcon,
   withKeywords,
   withParts,
+  withStructuredData,
 } from "./puck-config.js";
 export { CurrentPathProvider, useCurrentPath } from "./site-context.js";
 export { type SiteContextValue, SiteProvider, useSite } from "./site-context.server.js";

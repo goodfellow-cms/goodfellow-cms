@@ -62,6 +62,11 @@ export {
   type IconShape,
 } from "./block-icons.js";
 export {
+  ANNOUNCEMENT_ATTRIBUTE,
+  ANNOUNCEMENT_CLOSE_ATTRIBUTE,
+  ANNOUNCEMENT_STORAGE_KEY,
+  announcementHideScript,
+  announcementScript,
   BLOCK_SCRIPTS,
   blockScriptsFor,
   COPIED_ATTRIBUTE,
@@ -70,6 +75,10 @@ export {
   DARK_MODE_ATTRIBUTE,
   DARK_MODE_READY_ATTRIBUTE,
   darkModeScript,
+  LIGHTBOX_ATTRIBUTE,
+  LIGHTBOX_DIALOG_ATTRIBUTE,
+  LIGHTBOX_ITEM_ATTRIBUTE,
+  lightboxScript,
   SEARCH_BOX_ATTRIBUTE,
   searchScript,
 } from "./block-scripts.js";
@@ -534,6 +543,7 @@ export {
   ownersOnlyChanges,
   ownersOnlyFields,
 } from "./content/owners-only.js";
+export { type HeadingDetails, headingAnchors, type PageHeading } from "./content/page-headings.js";
 export {
   type Breadcrumbs,
   breadcrumbs,
@@ -632,7 +642,7 @@ export {
   storedRedirects,
 } from "./content/redirects.js";
 export { type RenderedPage, renderedProblems } from "./content/rendered-checks.js";
-export { sanitizeHtml } from "./content/sanitize.js";
+export { escapeCellText, sanitizeHtml, TABLE_CELL_TAGS, tableCellHtml } from "./content/sanitize.js";
 export {
   dueChanges,
   type FileDetails,
@@ -744,9 +754,11 @@ export {
   writeChanges,
 } from "./content/store.js";
 export {
+  describesPage,
   type StructuredData,
   structuredData,
   structuredDataScript,
+  withBlocksData,
   zonedIso,
 } from "./content/structured-data.js";
 export {

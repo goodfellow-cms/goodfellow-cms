@@ -4,6 +4,7 @@ import {
   type LanguageLink,
   languagePrefix,
   type Menus,
+  type PageHeading,
   type PageLink,
   type PageView,
   type SiteSettings,
@@ -69,6 +70,8 @@ export interface NativeSite {
   view?: PageView;
   /** The page in each of the site's languages, on a site in several. */
   languages?: LanguageLink[];
+  /** The page's heading blocks, each with its link name on the page, which its table of contents lists. */
+  headings?: PageHeading[];
   /** The home page of the language shown, which the site's name links to. */
   home: string;
   theme: NativeTheme;
@@ -353,6 +356,7 @@ export function useNativeSiteValue(
     ...(collection && { collection }),
     ...(page?.view && { view: page.view }),
     ...(page?.languages && { languages: page.languages }),
+    ...(page?.headings && { headings: page.headings }),
     home: settings.language === manifest?.mainLanguage ? "/" : languagePrefix(settings.language),
     theme: nativeTheme(settings, scheme === "dark", root.fonts),
     richText,

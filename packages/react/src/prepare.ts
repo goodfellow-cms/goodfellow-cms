@@ -2,15 +2,20 @@ import {
   applyBasePath,
   contentForPage,
   contentInLanguage,
+  describesPage,
   expandSyncedBlocks,
   findEntry,
   type GoodfellowConfig,
+  type HeadingDetails,
   hasLanguages,
+  headingAnchors,
   languageHome,
   languageLinks,
   mainLanguage,
+  markdownHeadings,
   normalizeBase,
   type Page,
+  type PageHeading,
   pageCredits,
   pageDescriptions,
   pageFocus,
@@ -18,16 +23,18 @@ import {
   pageLinks,
   type SiteContent,
   type SiteSettings,
+  type StructuredData,
   setLinkTargets,
   structuredData,
   structuredDataScript,
   todayIn,
+  withBlocksData,
 } from "@goodfellow-cms/core";
 import type { Config, Data } from "@puckeditor/core";
 // The server entry works everywhere and has no browser-only code, so Server Components can prepare pages too.
 import { migrate, resolveAllData } from "@puckeditor/core/rsc";
 import { applyEntry, expandEntryLoops } from "./entry.js";
-import { createPuckConfig } from "./puck-config.js";
+import { blockHeading, blockStructuredData, createPuckConfig } from "./puck-config.js";
 import { type SiteContextValue, siteMetadata } from "./site-types.js";
 
 /** How the page will be rendered, for renderers that don't rewrite the finished HTML. */
@@ -186,6 +193,57 @@ export async function prepareLayout(
 }
 
 /**
+ * A page's headings, in the order they're shown: each block marked with
+ * `withHeading()`, with a link name of its own, unique on the page and
+ * beside the names in `taken`, such as an item's Markdown headings' ids.
+ */
+export function pageHeadings(data: Data, config: Config, taken: Iterable<string> = []): PageHeading[] {
+  const found: Array<{ block: string } & HeadingDetails> = [];
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    const { type, props } = value as { type?: unknown; props?: unknown };
+    if (typeof type === "string" && props && typeof props === "object") {
+      const component = config.components[type];
+      const describe = component && blockHeading(component);
+      const id = (props as { id?: unknown }).id;
+      const details = describe?.(props as Record<string, unknown>);
+      if (details?.text.trim() && typeof id === "string") found.push({ block: id, ...details });
+    }
+    for (const item of Object.values(value)) visit(item);
+  };
+  visit(data.content);
+  visit(data.zones);
+  return headingAnchors(found, taken);
+}
+
+/** What the blocks in prepared data tell search engines (`withStructuredData()`), in the order they're shown. */
+function blocksData(data: Data, config: Config): StructuredData[] {
+  const found: StructuredData[] = [];
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    const { type, props } = value as { type?: unknown; props?: unknown };
+    if (typeof type === "string" && props && typeof props === "object") {
+      const component = config.components[type];
+      const describe = component && blockStructuredData(component);
+      const item = describe?.(props as Record<string, unknown>);
+      if (item) found.push(item);
+    }
+    for (const item of Object.values(value)) visit(item);
+  };
+  visit(data.content);
+  visit(data.zones);
+  return found;
+}
+
+/**
  * Gets a page ready to render: fills in an entry's values, and resolves the
  * page, header and footer, in the page's language (`contentForPage()`). With a
  * `base`, rich text's links and images get it too. Takes the site as loaded.
@@ -233,13 +291,28 @@ export async function preparePage(
   // What the images it shows look like, for those whose blocks leave it empty.
   const descriptions = pageDescriptions(content, [data, header, footer], settings.language);
   const focus = pageFocus(content, [data, header, footer]);
-  const structured = structuredDataScript(structuredData(loaded, page, todayIn(settings.timeZone)));
+  // Its headings' link names, beside those of an item's Markdown headings, which its text already has.
+  const body = found?.collection.settings.markdown?.body;
+  const markdown = body ? found?.entry.content.fields[body] : undefined;
+  const headings = pageHeadings(
+    data,
+    pageConfig,
+    typeof markdown === "string" ? markdownHeadings(markdown).map((heading) => heading.id) : [],
+  );
+  // What the page's own blocks tell search engines, such as an FAQ's questions, joins the page's.
+  const structured = structuredDataScript(
+    withBlocksData(
+      structuredData(loaded, page, todayIn(settings.timeZone)),
+      describesPage(loaded, page) ? blocksData(data, pageConfig) : [],
+    ),
+  );
   return {
     site: {
       ...site,
       ...(credits.length > 0 && { credits }),
       ...(Object.keys(descriptions).length > 0 && { descriptions }),
       ...(Object.keys(focus).length > 0 && { focus }),
+      ...(headings.length > 0 && { headings }),
     },
     page: applied,
     pageConfig,

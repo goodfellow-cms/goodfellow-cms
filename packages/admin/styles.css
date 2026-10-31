@@ -1852,6 +1852,46 @@ body,
   min-width: 0;
 }
 
+.gfa-table-field-rich {
+  min-height: 2.25em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.gfa-table-field-rich a {
+  color: var(--gfa-accent);
+  text-decoration: underline;
+}
+
+.gfa-table-field-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.gfa-table-field-tool {
+  padding: 2px 8px;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-surface);
+  color: var(--gfa-text);
+  cursor: pointer;
+}
+
+.gfa-table-field-tool:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.gfa-table-field-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+}
+
 .gfa-table-field-remove {
   border: 1px solid var(--gfa-border);
   border-radius: var(--gfa-radius);

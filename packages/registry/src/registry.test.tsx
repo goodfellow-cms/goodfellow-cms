@@ -249,6 +249,29 @@ describe("the parish site's blocks", () => {
     expect(await render("map", { query: "" })).not.toContain("Enter an address");
   });
 
+  it("maps OpenStreetMap's embed code, a link to a place on it, or a latitude and longitude, and nothing else", async () => {
+    const { osmMapAddress } = await import("../site/blocks/installed/map/block.js");
+    expect(
+      osmMapAddress(
+        '<iframe src="https://www.openstreetmap.org/export/embed.html?bbox=-0.08%2C51.50%2C-0.07%2C51.51&amp;layer=mapnik&amp;marker=51.505%2C-0.075"></iframe>',
+        15,
+      ),
+    ).toBe(
+      "https://www.openstreetmap.org/export/embed.html?bbox=-0.08,51.50,-0.07,51.51&layer=mapnik&marker=51.505,-0.075",
+    );
+    const linked = osmMapAddress("https://www.openstreetmap.org/?mlat=51.5055&mlon=-0.0754#map=17/51.5/-0.07", 15);
+    expect(linked).toMatch(
+      /^https:\/\/www\.openstreetmap\.org\/export\/embed\.html\?bbox=[-\d.,]+&layer=mapnik&marker=51\.5055,-0\.0754$/,
+    );
+    expect(osmMapAddress("51.5055, -0.0754", 15)).toMatch(/marker=51\.5055,-0\.0754$/);
+    // Addresses would need OpenStreetMap's search, and only its own maps are shown.
+    expect(osmMapAddress("1 Main St, Springfield", 15)).toBeUndefined();
+    expect(osmMapAddress("https://evil.example/export/embed.html?bbox=1,2,3,4", 15)).toBeUndefined();
+    expect(osmMapAddress("51.5, 200", 15)).toBeUndefined();
+    const html = await render("map", { service: "openstreetmap", query: "51.5055, -0.0754" });
+    expect(html).toContain("openstreetmap.org/export/embed.html");
+  });
+
   it("links to the other pages in the page's part of the menu, or a submenu page's own pages", async () => {
     const links = (html: string) => [...html.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => m[2]);
     expect(links(await render("section-links", {}, "/parish-life/groups"))).toEqual(["Ministries", "Groups"]);

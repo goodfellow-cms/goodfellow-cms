@@ -50,7 +50,7 @@ Settings also choose the order items are listed in, such as newest first, and wh
 
 ## The page design
 
-**Page design** opens the editor on the page every item shares. Use the **Entry field** block to show one of the item's fields, or type a field's name in braces in any text, such as a heading reading `{title}` or a button linking to `{video}`. In rich text and in Custom HTML, an item's values go in as text, never as HTML, so whoever writes an item can't change the page's markup. Blocks such as **Previous and next** and **On this page** only make sense here, so the page editor doesn't offer them.
+**Page design** opens the editor on the page every item shares. Use the **Entry field** block to show one of the item's fields, or type a field's name in braces in any text, such as a heading reading `{title}` or a button linking to `{video}`. In rich text and in Custom HTML, an item's values go in as text, never as HTML, so whoever writes an item can't change the page's markup. Blocks such as **Previous and next** only make sense here, so the page editor doesn't offer them.
 
 ## Items
 

@@ -1,4 +1,11 @@
-import { fileName, mediaKind, withBase } from "@goodfellow-cms/core";
+import {
+  fileName,
+  LIGHTBOX_ATTRIBUTE,
+  LIGHTBOX_DIALOG_ATTRIBUTE,
+  LIGHTBOX_ITEM_ATTRIBUTE,
+  mediaKind,
+  withBase,
+} from "@goodfellow-cms/core";
 import { classNameField, mediaField, SiteImage, SiteLink, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Slot, SlotComponent } from "@puckeditor/core";
 import { type DocumentProps, documentAddress, documentHeight, isFramedDocument } from "./media-data.js";
@@ -324,6 +331,12 @@ export interface GalleryProps {
   crop: boolean;
   rounded: boolean;
   caption: string;
+  /** Opens a picture larger when it's clicked, with the Gallery's others a click or swipe away. Off where it's missing. */
+  lightbox?: boolean;
+  /** The lightbox's buttons, for screen readers. */
+  closeLabel?: string;
+  previousLabel?: string;
+  nextLabel?: string;
   className: string;
 }
 
@@ -353,9 +366,33 @@ export const Gallery: ComponentConfig<GalleryProps> = withParts(
       crop: { type: "radio", label: "Crop to squares", options: yesNo },
       rounded: { type: "radio", label: "Rounded corners", options: yesNo },
       caption: { type: "text", label: "Gallery's caption" },
+      lightbox: { type: "radio", label: "Open pictures larger when clicked", options: yesNo },
       className: classNameField,
     },
-    defaultProps: { images: [], columns: "3", crop: true, rounded: true, caption: "", className: "" },
+    defaultProps: {
+      images: [],
+      columns: "3",
+      crop: true,
+      rounded: true,
+      caption: "",
+      lightbox: true,
+      closeLabel: "Close",
+      previousLabel: "Previous picture",
+      nextLabel: "Next picture",
+      className: "",
+    },
+    // The lightbox's buttons' words, which editors can translate, only where it's on.
+    resolveFields: (data, { fields }) => {
+      if (data.props.lightbox !== true) return fields;
+      const { className, ...rest } = fields;
+      return {
+        ...rest,
+        closeLabel: { type: "text", label: "Close button's name, for screen readers" },
+        previousLabel: { type: "text", label: "Previous button's name, for screen readers" },
+        nextLabel: { type: "text", label: "Next button's name, for screen readers" },
+        className,
+      } as typeof fields;
+    },
     render: ({ puck, ...props }) => <GalleryView {...props} isEditing={puck?.isEditing === true} />,
   },
   GALLERY_PARTS,
@@ -367,6 +404,10 @@ function GalleryView({
   crop,
   rounded,
   caption,
+  lightbox,
+  closeLabel = "Close",
+  previousLabel = "Previous picture",
+  nextLabel = "Next picture",
   className,
   isEditing,
 }: GalleryProps & { isEditing: boolean }) {
@@ -376,32 +417,107 @@ function GalleryView({
     return isEditing ? <EditorPlaceholder text="Add pictures to the gallery" className={className} /> : null;
   }
   const corners = rounded ? "rounded-lg" : "rounded-none";
+  const larger = lightbox === true;
+  const button = part(
+    "gf-gallery-lightbox-button",
+    "flex size-10 shrink-0 items-center justify-center rounded-full bg-background/90 text-xl text-foreground hover:bg-background",
+  );
   return (
-    <figure className={part("gf-gallery", "my-6", className)}>
+    <figure className={part("gf-gallery", "my-6", className)} {...(larger && { [LIGHTBOX_ATTRIBUTE]: "" })}>
       <ul className={part("gf-gallery-items", "grid gap-4", galleryColumns[columns])}>
-        {shown.map((image, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: the same picture can be shown twice
-          <li key={`${image.src}-${index}`} className={part("gf-gallery-item")}>
-            <figure>
-              <SiteImage
-                src={image.src}
-                alt={image.alt}
-                loading="lazy"
-                className={part("gf-gallery-picture", "w-full", crop ? "aspect-square object-cover" : "", corners)}
-              />
-              {image.caption && (
-                <figcaption className={part("gf-gallery-item-caption", "mt-1 text-sm text-muted-foreground")}>
-                  {image.caption}
-                </figcaption>
-              )}
-            </figure>
-          </li>
-        ))}
+        {shown.map((image, index) => {
+          const picture = (
+            <SiteImage
+              src={image.src}
+              alt={image.alt}
+              loading="lazy"
+              className={part("gf-gallery-picture", "w-full", crop ? "aspect-square object-cover" : "", corners)}
+            />
+          );
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the same picture can be shown twice
+            <li key={`${image.src}-${index}`} className={part("gf-gallery-item")}>
+              <figure>
+                {/* Larger, each picture is a link to its file, which opens without JavaScript too. */}
+                {larger ? (
+                  <SiteLink href={image.src} className="block" {...{ [LIGHTBOX_ITEM_ATTRIBUTE]: "" }}>
+                    {picture}
+                  </SiteLink>
+                ) : (
+                  picture
+                )}
+                {image.caption && (
+                  <figcaption className={part("gf-gallery-item-caption", "mt-1 text-sm text-muted-foreground")}>
+                    {image.caption}
+                  </figcaption>
+                )}
+              </figure>
+            </li>
+          );
+        })}
       </ul>
       {caption && (
         <figcaption className={part("gf-gallery-caption", "mt-3 text-center text-sm text-muted-foreground")}>
           {caption}
         </figcaption>
+      )}
+      {larger && !isEditing && (
+        // Filled in and opened by `lightboxScript()`, which changes what's in it, so React leaves that alone.
+        <dialog
+          // Named after the picture it shows, which the script sets.
+          aria-label={caption || undefined}
+          className={part(
+            "gf-gallery-lightbox",
+            "m-auto max-h-none max-w-none bg-transparent p-4 backdrop:bg-black/85 open:flex open:items-center open:gap-2",
+          )}
+          {...{ [LIGHTBOX_DIALOG_ATTRIBUTE]: "" }}
+        >
+          <button
+            type="button"
+            aria-label={previousLabel}
+            className={button}
+            data-gf-lightbox-previous=""
+            suppressHydrationWarning
+          >
+            <span aria-hidden="true">‹</span>
+          </button>
+          <figure className="m-0 flex flex-col items-center">
+            {/* The picture's address and description come from the picture clicked, already with the site's base. */}
+            {/* biome-ignore lint/a11y/useAltText: its description is the picture's, which the script gives it */}
+            <img
+              aria-hidden="true"
+              className={part(
+                "gf-gallery-lightbox-picture",
+                "h-[calc(100dvh-7rem)] w-[calc(100vw-8rem)] object-scale-down",
+              )}
+              data-gf-lightbox-image=""
+              suppressHydrationWarning
+            />
+            <figcaption
+              className={part("gf-gallery-lightbox-caption", "mt-2 text-center text-sm text-white")}
+              data-gf-lightbox-caption=""
+              hidden
+              suppressHydrationWarning
+            />
+          </figure>
+          <button
+            type="button"
+            aria-label={nextLabel}
+            className={button}
+            data-gf-lightbox-next=""
+            suppressHydrationWarning
+          >
+            <span aria-hidden="true">›</span>
+          </button>
+          <button
+            type="button"
+            aria-label={closeLabel}
+            className={`${button} fixed top-4 right-4`}
+            data-gf-lightbox-close=""
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </dialog>
       )}
     </figure>
   );

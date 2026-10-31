@@ -1,8 +1,8 @@
-import { type Collection, entryTitle, markdownHeadings } from "@goodfellow-cms/core";
+import { type Collection, entryTitle } from "@goodfellow-cms/core";
 import { classNameField, SiteLink, templateOnly, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Fields } from "@puckeditor/core";
-import { chosenCollection, navGroups } from "./docs-data.js";
-import { options } from "./options.js";
+import { chosenCollection, listedHeadings, navGroups } from "./docs-data.js";
+import { options, yesNo } from "./options.js";
 import { COLLECTION_NAV_PARTS, ENTRY_PAGER_PARTS, ON_THIS_PAGE_PARTS } from "./parts.js";
 
 function collectionChoices(collections: Collection[] | undefined) {
@@ -189,23 +189,30 @@ type Depth = "2" | "3";
 export interface OnThisPageProps {
   heading: string;
   depth: Depth;
+  /** Stays in view as the page scrolls, beside long text. Off where it's missing. */
+  sticky?: boolean;
   className: string;
 }
 
-function OnThisPageView({ heading, depth, className }: OnThisPageProps) {
-  const { collection, entry } = useSite();
+function OnThisPageView({ heading, depth, sticky, className }: OnThisPageProps) {
+  const { collection, entry, headings: own } = useSite();
   const part = useParts();
-  const body = collection?.settings.markdown?.body;
-  const markdown = body ? entry?.content.fields[body] : undefined;
-  if (typeof markdown !== "string") return null;
-  const headings = markdownHeadings(markdown).filter((item) => item.depth >= 2 && item.depth <= Number(depth));
+  const headings = listedHeadings(collection, entry, own, Number(depth));
   if (headings.length === 0) return null;
   return (
-    <nav aria-label={heading} className={part("gf-on-this-page", "flex flex-col gap-2 text-sm", className)}>
+    <nav
+      aria-label={heading}
+      className={part(
+        "gf-on-this-page",
+        "flex flex-col gap-2 text-sm",
+        sticky ? "sticky top-4 self-start" : "",
+        className,
+      )}
+    >
       {heading && <p className={part("gf-on-this-page-heading", "font-semibold")}>{heading}</p>}
       <ul className={part("gf-on-this-page-links", "flex flex-col gap-1")}>
         {headings.map((item) => (
-          <li key={item.id} className={item.depth === 3 ? "pl-4" : undefined}>
+          <li key={item.id} className={item.level === 3 ? "pl-4" : undefined}>
             <SiteLink
               href={`#${item.id}`}
               className={part("gf-on-this-page-link", "block py-0.5 text-muted-foreground hover:text-foreground")}
@@ -228,14 +235,15 @@ const onThisPage: ComponentConfig<OnThisPageProps> = {
       label: "Headings to list",
       options: options({ "2": "Main headings", "3": "And the ones under them" }),
     },
+    sticky: { type: "radio", label: "Stay in view as the page scrolls", options: yesNo },
     className: classNameField,
   },
-  defaultProps: { heading: "On this page", depth: "3", className: "" },
+  defaultProps: { heading: "On this page", depth: "3", sticky: false, className: "" },
   render: (props) => <OnThisPageView {...props} />,
 };
 
 /**
- * Lists the headings of the item's text, linking to each, for items stored as
- * Markdown files. Only offered in collection templates.
+ * Lists the page's headings, linking to each: its Heading blocks, or on an
+ * item's page whose text is Markdown, the headings of its text.
  */
-export const OnThisPage = templateOnly(withParts(onThisPage, ON_THIS_PAGE_PARTS));
+export const OnThisPage = withParts(onThisPage, ON_THIS_PAGE_PARTS);

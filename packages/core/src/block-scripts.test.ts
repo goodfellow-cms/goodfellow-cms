@@ -1,12 +1,21 @@
 import { type HTMLElement, type HTMLInputElement, type HTMLSelectElement, Window } from "happy-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  ANNOUNCEMENT_ATTRIBUTE,
+  ANNOUNCEMENT_CLOSE_ATTRIBUTE,
+  ANNOUNCEMENT_STORAGE_KEY,
+  announcementHideScript,
+  announcementScript,
   BLOCK_SCRIPTS,
   blockScriptsFor,
   COPY_ATTRIBUTE,
   copyScript,
   DARK_MODE_ATTRIBUTE,
   darkModeScript,
+  LIGHTBOX_ATTRIBUTE,
+  LIGHTBOX_DIALOG_ATTRIBUTE,
+  LIGHTBOX_ITEM_ATTRIBUTE,
+  lightboxScript,
   SEARCH_BOX_ATTRIBUTE,
   searchScript,
 } from "./block-scripts.js";
@@ -49,7 +58,7 @@ describe("the built-in blocks' scripts", () => {
   });
 
   it("are scripts browsers can run, with no `</script>` to end them early", () => {
-    for (const { script } of BLOCK_SCRIPTS) {
+    for (const { script } of [...BLOCK_SCRIPTS, { script: announcementHideScript }]) {
       expect(() => new Function(script())).not.toThrow();
       expect(script()).not.toMatch(/<\/script/i);
     }
@@ -144,5 +153,54 @@ describe("the built-in blocks' scripts", () => {
     input.value = "  ";
     input.dispatchEvent(new window.Event("input", { bubbles: true }));
     expect(results.hidden).toBe(true);
+  });
+
+  it("open a Gallery's pictures larger, move between them and give the focus back when closed", () => {
+    const item = (src: string, alt: string, caption?: string) =>
+      `<li><figure><a href="${src}" ${LIGHTBOX_ITEM_ATTRIBUTE}=""><img src="${src}" alt="${alt}"></a>${caption ? `<figcaption>${caption}</figcaption>` : ""}</figure></li>`;
+    const { window, document, find } = open(
+      `<figure ${LIGHTBOX_ATTRIBUTE}=""><ul>${item("/media/a.jpg", "The church", "Our church")}${item("/media/b.jpg", "The hall")}</ul>
+      <dialog ${LIGHTBOX_DIALOG_ATTRIBUTE}=""><button data-gf-lightbox-previous="">Previous</button><figure><img alt="" aria-hidden="true" data-gf-lightbox-image=""><figcaption data-gf-lightbox-caption=""></figcaption></figure><button data-gf-lightbox-next="">Next</button><button data-gf-lightbox-close="">Close</button></dialog></figure>`,
+      [lightboxScript(), lightboxScript()],
+    );
+    const links = document.querySelectorAll(`[${LIGHTBOX_ITEM_ATTRIBUTE}]`) as unknown as HTMLElement[];
+    const dialog = find<HTMLElement & { open: boolean }>("dialog");
+    const image = find<HTMLElement & { src: string; alt: string }>("[data-gf-lightbox-image]");
+    const caption = find("[data-gf-lightbox-caption]");
+    links[0]?.click();
+    expect(dialog.open).toBe(true);
+    expect(image.src).toBe("https://example.org/media/a.jpg");
+    expect(image.alt).toBe("The church");
+    expect(image.hasAttribute("aria-hidden")).toBe(false);
+    expect(caption.textContent).toBe("Our church");
+    expect(dialog.getAttribute("aria-label")).toBe("The church");
+    find("[data-gf-lightbox-next]").click();
+    expect(image.alt).toBe("The hall");
+    expect(caption.hidden).toBe(true);
+    document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight" }));
+    expect(image.alt).toBe("The church");
+    find("[data-gf-lightbox-close]").click();
+    expect(dialog.open).toBe(false);
+    expect(document.activeElement).toBe(links[0]);
+    // A click with a key held, to open the file elsewhere, is the browser's.
+    links[1]?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
+    expect(dialog.open).toBe(false);
+  });
+
+  it("close an Announcement bar and keep it closed on the next page, until its message changes", async () => {
+    const bar = (hash: string) =>
+      `<section ${ANNOUNCEMENT_ATTRIBUTE}="${hash}"><p>News</p><button ${ANNOUNCEMENT_CLOSE_ATTRIBUTE}="">×</button></section>`;
+    const first = open(bar("abc123"), [announcementScript()]);
+    first.find(`[${ANNOUNCEMENT_CLOSE_ATTRIBUTE}]`).click();
+    expect(first.find(`[${ANNOUNCEMENT_ATTRIBUTE}]`).hidden).toBe(true);
+    expect(JSON.parse(first.window.localStorage.getItem(ANNOUNCEMENT_STORAGE_KEY) ?? "")).toEqual(["abc123"]);
+
+    await first.window.happyDOM.close();
+    const next = open("", []);
+    // Only hashes are read back, so the page's storage can't add anything else to the page.
+    next.window.localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, JSON.stringify(["abc123", "x}body{display:none"]));
+    next.window.eval(announcementHideScript());
+    const style = next.document.head.querySelector("style");
+    expect(style?.textContent).toBe(`[${ANNOUNCEMENT_ATTRIBUTE}='abc123']{display:none!important}`);
   });
 });

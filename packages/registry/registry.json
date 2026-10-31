@@ -71,7 +71,7 @@
       "name": "map",
       "type": "registry:block",
       "title": "Map",
-      "description": "A Google map of an address or place, or one from Google Maps' embed code. No API key needed.",
+      "description": "A Google map of an address or place, or one from Google Maps' or OpenStreetMap's embed code. No API key needed.",
       "files": [{ "path": "site/blocks/installed/map/block.tsx", "type": "registry:block" }],
       "meta": { "goodfellow": { "category": "Page sections" } }
     },

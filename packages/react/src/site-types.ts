@@ -6,6 +6,7 @@ import type {
   LanguageMap,
   Menus,
   PageCredit,
+  PageHeading,
   PageLink,
   PageView,
   SiteSettings,
@@ -71,6 +72,11 @@ export interface SiteContextValue {
    * the page shows of it.
    */
   view?: PageView;
+  /**
+   * The page's headings, each with a link name of its own (`pageHeadings()`),
+   * which heading blocks render as their `id` and the On this page block lists.
+   */
+  headings?: PageHeading[];
   /**
    * The path the site is served from, such as `/my-site/`, when the renderer
    * leaves adding it to blocks: `<SiteLink>` and `<SiteImage>` add it, and

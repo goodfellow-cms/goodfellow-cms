@@ -11,6 +11,8 @@ export const BLOCK_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
   Separator: ["divider", "line", "rule"],
   MediaText: ["media and text", "picture beside text", "image and text"],
   SyncedBlock: ["reusable", "synced pattern", "pattern", "shared", "global", "reusable block"],
+  Faq: ["faq", "frequently asked questions", "questions", "answers", "accordion", "q&a"],
+  AnnouncementBar: ["banner", "notice", "alert", "news", "top bar", "message"],
   Details: ["accordion", "toggle", "collapse", "faq", "show more"],
   Heading: ["title", "subheading", "h1", "h2"],
   Text: ["paragraph", "rich text", "words", "list"],

@@ -53,3 +53,32 @@ export function sanitizeHtml(html: string): string {
   filter ??= createFilter();
   return filter.process(html);
 }
+
+let cellFilter: InstanceType<typeof xss.FilterXSS> | undefined;
+
+/** The formatting a table's cell may have: bold, italics, links, code and line breaks. */
+export const TABLE_CELL_TAGS = ["strong", "b", "em", "i", "u", "s", "code", "a", "br"] as const;
+
+/**
+ * A table cell's HTML, safe to put in a page and kept to what a cell holds
+ * (`TABLE_CELL_TAGS`): any other element is left out, keeping its text, and
+ * links may only use addresses that can't run code.
+ */
+export function tableCellHtml(html: string): string {
+  cellFilter ??= new xss.FilterXSS({
+    allowList: Object.fromEntries(TABLE_CELL_TAGS.map((tag) => [tag, tag === "a" ? ["href", "title"] : []])),
+    stripIgnoreTag: true,
+    stripIgnoreTagBody: ["script", "style", "iframe", "object", "embed", "noscript", "template"],
+    css: false,
+    safeAttrValue(tag, name, value, cssFilter) {
+      const safe = xss.safeAttrValue(tag, name, value, cssFilter);
+      return name === "href" && !isSafeUrl(safe) ? "" : safe;
+    },
+  });
+  return cellFilter.process(html);
+}
+
+/** Plain text as a table cell's HTML, such as a cell from before cells could be formatted. */
+export function escapeCellText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}

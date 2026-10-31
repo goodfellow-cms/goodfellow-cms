@@ -5,9 +5,9 @@
  * editor would, and the blocks made for WordPress's own (`WORDPRESS_BLOCKS`)
  * where the site has them.
  */
+import { tableCellHtml } from "../content/sanitize.js";
 import { vimeoVideo, youtubeVideo } from "../video.js";
 import type { CoverLook, ImagePart, Part, TableRow } from "./convert.js";
-import { collapsed, textOf } from "./html.js";
 import { inlineRichText, richTextHtml } from "./rich-text.js";
 
 /** A Puck block as content files store it. */
@@ -146,9 +146,13 @@ function coverFocus({ x, y }: { x: number; y: number }): string {
   return x < 0.35 ? "left" : x > 0.65 ? "right" : "center";
 }
 
-/** A table's cells as the Table block keeps them: rows of plain text, the header first and the footer last. */
-function tableCells(rows: TableRow[]): string[][] {
-  const text = (row: TableRow) => row.cells.map((cell) => collapsed(textOf(cell)));
+/**
+ * A table's cells as the Table block keeps them: rows of formatted text (bold,
+ * italics, links and line breaks, `tableCellHtml()`), the header first and the
+ * footer last.
+ */
+function tableCells(rows: TableRow[], link: (address: string) => string): string[][] {
+  const text = (row: TableRow) => row.cells.map((cell) => tableCellHtml(inlineRichText(cell, link)));
   const head = rows.filter((row) => row.header && !row.footer);
   const foot = rows.filter((row) => row.footer);
   const body = rows.filter((row) => !row.header && !row.footer);
@@ -286,8 +290,9 @@ export function partBlocks(parts: Part[], writer: BlockWriter, options: PageBloc
         out.push(
           writer.block("Table", {
             caption: part.caption ?? "",
-            cells: tableCells(part.rows),
+            cells: tableCells(part.rows, options.link),
             footer: part.rows.some((row) => row.footer),
+            format: "html",
             header: part.rows.some((row) => row.header && !row.footer),
             striped: false,
           }),

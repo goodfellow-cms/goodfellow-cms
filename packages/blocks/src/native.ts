@@ -6,6 +6,7 @@
  * web's code.
  */
 
+import { AnnouncementBar } from "./announcement.native.js";
 import { AddToCalendar, Calendar } from "./calendar.native.js";
 import { Code } from "./code.native.js";
 import { CollectionList, EntryField } from "./collections.native.js";
@@ -14,6 +15,7 @@ import { Button, Heading, Image, Text } from "./content.native.js";
 import { DarkModeSwitch } from "./dark-mode-switch.native.js";
 import { CollectionNav, EntryPager, OnThisPage } from "./docs.native.js";
 import { Embed } from "./embed.native.js";
+import { Faq } from "./faq.native.js";
 import { Form } from "./form.native.js";
 import { LanguageSwitch } from "./language-switch.native.js";
 import { Flex, Grid, Section, Space } from "./layout.native.js";
@@ -75,4 +77,6 @@ export const nativeBlocks = {
   ShareButtons,
   Donate,
   SyncedBlock,
+  Faq,
+  AnnouncementBar,
 };

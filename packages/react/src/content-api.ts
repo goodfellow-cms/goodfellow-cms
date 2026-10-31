@@ -34,6 +34,7 @@ export async function prepareContentApi(
       head: pageHead(content, shown),
       ...(site.credits && { credits: site.credits }),
       ...(site.languages && { languages: site.languages }),
+      ...(site.headings && { headings: site.headings }),
     });
   }
   const layouts: ContentApiInput["layouts"] = [];

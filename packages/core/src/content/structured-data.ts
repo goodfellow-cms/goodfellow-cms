@@ -115,6 +115,30 @@ function articleData(content: SiteContent, collection: Collection, entry: Entry,
  * an article on a dated item's page, and nothing on other pages, pages that
  * blocks add, and pages hidden from search engines.
  */
+/**
+ * Whether search engines are told about a page: only with the Site address,
+ * never for a page hidden from them, or one a block adds.
+ */
+export function describesPage(content: SiteContent, page: Page): boolean {
+  const { settings } = contentForPage(content, page);
+  if (!settings.url || getPageHead(settings, page).noIndex) return false;
+  return !(page.view && page.view.path !== page.path);
+}
+
+/**
+ * The page's structured data with what its blocks say about themselves
+ * (`withStructuredData()` in `@goodfellow-cms/react`): every block's
+ * `FAQPage` becomes one, with all their questions, since search engines read
+ * one a page; anything else is added as it is.
+ */
+export function withBlocksData(items: readonly StructuredData[], blocks: readonly StructuredData[]): StructuredData[] {
+  const questions = blocks
+    .filter((item) => item["@type"] === "FAQPage")
+    .flatMap((item) => (Array.isArray(item.mainEntity) ? item.mainEntity : []));
+  const others = blocks.filter((item) => item["@type"] !== "FAQPage");
+  return [...items, ...others, ...(questions.length > 0 ? [{ "@type": "FAQPage", mainEntity: questions }] : [])];
+}
+
 export function structuredData(
   content: SiteContent,
   page: Page,
@@ -124,8 +148,7 @@ export function structuredData(
   content = contentForPage(content, page);
   const { settings } = content;
   const siteUrl = settings.url;
-  if (!siteUrl || getPageHead(settings, page).noIndex) return [];
-  if (page.view && page.view.path !== page.path) return [];
+  if (!siteUrl || !describesPage(content, page)) return [];
   if (isLanguageHome(settings, page.path) && !page.entry) {
     return [
       {

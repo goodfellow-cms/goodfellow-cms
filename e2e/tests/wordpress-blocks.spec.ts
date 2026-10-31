@@ -52,26 +52,45 @@ test("shows WordPress's blocks on the site, and edits a table's cells in a grid"
   // A closed Details block is open in the editor, so what's inside it can be edited.
   await expect(canvas(page).getByText("Behind the hall.")).toBeVisible();
 
+  // The table is from before cells could be formatted: opening it changes nothing that would need publishing.
+  const asked: string[] = [];
+  page.on("dialog", (dialog) => {
+    asked.push(dialog.message());
+    void dialog.dismiss();
+  });
+  await page.getByRole("link", { name: "Site settings" }).click();
+  await expect(page).toHaveURL(/#\/settings\/general$/);
+  expect(asked).toEqual([]);
+  await openPageEditor(page, "/library", "Library");
+
   await canvas(page).locator('[data-puck-component="Table-1"]').click();
   const cell = editor(page).getByRole("textbox", { name: "Row 2, column 2" });
-  await expect(cell).toHaveValue("9:00");
+  await expect(cell).toHaveText("9:00");
   await cell.fill("10:30");
   await editor(page).getByRole("button", { name: "Add a row" }).click();
-  await editor(page).getByRole("textbox", { name: "Row 3, column 1" }).fill("Monday");
+  const monday = editor(page).getByRole("textbox", { name: "Row 3, column 1" });
+  await monday.fill("Monday");
+  // Words in a cell can be bold.
+  await monday.press("ControlOrMeta+a");
+  await editor(page).getByRole("button", { name: "Bold" }).filter({ visible: true }).click();
   await editor(page).getByRole("button", { name: "Add a column" }).click();
-  await editor(page).getByRole("textbox", { name: "Row 1, column 3" }).fill("Where");
-  await expect(canvas(page).getByRole("cell", { name: "Monday" })).toBeVisible();
+  await editor(page).getByRole("textbox", { name: "Row 1, column 3" }).fill("Where & when");
+  await expect(canvas(page).locator("td strong, td b").filter({ hasText: "Monday" })).toBeVisible();
 
   await publishInEditor(page);
   await expect(page.getByText("Published.")).toBeVisible();
   const saved = readJson("content/pages/library.json") as {
     data: { content: Array<{ type: string; props: Record<string, unknown> }> };
   };
-  expect(saved.data.content.find((block) => block.type === "Table")?.props.cells).toEqual([
-    ["Day", "Time", "Where"],
+  const table = saved.data.content.find((block) => block.type === "Table")?.props;
+  expect(table?.format).toBe("html");
+  expect(table?.cells).toEqual([
+    ["Day", "Time", "Where &amp; when"],
     ["Sunday", "10:30", ""],
-    ["Monday", "", ""],
+    ["<b>Monday</b>", "", ""],
   ]);
+  const shown = await (await request.get("/library")).text();
+  expect(shown).toMatch(/<td class="gf-table-cell[^"]*"><b>Monday<\/b><\/td>/);
 
   // Sound files are chosen from the media library's sound files only.
   await canvas(page).locator('[data-puck-component="Audio-1"]').click();

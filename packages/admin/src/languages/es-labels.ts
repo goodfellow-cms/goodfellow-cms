@@ -5,11 +5,29 @@
  * as it is.
  */
 export const labels: Record<string, string> = {
+  "And the ones under them": "Y los que hay debajo",
+  "Announcement bar": "Barra de aviso",
   "Another service (its signup form's HTML)": "Otro servicio (el HTML de su formulario de suscripción)",
+  "Close button's name, for screen readers": "Nombre del botón de cerrar, para lectores de pantalla",
+  "First day it shows (such as 2026-12-24; empty for now)":
+    "Primer día en que se muestra (como 2026-12-24; vacío para ya)",
+  "Last day it shows (such as 2027-01-06; empty for no end)":
+    "Último día en que se muestra (como 2027-01-06; vacío para sin fin)",
+  "Link name, for links to this heading (made from its text if left empty)":
+    "Nombre del enlace, para enlazar a este título (se hace con su texto si se deja vacío)",
+  "Link to (optional)": "Enlace a (opcional)",
+  "Link's words": "Texto del enlace",
+  "Main color": "Color principal",
+  "Main headings": "Títulos principales",
+  "Open pictures larger when clicked": "Abrir las imágenes más grandes al hacer clic",
+  "Second color": "Color secundario",
+  Soft: "Suave",
+  "Stay in view as the page scrolls": "Seguir a la vista al desplazar la página",
   "The service's signup form: its HTML, from its embed or sharing settings":
     "El formulario de suscripción del servicio: su HTML, de sus opciones para insertar o compartir",
   "Social post": "Publicación de redes sociales",
   "Height in pixels (leave at 0 for the usual height)": "Altura en píxeles (deja 0 para la altura habitual)",
+  "Visitors can close it": "Los visitantes pueden cerrarla",
   "What the post is, for screen readers": "Qué es la publicación, para lectores de pantalla",
   "The post's address, or the embed code its site gives (Bluesky, Mastodon, Instagram, X, Spotify, SoundCloud)":
     "La dirección de la publicación, o el código para insertar que da su sitio (Bluesky, Mastodon, Instagram, X, Spotify, SoundCloud)",
@@ -284,6 +302,7 @@ export const labels: Record<string, string> = {
   Pullquote: "Cita destacada",
   Question: "Pregunta",
   Questions: "Preguntas",
+  "Questions and answers": "Preguntas y respuestas",
   "Quick links": "Enlaces rápidos",
   Quote: "Cita",
   Quotes: "Citas",

@@ -160,10 +160,19 @@ export function details(summary: string, open: boolean, blocks: string[]): strin
 /** A table of plain text, with its first row as headings and its last as a footer where asked. */
 export function textTable(
   cells: string[][],
-  options: { header: boolean; footer: boolean; caption: string; striped: boolean },
+  options: {
+    header: boolean;
+    footer: boolean;
+    caption: string;
+    striped: boolean;
+    /** Where cells are formatted text (the Table block's `format: "html"`), what links in them become. */
+    link?: (address: string) => string;
+  },
 ): string {
+  const { link } = options;
+  const cell = (text: string) => (link ? inlineRichText(parseHtml(text).children, link) : escapeText(text));
   const row = (cellsOf: string[], tag: "td" | "th") =>
-    `<tr>${cellsOf.map((cell) => `<${tag}>${escapeText(cell)}</${tag}>`).join("")}</tr>`;
+    `<tr>${cellsOf.map((text) => `<${tag}>${cell(text)}</${tag}>`).join("")}</tr>`;
   const head = options.header && cells.length > 1 ? cells[0] : undefined;
   const foot = options.footer && cells.length > (head ? 2 : 1) ? cells[cells.length - 1] : undefined;
   const body = cells.slice(head ? 1 : 0, foot ? -1 : undefined);
