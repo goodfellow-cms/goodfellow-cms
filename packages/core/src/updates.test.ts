@@ -58,14 +58,30 @@ describe("sites' overrides", () => {
   it("adds the overrides sites need, keeping the site's own", () => {
     expect(withSiteOverrides(undefined)).toEqual({
       overrides: SITE_OVERRIDES,
-      added: [["@puckeditor/core", "happy-dom"]],
+      added: [
+        ["@puckeditor/core", "happy-dom"],
+        ["cacache", "glob"],
+        ["@tufjs/models", "minimatch"],
+      ],
     });
-    const own = { react: "19.3.0", "@puckeditor/core": { "happy-dom": "^22.0.0", tslib: "2.8.0" } };
+    const own = {
+      react: "19.3.0",
+      "@puckeditor/core": { "happy-dom": "^22.0.0", tslib: "2.8.0" },
+      cacache: { glob: "^15.0.0" },
+      "@tufjs/models": { minimatch: "^12.0.0" },
+    };
     expect(withSiteOverrides(own)).toEqual({ overrides: own, added: [] });
     // A site that overrides Puck itself chose its own.
     expect(withSiteOverrides({ "@puckeditor/core": "0.24.0" })).toEqual({
-      overrides: { "@puckeditor/core": "0.24.0" },
-      added: [],
+      overrides: {
+        "@puckeditor/core": "0.24.0",
+        cacache: { glob: "^14.0.2" },
+        "@tufjs/models": { minimatch: "^11.0.1" },
+      },
+      added: [
+        ["cacache", "glob"],
+        ["@tufjs/models", "minimatch"],
+      ],
     });
     expect(withSiteOverrides({ react: "19.3.0" }).overrides).toEqual({ react: "19.3.0", ...SITE_OVERRIDES });
   });

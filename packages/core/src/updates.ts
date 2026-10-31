@@ -22,10 +22,15 @@ export const NPM_REGISTRY = "https://registry.npmjs.org";
  * (`pnpm-workspace.yaml`): releases that fix security advisories, for
  * packages Goodfellow's dependencies ask for older ones of. Puck renders rich
  * text on the server with `@tiptap/html`, which asks for happy-dom 20; 21.0.4
- * and later fix GHSA-834v-8h66-3h79 and GHSA-c8p4-j97h-3vg8.
+ * and later fix GHSA-834v-8h66-3h79 and GHSA-c8p4-j97h-3vg8. Sigstore, which
+ * checks plugins' early updates, brings cacache, which asks for glob 13 (14.0.2
+ * fixes GHSA-3g3m-2fjr-6pw4), and `@tufjs/models`, which asks for minimatch 10
+ * (11.0.1 fixes GHSA-g3hv-75wg-m249).
  */
 export const SITE_OVERRIDES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   "@puckeditor/core": { "happy-dom": "^21.0.4" },
+  cacache: { glob: "^14.0.2" },
+  "@tufjs/models": { minimatch: "^11.0.1" },
 };
 
 /**
