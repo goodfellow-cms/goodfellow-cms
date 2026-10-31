@@ -1,7 +1,7 @@
 {
   "name": "goodfellow",
   "version": "0.8.0",
-  "description": "Build, develop and preview Goodfellow sites.",
+  "description": "Build, develop and preview Goodfellow CMS sites.",
   "keywords": [
     "goodfellow",
     "cms",

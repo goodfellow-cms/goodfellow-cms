@@ -2,7 +2,7 @@
   "name": "@goodfellow-cms/connector",
   "version": "0.2.0",
   "private": true,
-  "description": "Goodfellow's Claude connector: an MCP server on Cloudflare Workers that lets editors work on their sites from Claude.",
+  "description": "Goodfellow CMS's Claude connector: an MCP server on Cloudflare Workers that lets editors work on their sites from Claude.",
   "license": "MIT",
   "type": "module",
   "scripts": {

@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-A git-based website builder built on the [Puck](https://puckeditor.com) visual editor.
+**Goodfellow CMS** is a git-based website builder built on the [Puck](https://puckeditor.com) visual editor.
 
 Goodfellow gives non-technical site owners a drag-and-drop editor at `/admin` with no server, database or monthly hosting bill. Pages are stored as files in the site's own GitHub, GitLab or Bitbucket repository. Every save is a commit, and a free static host (GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel) rebuilds the site. It started with small organizations run by volunteers, and is built to suit larger ones too, where a marketing team runs the content and developers own the code, its blocks and its reviews.
 

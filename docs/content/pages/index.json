@@ -26,7 +26,7 @@
                 "id": "Text-10",
                 "align": "left",
                 "className": "mt-6 max-w-2xl text-lg opacity-90",
-                "content": "<p>Goodfellow is a drag-and-drop website builder for churches, clubs, small businesses and anyone else without a developer on hand, and for larger organizations whose marketing team runs the content while developers own the code. Its pages are files in your own GitHub or GitLab repository, and free hosts put them online, so there's no server, database or monthly bill.</p>"
+                "content": "<p>Goodfellow CMS is a drag-and-drop website builder for churches, clubs, small businesses and anyone else without a developer on hand, and for larger organizations whose marketing team runs the content while developers own the code. Its pages are files in your own GitHub or GitLab repository, and free hosts put them online, so there's no server, database or monthly bill.</p>"
               }
             },
             {
@@ -387,14 +387,20 @@
           "padding": "lg",
           "width": "normal"
         }
+      },
+      {
+        "type": "SoftwareDetails",
+        "props": {
+          "id": "SoftwareDetails-1"
+        }
       }
     ],
     "root": {
       "props": {
         "className": "",
-        "description": "A website builder with no server or database: pages are files in your own GitHub or GitLab repository.",
+        "description": "Goodfellow CMS is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab or Bitbucket repository.",
         "image": "",
-        "title": "Goodfellow"
+        "title": "Goodfellow CMS: websites anyone can edit"
       }
     }
   }
