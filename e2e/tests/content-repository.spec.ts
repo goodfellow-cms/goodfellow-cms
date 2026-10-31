@@ -32,7 +32,7 @@ test("publishes to the content repository, and leaves blocks and updates to the 
 
   const nav = page.locator(".gfa-nav");
   await expect(nav.getByRole("link", { name: "Settings" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Blocks" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Blocks", exact: true })).toHaveCount(0);
   await page.goto(`${SITE}/admin/#/blocks`);
   await expect(page.getByRole("heading", { name: "This site's blocks are added by its developer." })).toBeVisible();
   await page.goto(`${SITE}/admin/#/settings/updates`);
