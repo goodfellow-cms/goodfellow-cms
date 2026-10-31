@@ -8,6 +8,7 @@
 import type { Config } from "@puckeditor/core";
 import { z } from "zod";
 import { type BlockIcon, blockIconSchema } from "./block-icons.js";
+import { SYNCED_BLOCK } from "./content/synced-blocks.js";
 import { type ContentKind, CURRENT_VERSION } from "./migrations/index.js";
 import type { PluginDescription } from "./plugins.js";
 
@@ -72,11 +73,14 @@ export interface SiteDescription {
  * header and footer (`layout`, without page settings), or collections' templates.
  * Blocks render nothing.
  */
-export function describedConfig(description: SiteDescription, kind: "page" | "layout" | "template"): Config {
+export function describedConfig(description: SiteDescription, kind: "page" | "layout" | "template" | "synced"): Config {
   return {
     components: Object.fromEntries(
       Object.entries(description.blocks)
-        .filter(([, block]) => kind === "template" || !block.templateOnly)
+        .filter(
+          ([name, block]) =>
+            (kind === "template" || !block.templateOnly) && !(kind === "synced" && name === SYNCED_BLOCK),
+        )
         .map(([name, block]) => [
           name,
           {
@@ -87,7 +91,7 @@ export function describedConfig(description: SiteDescription, kind: "page" | "la
           },
         ]),
     ),
-    root: { fields: kind === "layout" ? {} : description.root.fields },
+    root: { fields: kind === "layout" || kind === "synced" ? {} : description.root.fields },
   } as unknown as Config;
 }
 

@@ -68,7 +68,7 @@ test("leaves Site Settings, blocks and collections' settings to owners", async (
   await expect(page.getByRole("link", { name: "About us", exact: true })).toBeVisible();
   const nav = page.locator(".gfa-nav");
   await expect(nav.getByRole("link", { name: "Settings" })).toHaveCount(0);
-  await expect(nav.getByRole("link", { name: "Blocks" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Blocks", exact: true })).toHaveCount(0);
   await page.goto(`${SITE}/admin/#/settings/general`);
   await expect(page.getByRole("heading", { name: "Only the site's owners can change this." })).toBeVisible();
   await page.goto(`${SITE}/admin/#/collections`);

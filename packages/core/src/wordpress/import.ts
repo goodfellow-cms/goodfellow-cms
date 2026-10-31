@@ -24,6 +24,7 @@ import {
   redirectsFileChange,
   siteSettingsFileChange,
   slugify,
+  syncedBlockFileChange,
   uniqueName,
 } from "../content/changes.js";
 import { type Collection, choiceSlug } from "../content/collections.js";
@@ -40,7 +41,7 @@ import { type ConversionNote, type ConvertContext, itemParts, type Part } from "
 import { collapsed, plainText, tagName, textOf } from "./html.js";
 import { partsMarkdown } from "./markdown.js";
 import type { WordPressItem, WordPressMedia, WordPressMenu, WordPressSite, WordPressTerm } from "./model.js";
-import { type BlockData, BlockWriter, IMPORT_BLOCKS, pageBlocks } from "./page-blocks.js";
+import { type BlockData, BlockWriter, IMPORT_BLOCKS, pageBlocks, partBlocks } from "./page-blocks.js";
 
 /** Words the import writes into content: the posts collection's names, its fields' labels and the link back to all posts. */
 export interface WordPressImportNames {
@@ -106,6 +107,8 @@ export interface WordPressImportSummary {
   redirects: number;
   /** The site's pages the import replaces, at the same addresses. */
   replaced: string[];
+  /** Synced patterns the imported pages place, written as synced blocks, by name. */
+  syncedBlocks?: string[];
 }
 
 /** What the import couldn't bring across as it was, for the person importing to check. */
@@ -252,7 +255,9 @@ function walkParts(parts: Part[], visit: (part: Part) => void): void {
   for (const part of parts) {
     visit(part);
     if (part.kind === "columns") for (const column of part.columns) walkParts(column, visit);
-    if (part.kind === "cover" || part.kind === "details" || part.kind === "media-text") walkParts(part.parts, visit);
+    if (part.kind === "cover" || part.kind === "details" || part.kind === "media-text" || part.kind === "synced") {
+      walkParts(part.parts, visit);
+    }
   }
 }
 
@@ -586,6 +591,25 @@ export function planWordPressImport(
   const schedule = (item: WordPressItem) =>
     item.status === "future" && item.date ? { showFrom: item.date } : undefined;
 
+  /* Synced patterns pages place, as synced blocks: each named once, as it's first placed, never as one the site has. */
+  const syncedNames = new Map<number, string>();
+  const takenSyncedNames = new Set((content.syncedBlocks ?? []).map((block) => block.name));
+  const syncedName = (ref: number): string | undefined => {
+    const pattern = source.syncedPatterns?.[ref];
+    if (!pattern) return undefined;
+    let name = syncedNames.get(ref);
+    if (!name) {
+      name = uniqueName(
+        isAddressSegment(pattern.name) ? pattern.name : slugify(pattern.title),
+        takenSyncedNames,
+        "pattern",
+      );
+      takenSyncedNames.add(name);
+      syncedNames.set(ref, name);
+    }
+    return name;
+  };
+
   /* Pages. */
   const listProps = {
     collection: collectionId ?? "",
@@ -616,6 +640,7 @@ export function planWordPressImport(
       posts: collectionId,
       writer,
       ...(options.blocks && { blocks: options.blocks }),
+      synced: syncedName,
     });
     if (collectionId && path === listPath) {
       blocks.push(writer.section([writer.collectionList({ ...listProps, className: "mt-8" })], { width: "normal" }));
@@ -628,6 +653,18 @@ export function planWordPressImport(
         schedule(page),
       ),
     );
+  }
+  // Each synced pattern's own blocks; a synced pattern placed inside it goes in as its blocks, since synced blocks
+  // can't place others.
+  for (const [ref, name] of syncedNames) {
+    const title = source.syncedPatterns?.[ref]?.title ?? name;
+    const parts = itemParts({ content: source.reusableBlocks[ref] ?? "", rendered: false }, context(title));
+    const blocks = partBlocks(parts, new BlockWriter(name), {
+      link,
+      posts: collectionId,
+      ...(options.blocks && { blocks: options.blocks }),
+    });
+    changes.push(syncedBlockFileChange(name, title, { root: { props: {} }, content: blocks }));
   }
   if (collectionId && listPath && !listWritten) {
     const writer = new BlockWriter();
@@ -898,6 +935,7 @@ export function planWordPressImport(
       pages: [...importedPagePaths],
       posts: posts.length,
       ...(collectionId && pattern && { collection: { id: collectionId, path: pattern } }),
+      ...(syncedNames.size > 0 && { syncedBlocks: [...syncedNames.values()] }),
       ...(listPath && { listPath }),
       categories: categoryValues.size,
       tags: tagValues.size,

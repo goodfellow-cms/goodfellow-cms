@@ -10,17 +10,21 @@ import {
   loadSiteContent,
   type Page,
   type SiteContent,
+  type SyncedBlock,
+  syncedBlockUses,
 } from "@goodfellow-cms/core";
 import type { Config, Data } from "@puckeditor/core";
-import { entryFileChange, layoutFileChange, pageFileChange, pageTitle } from "./changes.js";
+import { entryFileChange, layoutFileChange, pageFileChange, pageTitle, syncedBlockFileChange } from "./changes.js";
 
 /** A content file whose earlier versions can be seen and restored. */
 export type VersionSubject =
   | { kind: "page"; file: string; page: Page }
   | { kind: "header" | "footer"; file: string }
-  | { kind: "entry"; file: string; collection: Collection; entry: Entry };
+  | { kind: "entry"; file: string; collection: Collection; entry: Entry }
+  /** A synced block, or its own version in one of the site's other languages. */
+  | { kind: "synced"; file: string; block: SyncedBlock; language?: string };
 
-/** What a content file is in the site: a page, the header or footer, or an item in a collection. */
+/** What a content file is in the site: a page, the header or footer, an item in a collection or a synced block. */
 export function versionSubject(content: SiteContent, file: string): VersionSubject | undefined {
   if (file === HEADER_FILE) return { kind: "header", file };
   if (file === FOOTER_FILE) return { kind: "footer", file };
@@ -30,6 +34,12 @@ export function versionSubject(content: SiteContent, file: string): VersionSubje
     const entry = collection.entries.find((candidate) => candidate.file === file);
     if (entry) return { kind: "entry", file, collection, entry };
   }
+  for (const block of content.syncedBlocks ?? []) {
+    if (block.file === file) return { kind: "synced", file, block };
+    for (const [language, own] of Object.entries(block.languages ?? {})) {
+      if (own.file === file) return { kind: "synced", file, block, language };
+    }
+  }
   return undefined;
 }
 
@@ -37,7 +47,13 @@ export function versionSubject(content: SiteContent, file: string): VersionSubje
 export function subjectTitle(subject: VersionSubject): string | undefined {
   if (subject.kind === "page") return pageTitle(subject.page);
   if (subject.kind === "entry") return entryTitle(subject.entry);
+  if (subject.kind === "synced") return syncedContent(subject).title;
   return undefined;
+}
+
+/** A synced block's file as the subject names it: the main language's, or another language's own. */
+function syncedContent(subject: Extract<VersionSubject, { kind: "synced" }>) {
+  return (subject.language && subject.block.languages?.[subject.language]?.content) || subject.block.content;
 }
 
 /**
@@ -67,10 +83,17 @@ export function restoreChange(content: SiteContent, subject: VersionSubject): Fi
       const fields = Object.entries(subject.entry.content.fields).filter(([name]) => names.has(name));
       return entryFileChange(subject.collection, subject.entry.slug, Object.fromEntries(fields), subject.entry.content);
     }
+    case "synced": {
+      const shown = syncedContent(subject);
+      return syncedBlockFileChange(subject.block.name, shown.title, shown.data as Data, subject.language);
+    }
   }
 }
 
-/** The page that shows the subject: the page itself, an item's page, or for the header and footer, the home page. */
+/**
+ * The page that shows the subject: the page itself, an item's page, for a synced block the first page that places
+ * it, or for the header and footer, the home page.
+ */
 export function previewPage(content: SiteContent, subject: VersionSubject): Page | undefined {
   switch (subject.kind) {
     case "page":
@@ -79,6 +102,12 @@ export function previewPage(content: SiteContent, subject: VersionSubject): Page
       return allPages(content).find(
         (page) => page.entry?.collection === subject.collection.id && page.entry.slug === subject.entry.slug,
       );
+    case "synced": {
+      const use = syncedBlockUses(content, subject.block.name).find((found) => found.kind === "page");
+      const page = use && content.pages.find((found) => found.file === use.file);
+      if (page) return page;
+      return content.pages.find((found) => found.path === "/") ?? content.pages[0];
+    }
     default:
       return content.pages.find((page) => page.path === "/") ?? content.pages[0];
   }
@@ -88,6 +117,7 @@ export function previewPage(content: SiteContent, subject: VersionSubject): Page
 export function subjectData(content: SiteContent, subject: VersionSubject): Data | undefined {
   if (subject.kind === "page") return subject.page.content.data as Data;
   if (subject.kind === "header" || subject.kind === "footer") return content[subject.kind].data as Data;
+  if (subject.kind === "synced") return syncedContent(subject).data as Data;
   return undefined;
 }
 

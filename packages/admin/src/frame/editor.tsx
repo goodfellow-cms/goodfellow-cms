@@ -8,6 +8,7 @@ import {
   type BlockIcon,
   contentInLanguage,
   describedIn,
+  expandSyncedBlocks,
   findEntry,
   focusPosition,
   hasLanguages,
@@ -45,6 +46,7 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "../admin-context.js";
 import { storedData } from "../changes.js";
+import { withBlocksInPlace } from "../editor-change.js";
 import { useEditorText } from "../editor-text.js";
 import { MediaChooser } from "../media-library.js";
 import { showMediaInPreview } from "../media-previews.js";
@@ -63,6 +65,7 @@ import { type ShownSettings, shownSettings } from "./page-settings.js";
 import type { EditorChange, EditorOpen, EditorOpened, EditorState } from "./protocol.js";
 import { SiteFrame } from "./site-frame.js";
 import { withStyleFields } from "./style-field.js";
+import { withSyncedBlockDrawing } from "./synced-block.js";
 import { withTableFields } from "./table-field.js";
 
 const usePuck = createUsePuck();
@@ -122,8 +125,10 @@ function canvasConfig(
           <div className="gf-canvas">
             {kind === "header" ? (
               <header className="gf-header">{children}</header>
-            ) : (
+            ) : kind === "footer" ? (
               <footer className="gf-footer">{children}</footer>
+            ) : (
+              <main className="gf-main">{children}</main>
             )}
           </div>
         );
@@ -214,6 +219,9 @@ function Bridge({ channel, settings }: { channel: Channel; settings: ShownSettin
             type: "setData",
             data: (previous) => ({ ...previous, content: [...previous.content, ...change.blocks] }),
           });
+        } else if (change.type === "detach") {
+          if (!getSelectorForId(change.id)) throw new Error("The block being changed is no longer on the page.");
+          dispatch({ type: "setData", data: (previous) => withBlocksInPlace(previous, change.id, change.blocks) });
         }
       }),
     ];
@@ -234,7 +242,7 @@ const READ_ONLY = { drag: false, duplicate: false, delete: false, edit: false, i
 
 export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (opened: EditorOpened) => void }) {
   const client = useAdminClient();
-  const { config: siteConfig, pageConfig, layoutConfig, templateConfig } = useFrameCode();
+  const { config: siteConfig, pageConfig, layoutConfig, templateConfig, syncedConfig } = useFrameCode();
   const { preview, mediaPreviews } = useAdmin();
   const { content: loaded } = useSiteContent();
   const { kind, path, title, data } = open;
@@ -347,6 +355,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
       ...(content.focus && {
         focus: Object.fromEntries(Object.entries(content.focus).map(([url, point]) => [url, focusPosition(point)])),
       }),
+      ...(loaded.syncedBlocks && { syncedBlocks: loaded.syncedBlocks }),
       adminLink,
       callPlugin,
     }),
@@ -355,25 +364,60 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
   const entry = kind === "entry" && collection && open.entry ? findEntry(loaded, collection.id, open.entry) : undefined;
   // Blocks' labels in the admin panel's language, which the block search and the AI assistant see too.
   const { puck: dictionary, labels } = useEditorText();
+  // Synced blocks placed in what's edited, and in the header and footer around a page, are drawn in their place.
+  const metadata = useMemo(() => siteMetadata(site), [site]);
+  const drawn = useCallback(
+    (config: Config) =>
+      withSyncedBlockDrawing(config, {
+        content: loaded,
+        language,
+        main: language === mainLanguage(loaded.settings),
+        metadata,
+        navigate: (href) => void client.call("navigate", href),
+      }),
+    [loaded, language, metadata, client],
+  );
   const config = useMemo(() => {
     if (kind === "entry") {
       if (!collection || !entry) throw new Error("The item isn't in the site.");
       return withLabels(entryConfig(collection, entry.entry, content, { templateConfig, layoutConfig }), labels);
     }
+    const edited =
+      kind === "page"
+        ? pageConfig
+        : kind === "template"
+          ? templateConfig
+          : kind === "synced"
+            ? syncedConfig
+            : layoutConfig;
     return withLabels(
       withTableFields(
         canvasConfig(
           kind,
-          kind === "page" ? pageConfig : kind === "template" ? templateConfig : layoutConfig,
+          drawn(edited),
           layoutConfig,
-          content.header.data as Data,
-          content.footer.data as Data,
+          expandSyncedBlocks(content.header.data as Data, loaded, language),
+          expandSyncedBlocks(content.footer.data as Data, loaded, language),
           site,
         ),
       ),
       labels,
     );
-  }, [kind, collection, entry, pageConfig, templateConfig, layoutConfig, content, site, labels]);
+  }, [
+    kind,
+    collection,
+    entry,
+    pageConfig,
+    templateConfig,
+    syncedConfig,
+    layoutConfig,
+    content,
+    loaded,
+    language,
+    site,
+    labels,
+    drawn,
+  ]);
 
   // Described with Style fields as the text they hold, which the AI assistant fills in.
   const described = useMemo(() => describeConfig(config), [config]);
@@ -428,7 +472,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
         <Puck
           config={puckConfig}
           data={initialData}
-          metadata={siteMetadata(site)}
+          metadata={metadata}
           headerTitle={title}
           dictionary={dictionary}
           height="100%"

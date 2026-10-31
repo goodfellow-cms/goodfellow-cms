@@ -194,6 +194,9 @@ function Summary({ plan }: { plan: WordPressImport }) {
       )}
       {summary.menus.length > 0 && <li>{t("import.summary.menus", { count: String(summary.menus.length) })}</li>}
       {summary.redirects > 0 && <li>{t("import.summary.redirects", { count: String(summary.redirects) })}</li>}
+      {summary.syncedBlocks && summary.syncedBlocks.length > 0 && (
+        <li>{t("import.summary.synced", { count: String(summary.syncedBlocks.length) })}</li>
+      )}
       <li>{t("import.summary.media", { count: String(plan.media.length) })}</li>
     </ul>
   );

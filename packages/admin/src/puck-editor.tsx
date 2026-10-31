@@ -33,6 +33,7 @@ import {
 } from "./plugin-editor.js";
 import { useUnsavedChanges } from "./router.js";
 import { type Translate, useStrings } from "./strings.js";
+import { SyncedBlockButtons } from "./synced-blocks-screen.js";
 import { Button, ErrorMessage, PublishedNotice } from "./ui.js";
 
 /** Pages and templates are shown between the header and footer; items show their page. */
@@ -46,7 +47,7 @@ export interface PuckEditorProps {
   data: Data;
   /** The collection whose template or entry is being edited. */
   collection?: Collection;
-  /** The item being edited, by its name, with `kind: "entry"`. */
+  /** The item being edited, by its name, with `kind: "entry"`, or the synced block, with `kind: "synced"`. */
   entry?: string;
   /** Returns why `data` can't be published yet, as text to show, or `undefined` if it can. */
   validate?: (data: Data) => string | undefined;
@@ -507,7 +508,11 @@ export function PuckEditor({
       plugin
         ? describedConfig(
             site.description,
-            kind === "header" || kind === "footer" ? "layout" : kind === "template" ? "template" : "page",
+            kind === "header" || kind === "footer"
+              ? "layout"
+              : kind === "template" || kind === "synced"
+                ? kind
+                : "page",
           )
         : config,
     [plugin, site.description, kind, config],
@@ -596,6 +601,9 @@ export function PuckEditor({
           </Button>
         </div>
         <div className="gfa-header-actions">
+          {state && !plugin && !readOnly && client && kind !== "entry" && kind !== "synced" && (
+            <SyncedBlockButtons kind={kind} path={path} language={language} state={state} apply={apply} />
+          )}
           {actions}
           {aiOffered && (
             <Button aria-pressed={aiOpen} onClick={() => setAiOpen(!aiOpen)}>

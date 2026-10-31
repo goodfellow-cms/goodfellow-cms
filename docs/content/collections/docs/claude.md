@@ -101,8 +101,8 @@ On your computer, screenshots use your own browser, Chrome or else Edge, without
 
 ## What Claude can do
 
-- Read pages, the header and footer, collections and their items, menus and the site's settings, and list the media library with each file's size and credit. Photos with a credit, such as those the AI assistant adds from Openverse, show it on every page that uses them, so Claude can use them as they are.
-- Create, change and delete pages and items, and change the header and footer, menus and the site's name, description, logo, icon, picture for shared links, contact details, theme and time zone, in a draft. Deleting a page or item leaves its translations as pages and items of their own, as the admin panel does, and Claude says which menus still link to a deleted page.
+- Read pages, the header and footer, [synced blocks](/docs/synced-blocks), collections and their items, menus and the site's settings, and list the media library with each file's size and credit. Photos with a credit, such as those the AI assistant adds from Openverse, show it on every page that uses them, so Claude can use them as they are.
+- Create, change and delete pages and items, create and change synced blocks, and change the header and footer, menus and the site's name, description, logo, icon, picture for shared links, contact details, theme and time zone, in a draft. Deleting a page or item leaves its translations as pages and items of their own, as the admin panel does, and Claude says which menus still link to a deleted page.
 - Show you a screenshot of any page, live or with its draft, or look at an image in the media library.
 - Publish a draft, submit it for review, or throw it away.
 

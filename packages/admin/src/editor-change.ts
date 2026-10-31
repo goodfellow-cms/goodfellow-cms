@@ -49,7 +49,22 @@ export function applyEditorChange(data: Data, change: EditorChange): Data {
     }
     case "append":
       return { ...data, content: [...data.content, ...change.blocks] };
+    case "detach":
+      if (!findBlock(data, change.id)) throw new Error("The block being changed is no longer on the page.");
+      return withBlocksInPlace(data, change.id, change.blocks);
   }
+}
+
+/** Data with the block whose id is `id` replaced by `blocks`, wherever it is: in the page, a slot or a drop zone. */
+export function withBlocksInPlace(data: Data, id: string, blocks: ComponentData[]): Data {
+  const replace = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => (isBlock(item) && item.props.id === id ? blocks : [replace(item)]));
+    }
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replace(item)]));
+  };
+  return replace(data) as Data;
 }
 
 /** The block whose id is `id`, wherever it is in `data`, slots included, or `null`. */

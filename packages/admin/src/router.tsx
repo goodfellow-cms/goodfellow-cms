@@ -102,6 +102,11 @@ export function collectionHref(id: string, tab: CollectionTab = "entries"): stri
   return tab === "entries" ? `#/collections/${id}` : `#/collections/${id}/${tab}`;
 }
 
+/** Where a synced block is edited, in a language, or the main language's without one. */
+export function syncedBlockEditorHref(name: string, language?: string): string {
+  return `#/synced-blocks/edit?name=${encodeURIComponent(name)}${language ? `&language=${encodeURIComponent(language)}` : ""}`;
+}
+
 export function entryEditorHref(collection: string, slug: string): string {
   return `#/collections/${collection}/edit?slug=${encodeURIComponent(slug)}`;
 }

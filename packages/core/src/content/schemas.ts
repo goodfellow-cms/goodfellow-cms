@@ -489,6 +489,14 @@ export const layoutFileSchema = z.object({
 });
 export type LayoutFile = z.output<typeof layoutFileSchema>;
 
+/** A synced block: its name for editors, and the blocks every page that shows it shows. */
+export const syncedBlockFileSchema = z.object({
+  version: z.literal(1),
+  title: z.string().trim().min(1).max(200),
+  data: puckDataSchema,
+});
+export type SyncedBlockFile = z.output<typeof syncedBlockFileSchema>;
+
 /** The kinds of information an entry can hold. */
 export const FIELD_TYPES = [
   "text",

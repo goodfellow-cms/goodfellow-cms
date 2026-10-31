@@ -15,6 +15,7 @@ const ICONS = {
   Separator: "separator-horizontal",
   MediaText: "layout-panel-left",
   Details: "list-collapse",
+  SyncedBlock: "refresh-cw",
   Heading: "heading",
   Text: "pilcrow",
   Button: "mouse-pointer-click",

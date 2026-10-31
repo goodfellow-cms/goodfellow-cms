@@ -210,6 +210,7 @@ export const labels: Record<string, string> = {
   Map: "Mapa",
   Media: "Multimedia",
   "Media and text": "Multimedia y texto",
+  "Synced block": "Bloque sincronizado",
   Medium: "Mediano",
   Menu: "Menú",
   "Menu button's name, for screen readers": "Nombre del botón de menú, para lectores de pantalla",

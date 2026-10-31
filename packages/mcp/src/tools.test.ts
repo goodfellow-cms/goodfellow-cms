@@ -293,6 +293,44 @@ describe("changing a site", () => {
     expect((await call("get_menus", { draft })).json().main).toEqual([{ label: "Home", href: "/" }]);
   });
 
+  it("makes and changes synced blocks, which pages place by name", async () => {
+    const { call } = await connect();
+    expect((await call("list_synced_blocks")).json()).toEqual([]);
+    const { draft } = (
+      await call("save_synced_block", { name: "mass-times", title: "Mass times", blocks: [heading("Mass times")] })
+    ).json();
+    expect((await call("list_synced_blocks", { draft })).json()).toEqual([
+      { name: "mass-times", title: "Mass times", languages: [] },
+    ]);
+    expect((await call("get_synced_block", { name: "mass-times", draft })).json()).toMatchObject({
+      title: "Mass times",
+      blocks: [expect.objectContaining({ type: "Heading" })],
+    });
+    // A page places it, and publishing checks the page finds it.
+    await call("save_page", {
+      address: "/about",
+      draft,
+      blocks: [{ type: "SyncedBlock", id: "s", parent: null, slot: null, props: { block: "mass-times" } }],
+    });
+    // Renaming keeps its blocks.
+    await call("save_synced_block", { name: "mass-times", title: "Sunday Mass times", draft });
+    expect((await call("get_synced_block", { name: "mass-times", draft })).json()).toMatchObject({
+      title: "Sunday Mass times",
+      blocks: [expect.objectContaining({ type: "Heading" })],
+    });
+    const nested = await call("save_synced_block", {
+      name: "loop",
+      title: "Loop",
+      draft,
+      blocks: [{ type: "SyncedBlock", id: "s", parent: null, slot: null, props: { block: "mass-times" } }],
+    });
+    expect(nested.isError).toBe(true);
+    expect(nested.text).toContain("can't hold another synced block");
+    expect((await call("save_synced_block", { name: "Bad Name", title: "x" })).isError).toBe(true);
+    const published = await call("publish", { draft, message: "Mass times on every page" });
+    expect(published.isError, published.text).toBe(false);
+  });
+
   it("submits a draft for review instead of publishing it", async () => {
     const { call, fake } = await connect();
     const { draft } = (await call("save_page", { address: "/about", blocks: [heading("About")] })).json();

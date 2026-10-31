@@ -18,6 +18,7 @@ const registry: MigrationRegistry = {
   storage: [],
   permissions: [],
   "admin-text": [],
+  "synced-block": [],
 };
 
 describe("migrateContent", () => {

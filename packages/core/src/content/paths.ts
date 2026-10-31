@@ -16,6 +16,13 @@ export const FOOTER_FILE = "content/layout/footer.json";
 export function languageLayoutFile(part: "header" | "footer", language: string): string {
   return `content/layout/${part}.${language}.json`;
 }
+/** Synced blocks: groups of blocks shown on many pages, each kept once, in a file of its own. */
+export const SYNCED_BLOCKS_DIR = "content/synced-blocks";
+
+/** A synced block's file: `content/synced-blocks/mass-times.json`, or its own in another language, `mass-times.es.json`. */
+export function syncedBlockFile(name: string, language?: string): string {
+  return `${SYNCED_BLOCKS_DIR}/${name}${language ? `.${language}` : ""}.json`;
+}
 export const CUSTOM_CSS_FILE = "content/styles/custom.css";
 /** Which theme the site's look came from, and what it installed, so an update keeps what owners changed since. */
 export const THEME_FILE = "content/styles/theme.json";

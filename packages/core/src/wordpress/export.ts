@@ -51,6 +51,7 @@ import {
   video,
   type WpButton,
   type WpCoverLook,
+  wpBlock,
 } from "./gutenberg.js";
 
 export interface WordPressExportOptions {
@@ -173,6 +174,8 @@ interface ConvertContext {
   /** The collections exported as posts, which lists of their items can show. */
   posts: ReadonlySet<string>;
   content: SiteContent;
+  /** A synced block's id in the export, as a synced pattern, by its name. */
+  synced(name: string): number | undefined;
   note(block: string): void;
 }
 
@@ -345,6 +348,11 @@ function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string[] {
       }
       case "PageList":
         return [pageList()];
+      case "SyncedBlock": {
+        // A synced pattern, which WordPress puts in place as Goodfellow does.
+        const ref = context.synced(text(props.block));
+        return ref ? [wpBlock("block", { ref })] : [];
+      }
       case "CollectionList": {
         if (!context.posts.has(text(props.collection))) {
           context.note(block.type);
@@ -422,7 +430,8 @@ function summaryField(collection: Collection): CollectionField | undefined {
 
 interface Item {
   id: number;
-  type: "page" | "post";
+  /** A page, a post, or a synced pattern (`wp_block`), which pages place with `<!-- wp:block {"ref":…} /-->`. */
+  type: "page" | "post" | "wp_block";
   title: string;
   slug: string;
   path: string;
@@ -477,11 +486,14 @@ export function wordPressExport(content: SiteContent, options: WordPressExportOp
   const exported = new Set(
     content.collections.filter((collection) => collection.settings.path).map((collection) => collection.id),
   );
+  // Synced blocks are numbered first, so pages placing them can name them.
+  const syncedIds = new Map((content.syncedBlocks ?? []).map((block) => [block.name, newId()]));
   const context = (item: string): ConvertContext => ({
     link,
     media,
     posts: exported,
     content,
+    synced: (name) => syncedIds.get(name),
     note: (block) => leftOut.set(block, (leftOut.get(block) ?? new Set()).add(item)),
   });
   const timing = (schedule: Schedule, fallback: string, title: string) => {
@@ -519,6 +531,27 @@ export function wordPressExport(content: SiteContent, options: WordPressExportOp
       content: puckBlocks(blocks, context(title)).join("\n\n"),
       excerpt: text(props.description),
       ...(image && { image }),
+      terms: [],
+    });
+  }
+
+  /* Synced blocks, as synced patterns, in the main language: WordPress keeps one version of each. */
+  for (const block of content.syncedBlocks ?? []) {
+    const id = syncedIds.get(block.name);
+    if (id === undefined) continue;
+    const { title } = block.content;
+    items.push({
+      id,
+      type: "wp_block",
+      title,
+      slug: block.name,
+      path: "",
+      parent: 0,
+      order: 0,
+      date: today,
+      status: "publish",
+      content: puckBlocks(blocksIn(block.content.data.content), context(title)).join("\n\n"),
+      excerpt: "",
       terms: [],
     });
   }
@@ -626,7 +659,7 @@ export function wordPressExport(content: SiteContent, options: WordPressExportOp
   }
 
   /* Menus, linking to the pages and posts they go to. */
-  const itemIds = new Map(items.map((item) => [item.path, item]));
+  const itemIds = new Map(items.filter((item) => item.type !== "wp_block").map((item) => [item.path, item]));
   const menuItems: string[] = [];
   const menuTerms: Array<{ slug: string; name: string }> = [];
   for (const [menu, entries] of Object.entries(content.menus)) {

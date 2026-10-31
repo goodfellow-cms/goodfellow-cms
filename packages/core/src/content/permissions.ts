@@ -52,7 +52,7 @@ export const editorLimitsSchema = z.object({
   collections: z.array(z.string().min(1)).optional(),
   /** The media library: uploads, their credits and media kept by a plugin. */
   media: z.boolean().optional(),
-  /** The header and footer. */
+  /** The header and footer, and synced blocks, which pages share as they do the header. */
   layout: z.boolean().optional(),
   /** The menus. */
   menus: z.boolean().optional(),
@@ -177,10 +177,17 @@ function parsedJson(text: string | undefined): Record<string, unknown> | undefin
   }
 }
 
-/** The header or footer file's language, or `undefined` for a file that isn't one. */
+/**
+ * The header's, footer's or a synced block's file's language, or `undefined`
+ * for a file that isn't one. Synced blocks are site-wide like the header and
+ * footer, so the same limit covers them.
+ */
 function layoutFileLanguage(content: Pick<SiteContent, "settings">, path: string): string | undefined {
   if (path === HEADER_FILE || path === FOOTER_FILE) return mainLanguage(content.settings);
-  return /^content\/layout\/(?:header|footer)\.([a-z]{2,3}(?:-[A-Za-z0-9]+)*)\.json$/.exec(path)?.[1];
+  const layout = /^content\/layout\/(?:header|footer)\.([a-z]{2,3}(?:-[A-Za-z0-9]+)*)\.json$/.exec(path);
+  if (layout) return layout[1];
+  const synced = /^content\/synced-blocks\/[a-z0-9-]+(?:\.([a-z]{2,3}(?:-[A-Za-z0-9]+)*))?\.json$/.exec(path);
+  return synced ? (synced[1] ?? mainLanguage(content.settings)) : undefined;
 }
 
 /** The languages whose menus a new `content/menus.json` changes, or `undefined` where it can't be read. */
