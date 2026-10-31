@@ -18,7 +18,7 @@ Choose files, or drop them onto the Media screen. Wherever an image goes, such a
 - New uploads show in the editor straight away, even before the live site has been rebuilt with them.
 - When the site is built, smaller copies of each JPEG, PNG and WebP photo are made, 480, 800, 1200 and 1600 pixels wide (only those narrower than the photo), so phones download no more than they show. The copies are WebP, about a third smaller than JPEGs, whatever the photo was; the photo itself is kept as it was uploaded, and browsers too old for WebP (Safari before version 14, from 2020) show it instead only where they don't pick a copy. Sites that keep media in a storage service, full-stack Next.js sites and Next.js sites with an image loader of their own don't get the copies.
 
-## Details
+## File details
 
 Each file on the Media screen has **Details**, which publishes what the site knows about it in one go.
 

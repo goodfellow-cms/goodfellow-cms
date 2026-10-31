@@ -54,7 +54,7 @@ From the command line, JPEG photos lose the details hidden in them, such as wher
 - **Scheduled posts** stay [scheduled](/docs/scheduling), and appear when WordPress would have published them.
 - **Menus** become the site's menus: the main menu (the one named like "Primary" or "Main", or else the longest), the footer's, and others by name. Menus go two levels deep, so deeper items join their top-level item's list. Without menus, such as from a site's address, the main menu lists the top-level pages.
 - **The site's name and tagline** become its title and description in Site Settings.
-- **Media** that the pages and posts use is copied into the media library, once, whatever size of it they showed. Files that nothing uses aren't copied. Images' alt text in WordPress's media library becomes their [description](/docs/media#details), which images use wherever a block leaves theirs empty.
+- **Media** that the pages and posts use is copied into the media library, once, whatever size of it they showed. Files that nothing uses aren't copied. Images' alt text in WordPress's media library becomes their [description](/docs/media#file-details), which images use wherever a block leaves theirs empty.
 - **Links** to the WordPress site's pages and posts get their new addresses. Links to anything that wasn't imported, such as a draft, still go to the WordPress site, and the import lists them.
 
 ## What doesn't come across
@@ -93,7 +93,7 @@ What goes across:
 - **Blocks** become WordPress's own: headings, text with its lists and links, images with their captions, galleries, buttons, columns and rows, sections with a picture behind them as covers, with their color over it, height and focal point, YouTube and Vimeo videos and video files, sound files, files, code, preformatted text and verse, pullquotes, tables, details, separators, media and text, page lists, spaces, contact details as text, and collection lists as a list of the latest posts. A page's first heading is left out when it's the page's title, since WordPress's themes show the title.
 - **Items of collections with pages** become posts, with their dates, summaries, first images as featured images and text, each collection a category and its tags and choices as tags. [Scheduled](/docs/scheduling) items stay scheduled, and ones their schedule has hidden again become drafts.
 - **Menus** go across with their links, which point at the pages and posts they went to.
-- **Media**: every file in the media library, which WordPress copies from the site's address, with images' [descriptions](/docs/media#details) as their alt text.
+- **Media**: every file in the media library, which WordPress copies from the site's address, with images' [descriptions](/docs/media#file-details) as their alt text.
 
 What doesn't:
 
