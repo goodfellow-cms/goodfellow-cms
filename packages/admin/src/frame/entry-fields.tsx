@@ -8,6 +8,7 @@ import {
   type Collection,
   type CollectionField,
   type Entry,
+  expandSyncedBlocks,
   type GroupField,
   pageLinks,
   type Schedule,
@@ -428,7 +429,7 @@ function EntryPreview({ collection, entry, content, templateConfig, layoutConfig
   const applied = useMemo(
     () =>
       applyEntry(
-        migrate(collection.settings.template as Data),
+        expandSyncedBlocks(migrate(collection.settings.template as Data), content, content.settings.language),
         templateConfig,
         collection,
         current,
@@ -436,7 +437,7 @@ function EntryPreview({ collection, entry, content, templateConfig, layoutConfig
         content.settings.timeZone,
         content.collections,
       ),
-    [collection, templateConfig, current, content.settings.language, content.settings.timeZone, content.collections],
+    [collection, templateConfig, current, content],
   );
 
   // Blocks such as Entry field fill themselves in with resolveData, as they do when the site is built.
@@ -464,8 +465,8 @@ function EntryPreview({ collection, entry, content, templateConfig, layoutConfig
     <SiteProvider value={site}>
       <SiteFrame
         layoutConfig={layoutConfig}
-        header={content.header.data as Data}
-        footer={content.footer.data as Data}
+        header={expandSyncedBlocks(content.header.data as Data, content, content.settings.language)}
+        footer={expandSyncedBlocks(content.footer.data as Data, content, content.settings.language)}
         site={site}
         className={typeof className === "string" ? className : undefined}
       >

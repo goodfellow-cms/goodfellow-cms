@@ -37,7 +37,11 @@ import {
   readTextFiles,
   SITE_FILE,
   type SiteSettings,
+  SYNCED_BLOCKS_DIR,
+  type SyncedBlockFile,
   siteSettingsSchema,
+  syncedBlockFile,
+  syncedBlockFileSchema,
 } from "@goodfellow-cms/core";
 
 /** Thrown with a message Claude can pass on to the editor as it is. */
@@ -77,6 +81,38 @@ export async function readLayout(source: ContentSource, part: "header" | "footer
   return text === undefined
     ? { version: 1, data: { root: {}, content: [] } }
     : parsed(parseContentFile("layout", layoutFileSchema, file, text));
+}
+
+/** The site's synced blocks: each one's name, title, and the other languages with versions of their own. */
+export async function listSyncedBlocks(
+  source: ContentSource,
+): Promise<Array<{ name: string; title: string; languages: string[] }>> {
+  const files = (await source.list(SYNCED_BLOCKS_DIR)).filter((file) => file.endsWith(".json"));
+  const names = new Map<string, string[]>();
+  for (const file of files) {
+    const [name = "", code] = file.slice(SYNCED_BLOCKS_DIR.length + 1, -".json".length).split(".");
+    if (!isAddressSegment(name)) continue;
+    names.set(name, [...(names.get(name) ?? []), ...(code ? [code] : [])]);
+  }
+  const listed = await Promise.all(
+    [...names].map(async ([name, languages]) => {
+      const block = await readSyncedBlock(source, name);
+      return block && { name, title: block.title, languages: languages.sort() };
+    }),
+  );
+  return listed.filter((block) => block !== undefined).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** A synced block's file, or a language's own version of it, or `undefined` where there's none. */
+export async function readSyncedBlock(
+  source: ContentSource,
+  name: string,
+  language?: string,
+): Promise<SyncedBlockFile | undefined> {
+  if (!isAddressSegment(name)) return undefined;
+  const file = syncedBlockFile(name, language);
+  const text = await source.read(file);
+  return text === undefined ? undefined : parsed(parseContentFile("synced-block", syncedBlockFileSchema, file, text));
 }
 
 /** A page's address written the site's one way, or a `ToolError` saying why it can't be one. */

@@ -62,6 +62,12 @@ export const BLOCK_ICONS: Readonly<Record<string, BlockIcon>> = {
     ["path", { d: "m3 10 3-3-3-3" }],
     ["path", { d: "m3 20 3-3-3-3" }],
   ],
+  SyncedBlock: [
+    ["path", { d: "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" }],
+    ["path", { d: "M21 3v5h-5" }],
+    ["path", { d: "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" }],
+    ["path", { d: "M8 16H3v5" }],
+  ],
   Heading: [
     ["path", { d: "M6 12h12" }],
     ["path", { d: "M6 20V4" }],

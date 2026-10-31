@@ -25,6 +25,7 @@ import {
   pageFileToPath,
   REDIRECTS_FILE,
   SITE_FILE,
+  SYNCED_BLOCKS_DIR,
 } from "./paths.js";
 import { type Permissions, permissionsFileSchema } from "./permissions.js";
 import { type Redirect, redirectProblems, redirectsFileSchema } from "./redirects.js";
@@ -40,7 +41,9 @@ import {
   type PageFile,
   pageFileSchema,
   type SiteSettings,
+  type SyncedBlockFile,
   siteSettingsSchema,
+  syncedBlockFileSchema,
 } from "./schemas.js";
 import type { PageView } from "./site-pages.js";
 
@@ -121,6 +124,18 @@ export interface SiteContent {
   mediaStorage?: MediaStorage;
   /** What each editor may change, and who reviews the rest (`content/permissions.json`). Missing means no limits. */
   permissions?: Permissions;
+  /** Synced blocks, by name (`content/synced-blocks/`): blocks kept once and shown wherever pages place them. Missing means none. */
+  syncedBlocks?: SyncedBlock[];
+}
+
+/** A synced block: blocks kept once, which every page that places it shows. */
+export interface SyncedBlock {
+  /** What pages name it by, from its file's name, such as `mass-times`. It never changes. */
+  name: string;
+  file: string;
+  content: SyncedBlockFile;
+  /** Its own in the site's other languages, by code, where it has them; otherwise those languages show the main one. */
+  languages?: Record<string, { file: string; content: SyncedBlockFile }>;
 }
 
 export interface SiteCode {
@@ -229,6 +244,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
     source.list(PAGES_DIR),
     source.list(COLLECTIONS_DIR),
   ]);
+  const syncedBlocks = await loadSyncedBlocks(source, settings, problems);
 
   const pages: Page[] = [];
   const filesByPath = new Map<string, string>();
@@ -355,7 +371,65 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
         ...(permissionsFile.reviewers && { reviewers: permissionsFile.reviewers }),
       },
     }),
+    ...(syncedBlocks.length > 0 && { syncedBlocks }),
   };
+}
+
+/**
+ * The site's synced blocks: `<name>.json` each, and `<name>.<code>.json` for
+ * its own in one of the site's other languages, which needs the main one.
+ */
+async function loadSyncedBlocks(
+  source: ContentSource,
+  settings: SiteSettings,
+  problems: ContentProblem[],
+): Promise<SyncedBlock[]> {
+  const files = (await source.list(SYNCED_BLOCKS_DIR)).filter((file) => file.endsWith(".json")).sort();
+  const others = new Set(
+    siteLanguages(settings)
+      .filter((language) => !language.main)
+      .map((language) => language.code),
+  );
+  const read = async (file: string) => {
+    const text = await source.read(file);
+    if (text === undefined) return undefined;
+    const result = parseContentFile("synced-block", syncedBlockFileSchema, file, text);
+    if (result.ok) return result.value;
+    problems.push(result.problem);
+    return undefined;
+  };
+  const blocks = new Map<string, SyncedBlock>();
+  const translated: Array<{ name: string; code: string; file: string }> = [];
+  for (const file of files) {
+    const base = file.slice(SYNCED_BLOCKS_DIR.length + 1, -".json".length);
+    const [name = "", code, ...rest] = base.split(".");
+    if (rest.length > 0 || !isAddressSegment(name) || (code !== undefined && !others.has(code))) {
+      problems.push({
+        file,
+        message:
+          code !== undefined && rest.length === 0 && isAddressSegment(name)
+            ? `is for ${code}, which isn't one of the site's languages.`
+            : "isn't named as a synced block: use lowercase letters, numbers and hyphens, such as mass-times.json.",
+      });
+      continue;
+    }
+    if (code === undefined) {
+      const content = await read(file);
+      if (content) blocks.set(name, { name, file, content });
+    } else {
+      translated.push({ name, code, file });
+    }
+  }
+  for (const { name, code, file } of translated) {
+    const block = blocks.get(name);
+    if (!block) {
+      problems.push({ file, message: `translates ${name}, which isn't a synced block in the site's main language.` });
+      continue;
+    }
+    const content = await read(file);
+    if (content) block.languages = { ...block.languages, [code]: { file, content } };
+  }
+  return [...blocks.values()];
 }
 
 /** What's wrong with a redirect, for build errors. The admin panel has its own words for these. */

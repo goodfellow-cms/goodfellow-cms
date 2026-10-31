@@ -58,8 +58,8 @@ export interface FrameInit extends FrameSite {
 
 /** Which editor to open (`editor.open`). */
 export interface EditorOpen {
-  kind: "page" | "header" | "footer" | "template" | "entry";
-  /** The page's address, or the language's home for the header and footer. */
+  kind: "page" | "header" | "footer" | "template" | "entry" | "synced";
+  /** The page's address, or the language's home for the header, footer and synced blocks. */
   path: string;
   title: string;
   data: Data;
@@ -105,7 +105,9 @@ export type EditorChange =
   | { type: "root"; props: Record<string, unknown> }
   | { type: "translate"; props: Record<string, unknown>; content: ComponentData[] }
   | { type: "replace"; id: string; block: ComponentData }
-  | { type: "append"; blocks: ComponentData[] };
+  | { type: "append"; blocks: ComponentData[] }
+  /** Puts blocks in place of one, wherever it is, such as a synced block's own in place of its Synced block. */
+  | { type: "detach"; id: string; blocks: ComponentData[] };
 
 /** A page to preview (`render.show`): the one at `path` in `content`. */
 export interface RenderShow {

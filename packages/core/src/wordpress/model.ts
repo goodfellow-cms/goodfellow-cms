@@ -24,6 +24,11 @@ export interface WordPressSite {
   media: WordPressMedia[];
   /** Reusable blocks' content, by id, which `<!-- wp:block {"ref":…} /-->` puts in place. */
   reusableBlocks: Record<number, string>;
+  /**
+   * Synced patterns' names and titles, by id: the reusable blocks WordPress keeps in step everywhere they're
+   * placed, which pages place as synced blocks. Unsynced patterns are copied where they're put, so aren't here.
+   */
+  syncedPatterns?: Record<number, { name: string; title: string }>;
   /** What the source had that's never imported, such as comments or products, with how many. */
   other: Record<string, number>;
   /** Where it came from. */

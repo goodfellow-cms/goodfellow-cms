@@ -9,6 +9,7 @@ import type {
   PageLink,
   PageView,
   SiteSettings,
+  SyncedBlock,
 } from "@goodfellow-cms/core";
 import type { Metadata } from "@puckeditor/core";
 import type { AnchorHTMLAttributes, ComponentType, ImgHTMLAttributes } from "react";
@@ -121,6 +122,13 @@ export interface SiteContextValue {
    * in view wherever they're cut to fit.
    */
   focus?: Record<string, string>;
+  /**
+   * In the admin panel's editor only: the site's synced blocks, which the
+   * Synced block block offers and draws. Where pages are built, each is put
+   * in place of the block that places it (`expandSyncedBlocks()`), so they
+   * aren't needed there.
+   */
+  syncedBlocks?: SyncedBlock[];
   /** In the admin panel's editor only: links to its screens, so a block's note can say where to fix something. */
   adminLink?: (place: AdminPlace) => AdminLinkProps;
   /**
@@ -143,5 +151,6 @@ export function siteMetadata(site: SiteContextValue): Metadata {
     entry: site.entry,
     view: site.view,
     languages: site.languages,
+    syncedBlocks: site.syncedBlocks,
   };
 }

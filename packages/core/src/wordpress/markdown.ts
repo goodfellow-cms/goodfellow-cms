@@ -229,6 +229,9 @@ export function partsMarkdown(parts: Part[], link: Link): string {
         if (part.summary) out.push(`**${escapeText(part.summary)}**`);
         part.parts.forEach(write);
         break;
+      case "synced":
+        part.parts.forEach(write);
+        break;
       case "separator":
         out.push("---");
         break;

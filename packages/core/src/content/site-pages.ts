@@ -8,6 +8,7 @@
 import { contentForPage } from "./languages.js";
 import { allPages, type Page, type SiteContent } from "./load.js";
 import { normalizePagePath } from "./paths.js";
+import { expandSyncedBlocks } from "./synced-blocks.js";
 
 /** What a page shows of the block that added pages to it. */
 export interface PageView {
@@ -116,7 +117,8 @@ function blockWithPages(
   if (page.entry || page.path === "/404") return undefined;
   // Blocks see the site in the page's language, so a list counts only that language's items.
   const context = { content: contentForPage(content, page), page, today };
-  const data = page.content.data;
+  // Synced blocks count where they're placed, with the ids pages give their blocks.
+  const data = expandSyncedBlocks(page.content.data, context.content, context.content.settings.language);
   return firstPages(data.content, blocks, context) ?? firstPages(data.zones, blocks, context);
 }
 

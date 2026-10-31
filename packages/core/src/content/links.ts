@@ -324,6 +324,27 @@ export function mapSiteLinks(
         ),
       ]),
     );
+  const syncedBlocks = content.syncedBlocks?.map((block) => ({
+    ...block,
+    content: changed(block.file, block.content, {
+      ...block.content,
+      data: mapData(block.content.data, blocks, visit(block.file)),
+    }),
+    ...(block.languages && {
+      languages: Object.fromEntries(
+        Object.entries(block.languages).map(([language, own]) => [
+          language,
+          {
+            ...own,
+            content: changed(own.file, own.content, {
+              ...own.content,
+              data: mapData(own.content.data, blocks, visit(own.file)),
+            }),
+          },
+        ]),
+      ),
+    }),
+  }));
   const menusVisitor = visit(MENUS_FILE);
   const mapMenus = (menus: Menus): Menus =>
     Object.fromEntries(
@@ -373,6 +394,7 @@ export function mapSiteLinks(
       menus,
       ...(languageMenus && { languageMenus }),
       ...(languageLayouts && { languageLayouts }),
+      ...(syncedBlocks && { syncedBlocks }),
       settings: site,
       ...(redirects && { redirects }),
     },

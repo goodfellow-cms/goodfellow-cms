@@ -97,7 +97,9 @@ export type Part =
   | { kind: "code"; code: string; language: string }
   | { kind: "table"; rows: TableRow[]; caption?: string }
   /** A list of the latest posts. */
-  | { kind: "posts"; count: number };
+  | { kind: "posts"; count: number }
+  /** A synced pattern placed by its id, with what it shows, for wherever it can't be a synced block. */
+  | { kind: "synced"; ref: number; parts: Part[] };
 
 /** What couldn't come across as it was. */
 export type ConversionNote =
@@ -330,7 +332,7 @@ function blockToParts(block: WordPressBlock, context: ConvertContext, reused: Se
       const ref = number(block.attrs.ref, 0);
       const content = context.reusable(ref);
       if (!content || reused.has(ref)) return [];
-      return blockParts(parseBlocks(content), context, new Set([...reused, ref]));
+      return [{ kind: "synced", ref, parts: blockParts(parseBlocks(content), context, new Set([...reused, ref])) }];
     }
     case "core/latest-posts":
       return [{ kind: "posts", count: number(block.attrs.postsToShow, 5) }];

@@ -122,6 +122,7 @@ export function readWordPressExport(xml: string): WordPressSite {
   const menuItems = new Map<string, WordPressMenuItem[]>();
   const navigation: WordPressMenu[] = [];
   const reusableBlocks: Record<number, string> = {};
+  const syncedPatterns: Record<number, { name: string; title: string }> = {};
   const other: Record<string, number> = {};
   const count = (kind: string, by = 1) => {
     if (by > 0) other[kind] = (other[kind] ?? 0) + by;
@@ -189,6 +190,9 @@ export function readWordPressExport(xml: string): WordPressSite {
       }
     } else if (type === "wp_block") {
       reusableBlocks[id] = content;
+      if (values.wp_pattern_sync_status !== "unsynced" && status === "publish") {
+        syncedPatterns[id] = { name: decodedSlug(childText(item, "wp:post_name")), title: title || `Pattern ${id}` };
+      }
     } else if (!PARTS.has(type) && type) {
       count(type);
     }
@@ -227,6 +231,7 @@ export function readWordPressExport(xml: string): WordPressSite {
     menus,
     media,
     reusableBlocks,
+    syncedPatterns,
     other,
     source: "export-file",
   };

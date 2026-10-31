@@ -9,6 +9,7 @@ import {
   type GitHost,
   HEADER_FILE,
   readAdminText,
+  SYNCED_BLOCKS_DIR,
 } from "@goodfellow-cms/core";
 import { Menu as MenuIcon, Moon, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -56,6 +57,7 @@ import { SignInGate } from "./sign-in.js";
 import { SiteHistoryScreen } from "./site-history-screen.js";
 import { isPreviewAddress, SitePreview } from "./site-preview.js";
 import { defaultStrings, type StringKey, type Strings, StringsProvider, useStrings } from "./strings.js";
+import { SyncedBlockEditorScreen, SyncedBlocksScreen } from "./synced-blocks-screen.js";
 import { setDarkMode, useApplyThemeChoice, useDarkMode } from "./theme.js";
 import { ThemesScreen } from "./themes-screen.js";
 import { Button, Dialog, ErrorMessage } from "./ui.js";
@@ -241,6 +243,13 @@ function Screen() {
         part={sub === "footer" ? "footer" : "header"}
         language={params.get("language") ?? undefined}
       />
+    );
+  }
+  if (section === "synced-blocks") {
+    return sub === "edit" ? (
+      <SyncedBlockEditorScreen name={params.get("name") ?? ""} language={params.get("language") ?? undefined} />
+    ) : (
+      <SyncedBlocksScreen />
     );
   }
   if (section === "versions") return <VersionsScreen file={params.get("file") ?? ""} />;
@@ -584,8 +593,9 @@ function useTopbarMenu() {
 }
 
 /** The part of the admin panel a file's Version history belongs to. */
-function versionsSection(file: string): "pages" | "collections" | "layout" {
+function versionsSection(file: string): "pages" | "collections" | "layout" | "synced-blocks" {
   if (file.startsWith(`${COLLECTIONS_DIR}/`)) return "collections";
+  if (file.startsWith(`${SYNCED_BLOCKS_DIR}/`)) return "synced-blocks";
   return file === HEADER_FILE || file === FOOTER_FILE ? "layout" : "pages";
 }
 
@@ -624,7 +634,8 @@ function Shell() {
           section === "settings" ||
           section === "collections" ||
           section === "media" ||
-          section === "blocks"
+          section === "blocks" ||
+          section === "synced-blocks"
         ? section
         : "pages";
 
@@ -645,6 +656,9 @@ function Shell() {
             </AppLink>
             <AppLink href="#/layout/header" aria-current={current === "layout" ? "page" : undefined}>
               {t("nav.layout")}
+            </AppLink>
+            <AppLink href="#/synced-blocks" aria-current={current === "synced-blocks" ? "page" : undefined}>
+              {t("nav.synced")}
             </AppLink>
             {owner && !contentOnly && (
               <AppLink href="#/blocks" aria-current={current === "blocks" ? "page" : undefined}>

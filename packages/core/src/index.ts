@@ -295,6 +295,7 @@ export {
   collectionFileChange,
   customCssFileChange,
   deleteCollectionChanges,
+  deleteSyncedBlockChanges,
   duplicatePageData,
   type EntryNameProblem,
   entryFileChange,
@@ -317,6 +318,7 @@ export {
   storedCss,
   storedData,
   storedEntryFields,
+  syncedBlockFileChange,
   uniqueName,
   updateSettingsFileChange,
   withoutMediaDetails,
@@ -484,6 +486,7 @@ export {
   readTextFiles,
   type SiteCode,
   type SiteContent,
+  type SyncedBlock,
 } from "./content/load.js";
 export {
   canFormatMarkdown,
@@ -580,6 +583,8 @@ export {
   RESERVED_PAGE_PATHS,
   SITE_FILE,
   SLUG_PLACEHOLDER,
+  SYNCED_BLOCKS_DIR,
+  syncedBlockFile,
   THEME_FILE,
   UPDATES_FILE,
 } from "./content/paths.js";
@@ -686,7 +691,9 @@ export {
   type PageFile,
   pageFileSchema,
   type SiteSettings,
+  type SyncedBlockFile,
   siteSettingsSchema,
+  syncedBlockFileSchema,
   THEME_COLORS,
   type Theme,
   type ThemeColor,
@@ -742,6 +749,19 @@ export {
   structuredDataScript,
   zonedIso,
 } from "./content/structured-data.js";
+export {
+  expandSyncedBlocks,
+  findSyncedBlock,
+  placedSyncedBlock,
+  placedSyncedBlocks,
+  SYNCED_BLOCK,
+  SYNCED_BLOCK_PROP,
+  type SyncedBlockProblem,
+  type SyncedBlockUse,
+  syncedBlockIn,
+  syncedBlockProblems,
+  syncedBlockUses,
+} from "./content/synced-blocks.js";
 export {
   parseThemeLayout,
   parseThemeRecord,

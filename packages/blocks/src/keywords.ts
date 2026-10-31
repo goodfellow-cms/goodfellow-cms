@@ -10,6 +10,7 @@ export const BLOCK_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
   Space: ["spacer", "gap", "padding"],
   Separator: ["divider", "line", "rule"],
   MediaText: ["media and text", "picture beside text", "image and text"],
+  SyncedBlock: ["reusable", "synced pattern", "pattern", "shared", "global", "reusable block"],
   Details: ["accordion", "toggle", "collapse", "faq", "show more"],
   Heading: ["title", "subheading", "h1", "h2"],
   Text: ["paragraph", "rich text", "words", "list"],

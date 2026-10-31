@@ -54,7 +54,7 @@ export interface AiEditor {
 
 /** Which editor the panel is in, which decides what it can do. */
 export interface AiContext {
-  kind: "page" | "header" | "footer" | "template" | "entry";
+  kind: "page" | "header" | "footer" | "template" | "entry" | "synced";
   path: string;
   title: string;
   collection?: Collection;

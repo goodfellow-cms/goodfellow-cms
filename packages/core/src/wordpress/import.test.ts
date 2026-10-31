@@ -107,7 +107,11 @@ describe("planning an import", () => {
     expect(blocks).toContain('"caption":"Our church in spring"');
     expect(blocks).toContain('"type":"Grid"');
     expect(blocks).toContain('"label":"Meet the staff","newTab":false,"size":"md","variant":"primary"');
-    expect(blocks).toContain("Everyone is welcome.");
+    // WordPress's synced pattern is a synced block, which the page places.
+    expect(blocks).toContain('{"type":"SyncedBlock","props":{"id":"SyncedBlock-wp-');
+    expect(blocks).toContain('"block":"welcome-note"');
+    expect(json(files["content/synced-blocks/welcome-note.json"])).toMatchObject({ title: "Welcome note" });
+    expect(files["content/synced-blocks/welcome-note.json"]).toContain("Everyone is welcome.");
     expect(blocks).toContain('"type":"CollectionList"');
 
     const about = JSON.stringify(json(files["content/pages/about.json"]).data.content);

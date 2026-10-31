@@ -37,6 +37,7 @@ function placesText(t: Translate, uses: BlockUse[]): string {
     .map((use) => {
       if (use.kind === "page") return use.title ? `${use.title} (${use.path})` : use.path;
       if (use.kind === "template") return t("blocks.usedTemplate", { name: use.name });
+      if (use.kind === "synced-block") return t("blocks.usedSyncedBlock", { title: use.title });
       return t(use.kind === "header" ? "layout.header" : "layout.footer");
     })
     .join(", ");

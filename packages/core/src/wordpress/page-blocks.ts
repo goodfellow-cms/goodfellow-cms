@@ -50,6 +50,7 @@ export const WORDPRESS_BLOCKS = [
   "PageList",
   "Embed",
   "Document",
+  "SyncedBlock",
 ];
 
 export interface PageBlocksOptions {
@@ -60,6 +61,11 @@ export interface PageBlocksOptions {
   writer?: BlockWriter;
   /** The site's blocks, where only some of `WORDPRESS_BLOCKS` may be there. Every one without it. */
   blocks?: readonly string[];
+  /**
+   * The synced block a synced pattern becomes, by its id, or `undefined` for one whose blocks go in its place,
+   * as they do without it.
+   */
+  synced?: (ref: number) => string | undefined;
 }
 
 /** Writes blocks with ids of their own on one page, each `<type>-<prefix>-<count>`. */
@@ -230,6 +236,19 @@ export function partBlocks(parts: Part[], writer: BlockWriter, options: PageBloc
     }
     if (part.kind === "post" && !has("Embed")) {
       text += link(part.link, part.caption || part.url);
+      continue;
+    }
+    if (part.kind === "synced") {
+      const name = has("SyncedBlock") ? options.synced?.(part.ref) : undefined;
+      flush();
+      if (name) {
+        const placed = writer.block("SyncedBlock", { block: name });
+        // A Synced block has no Style of its own: its synced block's blocks have theirs.
+        delete placed.props.className;
+        out.push(placed);
+      } else {
+        out.push(...partBlocks(part.parts, writer, options));
+      }
       continue;
     }
     if (part.kind === "details" && !has("Details")) {

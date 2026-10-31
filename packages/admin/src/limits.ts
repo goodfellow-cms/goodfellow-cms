@@ -17,7 +17,7 @@ import { useAdmin } from "./admin-context.js";
 /** Something an editor opens. */
 export type Editable =
   | { kind: "page"; path: string }
-  | { kind: "header" | "footer"; language?: string }
+  | { kind: "header" | "footer" | "synced"; language?: string }
   | { kind: "template"; collection: string }
   | { kind: "entry"; collection: string; entry: string }
   | { kind: "media" }
@@ -33,6 +33,7 @@ export function mayChange(content: SiteContent, limits: EditorLimits | undefined
     }
     case "header":
     case "footer":
+    case "synced":
       return mayChangeLayout(content, limits, what.language);
     case "template":
       return false;

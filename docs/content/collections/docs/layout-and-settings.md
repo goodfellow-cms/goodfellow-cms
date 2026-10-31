@@ -8,7 +8,7 @@ order: 5
 
 ## Header and footer
 
-**Header & Footer** opens the header and the footer in the same editor as pages. They appear on every page. Blocks such as **Menu**, **Site name and logo** and **Contact details** read the site's settings, so changing the logo or a menu changes them everywhere. On a site in [several languages](/docs/languages#the-header-and-footer), each language can have a header and footer of its own.
+**Header & Footer** opens the header and the footer in the same editor as pages. They appear on every page. Blocks such as **Menu**, **Site name and logo** and **Contact details** read the site's settings, so changing the logo or a menu changes them everywhere. On a site in [several languages](/docs/languages#the-header-and-footer), each language can have a header and footer of its own. Blocks several pages share, but not every page, can be [synced blocks](/docs/synced-blocks) instead.
 
 ## Site Settings
 

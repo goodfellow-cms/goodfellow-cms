@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import type { RenderShow } from "./frame/protocol.js";
 import { PreviewFrame } from "./preview.js";
-import { entryEditorHref, pageEditorHref } from "./router.js";
+import { entryEditorHref, pageEditorHref, syncedBlockEditorHref } from "./router.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage } from "./ui.js";
 import { AppLink } from "./use-link.js";
@@ -29,6 +29,7 @@ export function versionsHref(file: string): string {
 function editorHref(subject: VersionSubject): string {
   if (subject.kind === "page") return pageEditorHref(subject.page.path);
   if (subject.kind === "entry") return entryEditorHref(subject.collection.id, subject.entry.slug);
+  if (subject.kind === "synced") return syncedBlockEditorHref(subject.block.name, subject.language);
   return `#/layout/${subject.kind}`;
 }
 
