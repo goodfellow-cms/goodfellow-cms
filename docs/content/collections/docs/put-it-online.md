@@ -41,6 +41,8 @@ Then set the site's address under **Site Settings → General → Site address**
 
 Each host's free plan has its own rules about business use; read [Hosts and business sites](/docs/hosts) first if the site is for a business, sells anything or shows ads.
 
+These four have setup files ready. A site can be hosted anywhere else too, such as on AWS, Google Cloud, DigitalOcean or a server of your own, with a build you set up: see [Host anywhere](/docs/any-host).
+
 **GitHub Pages**, free for public repositories:
 
 1. In the repository on GitHub, go to **Settings → Pages** and set **Source** to **GitHub Actions**.

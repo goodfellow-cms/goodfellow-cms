@@ -17,6 +17,7 @@ import {
   redirectFrom,
   redirectProblems,
   shownContent,
+  TRAILING_SLASH_VARIABLE,
   vercelAdminRedirects,
   vercelHeaders,
 } from "@goodfellow-cms/core";
@@ -268,8 +269,13 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       ...nextConfig,
       ...(basePath && { basePath }),
       images: imageSettings(nextConfig.images),
-      // Tells the site's pages and the admin panel where the site is served from.
-      env: { ...nextConfig.env, GOODFELLOW_BASE_PATH: basePath },
+      // Tells the site's pages and the admin panel where the site is served from, and the pages how their full
+      // addresses end, as Next.js serves them.
+      env: {
+        ...nextConfig.env,
+        GOODFELLOW_BASE_PATH: basePath,
+        [TRAILING_SLASH_VARIABLE]: String(nextConfig.trailingSlash ?? true),
+      },
     };
     // Pages are rendered in several processes, which each write the dates what they show changes on for
     // `goodfellow-next finish`'s build record.

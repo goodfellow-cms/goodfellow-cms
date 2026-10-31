@@ -1,5 +1,7 @@
 // What the Share buttons and Donate blocks show, with no React, so their web and native versions share it.
 
+import { pageUrl, type SiteSettings } from "@goodfellow-cms/core";
+
 /** The places a page can be shared to. Each is only a link, so the page loads nothing from them. */
 export const SHARE_SITES = ["facebook", "x", "bluesky", "linkedin", "whatsapp", "email"] as const;
 export type ShareSite = (typeof SHARE_SITES)[number];
@@ -21,10 +23,9 @@ export interface ShareButtonsProps {
   className: string;
 }
 
-/** The page's full address: the Site address and the page's path. */
-export function pageAddress(siteUrl: string | undefined, path: string): string | undefined {
-  if (!siteUrl) return undefined;
-  return `${siteUrl.replace(/\/+$/, "")}${path === "/" ? "/" : path}`;
+/** The page's full address, as search engines are given it: the Site address and the page's path (`pageUrl()`). */
+export function pageAddress(settings: Pick<SiteSettings, "url" | "trailingSlash">, path: string): string | undefined {
+  return settings.url ? pageUrl(settings, settings.url, path) : undefined;
 }
 
 /** A link that shares `url`, with `title` where the site takes words too. */

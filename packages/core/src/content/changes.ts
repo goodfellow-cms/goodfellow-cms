@@ -323,8 +323,8 @@ export function movePageChanges(
 }
 
 export function siteSettingsFileChange(settings: SiteSettings): FileChange {
-  // Only the settings a page in another language is shown with have it.
-  const { mainLanguage: _shown, ...stored } = settings;
+  // Only the settings a page in another language is shown with have it, and builds set how addresses end.
+  const { mainLanguage: _shown, trailingSlash: _built, ...stored } = settings;
   return { path: SITE_FILE, content: serializeContent({ ...stored, version: CURRENT_VERSION.site }) };
 }
 

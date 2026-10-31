@@ -3,7 +3,7 @@
  * each form service reads, and Google Forms' embedded forms.
  */
 import type { SiteSettings } from "./content/schemas.js";
-import { absoluteUrl } from "./head.js";
+import { absoluteUrl, pageAddressPath } from "./head.js";
 import { embedSource } from "./video.js";
 
 export type FormService = NonNullable<SiteSettings["forms"]>["service"];
@@ -127,13 +127,17 @@ export function formTarget(
   };
 }
 
-/** The full address of a page of the site, for a service to send visitors back to, if the site's address is set. */
-export function formRedirect(siteUrl: string | undefined, path: string): string | undefined {
+/**
+ * The full address of a page of the site, for a service to send visitors back
+ * to, if the site's address is set, ending as the site's pages' addresses do
+ * (`trailingSlash`, see `pageUrl()`).
+ */
+export function formRedirect(siteUrl: string | undefined, path: string, trailingSlash = true): string | undefined {
   const page = path.trim();
   if (!page) return undefined;
   if (/^https:\/\//i.test(page)) return page;
   if (!siteUrl || !page.startsWith("/")) return undefined;
-  return absoluteUrl(siteUrl, page);
+  return absoluteUrl(siteUrl, pageAddressPath(page, trailingSlash));
 }
 
 /** Why a Google form can't be shown, in plain words. */

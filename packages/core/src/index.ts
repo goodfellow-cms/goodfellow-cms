@@ -928,11 +928,18 @@ export {
 } from "./git.js";
 export { UPDATE_CHECK, UPDATE_FILES, UPDATE_FOLDERS, UPDATE_REGISTRY } from "./github-workflows.js";
 export {
+  AI_TRAINING_CRAWLERS,
   absoluteUrl,
   getPageHead,
   neverIndexed,
   type PageHead,
+  pageAddressPath,
   pageHead,
+  pageUrl,
+  type RobotsRule,
+  robotsContent,
+  robotsRules,
+  robotsTxt,
   rootRobotsUrl,
   type SitemapPage,
   sitemapPages,
@@ -1239,7 +1246,11 @@ export {
   SITE_URL_VARIABLE,
   type SiteCopy,
   siteCopyFrom,
+  TRAILING_SLASH_VARIABLE,
+  trailingSlashFrom,
+  withConfiguredTrailingSlash,
   withSiteCopy,
+  withTrailingSlash,
 } from "./site-copy.js";
 export {
   type BlockDescription,

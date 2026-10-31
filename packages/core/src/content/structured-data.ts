@@ -6,7 +6,7 @@
  * site has it only once its address is set.
  */
 import { isEventLike, shownOccurrence, todayIn, zonedInstant, zonedTime, zoneOffset } from "../calendar.js";
-import { absoluteUrl, getPageHead } from "../head.js";
+import { absoluteUrl, getPageHead, pageUrl } from "../head.js";
 import { type Collection, type Entry, richTextToPlainText } from "./collections.js";
 import { dateField, entryDetails } from "./entry-details.js";
 import { contentForPage, isLanguageHome } from "./languages.js";
@@ -84,7 +84,7 @@ function eventData(content: SiteContent, collection: Collection, entry: Entry, s
     ...(place && { location: { "@type": "Place", name: place, address: place } }),
     ...(details.summary && { description: details.summary }),
     ...(image && { image: [image] }),
-    ...(entry.path && { url: absoluteUrl(siteUrl, entry.path) }),
+    ...(entry.path && { url: pageUrl(content.settings, siteUrl, entry.path) }),
     organizer: organization(content, siteUrl),
   };
 }
@@ -103,7 +103,10 @@ function articleData(content: SiteContent, collection: Collection, entry: Entry,
     datePublished: details.date,
     ...(details.summary && { description: details.summary }),
     ...(image && { image: [image] }),
-    ...(entry.path && { url: absoluteUrl(siteUrl, entry.path), mainEntityOfPage: absoluteUrl(siteUrl, entry.path) }),
+    ...(entry.path && {
+      url: pageUrl(content.settings, siteUrl, entry.path),
+      mainEntityOfPage: pageUrl(content.settings, siteUrl, entry.path),
+    }),
     author: publisher,
     publisher,
   };
@@ -154,7 +157,7 @@ export function structuredData(
       {
         "@type": "WebSite",
         name: settings.title,
-        url: absoluteUrl(siteUrl, page.path),
+        url: pageUrl(settings, siteUrl, page.path),
         ...(settings.description && { description: settings.description }),
         inLanguage: settings.language,
       },

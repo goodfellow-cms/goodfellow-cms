@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 import { withBase } from "../base-path.js";
-import { absoluteUrl } from "../head.js";
+import { pageAddressPath, pageUrl } from "../head.js";
 import { DEFAULT_THEME_COLORS, darkThemeColor, escapeStyleText } from "../theme.js";
 import type { BuildFile } from "./calendars.js";
 import type { SiteContent } from "./load.js";
@@ -209,8 +209,9 @@ export function redirectPage(
   base?: string,
 ): string {
   const { settings } = content;
-  const href = withBase(to, base);
-  const canonical = to.startsWith("/") ? settings.url && absoluteUrl(settings.url, to) : to;
+  // Straight to the address the host serves the page at, rather than one it would redirect again.
+  const href = withBase(to.startsWith("/") ? pageAddressPath(to, settings.trailingSlash !== false) : to, base);
+  const canonical = to.startsWith("/") ? settings.url && pageUrl(settings, settings.url, to) : to;
   const link = escapeHtml(href);
   const colors = { ...DEFAULT_THEME_COLORS, ...settings.theme.colors };
   const name = (content.pages && targetTitle({ pages: content.pages }, to)) ?? to;
@@ -324,11 +325,13 @@ export const CLOUDFLARE_REDIRECTS_LIMIT = 2000;
 export function cloudflareRedirects(
   redirects: readonly Redirect[],
   base?: string,
+  trailingSlash = true,
 ): { file: BuildFile | undefined; left: number } {
   const lines: string[] = [];
   let left = 0;
   for (const { from, to } of redirects) {
-    const target = to.startsWith("/") ? withBase(to, base).replace(/ /g, "%20") : to;
+    // Straight to the address the host serves the page at (`pageAddressPath()`), rather than one it redirects again.
+    const target = to.startsWith("/") ? withBase(pageAddressPath(to, trailingSlash), base).replace(/ /g, "%20") : to;
     const old = encodeURI(withBase(from, base));
     const spellings = /\.html?$/i.test(from) ? [old] : [old, `${old}/`];
     if (lines.length + spellings.length > CLOUDFLARE_REDIRECTS_LIMIT) {

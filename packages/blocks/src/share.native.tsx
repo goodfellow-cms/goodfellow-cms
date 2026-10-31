@@ -15,7 +15,7 @@ import {
 export function ShareButtons({ label, sites, look }: ShareButtonsProps) {
   const site = useNativeSite();
   const path = site.path ?? "/";
-  const url = pageAddress(site.settings.url, path);
+  const url = pageAddress(site.settings, path);
   const shown = shownSites(sites);
   if (!url || shown.length === 0) return null;
   const title = (site.entry?.content.fields.title as string | undefined) || site.settings.title;

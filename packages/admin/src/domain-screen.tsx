@@ -93,6 +93,7 @@ export function DomainScreen() {
         <p>{t("domain.elsewhere", { host })}</p>
         {outside !== "vercel" && <p>{t("domain.elsewhere.cloudflare")}</p>}
         {outside !== "cloudflare-pages" && <p>{t("domain.elsewhere.vercel")}</p>}
+        {!outside && <p>{t("domain.elsewhere.other")}</p>}
       </>
     );
   } else if (site.domain) {

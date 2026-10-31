@@ -98,8 +98,12 @@ describe("renderPage", () => {
 
     expect(html.startsWith('<!DOCTYPE html><html lang="en">')).toBe(true);
     expect(html).toContain("<title>About | St. Joseph</title>");
-    expect(html).toContain('<link rel="canonical" href="https://example.org/about"/>');
+    expect(html).toContain('<link rel="canonical" href="https://example.org/about/"/>');
     expect(html).toContain('<meta property="og:image" content="https://example.org/media/share.png"/>');
+    // Search engines may show its pictures large, and link previews show the site's name and a large picture.
+    expect(html).toContain('<meta name="robots" content="max-image-preview:large"/>');
+    expect(html).toContain('<meta property="og:site_name" content="St. Joseph"/>');
+    expect(html).toContain('<meta name="twitter:card" content="summary_large_image"/>');
     expect(html).toContain('<link rel="stylesheet" href="/assets/site.css"/>');
     expect(html).toContain("family=Cinzel:wght@");
     expect(html).toContain("--primary:#1e3a8a");

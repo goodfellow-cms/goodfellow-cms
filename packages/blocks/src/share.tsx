@@ -25,7 +25,7 @@ function Notice({ text, className }: { text: string; className: string }) {
 function ShareButtonsView({ label, sites, look, className, isEditing }: ShareButtonsProps & { isEditing: boolean }) {
   const { settings, path, pages, entry } = useSite();
   const part = useParts();
-  const url = pageAddress(settings.url, path || "/");
+  const url = pageAddress(settings, path || "/");
   if (!url) {
     return isEditing ? (
       <Notice

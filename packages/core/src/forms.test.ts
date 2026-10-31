@@ -69,10 +69,12 @@ describe("formTarget", () => {
 
 describe("formRedirect", () => {
   it("makes the thank-you page's full address from the site's", () => {
-    expect(formRedirect("https://parish.example.org", "/thanks")).toBe("https://parish.example.org/thanks");
+    expect(formRedirect("https://parish.example.org", "/thanks")).toBe("https://parish.example.org/thanks/");
     expect(formRedirect("https://example.github.io/parish/", "/thanks")).toBe(
-      "https://example.github.io/parish/thanks",
+      "https://example.github.io/parish/thanks/",
     );
+    // As the site's pages' addresses end, where the host serves them without a slash.
+    expect(formRedirect("https://parish.example.org", "/thanks/", false)).toBe("https://parish.example.org/thanks");
     expect(formRedirect(undefined, "https://other.example.org/done")).toBe("https://other.example.org/done");
     expect(formRedirect(undefined, "/thanks")).toBeUndefined();
     expect(formRedirect("https://parish.example.org", "")).toBeUndefined();

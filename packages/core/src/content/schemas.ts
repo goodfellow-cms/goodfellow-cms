@@ -283,6 +283,21 @@ export const siteSettingsSchema = z
      * `GOODFELLOW_NO_INDEX` (`site-copy.ts`), so it never reaches the main site.
      */
     noIndex: z.boolean().optional(),
+    /**
+     * Whether pages' full addresses (their canonical address, the sitemap's,
+     * `hreflang`'s, feeds' and structured data's) end with `/`, as
+     * `https://example.org/about/`. Set only where the site is built, from the
+     * config's `trailingSlash` or Next.js's, through `GOODFELLOW_TRAILING_SLASH`
+     * (`TRAILING_SLASH_VARIABLE`), so it follows how the host serves pages;
+     * never stored. On where it's missing.
+     */
+    trailingSlash: z.boolean().optional(),
+    /**
+     * Asks AI companies' crawlers that collect pages to train their models
+     * (`AI_TRAINING_CRAWLERS`) to leave the whole site alone, in `robots.txt`.
+     * Search engines still list it. Off where it's missing.
+     */
+    noAiTraining: z.boolean().optional(),
     /** The site's main language, whose pages are at the root of its address. */
     language: z.string().default("en"),
     /** The main language's name as visitors see it in a language switch, such as "English". Worked out from its code if left out. */

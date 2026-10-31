@@ -1123,6 +1123,8 @@ export const defaultStrings = {
     "On Cloudflare Pages: open the site's project, go to Custom domains and set up the domain. For a domain such as www.example.org, Cloudflare shows a CNAME record to add at your registrar. For example.org itself, the domain has to use Cloudflare's nameservers, which Cloudflare walks you through. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.elsewhere.vercel":
     "On Vercel: open the site's project, go to Settings → Domains and add the domain. Vercel shows the records to add at your registrar. Once the site works at its new address, put the address in General → Site address and publish.",
+  "domain.elsewhere.other":
+    "On any other host: connect the domain in the host's own settings, as it explains. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.field": "Domain",
   "domain.fieldHint":
     "Such as example.org or www.example.org. Buy one first from a registrar, such as Cloudflare, Namecheap or Porkbun. For example.org, www.example.org works too.",
@@ -1967,6 +1969,9 @@ export const defaultStrings = {
   "general.logoDarkHint":
     "A version of the logo that shows up on dark backgrounds, such as a white one. Leave it empty to use the same logo.",
   "general.socialImage": "Image when shared on social media",
+  "general.aiTraining": "Let AI companies use the site's pages to train their models",
+  "general.aiTrainingHint":
+    "Turned off, the site asks the crawlers AI companies train their models with, such as OpenAI's GPTBot, Anthropic's ClaudeBot and Google-Extended, to leave it alone. Search engines still list it, and assistants can still read a page someone asks them about. Well-behaved crawlers follow the request, but it isn't a lock: anyone can still read the site's pages.",
   "general.contact": "Contact details",
   "general.contactHint": "Shown wherever a Contact details block is placed, such as the footer.",
   "general.address": "Address",
