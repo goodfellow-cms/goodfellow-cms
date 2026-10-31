@@ -501,9 +501,21 @@ export const FIELD_TYPES = [
   "image",
   "select",
   "tags",
+  "yesno",
+  "item",
+  "images",
+  "file",
+  "group",
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
+
+/** The kinds of information each row of a repeating group (`group`) can hold. */
+export const GROUP_FIELD_TYPES = ["text", "textarea", "number", "date", "link", "image", "yesno"] as const;
+export type GroupFieldType = (typeof GROUP_FIELD_TYPES)[number];
+
+/** The most fields a repeating group's rows can have. */
+export const MAX_GROUP_FIELDS = 10;
 
 /** A field's name, which also makes its placeholder: `speaker` → `{speaker}`. */
 const fieldName = z
@@ -515,6 +527,14 @@ const fieldOption = z.object({
   label: z.string(),
 });
 
+const groupField = z.object({
+  name: fieldName,
+  label: z.string().min(1),
+  type: z.enum(GROUP_FIELD_TYPES),
+});
+
+export type GroupField = z.output<typeof groupField>;
+
 const collectionField = z.object({
   name: fieldName,
   label: z.string().min(1),
@@ -525,6 +545,12 @@ const collectionField = z.object({
   hint: z.string().optional(),
   /** The choices for a `select` field, or the tags a `tags` field offers. */
   options: z.array(fieldOption).optional(),
+  /** For a link to items (`item`): the collection whose items it links to, by its folder name. */
+  collection: z.string().optional(),
+  /** For a link to items: whether it links to several items, as a list, rather than one. */
+  multiple: z.boolean().optional(),
+  /** For a repeating group (`group`): the fields each of its rows has. */
+  fields: z.array(groupField).max(MAX_GROUP_FIELDS).optional(),
 });
 
 export type CollectionField = z.output<typeof collectionField>;
@@ -577,6 +603,26 @@ export const collectionFileSchema = z
       names.add(field.name);
       if ((field.type === "select" || field.type === "tags") && !field.options?.length) {
         ctx.addIssue({ code: "custom", path: ["fields", index, "options"], message: "must list at least one choice" });
+      }
+      if (field.type === "item" && !field.collection) {
+        ctx.addIssue({ code: "custom", path: ["fields", index, "collection"], message: "must name a collection" });
+      }
+      if (field.type === "group") {
+        const rows = field.fields ?? [];
+        if (rows.length === 0) {
+          ctx.addIssue({ code: "custom", path: ["fields", index, "fields"], message: "must list at least one field" });
+        }
+        const seen = new Set<string>();
+        rows.forEach((row, rowIndex) => {
+          if (seen.has(row.name)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["fields", index, "fields", rowIndex, "name"],
+              message: "is used by more than one field",
+            });
+          }
+          seen.add(row.name);
+        });
       }
     });
     const title = file.fields.find((field) => field.name === TITLE_FIELD);

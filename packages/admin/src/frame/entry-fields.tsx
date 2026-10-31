@@ -8,10 +8,10 @@ import {
   type Collection,
   type CollectionField,
   type Entry,
+  type GroupField,
   pageLinks,
   type Schedule,
   type SiteContent,
-  type SiteSettings,
 } from "@goodfellow-cms/core";
 import { applyEntry, type SiteContextValue, SiteProvider, siteMetadata } from "@goodfellow-cms/react";
 import {
@@ -30,6 +30,7 @@ import { useEffect, useMemo, useState } from "react";
 import { storedEntryFields } from "../changes.js";
 import { SCHEDULE_PROP } from "../entry-values.js";
 import { EventField } from "../event-field.js";
+import { ImagesField, ItemPicker, linkableItems } from "../item-fields.js";
 import { MarkdownField } from "../markdown-field.js";
 import { MediaChooser } from "../media-library.js";
 import { ScheduleFields } from "../schedule.js";
@@ -43,7 +44,11 @@ function Hint({ text }: { text?: string }) {
 }
 
 /** What the AI assistant is told a field holds, since it can't tell from a custom field. */
-function aiHint(field: CollectionField, markdown: boolean): AiFieldHint {
+function aiHint(
+  field: CollectionField,
+  markdown: boolean,
+  collections: readonly Collection[],
+): AiFieldHint | undefined {
   const description = field.hint;
   if (markdown) {
     return {
@@ -60,6 +65,21 @@ function aiHint(field: CollectionField, markdown: boolean): AiFieldHint {
       return { type: "choice", options: field.options ?? [], description };
     case "tags":
       return { type: "choices", options: field.options ?? [], description };
+    case "yesno":
+      return { type: "boolean", description };
+    case "item": {
+      // The items it can link to, by their names, as choices.
+      const options = linkableItems(collections.find((candidate) => candidate.id === field.collection))
+        .slice(0, MAX_AI_ITEMS)
+        .map((item) => ({ value: item.slug, label: item.title }));
+      if (options.length === 0) return undefined;
+      return { type: field.multiple ? "choices" : "choice", options, description };
+    }
+    // Images, files and groups are left to editors: the assistant can't know the site's files.
+    case "images":
+    case "file":
+    case "group":
+      return undefined;
     case "link":
       return {
         type: "string",
@@ -75,15 +95,113 @@ function aiHint(field: CollectionField, markdown: boolean): AiFieldHint {
   }
 }
 
+/** The most items the assistant is offered to link to, so a large collection doesn't fill its request. */
+const MAX_AI_ITEMS = 200;
+
 /** The Puck field for one of a collection's fields, shown in the editor's sidebar. */
-function puckField(field: CollectionField, collection: Collection, settings: SiteSettings): Field {
+function puckField(field: CollectionField, collection: Collection, content: SiteContent): Field {
   const markdown = collection.settings.markdown?.body === field.name;
-  const control = fieldControl(field, markdown, settings);
+  const control = fieldControl(field, markdown, content);
   // The assistant leaves events' dates and times alone: they're structured, and editors know them best.
-  return field.type === "event" ? control : { ...control, metadata: { ai: aiHint(field, markdown) } };
+  const ai = field.type === "event" ? undefined : aiHint(field, markdown, content.collections);
+  return ai ? { ...control, metadata: { ai } } : control;
 }
 
-function fieldControl(field: CollectionField, markdown: boolean, settings: SiteSettings): Field {
+/** A text field for an address, with the media chooser below it. */
+function addressControl(
+  label: string,
+  hint: string | undefined,
+  kind: "image" | "file",
+): Pick<Extract<Field, { type: "custom" }>, "render"> {
+  return {
+    render: ({ value, onChange, id }) => (
+      <FieldLabel label={label}>
+        <AutoField
+          id={id}
+          field={{ type: "text" }}
+          value={typeof value === "string" ? value : ""}
+          onChange={onChange}
+        />
+        <MediaChooser value={typeof value === "string" ? value : ""} kind={kind} onChange={onChange} />
+        <Hint text={hint} />
+      </FieldLabel>
+    ),
+  };
+}
+
+/** A checkbox for a yes or no field, which stores nothing when it's off. */
+function YesNo({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  value: unknown;
+  onChange: (value: true | undefined) => void;
+}) {
+  return (
+    <div className="gfa-puck-field">
+      <label className="gfa-checkbox">
+        <input
+          id={id}
+          type="checkbox"
+          checked={value === true}
+          onChange={(event) => onChange(event.target.checked ? true : undefined)}
+        />
+        {label}
+      </label>
+      <Hint text={hint} />
+    </div>
+  );
+}
+
+/** One of a repeating group's fields, as the group's rows show it. */
+function groupFieldControl(field: GroupField): Field {
+  switch (field.type) {
+    case "textarea":
+      return { type: "textarea", label: field.label };
+    case "number":
+      return { type: "number", label: field.label };
+    case "date":
+      return {
+        type: "custom",
+        label: field.label,
+        render: ({ value, onChange, id }) => (
+          <FieldLabel label={field.label}>
+            <input
+              id={id}
+              type="date"
+              className="gfa-puck-input"
+              value={typeof value === "string" ? value : ""}
+              onChange={(event) => onChange(event.target.value)}
+            />
+          </FieldLabel>
+        ),
+      };
+    case "yesno":
+      return {
+        type: "custom",
+        label: field.label,
+        render: ({ value, onChange, id }) => <YesNo id={id} label={field.label} value={value} onChange={onChange} />,
+      };
+    case "image":
+    case "link":
+      return {
+        type: "custom",
+        label: field.label,
+        ...addressControl(field.label, undefined, field.type === "image" ? "image" : "file"),
+      };
+    default:
+      return { type: "text", label: field.label };
+  }
+}
+
+function fieldControl(field: CollectionField, markdown: boolean, content: SiteContent): Field {
+  const { settings } = content;
   const label = field.required ? `${field.label} *` : field.label;
   if (markdown) {
     return {
@@ -170,6 +288,55 @@ function fieldControl(field: CollectionField, markdown: boolean, settings: SiteS
           );
         },
       };
+    case "yesno":
+      return {
+        type: "custom",
+        label,
+        render: ({ value, onChange, id }) => (
+          <YesNo id={id} label={label} hint={field.hint} value={value} onChange={onChange} />
+        ),
+      };
+    case "item":
+      return {
+        type: "custom",
+        label,
+        render: ({ value, onChange, id }) => (
+          <FieldLabel label={label} el="div">
+            <ItemPicker
+              id={id}
+              collection={content.collections.find((candidate) => candidate.id === field.collection)}
+              multiple={field.multiple === true}
+              value={value}
+              onChange={onChange}
+            />
+            <Hint text={field.hint} />
+          </FieldLabel>
+        ),
+      };
+    case "images":
+      return {
+        type: "custom",
+        label,
+        render: ({ value, onChange }) => (
+          <FieldLabel label={label} el="div">
+            <ImagesField value={value} onChange={onChange} />
+            <Hint text={field.hint} />
+          </FieldLabel>
+        ),
+      };
+    case "file":
+      return { type: "custom", label, ...addressControl(label, field.hint, "file") };
+    case "group": {
+      const subFields = field.fields ?? [];
+      const first = subFields[0]?.name;
+      return {
+        type: "array",
+        label,
+        arrayFields: Object.fromEntries(subFields.map((sub) => [sub.name, groupFieldControl(sub)])),
+        getItemSummary: (row: Record<string, unknown>, index?: number) =>
+          (first && typeof row?.[first] === "string" && row[first]) || `${(index ?? 0) + 1}`,
+      } as Field;
+    }
     case "event":
       return {
         type: "custom",
@@ -267,8 +434,9 @@ function EntryPreview({ collection, entry, content, templateConfig, layoutConfig
         current,
         content.settings.language,
         content.settings.timeZone,
+        content.collections,
       ),
-    [collection, templateConfig, current, content.settings.language, content.settings.timeZone],
+    [collection, templateConfig, current, content.settings.language, content.settings.timeZone, content.collections],
   );
 
   // Blocks such as Entry field fill themselves in with resolveData, as they do when the site is built.
@@ -326,7 +494,7 @@ export function entryConfig(
     components: {},
     root: {
       fields: Object.fromEntries([
-        ...collection.settings.fields.map((field) => [field.name, puckField(field, collection, content.settings)]),
+        ...collection.settings.fields.map((field) => [field.name, puckField(field, collection, content)]),
         [SCHEDULE_PROP, scheduleField(content)],
       ]) as Fields,
       render: () => (

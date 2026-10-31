@@ -144,7 +144,12 @@ const collectionLoop: ComponentConfig<CollectionLoopProps> = {
   },
   resolveFields: ({ props }, { fields, metadata }) => {
     const collections = (metadata.collections as Collection[] | undefined) ?? [];
-    return resolveListingFields(fields, props, collections) as Fields<CollectionLoopProps>;
+    return resolveListingFields(
+      fields,
+      props,
+      collections,
+      metadata.collection as Collection | undefined,
+    ) as Fields<CollectionLoopProps>;
   },
   render: ({ puck, ...props }) => <CollectionLoopView {...props} isEditing={puck.isEditing} />,
 };

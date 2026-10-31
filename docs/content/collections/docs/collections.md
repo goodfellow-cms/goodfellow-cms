@@ -28,8 +28,23 @@ Under **Settings**, choose the collection's fields:
 | Image | An image from the media library |
 | Choice from a list | One of a set of choices, such as a category |
 | Tags | Any number of a set of choices, such as a story's topics |
+| Yes or no | A tick box, such as "Featured" |
+| Link to items in a collection | One item of another collection, or several, such as a talk's speakers |
+| Several images | Images from the media library, in order, such as an event's photos |
+| File | A file from the media library, such as a PDF to download |
+| Repeating group | Rows of a few fields of their own, such as a day's schedule with each time, title and place |
 
 Every collection has a **Title** field. Fields can be required, have a hint for editors, and be reordered. Removing a field removes its values from every item in the same publish, and so does removing a choice or a tag.
+
+### Links to items
+
+A **Link to items in a collection** field names the collection it links to, which can be its own, and whether it holds one item or several. Editors find items by typing part of their titles. Pages show the items' titles, each linking to its page where the collection gives items pages, and to its translation on a page in another language; in braces, such as `{speakers}`, the titles go in as words.
+
+Links follow the items they name: renaming an item changes every link to it in the same publish, and deleting one lists the items that link to it and takes it out of their links. A collection can't be deleted while another collection's fields link to its items. The [site checks](/docs/publishing#site-checks) stop a publish with a link to an item that isn't there, such as one deleted outside the admin panel.
+
+### Repeating groups
+
+A **Repeating group** has fields of its own, up to ten, each a short or long text, number, date, link, image or yes or no. Editors add, reorder and remove its rows on each item. On the page, the **Entry field** block shows each row's values one after another; in braces, rows go in as words, values joined with " · " and rows with "; ".
 
 Settings also choose the order items are listed in, such as newest first, and whether items are events that calendars show.
 

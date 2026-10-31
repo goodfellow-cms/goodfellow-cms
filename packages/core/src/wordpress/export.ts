@@ -11,7 +11,9 @@ import {
   choicesOf,
   entryTitle,
   formatFieldValue,
+  imagesOf,
   isChoiceField,
+  linkedItems,
 } from "../content/collections.js";
 import { dateField } from "../content/entry-details.js";
 import type { SiteContent } from "../content/load.js";
@@ -551,6 +553,27 @@ export function wordPressExport(content: SiteContent, options: WordPressExportOp
         } else if (field.type === "image" && typeof value === "string") {
           const src = media(value);
           if (src) blocks.push(image(src, "", ""));
+        } else if (field.type === "images") {
+          const pictures = imagesOf(value).flatMap((address) => {
+            const src = media(address);
+            return src ? [{ src, alt: content.descriptions?.[address]?.text ?? "", caption: "" }] : [];
+          });
+          if (pictures.length > 0)
+            blocks.push(gallery(pictures, { columns: Math.min(3, pictures.length), crop: true, caption: field.label }));
+        } else if (field.type === "file" && typeof value === "string") {
+          const href = link(value);
+          if (href) blocks.push(file(href, decodeURIComponent(value.slice(value.lastIndexOf("/") + 1)), field.label));
+        } else if (field.type === "item") {
+          const target = content.collections.find((candidate) => candidate.id === field.collection);
+          const linked = linkedItems(field, value).flatMap((slug) => {
+            const item = target?.entries.find((candidate) => candidate.slug === slug);
+            if (!item) return [];
+            const href = item.path ? link(item.path) : "";
+            const name = escapeText(entryTitle(item));
+            return [href ? `<a href="${escapeAttribute(href)}">${name}</a>` : name];
+          });
+          if (linked.length > 0)
+            blocks.push(paragraph(`<strong>${escapeText(field.label)}:</strong> ${linked.join(", ")}`));
         } else if (field.type === "link" && typeof value === "string") {
           const href = link(value);
           if (href)

@@ -2596,6 +2596,73 @@ body,
   border: 0;
 }
 
+/* Links to items: the chosen ones, then a search and what it finds. */
+.gfa-item-picker {
+  display: grid;
+  gap: 6px;
+}
+
+.gfa-item-picker-chosen,
+.gfa-item-picker-matches,
+.gfa-images-field ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gfa-chosen-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--gfa-border);
+  border-radius: 6px;
+}
+
+.gfa-chosen-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gfa-item-picker-matches {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.gfa-item-picker-matches button {
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.gfa-item-picker-matches button:hover,
+.gfa-item-picker-matches button:focus-visible {
+  background: var(--gfa-current-bg);
+}
+
+.gfa-images-field {
+  display: grid;
+  gap: 8px;
+}
+
+.gfa-images-field-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
 .gfa-event-days {
   display: flex;
   flex-wrap: wrap;

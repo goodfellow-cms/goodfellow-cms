@@ -325,6 +325,42 @@ describe("collections", () => {
     expect(changes[2]).toMatchObject({ content: expect.not.stringContaining("topics") });
   });
 
+  it("keeps a group's rows to the fields it still has, and links to items one or several as the field holds them", () => {
+    const schedule = {
+      name: "schedule",
+      label: "Schedule",
+      type: "group" as const,
+      fields: [
+        { name: "time", label: "Time", type: "text" as const },
+        { name: "place", label: "Place", type: "text" as const },
+      ],
+    };
+    const host = { name: "host", label: "Host", type: "item" as const, collection: "videos" };
+    const grouped: Collection = {
+      ...videos,
+      settings: { ...settings, fields: [...settings.fields, schedule, host] },
+      entries: [
+        entry("easter", {
+          title: "Easter",
+          schedule: [{ time: "9:00", place: "Hall" }, { place: "Church" }],
+          host: "lent",
+        }),
+        entry("advent", { title: "Advent", schedule: [{ time: "10:00" }] }),
+      ],
+    };
+    const next = {
+      ...grouped.settings,
+      fields: [...settings.fields, { ...schedule, fields: [schedule.fields[0]] }, { ...host, multiple: true }],
+    } as CollectionFile;
+    const changes = collectionSettingsChanges(grouped, next);
+    expect(changes.map((change) => change.path)).toEqual([
+      "content/collections/videos/_collection.json",
+      "content/collections/videos/easter.json",
+    ]);
+    const easter = changes[1] && "content" in changes[1] ? JSON.parse(String(changes[1].content)) : undefined;
+    expect(easter.fields).toEqual({ title: "Easter", schedule: [{ time: "9:00" }], host: ["lent"] });
+  });
+
   describe("stored as Markdown", () => {
     const docsSettings = collectionFileSchema.parse({
       version: 1,

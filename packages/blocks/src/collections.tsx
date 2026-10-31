@@ -6,9 +6,14 @@ import {
   entryTitle,
   type FieldType,
   formatFieldValue,
+  type GroupField,
+  groupRows,
+  imagesOf,
   isDateValue,
   isEmptyValue,
   isEventLike,
+  linkedItem,
+  linkedItems,
   type MarkdownOptions,
   type MarkdownPart,
   markdownParts,
@@ -162,6 +167,35 @@ function EntryFieldView({ field, style, value, markdown, copyLabel, className }:
       return (
         <p className={part("gf-entry-field", ["whitespace-pre-line", styleClasses[style]], className)}>{String(raw)}</p>
       );
+    case "file":
+      return (
+        <p className={part("gf-entry-field", styleClasses[style], className)}>
+          <SiteLink
+            href={String(raw)}
+            download
+            className={part("gf-entry-field-link", "text-primary underline underline-offset-2")}
+          >
+            {fileName(String(raw))}
+          </SiteLink>
+        </p>
+      );
+    case "images":
+      return (
+        <div className={part("gf-entry-field", "grid grid-cols-2 gap-3 sm:grid-cols-3", className)}>
+          {imagesOf(raw).map((src) => (
+            <SiteImage
+              key={src}
+              src={src}
+              alt=""
+              className={part("gf-entry-field-image", "aspect-square w-full rounded-lg object-cover")}
+            />
+          ))}
+        </div>
+      );
+    case "item":
+      return <ItemLinks field={definition} value={raw} style={style} className={className} />;
+    case "group":
+      return <GroupRows fields={definition.fields ?? []} value={raw} className={className} />;
     default: {
       const text = formatFieldValue(definition, raw, settings.language, settings.timeZone);
       let content: ReactNode = text;
@@ -174,6 +208,104 @@ function EntryFieldView({ field, style, value, markdown, copyLabel, className }:
       return <Tag className={part("gf-entry-field", styleClasses[style], className)}>{content}</Tag>;
     }
   }
+}
+
+/** A file's name from its address, as people would know it. */
+function fileName(address: string): string {
+  const name = address.slice(address.lastIndexOf("/") + 1);
+  try {
+    return decodeURIComponent(name) || address;
+  } catch {
+    return name || address;
+  }
+}
+
+/** The items a field links to, by their titles, linked to their pages where they have them. */
+function ItemLinks({
+  field,
+  value,
+  style,
+  className,
+}: {
+  field: CollectionField;
+  value: unknown;
+  style: Style;
+  className: string;
+}) {
+  const { collections } = useSite();
+  const part = useParts();
+  const target = collections.find((candidate) => candidate.id === field.collection);
+  const items = linkedItems(field, value).flatMap((slug) => {
+    const item = linkedItem(target, slug);
+    return item ? [item] : [];
+  });
+  if (items.length === 0) return null;
+  const Tag = style === "title" ? "h1" : style === "heading" ? "h2" : "p";
+  return (
+    <Tag className={part("gf-entry-field", styleClasses[style], className)}>
+      {items.map((item, index) => (
+        <span key={item.slug}>
+          {index > 0 && ", "}
+          {item.path ? (
+            <SiteLink
+              href={item.path}
+              className={part("gf-entry-field-link", "text-primary underline underline-offset-2")}
+            >
+              {entryTitle(item)}
+            </SiteLink>
+          ) : (
+            entryTitle(item)
+          )}
+        </span>
+      ))}
+    </Tag>
+  );
+}
+
+/** A repeating group's rows, each its values one after another. */
+function GroupRows({ fields, value, className }: { fields: GroupField[]; value: unknown; className: string }) {
+  const { settings } = useSite();
+  const part = useParts();
+  const rows = groupRows(value);
+  return (
+    <ul className={part("gf-entry-field", "divide-y divide-border", className)}>
+      {rows.map((row, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: rows have no ids, and only change all together
+        <li key={index} className={part("gf-entry-field-row", "flex flex-wrap items-center gap-x-3 gap-y-1 py-2")}>
+          {fields.map((sub) => {
+            const item = row[sub.name];
+            if (isEmptyValue(item)) return null;
+            if (sub.type === "image") {
+              return (
+                <SiteImage key={sub.name} src={String(item)} alt="" className="h-12 w-12 rounded-md object-cover" />
+              );
+            }
+            if (sub.type === "link") {
+              return (
+                <SiteLink
+                  key={sub.name}
+                  href={String(item)}
+                  className={part("gf-entry-field-link", "text-primary underline underline-offset-2")}
+                >
+                  {sub.label}
+                </SiteLink>
+              );
+            }
+            const text = formatFieldValue(sub, item, settings.language, settings.timeZone);
+            return sub.type === "date" ? (
+              <time key={sub.name} dateTime={String(item)}>
+                {text}
+              </time>
+            ) : (
+              <span key={sub.name} className={sub.type === "textarea" ? "whitespace-pre-line" : undefined}>
+                {text}
+              </span>
+            );
+          })}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 const entryField: ComponentConfig<EntryFieldProps> = {
@@ -448,7 +580,7 @@ const collectionList: ComponentConfig<CollectionListProps> = {
     const collection = collections.find((candidate) => candidate.id === props.collection);
     const choose = (types: FieldType[]) => [NONE, ...fieldChoices(collection, types)];
     const resolved: Partial<Fields<CollectionListProps>> = {
-      ...resolveListingFields(fields, props, collections),
+      ...resolveListingFields(fields, props, collections, metadata.collection as Collection | undefined),
       imageField: { type: "select", label: "Picture", options: choose(["image"]) },
       summaryField: { type: "select", label: "Summary", options: choose(["text", "textarea", "richtext"]) },
     };

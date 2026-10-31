@@ -1,4 +1,4 @@
-import { type Collection, type Entry, entryTitle, formatFieldValue } from "@goodfellow-cms/core";
+import { type Collection, type Entry, entryTitle, formatFieldValue, itemTitleIn } from "@goodfellow-cms/core";
 import type { ComponentData, Config, Data, Fields } from "@puckeditor/core";
 import type { SiteContextValue } from "./site-types.js";
 
@@ -70,12 +70,22 @@ function fillComponent(component: ComponentData, values: Values, config: Config)
   return { ...component, props: props as ComponentData["props"] };
 }
 
-/** Each field's value as it appears in place of its placeholder. */
-export function placeholderValues(collection: Collection, entry: Entry, language: string, timeZone?: string): Values {
+/**
+ * Each field's value as it appears in place of its placeholder. Given the
+ * site's `collections`, links to items show their titles.
+ */
+export function placeholderValues(
+  collection: Collection,
+  entry: Entry,
+  language: string,
+  timeZone?: string,
+  collections?: readonly Collection[],
+): Values {
+  const itemTitle = collections ? itemTitleIn(collections) : undefined;
   return new Map(
     collection.settings.fields.map((field) => [
       field.name,
-      formatFieldValue(field, entry.content.fields[field.name], language, timeZone),
+      formatFieldValue(field, entry.content.fields[field.name], language, timeZone, { itemTitle }),
     ]),
   );
 }
@@ -95,8 +105,9 @@ export function applyEntry(
   entry: Entry,
   language = "en",
   timeZone?: string,
+  collections?: readonly Collection[],
 ): Data {
-  const values = placeholderValues(collection, entry, language, timeZone);
+  const values = placeholderValues(collection, entry, language, timeZone, collections);
   const rootFields = config.root?.fields as Fields | undefined;
   return {
     ...data,
@@ -199,6 +210,7 @@ function expandComponent(component: ComponentData, config: Config, site: SiteCon
       entry,
       site.settings.language,
       site.settings.timeZone,
+      site.collections,
     );
     const item: LoopItem = { slug: entry.slug, title: entryTitle(entry), ...(entry.path && { path: entry.path }) };
     const copies = withIds(

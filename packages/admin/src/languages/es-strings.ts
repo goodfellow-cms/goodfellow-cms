@@ -221,6 +221,7 @@ export const strings: Strings = {
   "limits.mediaReadOnly":
     "Alguien propietario ha limitado lo que puedes cambiar, y la biblioteca multimedia queda fuera. Aun así, puedes usar sus archivos en las páginas que puedes cambiar.",
   "checks.missing-page": "{place} enlaza a {target}, que no es una página del sitio.",
+  "checks.missing-item": "{place} enlaza a {target} en {collection}, que ya no está.",
   "checks.missing-media": "{place} usa {target}, que no está en la biblioteca multimedia.",
   "checks.unsafe-link":
     "{place} enlaza a {target}, una dirección que ejecutaría código en el sitio. Las páginas la omiten: usa una dirección que empiece por https:// o una de las páginas del sitio.",
@@ -431,6 +432,8 @@ export const strings: Strings = {
   "entryName.taken": "Otra cosa del sitio ya usa esta dirección.",
   "moveEntry.message": "Mover {entry} «{title}» de {from} a {to}",
   "deleteEntry.body": "{title} se quitará de {name}.",
+  "deleteEntry.linked": "Estos elementos enlazan a él, y se quitarán sus enlaces:",
+  "deleteEntry.linkedMore": "y {count} más",
   "deleteEntry.bodyPage":
     "{title} se quitará de {name}, y su página en {path} se quitará del sitio. Si algo del sitio enlaza a ella, primero hay que cambiar esos enlaces.",
   "deleteEntry.message": "Eliminar {entry} «{title}»",
@@ -439,6 +442,14 @@ export const strings: Strings = {
     "Revisa cuándo está en el sitio: cada hora necesita una fecha y una hora, y solo puede ocultarse después de mostrarse.",
   "editEntry.notFound": "Este elemento no existe. Puede que se haya renombrado o eliminado.",
   "editEntry.back": "Volver a {name}",
+  "editEntry.items.search": "Buscar en {name}",
+  "editEntry.items.none": "Nada en {name} coincide.",
+  "editEntry.items.empty": "{name} todavía no tiene nada a lo que enlazar.",
+  "editEntry.items.missing": "La colección a la que enlaza este campo ya no está en el sitio.",
+  "editEntry.items.remove": "Quitar {title}",
+  "editEntry.images.up": "Mover antes",
+  "editEntry.images.down": "Mover después",
+  "editEntry.images.remove": "Quitar",
   "editEntry.required": "Rellena {fields} antes de publicar.",
   "editEntry.invalidEvent": "Revisa {fields}: un evento tiene que terminar después de empezar.",
   "editEntry.noPage":
@@ -509,6 +520,8 @@ export const strings: Strings = {
   "collectionSettings.deleteTitle": "¿Eliminar {name}?",
   "collectionSettings.deleteBody":
     "{name} y todo lo que contiene ({count} elementos) se quitarán del sitio, junto con sus páginas. Las listas que la muestran quedarán vacías.",
+  "collectionSettings.deleteLinked":
+    "{name} no se puede eliminar mientras otras colecciones enlacen a sus elementos: {collections}. Quita antes esos campos.",
   "collectionSettings.deleteMessage": "Eliminar la colección «{name}»",
   "fields.title": "Campos",
   "fields.intro":
@@ -526,6 +539,11 @@ export const strings: Strings = {
   "fields.remove": "Quitar campo",
   "fields.removed": "Los campos que quites también se quitan de todos los elementos al publicar.",
   "fields.newLabel": "Campo nuevo",
+  "fields.linksTo": "Enlaza a elementos de",
+  "fields.multiple": "Puede enlazar a varios",
+  "fields.collectionRequired": "Elige la colección a la que enlaza.",
+  "fields.groupFields": "Campos de cada fila",
+  "fields.addGroupField": "Añadir un campo a cada fila",
   "fields.type.text": "Texto corto",
   "fields.type.textarea": "Texto largo",
   "fields.type.richtext": "Texto con formato",
@@ -536,6 +554,11 @@ export const strings: Strings = {
   "fields.type.image": "Imagen (URL)",
   "fields.type.select": "Una opción de una lista",
   "fields.type.tags": "Etiquetas (varias opciones de una lista)",
+  "fields.type.yesno": "Sí o no",
+  "fields.type.item": "Enlace a elementos de una colección",
+  "fields.type.images": "Varias imágenes",
+  "fields.type.file": "Archivo",
+  "fields.type.group": "Grupo que se repite (filas de unos pocos campos)",
   "demo.banner":
     "Esto es una demostración. Prueba lo que quieras: tus cambios se ven aquí en el panel de administración y se guardan solo en este navegador. El sitio en sí nunca cambia.",
   "demo.published": "Guardado en este navegador. En una demostración, el sitio en sí no cambia.",

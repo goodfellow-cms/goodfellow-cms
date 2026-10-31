@@ -18,6 +18,7 @@ import {
   isDateValue,
   isEventLike,
   isUpcoming,
+  linkedItems,
   type PageVariant,
   type PageView,
   type SiteSettings,
@@ -34,6 +35,9 @@ export interface ListingSite {
   settings: SiteSettings;
   path: string;
   view?: PageView;
+  /** On an item's page, its collection and the item, whose links a list can follow (`linkedFrom`). */
+  collection?: Collection;
+  entry?: Entry;
 }
 
 export type Order = "default" | "newest" | "oldest" | "title" | "title-desc" | "field-asc" | "field-desc";
@@ -48,9 +52,17 @@ export interface ListingProps {
   sortField: string;
   order: Order;
   show: Show;
-  /** A choice or tags field, and the choice entries must have, to show only some. */
+  /**
+   * A choice or tags field, and the choice entries must have, to show only
+   * some; or a yes or no field, for only the entries where it's on.
+   */
   filterField: string;
   filterValue: string;
+  /**
+   * In a collection's template, a field of the item whose page it is that
+   * links to items of this list's collection: the list shows only those.
+   */
+  linkedFrom?: string;
   /** How many, or on each page; 0 for all. */
   limit: number;
   /** Whether entries past `limit` go on later pages: `page/2` and so on. */
@@ -74,6 +86,7 @@ export const listingDefaults: ListingProps = {
   show: "all",
   filterField: "",
   filterValue: "",
+  linkedFrom: "",
   limit: 0,
   paginate: false,
   choicePages: "",
@@ -105,7 +118,9 @@ export function selectedEntries(
 ): Entry[] {
   const { dateField, order, show } = props;
   let entries = collection.entries;
-  if (props.filterField && props.filterValue) {
+  if (props.filterField && fieldOf(collection, props.filterField)?.type === "yesno") {
+    entries = entries.filter((entry) => entry.content.fields[props.filterField] === true);
+  } else if (props.filterField && props.filterValue) {
     entries = entries.filter((entry) => hasChoice(collection, entry, props.filterField, props.filterValue));
   }
   if (choice && props.choicePages) {
@@ -191,7 +206,8 @@ export function listingPages(stored: Partial<ListingProps>, { content, today }: 
   // Blocks saved before a prop existed don't have it.
   const props = { ...listingDefaults, ...stored };
   const collection = content.collections.find((candidate) => candidate.id === props.collection);
-  if (!collection) return [];
+  // A list of the items an item links to is short, and different on each item's page, so it has no pages.
+  if (!collection || props.linkedFrom) return [];
   const size = props.paginate ? pageSize(props.limit) : undefined;
   const now = today;
   const variants: PageVariant[] = [];
@@ -233,6 +249,20 @@ export interface Listing {
   linked: boolean;
 }
 
+/**
+ * The entries the item whose page this is links to in its field `name`, or
+ * none off an item's page. An item shown in another language is linked by
+ * the main language's name, which its translation names (`translationOf`).
+ */
+function linkedEntries(entries: Entry[], name: string, site: ListingSite): Entry[] {
+  const field = site.collection && fieldOf(site.collection, name);
+  const names = new Set(linkedItems(field, site.entry?.content.fields[name]));
+  return entries.filter(
+    (entry) =>
+      names.has(entry.slug) || (entry.content.translationOf !== undefined && names.has(entry.content.translationOf)),
+  );
+}
+
 /** What a list or loop shows on a page: which of its pages it's on, and that page's entries. */
 export function currentListing(
   stored: Partial<ListingProps> & { id?: string },
@@ -247,9 +277,10 @@ export function currentListing(
   const owned = view !== undefined && view.block === props.id;
   const linked = owned;
   const choice = owned ? view.choice : undefined;
-  const all = selectedEntries(collection, props, todayIn(site.settings.timeZone), choice);
+  const selected = selectedEntries(collection, props, todayIn(site.settings.timeZone), choice);
+  const all = props.linkedFrom ? linkedEntries(selected, props.linkedFrom, site) : selected;
   const size = pageSize(props.limit);
-  const pages = props.paginate ? pageCount(all.length, size) : 1;
+  const pages = props.paginate && !props.linkedFrom ? pageCount(all.length, size) : 1;
   const page = owned ? Math.min(view.page ?? 1, pages) : 1;
   const start = size ? (page - 1) * size : 0;
   return {

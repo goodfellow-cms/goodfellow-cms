@@ -222,6 +222,7 @@ export const defaultStrings = {
   "limits.mediaReadOnly":
     "An owner has limited what you can change, and the media library is outside it. You can still use its files on pages you can change.",
   "checks.missing-page": "{place} links to {target}, which isn't a page on the site.",
+  "checks.missing-item": "{place} links to {target} in {collection}, which isn't there any more.",
   "checks.missing-media": "{place} uses {target}, which isn't in the media library.",
   "checks.unsafe-link":
     "{place} links to {target}, an address that would run code on the site. Pages leave it out: use an address that starts with https://, or one of the site's own pages.",
@@ -441,6 +442,8 @@ export const defaultStrings = {
 
   "moveEntry.message": 'Move {entry} "{title}" from {from} to {to}',
   "deleteEntry.body": "{title} will be removed from {name}.",
+  "deleteEntry.linked": "These items link to it, and their links to it will be taken out:",
+  "deleteEntry.linkedMore": "and {count} more",
   "deleteEntry.bodyPage":
     "{title} will be removed from {name}, and its page at {path} from the site. If anything on the site links to it, those links need changing first.",
   "deleteEntry.message": 'Delete {entry} "{title}"',
@@ -450,6 +453,14 @@ export const defaultStrings = {
     "Check when it's on the site: each time needs a date and a time, and it can only be hidden after it's shown.",
   "editEntry.notFound": "This item doesn't exist. It may have been renamed or deleted.",
   "editEntry.back": "Back to {name}",
+  "editEntry.items.search": "Search {name}",
+  "editEntry.items.none": "Nothing in {name} matches.",
+  "editEntry.items.empty": "{name} has nothing to link to yet.",
+  "editEntry.items.missing": "The collection this field links to isn't on the site any more.",
+  "editEntry.items.remove": "Take out {title}",
+  "editEntry.images.up": "Move earlier",
+  "editEntry.images.down": "Move later",
+  "editEntry.images.remove": "Take out",
   "editEntry.required": "Fill in {fields} before publishing.",
   "editEntry.invalidEvent": "Check {fields}: an event has to end after it starts.",
   "editEntry.noPage":
@@ -520,6 +531,8 @@ export const defaultStrings = {
   "collectionSettings.deleteTitle": "Delete {name}?",
   "collectionSettings.deleteBody":
     "{name} and everything in it ({count} items) will be removed from the site, along with their pages. Collection lists showing it will be empty.",
+  "collectionSettings.deleteLinked":
+    "{name} can't be deleted while other collections link to its items: {collections}. Remove those fields first.",
   "collectionSettings.deleteMessage": 'Delete collection "{name}"',
 
   "fields.title": "Fields",
@@ -538,6 +551,11 @@ export const defaultStrings = {
   "fields.remove": "Remove field",
   "fields.removed": "Removed fields are also removed from every item when you publish.",
   "fields.newLabel": "New field",
+  "fields.linksTo": "Links to items in",
+  "fields.multiple": "Can link to several",
+  "fields.collectionRequired": "Choose the collection it links to.",
+  "fields.groupFields": "Each row's fields",
+  "fields.addGroupField": "Add a field to each row",
   "fields.type.text": "Short text",
   "fields.type.textarea": "Long text",
   "fields.type.richtext": "Formatted text",
@@ -548,6 +566,11 @@ export const defaultStrings = {
   "fields.type.image": "Image (URL)",
   "fields.type.select": "Choice from a list",
   "fields.type.tags": "Tags (any number of choices from a list)",
+  "fields.type.yesno": "Yes or no",
+  "fields.type.item": "Link to items in a collection",
+  "fields.type.images": "Several images",
+  "fields.type.file": "File",
+  "fields.type.group": "Repeating group (rows of a few fields)",
 
   "demo.banner":
     "This is a demo. Try anything you like: your changes show here in the admin panel and are saved in this browser only. The site itself never changes.",

@@ -140,6 +140,8 @@ export const NEWSLETTER_PARTS: BlockParts = {
 export const ENTRY_FIELD_PARTS: BlockParts = {
   "gf-entry-field": "Entry field",
   "gf-entry-field-link": "Field's link",
+  "gf-entry-field-image": "Each of several images",
+  "gf-entry-field-row": "Each of a group's rows",
   ...CODE_PARTS,
 };
 

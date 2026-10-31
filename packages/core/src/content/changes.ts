@@ -7,8 +7,9 @@ import type { ComponentConfig, Data } from "@puckeditor/core";
 import { CURRENT_VERSION } from "../migrations/index.js";
 import { updateSettingsFile } from "../updates.js";
 import { storedCode } from "./code.js";
-import { type Collection, type Entry, isEmptyValue } from "./collections.js";
+import { type Collection, cleanEntryValues, type Entry, isEmptyValue } from "./collections.js";
 import { cleanTags, type MediaDetails } from "./credits.js";
+import { changeItemLinks } from "./item-links.js";
 import { entryPathIn } from "./languages.js";
 import { relinkSite } from "./links.js";
 import type { Page, SiteCode, SiteContent } from "./load.js";
@@ -393,8 +394,8 @@ export function entryFileChange(
   details: FileDetails | undefined,
 ): FileChange {
   assertNames(collection.id, slug);
-  const fields = storedEntryFields(values);
   const { settings } = collection;
+  const fields = cleanEntryValues(settings.fields, values);
   const times = fileDetailsOf(details ?? {});
   return settings.markdown
     ? { path: entryFile(collection.id, slug, "markdown"), content: serializeMarkdownEntry(settings, fields, times) }
@@ -576,8 +577,11 @@ export function moveEntryChanges(
   path: string | undefined,
   blocks?: Record<string, ComponentConfig>,
 ): FileChange[] {
-  const relinked =
+  const relinkedPages =
     entry.path && path ? relinkSite(content, [{ from: entry.path, to: path }], blocks) : { content, files: [] };
+  // Items that link to it name it by its name, so they're renamed with it.
+  const named = changeItemLinks(relinkedPages.content, collection.id, (name) => (name === entry.slug ? slug : name));
+  const relinked = { content: named.content, files: [...new Set([...relinkedPages.files, ...named.files])] };
   const after = relinked.content.collections.find((candidate) => candidate.id === collection.id);
   const moved = after?.entries.find((candidate) => candidate.file === entry.file) ?? entry;
   // Its translations name it by its name, so they're renamed with it.
@@ -595,6 +599,15 @@ export function moveEntryChanges(
     ),
     ...relinkedChanges(relinked, [entry.file, ...translations.map((translation) => translation.file)]),
   ];
+}
+
+/**
+ * What else changes when an item is deleted: links to it from other items
+ * are taken out, in the same publish, so none is left pointing nowhere.
+ */
+export function itemLinkRemovalChanges(content: SiteContent, collection: Collection, entry: Entry): FileChange[] {
+  const unlinked = changeItemLinks(content, collection.id, (name) => (name === entry.slug ? undefined : name));
+  return relinkedChanges(unlinked, [entry.file]);
 }
 
 /** Deletes a collection and all its entries. */

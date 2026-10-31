@@ -8,11 +8,13 @@ import {
   type Collection,
   type CollectionField,
   type CollectionFile,
+  cleanEntryValues,
   collectionFileChange,
   entryFileChange,
   entryLanguage,
   entryPathIn,
   type FileChange,
+  linkedItems,
   relinkedChanges,
   relinkSite,
   type SiteContent,
@@ -33,6 +35,7 @@ export {
   duplicatePageData,
   type EntryNameProblem,
   entryFileChange,
+  itemLinkRemovalChanges,
   layoutFileChange,
   mediaFileChange,
   menusFileChange,
@@ -69,6 +72,17 @@ function keptValue(fields: Map<string, CollectionField>, name: string, value: un
     const tags = value.filter(offered);
     if (tags.length === value.length) return value;
     return tags.length > 0 ? tags : undefined;
+  }
+  if (field.type === "item") {
+    // One or several, as the field now holds them.
+    const names = linkedItems(field, value);
+    if (field.multiple) return Array.isArray(value) ? value : names.length > 0 ? names : undefined;
+    return typeof value === "string" ? value : names[0];
+  }
+  if (field.type === "group" && Array.isArray(value)) {
+    // A group's rows keep only the fields it still has.
+    const rows = cleanEntryValues([field], { [name]: value })[name];
+    return JSON.stringify(rows) === JSON.stringify(value) ? value : rows;
   }
   return value;
 }

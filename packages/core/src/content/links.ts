@@ -213,6 +213,11 @@ function mapData<T extends DataLike>(data: T, blocks: Blocks, visitor: LinkVisit
   };
 }
 
+/** An address an item's field holds, visited where it's the site's own or would run code. */
+function mapAddress(value: string, visitor: LinkVisitor): string {
+  return isSiteAddress(value) || isScriptUrl(value) ? visitor.link(value) : value;
+}
+
 function mapEntryFields(
   collection: Collection,
   fields: Record<string, unknown>,
@@ -221,9 +226,29 @@ function mapEntryFields(
   const out = { ...fields };
   for (const field of collection.settings.fields) {
     const value = fields[field.name];
+    if (field.type === "images" && Array.isArray(value)) {
+      out[field.name] = value.map((item) => (typeof item === "string" && item ? mapAddress(item, visitor) : item));
+      continue;
+    }
+    if (field.type === "group" && Array.isArray(value)) {
+      out[field.name] = value.map((row) => {
+        if (typeof row !== "object" || row === null || Array.isArray(row)) return row;
+        const mapped: Record<string, unknown> = { ...row };
+        for (const sub of field.fields ?? []) {
+          const item = mapped[sub.name];
+          if (typeof item !== "string" || item === "") continue;
+          if (sub.type === "link" || sub.type === "image") mapped[sub.name] = mapAddress(item, visitor);
+          else if (sub.type === "text" || sub.type === "textarea") mapped[sub.name] = mapHtml(item, visitor.link);
+        }
+        return mapped;
+      });
+      continue;
+    }
     if (typeof value !== "string" || value === "") continue;
-    if (field.type === "link" || field.type === "image") {
-      out[field.name] = isSiteAddress(value) || isScriptUrl(value) ? visitor.link(value) : value;
+    if (field.type === "link" || field.type === "image" || field.type === "file") {
+      out[field.name] = mapAddress(value, visitor);
+    } else if (field.type === "item") {
+      // Items' names, not addresses: `item-links.ts` follows them.
     } else if (collection.settings.markdown?.body === field.name) {
       out[field.name] = visitor.markdown ? visitor.markdown(value) : mapMarkdown(value, visitor.link);
     } else {

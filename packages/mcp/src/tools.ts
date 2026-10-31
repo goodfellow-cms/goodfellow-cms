@@ -30,6 +30,7 @@ import {
   layoutFileChange,
   limitsContent,
   limitsFor,
+  linkedItems,
   loadSiteContent,
   MEDIA_DIR,
   type MenuItem,
@@ -259,6 +260,37 @@ async function entryTranslationChanges(
       }),
     ];
   });
+}
+
+/**
+ * Takes a deleted item out of the items that link to it, in any collection,
+ * reading only collections with a field that links to its collection.
+ */
+async function itemLinkChanges(source: ContentSource, target: string, slug: string): Promise<FileChange[]> {
+  const changes: FileChange[] = [];
+  for (const listed of await listCollections(source)) {
+    const collection = await readCollection(source, listed.id);
+    const fields = collection.settings.fields.filter((field) => field.type === "item" && field.collection === target);
+    if (fields.length === 0) continue;
+    const entries = await Promise.all(collection.entries.map((entry) => readEntry(source, collection, entry.slug)));
+    entries.forEach((entry, index) => {
+      const listedEntry = collection.entries[index];
+      if (!entry || !listedEntry) return;
+      let values = entry.content.fields;
+      for (const field of fields) {
+        const before = linkedItems(field, values[field.name]);
+        if (!before.includes(slug)) continue;
+        const after = before.filter((name) => name !== slug);
+        const { [field.name]: _removed, ...rest } = values;
+        values = after.length === 0 ? rest : { ...rest, [field.name]: field.multiple ? after : after[0] };
+      }
+      if (values === entry.content.fields) return;
+      changes.push(
+        entryFileChange({ id: collection.id, settings: collection.settings }, listedEntry.slug, values, entry.content),
+      );
+    });
+  }
+  return changes;
 }
 
 function newId(type: string): string {
@@ -747,9 +779,13 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       const entry = collection.entries.find((candidate) => candidate.slug === slug);
       if (!entry) throw new ToolError(`The collection "${id}" has no item "${slug}".`);
       const translations = await entryTranslationChanges(draft.store, collection, slug);
+      // Items that link to it stop linking to it, as in the admin panel.
+      const unlinked = (await itemLinkChanges(draft.store, id, slug)).filter(
+        (change) => change.path !== entry.file && !translations.some((other) => other.path === change.path),
+      );
       await save(
         draft,
-        [{ path: entry.file, delete: true }, ...translations],
+        [{ path: entry.file, delete: true }, ...translations, ...unlinked],
         `Delete ${collection.settings.entryName.toLowerCase()} ${slug}`,
       );
       return text({ draft: draft.name, collection: id, slug, saved: "deleted" });

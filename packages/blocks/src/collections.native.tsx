@@ -1,9 +1,13 @@
 import {
   entryTitle,
   formatFieldValue,
+  groupRows,
+  imagesOf,
   isDateValue,
   isEmptyValue,
   isEventLike,
+  linkedItem,
+  linkedItems,
   richTextToPlainText,
   shownOccurrence,
   todayIn,
@@ -55,6 +59,80 @@ export function EntryField({ id, field, style }: EntryFieldProps & { id?: string
           </SiteText>
         </NativeLink>
       );
+    case "file":
+      return (
+        <NativeLink href={String(raw)}>
+          <SiteText style={{ color: site.theme.colors.primary, textDecorationLine: "underline" }}>
+            {fileName(String(raw))}
+          </SiteText>
+        </NativeLink>
+      );
+    case "images":
+      return (
+        <Columns columns={{ base: 2, sm: 3 }} gap={12}>
+          {imagesOf(raw).map((src) => (
+            <NativeImage key={src} src={src} alt="" aspect="square" />
+          ))}
+        </Columns>
+      );
+    case "item": {
+      const target = site.collections.find((candidate) => candidate.id === definition.collection);
+      const items = linkedItems(definition, raw).flatMap((slug) => {
+        const item = linkedItem(target, slug);
+        return item ? [item] : [];
+      });
+      if (items.length === 0) return null;
+      return (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {items.map((item) =>
+            item.path ? (
+              <NativeLink key={item.slug} href={item.path}>
+                <SiteText style={{ color: site.theme.colors.primary, textDecorationLine: "underline" }}>
+                  {entryTitle(item)}
+                </SiteText>
+              </NativeLink>
+            ) : (
+              <SiteText key={item.slug}>{entryTitle(item)}</SiteText>
+            ),
+          )}
+        </View>
+      );
+    }
+    case "group":
+      return (
+        <View style={{ gap: 8 }}>
+          {groupRows(raw).map((row, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: rows have no ids, and only change all together
+            <View key={index} style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+              {(definition.fields ?? []).map((sub) => {
+                const item = row[sub.name];
+                if (isEmptyValue(item)) return null;
+                if (sub.type === "image") {
+                  return (
+                    <View key={sub.name} style={{ width: 48 }}>
+                      <NativeImage src={String(item)} alt="" aspect="square" />
+                    </View>
+                  );
+                }
+                if (sub.type === "link") {
+                  return (
+                    <NativeLink key={sub.name} href={String(item)}>
+                      <SiteText style={{ color: site.theme.colors.primary, textDecorationLine: "underline" }}>
+                        {sub.label}
+                      </SiteText>
+                    </NativeLink>
+                  );
+                }
+                return (
+                  <SiteText key={sub.name}>
+                    {formatFieldValue(sub, item, settings.language, settings.timeZone)}
+                  </SiteText>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      );
     default: {
       const text =
         definition.type === "textarea"
@@ -67,6 +145,16 @@ export function EntryField({ id, field, style }: EntryFieldProps & { id?: string
         </SiteText>
       );
     }
+  }
+}
+
+/** A file's name from its address, as people would know it. */
+function fileName(address: string): string {
+  const name = address.slice(address.lastIndexOf("/") + 1);
+  try {
+    return decodeURIComponent(name) || address;
+  } catch {
+    return name || address;
   }
 }
 
