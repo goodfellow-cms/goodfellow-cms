@@ -104,6 +104,7 @@ function cleanSettings(draft: SiteSettings): unknown {
     ...cleanLanguages(draft),
     url: optional(draft.url),
     externalLinksInNewTab: draft.externalLinksInNewTab || undefined,
+    noAiTraining: draft.noAiTraining || undefined,
     timeZone: optional(draft.timeZone),
     favicon: optional(draft.favicon),
     socialImage: optional(draft.socialImage),
@@ -378,6 +379,15 @@ function GeneralTab({
       )}
       <MediaField label={t("general.favicon")} {...text("favicon")} />
       <MediaField label={t("general.socialImage")} {...text("socialImage")} />
+      <label className="gfa-checkbox">
+        <input
+          type="checkbox"
+          checked={draft.noAiTraining !== true}
+          onChange={(event) => onChange({ ...draft, noAiTraining: !event.target.checked })}
+        />
+        {t("general.aiTraining")}
+      </label>
+      <p className="gfa-hint">{t("general.aiTrainingHint")}</p>
 
       <h2 id={sectionId("contact")} className="gfa-section-title" tabIndex={-1}>
         {t("general.contact")}

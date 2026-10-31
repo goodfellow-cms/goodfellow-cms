@@ -21,6 +21,7 @@ import {
   type Redirect,
   redirectFiles,
   resetDateChanges,
+  robotsTxt,
   rootRobotsUrl,
   type ScheduledChange,
   type SelfHostedResult,
@@ -33,6 +34,7 @@ import {
   todayIn,
   upcomingChanges,
   withBase,
+  withConfiguredTrailingSlash,
 } from "@goodfellow-cms/core";
 import { type BuiltPage, checkBuiltPages } from "@goodfellow-cms/core/accessibility";
 import {
@@ -217,7 +219,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const now = new Date();
     // Rendering pages reports when what they show by today's date changes, for the build record.
     resetDateChanges();
-    const loaded = await loadSiteContent(builtSiteSource(root));
+    const loaded = await loadSiteContent(
+      builtSiteSource(root, withConfiguredTrailingSlash(process.env, config.trailingSlash ?? true)),
+    );
     const content = shownContent(loaded, now);
     const styles = await writeStylesEntries(root, config);
     const withAdmin = Boolean(config.backend || config.demo);
@@ -367,7 +371,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       redirected.push(file);
     }
     // And the same redirects for Cloudflare Pages, which sends them itself, unless the site has its own file.
-    const cloudflare = cloudflareRedirects(redirected, base);
+    const cloudflare = cloudflareRedirects(redirected, base, content.settings.trailingSlash !== false);
     const redirectsTarget = join(outDir, CLOUDFLARE_REDIRECTS_PATH.slice(1));
     if (cloudflare.file && !(await exists(redirectsTarget))) await writeFile(redirectsTarget, cloudflare.file.content);
     // Its header rules too, after the site's own: SVGs in the media library sandboxed, and the admin panel unframed.
@@ -395,11 +399,10 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
         join(outDir, "sitemap.xml"),
         `<?xml version="1.0" encoding="UTF-8"?>\n<urlset${namespaces}>\n${urls.join("\n")}\n</urlset>\n`,
       );
-      await writeFile(
-        join(outDir, "robots.txt"),
-        `User-agent: *\nAllow: /\nSitemap: ${absoluteUrl(url, "/sitemap.xml")}\n`,
-      );
     }
+    // What crawlers may read, with the sitemap once the site's address is set, and without AI training's
+    // crawlers where the site asks.
+    if (url || content.settings.noAiTraining) await writeFile(join(outDir, "robots.txt"), robotsTxt(content.settings));
 
     // The smaller copies of the media library's photos that pages list.
     const images = await writeImageSizes(root, outDir, { resize: await sharpResizer() });

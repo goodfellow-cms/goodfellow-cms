@@ -119,8 +119,8 @@ describe("build", () => {
 
   it("writes a page at each old address that sends visitors on, where no page is", async () => {
     const html = await read("old-news/index.html");
-    expect(html).toContain('<meta http-equiv="refresh" content="0; url=/from-config/news">');
-    expect(html).toContain('<link rel="canonical" href="https://example.org/site/news">');
+    expect(html).toContain('<meta http-equiv="refresh" content="0; url=/from-config/news/">');
+    expect(html).toContain('<link rel="canonical" href="https://example.org/site/news/">');
     expect(await read("2019/talk.html")).toContain('content="0; url=https://talks.example.org/hope"');
     // The page at /news wins over the redirect from it.
     expect(await read("news/index.html")).not.toContain("http-equiv");
@@ -132,8 +132,8 @@ describe("build", () => {
     // Each old address without and with a trailing slash, with the base path, and none from /news, a page's.
     expect(await read("_redirects")).toBe(
       [
-        "/from-config/old-news /from-config/news 301",
-        "/from-config/old-news/ /from-config/news 301",
+        "/from-config/old-news /from-config/news/ 301",
+        "/from-config/old-news/ /from-config/news/ 301",
         "/from-config/2019/talk.html https://talks.example.org/hope 301",
         "",
       ].join("\n"),
@@ -151,8 +151,8 @@ describe("build", () => {
   it("writes a sitemap and robots.txt when the site's address is set", async () => {
     const sitemap = await read("sitemap.xml");
     expect(sitemap).toContain("<loc>https://example.org/site/</loc>");
-    expect(sitemap).toContain("<loc>https://example.org/site/news</loc>");
-    expect(sitemap).toContain("<loc>https://example.org/site/talks/hope</loc>");
+    expect(sitemap).toContain("<loc>https://example.org/site/news/</loc>");
+    expect(sitemap).toContain("<loc>https://example.org/site/talks/hope/</loc>");
     expect(sitemap).not.toContain("404");
     // Pages hidden from search engines are built, but not in the sitemap.
     expect(sitemap).not.toContain("private");
@@ -161,7 +161,7 @@ describe("build", () => {
   });
 
   it("writes feeds of dated collections, and tells search engines about the site and its items", async () => {
-    expect(await read("feeds/talks.rss")).toContain("<link>https://example.org/site/talks/hope</link>");
+    expect(await read("feeds/talks.rss")).toContain("<link>https://example.org/site/talks/hope/</link>");
     expect(await read("feeds/talks.atom")).toContain("<published>2026-03-01T00:00:00.000Z</published>");
     const home = await read("index.html");
     expect(home).toContain(
@@ -566,7 +566,7 @@ describe("a copy of the site, such as staging", () => {
       }
 
       const html = await readFile(join(out, "news/index.html"), "utf8");
-      expect(html).toContain('<link rel="canonical" href="https://staging.example.org/site/news"/>');
+      expect(html).toContain('<link rel="canonical" href="https://staging.example.org/site/news/"/>');
       expect(html).toContain('<meta name="robots" content="noindex"/>');
       expect(await readFile(join(out, "sitemap.xml"), "utf8")).not.toContain("<loc>");
       expect(await readFile(join(out, "robots.txt"), "utf8")).toContain("https://staging.example.org/site/sitemap.xml");

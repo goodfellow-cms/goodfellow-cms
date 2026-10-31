@@ -26,7 +26,7 @@ describe("goodfellowPages", () => {
 
   it("only writes a sitemap once the site's address is known", async () => {
     expect(await site.sitemap()).toEqual([]);
-    expect(await site.robots()).toEqual({ rules: { userAgent: "*", allow: "/" } });
+    expect(await site.robots()).toEqual({ rules: [{ userAgent: "*", allow: "/" }] });
   });
 });
 
@@ -57,11 +57,22 @@ describe("pageMetadata", () => {
     if (!about) throw new Error("The starter has no about page.");
     const metadata = pageMetadata(withUrl, about);
     expect(metadata.alternates).toEqual({
-      canonical: "https://example.org/about",
+      canonical: "https://example.org/about/",
       // The starter's news, which feed readers find from any page.
       types: { "application/rss+xml": [{ url: "/feeds/news.rss", title: "News – My site" }] },
     });
-    expect(metadata.openGraph).toMatchObject({ images: ["https://example.org/media/a.png"] });
+    expect(metadata.openGraph).toMatchObject({
+      type: "website",
+      siteName: "My site",
+      images: [{ url: "https://example.org/media/a.png" }],
+    });
+    expect(metadata.twitter).toEqual({ card: "summary_large_image" });
+    expect(metadata.robots).toEqual({ "max-image-preview": "large" });
+    // The picture's size, where the media library has it.
+    const sized = pageMetadata(withUrl, about, "", { "/media/a.png": { width: 1200, height: 630 } });
+    expect(sized.openGraph).toMatchObject({
+      images: [{ url: "https://example.org/media/a.png", width: 1200, height: 630 }],
+    });
     expect(metadata.metadataBase).toEqual(new URL("https://example.org"));
   });
 });

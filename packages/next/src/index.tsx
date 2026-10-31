@@ -19,10 +19,12 @@ import {
   hasLanguages,
   heldCode,
   IMAGE_WIDTHS,
+  type ImageSize,
   loadSiteContent,
   normalizePagePath,
   type Page,
   pageHead,
+  robotsRules,
   type SiteContent,
   shownContent,
   siteCopyFrom,
@@ -31,6 +33,7 @@ import {
   sitemapPages,
   sitePages,
   storedMediaSizes,
+  TRAILING_SLASH_VARIABLE,
   themeToCss,
   todayIn,
   withBase,
@@ -120,7 +123,12 @@ export interface PageProps {
  */
 export const loadSite = cache(
   async (root: string = process.cwd()): Promise<SiteContent> =>
-    shownContent(await loadSiteContent(builtSiteSource(root))),
+    // How pages' full addresses end comes from `withGoodfellow()`, which Next.js passes in its `env`.
+    shownContent(
+      await loadSiteContent(
+        builtSiteSource(root, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+      ),
+    ),
 );
 
 function pathOf(segments: string[] | undefined): string {
@@ -178,17 +186,32 @@ function toAbsolute(siteUrl: string | undefined, url: string | undefined): strin
   return absoluteUrl(siteUrl, url);
 }
 
-/** A page's title, description and link previews, as Next.js metadata. */
-export function pageMetadata(content: SiteContent, page: Page, basePath = configuredBasePath()): Metadata {
+/**
+ * A page's title, description, search engine settings and link previews, as
+ * Next.js metadata, with the shared picture's size where `media` has it.
+ */
+export function pageMetadata(
+  content: SiteContent,
+  page: Page,
+  basePath = configuredBasePath(),
+  media: Readonly<Record<string, ImageSize>> = {},
+): Metadata {
   const head = pageHead(content, page);
   const socialImage = toAbsolute(content.settings.url, head.socialImage);
+  const socialSize = head.socialImage ? media[head.socialImage] : undefined;
   // The feeds in the page's language.
   const feeds = feedLinks(contentForPage(content, page));
   return {
     ...(content.settings.url && { metadataBase: new URL(content.settings.url) }),
     title: { absolute: head.title },
     ...(head.description && { description: head.description }),
-    ...(head.noIndex && { robots: { index: false } }),
+    // As robotsContent() says them, for goodfellow build's pages.
+    robots: {
+      ...(head.noIndex && { index: false }),
+      ...(head.noFollow && { follow: false }),
+      ...(!head.noIndex && head.noSnippet && { nosnippet: true }),
+      ...(!head.noIndex && { "max-image-preview": "large" as const }),
+    },
     ...((head.canonicalUrl || feeds.length > 0) && {
       alternates: {
         ...(head.canonicalUrl && { canonical: head.canonicalUrl }),
@@ -206,13 +229,27 @@ export function pageMetadata(content: SiteContent, page: Page, basePath = config
     }),
     ...(head.favicon && { icons: { icon: withBase(head.favicon, basePath) } }),
     openGraph: {
-      type: "website",
+      ...(head.type === "article"
+        ? { type: "article", ...(head.publishedTime && { publishedTime: head.publishedTime }) }
+        : { type: "website" }),
+      siteName: head.siteName,
+      locale: head.locale,
       title: head.title,
       ...(head.description && { description: head.description }),
       ...(head.canonicalUrl && { url: head.canonicalUrl }),
       // Link previews need a full address, which needs the site's address.
-      ...(socialImage && /^https?:\/\//.test(socialImage) && { images: [socialImage] }),
+      ...(socialImage &&
+        /^https?:\/\//.test(socialImage) && {
+          images: [
+            {
+              url: socialImage,
+              ...(socialSize && { width: socialSize.width, height: socialSize.height }),
+              ...(head.socialImageAlt && { alt: head.socialImageAlt }),
+            },
+          ],
+        }),
     },
+    twitter: { card: head.card },
   };
 }
 
@@ -283,7 +320,8 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
     async generateMetadata({ params }: PageProps): Promise<Metadata> {
       const content = await site();
       const page = findPage(content, config.blocks, pathOf((await params).path));
-      return page ? pageMetadata(content, applyPageEntry(configs, content, page), basePath()) : {};
+      if (!page) return {};
+      return pageMetadata(content, applyPageEntry(configs, content, page), basePath(), (await renderOptions()).media);
     },
 
     /**
@@ -463,10 +501,16 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       return Response.json(describedForCopy(describeSite(config), siteCopyFrom(process.env)));
     },
 
-    /** For `app/robots.ts`: lets search engines in, and points them at the sitemap once the site's address is set. */
+    /**
+     * For `app/robots.ts`: lets search engines in, asks AI training's crawlers to stay out where Site Settings
+     * says so, and points them at the sitemap once the site's address is set (`robotsRules()`).
+     */
     async robots(): Promise<MetadataRoute.Robots> {
-      const url = (await site()).settings.url;
-      return { rules: { userAgent: "*", allow: "/" }, ...(url && { sitemap: absoluteUrl(url, "/sitemap.xml") }) };
+      const { settings } = await site();
+      return {
+        rules: robotsRules(settings),
+        ...(settings.url && { sitemap: absoluteUrl(settings.url, "/sitemap.xml") }),
+      };
     },
   };
 }

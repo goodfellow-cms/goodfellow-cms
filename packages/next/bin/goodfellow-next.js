@@ -54,6 +54,7 @@ import {
   builtPages,
   checkPages,
   exportedPages,
+  exportTrailingSlash,
   fixSegmentFiles,
   guardExport,
   NEXT_SITE_FILES,
@@ -80,6 +81,8 @@ const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfell
 // A theme installed before it was three days old is used only once its provenance checks out, whatever the
 // admin panel said, since a browser can lie.
 if (command === "finish") {
+  // Pages' full addresses end as Next.js served the pages, unless where the site is built says otherwise.
+  process.env.GOODFELLOW_TRAILING_SLASH ||= String(await exportTrailingSlash());
   try {
     const theme = await checkEarlyTheme(process.cwd());
     if (theme) console.log(`${theme.name} ${theme.release} was installed early: its provenance checks out.`);

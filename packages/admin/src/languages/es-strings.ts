@@ -985,6 +985,8 @@ export const strings: Strings = {
   "domain.elsewhere": "Este sitio no se publica con {host} Pages, así que su dominio se conecta donde se publica.",
   "domain.elsewhere.cloudflare":
     "En Cloudflare Pages: abre el proyecto del sitio, ve a Custom domains y configura el dominio. Para un dominio como www.example.org, Cloudflare muestra un registro CNAME que añadir en tu registrador. Para example.org en sí, el dominio tiene que usar los servidores de nombres de Cloudflare, que te guía paso a paso. Cuando el sitio funcione en su nueva dirección, ponla en General → Dirección del sitio y publica.",
+  "domain.elsewhere.other":
+    "En cualquier otro alojamiento: conecta el dominio en los ajustes del propio alojamiento, como explica. Cuando el sitio funcione en su nueva dirección, pon la dirección en General → Dirección del sitio y publica.",
   "domain.elsewhere.vercel":
     "En Vercel: abre el proyecto del sitio, ve a Settings → Domains y añade el dominio. Vercel muestra los registros que añadir en tu registrador. Cuando el sitio funcione en su nueva dirección, ponla en General → Dirección del sitio y publica.",
   "domain.field": "Dominio",
@@ -1862,6 +1864,9 @@ export const strings: Strings = {
   "general.logoDarkHint":
     "Una versión del logotipo que se vea sobre fondos oscuros, como una blanca. Déjalo vacío para usar el mismo logotipo.",
   "general.socialImage": "Imagen al compartir en redes sociales",
+  "general.aiTraining": "Permitir que las empresas de IA usen las páginas del sitio para entrenar sus modelos",
+  "general.aiTrainingHint":
+    "Desactivado, el sitio pide a los rastreadores con los que las empresas de IA entrenan sus modelos, como GPTBot de OpenAI, ClaudeBot de Anthropic y Google-Extended, que no lo visiten. Los buscadores lo siguen mostrando, y los asistentes pueden leer una página sobre la que alguien les pregunta. Los rastreadores respetuosos atienden la petición, pero no es un candado: cualquiera puede seguir leyendo las páginas del sitio.",
   "general.contact": "Datos de contacto",
   "general.contactHint": "Se muestran donde haya un bloque Datos de contacto, como en el pie de página.",
   "general.address": "Dirección",

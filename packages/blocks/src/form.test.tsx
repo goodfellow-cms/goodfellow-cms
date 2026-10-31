@@ -55,7 +55,7 @@ describe("Form", () => {
     expect(html).toContain(`<input type="hidden" name="access_key" value="${KEY}"/>`);
     expect(html).toContain('<input type="hidden" name="subject" value="Prayer request"/>');
     expect(html).toContain('<input type="hidden" name="from_name" value="St. Joseph"/>');
-    expect(html).toContain('<input type="hidden" name="redirect" value="https://parish.example.org/thank-you"/>');
+    expect(html).toContain('<input type="hidden" name="redirect" value="https://parish.example.org/thank-you/"/>');
     expect(html).toMatch(
       /<input type="checkbox" class="hidden" style="display:none" tabindex="-1" [^>]*name="botcheck"/,
     );

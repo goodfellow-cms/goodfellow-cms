@@ -337,9 +337,9 @@ describe("search engines", () => {
     const head = pageHead(content, await pageAt("/es/sobre", content));
     expect(head).toMatchObject({ title: "Quiénes somos | San José", language: "es" });
     expect(head.alternates).toEqual([
-      { language: "en", href: "https://parish.example/about" },
-      { language: "es", href: "https://parish.example/es/sobre" },
-      { language: "x-default", href: "https://parish.example/about" },
+      { language: "en", href: "https://parish.example/about/" },
+      { language: "es", href: "https://parish.example/es/sobre/" },
+      { language: "x-default", href: "https://parish.example/about/" },
     ]);
     // A language's home page is named after the site in that language.
     expect(pageHead(content, await pageAt("/es", content)).title).toBe("Inicio");
@@ -351,17 +351,17 @@ describe("search engines", () => {
     const listed = sitemapPages(content, [await pageAt("/about", content), await pageAt("/news/choir", content)]);
     expect(listed).toEqual([
       {
-        url: "https://parish.example/about",
+        url: "https://parish.example/about/",
         alternates: {
-          en: "https://parish.example/about",
-          es: "https://parish.example/es/sobre",
-          "x-default": "https://parish.example/about",
+          en: "https://parish.example/about/",
+          es: "https://parish.example/es/sobre/",
+          "x-default": "https://parish.example/about/",
         },
       },
-      { url: "https://parish.example/news/choir" },
+      { url: "https://parish.example/news/choir/" },
     ]);
     const [website] = structuredData(content, await pageAt("/es", content));
-    expect(website).toMatchObject({ name: "San José", url: "https://parish.example/es", inLanguage: "es" });
+    expect(website).toMatchObject({ name: "San José", url: "https://parish.example/es/", inLanguage: "es" });
     // An item's page says its language too.
     const [article] = structuredData(content, await pageAt("/es/noticias/feria", content));
     expect(article).toMatchObject({ "@type": "Article", headline: "La feria", inLanguage: "es" });

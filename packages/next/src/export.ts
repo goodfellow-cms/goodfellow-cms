@@ -143,6 +143,23 @@ async function exportBasePath(root: string): Promise<string> {
   }
 }
 
+/**
+ * Whether the export's pages end their addresses with `/`, as Next.js's
+ * `trailingSlash` says, which Next.js records in
+ * `.next/required-server-files.json`. `true` where it can't be read, as
+ * `withGoodfellow()` sets it.
+ */
+export async function exportTrailingSlash(root = "."): Promise<boolean> {
+  try {
+    const files = JSON.parse(await readFile(join(await nextDistDir(root), "required-server-files.json"), "utf8")) as {
+      config?: { trailingSlash?: unknown };
+    };
+    return files.config?.trailingSlash !== false;
+  } catch {
+    return true;
+  }
+}
+
 /** What `writePluginFiles()` wrote and ran. */
 export interface PluginFilesWritten {
   /** The plugins whose admin frames were written. */
@@ -249,7 +266,7 @@ export async function writeRedirectFiles(outDir: string, root = process.cwd()): 
     await writeFile(target, file.content);
     written.push(file);
   }
-  const cloudflare = cloudflareRedirects(written, base);
+  const cloudflare = cloudflareRedirects(written, base, content.settings.trailingSlash !== false);
   const redirects = join(outDir, CLOUDFLARE_REDIRECTS_PATH.slice(1));
   // A site's own public/_redirects stays as it is.
   if (cloudflare.file && !(await exists(redirects))) await writeFile(redirects, cloudflare.file.content);

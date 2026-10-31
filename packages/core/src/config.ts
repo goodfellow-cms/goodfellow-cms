@@ -77,6 +77,17 @@ export interface GoodfellowConfig {
    */
   preact?: false;
   /**
+   * Whether pages' full addresses end with `/`, as `https://example.org/about/`:
+   * their canonical address, the sitemap's, `hreflang`'s, link previews',
+   * feeds' and structured data's, and where redirects send visitors. Builds
+   * write each page as a folder (`about/index.html`), which most hosts serve at
+   * the address with a `/` and redirect the one without to, so it's `true`
+   * where it's missing. Set `false` where the host serves pages without one
+   * and redirects the other way. `GOODFELLOW_TRAILING_SLASH` where the site is
+   * built overrides it. Next.js sites use Next.js's own `trailingSlash`.
+   */
+  trailingSlash?: boolean;
+  /**
    * The AI assistant in the editor, which drafts and rewrites content with an
    * AI service each editor chooses. On by default; `false` removes it.
    */

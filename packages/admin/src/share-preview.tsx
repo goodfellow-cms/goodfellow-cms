@@ -8,7 +8,8 @@ const usePuck = createUsePuck();
 /**
  * How the page looks when a link to it is shared, such as in a message or on
  * social media: its title, description and image as link previews show them,
- * from the page's settings or else Site Settings', updated as they're edited.
+ * from the page's settings or else Site Settings', updated as they're edited,
+ * with the picture large over the title or small beside it, as its settings say.
  */
 export function SharePreview({ path }: { path: string }) {
   const t = useStrings();
@@ -26,7 +27,7 @@ export function SharePreview({ path }: { path: string }) {
       <h3 id="gfa-share-preview-title" className="gfa-label">
         {t("sharePreview.title")}
       </h3>
-      <div className="gfa-share-card">
+      <div className={head.card === "summary" ? "gfa-share-card gfa-share-card-small" : "gfa-share-card"}>
         {image ? (
           <img src={image} alt="" className="gfa-share-image" />
         ) : (

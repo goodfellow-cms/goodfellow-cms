@@ -6,7 +6,7 @@
  * a site has them only once its address is set.
  */
 import { zonedInstant } from "../calendar.js";
-import { absoluteUrl } from "../head.js";
+import { absoluteUrl, pageUrl } from "../head.js";
 import type { BuildFile } from "./calendars.js";
 import type { Collection } from "./collections.js";
 import { dateField, entryDetails } from "./entry-details.js";
@@ -66,7 +66,7 @@ function feedItems(content: SiteContent, collection: Collection): FeedItem[] {
     return [
       {
         title: details.title,
-        url: absoluteUrl(url, entry.path),
+        url: pageUrl(content.settings, url, entry.path),
         ...(details.date && { published: zonedInstant(details.date, timeZone) }),
         ...(details.summary && { summary: details.summary }),
       },
@@ -86,7 +86,7 @@ function rssFeed(content: SiteContent, collection: Collection, items: FeedItem[]
     '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
     "  <channel>",
     `    <title>${xml(feedTitle(collection, settings.title))}</title>`,
-    `    <link>${xml(absoluteUrl(site, `${prefix}/`))}</link>`,
+    `    <link>${xml(pageUrl(settings, site, prefix || "/"))}</link>`,
     `    <description>${xml(settings.description || settings.title)}</description>`,
     `    <language>${xml(settings.language)}</language>`,
     `    <atom:link href="${xml(self)}" rel="self" type="application/rss+xml"/>`,
@@ -125,7 +125,7 @@ function atomFeed(content: SiteContent, collection: Collection, items: FeedItem[
     ...(settings.description ? [`  <subtitle>${xml(settings.description)}</subtitle>`] : []),
     `  <id>${xml(self)}</id>`,
     `  <link rel="self" type="application/atom+xml" href="${xml(self)}"/>`,
-    `  <link rel="alternate" type="text/html" href="${xml(absoluteUrl(site, `${prefix}/`))}"/>`,
+    `  <link rel="alternate" type="text/html" href="${xml(pageUrl(settings, site, prefix || "/"))}"/>`,
     `  <updated>${(newest ?? now).toISOString()}</updated>`,
     `  <author><name>${xml(settings.title)}</name></author>`,
   ];

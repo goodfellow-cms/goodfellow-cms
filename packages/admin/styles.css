@@ -2757,6 +2757,19 @@ body,
   background: var(--gfa-checker);
 }
 
+/* A small picture beside the words, as links with summary cards show. */
+.gfa-share-card-small {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  align-items: center;
+}
+
+.gfa-share-card-small .gfa-share-image {
+  height: 100%;
+  min-height: 96px;
+  aspect-ratio: 1;
+}
+
 .gfa-share-no-image {
   display: grid;
   place-items: center;

@@ -6,7 +6,9 @@ section: start
 order: 5
 ---
 
-Goodfellow sites run on free plans, which have limits worth knowing about. These are the hosts' rules, not Goodfellow's, and they change, so check the links before deciding. Last checked in October 2026.
+Goodfellow sites are static files, so they can be hosted anywhere that serves files (see [Host anywhere](/docs/any-host)); the setup files Goodfellow writes are for the four hosts below, which have free plans.
+
+Free plans have limits worth knowing about. These are the hosts' rules, not Goodfellow's, and they change, so check the links before deciding. Last checked in October 2026.
 
 ## Which to choose
 

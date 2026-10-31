@@ -16,6 +16,7 @@ import {
   SITE_DESCRIPTION_PATH,
   shownContent,
   siteCopyFrom,
+  TRAILING_SLASH_VARIABLE,
   todayIn,
 } from "@goodfellow-cms/core";
 import {
@@ -481,6 +482,8 @@ export async function dev(options: DevOptions = {}): Promise<ViteDevServer> {
   };
 
   const { config } = await loadServerEntry(server);
+  // Pages' full addresses end as the config says, as in builds, unless the environment says otherwise.
+  process.env[TRAILING_SLASH_VARIABLE] ||= String(config.trailingSlash ?? true);
   styles = await writeStylesEntries(root, config);
   await server.listen();
   server.printUrls();
