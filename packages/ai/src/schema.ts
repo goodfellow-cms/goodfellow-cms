@@ -101,7 +101,10 @@ export function fieldSchema(field: AnyField): JsonSchema | undefined {
           { type: "array", items: { type: "array", items: { type: "string" } } },
           describe(
             field,
-            [hint.description, "Each row a list of its cells' plain text, rows the same length"]
+            [
+              hint.description,
+              "Each row a list of its cells, rows the same length. A cell is text, which may use <strong>, <em>, <a href> and <br>, with & written &amp; and < written &lt;",
+            ]
               .filter(Boolean)
               .join(". "),
           ),

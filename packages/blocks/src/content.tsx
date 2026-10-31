@@ -1,4 +1,13 @@
-import { classNameField, mediaField, SiteImage, SiteLink, useParts, withParts } from "@goodfellow-cms/react";
+import {
+  classNameField,
+  mediaField,
+  SiteImage,
+  SiteLink,
+  useParts,
+  useSite,
+  withHeading,
+  withParts,
+} from "@goodfellow-cms/react";
 import type { ComponentConfig, RichText } from "@puckeditor/core";
 import { options, yesNo } from "./options.js";
 import { BUTTON_PARTS, HEADING_PARTS, IMAGE_PARTS, TEXT_PARTS } from "./parts.js";
@@ -13,6 +22,8 @@ export interface HeadingProps {
   text: string;
   level: Level;
   align: TextAlign;
+  /** Its link name, which links to it use after `#`; made from its text where it's empty (`pageHeadings()`). */
+  anchor?: string;
   className: string;
 }
 
@@ -23,30 +34,46 @@ const levelClasses: Record<Level, string> = {
   h4: "text-xl font-semibold",
 };
 
-export const Heading: ComponentConfig<HeadingProps> = withParts(
-  {
-    label: "Heading",
-    fields: {
-      text: { type: "text", label: "Text", contentEditable: true },
-      level: {
-        type: "select",
-        label: "Level",
-        options: options({ h1: "Page title (H1)", h2: "Section (H2)", h3: "Subsection (H3)", h4: "Small (H4)" }),
+export const Heading: ComponentConfig<HeadingProps> = withHeading(
+  withParts(
+    {
+      label: "Heading",
+      fields: {
+        text: { type: "text", label: "Text", contentEditable: true },
+        level: {
+          type: "select",
+          label: "Level",
+          options: options({ h1: "Page title (H1)", h2: "Section (H2)", h3: "Subsection (H3)", h4: "Small (H4)" }),
+        },
+        align: { type: "radio", label: "Alignment", options: alignOptions },
+        anchor: {
+          type: "text",
+          label: "Link name, for links to this heading (made from its text if left empty)",
+        },
+        className: classNameField,
       },
-      align: { type: "radio", label: "Alignment", options: alignOptions },
-      className: classNameField,
+      defaultProps: { text: "Heading", level: "h2", align: "left", anchor: "", className: "" },
+      render: ({ id, text, level: Tag, align, className }) => {
+        const part = useParts();
+        // Its link name on the page, unique there, which the page's table of contents links to.
+        const anchor = useSite().headings?.find((heading) => heading.block === id)?.anchor;
+        return (
+          <Tag
+            className={part("gf-heading", ["text-balance", levelClasses[Tag]], alignClasses[align], className)}
+            id={anchor}
+          >
+            {text}
+          </Tag>
+        );
+      },
     },
-    defaultProps: { text: "Heading", level: "h2", align: "left", className: "" },
-    render: ({ text, level: Tag, align, className }) => {
-      const part = useParts();
-      return (
-        <Tag className={part("gf-heading", ["text-balance", levelClasses[Tag]], alignClasses[align], className)}>
-          {text}
-        </Tag>
-      );
-    },
-  },
-  HEADING_PARTS,
+    HEADING_PARTS,
+  ),
+  (props) => ({
+    text: typeof props.text === "string" ? props.text : "",
+    level: Number(String(props.level ?? "h2").slice(1)) || 2,
+    ...(typeof props.anchor === "string" && props.anchor.trim() && { anchor: props.anchor }),
+  }),
 );
 
 export interface TextProps {

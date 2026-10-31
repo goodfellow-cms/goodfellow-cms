@@ -20,7 +20,7 @@ Start with `/api/manifest.json`. Every other file's address in it is relative to
 | File | What it holds |
 |---|---|
 | `manifest.json` | The Goodfellow release (`goodfellow`), the version of each kind of content file the site reads (`content`), `base`, `url`, `mainLanguage`, each language's files (`languages`), every page with its file and hash (`pages`), the blocks the site's pages, headers and footers use (`blocks`), and the site's [redirects](/docs/layout-and-settings#redirects) (`redirects`). |
-| `pages/….json` | One page, named from its address: `/` is `pages/index.json`, `/news/fair` is `pages/news/fair.json` and Spanish's home page is `pages/es.json`. It holds its `path`, `language`, `head` (the title as the browser shows it, description, social image, `noIndex`, the canonical address and translations), `entry` on an item's page, `view` on a page a block adds, such as a calendar's month, `data` (its blocks, as Puck stores them), `richText` (see below) and `credits` for the photos it shows. |
+| `pages/….json` | One page, named from its address: `/` is `pages/index.json`, `/news/fair` is `pages/news/fair.json` and Spanish's home page is `pages/es.json`. It holds its `path`, `language`, `head` (the title as the browser shows it, description, social image, `noIndex`, the canonical address and translations), `entry` on an item's page, `view` on a page a block adds, such as a calendar's month, `data` (its blocks, as Puck stores them), `richText` (see below), `credits` for the photos it shows, and `headings`, the Heading blocks' text, level and link name (`anchor`, which the heading carries as its `id`). |
 | `site.json` | The site's settings, menus and pages (the same list the Page list block shows), as blocks read them with `useSite()`, `descriptions`: the media library's descriptions of its images in that language, by address, for images whose blocks leave theirs empty, and `focus`: its images' focal points as CSS positions, such as `30% 60%`. |
 | `collections.json` | Every collection's settings, without its template, and its items' values. |
 | `header.json`, `footer.json` | The header and footer, prepared as they're shown on every page. |
@@ -35,7 +35,7 @@ Its `redirects` lists each old address (`from`, spelled without a trailing slash
 
 ## Rich text
 
-Rich text is sanitized HTML, as pages have it, wherever a block's field holds it. An item's Markdown body in `collections.json` is HTML too. For an app that draws content without an HTML renderer, each page, header and footer file also has `richText`: the same rich text as a simple structure, by the id of the block it's in (`root` for the page's settings), then by prop. A prop inside a list or a group is named with dots, such as `items.0.text`.
+Rich text is sanitized HTML, as pages have it, wherever a block's field holds it. An item's Markdown body in `collections.json` is HTML too. For an app that draws content without an HTML renderer, each page, header and footer file also has `richText`: the same rich text as a simple structure, by the id of the block it's in (`root` for the page's settings), then by prop. A prop inside a list or a group is named with dots, such as `items.0.text`, and a Table block's cells by row and column, such as `cells.1.0`, since cells can be bold, italic or links.
 
 ```json
 {

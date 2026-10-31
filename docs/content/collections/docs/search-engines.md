@@ -28,8 +28,9 @@ Pages carry structured data, in the [schema.org](https://schema.org) vocabulary 
 - **Dated items**, such as news, in a collection with a date field, are described as articles, with the date, the summary and the first picture.
 
 - **Breadcrumbs:** a page with the [Breadcrumbs](/docs/built-in-blocks#breadcrumbs) block describes the way to it from the home page, which search engines can show in place of the page's address.
+- **Questions and answers:** a page with [Questions and answers](/docs/built-in-blocks#questions-and-answers) blocks describes their questions and answers as an `FAQPage`, all of the page's in one. Google shows these only for some well-known government and health sites; other search engines and AI tools read them too.
 
-Other pages, and pages hidden from search engines, have none of the first three. There's nothing to set: it's worked out from the site's settings and the collections' fields when the site is built.
+Other pages, and pages hidden from search engines, have none of the first three. Pages hidden from search engines don't describe their questions and answers either. There's nothing to set: it's worked out from the site's settings and the collections' fields when the site is built.
 
 On a site in [several languages](/docs/languages), each page also links to its translations with `hreflang`, and the sitemap lists them with each page, so search engines show people the page in their own language. Each language's home page describes the site in that language.
 

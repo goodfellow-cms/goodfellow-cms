@@ -8,6 +8,7 @@ import {
   useBlockStyle,
   useNativeSite,
 } from "@goodfellow-cms/expo";
+import { type ComponentRef, useEffect, useRef } from "react";
 import { View } from "react-native";
 import type { ButtonProps, HeadingProps, ImageProps, TextProps } from "./content.js";
 
@@ -21,25 +22,41 @@ const LEVELS = {
   h4: { size: TEXT.xl, weight: "600", level: 4 },
 } as const;
 
-export function Heading({ text, level, align }: HeadingProps) {
+export function Heading({ id, text, level, align }: HeadingProps & { id?: string }) {
   const shown = LEVELS[level] ?? LEVELS.h2;
   // The heading is the block, so its Style's text size and color win over the level's, as on the web.
   const own = useBlockStyle().text;
+  const site = useNativeSite();
+  const ref = useRef<ComponentRef<typeof View>>(null);
+  // Its link name on the page, which the page's table of contents scrolls to.
+  const anchor = site.headings?.find((heading) => heading.block === id)?.anchor;
+  useEffect(() => {
+    if (!anchor) return;
+    return site.anchor(
+      anchor,
+      () =>
+        new Promise((resolve) =>
+          ref.current ? ref.current.measureInWindow((_x, y) => resolve(y)) : resolve(undefined),
+        ),
+    );
+  }, [anchor, site]);
   return (
-    <SiteText
-      heading={shown.level}
-      style={[
-        {
-          fontSize: shown.size,
-          lineHeight: Math.round(shown.size * 1.2),
-          fontWeight: shown.weight,
-          ...(align && { textAlign: align }),
-        },
-        own,
-      ]}
-    >
-      {text}
-    </SiteText>
+    <View ref={ref}>
+      <SiteText
+        heading={shown.level}
+        style={[
+          {
+            fontSize: shown.size,
+            lineHeight: Math.round(shown.size * 1.2),
+            fontWeight: shown.weight,
+            ...(align && { textAlign: align }),
+          },
+          own,
+        ]}
+      >
+        {text}
+      </SiteText>
+    </View>
   );
 }
 

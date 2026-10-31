@@ -6,7 +6,9 @@ import {
   describePlugin,
   GOODFELLOW_VERSION,
   type GoodfellowConfig,
+  type HeadingDetails,
   type SiteDescription,
+  type StructuredData,
   SYNCED_BLOCK,
   type TableCells,
   tableCells,
@@ -62,7 +64,7 @@ export function tableField(label: string): CustomField<TableCells> {
     label,
     metadata: {
       table: true,
-      ai: { type: "table", description: "Rows of the table, each a list of its cells' plain text" },
+      ai: { type: "table", description: "Rows of the table, each a list of its cells" },
     },
     render: () => <></>,
   };
@@ -187,6 +189,45 @@ export function withIcon<T extends object>(component: T, icon: unknown): T {
 /** The block's icon, from `withIcon()`. */
 export function blockIcon(component: object): BlockIcon | undefined {
   return (component as { [ICON]?: BlockIcon })[ICON];
+}
+
+const HEADING = Symbol.for("goodfellow.heading");
+
+/** What a heading block says about itself, from its props, for the page's table of contents. */
+export type BlockHeading = (props: Record<string, unknown>) => HeadingDetails | undefined;
+
+/**
+ * Says a block is a heading, which a page's table of contents (the On this
+ * page block) lists: `preparePage()` gives each a link name of its own on the
+ * page (`pageHeadings()`), which the block reads from `useSite().headings` by
+ * its id and renders as its `id`.
+ */
+export function withHeading<T extends object>(component: T, describe: BlockHeading): T {
+  return Object.assign(component, { [HEADING]: describe });
+}
+
+/** What a heading block says about itself, from `withHeading()`. */
+export function blockHeading(component: object): BlockHeading | undefined {
+  return (component as { [HEADING]?: BlockHeading })[HEADING];
+}
+
+const STRUCTURED_DATA = Symbol.for("goodfellow.structuredData");
+
+/** What a block tells search engines about itself, from its props as the page shows them, such as an FAQ's questions. */
+export type BlockStructuredData = (props: Record<string, unknown>) => StructuredData | undefined;
+
+/**
+ * Says what a block tells search engines, as schema.org data, which
+ * `preparePage()` adds to its page's (`withBlocksData()`), on pages search
+ * engines are told about (`describesPage()`).
+ */
+export function withStructuredData<T extends object>(component: T, describe: BlockStructuredData): T {
+  return Object.assign(component, { [STRUCTURED_DATA]: describe });
+}
+
+/** What a block tells search engines, from `withStructuredData()`. */
+export function blockStructuredData(component: object): BlockStructuredData | undefined {
+  return (component as { [STRUCTURED_DATA]?: BlockStructuredData })[STRUCTURED_DATA];
 }
 
 /**

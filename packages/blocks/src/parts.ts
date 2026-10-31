@@ -249,6 +249,22 @@ export const DETAILS_PARTS: BlockParts = {
   "gf-details-content": "What it shows",
 };
 
+export const ANNOUNCEMENT_PARTS: BlockParts = {
+  "gf-announcement": "Announcement bar",
+  "gf-announcement-message": "Message",
+  "gf-announcement-link": "Link",
+  "gf-announcement-close": "Close button",
+};
+
+export const FAQ_PARTS: BlockParts = {
+  "gf-faq": "Questions and answers",
+  "gf-faq-heading": "Heading",
+  "gf-faq-items": "Questions",
+  "gf-faq-item": "Question and answer",
+  "gf-faq-question": "Question",
+  "gf-faq-answer": "Answer",
+};
+
 export const TABLE_PARTS: BlockParts = {
   "gf-table": "Table and caption",
   "gf-table-grid": "Table",
@@ -305,6 +321,10 @@ export const GALLERY_PARTS: BlockParts = {
   "gf-gallery-picture": "Picture",
   "gf-gallery-item-caption": "Picture's caption",
   "gf-gallery-caption": "Gallery's caption",
+  "gf-gallery-lightbox": "Picture shown larger",
+  "gf-gallery-lightbox-picture": "Larger picture",
+  "gf-gallery-lightbox-caption": "Larger picture's caption",
+  "gf-gallery-lightbox-button": "Close, Previous and Next buttons",
 };
 
 export const BREADCRUMBS_PARTS: BlockParts = {

@@ -21,7 +21,7 @@ The admin panel's **Blocks** screen adds more blocks to the editor, from Goodfel
 | Image carousel | Pictures shown one at a time, with buttons to move between them |
 | Custom HTML | HTML written by hand, such as a widget's embed code. It's made safe (scripts, styles, frames and forms left out) unless you choose to use it exactly as written |
 | News feed | The latest items of another site's RSS or Atom feed, such as a diocese's news or a podcast's episodes: titles linking to them, with their dates |
-| Map | A Google map of an address or place, or of the embed code from Google Maps' **Share** button. No API key needed |
+| Map | A Google map of an address or place, or of the embed code from Google Maps' **Share** button, or an OpenStreetMap map of its embed code, a link to a place on it or a latitude and longitude, such as `51.5055, -0.0754` (OpenStreetMap's maps can't look up addresses). No API key needed |
 | Social links | Links to the site's pages on Facebook, Instagram, YouTube and X, each shown as the network's mark |
 | Panel | A box with its title in a colored bar, other blocks inside it, and an optional button at its foot |
 | Slideshow with quick links | Full-width pictures that fade from one to the next, with a badge, such as a logo, and a column of quick links over them |

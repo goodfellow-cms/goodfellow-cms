@@ -68,6 +68,16 @@ export const BLOCK_ICONS: Readonly<Record<string, BlockIcon>> = {
     ["path", { d: "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" }],
     ["path", { d: "M8 16H3v5" }],
   ],
+  AnnouncementBar: [
+    [
+      "path",
+      {
+        d: "M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z",
+      },
+    ],
+    ["path", { d: "M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14" }],
+    ["path", { d: "M8 6v8" }],
+  ],
   Heading: [
     ["path", { d: "M6 12h12" }],
     ["path", { d: "M6 20V4" }],
@@ -77,6 +87,16 @@ export const BLOCK_ICONS: Readonly<Record<string, BlockIcon>> = {
     ["path", { d: "M13 4v16" }],
     ["path", { d: "M17 4v16" }],
     ["path", { d: "M19 4H9.5a4.5 4.5 0 0 0 0 9H13" }],
+  ],
+  Faq: [
+    [
+      "path",
+      {
+        d: "M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719",
+      },
+    ],
+    ["path", { d: "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" }],
+    ["path", { d: "M12 17h.01" }],
   ],
   Button: [
     ["path", { d: "M14 4.1 12 6" }],

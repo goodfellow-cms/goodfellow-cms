@@ -1,6 +1,7 @@
 /**
  * What makes the built-in blocks that do something in the browser work: the
- * Code block's copy button, the Dark mode switch and the Search box. Each is
+ * Code block's copy button, the Dark mode switch, the Search box, the
+ * Gallery's lightbox and the Announcement bar's close button. Each is
  * a small script of its own rather than a React component, so a page that
  * uses them loads no React. The blocks render plain HTML marked with these
  * attributes, and `goodfellow build` adds a script only to the pages with
@@ -37,6 +38,38 @@ export const DARK_MODE_READY_ATTRIBUTE = "data-gf-ready";
  * the classes of the results' links, titles and excerpts.
  */
 export const SEARCH_BOX_ATTRIBUTE = "data-gf-search-box";
+
+/**
+ * On a Gallery whose pictures open larger: each picture is a link to its file
+ * (`LIGHTBOX_ITEM_ATTRIBUTE`), which opens without JavaScript too, and the
+ * Gallery draws a `<dialog>` (`LIGHTBOX_DIALOG_ATTRIBUTE`) holding the
+ * picture shown (`data-gf-lightbox-image`), its caption
+ * (`data-gf-lightbox-caption`), and Close, Previous and Next buttons
+ * (`data-gf-lightbox-close`, `-previous`, `-next`).
+ */
+export const LIGHTBOX_ATTRIBUTE = "data-gf-lightbox";
+
+/** On each picture's link in a Gallery whose pictures open larger. */
+export const LIGHTBOX_ITEM_ATTRIBUTE = "data-gf-lightbox-item";
+
+/** On the Gallery's `<dialog>` that shows a picture larger. */
+export const LIGHTBOX_DIALOG_ATTRIBUTE = "data-gf-lightbox-dialog";
+
+/**
+ * On an Announcement bar visitors can close, with what it says as a hash, so
+ * a bar closed once stays closed until its message changes. Its close button
+ * carries `ANNOUNCEMENT_CLOSE_ATTRIBUTE`.
+ */
+export const ANNOUNCEMENT_ATTRIBUTE = "data-gf-announcement";
+
+/** On an Announcement bar's close button. */
+export const ANNOUNCEMENT_CLOSE_ATTRIBUTE = "data-gf-announcement-close";
+
+/** Where the Announcement bars a visitor closed are kept, as their hashes. */
+export const ANNOUNCEMENT_STORAGE_KEY = "goodfellow-closed-announcements";
+
+/** How many closed bars are remembered; older ones are forgotten first. */
+const CLOSED_ANNOUNCEMENTS = 20;
 
 const q = JSON.stringify;
 
@@ -97,11 +130,56 @@ d.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target
 d.querySelectorAll("["+B+"] input").forEach(function(i){if(i.value)search(box(i))})})();`;
 }
 
+/**
+ * The Gallery's lightbox: a picture's link opens it larger in the Gallery's
+ * `<dialog>`, with its caption, where the arrow keys, the buttons and
+ * swiping move between the Gallery's pictures, and Escape, Close or a click
+ * outside the picture closes it, giving the keyboard's focus back to the
+ * picture. A click with a key held, to open the picture's file elsewhere,
+ * is left to the browser.
+ */
+export function lightboxScript(): string {
+  return `(function(){if(window.__gfLightbox)return;window.__gfLightbox=1;var d=document,G=${q(LIGHTBOX_ATTRIBUTE)},I=${q(LIGHTBOX_ITEM_ATTRIBUTE)},D=${q(LIGHTBOX_DIALOG_ATTRIBUTE)},open=null;
+function items(g){return Array.prototype.slice.call(g.querySelectorAll("["+I+"]"))}
+function part(dl,n){return dl.querySelector("[data-gf-lightbox-"+n+"]")}
+function show(o,i){var l=items(o.g);if(!l.length)return;o.i=(i+l.length)%l.length;var a=l[o.i],im=a.querySelector("img"),f=a.closest("figure"),c=f&&f.querySelector("figcaption"),pi=part(o.dl,"image"),pc=part(o.dl,"caption");pi.src=a.href;pi.alt=im?im.alt:"";pi.removeAttribute("aria-hidden");var nm=pi.alt||(c?c.textContent:"");if(nm)o.dl.setAttribute("aria-label",nm);if(pc){pc.textContent=c?c.textContent:"";pc.hidden=!c}var p=part(o.dl,"previous"),n=part(o.dl,"next");if(p)p.hidden=l.length<2;if(n)n.hidden=l.length<2}
+function start(a){var g=a.closest("["+G+"]"),dl=g&&g.querySelector("dialog["+D+"]");if(!dl||!dl.showModal)return false;open={g:g,dl:dl,from:a,i:0};show(open,items(g).indexOf(a));if(!dl.open)dl.showModal();return true}
+d.addEventListener("click",function(e){var t=e.target;if(!t||!t.closest)return;var a=t.closest("["+I+"]");if(a&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&!e.altKey&&e.button===0){if(start(a))e.preventDefault();return}
+if(!open)return;if(t.closest("[data-gf-lightbox-close]")||t===open.dl)open.dl.close();else if(t.closest("[data-gf-lightbox-previous]"))show(open,open.i-1);else if(t.closest("[data-gf-lightbox-next]"))show(open,open.i+1)});
+d.addEventListener("keydown",function(e){if(!open||!open.dl.open)return;if(e.key==="ArrowLeft")show(open,open.i-1);else if(e.key==="ArrowRight")show(open,open.i+1)});
+d.addEventListener("close",function(e){if(open&&e.target===open.dl){var f=open.from;open=null;if(f&&f.focus)f.focus()}},true);
+var x=null;d.addEventListener("pointerdown",function(e){x=open&&open.dl.contains(e.target)?e.clientX:null});
+d.addEventListener("pointerup",function(e){if(x===null||!open)return;var dx=e.clientX-x;x=null;if(Math.abs(dx)>50)show(open,open.i+(dx<0?1:-1))})})();`;
+}
+
+/**
+ * The Announcement bar's close button: hides the bar and remembers it closed,
+ * by its hash, which `announcementHideScript()` reads before the next page
+ * shows.
+ */
+export function announcementScript(): string {
+  return `(function(){if(window.__gfAnnouncement)return;window.__gfAnnouncement=1;var A=${q(ANNOUNCEMENT_ATTRIBUTE)},C=${q(ANNOUNCEMENT_CLOSE_ATTRIBUTE)},K=${q(ANNOUNCEMENT_STORAGE_KEY)};
+document.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("["+C+"]"):null,bar=b&&b.closest("["+A+"]");if(!bar)return;var h=bar.getAttribute(A);bar.hidden=true;
+try{var l=JSON.parse(localStorage.getItem(K)||"[]");if(!Array.isArray(l))l=[];l=l.filter(function(x){return x!==h});l.push(h);localStorage.setItem(K,JSON.stringify(l.slice(-${CLOSED_ANNOUNCEMENTS})))}catch(e){}})})();`;
+}
+
+/**
+ * Hides the Announcement bars a visitor closed before they show: the bar
+ * renders it just before itself, so it runs as the page is read, adding a
+ * style for each closed bar to the page's `<head>`. Only hashes are read back,
+ * so what a page's storage holds can't add anything else to it.
+ */
+export function announcementHideScript(): string {
+  return `(function(){if(window.__gfAnnouncementHidden)return;window.__gfAnnouncementHidden=1;try{var l=JSON.parse(localStorage.getItem(${q(ANNOUNCEMENT_STORAGE_KEY)})||"[]");if(!Array.isArray(l))return;var r=l.filter(function(h){return typeof h==="string"&&/^[0-9a-f]{1,32}$/.test(h)}).map(function(h){return "["+${q(ANNOUNCEMENT_ATTRIBUTE)}+"='"+h+"']{display:none!important}"}).join("");if(!r)return;var s=document.createElement("style");s.textContent=r;document.head.appendChild(s)}catch(e){}})();`;
+}
+
 /** Each built-in block's script, by the attribute that says a page needs it. */
 export const BLOCK_SCRIPTS: readonly { attribute: string; script: () => string }[] = [
   { attribute: COPY_ATTRIBUTE, script: copyScript },
   { attribute: DARK_MODE_ATTRIBUTE, script: darkModeScript },
   { attribute: SEARCH_BOX_ATTRIBUTE, script: searchScript },
+  { attribute: LIGHTBOX_ATTRIBUTE, script: lightboxScript },
+  { attribute: ANNOUNCEMENT_CLOSE_ATTRIBUTE, script: announcementScript },
 ];
 
 /** The scripts a page's HTML needs: one for each kind of block it has that does something in the browser. */

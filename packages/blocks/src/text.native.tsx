@@ -1,5 +1,5 @@
-import { tableCells } from "@goodfellow-cms/core";
-import { Blocks, Disclosure, SiteText, TEXT, useNativeSite } from "@goodfellow-cms/expo";
+import { richTextToPlainText, tableCells } from "@goodfellow-cms/core";
+import { Blocks, Disclosure, RichText, SiteText, TEXT, useNativeSite } from "@goodfellow-cms/expo";
 import { ScrollView, StyleSheet, View } from "react-native";
 import type {
   DetailsProps,
@@ -103,30 +103,43 @@ export function Details({ summary, open, content }: DetailsProps) {
 }
 
 /** A table of text, which scrolls sideways where it's wider than the screen. */
-export function Table({ cells, header, footer, caption, striped }: TableProps) {
-  const { colors } = useNativeSite().theme;
+export function Table({ id, cells, header, footer, caption, striped }: TableProps & { id?: string }) {
+  const site = useNativeSite();
+  const { colors } = site.theme;
   const rows = tableCells(cells);
   const head = header && rows.length > 1 ? rows[0] : undefined;
   const foot = footer && rows.length > (head ? 2 : 1) ? rows[rows.length - 1] : undefined;
   const body = rows.slice(head ? 1 : 0, foot ? -1 : undefined);
   const cell = { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, padding: 8, minWidth: 96, flex: 1 };
-  const row = (values: string[], key: string, bold: boolean, shaded: boolean) => (
-    <View key={key} style={[{ flexDirection: "row" }, shaded && { backgroundColor: colors.muted }]}>
-      {values.map((value, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: cells have no ids
-        <View key={index} style={cell}>
-          <SiteText style={{ fontSize: TEXT.sm, ...(bold && { fontWeight: "600" }) }}>{value}</SiteText>
-        </View>
-      ))}
+  // Each cell's formatting, as the content API gives it by the cell's row and column in the table.
+  const formatted = (r: number, c: number) => (id ? site.richText(id, `cells.${r}.${c}`) : undefined);
+  const row = (values: string[], r: number, bold: boolean, shaded: boolean) => (
+    <View key={r} style={[{ flexDirection: "row" }, shaded && { backgroundColor: colors.muted }]}>
+      {values.map((value, c) => {
+        const nodes = formatted(r, c);
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: cells have no ids
+          <View key={c} style={cell}>
+            {nodes ? (
+              <RichText nodes={nodes} />
+            ) : (
+              <SiteText style={{ fontSize: TEXT.sm, ...(bold && { fontWeight: "600" }) }}>
+                {richTextToPlainText(value)}
+              </SiteText>
+            )}
+          </View>
+        );
+      })}
     </View>
   );
+  const first = head ? 1 : 0;
   return (
     <View style={{ marginVertical: 24, gap: 8 }}>
       <ScrollView horizontal>
         <View accessibilityRole="grid" style={{ flexGrow: 1 }}>
-          {head && row(head, "head", true, true)}
-          {body.map((values, index) => row(values, `row-${index}`, false, striped && index % 2 === 1))}
-          {foot && row(foot, "foot", true, false)}
+          {head && row(head, 0, true, true)}
+          {body.map((values, index) => row(values, first + index, false, striped && index % 2 === 1))}
+          {foot && row(foot, rows.length - 1, true, false)}
         </View>
       </ScrollView>
       {caption ? (

@@ -18,15 +18,16 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Media and text | A picture or uploaded video beside other blocks, on either side, which stack on phones |
 | Details | A summary that opens to show the blocks inside it, with no JavaScript |
 | Synced block | One of the site's [synced blocks](/docs/synced-blocks), kept once and shown wherever it's placed, so changing it changes every page |
-| Heading | A heading, from page title (H1) down to H4 |
+| Heading | A heading, from page title (H1) down to H4, with a link name for links to it (see [Headings and On this page](#headings-and-on-this-page)) |
 | Text | Formatted text: paragraphs, lists, links |
 | Button | A link styled as a button |
+| Questions and answers | Questions that each open to show their answer, which search engines are told about too (see [Questions and answers](#questions-and-answers)) |
 | Pullquote | A quote shown large, set off from the text around it, with who said it |
-| Table | A table of text, with an optional row of headings, a footer, a caption and stripes (see [Table](#table)) |
+| Table | A table of text, which can be bold, italic or a link, with an optional row of headings, a footer, a caption and stripes (see [Table](#table)) |
 | Preformatted text | Text shown exactly as it's typed, spaces and line breaks included, in a fixed-width font |
 | Verse | Poetry or lyrics, with their lines and spaces as typed, in the page's own font |
 | Image | An image with an optional caption, and a description for people who can't see it, unless it's only decoration |
-| Gallery | Pictures in two to four columns, each with an optional caption, cropped to squares or not |
+| Gallery | Pictures in two to four columns, each with an optional caption, cropped to squares or not, which open larger when clicked (see [Gallery](#gallery)) |
 | Video | A video from the media library, YouTube, Vimeo or another site's player |
 | Social post | A post from Bluesky, Mastodon, Instagram or X, or a track or playlist from Spotify or SoundCloud (see [Social posts](#social-posts)) |
 | Audio | A sound file from the media library, such as a homily, with the browser's own player |
@@ -39,6 +40,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Donate button | A button to your giving page, such as a Stripe payment link or a PayPal donate button, with an optional heading and text (see [Giving and sharing](#giving-and-sharing)) |
 | Share buttons | Links that share the page on Facebook, X, Bluesky, LinkedIn or WhatsApp, or by email (see [Giving and sharing](#giving-and-sharing)) |
 | Menu | One of the site's menus, with dropdowns for submenus. **Colors** puts it in a bar of the theme's primary or secondary color, its dropdowns see-through in the same color, **Show the pages under each submenu link** opens a submenu link's own pages as a third level, so a section's pages need no menu entries of their own, and **Show the links behind a menu button (☰)** puts every link, every level of them, under a menu button on phones, on phones and small tablets, on phones and tablets, always or never (see [Menus on phones](#menus-on-phones)) |
+| Announcement bar | A bar across the page with a short message and a link, between a first and last day, which visitors can close (see [Announcement bar](#announcement-bar)) |
 | Site name and logo | The site's logo and name, linking home, with the site's description under the name if you like |
 | Search | A search box for the whole site, with results as you type |
 | Dark mode switch | Lets visitors choose light or dark colors, on sites with dark mode |
@@ -51,7 +53,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Entry field | One of the item's fields, in a collection's page design only |
 | Add to calendar | Links that add the item's event to visitors' calendars, in a page design only |
 | Previous and next | Links to the items before and after this one, in a page design only |
-| On this page | The headings of the item's Markdown text, in a page design only |
+| On this page | Links to the page's headings, or to the headings of an item's Markdown text (see [Headings and On this page](#headings-and-on-this-page)) |
 
 The blocks from Separator to File in the list match WordPress's own blocks of the same names, and Synced block matches WordPress's synced patterns, so [moving from WordPress](/docs/move-from-wordpress) keeps them as they are, and [exporting to WordPress](/docs/move-from-wordpress) makes them WordPress's again.
 
@@ -90,7 +92,29 @@ The **Donate button** links to your giving page, such as a Stripe payment link, 
 
 ## Table
 
-Select a Table block to edit its cells in a grid in the block's settings: type in each cell, and add or remove rows and columns. **First row is headings** makes the first row the columns' headings, and **Last row is a footer** sets the last row apart, such as for totals. Cells hold plain text. The table scrolls sideways on phones when it's wider than the screen.
+Select a Table block to edit its cells in a grid in the block's settings: type in each cell, and add or remove rows and columns. **First row is headings** makes the first row the columns' headings, and **Last row is a footer** sets the last row apart, such as for totals. Words in a cell can be bold or italic, or a link: select them, then choose **Bold**, **Italic** or **Link** above the grid (or press Ctrl+B or Ctrl+I), and press Enter for a new line in the same cell. The table scrolls sideways on phones when it's wider than the screen.
+
+Tables made before cells could be formatted keep their text exactly as it was typed, even where it looks like code, such as `<b>`, and become formatted tables the first time they're changed.
+
+## Gallery
+
+With **Open pictures larger when clicked**, which new Galleries start with, clicking a picture shows it larger over the page, with its caption. The arrow keys, the **Previous** and **Next** buttons and swiping move between the Gallery's pictures, and Escape, **Close** or a click beside the picture closes it. The buttons' names, which screen readers say, are in the block's settings, so you can put them in the page's language. Without JavaScript, or with a key held down, clicking a picture opens its file. Galleries made before this keep showing their pictures as they were until you turn it on. In the site's [app](/docs/apps), pictures open full screen.
+
+## Questions and answers
+
+Each question opens to show its answer, with no JavaScript. Answers are formatted text. Search engines are told about the questions and answers too, as schema.org's `FAQPage` (every Questions and answers block on a page together), on sites with the Site address. Google shows them in its results only for some well-known government and health sites, so for most sites this changes nothing you'll see in Google, though other search engines and AI tools read it.
+
+## Headings and On this page
+
+Every Heading block carries a link name, made from its words, so links can go straight to it: `/visit#mass-times` for a heading "Mass times". Two headings with the same words get `mass-times` and `mass-times-2`. To choose the name yourself, so links keep working when the heading's words change, fill in **Link name** in the heading's settings.
+
+The On this page block lists the page's Heading blocks, linking to each, with **Headings to list** choosing only the main ones (H2) or the ones under them (H3) too. On an item's page whose text is [Markdown](/docs/collections), it lists the headings of the item's text instead. **Stay in view as the page scrolls** keeps it beside long text, when it's in a column next to it.
+
+## Announcement bar
+
+Put an Announcement bar at the top of the header, in the Header & Footer editor, for news every page should carry, such as a change of Mass times. It shows from its **First day it shows** to its **Last day it shows**, in the site's time zone; leave either empty for no limit. The site is built again on the days it starts and stops showing, so it appears and goes on time without anyone publishing (see [Rebuilding overnight](/docs/updates#rebuilding-overnight)). The editor shows it outside its days too, faded.
+
+With **Visitors can close it**, the bar has a close button, and a visitor who closes it doesn't see it again in that browser until its message or link changes. Their choice is kept only in their own browser.
 
 ## Sections as covers
 
@@ -171,7 +195,9 @@ Every part of a built-in block has a name, which is on the part as a class, and 
 - **File:** `gf-file` (File), `gf-file-link` (File's link), `gf-file-button` (Download button).
 - **Form:** `gf-form` (Form), `gf-form-embed` (Google Form), `gf-form-questions` (Questions), `gf-form-question` (Question), `gf-form-label` (Question's wording), `gf-form-hint` (Help text), `gf-form-input` (Answer field), `gf-form-choice` (Choice), `gf-form-check` (Checkbox or option), `gf-form-required` (Required mark), `gf-form-submit` (Send button).
 - **Newsletter signup:** `gf-newsletter` (Newsletter signup), `gf-newsletter-heading` (Heading), `gf-newsletter-text` (Text), `gf-newsletter-form` (Form), `gf-newsletter-field` (Field), `gf-newsletter-label` (Field's label), `gf-newsletter-input` (Email box), `gf-newsletter-submit` (Subscribe button), `gf-newsletter-note` (Words under the form).
-- **Gallery:** `gf-gallery` (Gallery), `gf-gallery-items` (Pictures), `gf-gallery-item` (Picture and caption), `gf-gallery-picture` (Picture), `gf-gallery-item-caption` (Picture's caption), `gf-gallery-caption` (Gallery's caption).
+- **Gallery:** `gf-gallery` (Gallery), `gf-gallery-items` (Pictures), `gf-gallery-item` (Picture and caption), `gf-gallery-picture` (Picture), `gf-gallery-item-caption` (Picture's caption), `gf-gallery-caption` (Gallery's caption), `gf-gallery-lightbox` (Picture shown larger), `gf-gallery-lightbox-picture` (Larger picture), `gf-gallery-lightbox-caption` (Larger picture's caption), `gf-gallery-lightbox-button` (Close, Previous and Next buttons).
+- **Questions and answers:** `gf-faq` (Questions and answers), `gf-faq-heading` (Heading), `gf-faq-items` (Questions), `gf-faq-item` (Question and answer), `gf-faq-question` (Question), `gf-faq-answer` (Answer).
+- **Announcement bar:** `gf-announcement` (Announcement bar), `gf-announcement-message` (Message), `gf-announcement-link` (Link), `gf-announcement-close` (Close button).
 - **Heading:** `gf-heading` (Heading).
 - **Image:** `gf-image` (Image and caption), `gf-image-picture` (Picture), `gf-image-caption` (Caption).
 - **Language switch:** `gf-language-switch` (Language switch), `gf-language-list` (Languages), `gf-language-link` (Language), `gf-language-current` (Current language).

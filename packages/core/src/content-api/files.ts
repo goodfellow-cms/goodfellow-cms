@@ -10,9 +10,10 @@ import type { LanguageLink } from "../content/language-map.js";
 import { contentInLanguage, languagePrefix, mainLanguage, siteLanguages } from "../content/languages.js";
 import type { Page, SiteContent } from "../content/load.js";
 import { markdownToHtml } from "../content/markdown.js";
+import type { PageHeading } from "../content/page-headings.js";
 import { type PageLink, pageLinks } from "../content/page-links.js";
 import { redirectFrom, redirectTarget } from "../content/redirects.js";
-import { sanitizeHtml } from "../content/sanitize.js";
+import { sanitizeHtml, tableCellHtml } from "../content/sanitize.js";
 import { isAddedPage, type PageView } from "../content/site-pages.js";
 import { setLinkTargets } from "../external-links.js";
 import type { PageHead } from "../head.js";
@@ -66,6 +67,8 @@ export interface ApiPageFile {
   credits?: PageCredit[];
   /** On a site in several languages, the page in each: its translation, or the language's home page. */
   languages?: LanguageLink[];
+  /** Its heading blocks, each with its link name on the page, which its table of contents lists. */
+  headings?: PageHeading[];
 }
 
 /** The header or footer in a language, as `/api/header.json` and `/api/footer.json` have it. */
@@ -160,6 +163,7 @@ export interface ContentApiPage {
   head: PageHead;
   credits?: PageCredit[];
   languages?: LanguageLink[];
+  headings?: PageHeading[];
 }
 
 /** What a renderer gives `contentApiFiles()`: the site as shown, its pages and layouts prepared. */
@@ -191,7 +195,10 @@ function languageFolder(content: SiteContent, language: string): string {
   return language === mainLanguage(content.settings) ? "" : `${languagePrefix(language).slice(1)}/`;
 }
 
-type Fields = Record<string, { type?: string; arrayFields?: Fields; objectFields?: Fields } | undefined>;
+type Fields = Record<
+  string,
+  { type?: string; arrayFields?: Fields; objectFields?: Fields; metadata?: Record<string, unknown> } | undefined
+>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -259,6 +266,20 @@ class DataReader {
       const nodes = richTextNodes(html);
       this.keep(owner, path, nodes);
       return html;
+    }
+    // A table's cells (`tableField()`), each formatted text kept to a cell's formatting.
+    if (field?.type === "custom" && (field as { metadata?: { table?: unknown } }).metadata?.table === true) {
+      if (!Array.isArray(value)) return value;
+      return value.map((row, r) =>
+        Array.isArray(row)
+          ? row.map((cell, c) => {
+              if (typeof cell !== "string") return cell;
+              const html = tableCellHtml(cell);
+              this.keep(owner, `${path}.${r}.${c}`, richTextNodes(html));
+              return html;
+            })
+          : row,
+      );
     }
     if (isBlockList(value)) return this.blocks(value);
     if (field?.type === "array" && Array.isArray(value)) {
@@ -364,6 +385,7 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
       richText: reader.richText,
       ...(prepared.credits && prepared.credits.length > 0 && { credits: prepared.credits }),
       ...(prepared.languages && prepared.languages.length > 0 && { languages: prepared.languages }),
+      ...(prepared.headings && prepared.headings.length > 0 && { headings: prepared.headings }),
     };
     pages.push({
       path: page.path,

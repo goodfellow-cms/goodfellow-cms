@@ -27,6 +27,7 @@ import {
   type AdminPlace,
   blockIcon,
   mediaFieldKind,
+  pageHeadings,
   type SiteContextValue,
   SiteProvider,
   siteMetadata,
@@ -306,9 +307,20 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
     [kind, path, content, siteConfig.blocks],
   );
   const [view, setView] = useState(() => viewOf(initialData));
+  // Heading blocks' link names, which they render as their ids and On this page lists, as builds give them.
+  const headingsOf = useCallback(
+    (next: Data) =>
+      kind === "entry" || kind === "header" || kind === "footer"
+        ? []
+        : pageHeadings(next, { components: siteConfig.blocks } as Config),
+    [kind, siteConfig.blocks],
+  );
+  const [headings, setHeadings] = useState(() => headingsOf(initialData));
   const updateView = (next: Data) => {
     const found = viewOf(next);
     setView((current) => (current?.block === found?.block ? current : found));
+    const listed = headingsOf(next);
+    setHeadings((current) => (JSON.stringify(current) === JSON.stringify(listed) ? current : listed));
   };
 
   // Blocks' notes link to where they're fixed. Their links are in the canvas, so they take clicks through
@@ -343,6 +355,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
       pages: pageLinks(content),
       collection,
       ...(view && { view }),
+      ...(headings.length > 0 && { headings }),
       ...(languages && { languages, home: languageHome(loaded, language) }),
       ...(content.descriptions && {
         descriptions: Object.fromEntries(
@@ -359,7 +372,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
       adminLink,
       callPlugin,
     }),
-    [content, loaded, language, path, collection, view, languages, adminLink, callPlugin],
+    [content, loaded, language, path, collection, view, headings, languages, adminLink, callPlugin],
   );
   const entry = kind === "entry" && collection && open.entry ? findEntry(loaded, collection.id, open.entry) : undefined;
   // Blocks' labels in the admin panel's language, which the block search and the AI assistant see too.

@@ -1,3 +1,4 @@
+import { escapeCellText, tableCellHtml } from "@goodfellow-cms/core";
 import { classNameField, type TableCells, tableCells, tableField, useParts, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Slot } from "@puckeditor/core";
 import { options, yesNo } from "./options.js";
@@ -175,7 +176,15 @@ export const Details: ComponentConfig<DetailsProps> = withParts(
 );
 
 export interface TableProps {
+  /** Each cell's HTML, kept to bold, italics, links, code and line breaks (`tableCellHtml()`). */
   cells: TableCells;
+  /**
+   * `html` for cells written as formatted text, as every table since cells
+   * could be formatted is. A table from before has none, and its cells are
+   * plain text, which `resolveData` escapes and marks once it's changed, and
+   * where pages are built.
+   */
+  format?: "html";
   /** Whether the first row is the columns' headings. */
   header: boolean;
   /** Whether the last row is a footer, such as totals. */
@@ -191,6 +200,9 @@ export const Table: ComponentConfig<TableProps> = withParts(
     label: "Table",
     fields: {
       cells: tableField("Cells"),
+      // Drawn by nothing: what the cells hold is the table's own business, so neither the AI assistant nor
+      // Claude chooses it (a field they don't understand keeps its starting value).
+      format: { type: "custom", render: () => <></> },
       header: { type: "radio", label: "First row is headings", options: yesNo },
       footer: { type: "radio", label: "Last row is a footer", options: yesNo },
       caption: { type: "text", label: "Caption" },
@@ -202,15 +214,33 @@ export const Table: ComponentConfig<TableProps> = withParts(
         ["", ""],
         ["", ""],
       ],
+      format: "html",
       header: true,
       footer: false,
       caption: "",
       striped: false,
       className: "",
     },
-    render: ({ cells, header, footer, caption, striped, className }) => {
+    // A table from before cells could be formatted has plain text, which becomes formatted text that says the
+    // same once it's changed, or where pages are built: not as the editor opens it, which would count as a change.
+    // What the editor's cells hand back is formatted already, so only the cells left as they were are escaped.
+    resolveData: ({ props }, { lastData, trigger }) => {
+      if (props.format === "html" || trigger === "load") return { props };
+      const before = lastData?.props.format === "html" ? undefined : lastData?.props.cells;
+      return {
+        props: {
+          ...props,
+          cells: tableCells(props.cells).map((row, r) =>
+            row.map((cell, c) => (before && before[r]?.[c] !== cell ? cell : escapeCellText(cell))),
+          ),
+          format: "html" as const,
+        },
+      };
+    },
+    render: ({ cells, format, header, footer, caption, striped, className }) => {
       const part = useParts();
-      const rows = tableCells(cells);
+      // Cells from before they could be formatted, as the editor opens them, are plain text.
+      const rows = tableCells(cells).map((row) => (format === "html" ? row : row.map(escapeCellText)));
       const head = header && rows.length > 1 ? rows[0] : undefined;
       const foot = footer && rows.length > (head ? 2 : 1) ? rows[rows.length - 1] : undefined;
       const body = rows.slice(head ? 1 : 0, foot ? -1 : undefined);
@@ -229,10 +259,14 @@ export const Table: ComponentConfig<TableProps> = withParts(
               <thead>
                 <tr className={part("gf-table-row")}>
                   {head.map((cell, index) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: cells have no ids, and their order is what they are
-                    <th key={index} scope="col" className={headingClass}>
-                      {cell}
-                    </th>
+                    <th
+                      // biome-ignore lint/suspicious/noArrayIndexKey: cells have no ids, and their order is what they are
+                      key={index}
+                      scope="col"
+                      className={headingClass}
+                      // biome-ignore lint/security/noDangerouslySetInnerHtml: kept to a cell's formatting by tableCellHtml()
+                      dangerouslySetInnerHTML={{ __html: tableCellHtml(cell) }}
+                    />
                   ))}
                 </tr>
               </thead>
@@ -242,10 +276,13 @@ export const Table: ComponentConfig<TableProps> = withParts(
                 // biome-ignore lint/suspicious/noArrayIndexKey: rows have no ids, and their order is what they are
                 <tr key={rowIndex} className={rowClass}>
                   {row.map((cell, index) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: cells have no ids, and their order is what they are
-                    <td key={index} className={cellClass}>
-                      {cell}
-                    </td>
+                    <td
+                      // biome-ignore lint/suspicious/noArrayIndexKey: cells have no ids, and their order is what they are
+                      key={index}
+                      className={cellClass}
+                      // biome-ignore lint/security/noDangerouslySetInnerHtml: kept to a cell's formatting by tableCellHtml()
+                      dangerouslySetInnerHTML={{ __html: tableCellHtml(cell) }}
+                    />
                   ))}
                 </tr>
               ))}
@@ -254,10 +291,13 @@ export const Table: ComponentConfig<TableProps> = withParts(
               <tfoot>
                 <tr className={part("gf-table-row")}>
                   {foot.map((cell, index) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: cells have no ids, and their order is what they are
-                    <td key={index} className={part("gf-table-cell", "border border-border px-3 py-2 font-semibold")}>
-                      {cell}
-                    </td>
+                    <td
+                      // biome-ignore lint/suspicious/noArrayIndexKey: cells have no ids, and their order is what they are
+                      key={index}
+                      className={part("gf-table-cell", "border border-border px-3 py-2 font-semibold")}
+                      // biome-ignore lint/security/noDangerouslySetInnerHtml: kept to a cell's formatting by tableCellHtml()
+                      dangerouslySetInnerHTML={{ __html: tableCellHtml(cell) }}
+                    />
                   ))}
                 </tr>
               </tfoot>

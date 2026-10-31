@@ -149,7 +149,7 @@ describe("built-in blocks", () => {
     expect(html).toContain('<section class="gf-section py-20 bg-primary text-primary-foreground hero">');
     expect(html).toContain('class="gf-section-content mx-auto px-4 max-w-2xl"');
     expect(html).toContain('class="gf-columns grid grid-cols-1 md:grid-cols-3 gap-3"');
-    expect(html).toMatch(/<h1 class="[^"]*text-center text-red-500">Hi<\/h1>/);
+    expect(html).toMatch(/<h1 class="[^"]*text-center text-red-500" id="hi">Hi<\/h1>/);
     expect(html).not.toContain('<div class="hero"');
   });
 

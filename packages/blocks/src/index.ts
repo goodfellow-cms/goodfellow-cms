@@ -1,5 +1,6 @@
 import { withIcon, withKeywords } from "@goodfellow-cms/react";
 import type { Config } from "@puckeditor/core";
+import { AnnouncementBar } from "./announcement.js";
 import { AddToCalendar, Calendar } from "./calendar.js";
 import { Code } from "./code.js";
 import { CollectionList, EntryField } from "./collections.js";
@@ -8,6 +9,7 @@ import { Button, Heading, Image, Text } from "./content.js";
 import { DarkModeSwitch } from "./dark-mode-switch.js";
 import { CollectionNav, EntryPager, OnThisPage } from "./docs.js";
 import { Embed } from "./embed.js";
+import { Faq } from "./faq.js";
 import { Form } from "./form.js";
 import { BLOCK_ICONS } from "./icons.js";
 import { BLOCK_KEYWORDS } from "./keywords.js";
@@ -23,6 +25,7 @@ import { SyncedBlock } from "./synced.js";
 import { Details, Preformatted, Pullquote, Separator, Table, Verse } from "./text.js";
 import { Video } from "./video.js";
 
+export { AnnouncementBar, type AnnouncementBarProps } from "./announcement.js";
 export {
   AddToCalendar,
   type AddToCalendarProps,
@@ -64,6 +67,7 @@ export {
   type OnThisPageProps,
 } from "./docs.js";
 export { Embed, type EmbedProps } from "./embed.js";
+export { Faq, type FaqProps } from "./faq.js";
 export { Form, type FormField, type FormFieldType, type FormProps } from "./form.js";
 export {
   CODE_LANGUAGES,
@@ -190,6 +194,8 @@ export const blocks = {
   ShareButtons,
   Donate,
   SyncedBlock,
+  Faq,
+  AnnouncementBar,
 };
 
 for (const [name, keywords] of Object.entries(BLOCK_KEYWORDS)) {
@@ -210,11 +216,21 @@ for (const [name, icon] of Object.entries(BLOCK_ICONS)) {
 export const categories = {
   layout: {
     title: "Layout",
-    components: ["Section", "Grid", "Flex", "Space", "Separator", "MediaText", "Details", "SyncedBlock"],
+    components: [
+      "Section",
+      "Grid",
+      "Flex",
+      "Space",
+      "Separator",
+      "MediaText",
+      "Details",
+      "SyncedBlock",
+      "AnnouncementBar",
+    ],
   },
   content: {
     title: "Text",
-    components: ["Heading", "Text", "Pullquote", "Table", "Preformatted", "Verse", "Code"],
+    components: ["Heading", "Text", "Faq", "Pullquote", "Table", "Preformatted", "Verse", "Code"],
   },
   forms: {
     title: "Buttons and forms",
@@ -235,18 +251,11 @@ export const categories = {
       "CollectionNav",
       "PageList",
       "Breadcrumbs",
+      "OnThisPage",
     ],
   },
   collections: {
     title: "Collections",
-    components: [
-      "CollectionList",
-      "CollectionLoop",
-      "Calendar",
-      "EntryField",
-      "AddToCalendar",
-      "EntryPager",
-      "OnThisPage",
-    ],
+    components: ["CollectionList", "CollectionLoop", "Calendar", "EntryField", "AddToCalendar", "EntryPager"],
   },
 } satisfies Config["categories"];

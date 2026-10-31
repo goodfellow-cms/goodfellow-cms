@@ -41,7 +41,7 @@ const CONTENT = `
 <!-- /wp:details -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><thead><tr><th>Day</th><th>Time</th></tr></thead><tbody><tr><td>Sunday</td><td>9:00</td></tr></tbody><tfoot><tr><td>Total</td><td>1</td></tr></tfoot></table><figcaption class="wp-element-caption">Mass times</figcaption></figure>
+<figure class="wp-block-table"><table><thead><tr><th>Day</th><th>Time</th></tr></thead><tbody><tr><td><strong>Sunday</strong></td><td>9:00<br>10:30</td></tr></tbody><tfoot><tr><td>Total</td><td>1</td></tr></tfoot></table><figcaption class="wp-element-caption">Mass times</figcaption></figure>
 <!-- /wp:table -->
 
 <!-- wp:file {"id":12,"href":"https://parish.example/wp-content/uploads/2026/05/bulletin.pdf"} -->
@@ -121,10 +121,11 @@ describe("WordPress's own blocks", () => {
       caption: "Mass times",
       cells: [
         ["Day", "Time"],
-        ["Sunday", "9:00"],
+        ["<strong>Sunday</strong>", "9:00<br>10:30"],
         ["Total", "1"],
       ],
       footer: true,
+      format: "html",
       header: true,
       striped: false,
     });
@@ -240,9 +241,10 @@ describe("WordPress's own blocks exported", () => {
             block("Table", {
               cells: [
                 ["Day", "Time"],
-                ["Sunday", "9:00"],
+                ["<strong>Sunday</strong>", "9:00<br>10:30"],
                 ["Total", "1"],
               ],
+              format: "html",
               header: true,
               footer: true,
               caption: "Mass times",
@@ -353,10 +355,11 @@ describe("WordPress's own blocks exported", () => {
       caption: "Mass times",
       cells: [
         ["Day", "Time"],
-        ["Sunday", "9:00"],
+        ["<strong>Sunday</strong>", "9:00<br>10:30"],
         ["Total", "1"],
       ],
       footer: true,
+      format: "html",
       header: true,
       striped: false,
     });
