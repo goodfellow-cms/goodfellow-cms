@@ -31,6 +31,8 @@ When a rebuild fails, the top of the admin panel says the live site couldn't be 
 - **A content file has a problem:** fix it, or put back a version that worked from its [version history](#version-history).
 - **The site's code couldn't be built:** if its blocks changed just before, undo that under **Blocks**; otherwise a developer needs to look at the details.
 
+[Troubleshooting](/docs/troubleshooting) has more on what to do when a publish doesn't show up on the site.
+
 On GitHub, seeing which step failed needs the token's **Actions** permission, which the sign-in link fills in. Tokens made before it did can still publish, but the admin panel can only say that the rebuild failed.
 
 ## Working with other editors
