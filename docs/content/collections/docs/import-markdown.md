@@ -6,7 +6,7 @@ section: owners
 order: 6.1
 ---
 
-A folder of Markdown files, such as the content of a site made with Hugo, Jekyll, Eleventy, Astro or Docusaurus, or notes kept as `.md` files, can be brought into a Goodfellow site. You choose which folders become pages and which become [collections](/docs/collections), and see what will come across before anything changes.
+A folder of Markdown files, such as the content of a site made with Hugo, Jekyll, Eleventy, Astro or Docusaurus, or notes kept as `.md` files, can be brought into a Goodfellow site. You choose which folders become pages and which become [collections](/docs/collections), and see what will come across before anything changes. To go the other way, see [Export as Markdown](/docs/export-markdown).
 
 ## In the admin panel
 

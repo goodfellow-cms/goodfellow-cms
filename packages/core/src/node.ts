@@ -112,8 +112,11 @@ export {
 } from "./node-task-runner.js";
 export { type RunCommand, type SiteFile, siteFileChanges, type UpdateOptions, update } from "./node-update.js";
 export {
+  type ExportMarkdownResult,
   type ExportWordPressResult,
+  exportMarkdown,
   exportWordPress,
+  formatMarkdownExport,
   formatMarkdownImport,
   formatWordPressExport,
   formatWordPressImport,
@@ -123,6 +126,7 @@ export {
   type ImportWordPressResult,
   importMarkdown,
   importWordPress,
+  MarkdownExportError,
   MarkdownFolderError,
   type MediaSkipReason,
   markdownFolderChoices,

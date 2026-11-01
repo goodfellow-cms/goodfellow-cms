@@ -15,14 +15,17 @@ import {
   ContentRepositoryError,
   checkSiteAdminAddress,
   contentRepositoryProblem,
+  exportMarkdown,
   exportWordPress,
   formatAdminResult,
   formatAdminText,
+  formatMarkdownExport,
   formatMarkdownImport,
   formatWordPressExport,
   formatWordPressImport,
   importMarkdown,
   importWordPress,
+  MarkdownExportError,
   MarkdownFolderError,
   markdownFolderChoices,
   nightlyCheck,
@@ -79,6 +82,10 @@ Commands:
                                    --keep-fields (keeps other front matter as fields)
   export    export wordpress [file]  writes this site as a WordPress export file, which
                                    WordPress imports with Tools → Import → WordPress
+            export markdown [folder] writes this site as a folder of Markdown files, for
+                                   Hugo, Jekyll, Eleventy, Astro and notes apps
+                                   (--scheduled also exports what isn't shown yet, as drafts;
+                                   --links files links to the files rather than the addresses)
   blocks    blocks add <item>      installs a shadcn registry item (button, @acme/hero, or
                                    an item's address) with shadcn's own CLI, makes a block
                                    of its component, with fields from its props, and says
@@ -184,6 +191,8 @@ async function main(): Promise<void> {
       drafts: { type: "boolean" },
       menu: { type: "boolean" },
       "keep-fields": { type: "boolean" },
+      scheduled: { type: "boolean" },
+      links: { type: "string" },
       registry: { type: "string" },
       native: { type: "string" },
       help: { type: "boolean", short: "h" },
@@ -429,8 +438,29 @@ async function main(): Promise<void> {
     }
     case "export": {
       const [, kind, file] = positionals;
+      if (kind === "markdown") {
+        if (values.links !== undefined && values.links !== "site" && values.links !== "files") {
+          console.error('Say "--links site" or "--links files".');
+          process.exitCode = 1;
+          return;
+        }
+        try {
+          const result = await exportMarkdown(values.root ?? ".", file, {
+            scheduled: values.scheduled === true,
+            ...(values.links && { links: values.links }),
+          });
+          console.log(formatMarkdownExport(result));
+        } catch (error) {
+          if (!(error instanceof MarkdownExportError)) throw error;
+          console.error(error.message);
+          process.exitCode = 1;
+        }
+        return;
+      }
       if (kind !== "wordpress") {
-        console.error(`Say "export wordpress", and the file to write if you like.\n\n${HELP}`);
+        console.error(
+          `Say "export wordpress" or "export markdown", and the file or folder to write if you like.\n\n${HELP}`,
+        );
         process.exitCode = 1;
         return;
       }

@@ -27,10 +27,11 @@ order: 5
 | `goodfellow import wordpress <file or address>` | Brings a WordPress site's pages, posts, categories, tags, menus and media into the site, from its export file or its address (see [Move from WordPress](/docs/move-from-wordpress)). `--dry-run` says what would come across and changes nothing |
 | `goodfellow import markdown <folder>` | Brings a folder of Markdown files into the site: the files at the top as pages, and each folder as a collection, unless `--pages` or `--collection` names it (see [Import Markdown files](/docs/import-markdown)). `--dry-run` says what would come across and changes nothing |
 | `goodfellow export wordpress [file]` | Writes the site as a WordPress export file, at `file` or in a file named after the site, which WordPress imports with **Tools → Import → WordPress** (see [Move from WordPress](/docs/move-from-wordpress#moving-to-wordpress)) |
+| `goodfellow export markdown [folder]` | Writes the site's pages and items as Markdown files, with its media and menus, in `folder` or a folder named after the site, which has to be empty (see [Export as Markdown](/docs/export-markdown)). `--scheduled` also exports what a schedule hides now, as drafts, and `--links files` links to the files rather than the site's addresses |
 
 Next.js sites have the same `update`, `due`, `nightly`, `task`, `content`, `blocks`, `admin`, `import` and `export` commands as `goodfellow-next update`, `goodfellow-next due`, `goodfellow-next nightly`, `goodfellow-next task`, `goodfellow-next content`, `goodfellow-next blocks`, `goodfellow-next admin`, `goodfellow-next import` and `goodfellow-next export`, `goodfellow-next broker use` and `remove`, and `goodfellow-next sign-in`.
 
-Options: `--root <dir>`, `--out <dir>`, `--port <port>`, `--base <path>`, for `import`, `--dry-run`, and for `blocks add`, `--registry <folder>` and `--native <folder>`.
+Options: `--root <dir>`, `--out <dir>`, `--port <port>`, `--base <path>`, for `import`, `--dry-run`, for `export markdown`, `--scheduled` and `--links site|files`, and for `blocks add`, `--registry <folder>` and `--native <folder>`.
 
 ## Site checks
 

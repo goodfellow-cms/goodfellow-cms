@@ -140,7 +140,7 @@ function coverLook(props: Record<string, unknown>): WpCoverLook {
   };
 }
 
-interface PuckBlock {
+export interface PuckBlock {
   type: string;
   props: Record<string, unknown>;
 }
@@ -155,7 +155,7 @@ function isBlock(value: unknown): value is PuckBlock {
 }
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
-const blocksIn = (value: unknown) => (Array.isArray(value) ? value.filter(isBlock) : []);
+export const blocksIn = (value: unknown) => (Array.isArray(value) ? value.filter(isBlock) : []);
 
 function cdata(value: string): string {
   return `<![CDATA[${value.replace(/]]>/g, "]]]]><![CDATA[>")}]]>`;
@@ -168,9 +168,12 @@ function wpDate(local: string): string {
   return `${local.replace("T", " ")}:00`.slice(0, 19);
 }
 
-interface ConvertContext {
+/** What turning blocks into WordPress's needs, which the Markdown export gives too (`markdown-export.ts`). */
+export interface ConvertContext {
   link(address: string): string;
   media(address: string): string;
+  /** The media library's description of an image, for an Image block whose own alt text is empty. */
+  describe?(address: string): string;
   /** The collections exported as posts, which lists of their items can show. */
   posts: ReadonlySet<string>;
   content: SiteContent;
@@ -228,7 +231,7 @@ function contactBlocks(props: Record<string, unknown>, context: ConvertContext):
 }
 
 /** Puck blocks as WordPress's. */
-function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string[] {
+export function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string[] {
   return blocks.flatMap((block): string[] => {
     const { props } = block;
     switch (block.type) {
@@ -249,7 +252,8 @@ function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string[] {
         return layoutBlocks(block, context);
       case "Image": {
         const src = context.media(text(props.src));
-        return src ? [image(src, props.decorative === true ? "" : text(props.alt), text(props.caption))] : [];
+        const alt = props.decorative === true ? "" : text(props.alt) || (context.describe?.(text(props.src)) ?? "");
+        return src ? [image(src, alt, text(props.caption))] : [];
       }
       case "Video":
         return videoBlocks(props, context);
@@ -409,7 +413,7 @@ function layoutBlocks(block: PuckBlock, context: ConvertContext): string[] {
  * A page's blocks without its heading for its own title, which WordPress shows
  * as the page's heading itself: the first block, or a first Section's first.
  */
-function withoutTitle(blocks: PuckBlock[], title: string): PuckBlock[] {
+export function withoutTitle(blocks: PuckBlock[], title: string): PuckBlock[] {
   const isTitle = (block: PuckBlock | undefined) =>
     block?.type === "Heading" && text(block.props.text).trim() === title;
   const [first, ...rest] = blocks;
@@ -492,6 +496,7 @@ export function wordPressExport(content: SiteContent, options: WordPressExportOp
   const context = (item: string): ConvertContext => ({
     link,
     media,
+    describe: (address) => content.descriptions?.[address.trim()]?.text ?? "",
     posts: exported,
     content,
     synced: (name) => syncedIds.get(name),

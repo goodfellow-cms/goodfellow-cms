@@ -4,10 +4,11 @@
  * --wordpress` do: from an export file or the site's address, with the media
  * its pages and posts use downloaded into `public/media/`. Also writes a site
  * on disk as a WordPress export file, as `goodfellow export wordpress` does,
- * and imports folders of Markdown files, as `goodfellow import markdown` does.
+ * and imports folders of Markdown files, as `goodfellow import markdown` does,
+ * and exports the site as one, as `goodfellow export markdown` does.
  */
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { join, relative, resolve, sep } from "node:path";
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import {
   exifOrientation,
   extensionOf,
@@ -21,10 +22,15 @@ import { fileSystemSource } from "./node-fs-source.js";
 import { localFileStore } from "./node-local-files.js";
 import {
   fetchWordPressSite,
+  type MarkdownExport,
+  type MarkdownExportNote,
+  type MarkdownExportOptions,
   type MarkdownFolderUse,
   type MarkdownImport,
   type MarkdownImportNote,
   type MarkdownImportOptions,
+  markdownExport,
+  markdownExportName,
   planMarkdownImport,
   planWordPressImport,
   readWordPressExport,
@@ -485,4 +491,83 @@ export function markdownFolderChoices(
     ...Object.fromEntries(pages.map((folder) => [name(folder), "pages" as const])),
     ...Object.fromEntries(collections.map((folder) => [name(folder), "collection" as const])),
   };
+}
+
+export interface ExportMarkdownResult {
+  /** The folder the export was written to. */
+  folder: string;
+  export: MarkdownExport;
+}
+
+/** Thrown where the folder to export to has files in it already, which an export never writes over. */
+export class MarkdownExportError extends Error {
+  override name = "MarkdownExportError";
+  constructor(readonly folder: string) {
+    super(`${folder} has files in it already. Name an empty folder, or one that doesn't exist yet.`);
+  }
+}
+
+/**
+ * Writes a site on disk as a folder of Markdown files (`markdownExport()`), as
+ * `goodfellow export markdown` and `goodfellow-next export markdown` do: the
+ * pages and items, `menus.json`, and the media library copied into `media/`.
+ * The folder must be empty or not exist yet.
+ */
+export async function exportMarkdown(
+  root: string,
+  folder?: string,
+  options: Pick<MarkdownExportOptions, "now" | "scheduled" | "links"> = {},
+): Promise<ExportMarkdownResult> {
+  const source = fileSystemSource(root);
+  const content = await loadSiteContent(source);
+  const result = markdownExport(content, { ...options, mediaFiles: await source.list(MEDIA_DIR) });
+  const written = resolve(folder ?? markdownExportName(content));
+  const existing = await readdir(written).catch(() => []);
+  if (existing.length > 0) throw new MarkdownExportError(written);
+  for (const file of result.files) {
+    const target = join(written, ...file.path.split("/"));
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, file.content);
+  }
+  for (const file of result.media) {
+    const target = join(written, ...file.path.split("/"));
+    await mkdir(dirname(target), { recursive: true });
+    await copyFile(join(root, ...file.from.split("/")), target);
+  }
+  return { folder: written, export: result };
+}
+
+function markdownExportNoteLine(note: MarkdownExportNote): string {
+  switch (note.kind) {
+    case "left-out-block":
+      return `Markdown can't hold the ${note.name} block, so it was left out: ${listed(note.items)}.`;
+    case "scheduled":
+      return note.included
+        ? `${plural(note.items.length, "page or item", "pages and items")} ${verb(note.items.length, "isn't", "aren't")} shown now, by ${verb(note.items.length, "its", "their")} schedule, so ${verb(note.items.length, "it's", "they're")} marked as ${verb(note.items.length, "a draft", "drafts")}: ${listed(note.items)}.`
+        : `${plural(note.items.length, "page or item", "pages and items")} ${verb(note.items.length, "isn't", "aren't")} shown now, by ${verb(note.items.length, "its", "their")} schedule, so ${verb(note.items.length, "it was", "they were")} left out: ${listed(note.items)}. Export with --scheduled to include ${verb(note.items.length, "it", "them")} as drafts.`;
+    case "no-pages":
+      return `${listed(note.collections)} ${verb(note.collections.length, "has", "have")} no pages of ${verb(note.collections.length, "its", "their")} own, so ${verb(note.collections.length, "its", "their")} items are in folders starting with _.`;
+    case "templates":
+      return `The page designs of ${listed(note.collections)} weren't exported: each item is its own details and text.`;
+    case "redirects":
+      return `${plural(note.count, "redirect")} ${verb(note.count, "doesn't", "don't")} go to an exported page, so ${verb(note.count, "it isn't", "they aren't")} in the files.`;
+    case "layout":
+      return "The header and footer aren't in the files: Markdown has no layout. The menus are in menus.json.";
+  }
+}
+
+/** What a Markdown export wrote, in words, for the command line. */
+export function formatMarkdownExport(result: ExportMarkdownResult, from = process.cwd()): string {
+  const { summary, notes } = result.export;
+  const near = relative(from, result.folder);
+  const shown = near && !near.startsWith("..") ? near : result.folder;
+  const lines = [
+    `Wrote ${shown}, a folder of Markdown files with:`,
+    `- ${plural(summary.pages, "page")}`,
+    `- ${plural(summary.items, "collection item")}`,
+    `- ${plural(summary.menus, "menu")}, in menus.json`,
+    `- ${plural(summary.media, "media file")}, in media/`,
+  ];
+  if (notes.length) lines.push("", "Check these:", ...notes.map((note) => `- ${markdownExportNoteLine(note)}`));
+  return lines.join("\n");
 }

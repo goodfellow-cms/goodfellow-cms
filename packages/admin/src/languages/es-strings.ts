@@ -1836,6 +1836,36 @@ export const strings: Strings = {
     "El sitio todavía no tiene dirección, así que WordPress no puede copiar su contenido multimedia. Indícala en la pestaña General y vuelve a descargar el archivo.",
   "export.note.layout":
     "El encabezado y el pie no están en el archivo. El tema de WordPress muestra los suyos, con los menús.",
+  "markdownExport.title": "Exportar como Markdown",
+  "markdownExport.intro":
+    "Descarga las páginas y los elementos de las colecciones del sitio como archivos Markdown, con la biblioteca de medios, para usarlos con otras herramientas de sitios web como Hugo, Jekyll, Eleventy o Astro, con aplicaciones de notas como Obsidian o con herramientas de IA.",
+  "markdownExport.limits":
+    "Markdown guarda el texto, los títulos, las listas, los enlaces, las imágenes y las tablas. No se exportan el diseño, los colores y las fuentes del sitio, el encabezado y el pie, ni bloques como formularios, calendarios y listas de elementos. Para guardarlo todo, usa Descargar una copia en la pestaña Historial del sitio.",
+  "markdownExport.stored":
+    "Los medios guardados en tu servicio de almacenamiento no están en la descarga: las páginas los enlazan donde están guardados.",
+  "markdownExport.links": "Enlaces entre páginas",
+  "markdownExport.links.site": "Como direcciones del sitio, como /about/ (para herramientas de sitios web)",
+  "markdownExport.links.files": "Como enlaces a los archivos, como about.md (para aplicaciones de notas)",
+  "markdownExport.scheduled":
+    "Exportar también las páginas y elementos que aún no se muestran o ya no se muestran, marcados como borradores",
+  "markdownExport.download": "Descargar los archivos Markdown",
+  "markdownExport.working": "Añadiendo archivos a la descarga: {done} de {total}",
+  "markdownExport.done": "Se descargaron los archivos Markdown.",
+  "markdownExport.error": "No se pudieron crear los archivos Markdown.",
+  "markdownExport.summary.items": "Elementos de colecciones: {count}",
+  "markdownExport.summary.media": "Archivos de medios: {count}",
+  "markdownExport.note.leftOutBlock": "Markdown no puede contener el bloque {name}, así que se omitió: {items}.",
+  "markdownExport.note.scheduledLeftOut":
+    "No se muestran ahora, por su programación, así que se omitieron: {items}. Marca la casilla de arriba para incluirlos como borradores.",
+  "markdownExport.note.scheduledIncluded":
+    "No se muestran ahora, por su programación, así que están marcados como borradores: {items}.",
+  "markdownExport.note.noPages":
+    "Estas colecciones no tienen páginas propias, así que sus elementos están en carpetas que empiezan por _: {collections}.",
+  "markdownExport.note.templates":
+    "No se exportaron los diseños de página de estas colecciones: cada elemento es solo sus datos y su texto. {collections}.",
+  "markdownExport.note.redirects":
+    "Las redirecciones que no van a una página exportada no están en los archivos: {count}.",
+  "markdownExport.note.layout": "El encabezado y el pie no están en los archivos. Los menús sí, en menus.json.",
   "updates.intro":
     "Goodfellow, el programa con el que funciona el sitio, recibe correcciones y versiones nuevas. Las correcciones se instalan solas cada noche, y solo después de comprobar que el sitio sigue generándose con ellas.",
   "updates.contentOnly":

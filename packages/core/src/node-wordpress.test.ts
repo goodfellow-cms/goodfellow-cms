@@ -3,12 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  exportMarkdown,
   exportWordPress,
+  formatMarkdownExport,
   formatMarkdownImport,
   formatWordPressExport,
   formatWordPressImport,
   importMarkdown,
   importWordPress,
+  MarkdownExportError,
   MarkdownFolderError,
   withoutJpegDetails,
 } from "./node-wordpress.js";
@@ -103,6 +106,22 @@ describe("exporting a site on disk to WordPress", () => {
     expect(report).toContain("- 4 pages");
     expect(report).toContain("- 3 posts, with");
     expect(report).toContain("Tools → Import → WordPress");
+  });
+});
+
+describe("exportMarkdown", () => {
+  it("writes the site as a folder of Markdown files, with its media, never over files already there", async () => {
+    await site();
+    const result = await exportMarkdown(root, join(root, "out"));
+    expect(result.folder).toBe(join(root, "out"));
+    expect(await readFile(join(root, "out", "index.md"), "utf8")).toBe("---\ntitle: Home\npermalink: /\n---\n");
+    expect(await readFile(join(root, "out", "media", "church.jpg"), "utf8")).toBe("an earlier photo");
+    const report = formatMarkdownExport(result, root);
+    expect(report).toContain("Wrote out, a folder of Markdown files with:");
+    expect(report).toContain("- 1 page");
+    expect(report).toContain("- 1 media file, in media/");
+
+    await expect(exportMarkdown(root, join(root, "out"))).rejects.toThrow(MarkdownExportError);
   });
 });
 
