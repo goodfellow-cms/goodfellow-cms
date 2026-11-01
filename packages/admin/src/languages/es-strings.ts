@@ -1866,6 +1866,94 @@ export const strings: Strings = {
   "markdownExport.note.redirects":
     "Las redirecciones que no van a una página exportada no están en los archivos: {count}.",
   "markdownExport.note.layout": "El encabezado y el pie no están en los archivos. Los menús sí, en menus.json.",
+  "siteTransfer.export.title": "Exportar para otro sitio de Goodfellow",
+  "siteTransfer.export.intro":
+    "Descarga las páginas, colecciones, bloques sincronizados, menús, ajustes y archivos multimedia de este sitio en un solo archivo zip, tal como se guardan, para importarlos en otro sitio de Goodfellow sin perder nada. Es el mismo archivo que crea Descargar una copia en Historial del sitio.",
+  "siteTransfer.export.stored":
+    "Los archivos multimedia que guarda tu servicio de almacenamiento no están en el archivo. Las páginas del otro sitio enlazan a donde se guardan.",
+  "siteTransfer.export.button": "Descargar para otro sitio de Goodfellow",
+  "siteTransfer.export.working": "Creando el archivo: {done} de {total} archivos…",
+  "siteTransfer.export.error": "No se pudo crear el archivo. Revisa tu conexión e inténtalo de nuevo.",
+  "siteTransfer.import.title": "Importar desde otro sitio de Goodfellow",
+  "siteTransfer.import.intro":
+    "Trae un archivo creado con Exportar para otro sitio de Goodfellow, o con Descargar una copia. Las páginas, colecciones y archivos multimedia llegan tal como estaban.",
+  "siteTransfer.import.file": "Archivo del otro sitio",
+  "siteTransfer.import.fileHint": "Un archivo .zip. Verás lo que trae antes de publicar nada.",
+  "siteTransfer.import.reading": "Leyendo el archivo…",
+  "siteTransfer.import.ready": "Listo para importar {title}.",
+  "siteTransfer.import.mode": "Cómo traerlo",
+  "siteTransfer.import.mode.add": "Añadir a este sitio: conservar el contenido de este sitio y traer lo que no tiene",
+  "siteTransfer.import.mode.replace": "Reemplazar el contenido de este sitio por el del otro sitio",
+  "siteTransfer.import.replaceWarning":
+    "Al importar se quita todo lo que este sitio tiene y el otro no: páginas, colecciones, archivos multimedia y ajustes. Los límites de los editores, los ajustes de actualización, el almacenamiento multimedia y la dirección del sitio se quedan como están. Puedes volver atrás en Historial del sitio.",
+  "siteTransfer.import.also": "Traer también",
+  "siteTransfer.import.menus": "Menús (los del otro sitio reemplazan a los que tengan el mismo nombre)",
+  "siteTransfer.import.settings":
+    "Ajustes del sitio, colores y fuentes, CSS y código personalizados, y los idiomas del panel de administración",
+  "siteTransfer.import.layout": "El encabezado y el pie",
+  "siteTransfer.import.redirects": "Las redirecciones que este sitio no tiene",
+  "siteTransfer.import.blocks": "Bloques que este sitio no tiene",
+  "siteTransfer.import.install":
+    "Añadir {title} desde el registro de bloques de Goodfellow, para que lo que lo usa llegue tal como está",
+  "siteTransfer.import.installHint":
+    "Añadir un bloque cambia el código del sitio, así que el editor lo ofrece cuando el sitio se ha vuelto a construir.",
+  "siteTransfer.import.withoutBlocks": "Traer lo que usa bloques que este sitio no tiene, sin esos bloques",
+  "siteTransfer.import.conflicts": "Los dos sitios tienen esto, de forma distinta",
+  "siteTransfer.import.conflictsHint": "Se conserva la versión de este sitio, a menos que elijas la del otro sitio.",
+  "siteTransfer.import.useTheirs": "Usar la del otro sitio: {what}",
+  "siteTransfer.import.useAllTheirs": "Usar la del otro sitio en todo",
+  "siteTransfer.import.useAllMine": "Conservar la de este sitio en todo",
+  "siteTransfer.import.another": "Elegir otro archivo",
+  "siteTransfer.import.done": "Se importó {title}.",
+  "siteTransfer.import.message": "Importar {title} desde otro sitio de Goodfellow",
+  "siteTransfer.conflict.page": "la página {name} ({detail})",
+  "siteTransfer.conflict.item": "{name} en {detail}",
+  "siteTransfer.conflict.collection":
+    "la colección {name}, cuyos campos son distintos (se reemplazan sus elementos en este sitio)",
+  "siteTransfer.conflict.syncedBlock": "el bloque sincronizado {name}",
+  "siteTransfer.conflict.media": "el archivo multimedia {name}",
+  "siteTransfer.summary.pages": "Páginas: {count}",
+  "siteTransfer.summary.items": "Elementos de colecciones: {count}",
+  "siteTransfer.summary.collections": "Colecciones nuevas: {count}",
+  "siteTransfer.summary.syncedBlocks": "Bloques sincronizados: {count}",
+  "siteTransfer.summary.media": "Archivos multimedia: {count}",
+  "siteTransfer.summary.removed": "Archivos que se quitan: {count}",
+  "siteTransfer.summary.menus": "Menús",
+  "siteTransfer.summary.settings": "Ajustes del sitio",
+  "siteTransfer.summary.layout": "El encabezado y el pie",
+  "siteTransfer.summary.redirects": "Redirecciones",
+  "siteTransfer.summary.nothing":
+    "No hay nada que traer: este sitio ya tiene todo lo que elegiste, tal como está en el archivo.",
+  "siteTransfer.note.missingBlock": "{name} no es uno de los bloques de este sitio. Se usa en {items}.",
+  "siteTransfer.note.leftOut": "Se dejan fuera porque usan bloques que este sitio no tiene: {items}.",
+  "siteTransfer.note.withoutBlocks": "Se traen sin los bloques que este sitio no tiene: {items}.",
+  "siteTransfer.note.taken": "Se dejan fuera porque este sitio tiene otra cosa en sus direcciones: {items}.",
+  "siteTransfer.note.collectionDiffers":
+    "{collections} de este sitio tiene otros campos, así que sus elementos del otro sitio se dejan fuera, a menos que elijas arriba la colección del otro sitio.",
+  "siteTransfer.note.uncopied":
+    "Se dejan fuera porque son demasiado grandes o no se pueden mostrar con seguridad: {items}.",
+  "siteTransfer.note.stored":
+    "Los archivos multimedia que guarda el servicio de almacenamiento del otro sitio no están en el archivo: {count}. Las páginas enlazan a donde se guardan.",
+  "siteTransfer.note.storedMerged":
+    "Los archivos multimedia que guarda el almacenamiento del otro sitio se añaden al almacenamiento de este sitio, que es el mismo: {count}.",
+  "siteTransfer.note.languages":
+    "Los idiomas del otro sitio se añaden a los Ajustes del sitio, para que sus páginas en ellos funcionen: {codes}.",
+  "siteTransfer.note.plugins":
+    "El otro sitio usaba complementos que este sitio no tiene: {names}. Añádelos en Complementos si los necesitas.",
+  "siteTransfer.note.code": "Llega código personalizado. Se ejecuta en todas las páginas, así que revísalo antes.",
+  "siteTransfer.note.kept": "Se queda como lo tiene este sitio: {things}.",
+  "siteTransfer.kept.address": "la dirección del sitio",
+  "siteTransfer.kept.limits": "los límites de los editores",
+  "siteTransfer.kept.updates": "los ajustes de actualización",
+  "siteTransfer.kept.storage": "el almacenamiento multimedia",
+  "siteTransfer.error.notASite":
+    "Este archivo no es de un sitio de Goodfellow. Elige un archivo creado con Exportar para otro sitio de Goodfellow o Descargar una copia.",
+  "siteTransfer.error.newer":
+    "Este archivo se creó con una versión más reciente de Goodfellow. Actualiza este sitio en la pantalla de Actualizaciones e inténtalo de nuevo.",
+  "siteTransfer.error.invalid": "Parte del contenido del archivo no se puede leer, así que no se puede importar.",
+  "siteTransfer.error.other": "No se pudo leer el archivo.",
+  "siteTransfer.error.blocks":
+    "No se pudieron añadir los bloques desde el registro de bloques de Goodfellow. Revisa tu conexión e inténtalo de nuevo.",
   "updates.intro":
     "Goodfellow, el programa con el que funciona el sitio, recibe correcciones y versiones nuevas. Las correcciones se instalan solas cada noche, y solo después de comprobar que el sitio sigue generándose con ellas.",
   "updates.contentOnly":

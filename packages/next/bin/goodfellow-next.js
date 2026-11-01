@@ -13,6 +13,8 @@
 // `goodfellow-next import markdown <folder> [--dry-run]` imports a folder of Markdown files, as `goodfellow import` does.
 // `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, and `goodfellow-next export
 // markdown [folder] [--scheduled] [--links site|files]` as a folder of Markdown files, as `goodfellow export` does.
+// `goodfellow-next export site [file]` and `goodfellow-next import site <zip or folder>` move content between
+// Goodfellow sites, as `goodfellow export site` and `goodfellow import site` do.
 // `goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]` makes a block of a shadcn item, as
 // `goodfellow blocks add` does, and with --native its version for an Expo app.
 // `goodfellow-next admin add <address>|check|remove` sets the admin address, and `goodfellow-next broker use <address>|remove`
@@ -22,7 +24,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { buildNotes, CLOUDFLARE_REDIRECTS_LIMIT, configAdmin, formatUpdateResult } from "@goodfellow-cms/core";
+import {
+  buildNotes,
+  CLOUDFLARE_REDIRECTS_LIMIT,
+  configAdmin,
+  formatUpdateResult,
+  SiteImportError,
+} from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
 import {
   AdminSetupError,
@@ -32,14 +40,18 @@ import {
   checkSiteAdminAddress,
   contentRepositoryProblem,
   exportMarkdown,
+  exportSite,
   exportWordPress,
   formatAdminResult,
   formatAdminText,
   formatMarkdownExport,
   formatMarkdownImport,
+  formatSiteExport,
+  formatSiteImport,
   formatWordPressExport,
   formatWordPressImport,
   importMarkdown,
+  importSite,
   importWordPress,
   MarkdownExportError,
   MarkdownFolderError,
@@ -48,6 +60,7 @@ import {
   reportDue,
   reportNightly,
   SignInSetupError,
+  SiteTransferError,
   scheduleDue,
   setAdminAddress,
   setBrokerAddress,
@@ -69,6 +82,7 @@ import {
   exportTrailingSlash,
   fixSegmentFiles,
   guardExport,
+  loadTaskConfig,
   NEXT_SITE_FILES,
   nextDistDir,
   writeBuildRecordFile,
@@ -276,10 +290,44 @@ if (command === "import") {
       drafts: { type: "boolean" },
       menu: { type: "boolean" },
       "keep-fields": { type: "boolean" },
+      take: { type: "string" },
+      replace: { type: "boolean" },
+      menus: { type: "boolean" },
+      settings: { type: "boolean" },
+      layout: { type: "boolean" },
+      redirects: { type: "boolean" },
+      "without-missing-blocks": { type: "boolean" },
     },
   });
   const [kind, from] = positionals;
   const problem = contentRepositoryProblem(".");
+  if (kind === "site" && from && !problem) {
+    if (values.take !== undefined && values.take !== "site" && values.take !== "export") {
+      console.error('Say "--take site" or "--take export".');
+      process.exit(1);
+    }
+    try {
+      const config = await loadTaskConfig(resolve("."));
+      const result = await importSite(".", from, {
+        blocks: Object.keys(config.blocks),
+        replace: values.replace,
+        menus: values.menus,
+        settings: values.settings,
+        layout: values.layout,
+        redirects: values.redirects,
+        withoutMissingBlocks: values["without-missing-blocks"],
+        ...(values.take && { take: values.take }),
+        dryRun: values["dry-run"],
+        log: (line) => console.log(line),
+      });
+      console.log(formatSiteImport(result));
+      process.exit(0);
+    } catch (error) {
+      if (!(error instanceof SiteTransferError || error instanceof SiteImportError)) throw error;
+      console.error(error.message);
+      process.exit(1);
+    }
+  }
   if (kind === "markdown" && from && !problem) {
     try {
       const result = await importMarkdown(".", from, {
@@ -331,6 +379,16 @@ if (command === "export") {
   if (kind === "wordpress") {
     console.log(formatWordPressExport(await exportWordPress(".", file)));
     process.exit(0);
+  }
+  if (kind === "site") {
+    try {
+      console.log(formatSiteExport(await exportSite(".", file)));
+      process.exit(0);
+    } catch (error) {
+      if (!(error instanceof SiteTransferError)) throw error;
+      console.error(error.message);
+      process.exit(1);
+    }
   }
   if (kind === "markdown") {
     if (values.links !== undefined && values.links !== "site" && values.links !== "files") {
@@ -391,6 +449,9 @@ if (command !== "finish" && command !== "index") {
       "                                        [--replace-home] [--replace-pages] [--drafts] [--menu] [--keep-fields]",
       "       goodfellow-next export wordpress [file]",
       "       goodfellow-next export markdown [folder] [--scheduled] [--links site|files]",
+      "       goodfellow-next export site [file]",
+      "       goodfellow-next import site <zip or folder> [--dry-run] [--take site|export] [--replace]",
+      "                                        [--menus] [--settings] [--layout] [--redirects] [--without-missing-blocks]",
       "       goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]",
       "       goodfellow-next admin add <address> | check | remove",
       "       goodfellow-next broker use <address> | remove",
@@ -422,11 +483,15 @@ if (command !== "finish" && command !== "index") {
       "        this site, from its export file (Tools → Export) or its address. With --dry-run,",
       "        says what it would bring across and changes nothing. import markdown brings a folder",
       "        of Markdown files in: the files at the top as pages, each folder as a collection,",
-      "        unless --pages or --collection names it (. for the top).",
+      "        unless --pages or --collection names it (. for the top). import site brings another",
+      "        Goodfellow site's export in: its pages, items, synced blocks and media, keeping this",
+      "        site's version of what both have unless --take export; --menus, --settings, --layout",
+      "        and --redirects bring those too, and --replace makes this site's content the export's.",
       "export  Writes this site as a WordPress export file (default: named after the site),",
       "        which WordPress imports with Tools → Import → WordPress, or as a folder of Markdown",
       "        files, for Hugo, Jekyll, Eleventy, Astro and notes apps (--scheduled also exports what",
       "        isn't shown yet, as drafts; --links files links to the files rather than the addresses).",
+      "        export site writes this site's content and media as a zip for another Goodfellow site.",
       "blocks  Installs a shadcn registry item (button, @acme/hero, or an item's address) with",
       "        shadcn's own CLI, makes a block of its component, with fields from its props, and",
       "        says what it couldn't do. With --registry, writes the block into the block registry",

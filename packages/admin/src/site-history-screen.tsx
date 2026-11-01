@@ -22,7 +22,7 @@ import { pageTitle } from "./changes.js";
 import { mediaUrl } from "./media.js";
 import { createMediaPreviews } from "./media-previews.js";
 import { PreviewFrame } from "./preview.js";
-import { type DownloadProgress, downloadName, downloadPaths, siteArchive } from "./site-download.js";
+import { type DownloadProgress, downloadName, siteCopyArchive } from "./site-download.js";
 import { type StringKey, type Translate, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, Field } from "./ui.js";
 import { unknownBlocks } from "./versions.js";
@@ -74,8 +74,7 @@ function DownloadCopy() {
     setError(undefined);
     setProgress({ done: 0, total: 0 });
     try {
-      const paths = await downloadPaths(listFiles);
-      const chunks = await siteArchive(paths, readBytes, setProgress);
+      const chunks = await siteCopyArchive(listFiles, readBytes, content, setProgress);
       const url = URL.createObjectURL(new Blob(chunks as BlobPart[], { type: "application/zip" }));
       const link = document.createElement("a");
       link.href = url;

@@ -13,6 +13,7 @@ import { MarkdownExportSection } from "./markdown-export.js";
 import { MarkdownImportSection } from "./markdown-import.js";
 import { fileName, mediaUrl } from "./media.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
+import { SiteExportSection, SiteImportSection } from "./site-transfer.js";
 import { type StringKey, type Translate, useStrings } from "./strings.js";
 import { Button, ErrorMessage, Field } from "./ui.js";
 import { prepareUpload } from "./upload.js";
@@ -399,8 +400,10 @@ export function ImportScreen() {
             </form>
             {stage.kind === "reading" && <p role="status">{t("import.reading")}</p>}
             <MarkdownImportSection />
+            <SiteImportSection />
             <ExportSection />
             <MarkdownExportSection />
+            <SiteExportSection />
           </>
         ) : stage.kind === "done" ? (
           <>

@@ -4,13 +4,19 @@
  * revision the admin panel loaded. fflate is loaded only when a copy is made.
  * No React or DOM, so it's tested in Node.
  */
-import { CONTENT_DIR, INSTALLED_PLUGINS_FILE, INSTALLED_RECORD_FILE, MEDIA_DIR } from "@goodfellow-cms/core";
+import {
+  type SiteContent,
+  TRANSFER_FOLDERS,
+  TRANSFER_RECORDS,
+  transferManifestFile,
+  transferName,
+} from "@goodfellow-cms/core";
 
 /** The folders a copy holds whole. */
-export const DOWNLOAD_FOLDERS = [CONTENT_DIR, MEDIA_DIR] as const;
+export const DOWNLOAD_FOLDERS = TRANSFER_FOLDERS;
 
 /** Single files a copy holds where the site has them: which blocks and plugins it installed, to add them again. */
-export const DOWNLOAD_RECORDS = [INSTALLED_RECORD_FILE, INSTALLED_PLUGINS_FILE] as const;
+export const DOWNLOAD_RECORDS = TRANSFER_RECORDS;
 
 /** How many files are read at once. */
 const READ_AT_ONCE = 6;
@@ -34,21 +40,7 @@ export async function downloadPaths(list: (dir: string) => Promise<string[]>): P
  * The copy's file name: the site's title in plain letters, then the day,
  * `st-anne-parish-2026-11-01.zip`, or `site-…` for a title with none.
  */
-export function downloadName(title: string | undefined, date: Date): string {
-  const slug =
-    (title ?? "")
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60)
-      .replace(/-+$/, "") || "site";
-  const day = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
-    .map((part) => String(part).padStart(2, "0"))
-    .join("-");
-  return `${slug}-${day}.zip`;
-}
+export const downloadName = transferName;
 
 /** How far a copy has got. */
 export interface DownloadProgress {
@@ -103,4 +95,24 @@ export async function siteArchive(
   zip.end();
   await finished;
   return chunks;
+}
+
+/**
+ * A copy of the site as one zip, with the manifest that lets another
+ * Goodfellow site import it (`TRANSFER_MANIFEST`), in pieces for a `Blob`.
+ */
+export async function siteCopyArchive(
+  list: (dir: string) => Promise<string[]>,
+  readBytes: (path: string) => Promise<Uint8Array | undefined>,
+  content: SiteContent,
+  onProgress?: (progress: DownloadProgress) => void,
+): Promise<Uint8Array[]> {
+  const paths = await downloadPaths(list);
+  const manifest = transferManifestFile(content);
+  const bytes = new TextEncoder().encode(manifest.content);
+  return siteArchive(
+    [...paths, manifest.path],
+    async (path) => (path === manifest.path ? bytes : readBytes(path)),
+    onProgress,
+  );
 }

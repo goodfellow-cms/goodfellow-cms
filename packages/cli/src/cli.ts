@@ -5,6 +5,7 @@ import {
   CLOUDFLARE_REDIRECTS_LIMIT,
   ContentError,
   formatUpdateResult,
+  SiteImportError,
   TASK_RESULT_FILE,
 } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
@@ -16,14 +17,18 @@ import {
   checkSiteAdminAddress,
   contentRepositoryProblem,
   exportMarkdown,
+  exportSite,
   exportWordPress,
   formatAdminResult,
   formatAdminText,
   formatMarkdownExport,
   formatMarkdownImport,
+  formatSiteExport,
+  formatSiteImport,
   formatWordPressExport,
   formatWordPressImport,
   importMarkdown,
+  importSite,
   importWordPress,
   MarkdownExportError,
   MarkdownFolderError,
@@ -32,6 +37,7 @@ import {
   reportDue,
   reportNightly,
   SignInSetupError,
+  SiteTransferError,
   scheduleDue,
   setAdminAddress,
   setBrokerAddress,
@@ -51,6 +57,7 @@ import { preview } from "./preview.js";
 import { buildCause, reportBuildCause } from "./problems.js";
 import { SiteSetupError } from "./site.js";
 import { describeTask, runTask } from "./task.js";
+import { loadTaskConfig } from "./task-config.js";
 
 const BROKER_HOSTS = ["github-pages", "gitlab-pages", "cloudflare-pages", "vercel"] as const;
 
@@ -80,12 +87,22 @@ Commands:
                                    --replace-home, --replace-pages, --drafts, --menu
                                    (adds the top-level pages to the main menu) and
                                    --keep-fields (keeps other front matter as fields)
+            import site <zip or folder>  brings another Goodfellow site's export (export
+                                   site, or Download a copy) into this one: its pages,
+                                   items, synced blocks and media, keeping this site's
+                                   version of what both have unless --take export; with
+                                   --menus, --settings, --layout (header and footer) and
+                                   --redirects, or --replace to make this site's content
+                                   the export's; --without-missing-blocks brings in what
+                                   uses blocks this site lacks, without them
   export    export wordpress [file]  writes this site as a WordPress export file, which
                                    WordPress imports with Tools → Import → WordPress
             export markdown [folder] writes this site as a folder of Markdown files, for
                                    Hugo, Jekyll, Eleventy, Astro and notes apps
                                    (--scheduled also exports what isn't shown yet, as drafts;
                                    --links files links to the files rather than the addresses)
+            export site [file]     writes this site's content and media as a zip, for
+                                   another Goodfellow site to import
   blocks    blocks add <item>      installs a shadcn registry item (button, @acme/hero, or
                                    an item's address) with shadcn's own CLI, makes a block
                                    of its component, with fields from its props, and says
@@ -150,6 +167,8 @@ Options:
   --react         For build: run Client Components with React even where they all work with Preact,
                   as GOODFELLOW_REACT=1 does
   --dry-run       For import: say what importing would bring across, and change nothing
+  --take <whose>  For import site: site (the default) or export, whose version to keep of
+                  what both have differently
   --describe      For task: only write down the task, for the job with the secrets
   --registry <dir>
                   For blocks add: write the block into the block registry in dir
@@ -195,6 +214,13 @@ async function main(): Promise<void> {
       links: { type: "string" },
       registry: { type: "string" },
       native: { type: "string" },
+      take: { type: "string" },
+      replace: { type: "boolean" },
+      menus: { type: "boolean" },
+      settings: { type: "boolean" },
+      layout: { type: "boolean" },
+      redirects: { type: "boolean" },
+      "without-missing-blocks": { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -422,9 +448,39 @@ async function main(): Promise<void> {
         console.log(formatMarkdownImport(result));
         return;
       }
+      if (kind === "site" && from) {
+        if (values.take !== undefined && values.take !== "site" && values.take !== "export") {
+          console.error('Say "--take site" or "--take export".');
+          process.exitCode = 1;
+          return;
+        }
+        const root = values.root ?? ".";
+        checkContent(root);
+        try {
+          const config = await loadTaskConfig(resolve(root));
+          const result = await importSite(root, from, {
+            blocks: Object.keys(config.blocks),
+            replace: values.replace,
+            menus: values.menus,
+            settings: values.settings,
+            layout: values.layout,
+            redirects: values.redirects,
+            withoutMissingBlocks: values["without-missing-blocks"],
+            ...(values.take && { take: values.take }),
+            dryRun: values["dry-run"],
+            log: (line) => console.log(line),
+          });
+          console.log(formatSiteImport(result));
+        } catch (error) {
+          if (!(error instanceof SiteTransferError || error instanceof SiteImportError)) throw error;
+          console.error(error.message);
+          process.exitCode = 1;
+        }
+        return;
+      }
       if (kind !== "wordpress" || !from) {
         console.error(
-          `Say "import wordpress" and the export file or the site's address, or "import markdown" and the folder.\n\n${HELP}`,
+          `Say "import wordpress" and the export file or the site's address, "import markdown" and the folder, or "import site" and the export.\n\n${HELP}`,
         );
         process.exitCode = 1;
         return;
@@ -457,9 +513,19 @@ async function main(): Promise<void> {
         }
         return;
       }
+      if (kind === "site") {
+        try {
+          console.log(formatSiteExport(await exportSite(values.root ?? ".", file)));
+        } catch (error) {
+          if (!(error instanceof SiteTransferError)) throw error;
+          console.error(error.message);
+          process.exitCode = 1;
+        }
+        return;
+      }
       if (kind !== "wordpress") {
         console.error(
-          `Say "export wordpress" or "export markdown", and the file or folder to write if you like.\n\n${HELP}`,
+          `Say "export wordpress", "export markdown" or "export site", and the file or folder to write if you like.\n\n${HELP}`,
         );
         process.exitCode = 1;
         return;
