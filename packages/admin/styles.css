@@ -2956,3 +2956,110 @@ body,
     system-ui,
     sans-serif;
 }
+
+/* InfoBubble: an "i" whose words show while it's pointed at or focused, and which opens the documentation. */
+.gfa-info {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-inline-start: 6px;
+}
+
+.gfa-info-button {
+  display: inline-flex;
+  color: var(--gfa-muted);
+  border-radius: 999px;
+}
+
+.gfa-info-button:hover,
+.gfa-info-button:focus-visible {
+  color: var(--gfa-accent);
+}
+
+.gfa-info-text {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 30;
+  width: max-content;
+  max-width: min(320px, 80vw);
+  padding: 6px 10px;
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-tooltip-bg);
+  color: var(--gfa-tooltip-text);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 0.18);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.gfa-info:hover .gfa-info-text,
+.gfa-info:focus-within .gfa-info-text {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gfa-info-text {
+    transition: opacity 140ms ease;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* The site's own fonts on the Colors & fonts tab. */
+.gfa-own-fonts {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.gfa-own-font {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-surface);
+}
+
+.gfa-own-font-name {
+  flex: 1;
+  font-size: 18px;
+}
+
+.gfa-font-files {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 12px;
+}
+
+.gfa-font-files th,
+.gfa-font-files td {
+  padding: 6px 8px 6px 0;
+  text-align: start;
+  vertical-align: middle;
+}
+
+.gfa-font-files th {
+  font-weight: 500;
+  color: var(--gfa-muted);
+  font-size: 13px;
+}
+
+.gfa-font-group {
+  padding: 6px 10px 2px;
+  color: var(--gfa-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

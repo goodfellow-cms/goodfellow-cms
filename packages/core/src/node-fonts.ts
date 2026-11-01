@@ -1,7 +1,9 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { generateFontFace, getMetricsForFamily } from "fontaine";
+import { pathToFileURL } from "node:url";
+import { generateFontFace, getMetricsForFamily, readMetrics } from "fontaine";
 import type { FontCategory, Theme } from "./content/schemas.js";
+import { CUSTOM_FONT_ADDRESS, customFont, fontCategory, fontFileFor } from "./custom-fonts.js";
 import {
   FONTS_DIR,
   type HostedFonts,
@@ -139,8 +141,20 @@ function standInName(family: string, local: string): string {
   return `${family} fallback (${local})`;
 }
 
-async function standInsFor(family: string, category: FontCategory | undefined) {
-  const metrics = await getMetricsForFamily(family);
+/**
+ * A font's measurements: a Google font's from Fontaine's list, or the site's
+ * own font's read from its file in the site at `root`, if it has one.
+ */
+async function metricsFor(theme: Theme, family: string, root: string | undefined) {
+  const own = customFont(theme, family);
+  if (!own) return getMetricsForFamily(family);
+  const file = fontFileFor(own, 400);
+  if (!root || !file || !CUSTOM_FONT_ADDRESS.test(file.src)) return null;
+  return readMetrics(pathToFileURL(join(root, "public", file.src))).catch(() => null);
+}
+
+async function standInsFor(theme: Theme, family: string, category: FontCategory | undefined, root?: string) {
+  const metrics = await metricsFor(theme, family, root);
   if (!metrics) return { names: [], css: "" };
   const kind = category ?? (CATEGORIES.has(metrics.category ?? "") ? (metrics.category as FontCategory) : "sans-serif");
   const names: string[] = [];
@@ -157,17 +171,24 @@ async function standInsFor(family: string, category: FontCategory | undefined) {
 }
 
 /**
- * Stand-ins for a theme's Google Fonts, made with Fontaine from each font's
+ * Stand-ins for a theme's fonts, made with Fontaine from each font's
  * measurements: the computer's own fonts, resized so text takes the same space
- * while the font loads and doesn't move when it arrives. Fonts Fontaine has no
- * measurements for get none.
+ * while the font loads and doesn't move when it arrives. The site's own fonts
+ * are measured from their files in the site at `root`; fonts Fontaine has no
+ * measurements for, and the site's own without `root`, get none.
  */
-export async function fontStandIns(theme: Theme): Promise<FontStandIns> {
-  const { heading, body, headingCategory, bodyCategory } = theme.fonts;
+export async function fontStandIns(theme: Theme, options: { root?: string } = {}): Promise<FontStandIns> {
+  const { heading, body } = theme.fonts;
+  const headingCategory = fontCategory(theme, "heading");
+  const bodyCategory = fontCategory(theme, "body");
   try {
-    const headingStandIns = heading ? await standInsFor(heading, headingCategory) : undefined;
+    const headingStandIns = heading ? await standInsFor(theme, heading, headingCategory, options.root) : undefined;
     const bodyStandIns =
-      body && body !== heading ? await standInsFor(body, bodyCategory) : body ? headingStandIns : undefined;
+      body && body !== heading
+        ? await standInsFor(theme, body, bodyCategory, options.root)
+        : body
+          ? headingStandIns
+          : undefined;
     return {
       css: (headingStandIns?.css ?? "") + (body !== heading ? (bodyStandIns?.css ?? "") : ""),
       ...(headingStandIns?.names.length && { heading: headingStandIns.names }),

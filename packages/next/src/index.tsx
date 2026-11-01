@@ -7,6 +7,7 @@ import {
   colorSchemeScript,
   consentScript,
   contentForPage,
+  customFontPreloads,
   DARK_MODE_ATTRIBUTE,
   demoContent,
   describedForCopy,
@@ -295,8 +296,12 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
     // React adds these to the head once each, where a <link> would also be kept as it is.
     const [fontFiles, standIns] = await Promise.all([
       fontPreloads(content.settings.theme, readStylesheet),
-      fontStandIns(content.settings.theme),
+      fontStandIns(content.settings.theme, { root }),
     ]);
+    // The site's own fonts, from its own files.
+    for (const file of customFontPreloads(content.settings.theme)) {
+      preload(withBase(file, basePath()), { as: "font", type: "font/woff2", crossOrigin: "" });
+    }
     for (const file of fontFiles) {
       const href = hosted ? withSelfHostedFonts(file, hosted, basePath()) : file;
       // With the site's copies, a file Google has added since the build isn't one of them, and isn't asked for.
@@ -312,7 +317,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Goodfellow's own script, which puts back the visitor's light or dark choice */}
         {schemeScript && <script dangerouslySetInnerHTML={{ __html: schemeScript }} />}
         <style href="goodfellow-theme" precedence="default">
-          {themeToCss(content.settings.theme, standIns)}
+          {themeToCss(content.settings.theme, standIns, { base: basePath() })}
         </style>
         {fontsUrl && <link rel="stylesheet" href={fontsUrl} precedence="default" />}
       </>

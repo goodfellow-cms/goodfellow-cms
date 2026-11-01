@@ -933,7 +933,14 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
           `Those settings don't fit: ${result.error.issues.map((issue) => `${issue.path.join(".")} ${issue.message}`).join("; ")}.`,
         );
       }
-      await save(draft, [siteSettingsFileChange(result.data)], "Update site settings");
+      // The site's own fonts are files only an owner adds, in Site Settings, so they stay as they are.
+      const { custom: _given, ...fonts } = result.data.theme.fonts;
+      const custom = current.theme?.fonts?.custom;
+      const settings = {
+        ...result.data,
+        theme: { ...result.data.theme, fonts: { ...fonts, ...(custom && { custom }) } },
+      };
+      await save(draft, [siteSettingsFileChange(settings)], "Update site settings");
       return text({ draft: draft.name, saved: "changed" });
     },
   );

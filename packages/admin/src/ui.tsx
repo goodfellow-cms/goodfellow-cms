@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useStrings } from "./strings.js";
 
@@ -140,4 +141,31 @@ export function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(timer);
   }, [value, ms]);
   return settled;
+}
+
+/** Where Goodfellow's documentation is, which the admin panel links to for more than a hint can say. */
+export const DOCS_URL = "https://goodfellow-cms.github.io/goodfellow-cms/docs/";
+
+/** A page of the documentation, or a section of one, by its address and heading's link name. */
+export function docsLink(page: string, section?: string): string {
+  return `${DOCS_URL}${page}/${section ? `#${section}` : ""}`;
+}
+
+/**
+ * A small "i" beside a control: pointing at it or focusing it shows `text`,
+ * and choosing it opens `href`, a page of the documentation, in a new tab.
+ */
+export function InfoBubble({ label, text, href }: { label: string; text: string; href: string }) {
+  const id = useId();
+  return (
+    <span className="gfa-info">
+      <a className="gfa-info-button" href={href} target="_blank" rel="noopener noreferrer" aria-describedby={id}>
+        <Info size={16} aria-hidden="true" />
+        <span className="gfa-visually-hidden">{label}</span>
+      </a>
+      <span id={id} role="tooltip" className="gfa-info-text">
+        {text}
+      </span>
+    </span>
+  );
 }

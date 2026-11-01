@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { wallClock } from "../calendar.js";
 import { COMMENTS_ID, COMMENTS_REPO, DISQUS_SHORTNAME, garrulAddress } from "../comments.js";
+import { CUSTOM_FONT_ADDRESS, MAX_CUSTOM_FONTS, MAX_FONT_FILES } from "../custom-fonts.js";
 import { PLAUSIBLE_DOMAIN, STATS_PURPOSES, statsAddress, UMAMI_ID } from "../stats.js";
 import { addressPatternProblem } from "./paths.js";
 
@@ -45,6 +46,40 @@ const codeThemeName = z.string().regex(/^[a-z0-9-]{1,60}$/, "must be a code them
 export const FONT_CATEGORIES = ["sans-serif", "serif", "display", "handwriting", "monospace"] as const;
 export type FontCategory = (typeof FONT_CATEGORIES)[number];
 
+/**
+ * One file of a site's own font: its address in the media library's fonts
+ * folder, its weight (or, for a variable font, the weights from `weight` to
+ * `weightTo`), and whether it's italic.
+ */
+const customFontFileSchema = z
+  .object({
+    src: z.string().regex(CUSTOM_FONT_ADDRESS, "must be a font in the media library's fonts folder"),
+    weight: z.number().int().min(1).max(1000),
+    weightTo: z.number().int().min(1).max(1000).optional(),
+    style: z.enum(["normal", "italic"]).optional(),
+  })
+  .refine((file) => file.weightTo === undefined || file.weightTo > file.weight, {
+    message: "a variable font's weights must go from lighter to heavier",
+    path: ["weightTo"],
+  });
+
+/** A site's own fonts: each family once, with its files. */
+const customFontsSchema = z
+  .array(
+    z.object({
+      family: fontFamily,
+      category: z.enum(FONT_CATEGORIES).optional(),
+      files: z.array(customFontFileSchema).min(1).max(MAX_FONT_FILES),
+    }),
+  )
+  .max(MAX_CUSTOM_FONTS)
+  .refine((fonts) => new Set(fonts.map((font) => font.family.toLowerCase())).size === fonts.length, {
+    message: "each font's name can be used once",
+  });
+
+export type CustomFontFile = z.infer<typeof customFontFileSchema>;
+export type CustomFont = z.infer<typeof customFontsSchema>[number];
+
 /** A CSS length, such as `0.5rem` or `0`. */
 const cssLength = z.string().regex(/^\d*\.?\d+(px|rem|em)?$/, "must be a size, such as 0.5rem or 8px");
 
@@ -80,6 +115,8 @@ export const themeSchema = z.object({
       /** What kind of font each is, from Google Fonts' list, so pages fall back to a similar one. Sans serif if left out. */
       headingCategory: z.enum(FONT_CATEGORIES).optional(),
       bodyCategory: z.enum(FONT_CATEGORIES).optional(),
+      /** The site's own fonts, uploaded as WOFF2 (`custom-fonts.ts`), which `heading` and `body` can name. */
+      custom: customFontsSchema.optional(),
     })
     .default({}),
   radius: cssLength.optional(),

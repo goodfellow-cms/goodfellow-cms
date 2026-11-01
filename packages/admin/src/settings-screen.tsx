@@ -4,6 +4,7 @@ import {
   type CodePurpose,
   type ConsentSettings,
   contrastProblems,
+  customFontFileChanges,
   DEFAULT_CODE_THEMES,
   DEFAULT_DARK_THEME_COLORS,
   DEFAULT_THEME_COLORS,
@@ -44,6 +45,7 @@ import { useHistory } from "./history.js";
 import { cleanLanguages, LanguagesTab, languagesProblem } from "./languages-tab.js";
 import { MediaField } from "./media-library.js";
 import { MenusTab } from "./menus-editor.js";
+import { type AddedFontFiles, OwnFonts, useOwnFontsShown } from "./own-fonts.js";
 import { PartsEditor } from "./parts-editor.js";
 import { PreviewFrame, type PreviewScheme } from "./preview.js";
 import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
@@ -144,6 +146,7 @@ function cleanFonts(fonts: SiteSettings["theme"]["fonts"]): SiteSettings["theme"
     ...(heading && fonts.headingCategory && { headingCategory: fonts.headingCategory }),
     body,
     ...(body && fonts.bodyCategory && { bodyCategory: fonts.bodyCategory }),
+    ...(fonts.custom?.length && { custom: fonts.custom }),
   };
 }
 
@@ -498,17 +501,23 @@ function ThemeTab({
   draft,
   errors,
   previewScheme,
+  fontFiles,
   onChange,
+  onAddFont,
   onPreviewScheme,
 }: {
   draft: SiteSettings;
   errors: Record<string, string>;
   previewScheme: PreviewScheme;
+  /** The bytes of the site's own fonts' files added since the tab was loaded. */
+  fontFiles: AddedFontFiles;
   onChange: (draft: SiteSettings) => void;
+  onAddFont: (draft: SiteSettings, files: AddedFontFiles) => void;
   onPreviewScheme: (scheme: PreviewScheme) => void;
 }) {
   const t = useStrings();
   const { theme } = draft;
+  useOwnFontsShown(theme, fontFiles);
   const setColor = (name: ThemeColor, value: string) =>
     onChange({ ...draft, theme: { ...theme, colors: { ...theme.colors, [name]: value } } });
   const setDarkColor = (name: ThemeColor, value: string) =>
@@ -617,6 +626,7 @@ function ThemeTab({
       <FontPicker
         label={t("theme.headingFont")}
         value={theme.fonts.heading ?? ""}
+        own={theme.fonts.custom}
         error={errors["theme.fonts.heading"]}
         onChange={(heading, headingCategory) =>
           onChange({ ...draft, theme: { ...theme, fonts: { ...theme.fonts, heading, headingCategory } } })
@@ -625,9 +635,20 @@ function ThemeTab({
       <FontPicker
         label={t("theme.bodyFont")}
         value={theme.fonts.body ?? ""}
+        own={theme.fonts.custom}
         error={errors["theme.fonts.body"]}
         onChange={(body, bodyCategory) =>
           onChange({ ...draft, theme: { ...theme, fonts: { ...theme.fonts, body, bodyCategory } } })
+        }
+      />
+      <OwnFonts
+        theme={theme}
+        onChange={(next) => onChange({ ...draft, theme: next })}
+        onAdd={(font, files) =>
+          onAddFont(
+            { ...draft, theme: { ...theme, fonts: { ...theme.fonts, custom: [...(theme.fonts.custom ?? []), font] } } },
+            files,
+          )
         }
       />
       <TextField
@@ -776,7 +797,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     heading?.focus({ preventScroll: true });
   }, [tab, section]);
   const t = useStrings();
-  const { publish, reload } = useAdmin();
+  const { publish, reload, mediaPreviews } = useAdmin();
   const { content } = useSiteContent();
   // One history for every tab, so undo takes back the last change wherever it was made.
   const history = useHistory<{
@@ -787,6 +808,8 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     redirectMessage: string;
     css: string;
     code: SiteCode;
+    /** The bytes of the site's own fonts' files added since the tab was loaded, published with the settings. */
+    fontFiles: AddedFontFiles;
   }>({
     settings: content.settings,
     menus: content.menus,
@@ -795,8 +818,9 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     redirectMessage: content.redirectMessage ?? "",
     css: content.customCss,
     code: content.code ?? EMPTY_CODE,
+    fontFiles: {},
   });
-  const { settings, menus, languageMenus, redirects, redirectMessage, css, code } = history.present;
+  const { settings, menus, languageMenus, redirects, redirectMessage, css, code, fontFiles } = history.present;
   const { update } = history;
   const setSettings = useCallback((settings: SiteSettings) => update((form) => ({ ...form, settings })), [update]);
   const setMenus = useCallback((menus: Menus) => update((form) => ({ ...form, menus })), [update]);
@@ -811,6 +835,14 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
   );
   const setCss = useCallback((css: string) => update((form) => ({ ...form, css })), [update]);
   const setCode = useCallback((code: SiteCode) => update((form) => ({ ...form, code })), [update]);
+  const addFont = useCallback(
+    (settings: SiteSettings, files: AddedFontFiles) => {
+      // Shown from memory, in previews too, until the site has them.
+      for (const [path, bytes] of Object.entries(files)) mediaPreviews.remember(path.slice("public".length), bytes);
+      update((form) => ({ ...form, settings, fontFiles: { ...form.fontFiles, ...files } }));
+    },
+    [update, mediaPreviews],
+  );
   const [showErrors, setShowErrors] = useState(false);
   const [status, setStatus] = useState<
     | { type: "idle" | "publishing" | "done" | "invalid" }
@@ -835,6 +867,8 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     const result: FileChange[] = [];
     if (validation.settings && serializeContent(validation.settings) !== loaded.settings) {
       result.push(siteSettingsFileChange(validation.settings));
+      // The site's own fonts' files, added and taken out, with the settings that name them.
+      result.push(...customFontFileChanges(content.settings.theme, validation.settings.theme, fontFiles));
     }
     if (
       serializeContent(menus) !== serializeContent(content.menus) ||
@@ -851,7 +885,7 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
     if (storedCss(css) !== storedCss(content.customCss)) result.push(customCssFileChange(css));
     result.push(...codeFileChanges(code, content.code));
     return result;
-  }, [validation, loaded, menus, languageMenus, savedRedirects, redirectMessage, css, code, content]);
+  }, [validation, loaded, menus, languageMenus, savedRedirects, redirectMessage, css, code, content, fontFiles]);
 
   const dirty = changes.length > 0 || !validation.settings;
   // "Published." goes after a few seconds, or as soon as anything changes.
@@ -953,7 +987,9 @@ export function SettingsScreen({ tab, section }: { tab: SettingsTab; section?: S
             draft={settings}
             errors={errors}
             previewScheme={previewScheme}
+            fontFiles={fontFiles}
             onChange={setSettings}
+            onAddFont={addFont}
             onPreviewScheme={setChosenScheme}
           />
         )}

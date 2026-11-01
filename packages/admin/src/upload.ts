@@ -3,6 +3,7 @@ import {
   cssWithoutOutsideAddresses,
   type FileChange,
   fileName,
+  isSafeFontFile,
   keepsSvgElement,
   MEDIA_DIR,
   SVG_NAMESPACE,
@@ -14,7 +15,7 @@ import { mediaType } from "./media-previews.js";
 /** Photos are made no larger than this on their longest side, which is plenty for any screen. */
 export const MAX_IMAGE_SIDE = 2400;
 
-export type UploadProblem = "type" | "size" | "unreadable";
+export type UploadProblem = "type" | "size" | "unreadable" | "font";
 
 export class UploadError extends Error {
   override name = "UploadError";
@@ -136,6 +137,10 @@ async function prepared(file: File, maxBytes: number): Promise<Blob> {
   if (!mediaKind(file.name)) {
     throw new UploadError("type", file.name, `${file.name} isn't a kind of file the site can use.`);
   }
+  // Fonts are added on the Theme tab, which names them in the theme.
+  if (mediaKind(file.name) === "font") {
+    throw new UploadError("font", file.name, `${file.name} is a font, which is added under Colors & fonts.`);
+  }
 
   let blob: Blob = file;
   if (extension === "svg") {
@@ -211,6 +216,12 @@ export function safeMediaChanges(changes: readonly FileChange[]): FileChange[] {
     if (!change.path.startsWith(`${MEDIA_DIR}/`) || "delete" in change) return change;
     const name = fileName(change.path);
     if (!mediaKind(name)) throw new UploadError("type", name, `${name} isn't a kind of file the site can use.`);
+    if (mediaKind(name) === "font") {
+      if (!isSafeFontFile(change.path, "bytes" in change ? change.bytes : undefined)) {
+        throw new UploadError("type", name, `${name} isn't a font file the site can use.`);
+      }
+      return change;
+    }
     if (extensionOf(name) !== "svg") return change;
     const text = "bytes" in change ? new TextDecoder().decode(change.bytes) : change.content;
     const cleaned = cleanSvg(text);

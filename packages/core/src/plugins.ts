@@ -20,7 +20,7 @@
  */
 import type { ComponentConfig, Config, Data } from "@puckeditor/core";
 import type { PageLink } from "./content/page-links.js";
-import type { SiteSettings } from "./content/schemas.js";
+import type { CustomFont, SiteSettings } from "./content/schemas.js";
 import type { BlockDescription } from "./site-description.js";
 
 /** The npm keyword, and the GitHub and GitLab topic, plugins are found by. */
@@ -441,6 +441,13 @@ export interface PluginEditorStyles {
    * may load it, and the fonts it names.
    */
   fonts?: string;
+  /**
+   * The site's own fonts (`theme.fonts.custom`), which the frame's runtime
+   * adds to its page from their bytes when `styles()` is called, since a
+   * frame can't load the site's files; the stylesheets leave their
+   * `@font-face` rules out.
+   */
+  customFonts?: CustomFont[];
 }
 
 /** What an editor plugin says about itself as it changes. */

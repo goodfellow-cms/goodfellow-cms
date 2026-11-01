@@ -13,8 +13,10 @@ import {
   type PluginEditorControls,
   type PluginEditorData,
   type PluginEditorSession,
+  type PluginEditorStyles,
   type PluginFileChange,
 } from "@goodfellow-cms/core";
+import { installCustomFonts } from "./custom-font-faces.js";
 import { type Channel, CONNECT_MESSAGE, createChannel } from "./frame/channel.js";
 import {
   PLUGIN_READY_MESSAGE,
@@ -102,7 +104,16 @@ async function openEditor(
     sharePreview: (root) => channel.call("editor.sharePreview", { root }),
     draw: (block) => channel.call("editor.draw", { block }),
     fields: (block) => channel.call("editor.fields", { block }),
-    styles: () => channel.call("editor.styles"),
+    styles: async () => {
+      const styles = (await channel.call("editor.styles")) as PluginEditorStyles;
+      // The site's own fonts, from their bytes, which the frame can't load from the site.
+      installCustomFonts(
+        document,
+        styles.customFonts ?? [],
+        async (url) => ((await channel.call("media.bytes", url)) as Uint8Array | null) ?? undefined,
+      );
+      return styles;
+    },
     showsMedia: true,
   };
   // The editor fills the frame, which the admin panel's page sizes.

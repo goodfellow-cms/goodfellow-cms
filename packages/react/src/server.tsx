@@ -5,6 +5,7 @@ import {
   colorSchemeScript,
   consentScript,
   contentForPage,
+  customFontPreloads,
   feedLinks,
   fontPreloads,
   type GoodfellowConfig,
@@ -35,6 +36,13 @@ export interface PageAssets {
   islands?: IslandAssets;
   /** The page is for `goodfellow dev`, which never counts visits, so trying the site doesn't. */
   development?: boolean;
+  /**
+   * The path the site is served from, for addresses in the theme's CSS (the
+   * site's own fonts), which `applyBasePath()` doesn't rewrite.
+   */
+  base?: string;
+  /** Where the site is on disk, so the site's own fonts can be measured for their stand-ins. */
+  root?: string;
 }
 
 export interface IslandAssets {
@@ -91,8 +99,9 @@ export function createPageRenderer(config: GoodfellowConfig) {
     const fontsUrl = googleFontsUrl(settings.theme);
     const [fontFiles, standIns] = await Promise.all([
       fontPreloads(settings.theme, readStylesheet),
-      fontStandIns(settings.theme),
+      fontStandIns(settings.theme, { ...(assets.root && { root: assets.root }) }),
     ]);
+    const ownFontFiles = customFontPreloads(settings.theme);
     const colorScheme = colorSchemeMeta(settings.theme);
     const schemeScript = colorSchemeScript(settings.theme);
     const consent = settings.consent !== undefined;
@@ -139,11 +148,14 @@ export function createPageRenderer(config: GoodfellowConfig) {
               <link rel="stylesheet" href={fontsUrl} />
             </>
           )}
+          {ownFontFiles.map((href) => (
+            <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="" />
+          ))}
           {assets.stylesheets?.map((href) => (
             <link key={href} rel="stylesheet" href={href} />
           ))}
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: themeToCss escapes its output */}
-          <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme, standIns) }} />
+          <style dangerouslySetInnerHTML={{ __html: themeToCss(settings.theme, standIns, { base: assets.base }) }} />
           <HeadCode code={content.code?.head} held={heldCode(settings.consent, "head")} siteUrl={settings.url} />
           {!assets.development && !neverIndexed(page.path) && (
             <StatsCode stats={settings.stats} held={heldStats(settings.consent, settings.stats)} />

@@ -12,6 +12,7 @@ import { parseDocument } from "htmlparser2";
 import { extensionOf, fileName, mediaKind } from "./content/media-files.js";
 import { MEDIA_DIR } from "./content/paths.js";
 import type { FileChange } from "./content/store.js";
+import { isSafeFontFile } from "./custom-fonts.js";
 import {
   cleanedSvgAttribute,
   cssWithoutOutsideAddresses,
@@ -107,6 +108,8 @@ export function unsafeMediaChanges(changes: readonly FileChange[]): string[] {
     if (!change.path.startsWith(`${MEDIA_DIR}/`) || "delete" in change) return [];
     const name = fileName(change.path);
     if (!mediaKind(name)) return [change.path];
+    if (mediaKind(name) === "font")
+      return isSafeFontFile(change.path, "bytes" in change ? change.bytes : undefined) ? [] : [change.path];
     if (extensionOf(name) !== "svg") return [];
     const text = "bytes" in change ? new TextDecoder().decode(change.bytes) : change.content;
     return isCleanSvg(text) ? [] : [change.path];

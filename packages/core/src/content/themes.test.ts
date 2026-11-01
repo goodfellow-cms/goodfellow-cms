@@ -129,6 +129,15 @@ describe("the theme's CSS", () => {
 });
 
 describe("planTheme", () => {
+  it("keeps the site's own fonts, which are its files", async () => {
+    const custom = [{ family: "Brandon", files: [{ src: "/media/fonts/brandon-400.woff2", weight: 400 }] }];
+    const before = site({ settings: settings({ colors: {}, fonts: { body: "Brandon", custom } }) });
+    const plan = await planTheme(before, harbor("1.0.0"));
+    expect(plan.settings.theme.fonts).toEqual({ heading: "Merriweather", body: "Brandon", custom });
+    const removed = await planTheme(after(plan, before), undefined);
+    expect(removed.settings.theme.fonts.custom).toEqual(custom);
+  });
+
   it("installs a theme's settings, CSS and record, keeping settings it doesn't give", async () => {
     const before = site();
     const plan = await planTheme(before, harbor("1.0.0"));

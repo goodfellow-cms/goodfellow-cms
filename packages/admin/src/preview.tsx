@@ -1,6 +1,14 @@
-import { COLOR_SCHEME_ATTRIBUTE, escapeStyleText, googleFontsUrl, type Theme, themeToCss } from "@goodfellow-cms/core";
+import {
+  COLOR_SCHEME_ATTRIBUTE,
+  customFonts,
+  escapeStyleText,
+  googleFontsUrl,
+  type Theme,
+  themeToCss,
+} from "@goodfellow-cms/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type PreviewOptions, useAdmin } from "./admin-context.js";
+import { installCustomFonts } from "./custom-font-faces.js";
 import { type FrameClient, useFrame, useFrameUpdates } from "./frame/host.js";
 import type { RenderShow } from "./frame/protocol.js";
 import { type MediaPreviews, showMediaInPreview } from "./media-previews.js";
@@ -41,6 +49,7 @@ export function installPreviewStyles(
   doc: Document,
   options: PreviewOptions,
   styles: PreviewStyles & { scheme: PreviewScheme },
+  media?: Pick<MediaPreviews, "bytes">,
 ): void {
   // Light-only sites' previews are always light, as their pages are.
   doc.documentElement.setAttribute(COLOR_SCHEME_ATTRIBUTE, styles.theme.darkMode ? styles.scheme : "light");
@@ -61,7 +70,9 @@ export function installPreviewStyles(
     fontsLink?.remove();
   }
 
-  upsert(doc, "theme", "style", () => {}).textContent = themeToCss(styles.theme);
+  // The site's own fonts come from their bytes, which previews' frames can't load from the site.
+  upsert(doc, "theme", "style", () => {}).textContent = themeToCss(styles.theme, undefined, { fontFaces: false });
+  if (media) installCustomFonts(doc, customFonts(styles.theme), (url) => media.bytes(url));
 
   // Replaced rather than edited, so Tailwind notices the change and recompiles.
   const tailwindCss = escapeStyleText(`${options.themeCss}\n${styles.customCss}`);
@@ -105,8 +116,8 @@ export function usePreviewStyles(doc: Document | null | undefined, styles: Previ
   useEffect(() => {
     if (!doc) return;
     preventNavigation(doc);
-    installPreviewStyles(doc, preview, { ...styles, scheme });
-  }, [doc, preview, styles, scheme]);
+    installPreviewStyles(doc, preview, { ...styles, scheme }, mediaPreviews);
+  }, [doc, preview, styles, scheme, mediaPreviews]);
   useEffect(() => (doc ? showMediaInPreview(doc, mediaPreviews) : undefined), [doc, mediaPreviews]);
 }
 
