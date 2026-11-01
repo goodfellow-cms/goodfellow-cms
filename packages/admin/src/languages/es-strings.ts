@@ -1395,7 +1395,7 @@ export const strings: Strings = {
     "Las Discussions de ese proyecto todavía no tienen categorías. Abre sus Discussions en GitHub una vez y vuelve a intentarlo.",
   "comments.error.other": "Algo ha fallado en GitHub. Vuelve a intentarlo dentro de un momento.",
   "comments.error.fix": "Abrirlo en GitHub",
-  "settings.tab.import": "Importar",
+  "settings.tab.import": "Importar / Exportar",
   "settings.tab.themes": "Temas",
   "plugins.notFound": "El sitio no tiene ninguna pantalla de complemento en esta dirección.",
   "plugins.failed":

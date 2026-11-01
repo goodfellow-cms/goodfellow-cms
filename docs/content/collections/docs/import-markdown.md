@@ -10,7 +10,7 @@ A folder of Markdown files, such as the content of a site made with Hugo, Jekyll
 
 ## In the admin panel
 
-1. Go to **Site Settings → Import**, and under **Import Markdown files**, choose the folder. Your browser may ask before letting the page read it.
+1. Go to **Site Settings → Import / Export**, and under **Import Markdown files**, choose the folder. Your browser may ask before letting the page read it.
 2. Choose how each folder comes across: **Pages**, the choice for the files at the top, or **A collection**, the choice for every other folder.
 3. Tick what else you'd like: replacing the home page with the top's `index.md`, replacing pages the site already has at the same addresses, importing drafts too, adding the top-level pages to the main menu, and keeping other front matter as fields.
 4. Check what will come across: the pages, each collection with its items' addresses, the redirects and the media, and anything that couldn't come across as it was.
