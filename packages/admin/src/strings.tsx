@@ -1094,6 +1094,8 @@ export const defaultStrings = {
   "domain.admin.connect": "Give the admin panel this address",
   "domain.admin.elsewhere":
     "Add this address to the site's project on {host} too, under its custom domains, so it serves the site there as well. The site's build writes {host}'s rules for it.",
+  "domain.admin.elsewhereGuarded":
+    "Add this address to the site on {host} too, as a domain alias, so it serves the site there as well. {host} can't send rules for one address, so the script every page of the site starts with keeps them from it, as on GitLab Pages.",
   "domain.admin.message": "Give the admin panel its own address, {domain}",
   "domain.admin.connected": "The admin panel's address is {domain}",
   "domain.admin.ready": "The site answers at {address}. Open the admin panel there to start using it.",
@@ -1124,6 +1126,8 @@ export const defaultStrings = {
     "On Cloudflare Pages: open the site's project, go to Custom domains and set up the domain. For a domain such as www.example.org, Cloudflare shows a CNAME record to add at your registrar. For example.org itself, the domain has to use Cloudflare's nameservers, which Cloudflare walks you through. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.elsewhere.vercel":
     "On Vercel: open the site's project, go to Settings → Domains and add the domain. Vercel shows the records to add at your registrar. Once the site works at its new address, put the address in General → Site address and publish.",
+  "domain.elsewhere.netlify":
+    "On Netlify: open the site, go to Domain management and add the domain. Netlify shows the records to add at your registrar, or offers to look after the domain's DNS itself. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.elsewhere.other":
     "On any other host: connect the domain in the host's own settings, as it explains. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.field": "Domain",

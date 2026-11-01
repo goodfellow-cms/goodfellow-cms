@@ -79,13 +79,14 @@ A site published with Vercel, as every site on Bitbucket is, connects its domain
 
 The admin panel can have an address of its own beside the site's, such as `admin.example.org` beside `example.org`. Browsers keep what one address stores away from the other, so scripts on the site's pages, such as code pasted into Site Settings or a block's, can't reach what the admin panel keeps there, such as an editor's sign-in. It also lets admins add blocks from [registries other than Goodfellow's](/docs/add-blocks#other-registries).
 
-It works on GitLab Pages, Cloudflare Pages and Vercel, which serve a site at more than one address. GitHub Pages serves each site at one address (and its `www`), so it can't have one there.
+It works on GitLab Pages, Cloudflare Pages, Netlify and Vercel, which serve a site at more than one address. GitHub Pages serves each site at one address (and its `www`), so it can't have one there.
 
 1. Connect the site's own domain first, as above.
 2. In **Site Settings → Domain**, under **Admin address**, type the address, such as `admin.example.org`, and choose **Give the admin panel this address**.
    - **GitLab Pages:** Goodfellow connects it on GitLab Pages too and lists its records, which you add at your registrar as for the site's domain. The Domain screen follows them until GitLab has set up HTTPS for it.
    - **Cloudflare Pages and Vercel:** add the address to the site's project yourself, as for the site's own domain.
-3. Goodfellow publishes the address in the site's `goodfellow.config.tsx`. When the site rebuilds, every page starts with a script that sends it to the site's own address when it's opened at the admin address, before anything else on it runs. On Cloudflare Pages and Vercel, the host also runs every page there but the admin panel's in a sealed-off sandbox.
+   - **Netlify:** add it to the site yourself, as a domain alias under **Domain management**.
+3. Goodfellow publishes the address in the site's `goodfellow.config.tsx`. When the site rebuilds, every page starts with a script that sends it to the site's own address when it's opened at the admin address, before anything else on it runs. On Cloudflare Pages and Vercel, the host also runs every page there but the admin panel's in a sealed-off sandbox; GitLab Pages and Netlify can't send rules for one address, so there the script is what keeps the site's pages from it.
 4. Once the site has rebuilt, open the admin panel at the new address, with the link the Domain screen gives, and sign in again: it's a different address, so it keeps its own sign-in. It checks that the site's pages leave the address, then offers **Start using https://admin.example.org**.
 5. That publishes the address as checked. Once the site has rebuilt again, the admin panel opens only there: `example.org/admin/` sends people to `admin.example.org/admin/`, and the admin panel refuses to be shown inside another page.
 
@@ -101,9 +102,9 @@ A few things to know:
 
 On a site whose content is in a repository of its own, the Domain screen connects the address but leaves the config to a developer, and shows what they run in the code's folder (`goodfellow-next` in place of `goodfellow` for a Next.js site):
 
-1. In **Site Settings → Domain**, type the address and choose **Give the admin panel this address**. On GitLab Pages, Goodfellow connects it there and lists its records, as above; on Cloudflare Pages and Vercel, add it to the site's project yourself.
+1. In **Site Settings → Domain**, type the address and choose **Give the admin panel this address**. On GitLab Pages, Goodfellow connects it there and lists its records, as above; on Cloudflare Pages, Netlify and Vercel, add it to the site yourself.
 2. A developer runs `npx goodfellow admin add admin.example.org` and publishes the code. Where Vercel builds the site from the content repository, it also writes the address's header rules, and the address its redirects are worked out from, into the content repository's `vercel.ts`, since Vercel reads that file before the code is cloned: publish that too. Where Vercel builds from the code repository, the content isn't there yet when Vercel reads `vercel.ts`, so only the scripts send pages opened at the wrong address.
-3. Once the site has rebuilt, the developer runs `npx goodfellow admin check`, which reads the site's home page at the admin address, as the Domain screen does from there, checks that it leaves the address before running anything (and is sandboxed on Cloudflare Pages and Vercel), and marks the address checked in `goodfellow.config.tsx`, and in the content repository's `vercel.ts` where it changed it before. Once that's published and the site has rebuilt, the admin panel opens only at the admin address.
+3. Once the site has rebuilt, the developer runs `npx goodfellow admin check`, which reads the site's home page at the admin address, as the Domain screen does from there, checks that it leaves the address before running anything (and is sandboxed on Cloudflare Pages and Vercel; on Netlify, the script alone), and marks the address checked in `goodfellow.config.tsx`, and in the content repository's `vercel.ts` where it changed it before. Once that's published and the site has rebuilt, the admin panel opens only at the admin address.
 
 `npx goodfellow admin remove` stops using it. The Domain screen shows how far it's got where the sign-in can read the code's repository.
 

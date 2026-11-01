@@ -8,6 +8,8 @@ import {
   CLOUDFLARE_HEADERS_PATH,
   cloudflareAdminHeaders,
   cloudflareSiteHeaders,
+  headersHost,
+  netlifySiteHeaders,
   pageFileKind,
   SITE_HEADERS_MARK,
   siteGuard,
@@ -17,20 +19,29 @@ import {
 import { brokerOrigin } from "./broker.js";
 
 /**
- * Adds Cloudflare Pages' header rules for every site (`cloudflareSiteHeaders()`)
+ * Adds Cloudflare Pages' header rules for every site (`cloudflareSiteHeaders()`),
+ * or Netlify's where it builds the site (`netlifySiteHeaders()`, `headersHost()`),
  * to the built site's `_headers`, after the site's own rules, once: as
  * `goodfellow build` and `goodfellow-next finish` do before `guardBuiltSite()`
  * adds an admin address's. Other hosts serve the file as one of no use.
  */
 export async function writeSiteHeaders(
   outDir: string,
-  { base = "/", admin, broker }: { base?: string; admin?: AdminAddress; broker?: { url: string } } = {},
+  {
+    base = "/",
+    admin,
+    broker,
+    host = headersHost(process.env),
+  }: { base?: string; admin?: AdminAddress; broker?: { url: string }; host?: "netlify" } = {},
 ): Promise<void> {
   const file = join(outDir, CLOUDFLARE_HEADERS_PATH);
   const own = await readFile(file, "utf8").catch(() => "");
   if (own.includes(SITE_HEADERS_MARK)) return;
   const framer = brokerOrigin(broker);
-  const rules = cloudflareSiteHeaders(base, { ...(admin && { admin }), ...(framer && { broker: framer }) });
+  const rules =
+    host === "netlify"
+      ? netlifySiteHeaders(base, { ...(framer && { broker: framer }) })
+      : cloudflareSiteHeaders(base, { ...(admin && { admin }), ...(framer && { broker: framer }) });
   const separator = own === "" ? "" : own.endsWith("\n") ? "\n" : "\n\n";
   await writeFile(file, `${own}${separator}${rules}`);
 }
@@ -43,6 +54,8 @@ export interface GuardOptions {
   base?: string;
   /** The site's token broker (the config's `broker`), which may show the admin panel in its frame. */
   broker?: { url: string };
+  /** Netlify, whose `_headers` can't match hosts, so it gets no rules for the admin address: its guards protect it. */
+  host?: "netlify";
 }
 
 /**
@@ -57,7 +70,7 @@ export interface GuardOptions {
  */
 export async function guardBuiltSite(
   outDir: string,
-  { admin, siteUrl, base = "/", broker }: GuardOptions,
+  { admin, siteUrl, base = "/", broker, host = headersHost(process.env) }: GuardOptions,
 ): Promise<number> {
   const problem = adminAddressProblem(admin, siteUrl);
   const origin = adminOrigin(admin);
@@ -108,7 +121,9 @@ export async function guardBuiltSite(
       `The admin address needs every page to start with its guard, and ${unguarded.length === 1 ? "this one can't" : "these can't"}: ${unguarded.join(", ")}. A page can't have a script, an event handler or a frame before it, or an XML stylesheet, and a compressed SVG can't be changed: remove or change ${unguarded.length === 1 ? "it" : "them"}.`,
     );
   }
-  // Cloudflare Pages sandboxes the rest of the admin address itself. Other hosts serve this as a file of no use.
+  // Cloudflare Pages sandboxes the rest of the admin address itself. Other hosts serve this as a file of no use,
+  // but Netlify reads it, and can't match hosts.
+  if (host === "netlify") return guarded;
   const headersFile = join(outDir, CLOUDFLARE_HEADERS_PATH);
   const own = await readFile(headersFile, "utf8").catch(() => "");
   if (!own.includes(`${origin}/*`)) {

@@ -6,7 +6,7 @@ section: start
 order: 4
 ---
 
-Setup takes four steps, done once by whoever sets up the site. A site made with the [setup page](/new-site) has done the first three, unless it's on Cloudflare Pages or Vercel, which you connect it to in step 3, so start at [step 4](#4-set-up-sign-in).
+Setup takes four steps, done once by whoever sets up the site. A site made with the [setup page](/new-site) has done the first three, unless it's on Cloudflare Pages, Netlify or Vercel, which you connect it to in step 3, so start at [step 4](#4-set-up-sign-in).
 
 ## 1. Store the site on GitHub, GitLab or Bitbucket
 
@@ -41,7 +41,7 @@ Then set the site's address under **Site Settings → General → Site address**
 
 Each host's free plan has its own rules about business use; read [Hosts and business sites](/docs/hosts) first if the site is for a business, sells anything or shows ads.
 
-These four have setup files ready. A site can be hosted anywhere else too, such as on AWS, Google Cloud, DigitalOcean or a server of your own, with a build you set up: see [Host anywhere](/docs/any-host).
+These five have setup files ready. A site can be hosted anywhere else too, such as on AWS, Google Cloud, DigitalOcean or a server of your own, with a build you set up: see [Host anywhere](/docs/any-host).
 
 **GitHub Pages**, free for public repositories:
 
@@ -60,6 +60,14 @@ These four have setup files ready. A site can be hosted anywhere else too, such 
 1. Make the site with Cloudflare Pages as its host: `npm create goodfellow@latest -- --host cloudflare-pages`, or choose it on the [setup page](/new-site). That gives it Cloudflare's setup files in place of the other hosts': on GitHub, `.github/workflows/deploy.yml` and `scheduled.yml`; on GitLab, `.gitlab-ci.yml`.
 2. In [Cloudflare's dashboard](https://dash.cloudflare.com/), go to **Workers & Pages** and create a Pages project with **Import an existing Git repository**. Connect your GitHub or GitLab account, choose the repository, and set no framework preset, the build command `npm run build` and the build output directory `dist` (`out` for the Next.js starter). Cloudflare builds and publishes the site on every change, including every Publish in the admin panel, and sends the site's [redirects](/docs/layout-and-settings#redirects) itself. Under the project's **Settings → Builds → Branch control**, set preview branches to **None**: [drafts](/docs/publishing#drafts), and the answers of plugins' [tasks](/docs/plugins#tasks), are kept on branches of their own, which Cloudflare would otherwise build too.
 3. Cloudflare can't build on a schedule, so the setup files do it: each night they install Goodfellow's [updates](/docs/updates) and check whether the site needs rebuilding, and they check for [scheduled changes](/docs/scheduling), asking Cloudflare to rebuild the site when it needs it and there's nothing new for it to build. They ask through the project's deploy hook: under the project's **Settings → Builds**, add one for the main branch, and add its address to the repository as the `CLOUDFLARE_DEPLOY_HOOK` secret (GitHub: **Settings → Secrets and variables → Actions**) or masked variable (GitLab: **Settings → CI/CD → Variables**). On GitLab, turn on updates on the admin panel's **Updates** screen too, which adds the nightly schedule.
+
+**Netlify**, which works with GitHub and GitLab, including private repositories, and has no rule against business sites that we know of, but whose free plan allows about 20 publishes a month ([Netlify](/docs/hosts#netlify)):
+
+1. Make the site with Netlify as its host: `npm create goodfellow@latest -- --host netlify`, or choose it on the [setup page](/new-site). That gives it `netlify.toml`, Netlify's settings, and the nightly setup files in place of the other hosts': on GitHub, `.github/workflows/deploy.yml` and `scheduled.yml`; on GitLab, `.gitlab-ci.yml`.
+2. In [Netlify](https://app.netlify.com/start), choose **Import an existing project**, connect your GitHub or GitLab account and choose the repository. `netlify.toml` already has the build command, the folder Netlify publishes (`dist`, or `out` for the Next.js starter) and Node.js 22, and has Netlify skip [drafts](/docs/publishing#drafts) and plugins' [task](/docs/plugins#tasks) answers, which are kept on branches of their own, so their previews never build with the site's environment variables. Netlify builds and publishes the site on every change, and sends its [redirects](/docs/layout-and-settings#redirects) and [safer headers](/docs/security#for-developers) itself.
+3. Netlify can't build on a schedule, so the setup files do it, as for Cloudflare Pages: under the site's **Project configuration → Build & deploy → Build hooks**, add a build hook for the main branch, and add its address to the repository as the `NETLIFY_BUILD_HOOK` secret (GitHub) or masked variable (GitLab). On GitLab, turn on updates on the admin panel's **Updates** screen too, which adds the nightly schedule.
+
+A site whose content is kept in a [repository of its own](/docs/content-repository) can't be on Netlify yet.
 
 **Vercel**, which works with GitHub, GitLab and Bitbucket:
 

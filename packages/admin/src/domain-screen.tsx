@@ -91,8 +91,10 @@ export function DomainScreen() {
     body = (
       <>
         <p>{t("domain.elsewhere", { host })}</p>
-        {outside !== "vercel" && <p>{t("domain.elsewhere.cloudflare")}</p>}
-        {outside !== "cloudflare-pages" && <p>{t("domain.elsewhere.vercel")}</p>}
+        {/* Only the host the site's setup files name, or every one where they name none. */}
+        {(!outside || outside === "cloudflare-pages") && <p>{t("domain.elsewhere.cloudflare")}</p>}
+        {(!outside || outside === "netlify") && <p>{t("domain.elsewhere.netlify")}</p>}
+        {(!outside || outside === "vercel") && <p>{t("domain.elsewhere.vercel")}</p>}
         {!outside && <p>{t("domain.elsewhere.other")}</p>}
       </>
     );

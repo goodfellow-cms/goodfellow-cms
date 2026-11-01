@@ -6,7 +6,7 @@ section: start
 order: 5
 ---
 
-Goodfellow sites are static files, so they can be hosted anywhere that serves files (see [Host anywhere](/docs/any-host)); the setup files Goodfellow writes are for the four hosts below, which have free plans.
+Goodfellow sites are static files, so they can be hosted anywhere that serves files (see [Host anywhere](/docs/any-host)); the setup files Goodfellow writes are for the five hosts below, which have free plans.
 
 Free plans have limits worth knowing about. These are the hosts' rules, not Goodfellow's, and they change, so check the links before deciding. Last checked in October 2026.
 
@@ -29,7 +29,7 @@ GitHub suits a site whose editors already use GitHub, or one with a developer wh
 
 | On the free plan | GitHub Free | GitLab Free | Bitbucket Free |
 |---|---|---|---|
-| Free static hosting | GitHub Pages, public repositories only; or Cloudflare Pages, public or private | GitLab Pages or Cloudflare Pages, public or private | Vercel only, for non-commercial sites |
+| Free static hosting | GitHub Pages, public repositories only; or Cloudflare Pages or Netlify, public or private | GitLab Pages, Cloudflare Pages or Netlify, public or private | Vercel only, for non-commercial sites |
 | Editors | Unlimited collaborators | Up to 5 users in a private group or account; unlimited if public | Up to 5 users in a workspace |
 | Build minutes | Unlimited for public repositories, 2,000 a month for private | 400 a month (or build on Cloudflare Pages or Vercel instead) | 50 a month for Pipelines (Vercel builds the site itself) |
 | Sign-in | Personal access token (fine-grained, or classic for collaborators), or Sign in with GitHub with a [sign-in service](/docs/sign-in-service) you run | One-click sign-in (OAuth) or personal access token | One-click sign-in (OAuth, about two hours at a time), repository access token or Atlassian API token |
@@ -55,11 +55,24 @@ The [setup page](/new-site) doesn't offer Bitbucket; make the site with `npm cre
 
 Cloudflare can't build on a schedule, so the site's nightly check, which installs updates and rebuilds it only when something changed, and its hourly check for scheduled changes run on GitHub Actions or GitLab CI, and ask Cloudflare to rebuild the site through its deploy hook. On a private GitHub repository, the hourly check uses about 720 of the free plan's 2,000 minutes a month; delete `.github/workflows/scheduled.yml` to have scheduled changes go live with the nightly rebuild instead.
 
+## Netlify
+
+[Netlify](https://www.netlify.com) builds sites from repositories on GitHub and GitLab, public or private. Its free plan, for accounts made since September 4, 2025, counts everything in credits: 300 a month, a hard limit ([Netlify pricing](https://www.netlify.com/pricing/)):
+
+- **15 credits for each production deploy,** which every publish, overnight rebuild and scheduled change that comes due is, so about **20 a month** if the site used nothing else. Failed deploys, and builds Netlify skips, such as drafts', cost nothing.
+- **20 credits for each GB** visitors download, and 2 for each 10,000 requests.
+- **When the credits run out, every site on the account is paused** until the next month, and visitors see "Site not available". Free plans can't buy more.
+
+So a free Netlify site suits one that's published a few times a week, not one edited every day: keep changes in a [draft](/docs/publishing#drafts) and publish them together, which is one deploy. Accounts made before September 4, 2025 keep Netlify's older limits, counted in build minutes and bandwidth instead.
+
+Netlify, like Cloudflare, can't build on a schedule, so the site's nightly check and its hourly check for scheduled changes run on GitHub Actions or GitLab CI, and ask Netlify to rebuild the site through its build hook. An [admin address](/docs/custom-domains#an-admin-address) works on Netlify, as on GitLab Pages: Netlify can't send rules for one address, so the script every page starts with is what keeps the site's pages from it.
+
 ## Business and commercial sites
 
 - **GitHub Pages** isn't for running an online business, a shop, or any site mainly for selling things or software as a service ([GitHub Pages limits](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits)). It also shouldn't handle passwords or card numbers.
 - **Vercel's free Hobby plan** is for personal, non-commercial use only. Vercel counts a site as commercial if anyone involved in making it gains financially, including a developer paid to build or update it, and if it takes payments, advertises products or services for sale, or shows ads. Asking for donations is allowed ([Vercel fair use guidelines](https://vercel.com/docs/limits/fair-use-guidelines#commercial-usage)).
 - **GitLab Pages:** we haven't found a rule against business sites on GitLab's free plan, so it's a free option to use for one. Check [GitLab's terms](https://about.gitlab.com/terms/) for your own case.
+- **Netlify:** we haven't found a rule against business sites in Netlify's terms or its subscription agreement either, but its free plan's credits limit how often the site can be published (see [Netlify](#netlify)).
 - **Cloudflare Pages:** we haven't found a rule against business sites on Cloudflare's free plan either, so it's the free option for a business site kept on GitHub, private or not. Its terms ask free plans to serve video and other large files through one of its paid services ([Cloudflare's terms](https://www.cloudflare.com/service-specific-terms-application-services/)), so put videos on YouTube or Vimeo and show them with the [Video block](/docs/built-in-blocks#video); the media library says so on a Cloudflare site with uploaded videos.
 
 ## GitHub sign-in for several editors

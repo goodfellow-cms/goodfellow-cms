@@ -191,7 +191,8 @@ export function withDefaults(chosen: Partial<Choices> & { purpose: Purpose }): C
         ? recommended
         : (usable[0] ?? "github-pages");
   const build = chosen.build && contentBuildsFor(host).includes(chosen.build) ? chosen.build : "content";
-  const content = chosen.content ?? "together";
+  // Netlify can't build a site whose content is kept in a repository of its own yet.
+  const content = host === "netlify" ? "together" : (chosen.content ?? "together");
   const domain = chosen.domain ?? false;
   // With a domain, the admin address is chosen for them: a sign-in page needs a second repository, so it's only offered.
   const fallback = domain && allowsAdminAddress(host) ? "admin-address" : "admin-panel";

@@ -144,7 +144,7 @@ test("recommends hosts whose free plans allow the site, and keeps what people ch
   await page.getByRole("link", { name: "Choose the site's options" }).click();
   await expect(page.getByRole("group", { name: "What's the site for?" })).toBeVisible();
   // One with choices that aren't any falls back to the defaults.
-  await page.goto(`${CREATE}?purpose=personal&git=bitbucket&host=netlify`, { waitUntil: "networkidle" });
+  await page.goto(`${CREATE}?purpose=personal&git=bitbucket&host=nowhere`, { waitUntil: "networkidle" });
   await expect(page.getByRole("region", { name: "Your choices" })).toContainText("GitLab Pages");
 });
 

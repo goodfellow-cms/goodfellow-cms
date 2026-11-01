@@ -23,6 +23,7 @@ import {
   SINGLE_REPOSITORY_SETUP_FILES,
   separateSetupFiles,
 } from "./content-repository-setup.js";
+import { netlifySetupFiles } from "./netlify-setup.js";
 import { CONFIG_FILE, type PluginPackage, planPluginInstall } from "./plugin-packages.js";
 import {
   availableBlocks,
@@ -87,6 +88,12 @@ export const HOSTS = {
     files: [],
     note: "Works with GitHub and GitLab, including private repositories. No rule against business sites that we know of.",
   },
+  // Its setup files are written for the site by netlifySetupFiles(), in place of the other hosts'.
+  netlify: {
+    label: "Netlify",
+    files: [],
+    note: "Works with GitHub and GitLab, including private repositories. No rule against business sites that we know of.",
+  },
 } as const;
 
 export type Host = keyof typeof HOSTS;
@@ -95,13 +102,14 @@ export type Host = keyof typeof HOSTS;
  * The hosts that can serve a site stored with `backend`: GitHub Pages only
  * builds GitHub repositories, and so on. Bitbucket's own static websites have
  * one address for each workspace and no custom domains, and Cloudflare Pages
- * doesn't build from Bitbucket, so its sites are built by Vercel.
+ * doesn't build from Bitbucket, so its sites are built by Vercel (Netlify
+ * could, but its setup files are written for GitHub's and GitLab's CI).
  */
 export function hostsFor(backend: Backend["host"] | undefined): Host[] {
-  if (backend === "github") return ["github-pages", "cloudflare-pages", "vercel"];
-  if (backend === "gitlab") return ["gitlab-pages", "cloudflare-pages", "vercel"];
+  if (backend === "github") return ["github-pages", "cloudflare-pages", "netlify", "vercel"];
+  if (backend === "gitlab") return ["gitlab-pages", "cloudflare-pages", "netlify", "vercel"];
   if (backend === "bitbucket") return ["vercel"];
-  return ["github-pages", "gitlab-pages", "cloudflare-pages", "vercel"];
+  return ["github-pages", "gitlab-pages", "cloudflare-pages", "netlify", "vercel"];
 }
 
 /** Which blocks a new site starts with, besides the built-in ones. */
@@ -310,7 +318,7 @@ export interface SitePlan {
 
 /** Hosts that serve a site at more than one address, which an admin address needs: not GitHub Pages. */
 export function allowsAdminAddress(host: Host | undefined): boolean {
-  return host === "gitlab-pages" || host === "cloudflare-pages" || host === "vercel";
+  return host === "gitlab-pages" || host === "cloudflare-pages" || host === "netlify" || host === "vercel";
 }
 
 /** The README's section on a new site's admin address, which the config names but nobody has checked yet. */
@@ -356,6 +364,9 @@ export async function planSite({
 }: SitePlan): Promise<SiteFiles> {
   if (content && (!backend || !host)) {
     throw new Error("Keeping the content in a repository of its own needs both repositories and a host.");
+  }
+  if (content && host === "netlify") {
+    throw new Error("Keeping the content in a repository of its own isn't possible on Netlify yet.");
   }
   const adminUrl = admin === undefined ? undefined : adminOrigin({ url: admin });
   if (admin !== undefined && (!adminUrl || !allowsAdminAddress(host))) {
@@ -443,6 +454,11 @@ export async function planSite({
     }
     if (host === "cloudflare-pages" && backend?.host !== "bitbucket") {
       for (const [path, text] of cloudflareSetupFiles({ git: backend?.host, next: files.has("next.config.ts") })) {
+        files.set(path, text);
+      }
+    }
+    if (host === "netlify" && backend?.host !== "bitbucket") {
+      for (const [path, text] of netlifySetupFiles({ git: backend?.host, next: files.has("next.config.ts") })) {
         files.set(path, text);
       }
     }

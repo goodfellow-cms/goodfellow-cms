@@ -6,7 +6,7 @@ section: start
 order: 4.5
 ---
 
-A Goodfellow site is static files: pages, pictures, the admin panel and everything else are written by the build, and nothing runs on a server. So any host that serves files can serve one, such as Amazon S3 with CloudFront, Google Cloud Storage or Firebase Hosting, DigitalOcean's App Platform or Spaces, Azure Static Web Apps, Netlify, Render, or a server of your own with nginx or Apache. [Put it online](/docs/put-it-online) gives the setup files for GitHub Pages, GitLab Pages, Cloudflare Pages and Vercel; on any other host, you set up the build yourself, as this page describes. A [full-stack Next.js site](/docs/full-stack-nextjs) runs on any host that runs Node.js.
+A Goodfellow site is static files: pages, pictures, the admin panel and everything else are written by the build, and nothing runs on a server. So any host that serves files can serve one, such as Amazon S3 with CloudFront, Google Cloud Storage or Firebase Hosting, DigitalOcean's App Platform or Spaces, Azure Static Web Apps, Render, or a server of your own with nginx or Apache. [Put it online](/docs/put-it-online) gives the setup files for GitHub Pages, GitLab Pages, Cloudflare Pages, Netlify and Vercel; on any other host, you set up the build yourself, as this page describes. A [full-stack Next.js site](/docs/full-stack-nextjs) runs on any host that runs Node.js.
 
 ## Building the site
 

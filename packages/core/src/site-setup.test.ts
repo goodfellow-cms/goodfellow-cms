@@ -3,6 +3,7 @@ import { parse } from "yaml";
 import { BITBUCKET_PIPELINE_NAMES, BITBUCKET_PIPELINES } from "./bitbucket-setup.js";
 import { TASK_BRANCH_PREFIX } from "./plugin-tasks.js";
 import {
+  allowsAdminAddress,
   hostsFor,
   parseRepo,
   planSite,
@@ -44,6 +45,64 @@ function template(): SiteFiles {
 }
 
 describe("planSite", () => {
+  it("gives a Netlify site netlify.toml and the nightly setup that asks Netlify to rebuild", async () => {
+    const github = await planSite({
+      template: template(),
+      name: "my-parish",
+      versions: { "@goodfellow-cms/core": "1.2.3" },
+      backend: { host: "github", repo: "someone/my-parish" },
+      host: "netlify",
+      admin: "https://admin.example.org",
+    });
+    expect([...github.keys()].filter((path) => /workflows|gitlab|vercel|netlify/.test(path)).sort()).toEqual([
+      ".github/workflows/deploy.yml",
+      ".github/workflows/plugin-task.yml",
+      ".github/workflows/scheduled.yml",
+      "netlify.toml",
+    ]);
+    const workflow = parse(siteFileText(github.get(".github/workflows/deploy.yml") ?? ""));
+    expect(workflow.name).toBe("Update and rebuild on Netlify");
+    expect(workflow.jobs.rebuild.steps[0].env.HOOK).toBe(`\${{ secrets.NETLIFY_BUILD_HOOK }}`);
+    expect(workflow.jobs.rebuild.steps[0].run).toContain("Add the Netlify site's build hook");
+    const toml = siteFileText(github.get("netlify.toml") ?? "");
+    expect(toml).toContain('publish = "dist"');
+    expect(toml).toContain("goodfellow-draft-*|goodfellow-task-*) exit 0;;");
+    expect(toml).toContain('GOODFELLOW_HOST = "netlify"');
+    expect(toml).not.toContain("NETLIFY_NEXT_PLUGIN_SKIP");
+    // An admin address works on Netlify as on GitLab Pages.
+    expect(siteFileText(github.get("goodfellow.config.tsx") ?? "")).toContain(
+      'admin: { url: "https://admin.example.org"',
+    );
+
+    const gitlab = await planSite({
+      template: new Map([...template(), ["next.config.ts", "export default {};"]]),
+      name: "my-parish",
+      versions: { "@goodfellow-cms/core": "1.2.3" },
+      backend: { host: "gitlab", repo: "someone/my-parish" },
+      host: "netlify",
+    });
+    const pipeline = parse(siteFileText(gitlab.get(".gitlab-ci.yml") ?? ""));
+    expect(pipeline.update.script[2]).toContain(
+      'curl --fail --silent --show-error --request POST "$NETLIFY_BUILD_HOOK"',
+    );
+    expect(pipeline.update.script[0]).toContain("npx goodfellow-next nightly");
+    const nextToml = siteFileText(gitlab.get("netlify.toml") ?? "");
+    expect(nextToml).toContain('publish = "out"');
+    expect(nextToml).toContain('NETLIFY_NEXT_PLUGIN_SKIP = "true"');
+    expect(hostsFor("bitbucket")).not.toContain("netlify");
+    expect(allowsAdminAddress("netlify")).toBe(true);
+    await expect(
+      planSite({
+        template: template(),
+        name: "my-parish",
+        versions: { "@goodfellow-cms/core": "1.2.3" },
+        backend: { host: "github", repo: "someone/my-parish-code" },
+        host: "netlify",
+        content: { repo: "someone/my-parish", build: "content" },
+      }),
+    ).rejects.toThrow("isn't possible on Netlify yet");
+  });
+
   it("keeps the setup that runs plugins' tasks for the git host the site is on, whoever builds it", async () => {
     const plan = (
       host: "github" | "gitlab",

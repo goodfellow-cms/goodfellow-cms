@@ -180,12 +180,12 @@ ${prepare ? `${prepare}\n` : ""}      - id: update
 }
 
 /** A job that asks Cloudflare Pages to rebuild the site through its deploy hook, running none of the site's code. */
-export function cloudflareRebuildSteps(hook: string): string {
+export function cloudflareRebuildSteps(hook: string, hookName = "the Cloudflare Pages project's deploy hook"): string {
   return `      - env:
           HOOK: \${{ secrets.${hook} }}
         run: |
           if [ -z "$HOOK" ]; then
-            echo "Add the Cloudflare Pages project's deploy hook as this repository's ${hook} secret."
+            echo "Add ${hookName} as this repository's ${hook} secret."
             exit 1
           fi
           curl --fail --silent --show-error --request POST "$HOOK"`;
