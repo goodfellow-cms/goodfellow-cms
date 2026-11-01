@@ -20,7 +20,7 @@
     "release:approve": "node scripts/release.mjs approve"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.3",
     "@changesets/cli": "3.0.3",
     "@types/node": "^22.19.0",
     "tsdown": "0.23.0",
