@@ -39,6 +39,8 @@ export interface FakeGitLabOptions {
   pages?: { uniqueDomain?: boolean };
   /** Domains another GitLab Pages site already uses. */
   takenDomains?: string[];
+  /** What connecting created projects GitLab refuses, as a plan or a sign-in might: job token allowlists, job token pushes or pipeline schedules. */
+  refuseConnections?: Array<"allowlist" | "push" | "schedule">;
   /** Other GitLab accounts that exist, which can be added to the project. Every token's user exists and is a member. */
   accounts?: string[];
   /** Who can see the project. Private by default. */
@@ -496,6 +498,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     }
     if (rest === "" && request.method === "PUT") {
       const body = (await request.json()) as { ci_push_repository_for_job_token_allowed?: boolean };
+      if (options.refuseConnections?.includes("push")) return json({ message: "403 Forbidden" }, 403);
       if (body.ci_push_repository_for_job_token_allowed !== undefined) {
         project.jobTokenPush = body.ci_push_repository_for_job_token_allowed;
       }
@@ -503,6 +506,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     }
     if (rest === "/job_token_scope/allowlist" && request.method === "POST") {
       const body = (await request.json()) as { target_project_id: number };
+      if (options.refuseConnections?.includes("allowlist")) return json({ message: "403 Forbidden" }, 403);
       if (![...created.values()].some((candidate) => candidate.id === body.target_project_id)) {
         return json({ message: "404 Project Not Found" }, 404);
       }
@@ -520,6 +524,10 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     }
     if (rest === "/pipeline_schedules" && request.method === "POST") {
       const body = (await request.json()) as { description: string; ref: string; cron: string; active?: boolean };
+      if (options.refuseConnections?.includes("schedule")) {
+        return json({ message: { ref: ["is ambiguous"] } }, 400);
+      }
+      if (project.repo.files().size === 0) return json({ message: { ref: ["is ambiguous"] } }, 400);
       project.schedules.push({ ...body, active: body.active !== false });
       return json({ id: project.schedules.length, ...body }, 201);
     }

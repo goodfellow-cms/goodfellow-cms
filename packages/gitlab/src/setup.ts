@@ -12,6 +12,7 @@ import {
   type SetupWarning,
   SignInError,
   type StorageLike,
+  type UnmadeConnection,
 } from "@goodfellow-cms/core";
 import { type ApiOptions, gitlabJson, gitlabRequest } from "./api.js";
 import type { BrowserLocation } from "./index.js";
@@ -97,51 +98,97 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
       return response.status === 404;
     }
 
+    const projectPath = (path: string) => `/projects/${encodeURIComponent(path)}`;
+
+    /**
+     * Makes one connection between a site's projects, giving what's left to do
+     * by hand where GitLab refuses it, with what it answered.
+     */
+    async function attempt(
+      unmade: UnmadeConnection,
+      request: () => Promise<unknown>,
+      left: UnmadeConnection[],
+    ): Promise<void> {
+      try {
+        await request();
+      } catch (error) {
+        if (!(error instanceof GitApiError)) throw error;
+        left.push({ ...unmade, reason: error.message });
+      }
+    }
+
     /**
      * Lets each project's pipelines reach the other, as their setup files say:
      * a job token is refused by a project whose job token allowlist doesn't
      * name its project, even a public one. Also lets the code project's job
-     * token publish updates, and runs pipelines each night where they need it.
-     * Returns whether it worked.
+     * token publish updates. Runs before the project's files are written,
+     * since their first pipeline reads the other project. Each is tried on its
+     * own, so one GitLab refuses doesn't keep the others from being made.
      */
-    async function connectProjects(link: RepositoryLink): Promise<boolean> {
-      const project = (path: string) => `/projects/${encodeURIComponent(path)}`;
-      try {
-        const ids = new Map<string, number>();
-        for (const which of ["code", "content"] as const) {
-          ids.set(which, (await gitlabJson<{ id: number }>(api, project(link[which]))).id);
+    async function connectProjects(link: RepositoryLink, left: UnmadeConnection[]): Promise<void> {
+      const ids = new Map<string, number>();
+      for (const which of ["code", "content"] as const) {
+        try {
+          ids.set(which, (await gitlabJson<{ id: number }>(api, projectPath(link[which]))).id);
+        } catch (error) {
+          if (!(error instanceof GitApiError)) throw error;
         }
-        for (const { reader, read } of link.links.reads) {
-          await gitlabRequest(api, `${project(link[read])}/job_token_scope/allowlist`, {
-            method: "POST",
-            body: { target_project_id: ids.get(reader) },
-          });
-        }
-        if (link.links.updates) {
-          await gitlabRequest(api, project(link[link.links.updates]), {
-            method: "PUT",
-            body: { ci_push_repository_for_job_token_allowed: true },
-          });
-        }
-        for (const which of link.links.nightly) {
-          await gitlabRequest(api, `${project(link[which])}/pipeline_schedules`, {
-            method: "POST",
-            body: {
-              description:
-                which === link.links.updates
-                  ? "Rebuild the site and install Goodfellow's fixes each night"
-                  : "Rebuild the site each night",
-              ref: MAIN,
-              cron: NIGHTLY,
-              cron_timezone: "UTC",
-              active: true,
-            },
-          });
-        }
-        return true;
-      } catch (error) {
-        if (error instanceof GitApiError && [400, 403, 404].includes(error.status)) return false;
-        throw error;
+      }
+      for (const { reader, read } of link.links.reads) {
+        const target = ids.get(reader);
+        const unmade = { kind: "read", reader: link[reader], read: link[read], reason: "" } as const;
+        await attempt(
+          unmade,
+          async () => {
+            if (target === undefined) throw new GitApiError(404, `GitLab couldn't find ${link[reader]}.`);
+            await gitlabRequest(api, `${projectPath(link[read])}/job_token_scope/allowlist`, {
+              method: "POST",
+              body: { target_project_id: target },
+            });
+          },
+          left,
+        );
+      }
+      if (link.links.updates) {
+        const repo = link[link.links.updates];
+        await attempt(
+          { kind: "push", repo, reason: "" },
+          () =>
+            gitlabRequest(api, projectPath(repo), {
+              method: "PUT",
+              body: { ci_push_repository_for_job_token_allowed: true },
+            }),
+          left,
+        );
+      }
+    }
+
+    /**
+     * Runs the pipelines that need it each night. After the project's files
+     * are written, since a schedule names the main branch, which an empty
+     * project doesn't have yet.
+     */
+    async function scheduleNightly(link: RepositoryLink, left: UnmadeConnection[]): Promise<void> {
+      for (const which of link.links.nightly) {
+        const repo = link[which];
+        await attempt(
+          { kind: "nightly", repo, reason: "" },
+          () =>
+            gitlabRequest(api, `${projectPath(repo)}/pipeline_schedules`, {
+              method: "POST",
+              body: {
+                description:
+                  which === link.links.updates
+                    ? "Rebuild the site and install Goodfellow's fixes each night"
+                    : "Rebuild the site each night",
+                ref: MAIN,
+                cron: NIGHTLY,
+                cron_timezone: "UTC",
+                active: true,
+              },
+            }),
+          left,
+        );
       }
     }
 
@@ -192,9 +239,10 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
           throw error;
         }
         const warnings: SetupWarning[] = [];
+        const unconnected: UnmadeConnection[] = [];
         if (site.link) {
           onStep?.("connect");
-          if (!(await connectProjects(site.link))) warnings.push("connect-unavailable");
+          await connectProjects(site.link, unconnected);
         }
         // GitLab Pages needs no setting of its own: the site's .gitlab-ci.yml publishes it on every change.
         let siteUrl: string | undefined;
@@ -233,6 +281,8 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
             ),
           },
         });
+        if (site.link) await scheduleNightly(site.link, unconnected);
+        if (unconnected.length) warnings.push("connect-unavailable");
         // GitLab protects a project's default branch from having its history rewritten from the start.
         return {
           repo: project.path_with_namespace,
@@ -241,6 +291,7 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
           buildsUrl: `${project.web_url}/-/pipelines`,
           pagesUrl: site.pages ? `${project.web_url}/pages` : undefined,
           warnings,
+          ...(unconnected.length && { unconnected }),
         };
       },
     };

@@ -1273,6 +1273,7 @@ export {
   type SetupProblem,
   type SetupStep,
   type SetupWarning,
+  type UnmadeConnection,
 } from "./setup-host.js";
 export {
   type ConfigBackendHost,
