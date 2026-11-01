@@ -75,6 +75,7 @@
     "@goodfellow-cms/react": "workspace:*",
     "@goodfellow-cms/registry": "workspace:*",
     "codemirror": "6.0.2",
+    "fflate": "0.8.3",
     "lucide-react": "1.52.0",
     "turndown": "7.2.4",
     "turndown-plugin-gfm": "1.0.2"

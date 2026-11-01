@@ -22,6 +22,7 @@ import { pageTitle } from "./changes.js";
 import { mediaUrl } from "./media.js";
 import { createMediaPreviews } from "./media-previews.js";
 import { PreviewFrame } from "./preview.js";
+import { type DownloadProgress, downloadName, downloadPaths, siteArchive } from "./site-download.js";
 import { type StringKey, type Translate, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, Field } from "./ui.js";
 import { unknownBlocks } from "./versions.js";
@@ -49,6 +50,7 @@ export function SiteHistoryScreen() {
           {t("siteHistory.restored", { date: restored })}
         </p>
       )}
+      <DownloadCopy />
       {versions ? (
         // A publish moves to a new revision, which lists the restore too.
         <PublishList key={revision} onRestored={setRestored} />
@@ -56,6 +58,59 @@ export function SiteHistoryScreen() {
         <p>{t(demo ? "siteHistory.demo" : "siteHistory.local")}</p>
       )}
     </div>
+  );
+}
+
+/** Downloads the site's content and media as one zip file, at the revision the admin panel loaded. */
+function DownloadCopy() {
+  const t = useStrings();
+  const { listFiles, readBytes } = useAdmin();
+  const { content } = useSiteContent();
+  const [progress, setProgress] = useState<DownloadProgress>();
+  const [error, setError] = useState<unknown>();
+  const stored = Object.keys(content.mediaStorage?.files ?? {}).length > 0;
+
+  const download = async () => {
+    setError(undefined);
+    setProgress({ done: 0, total: 0 });
+    try {
+      const paths = await downloadPaths(listFiles);
+      const chunks = await siteArchive(paths, readBytes, setProgress);
+      const url = URL.createObjectURL(new Blob(chunks as BlobPart[], { type: "application/zip" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = downloadName(content.settings.title, new Date());
+      document.body.append(link);
+      link.click();
+      link.remove();
+      // Browsers start the download from the address before it's let go.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setProgress(undefined);
+    }
+  };
+
+  return (
+    <section aria-labelledby="gfa-download-copy">
+      <h2 className="gfa-section-title" id="gfa-download-copy">
+        {t("siteHistory.download.title")}
+      </h2>
+      <p className="gfa-hint">{t("siteHistory.download.intro")}</p>
+      {stored && <p className="gfa-hint">{t("siteHistory.download.stored")}</p>}
+      <p>
+        <Button onClick={() => void download()} disabled={progress !== undefined}>
+          {t("siteHistory.download.button")}
+        </Button>
+      </p>
+      {progress && progress.total > 0 && (
+        <p role="status">
+          {t("siteHistory.download.working", { done: String(progress.done), total: String(progress.total) })}
+        </p>
+      )}
+      {error !== undefined && <ErrorMessage message={t("siteHistory.download.error")} error={error} />}
+    </section>
   );
 }
 

@@ -61,6 +61,14 @@ Then choose **Restore the site as it was** to put everything back in one publish
 - **What's restored:** everything in `content/` and `public/media/`: pages, collections and their items, the header and footer, Site Settings, menus, redirects, custom CSS and code, photo credits, and media files. The site's code, the blocks added under **Blocks**, and the [update settings](/docs/updates) stay as they are.
 - **Sites that can't be restored:** a version that uses blocks the site doesn't have any more, until they're added again under **Blocks**.
 - **Who can:** Site Settings is for owners, so on a [full-stack Next.js site](/docs/full-stack-nextjs), editors can't restore the whole site.
+
+## Downloading a copy
+
+**Download a copy**, at the top of **Site Settings → Site history**, downloads the site's content as one zip file, named after the site and the day, such as `my-site-2026-11-01.zip`, to keep somewhere safe: everything in `content/` (pages, collections and their items, the header and footer, Site Settings, menus, redirects, custom CSS and code, photo credits and descriptions), the media library in `public/media/`, and the lists of the blocks and plugins the site added (`blocks/installed/installed.json` and `plugins/installed/installed.json`). It's the site as the admin panel shows it, with a draft you're working in included. It works on every site, demos and sites on your own computer too.
+
+It doesn't hold the site's code, such as its own blocks, the blocks added under **Blocks** and its setup files, which are kept where the site is stored: download them there, with **Code → Download ZIP** on GitHub, **Code → Download source code** on GitLab, or **Download repository** in a repository's menu on Bitbucket. Media kept in a [storage service](/docs/media#media-kept-in-a-storage-service) stays there; the copy's `content/media-storage.json` lists it.
+
+To make a site again from a copy, a developer [makes a new site](/docs/create-a-site#with-create-goodfellow) from the same starter, replaces its `content/` and `public/media/` folders with the copy's, adds the blocks and plugins the two lists name (under **Blocks** and **Plugins**, or with `--plugin` when making it), and publishes it. A site whose code was downloaded too needs only the copy's folders put back in it.
 - **Where it works:** as with a page's version history, in the published site's admin panel.
 
 ## Drafts

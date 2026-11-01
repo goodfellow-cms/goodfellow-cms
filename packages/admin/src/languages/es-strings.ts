@@ -1602,6 +1602,14 @@ export const strings: Strings = {
   "siteHistory.subject.css": "CSS propio",
   "siteHistory.subject.theme": "Qué tema está instalado",
   "siteHistory.subject.code": "Código añadido a todas las páginas",
+  "siteHistory.download.title": "Descargar una copia",
+  "siteHistory.download.intro":
+    "Un archivo zip con las páginas, los elementos, la configuración y la biblioteca multimedia del sitio tal como están aquí, con una lista de los bloques y complementos que se añadieron, para guardarlo en un lugar seguro. El código del sitio no está incluido.",
+  "siteHistory.download.stored":
+    "El contenido multimedia guardado en un servicio de almacenamiento no está en la copia: sigue en ese servicio, y la copia lo enumera.",
+  "siteHistory.download.button": "Descargar una copia",
+  "siteHistory.download.working": "Preparando la copia: {done} de {total} archivos…",
+  "siteHistory.download.error": "No se pudo preparar la copia. Comprueba la conexión e inténtalo de nuevo.",
   "import.title": "Importar desde WordPress",
   "import.intro":
     "Trae a este sitio las páginas, entradas, categorías, etiquetas, menús y contenido multimedia de un sitio de WordPress. Las páginas mantienen sus direcciones, las entradas pasan a ser una colección, y las direcciones antiguas envían a los visitantes a las nuevas. Verás lo que se trae antes de que cambie nada.",

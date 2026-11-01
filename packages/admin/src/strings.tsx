@@ -1713,6 +1713,14 @@ export const defaultStrings = {
   "siteHistory.subject.css": "Custom CSS",
   "siteHistory.subject.theme": "Which theme is installed",
   "siteHistory.subject.code": "Code added to every page",
+  "siteHistory.download.title": "Download a copy",
+  "siteHistory.download.intro":
+    "A zip file of the site's pages, items, settings and media library as they are here, with a list of the blocks and plugins it added, to keep somewhere safe. The site's code isn't in it.",
+  "siteHistory.download.stored":
+    "Media kept in a storage service isn't in the copy: it stays in the storage service, and the copy lists it.",
+  "siteHistory.download.button": "Download a copy",
+  "siteHistory.download.working": "Making the copy: {done} of {total} files…",
+  "siteHistory.download.error": "The copy couldn't be made. Check your connection and try again.",
 
   "import.title": "Import from WordPress",
   "import.intro":

@@ -320,6 +320,9 @@ importers:
       '@types/node':
         specifier: ^22.19.0
         version: 22.20.5
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       goodfellow:
         specifier: workspace:*
         version: link:../packages/cli
@@ -429,6 +432,9 @@ importers:
       codemirror:
         specifier: 6.0.2
         version: 6.0.2
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       lucide-react:
         specifier: 1.52.0
         version: 1.52.0(@types/react@19.3.0)(react@19.3.0)
