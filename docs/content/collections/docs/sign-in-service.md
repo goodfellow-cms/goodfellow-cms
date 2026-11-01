@@ -6,7 +6,7 @@ section: developers
 order: 10
 ---
 
-**Sign in with GitHub** goes through a small service on Cloudflare Workers, since GitHub doesn't let a page sign people in by itself. Goodfellow doesn't run one for everyone yet, and may in the future; until then, a site offers Sign in with GitHub only once its owner runs one, as [Running your own](#running-your-own) explains, and names it in the site's config. Sites work without it: editors sign in with a token instead. GitLab needs no service, since GitLab lets pages sign people in themselves.
+**Sign in with GitHub** goes through a small service on Cloudflare Workers, since GitHub doesn't let a page sign people in by itself. Goodfellow doesn't run one for everyone yet, and may in the future; until then, a site offers Sign in with GitHub only once its owner runs one, which [Put it online from your browser](#put-it-online-from-your-browser) explains, and names it under **Site Settings → Security**. Sites work without it: editors sign in with a token instead. GitLab needs no service, since GitLab lets pages sign people in themselves.
 
 ## How it works
 
@@ -44,9 +44,26 @@ The service runs on Cloudflare Workers' free plan, which allows 100,000 requests
 
 The service keeps no counts of its own, since every request it gets counts towards that limit, even one it turns away. To stop any one computer using up the day's requests, Cloudflare's own rate limiting rules block it before it reaches the service. They need the service on a domain of its own on Cloudflare, since they can't apply to `workers.dev` addresses: under the domain's **Security → WAF → Rate limiting rules**, add a rule for the service's address that blocks an IP address making more than about 50 requests in 10 seconds. Signing in takes four or five. Checking a site before signing in (`/github/check` and `/github/start`) needs no sign-in, so the service reads each site's addresses for those at most every two minutes, which keeps such requests from using up its GitHub app's own hourly limit; giving a token always reads them again. A rule just for paths starting with `/github/check` and `/github/start`, at about 20 requests a minute, stops one computer asking about many sites.
 
-## Running your own
+## Put it online from your browser
 
-A site's owner, or an organization for all its sites, can run the service, with GitHub Apps of its own. The service is `packages/worker` in Goodfellow's repository, and runs on Cloudflare's free plan. You need a Cloudflare account, a GitHub account and Node.js 22.23.4 or later, 24.22.1 or later, or 26.12.1 or later, which fix a security problem in earlier versions.
+A site's owner, or an organization for all its sites, runs the service on Cloudflare's free plan, with GitHub Apps of its own. You need a Cloudflare account and a GitHub account, and nothing on your computer.
+
+1. **Deploy it:** choose [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/goodfellow-cms/goodfellow-sign-in). Cloudflare asks you to sign in (or make a free account) and to connect your GitHub account, copies the service into a repository there, and deploys it. Keep the names it suggests, or choose your own.
+2. **Set it up:** open the service's address, such as `https://sign-in.your-name.workers.dev`, which goes to its setup page, `/setup`. It asks for:
+   - a Cloudflare API token, from a link to Cloudflare's page for making one, with what it needs filled in (editing Workers, and reading the account's settings). The page uses it to save the service's settings in your account, and never keeps it: delete it in Cloudflare's **My Profile → API Tokens** afterwards. A token reaches only its own account's Workers, so nobody else can set up your service before you do;
+   - your sites' addresses, which become `ALLOWED_ORIGINS`, the only addresses tokens go to: each Site address, and each admin address and token broker's address;
+   - the GitHub organization that owns the apps, if not your own account, and whether sites in other accounts use it too.
+
+   It then makes the two GitHub Apps with you, one at a time: GitHub shows each one's settings filled in, and you check its name, which editors see when they sign in, and choose **Create GitHub App**. Between steps it keeps the token sealed in a cookie only your browser has, for half an hour at most.
+3. **Use it:** in the site's admin panel, open **Site Settings → Security**, put the service's address under **Sign in with GitHub**, and choose **Use this sign-in service**, which checks the service is set up and publishes it in the site's config. For a site whose content is kept in a [repository of its own](/docs/content-repository), a developer runs `npx goodfellow sign-in service https://sign-in.your-name.workers.dev` in the code's folder instead (`goodfellow-next` for Next.js sites).
+
+To change the addresses later, open `/setup` again: it asks for a token each time. To make new apps, delete the Worker's secrets in Cloudflare (its **Settings → Variables and Secrets**), then open `/setup`; everyone signs in again.
+
+**Updates:** the copy in your GitHub account has an **Update** workflow, which each week takes the newest release of Goodfellow, a day after it's out, from npm's `create-goodfellow` package, and pushes it; Cloudflare deploys the change. It runs none of the release's code itself. Run it from the repository's **Actions** tab to update at once. GitHub turns off scheduled workflows in public repositories with no activity for 60 days, and says so there.
+
+## Running your own from a computer
+
+To run it from your own computer instead, which developers may prefer, you need a Cloudflare account, a GitHub account and Node.js 22.23.4 or later, 24.22.1 or later, or 26.12.1 or later, which fix a security problem in earlier versions.
 
 1. In a copy of Goodfellow's repository, run `pnpm install`.
 2. In `packages/worker`, run `pnpm run setup`. It:
@@ -58,7 +75,7 @@ A site's owner, or an organization for all its sites, can run the service, with 
 
    Keep the changes it makes to `wrangler.jsonc`, so later deploys keep them.
 3. **List your sites' addresses** in `wrangler.jsonc`'s `ALLOWED_ORIGINS`, separated by commas: each Site address, and each admin address and token broker's address. It's optional, but recommended: without it, the service gives tokens to the addresses the sites' own files name, which their editors can change (see [Where it works](#where-it-works)). Run `pnpm run deploy` again after changing it, and add a site's new address there before publishing it as the Site address.
-4. **Use it** in each site's config: `github({ repo: "your-name/your-site", signIn: "https://sign-in.your-name.workers.dev" })`.
+4. **Use it** for each site under **Site Settings → Security**, or with `npx goodfellow sign-in service <its address>`, which writes it in the site's config: `github({ repo: "your-name/your-site", signIn: "https://sign-in.your-name.workers.dev" })`.
 
 Run `pnpm run setup` again to change the setup page's address, or to replace the apps. It keeps the service's key for sealing sessions, since a new one would sign everyone out.
 

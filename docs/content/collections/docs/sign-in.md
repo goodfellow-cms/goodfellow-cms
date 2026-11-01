@@ -49,7 +49,7 @@ Every editor needs write access to the repository. GitHub doesn't let collaborat
 
 ### Signing in with GitHub
 
-A site whose owner runs a [sign-in service](/docs/sign-in-service) and names it in the site's config also offers **Sign in with GitHub**. Goodfellow doesn't run one for everyone yet, and may in the future. Editors approve the service's app on GitHub's page the first time, and come back signed in. It needs two things:
+A site whose owner runs a [sign-in service](/docs/sign-in-service), which they put online from their browser, and names it under **Site Settings → Security** also offers **Sign in with GitHub**. Goodfellow doesn't run one for everyone yet, and may in the future. Editors approve the service's app on GitHub's page the first time, and come back signed in. It needs two things:
 
 - **The app is installed on the site.** GitHub only lets the service sign editors in to repositories its app is installed on. The first time anyone signs in, the sign-in screen says it isn't installed yet and offers to install it: an owner of the site installs it there, choosing the site's repository, and comes back signed in. The Editors, Domain and Updates screens offer the same for the owners' app, which owners sign in with there.
 - **The site's address is in Site settings.** The sign-in service only signs editors in at the address Site settings give, so a copy of the admin panel anywhere else can't use it. Sites made with the setup page have it already.
@@ -60,7 +60,7 @@ Signing in with GitHub works only on the published site, not in `goodfellow dev`
 
 ## GitLab
 
-With the site's application registered (see [Put it online](/docs/put-it-online#4-set-up-sign-in)), editors click **Sign in with GitLab**. Without it, or as an alternative, they sign in with a personal access token. Editors need the Developer role or higher.
+With the site's application registered, which **Site Settings → Security** walks an owner through (see [Put it online](/docs/put-it-online#4-set-up-sign-in)), editors click **Sign in with GitLab**. Without it, or as an alternative, they sign in with a personal access token. Editors need the Developer role or higher.
 
 ## Bitbucket
 
@@ -68,7 +68,7 @@ Sites stored on Bitbucket Cloud are edited the same way. Editors sign in with on
 
 - **A repository access token,** made under the repository's **Repository settings → Access tokens** (the sign-in screen links there), with permission to read and write the repository and pull requests and to run pipelines. It belongs to the repository rather than to anyone, so what's published with it is shown as the token's, and anyone who has it can edit the site: give each editor their own, and revoke it when they stop.
 - **An API token,** made under the Atlassian account's **Security → API tokens**, pasted as the account's email address, a colon, then the token, such as `name@example.org:ATATT3x…`. What's published with it shows the editor as its author.
-- **Sign in with Bitbucket,** where the site's config names an OAuth consumer (see [Put it online](/docs/put-it-online#4-set-up-sign-in)). Bitbucket's sign-in for browsers lasts two hours and can't be renewed without a server, so editors sign in again after that.
+- **Sign in with Bitbucket,** where the site's config names an OAuth consumer, which **Site Settings → Security** walks an owner through (see [Put it online](/docs/put-it-online#4-set-up-sign-in)). Bitbucket's sign-in for browsers lasts two hours and can't be renewed without a server, so editors sign in again after that.
 
 Editors need Write permission on the repository, or Admin to change editors or set up updates.
 

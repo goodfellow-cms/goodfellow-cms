@@ -2,7 +2,8 @@
  * Site Settings' Security tab: the site's token broker, a sign-in page on an
  * address of its own that keeps editors' sign-in and AI keys and shows the
  * admin panel in a frame. Owners publish its address in the config's `broker`
- * line (`withBrokerConfig()`), or remove it.
+ * line (`withBrokerConfig()`), or remove it. Below it, how editors sign in:
+ * the sign-in service or OAuth application (`SignInSection`).
  */
 import {
   type BrokerAddress,
@@ -16,6 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AddBroker, type AddedBroker, AddedBrokerSteps } from "./add-broker.js";
 import { CONFIG_FILE } from "./admin-address.js";
 import { useAdmin, useSiteContent } from "./admin-context.js";
+import { SignInSection } from "./sign-in-settings.js";
 import { useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
 
@@ -64,6 +66,15 @@ export function SecurityScreen() {
       setConfig(next);
     },
     [config, publish],
+  );
+
+  const saveConfig = useCallback(
+    async (next: string, message: string) => {
+      const result = await publish([{ path: CONFIG_FILE, content: next }], message, { checks: false });
+      if (!result.ok) throw result.error;
+      setConfig(next);
+    },
+    [publish],
   );
 
   let body: React.ReactNode;
@@ -123,6 +134,10 @@ export function SecurityScreen() {
         )}
         {body}
       </section>
+      {/* Full-stack sites sign in with the site's own sign-in. */}
+      {!demo && versions && config !== undefined && account?.role === undefined && (
+        <SignInSection config={config} contentOnly={contentOnly} hostName={account?.hostName ?? ""} save={saveConfig} />
+      )}
     </div>
   );
 }

@@ -43,6 +43,7 @@ import {
   userTokens,
 } from "./github.js";
 import { base64UrlEncode, challengeFor, createSealer, type Sealer } from "./seal.js";
+import { createSelfSetup } from "./self-setup.js";
 
 export interface WorkerEnv {
   /** For GitHub Enterprise and tests. Defaults to `https://api.github.com`. */
@@ -73,6 +74,15 @@ export interface WorkerEnv {
    * skip the page that asks first.
    */
   ALLOWED_ORIGINS?: string;
+  /**
+   * The name the worker is deployed under in Cloudflare, which the Deploy to
+   * Cloudflare copy's deploy script passes, so its setup page (`/setup`) can
+   * find it in the owner's account and write its secrets. Workers set up from a
+   * computer don't have it, and have no setup page.
+   */
+  WORKER_NAME?: string;
+  /** For tests. Defaults to Cloudflare's API, `https://api.cloudflare.com/client/v4`. */
+  CLOUDFLARE_API?: string;
 }
 
 export interface WorkerOptions {
@@ -779,6 +789,13 @@ export function createWorker(options: WorkerOptions = {}) {
 
     try {
       const path = url.pathname.replace(/\/$/, "");
+
+      const setupPage = await createSelfSetup({
+        fetch: config.fetch,
+        github: { api: config.api, web: config.web },
+        now,
+      }).handle(request, env);
+      if (setupPage) return setupPage;
 
       if (path === "" || path === "/health") {
         return json({

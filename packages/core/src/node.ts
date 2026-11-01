@@ -99,6 +99,7 @@ export {
 } from "./node-provenance.js";
 export { localRegistryDir } from "./node-registry.js";
 export { type DueOptions, type DueResult, reportDue, scheduleDue } from "./node-schedule.js";
+export { type SignInChange, SignInSetupError, setSignIn } from "./node-sign-in.js";
 export {
   type DescribedTaskOptions,
   describedTask,

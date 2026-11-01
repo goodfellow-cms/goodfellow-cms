@@ -1275,6 +1275,16 @@ export {
   type SetupWarning,
 } from "./setup-host.js";
 export {
+  type ConfigBackendHost,
+  configBackendHost,
+  configBackendOption,
+  type SignInOption,
+  signInClientIdProblem,
+  signInRedirectAddresses,
+  signInServiceProblem,
+  withBackendOption,
+} from "./sign-in-config.js";
+export {
   adminSiteForCopy,
   describedForCopy,
   isSiteCopy,

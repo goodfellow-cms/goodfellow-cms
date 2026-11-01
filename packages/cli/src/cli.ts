@@ -28,9 +28,11 @@ import {
   nightlyCheck,
   reportDue,
   reportNightly,
+  SignInSetupError,
   scheduleDue,
   setAdminAddress,
   setBrokerAddress,
+  setSignIn,
   setUpContentRepository,
   TASK_DESCRIPTION_FILE,
   update,
@@ -92,6 +94,13 @@ Commands:
                                    vercel), with --domain for one of its own
             broker use <address>   signs in there from now on, once it's online
             broker remove          stops using it
+  sign-in   How editors sign in, in goodfellow.config.tsx, for sites whose config the
+            admin panel can't publish (Site Settings → Security does it otherwise):
+            sign-in service <address>   a GitHub site's sign-in service, for
+                                        Sign in with GitHub
+            sign-in client-id <id>      a GitLab site's OAuth application's ID, or a
+                                        Bitbucket site's OAuth consumer's Key
+            sign-in remove              takes either out
   admin     The admin panel's address of its own, such as admin.example.org, for sites
             whose config the admin panel can't publish, such as those whose content
             is kept in a repository of its own:
@@ -343,6 +352,18 @@ async function main(): Promise<void> {
       process.exitCode = 1;
       return;
     }
+    case "sign-in": {
+      const [, action, argument] = positionals;
+      const root = values.root ?? ".";
+      if (!(((action === "service" || action === "client-id") && argument) || action === "remove")) {
+        console.error(`Say "sign-in service <address>", "sign-in client-id <id>" or "sign-in remove".\n\n${HELP}`);
+        process.exitCode = 1;
+        return;
+      }
+      const change = await setSignIn(root, action === "remove" ? undefined : argument);
+      console.log(signInMessage(change));
+      return;
+    }
     case "admin": {
       const [, action, argument] = positionals;
       const root = values.root ?? ".";
@@ -425,6 +446,15 @@ async function main(): Promise<void> {
   }
 }
 
+/** What `goodfellow sign-in` changed, in words. */
+function signInMessage({ host, value }: { host: string; value?: string }): string {
+  const name = host === "github" ? "GitHub" : host === "gitlab" ? "GitLab" : "Bitbucket";
+  if (!value) return `Editors sign in with a token once the site has rebuilt with goodfellow.config.tsx.`;
+  return host === "github"
+    ? `Editors can choose Sign in with GitHub, through ${value}, once the site has rebuilt with goodfellow.config.tsx.`
+    : `Editors can choose Sign in with ${name} once the site has rebuilt with goodfellow.config.tsx.`;
+}
+
 main().catch((error: unknown) => {
   if (error instanceof ContentError) {
     console.error(
@@ -434,6 +464,7 @@ main().catch((error: unknown) => {
     error instanceof SiteSetupError ||
     error instanceof ContentRepositoryError ||
     error instanceof BrokerSetupError ||
+    error instanceof SignInSetupError ||
     error instanceof AdminSetupError ||
     error instanceof WordPressReadError ||
     error instanceof MarkdownFolderError ||

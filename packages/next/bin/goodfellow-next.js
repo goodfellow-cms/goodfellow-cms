@@ -15,7 +15,8 @@
 // `goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]` makes a block of a shadcn item, as
 // `goodfellow blocks add` does, and with --native its version for an Expo app.
 // `goodfellow-next admin add <address>|check|remove` sets the admin address, and `goodfellow-next broker use <address>|remove`
-// the token broker, in goodfellow.config.tsx, as `goodfellow admin` and `goodfellow broker` do.
+// the token broker, and `goodfellow-next sign-in service <address>|client-id <id>|remove` how editors sign in, in
+// goodfellow.config.tsx, as `goodfellow admin`, `goodfellow broker` and `goodfellow sign-in` do.
 import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
@@ -42,9 +43,11 @@ import {
   nightlyCheck,
   reportDue,
   reportNightly,
+  SignInSetupError,
   scheduleDue,
   setAdminAddress,
   setBrokerAddress,
+  setSignIn,
   setUpContentRepository,
   update,
   writeAdminText,
@@ -212,9 +215,24 @@ if (command === "content") {
     }
   }
 }
-if (command === "admin" || command === "broker") {
+if (command === "admin" || command === "broker" || command === "sign-in") {
   const [action, argument] = process.argv.slice(3);
   try {
+    if (
+      command === "sign-in" &&
+      (((action === "service" || action === "client-id") && argument) || action === "remove")
+    ) {
+      const { host, value } = await setSignIn(".", action === "remove" ? undefined : argument);
+      const name = host === "github" ? "GitHub" : host === "gitlab" ? "GitLab" : "Bitbucket";
+      console.log(
+        !value
+          ? "Editors sign in with a token once the site has rebuilt with goodfellow.config.tsx."
+          : host === "github"
+            ? `Editors can choose Sign in with GitHub, through ${value}, once the site has rebuilt with goodfellow.config.tsx.`
+            : `Editors can choose Sign in with ${name} once the site has rebuilt with goodfellow.config.tsx.`,
+      );
+      process.exit(0);
+    }
     if (command === "admin" && ((action === "add" && argument) || action === "check" || action === "remove")) {
       const result =
         action === "check"
@@ -234,7 +252,9 @@ if (command === "admin" || command === "broker") {
       process.exit(0);
     }
   } catch (error) {
-    if (!(error instanceof AdminSetupError || error instanceof BrokerSetupError)) throw error;
+    if (!(error instanceof AdminSetupError || error instanceof BrokerSetupError || error instanceof SignInSetupError)) {
+      throw error;
+    }
     console.error(error.message);
     process.exit(1);
   }
@@ -346,6 +366,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]",
       "       goodfellow-next admin add <address> | check | remove",
       "       goodfellow-next broker use <address> | remove",
+      "       goodfellow-next sign-in service <address> | client-id <id> | remove",
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
@@ -386,6 +407,9 @@ if (command !== "finish" && command !== "index") {
       "        it, then starts the admin panel only there; remove stops using it.",
       "broker  The site's token broker in goodfellow.config.tsx: use signs editors in there once",
       "        it's online; remove stops using it.",
+      "sign-in How editors sign in, in goodfellow.config.tsx: service names a GitHub site's sign-in",
+      "        service, client-id a GitLab site's OAuth application's ID or a Bitbucket site's OAuth",
+      "        consumer's Key; remove takes either out.",
     ].join("\n"),
   );
   process.exit(1);
