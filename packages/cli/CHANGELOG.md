@@ -1,5 +1,76 @@
 # goodfellow
 
+## 0.9.0
+
+### Minor Changes
+
+- 0177574: The admin panel speaks any language a site has its text in: `content/admin-text/<code>.json` holds its words, Puck's and blocks' labels, each with a hash of the English it was made from, and the language menu offers it beside English and Spanish. Every string is checked as it's used, falling back to English where it's empty, too long or has other placeholders than the English, and the English is shown beside the site's own words for signing in, tokens, owners' screens, plugins and what can't be undone. Only owners change the files. `goodfellow build` and `goodfellow-next finish` publish them beside the admin panel, in `admin/text/`, so the sign-in screen speaks them too; full-stack Next.js sites get them in `public/admin/text/`, which the starter's `.gitignore` now leaves out.
+- 19d7812: Owners can install an update of a plugin or theme the site has before it's three days old, with **Install now**, where both the version installed and the new one have npm provenance from the same repository and workflow. First installs, releases without provenance and releases built anywhere else still wait, and waiting stays the default. Where the site is built, the check is made again with Sigstore's signatures: the lockfile job (through `goodfellow-early`, run from npm) for plugins, `goodfellow build` and `goodfellow-next finish` for themes, and the full-stack server before review, failing loudly rather than falling back. The token broker names the release's repository in its own dialog. The starters' workflows have the new lockfile step, and their builds don't run after the lockfile job fails.
+- bd82b21: Import a folder of Markdown files, such as another static site's content: Site Settings' Import tab (formerly WordPress) and `goodfellow import markdown <folder>` (`goodfellow-next import markdown`) bring each folder in as pages or a collection, with links between the files at their new addresses, the pictures beside them copied into the media library, front matter as pages' settings and items' fields, and redirects from addresses that changed. `planMarkdownImport()` in `@goodfellow-cms/core/wordpress` plans it with no disk or network access.
+- d345032: The media library's **Details** keeps an image's focal point in view wherever it's cut to fit, on images and Section backgrounds, and gives files tags, which filter the Media screen and the image picker; several files can be tagged at once. Photos can be cropped and turned in the browser, saved as a new image or in place of the original. Builds' smaller copies of photos are now WebP, about a third smaller. `content/media.json` gains optional `focus` and `tags`, and `mediaDetailsOf()` reads all of it for `mediaFileChange()`.
+- 8dcf967: Use fonts of your own: Colors & fonts' new Add a font uploads a font's WOFF2 files, checked in the browser, once the owner confirms its license allows websites, and the font menus offer it first. Pages load it from the site with `@font-face`, preloading the text's and headings' files, with size-matched stand-ins measured from the files, and the admin panel's editor and previews show it from its bytes.
+- cf403e0: Plugins' tasks run in two parts, so the site's code never runs where their secrets are. Loading a site's config runs every package it imports, plugins' own included, and on Linux a process can read the environment its parent started with, so a package could read every secret of the job that ran a task. Now `goodfellow task --describe` (and `goodfellow-next task --describe`) loads the config in a job with no secrets and writes the task down, and the job with them installs Goodfellow's task runner from npm apart from the site's packages, installs those without running their scripts, and runs the new `goodfellow-task` bin of `@goodfellow-cms/core`, which never loads the config and checks what was written down: the task must be the plugin's own module, ask for none of the hosts' own variables, and for a plugin installed from the Plugins screen ask for no more than its owner approved.
+  
+  The starters' `plugin-task.yml`, `.gitlab-ci.yml` and the Bitbucket and Cloudflare setups `planSite()` writes are the new ones. On GitLab, scope plugins' variables to the `goodfellow-tasks` environment so only the task's job has them; Bitbucket gives every step every repository variable. Sites made before this run tasks in one job until a developer copies the starter's task setup, since updates can't change a site's workflows.
+  
+  The lockfile jobs' early-update check now refuses a `package.json` that names `@goodfellow-cms/core` as anything but a release from npm, such as a URL or a git repository, which `npm exec` would otherwise install and run.
+- 0b22859: Pages can ask search engines not to follow their links or show their text, and choose a large or small picture when shared. Every page lets search engines show its pictures large, and link previews name the site, the page's language, the picture's description and size, and a dated item's date. Site Settings can ask AI companies' training crawlers to leave the site alone. Pages' full addresses (canonical links, the sitemap, feeds and the rest) now end with a slash, as most hosts serve the folders builds write, and so do links between pages, so following one needs no redirect; a site whose host serves them without one sets `trailingSlash: false` in its config, or Next.js's own. The docs say how to host a site anywhere, such as on AWS, Google Cloud or DigitalOcean, and the Domain screen explains connecting a domain on any host.
+- 1023c64: Count visits with Plausible, Umami or GoatCounter: Site Settings' new Visit counts screen reads the service's code, adds its script to every page (waiting for visitors to allow statistics on a site that asks them first, unless the owner says it needn't), and links to the service's dashboard.
+
+### Patch Changes
+
+- d0a47cb: Packages' npm descriptions, and the Claude Desktop extension's name, say Goodfellow CMS, the official name, so they're easier to find.
+- 9c6cb6f: Harden more of what the code review found:
+  
+  - Builds read other calendars and News feed blocks' feeds only from `https://` addresses that aren't on the building computer or a private network, checking each redirect, and stop reading past their size limit as they read (`readRemoteText()`, `isPrivateHost()`).
+  - Markdown headings never get an id starting `gf-`, which Goodfellow's own scripts look up, so a heading can't stop a page's interactive blocks from starting.
+  - Calendar files never let a carriage return in a name or event start a line of its own; sitemaps escape `"` in addresses.
+  - Players and social posts refuse every spelling of this computer's address (`localhost.`, `*.localhost`, `[::ffff:127.0.0.1]`).
+  - Registry items' files go only into their own block's folder or the shared components, whatever their `target` says.
+  - Next.js sites' redirects to addresses with `:`, `*`, `(` and the like no longer fail `next build`.
+  - `next dev`'s local server refuses requests for any name but this computer's before serving the editor's frames, reading the name Next.js passes on as `x-forwarded-host`.
+  - Sites that ask visitors first also hold back head styles that load from other sites, a `base` and a `meta` refresh.
+  - Apps download a kept file again where it's corrupt, keep the classes they can read where twrnc can't read one, and keep other sites' frames from opening other apps; on Android, links from them now open in the browser.
+  - GitLab's "let editors publish" changes the branch's protection in one step where GitLab can, and checks it after where it can't.
+  - Local screenshots never let a site's scripts write through the development server's API.
+- Updated dependencies [1004f6f]
+- Updated dependencies [8b2322e]
+- Updated dependencies [0177574]
+- Updated dependencies [0177574]
+- Updated dependencies [d345032]
+- Updated dependencies [e7dd766]
+- Updated dependencies [19d7812]
+- Updated dependencies [58556ef]
+- Updated dependencies [b4f074a]
+- Updated dependencies [cde2373]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [bff0a8a]
+- Updated dependencies [d0a47cb]
+- Updated dependencies [78f1f14]
+- Updated dependencies [15ef491]
+- Updated dependencies [1004f6f]
+- Updated dependencies [bd82b21]
+- Updated dependencies [78f1f14]
+- Updated dependencies [d345032]
+- Updated dependencies [181d734]
+- Updated dependencies [8dcf967]
+- Updated dependencies [cf403e0]
+- Updated dependencies [9c6cb6f]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [0b22859]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [cb72911]
+- Updated dependencies [dfd7ea3]
+- Updated dependencies [01b7691]
+- Updated dependencies [1023c64]
+- Updated dependencies [78f1f14]
+  - @goodfellow-cms/admin@0.9.0
+  - @goodfellow-cms/core@0.9.0
+  - @goodfellow-cms/react@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes

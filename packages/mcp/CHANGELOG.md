@@ -1,5 +1,65 @@
 # @goodfellow-cms/mcp
 
+## 0.9.0
+
+### Minor Changes
+
+- 58556ef: Collections have five more kinds of field: yes or no, links to items in a collection (one or several, renamed with the items they link to, taken out when one is deleted, and checked before publishing), several images, a file, and repeating groups of a few fields. Entry field shows each, Collection list and loop can show only items where a yes or no field is on, and, in a page design, only the items the page's item links to. The AI assistant fills in yes or no fields and links to items.
+- 8dcf967: Use fonts of your own: Colors & fonts' new Add a font uploads a font's WOFF2 files, checked in the browser, once the owner confirms its license allows websites, and the font menus offer it first. Pages load it from the site with `@font-face`, preloading the text's and headings' files, with size-matched stand-ins measured from the files, and the admin panel's editor and previews show it from its bytes.
+- dfd7ea3: Synced blocks: blocks kept once in `content/synced-blocks/` and shown wherever the new Synced block block places them, on pages, collections' designs and the header and footer, so changing one changes every page. The admin panel lists, makes, renames and deletes them, edits each in an editor of its own (with a version for each language), saves a block on a page as one and detaches one into a page's own blocks. The site checks catch synced blocks that aren't there, links inside them are checked and moved with pages, the Claude connector reads and writes them, and WordPress's synced patterns import and export as synced blocks.
+
+### Patch Changes
+
+- d0a47cb: Packages' npm descriptions, and the Claude Desktop extension's name, say Goodfellow CMS, the official name, so they're easier to find.
+- 9c6cb6f: Harden more of what the code review found:
+  
+  - Builds read other calendars and News feed blocks' feeds only from `https://` addresses that aren't on the building computer or a private network, checking each redirect, and stop reading past their size limit as they read (`readRemoteText()`, `isPrivateHost()`).
+  - Markdown headings never get an id starting `gf-`, which Goodfellow's own scripts look up, so a heading can't stop a page's interactive blocks from starting.
+  - Calendar files never let a carriage return in a name or event start a line of its own; sitemaps escape `"` in addresses.
+  - Players and social posts refuse every spelling of this computer's address (`localhost.`, `*.localhost`, `[::ffff:127.0.0.1]`).
+  - Registry items' files go only into their own block's folder or the shared components, whatever their `target` says.
+  - Next.js sites' redirects to addresses with `:`, `*`, `(` and the like no longer fail `next build`.
+  - `next dev`'s local server refuses requests for any name but this computer's before serving the editor's frames, reading the name Next.js passes on as `x-forwarded-host`.
+  - Sites that ask visitors first also hold back head styles that load from other sites, a `base` and a `meta` refresh.
+  - Apps download a kept file again where it's corrupt, keep the classes they can read where twrnc can't read one, and keep other sites' frames from opening other apps; on Android, links from them now open in the browser.
+  - GitLab's "let editors publish" changes the branch's protection in one step where GitLab can, and checks it after where it can't.
+  - Local screenshots never let a site's scripts write through the development server's API.
+- 19d7812: The AI assistant and Claude never choose settings only owners may, such as using Custom HTML exactly as written, and the assistant's requests mark the site's own text as content between markers it can't close. Claude's tools ask before deleting, publishing or throwing a draft away, change only the site's presentational settings (never forms, consent, comments, languages or search engines), unlink a deleted page's or item's translations, name the menus still linking to a deleted page, and, on an editor's computer, run the admin panel's checks before publishing. The Document viewer shows only the media library's PDFs, including a storage plugin's, and links to other sites'. An item's values filled into Custom HTML in a collection's page design are escaped, as in rich text.
+- Updated dependencies [0177574]
+- Updated dependencies [0177574]
+- Updated dependencies [d345032]
+- Updated dependencies [e7dd766]
+- Updated dependencies [19d7812]
+- Updated dependencies [58556ef]
+- Updated dependencies [b4f074a]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [bff0a8a]
+- Updated dependencies [d0a47cb]
+- Updated dependencies [1004f6f]
+- Updated dependencies [bd82b21]
+- Updated dependencies [78f1f14]
+- Updated dependencies [d345032]
+- Updated dependencies [181d734]
+- Updated dependencies [8dcf967]
+- Updated dependencies [cf403e0]
+- Updated dependencies [9c6cb6f]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [0b22859]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [cb72911]
+- Updated dependencies [dfd7ea3]
+- Updated dependencies [01b7691]
+- Updated dependencies [1023c64]
+- Updated dependencies [78f1f14]
+  - @goodfellow-cms/ai@0.9.0
+  - @goodfellow-cms/core@0.9.0
+  - @goodfellow-cms/bitbucket@0.9.0
+  - @goodfellow-cms/github@0.9.0
+  - @goodfellow-cms/gitlab@0.9.0
+
 ## 0.8.0
 
 ### Patch Changes

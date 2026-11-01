@@ -1,5 +1,67 @@
 # @goodfellow-cms/blocks
 
+## 0.9.0
+
+### Minor Changes
+
+- e7dd766: New blocks and more from the ones there are. Questions and answers shows questions that open to their answers, and tells search engines about them. The Announcement bar carries news across the top of every page between a first and last day, and visitors can close it until its message changes. Galleries open their pictures larger when clicked, with the arrow keys, buttons and swiping moving between them (new galleries start with it on). Heading blocks carry link names, which On this page now lists on any page, and it can stay in view as the page scrolls. Table cells can be bold, italic or links, which WordPress imports and exports keep. The registry's Map block also shows OpenStreetMap's maps.
+- 58556ef: Collections have five more kinds of field: yes or no, links to items in a collection (one or several, renamed with the items they link to, taken out when one is deleted, and checked before publishing), several images, a file, and repeating groups of a few fields. Entry field shows each, Collection list and loop can show only items where a yes or no field is on, and, in a page design, only the items the page's item links to. The AI assistant fills in yes or no fields and links to items.
+- d345032: The media library's **Details** keeps an image's focal point in view wherever it's cut to fit, on images and Section backgrounds, and gives files tags, which filter the Media screen and the image picker; several files can be tagged at once. Photos can be cropped and turned in the browser, saved as a new image or in place of the original. Builds' smaller copies of photos are now WebP, about a third smaller. `content/media.json` gains optional `focus` and `tags`, and `mediaDetailsOf()` reads all of it for `mediaFileChange()`.
+- 0b22859: Pages can ask search engines not to follow their links or show their text, and choose a large or small picture when shared. Every page lets search engines show its pictures large, and link previews name the site, the page's language, the picture's description and size, and a dated item's date. Site Settings can ask AI companies' training crawlers to leave the site alone. Pages' full addresses (canonical links, the sitemap, feeds and the rest) now end with a slash, as most hosts serve the folders builds write, and so do links between pages, so following one needs no redirect; a site whose host serves them without one sets `trailingSlash: false` in its config, or Next.js's own. The docs say how to host a site anywhere, such as on AWS, Google Cloud or DigitalOcean, and the Domain screen explains connecting a domain on any host.
+- dfd7ea3: Synced blocks: blocks kept once in `content/synced-blocks/` and shown wherever the new Synced block block places them, on pages, collections' designs and the header and footer, so changing one changes every page. The admin panel lists, makes, renames and deletes them, edits each in an editor of its own (with a version for each language), saves a block on a page as one and detaches one into a page's own blocks. The site checks catch synced blocks that aren't there, links inside them are checked and moved with pages, the Claude connector reads and writes them, and WordPress's synced patterns import and export as synced blocks.
+
+### Patch Changes
+
+- bff0a8a: Goodfellow can be sponsored through GitHub Sponsors: every package's npm page links there, and the Donate button names GitHub Sponsors when its address is a GitHub Sponsors page.
+- d0a47cb: Packages' npm descriptions, and the Claude Desktop extension's name, say Goodfellow CMS, the official name, so they're easier to find.
+- 78f1f14: The media library describes images: **Describe** on the Media screen says what an image shows, in each of the site's languages, kept in `content/media.json`, and images whose blocks leave their description empty use it, on the site, in the editor and in apps through the content API's `site.json`. The Media screen's search finds files by their descriptions too, and **Select files** deletes several files in one publish. `mediaFileChange()` now takes `{ credits, descriptions }`, and `withoutCredits()` is `withoutMediaDetails()`.
+- 9c6cb6f: Harden more of what the code review found:
+  
+  - Builds read other calendars and News feed blocks' feeds only from `https://` addresses that aren't on the building computer or a private network, checking each redirect, and stop reading past their size limit as they read (`readRemoteText()`, `isPrivateHost()`).
+  - Markdown headings never get an id starting `gf-`, which Goodfellow's own scripts look up, so a heading can't stop a page's interactive blocks from starting.
+  - Calendar files never let a carriage return in a name or event start a line of its own; sitemaps escape `"` in addresses.
+  - Players and social posts refuse every spelling of this computer's address (`localhost.`, `*.localhost`, `[::ffff:127.0.0.1]`).
+  - Registry items' files go only into their own block's folder or the shared components, whatever their `target` says.
+  - Next.js sites' redirects to addresses with `:`, `*`, `(` and the like no longer fail `next build`.
+  - `next dev`'s local server refuses requests for any name but this computer's before serving the editor's frames, reading the name Next.js passes on as `x-forwarded-host`.
+  - Sites that ask visitors first also hold back head styles that load from other sites, a `base` and a `meta` refresh.
+  - Apps download a kept file again where it's corrupt, keep the classes they can read where twrnc can't read one, and keep other sites' frames from opening other apps; on Android, links from them now open in the browser.
+  - GitLab's "let editors publish" changes the branch's protection in one step where GitLab can, and checks it after where it can't.
+  - Local screenshots never let a site's scripts write through the development server's API.
+- 19d7812: Translations keep the schedule of the page or item they copy; each language's feeds name their own address; a calendar list no longer reports a day already past for an event that runs past its end; impossible dates such as February 30 are refused; rich text with only a picture, video, line or table isn't empty; a turned phone photo's width and height are read the way it's shown; uploads always lose a JPEG's Exif, and PNGs' and WebPs' details too; redirects can't take `/sitemap.xml` or `/robots.txt`, and a redirect that differs from a page or another redirect only in capitals isn't written; the site checks read redirects' old addresses as visitors' links reach them; and the media library finds files used in menus, other languages' headers and footers, code and redirects, never counting a file whose name only starts the same.
+- 19d7812: The AI assistant and Claude never choose settings only owners may, such as using Custom HTML exactly as written, and the assistant's requests mark the site's own text as content between markers it can't close. Claude's tools ask before deleting, publishing or throwing a draft away, change only the site's presentational settings (never forms, consent, comments, languages or search engines), unlink a deleted page's or item's translations, name the menus still linking to a deleted page, and, on an editor's computer, run the admin panel's checks before publishing. The Document viewer shows only the media library's PDFs, including a storage plugin's, and links to other sites'. An item's values filled into Custom HTML in a collection's page design are escaped, as in rich text.
+- Updated dependencies [0177574]
+- Updated dependencies [d345032]
+- Updated dependencies [e7dd766]
+- Updated dependencies [19d7812]
+- Updated dependencies [58556ef]
+- Updated dependencies [b4f074a]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [bff0a8a]
+- Updated dependencies [d0a47cb]
+- Updated dependencies [1004f6f]
+- Updated dependencies [bd82b21]
+- Updated dependencies [78f1f14]
+- Updated dependencies [d345032]
+- Updated dependencies [181d734]
+- Updated dependencies [8dcf967]
+- Updated dependencies [cf403e0]
+- Updated dependencies [9c6cb6f]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [0b22859]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [cb72911]
+- Updated dependencies [dfd7ea3]
+- Updated dependencies [01b7691]
+- Updated dependencies [1023c64]
+- Updated dependencies [78f1f14]
+  - @goodfellow-cms/core@0.9.0
+  - @goodfellow-cms/react@0.9.0
+  - @goodfellow-cms/expo@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes

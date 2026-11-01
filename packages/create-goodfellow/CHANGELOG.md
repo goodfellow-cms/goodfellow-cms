@@ -1,5 +1,45 @@
 # create-goodfellow
 
+## 0.9.0
+
+### Minor Changes
+
+- 181d734: Netlify as a host, for sites on GitHub and GitLab: `create-goodfellow --host netlify` and the setup page write `netlify.toml` (which never builds drafts or plugins' tasks) and the nightly update and scheduled changes, which ask Netlify to rebuild through its build hook (`NETLIFY_BUILD_HOOK`). Builds on Netlify write header rules suited to it (`netlifySiteHeaders()`), an admin address works there with the guards alone, as on GitLab Pages, the Domain screen explains Netlify's domains, and the admin panel follows Netlify's deploys on GitHub.
+- 0b22859: Pages can ask search engines not to follow their links or show their text, and choose a large or small picture when shared. Every page lets search engines show its pictures large, and link previews name the site, the page's language, the picture's description and size, and a dated item's date. Site Settings can ask AI companies' training crawlers to leave the site alone. Pages' full addresses (canonical links, the sitemap, feeds and the rest) now end with a slash, as most hosts serve the folders builds write, and so do links between pages, so following one needs no redirect; a site whose host serves them without one sets `trailingSlash: false` in its config, or Next.js's own. The docs say how to host a site anywhere, such as on AWS, Google Cloud or DigitalOcean, and the Domain screen explains connecting a domain on any host.
+
+### Patch Changes
+
+- d0a47cb: Packages' npm descriptions, and the Claude Desktop extension's name, say Goodfellow CMS, the official name, so they're easier to find.
+- cb72911: New sites' `package.json` has npm overrides that move happy-dom, which Puck renders rich text with through `@tiptap/html`, to 21.0.4, which fixes GHSA-834v-8h66-3h79 and GHSA-c8p4-j97h-3vg8, so `npm audit` finds nothing in a new site. `goodfellow update` adds them to older sites, and replaces the copies of happy-dom their lockfile has.
+- Updated dependencies [0177574]
+- Updated dependencies [d345032]
+- Updated dependencies [e7dd766]
+- Updated dependencies [19d7812]
+- Updated dependencies [58556ef]
+- Updated dependencies [b4f074a]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [bff0a8a]
+- Updated dependencies [d0a47cb]
+- Updated dependencies [1004f6f]
+- Updated dependencies [bd82b21]
+- Updated dependencies [78f1f14]
+- Updated dependencies [d345032]
+- Updated dependencies [181d734]
+- Updated dependencies [8dcf967]
+- Updated dependencies [cf403e0]
+- Updated dependencies [9c6cb6f]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [0b22859]
+- Updated dependencies [19d7812]
+- Updated dependencies [cb72911]
+- Updated dependencies [dfd7ea3]
+- Updated dependencies [01b7691]
+- Updated dependencies [1023c64]
+- Updated dependencies [78f1f14]
+  - @goodfellow-cms/core@0.9.0
+
 ## 0.8.0
 
 ### Patch Changes
