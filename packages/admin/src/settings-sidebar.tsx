@@ -80,6 +80,9 @@ const SCREEN_ITEMS: SidebarItem[] = [
   { place: "security", label: "settings.tab.security", icon: ShieldCheck },
 ];
 
+/** Every tab, in the sidebar's order, which the Go to box lists too. */
+export const SETTINGS_ITEMS: readonly SidebarItem[] = [...FORM_ITEMS, ...SCREEN_ITEMS];
+
 const COLLAPSED_KEY = "goodfellow.settingsSidebar";
 
 /** Narrower than this, the sidebar shows only its icons, leaving the room to the tab. */

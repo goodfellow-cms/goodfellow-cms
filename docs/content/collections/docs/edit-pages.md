@@ -15,7 +15,7 @@ Click **Edit** beside a page. The editor shows the page with the site's own head
 - **Add a block** by dragging it from the list on the left onto the page. Each block has its own icon. Blocks are grouped: layout, text, buttons and forms, media, navigation, collections, and any [added to the site](/docs/add-blocks). The groups that fit what you're editing start open, such as navigation in the header and footer, and the rest open with a click. To find a block without looking through the groups, type in **Search blocks** at the top of the list: it finds blocks by their names and by other words for them, such as "divider", "columns" or "picture", and WordPress's names for its blocks, such as "Cover". Drag a block from what it finds as from the list; Escape shows the groups again.
 - **Change a block** by clicking it: its settings appear on the right. Text in headings and text blocks can also be typed straight onto the page.
 - **Move a block** by dragging its handle, and remove it from its toolbar.
-- **Undo and redo** with the buttons above the page, or Ctrl+Z and Ctrl+Shift+Z.
+- **Undo and redo** with the buttons above the page, or Ctrl+Z and Ctrl+Shift+Z (see [Keyboard shortcuts](#keyboard-shortcuts)).
 - **Phones and tablets:** **Tablet** and **Phone** above the page show it as wide as one, and **Full width** goes back.
 - **Another editor:** where the site has a [plugin with a page editor of its own](/docs/plugins#a-page-editor-of-its-own), **Editor** above the page chooses it or the standard editor, and your browser remembers your choice. What you've changed so far comes with you when you switch. If the other editor can't keep something you changed, such as a block the site doesn't have, you're asked first, since switching would leave those changes behind.
 - **Light or dark:** the admin panel follows your computer's setting. To choose for yourself, use the **Dark mode** switch at the top right; your browser remembers it. Switching it to what your computer shows follows your computer again.
@@ -24,6 +24,17 @@ Click **Edit** beside a page. The editor shows the page with the site's own head
 - **Style:** every block, and the page itself, has a **Style** setting for how it looks, which shows in the editor at once (see [A block's look](#a-blocks-look)).
 
 Nothing changes on the live site until you **Publish**.
+
+## Keyboard shortcuts
+
+On a Mac, use ⌘ where these say Ctrl. Press **?** anywhere in the admin panel, outside a text box, to see them.
+
+- **Ctrl+S** adds your changes to a [draft](/docs/publishing#drafts) in the editors for pages, items, the header and footer, collections' designs and synced blocks, as **Add to draft** does, with the same checks. It never publishes, so an unfinished page doesn't go live by accident: publish the draft when it's ready.
+- **Ctrl+Z** undoes, and **Ctrl+Shift+Z** or **Ctrl+Y** redoes, in the editors and in Site Settings. In a text box, they undo and redo your typing instead.
+- **Ctrl+K** opens **Go to…**: type part of a page's, item's, collection's or synced block's name, or a screen's, such as Media or Colors & fonts, then choose it with the arrow keys and Enter. Leaving a screen with unpublished changes asks first, as any link does.
+- **?** lists these shortcuts.
+
+They work in the standard editor; a [plugin's page editor](/docs/plugins#a-page-editor-of-its-own) has its own.
 
 ## A block's look
 

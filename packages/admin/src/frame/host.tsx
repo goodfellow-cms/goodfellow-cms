@@ -17,6 +17,7 @@ import {
 } from "react";
 import { MEDIA_URL_PREFIX } from "../media.js";
 import type { MediaPreviews } from "../media-previews.js";
+import { isForwardedShortcut, runShortcut } from "../shortcuts.js";
 import type { DrawTarget, RenderTarget, SiteCodeService } from "../site-code.js";
 import { type Channel, CONNECT_MESSAGE, createChannel } from "./channel.js";
 import type { AdminRequests, FrameEvents, FrameInit, FrameMode, FrameRequests } from "./protocol.js";
@@ -156,6 +157,10 @@ export function useFrame({ mode, onConnect, media }: FrameOptions): FrameConnect
           params.method,
           Array.isArray(params.args) ? params.args : [],
         );
+      },
+      // Only the editor passes shortcuts on, and only those it may.
+      shortcut: (name) => {
+        if (mode === "editor" && isForwardedShortcut(name)) runShortcut(name);
       },
       "media.bytes": async (url) => {
         if (typeof url !== "string" || !url.startsWith(MEDIA_URL_PREFIX) || url.includes("..")) return null;

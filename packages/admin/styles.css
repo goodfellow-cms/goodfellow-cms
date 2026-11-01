@@ -3063,3 +3063,67 @@ body,
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* The Go to box (Ctrl+K) and the list of shortcuts (?). */
+.gfa-goto {
+  display: grid;
+  gap: 8px;
+  width: min(520px, calc(100vw - 64px));
+}
+
+.gfa-goto input {
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  border: 1px solid var(--gfa-border);
+  border-radius: var(--gfa-radius);
+  background: var(--gfa-surface);
+  color: inherit;
+}
+
+.gfa-goto-list {
+  max-height: min(400px, 60vh);
+  overflow-y: auto;
+}
+
+.gfa-goto-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.gfa-goto-option[aria-selected="true"] {
+  background: var(--gfa-bg);
+}
+
+.gfa-goto-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gfa-goto-option .gfa-hint {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.gfa-shortcuts td {
+  padding: 6px 12px 6px 0;
+  vertical-align: top;
+}
+
+.gfa-shortcuts kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 6px;
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  border: 1px solid var(--gfa-border);
+  border-radius: 4px;
+  background: var(--gfa-bg);
+}
