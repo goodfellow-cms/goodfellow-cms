@@ -60,7 +60,7 @@ Changes wait in a draft, one at a time, kept beside the site's packages. Publish
 
 ### Through a connector service
 
-A connector service lets editors add Goodfellow to Claude on the web, on phones and in Claude Code without a token, by signing in with GitHub, GitLab or Bitbucket. Goodfellow doesn't run one for everyone yet, and may in the future. An organization can run its own; see [Claude connector service](/docs/claude-connector). Then editors add it once:
+A connector service lets editors add Goodfellow to Claude on the web, on phones and in Claude Code without a token, by signing in with GitHub, GitLab or Bitbucket. An organization runs its own, and [Goodfellow Cloud](/docs/goodfellow-cloud), planned for the future, would run one for you; see [Claude connector service](/docs/claude-connector). Then editors add it once:
 
 1. In Claude, open **Settings → Connectors** and choose **Add custom connector**. (In a Claude Team or Enterprise organization, an owner adds it for everyone in the organization's settings.)
 2. Name it **Goodfellow**, and give the connector's address, such as `https://claude.your-name.workers.dev/mcp`.

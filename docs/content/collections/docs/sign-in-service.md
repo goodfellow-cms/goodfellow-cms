@@ -6,7 +6,7 @@ section: developers
 order: 10
 ---
 
-**Sign in with GitHub** goes through a small service on Cloudflare Workers, since GitHub doesn't let a page sign people in by itself. Goodfellow doesn't run one for everyone yet, and may in the future; until then, a site offers Sign in with GitHub only once its owner runs one, which [Put it online from your browser](#put-it-online-from-your-browser) explains, and names it under **Site Settings → Security**. Sites work without it: editors sign in with a token instead. GitLab needs no service, since GitLab lets pages sign people in themselves.
+**Sign in with GitHub** goes through a small service on Cloudflare Workers, since GitHub doesn't let a page sign people in by itself. Each owner runs their own, so a site offers Sign in with GitHub only once its owner runs one, which [Put it online from your browser](#put-it-online-from-your-browser) explains, and names it under **Site Settings → Security**. Sites work without it: editors sign in with a token instead. GitLab needs no service, since GitLab lets pages sign people in themselves.
 
 ## How it works
 

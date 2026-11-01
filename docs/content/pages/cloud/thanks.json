@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-thanks",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-thanks",
+                "align": "left",
+                "className": "mx-auto max-w-3xl",
+                "level": "h1",
+                "text": "You're on the waitlist"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-thanks",
+                "align": "left",
+                "className": "mx-auto max-w-3xl mt-4 text-lg",
+                "content": "<p>Thank you for your interest in Goodfellow Cloud. We'll email you when it opens.</p><p>In the meantime, everything Goodfellow does is free to use today: <a href=\"/new-site\">create a site</a>, or read <a href=\"/docs/introduction\">the documentation</a>.</p>"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "Thank you for joining the Goodfellow Cloud waitlist.",
+        "image": "",
+        "noIndex": true,
+        "title": "You're on the waitlist"
+      }
+    }
+  }
+}

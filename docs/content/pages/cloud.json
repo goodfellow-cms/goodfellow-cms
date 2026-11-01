@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-cloud",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-cloud",
+                "align": "left",
+                "className": "mx-auto max-w-3xl",
+                "level": "h1",
+                "text": "Goodfellow Cloud"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-cloud-intro",
+                "align": "left",
+                "className": "mx-auto max-w-3xl mt-4 text-lg",
+                "content": "<p>Goodfellow Cloud is planned for the future, once enough organizations are interested: a hosted service that would set up and run the parts of a Goodfellow site that owners put online themselves today, such as Sign in with GitHub, the token broker, the Claude connector and media storage, so a new site needs nothing more than signing in. Sites would stay in your own GitHub or GitLab account, and you could leave at any time without losing anything.</p><p><strong>Goodfellow's core will always be free.</strong> Everything Goodfellow does today stays free and open source, and everything Cloud would run stays free to set up yourself, with the same documentation. Read more in <a href=\"/docs/goodfellow-cloud\">the documentation</a>.</p>"
+              }
+            },
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-waitlist",
+                "align": "left",
+                "className": "mx-auto max-w-3xl",
+                "level": "h2",
+                "text": "Join the waitlist"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-waitlist",
+                "align": "left",
+                "className": "mx-auto max-w-3xl mt-2",
+                "content": "<p>Tell us about your organization, and we'll get in touch when Goodfellow Cloud opens. Signing up doesn't commit you to anything.</p>"
+              }
+            },
+            {
+              "type": "Form",
+              "props": {
+                "id": "Form-waitlist",
+                "className": "mx-auto mt-6 max-w-3xl",
+                "failedText": "Your answers couldn't be sent. Check your connection and try again.",
+                "fields": [
+                  {
+                    "type": "text",
+                    "choices": "",
+                    "hint": "",
+                    "label": "Your name",
+                    "required": true
+                  },
+                  {
+                    "type": "email",
+                    "choices": "",
+                    "hint": "",
+                    "label": "Email",
+                    "required": true
+                  },
+                  {
+                    "type": "text",
+                    "choices": "",
+                    "hint": "",
+                    "label": "Organization",
+                    "required": true
+                  },
+                  {
+                    "type": "text",
+                    "choices": "",
+                    "hint": "If it has one.",
+                    "label": "Your organization's website",
+                    "required": false
+                  },
+                  {
+                    "type": "radio",
+                    "choices": "1\n2 to 5\nMore than 5",
+                    "hint": "",
+                    "label": "How many sites would you run on Goodfellow Cloud?",
+                    "required": true
+                  },
+                  {
+                    "type": "checkboxes",
+                    "choices": "GitHub\nGitLab\nSomewhere else\nWe don't have a site yet",
+                    "hint": "",
+                    "label": "Where are your sites kept?",
+                    "required": false
+                  },
+                  {
+                    "type": "textarea",
+                    "choices": "",
+                    "hint": "",
+                    "label": "What would you use Goodfellow Cloud for?",
+                    "required": false
+                  }
+                ],
+                "google": "",
+                "height": 800,
+                "sentText": "Thank you. You're on the waitlist.",
+                "source": "fields",
+                "submitLabel": "Join the waitlist",
+                "thankYou": "/cloud/thanks",
+                "title": "Goodfellow Cloud waitlist"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "Goodfellow Cloud is planned: a hosted service that would set up and run sign-in, the token broker, the Claude connector and media storage for Goodfellow sites. Join the waitlist.",
+        "image": "",
+        "title": "Goodfellow Cloud"
+      }
+    }
+  }
+}
