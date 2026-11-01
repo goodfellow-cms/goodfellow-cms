@@ -1,6 +1,6 @@
 # goodfellow
 
-The `goodfellow` command: builds a site into static files, runs the development server with the admin panel at `/admin`, previews a build, and moves sites from and to WordPress.
+The `goodfellow` command: builds a site into static files, runs the development server with the admin panel at `/admin`, previews a build, moves sites from and to WordPress, and moves content between Goodfellow sites.
 
 ```sh
 npx goodfellow dev       # http://localhost:4321, admin panel at /admin
@@ -9,6 +9,8 @@ npx goodfellow preview   # serves dist/
 npx goodfellow import wordpress export.xml   # brings a WordPress site's pages, posts and media in
 npx goodfellow export wordpress              # writes the site as a WordPress export file
 npx goodfellow export markdown               # writes the site as a folder of Markdown files
+npx goodfellow export site                   # writes the site's content and media as a zip
+npx goodfellow import site my-site.zip       # brings another Goodfellow site's export in
 npx goodfellow broker add --host gitlab-pages # writes the site's token broker beside it
 npx goodfellow sign-in client-id <id>          # Sign in with GitLab or Bitbucket, or `sign-in service <address>` on GitHub
 npx goodfellow admin check  # checks the admin address named with goodfellow admin add, then uses it

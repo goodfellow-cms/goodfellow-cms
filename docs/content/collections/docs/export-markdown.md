@@ -8,7 +8,7 @@ order: 6.2
 
 A site's pages and [collection](/docs/collections) items can be downloaded as a folder of Markdown files, with the media library, to use with another website tool such as Hugo, Jekyll, Eleventy or Astro, a notes app such as Obsidian, or an AI tool. It's the opposite of [importing Markdown files](/docs/import-markdown), which reads what it writes back.
 
-Markdown holds words and pictures, not a site's look, so the export leaves out a good deal (see [What doesn't come across](#what-doesnt-come-across)). To keep everything, to put back later, use **Download a copy** on **Site Settings → Site history** instead (see [Downloading a copy](/docs/publishing#downloading-a-copy)).
+Markdown holds words and pictures, not a site's look, so the export leaves out a good deal (see [What doesn't come across](#what-doesnt-come-across)). To keep everything, to put back later or to move into another Goodfellow site, use **Download a copy** on **Site Settings → Site history** instead (see [Downloading a copy](/docs/publishing#downloading-a-copy) and [Move content between Goodfellow sites](/docs/move-between-sites)).
 
 ## In the admin panel
 

@@ -25,8 +25,9 @@ test("downloads a copy of the site's content and media as one zip file", async (
   expect(new TextDecoder().decode(zip["content/site.json"])).toBe(
     readFileSync(join(site as string, "content/site.json"), "utf8"),
   );
-  // Never the site's code.
+  // Never the site's code: only the records of installed blocks and plugins, and what another site's import reads first.
   expect(paths.filter((path) => !path.startsWith("content/") && !path.startsWith("public/media/"))).toEqual(
-    paths.filter((path) => path.endsWith("/installed.json")),
+    paths.filter((path) => path.endsWith("/installed.json") || path === "goodfellow-transfer.json"),
   );
+  expect(JSON.parse(new TextDecoder().decode(zip["goodfellow-transfer.json"]))).toMatchObject({ version: 1 });
 });

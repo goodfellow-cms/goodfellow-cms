@@ -1966,6 +1966,92 @@ export const defaultStrings = {
     "The page designs of these collections weren't exported: each item is its own details and text. {collections}.",
   "markdownExport.note.redirects": "Redirects that don't go to an exported page aren't in the files: {count}.",
   "markdownExport.note.layout": "The header and footer aren't in the files. The menus are, in menus.json.",
+  "siteTransfer.export.title": "Export for another Goodfellow site",
+  "siteTransfer.export.intro":
+    "Download this site's pages, collections, synced blocks, menus, settings and media as one zip file, exactly as they're kept, to import into another Goodfellow site with nothing lost. It's the same file Download a copy on Site history makes.",
+  "siteTransfer.export.stored":
+    "Media your storage service keeps isn't in the file. The other site's pages link to where it's kept.",
+  "siteTransfer.export.button": "Download for another Goodfellow site",
+  "siteTransfer.export.working": "Making the file: {done} of {total} files…",
+  "siteTransfer.export.error": "The file couldn't be made. Check your connection and try again.",
+  "siteTransfer.import.title": "Import from another Goodfellow site",
+  "siteTransfer.import.intro":
+    "Bring in a file made with Export for another Goodfellow site, or with Download a copy. Pages, collections and media come across exactly as they were.",
+  "siteTransfer.import.file": "File from the other site",
+  "siteTransfer.import.fileHint": "A .zip file. You'll see what it brings in before anything is published.",
+  "siteTransfer.import.reading": "Reading the file…",
+  "siteTransfer.import.ready": "Ready to import {title}.",
+  "siteTransfer.import.mode": "How to bring it in",
+  "siteTransfer.import.mode.add": "Add to this site: keep this site's content, and bring in what it doesn't have",
+  "siteTransfer.import.mode.replace": "Replace this site's content with the other site's",
+  "siteTransfer.import.replaceWarning":
+    "Everything this site has that the other site doesn't is removed when you import: pages, collections, media and settings. Editors' limits, update settings, media storage and the Site address stay as they are. You can go back on Site history.",
+  "siteTransfer.import.also": "Also bring in",
+  "siteTransfer.import.menus": "Menus (the other site's replace any with the same name)",
+  "siteTransfer.import.settings":
+    "Site Settings, colors and fonts, custom CSS and code, and the admin panel's languages",
+  "siteTransfer.import.layout": "The header and footer",
+  "siteTransfer.import.redirects": "Redirects this site doesn't have",
+  "siteTransfer.import.blocks": "Blocks this site doesn't have",
+  "siteTransfer.import.install": "Add {title} from Goodfellow's block registry, so what uses it comes in as it is",
+  "siteTransfer.import.installHint":
+    "Adding a block changes the site's code, so the editor offers it once the site has been rebuilt.",
+  "siteTransfer.import.withoutBlocks": "Bring in what uses blocks this site doesn't have, without those blocks",
+  "siteTransfer.import.conflicts": "Both sites have these, differently",
+  "siteTransfer.import.conflictsHint": "This site's version is kept unless you choose the other site's.",
+  "siteTransfer.import.useTheirs": "Use the other site's: {what}",
+  "siteTransfer.import.useAllTheirs": "Use the other site's for all",
+  "siteTransfer.import.useAllMine": "Keep this site's for all",
+  "siteTransfer.import.another": "Choose another file",
+  "siteTransfer.import.done": "Imported {title}.",
+  "siteTransfer.import.message": "Import {title} from another Goodfellow site",
+  "siteTransfer.conflict.page": "page {name} ({detail})",
+  "siteTransfer.conflict.item": "{name} in {detail}",
+  "siteTransfer.conflict.collection":
+    "the {name} collection, whose fields differ (this site's items in it are replaced)",
+  "siteTransfer.conflict.syncedBlock": "synced block {name}",
+  "siteTransfer.conflict.media": "media file {name}",
+  "siteTransfer.summary.pages": "Pages: {count}",
+  "siteTransfer.summary.items": "Collection items: {count}",
+  "siteTransfer.summary.collections": "New collections: {count}",
+  "siteTransfer.summary.syncedBlocks": "Synced blocks: {count}",
+  "siteTransfer.summary.media": "Media files: {count}",
+  "siteTransfer.summary.removed": "Files removed: {count}",
+  "siteTransfer.summary.menus": "Menus",
+  "siteTransfer.summary.settings": "Site Settings",
+  "siteTransfer.summary.layout": "The header and footer",
+  "siteTransfer.summary.redirects": "Redirects",
+  "siteTransfer.summary.nothing":
+    "Nothing to bring in: this site already has everything you chose, as it is in the file.",
+  "siteTransfer.note.missingBlock": "{name} isn't one of this site's blocks. It's used on {items}.",
+  "siteTransfer.note.leftOut": "Left out, since they use blocks this site doesn't have: {items}.",
+  "siteTransfer.note.withoutBlocks": "Brought in without the blocks this site doesn't have: {items}.",
+  "siteTransfer.note.taken": "Left out, since this site has something else at their addresses: {items}.",
+  "siteTransfer.note.collectionDiffers":
+    "This site's {collections} has other fields, so the other site's items in it are left out unless you choose the other site's collection above.",
+  "siteTransfer.note.uncopied": "Left out, since they're too large or can't be shown safely: {items}.",
+  "siteTransfer.note.stored":
+    "Media files the other site's storage service keeps aren't in the file: {count}. Pages link to where they're kept.",
+  "siteTransfer.note.storedMerged":
+    "Media files the other site's storage keeps are added to this site's storage, which is the same: {count}.",
+  "siteTransfer.note.languages":
+    "The other site's languages are added to Site Settings, so its pages in them work: {codes}.",
+  "siteTransfer.note.plugins":
+    "The other site used plugins this site doesn't have: {names}. Add them on Plugins if you need them.",
+  "siteTransfer.note.code": "Custom code comes in. It runs on every page, so check it first.",
+  "siteTransfer.note.kept": "Stays as this site has it: {things}.",
+  "siteTransfer.kept.address": "the Site address",
+  "siteTransfer.kept.limits": "editors' limits",
+  "siteTransfer.kept.updates": "update settings",
+  "siteTransfer.kept.storage": "media storage",
+  "siteTransfer.error.notASite":
+    "This file isn't from a Goodfellow site. Choose a file made with Export for another Goodfellow site or Download a copy.",
+  "siteTransfer.error.newer":
+    "This file was made with a newer release of Goodfellow. Update this site on the Updates screen, then try again.",
+  "siteTransfer.error.invalid": "Some of the file's content can't be read, so it can't be imported.",
+  "siteTransfer.error.other": "The file couldn't be read.",
+  "siteTransfer.error.blocks":
+    "The blocks couldn't be added from Goodfellow's block registry. Check your connection and try again.",
   "updates.intro":
     "Goodfellow, the software the site runs on, gets fixes and new releases. Fixes install on their own each night, and only once the site has been checked to still build with them.",
   "updates.contentOnly":
