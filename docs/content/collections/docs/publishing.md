@@ -82,7 +82,7 @@ To publish changes to several pages together, with one rebuild, keep them in a *
 
 A draft stays when you close the tab, and the admin panel opens it again next time. Other editors see it too: when there's a draft, the bar says so and offers to open it, including drafts [Claude](/docs/claude#drafts) started, which can be finished in the admin panel. Drafts waiting for review come first, for owners: the bar names the one waiting, with **See it**. A reviewer can publish it on the host, or open it here and **Publish all** or **Throw away**, which also closes its review.
 
-Drafts are kept on branches of the site's repository named `goodfellow-draft-…`, which the starters' setups never build. Cloudflare Pages and Vercel build previews of every branch unless told not to, so their [setup steps](/docs/put-it-online#3-choose-a-host) turn previews off.
+Drafts are kept on branches of the site's repository named `goodfellow-draft-…`, which the starters' setups never build. Cloudflare Pages, Netlify and Vercel build previews of every branch unless told not to, so their [setup steps](/docs/put-it-online#3-choose-a-host) turn previews off.
 
 On a [full-stack Next.js site](/docs/full-stack-nextjs), in a [demo](/docs/demo-mode) and when the site runs on your own computer, there are no branches to keep it on, so the draft is kept in your browser instead: it stays when the tab closes, but other editors don't see it, it can't be submitted for review, and another browser or computer doesn't have it. A full-stack site's server can still take changes outside someone's [limits](/docs/sign-in#limiting-what-editors-can-change) for review.
 

@@ -417,9 +417,9 @@ describe("helpers", () => {
   });
 
   it("only offers hosts that can build the site's repository", () => {
-    expect(hostsFor("github")).toEqual(["github-pages", "cloudflare-pages", "vercel"]);
-    expect(hostsFor("gitlab")).toEqual(["gitlab-pages", "cloudflare-pages", "vercel"]);
-    expect(hostsFor(undefined)).toHaveLength(4);
+    expect(hostsFor("github")).toEqual(["github-pages", "cloudflare-pages", "netlify", "vercel"]);
+    expect(hostsFor("gitlab")).toEqual(["gitlab-pages", "cloudflare-pages", "netlify", "vercel"]);
+    expect(hostsFor(undefined)).toHaveLength(5);
   });
 
   it("writes repository names safely into the config", () => {

@@ -957,6 +957,8 @@ export const strings: Strings = {
   "domain.admin.connect": "Dar esta dirección al panel de administración",
   "domain.admin.elsewhere":
     "Añade también esta dirección al proyecto del sitio en {host}, en sus dominios personalizados, para que también sirva el sitio allí. La generación del sitio escribe las reglas de {host} para ella.",
+  "domain.admin.elsewhereGuarded":
+    "Añade también esta dirección al sitio en {host}, como alias de dominio, para que también sirva el sitio allí. {host} no puede enviar reglas para una sola dirección, así que el script con el que empieza cada página del sitio las mantiene fuera de ella, como en GitLab Pages.",
   "domain.admin.message": "Dar al panel de administración su propia dirección, {domain}",
   "domain.admin.connected": "La dirección del panel de administración es {domain}",
   "domain.admin.ready": "El sitio responde en {address}. Abre allí el panel de administración para empezar a usarla.",
@@ -986,6 +988,8 @@ export const strings: Strings = {
   "domain.elsewhere": "Este sitio no se publica con {host} Pages, así que su dominio se conecta donde se publica.",
   "domain.elsewhere.cloudflare":
     "En Cloudflare Pages: abre el proyecto del sitio, ve a Custom domains y configura el dominio. Para un dominio como www.example.org, Cloudflare muestra un registro CNAME que añadir en tu registrador. Para example.org en sí, el dominio tiene que usar los servidores de nombres de Cloudflare, que te guía paso a paso. Cuando el sitio funcione en su nueva dirección, ponla en General → Dirección del sitio y publica.",
+  "domain.elsewhere.netlify":
+    "En Netlify: abre el sitio, ve a Domain management y añade el dominio. Netlify muestra los registros que añadir en tu registrador, u ofrece encargarse él mismo del DNS del dominio. Cuando el sitio funcione en su nueva dirección, ponla en General → Dirección del sitio y publica.",
   "domain.elsewhere.other":
     "En cualquier otro alojamiento: conecta el dominio en los ajustes del propio alojamiento, como explica. Cuando el sitio funcione en su nueva dirección, pon la dirección en General → Dirección del sitio y publica.",
   "domain.elsewhere.vercel":

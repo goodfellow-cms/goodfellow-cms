@@ -72,8 +72,14 @@ interface CommitStatus {
   description?: string | null;
 }
 
-/** Cloudflare Pages' check runs (its GitHub App is "Cloudflare Workers and Pages") and commit statuses. */
-const CLOUDFLARE = /cloudflare/i;
+/**
+ * The check runs and commit statuses of hosts that build the site themselves
+ * and report to GitHub: Cloudflare Pages (its GitHub App is "Cloudflare Workers
+ * and Pages") and Netlify's deploys (`netlify/<site>/deploy…`), but not its
+ * other checks, such as "Header rules", which finish before the deploy does.
+ * Netlify's GitHub App also creates a deployment, which `deployStatus()` reads first.
+ */
+const HOST_BUILDS = /cloudflare|netlify\/\S+\/deploy/i;
 
 interface Job {
   name: string;
@@ -602,8 +608,8 @@ export class GitHubBackend implements GitBackend {
   }
 
   /**
-   * Reads the deployment GitHub Pages or Vercel created for a commit, or what
-   * Cloudflare Pages reports on it, and for GitHub Actions, the workflow run
+   * Reads the deployment GitHub Pages, Vercel or Netlify created for a commit,
+   * or what Cloudflare Pages or Netlify reports on it, and for GitHub Actions, the workflow run
    * that builds it: a build that fails never creates a deployment. Before any
    * exists, the site counts as building if it has ever been deployed, or if
    * Cloudflare reported on the commit before.
@@ -634,8 +640,8 @@ export class GitHubBackend implements GitBackend {
             return { state: "building", detailsUrl };
         }
       }
-      const cloudflare = await this.cloudflareBuild(revision);
-      if (cloudflare) return cloudflare;
+      const hosted = await this.hostBuild(revision);
+      if (hosted) return hosted;
       const run = await this.workflowRun(revision);
       if (run?.status === "completed" && run.conclusion === "cancelled") {
         // A newer publish's run replaces one still waiting in the workflow's concurrency group, and builds this
@@ -649,9 +655,9 @@ export class GitHubBackend implements GitBackend {
       if (run) return { state: "building", detailsUrl: run.html_url };
       const any = await githubJson<unknown[]>(this.api, `/repos/${this.repo}/deployments?per_page=1`);
       if (any.length > 0) return { state: "building" };
-      // Cloudflare reports a build a little after the commit, so one it reported on the commit before is coming.
+      // Cloudflare and Netlify report a build a little after the commit, so one reported on the commit before is coming.
       const parent = await this.parentOf(revision);
-      return { state: parent && (await this.cloudflareBuild(parent)) ? "building" : "unknown" };
+      return { state: parent && (await this.hostBuild(parent)) ? "building" : "unknown" };
     } catch (error) {
       // Tokens without the Deployments permission can still publish; they just can't see deploys.
       if (error instanceof GitApiError) return { state: "unknown" };
@@ -660,17 +666,17 @@ export class GitHubBackend implements GitBackend {
   }
 
   /**
-   * What Cloudflare Pages reports on a commit: a check run of its GitHub App,
-   * or a commit status, which fine-grained tokens can read where check runs
-   * need a GitHub App's permission. `undefined` if it reported nothing.
+   * What Cloudflare Pages or Netlify reports on a commit: a check run of its
+   * GitHub App, or a commit status, which fine-grained tokens can read where
+   * check runs need a GitHub App's permission. `undefined` if it reported nothing.
    */
-  private async cloudflareBuild(revision: string): Promise<DeployStatus | undefined> {
+  private async hostBuild(revision: string): Promise<DeployStatus | undefined> {
     const checks = await githubRequest(this.api, `/repos/${this.repo}/commits/${revision}/check-runs?per_page=50`, {
       allow: [403, 404],
     });
     if (checks.ok) {
       const { check_runs: found = [] } = (await checks.json()) as { check_runs?: CheckRun[] };
-      const run = found.find((candidate) => CLOUDFLARE.test(`${candidate.app?.slug ?? ""} ${candidate.name}`));
+      const run = found.find((candidate) => HOST_BUILDS.test(`${candidate.app?.slug ?? ""} ${candidate.name}`));
       if (run) {
         const detailsUrl = run.details_url ?? run.html_url ?? undefined;
         if (run.status !== "completed") return { state: "building", detailsUrl };
@@ -685,7 +691,7 @@ export class GitHubBackend implements GitBackend {
     });
     if (!statuses.ok) return undefined;
     // Newest first, so the first is where the build is up to.
-    const status = ((await statuses.json()) as CommitStatus[]).find((candidate) => CLOUDFLARE.test(candidate.context));
+    const status = ((await statuses.json()) as CommitStatus[]).find((candidate) => HOST_BUILDS.test(candidate.context));
     if (!status) return undefined;
     const detailsUrl = status.target_url ?? undefined;
     if (status.state === "success") return { state: "live", detailsUrl };

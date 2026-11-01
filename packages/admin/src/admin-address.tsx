@@ -15,6 +15,7 @@ import {
   type DnsFetch,
   domainZone,
   normalizeDomain,
+  type OutsideHost,
   withAdminConfig,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useState } from "react";
@@ -32,15 +33,21 @@ const dnsFetch: DnsFetch = (url, init) => window.fetch(url, init);
  * Checks the admin address from the admin address itself, the only place
  * that can read its pages.
  */
+/** The hosts outside the git host's own Pages that serve a site at more than one address, by name. */
+const OUTSIDE_HOST_NAMES: Record<OutsideHost, string> = {
+  "cloudflare-pages": "Cloudflare Pages",
+  netlify: "Netlify",
+  vercel: "Vercel",
+};
+
 const checkAddress = (home: string, headers: boolean) =>
   checkAdminAddress(home, { headers, fetch: (url) => window.fetch(url, { cache: "no-store" }) });
 
-export function AdminAddressSection({ outside }: { outside: "cloudflare-pages" | "vercel" | null | undefined }) {
+export function AdminAddressSection({ outside }: { outside: OutsideHost | null | undefined }) {
   const t = useStrings();
   const { pages, versions, state, publish, contentOnly, siteUrl, account, updates } = useAdmin();
   const { content } = useSiteContent();
-  const host =
-    outside === "cloudflare-pages" ? "Cloudflare Pages" : outside === "vercel" ? "Vercel" : (account?.hostName ?? "");
+  const host = outside ? OUTSIDE_HOST_NAMES[outside] : (account?.hostName ?? "");
   const revision = state.status === "ready" ? state.revision : undefined;
   // The config as it is now, which a publish changes before the site is rebuilt with it.
   const [config, setConfig] = useState<string | null>();
@@ -87,8 +94,8 @@ export function AdminAddressSection({ outside }: { outside: "cloudflare-pages" |
     [config, publish],
   );
 
-  // Hosts that serve a site on more than one domain: GitLab Pages, and Cloudflare Pages and Vercel, outside the git host.
-  const supported = outside === "cloudflare-pages" || outside === "vercel" || pages?.severalDomains === true;
+  // Hosts that serve a site on more than one domain: GitLab Pages, and Cloudflare Pages, Netlify and Vercel, outside the git host.
+  const supported = !!outside || pages?.severalDomains === true;
   let body: React.ReactNode;
   if (!versions || outside === undefined || config === undefined) body = null;
   else if (!supported) body = <p>{t("domain.admin.unsupported", { host })}</p>;
@@ -107,7 +114,7 @@ export function AdminAddressSection({ outside }: { outside: "cloudflare-pages" |
       <AdminAddressState
         admin={admin}
         host={host}
-        headers={outside !== null}
+        headers={outside === "cloudflare-pages" || outside === "vercel"}
         onGitHost={outside === null}
         home={siteUrl}
         save={save}
@@ -186,7 +193,13 @@ function AdminAddressForm({
           setInvalid(false);
         }}
       />
-      {!onGitHost && <p className="gfa-hint">{t("domain.admin.elsewhere", { host })}</p>}
+      {!onGitHost && (
+        <p className="gfa-hint">
+          {t(host === OUTSIDE_HOST_NAMES.netlify ? "domain.admin.elsewhereGuarded" : "domain.admin.elsewhere", {
+            host,
+          })}
+        </p>
+      )}
       {error !== undefined && <DomainProblem error={error} onRetry={() => setError(undefined)} />}
       <div>
         <Button variant="primary" type="submit" disabled={busy || !input.trim()}>
@@ -299,7 +312,13 @@ function AdminAddressState({
           <p className="gfa-hint">{t("domain.admin.signInAgain")}</p>
         </>
       )}
-      {!onGitHost && !admin.checked && <p className="gfa-hint">{t("domain.admin.elsewhere", { host })}</p>}
+      {!onGitHost && !admin.checked && (
+        <p className="gfa-hint">
+          {t(host === OUTSIDE_HOST_NAMES.netlify ? "domain.admin.elsewhereGuarded" : "domain.admin.elsewhere", {
+            host,
+          })}
+        </p>
+      )}
       {error !== undefined && <DomainProblem error={error} onRetry={() => setError(undefined)} />}
 
       {/* The git host's own Pages: its records, the host's checks and HTTPS, as for the site's own domain. */}
@@ -383,7 +402,11 @@ function CodeAdminAddress({
           {onGitHost ? (
             <ConnectedDomain admin domain={domain} onRemoved={async () => setChosen(undefined)} />
           ) : (
-            <p className="gfa-hint">{t("domain.admin.elsewhere", { host })}</p>
+            <p className="gfa-hint">
+              {t(host === OUTSIDE_HOST_NAMES.netlify ? "domain.admin.elsewhereGuarded" : "domain.admin.elsewhere", {
+                host,
+              })}
+            </p>
           )}
         </>
       ) : (

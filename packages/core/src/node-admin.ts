@@ -145,7 +145,9 @@ export async function checkSiteAdminAddress(
   // The host's setup files are in the code's folder, or the content repository's where that one builds the site.
   const read = async (path: string) =>
     (await readText(join(site, path))) ?? (await readText(join(site, CONTENT_REPOSITORY_DIR, path)));
-  const headers = (await outsideHost(read)) !== undefined;
+  // Cloudflare Pages and Vercel send the sandbox header at the admin address; Netlify, like GitLab Pages, has only the guards.
+  const outside = await outsideHost(read);
+  const headers = outside === "cloudflare-pages" || outside === "vercel";
   const fetcher = options.fetch ?? ((address: string) => fetch(address, { headers: { "cache-control": "no-cache" } }));
   const check = await checkAdminAddress(home, { headers, fetch: fetcher });
   if (check !== "ok" || admin.checked) {

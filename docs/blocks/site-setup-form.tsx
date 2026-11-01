@@ -220,19 +220,32 @@ function Choose({
                 free for business sites too, and add its deploy hook for the nightly update and rebuild.
               </Note>
             )}
+            {choices.host === "netlify" && (
+              <Note>
+                Once the repository is created, you'll connect it to Netlify, which needs a Netlify account, free for
+                business sites too, and add its build hook for the nightly update and rebuild.
+              </Note>
+            )}
           </Question>
 
           <Question title="Where to keep the content">
-            {(Object.keys(CONTENT_PLACES) as ContentPlace[]).map((value) => (
-              <Choice
-                key={value}
-                name={`${id}-content`}
-                value={value}
-                current={choices.content}
-                {...CONTENT_PLACES[value]}
-                onChange={(content) => choose({ content })}
-              />
-            ))}
+            {choices.host === "netlify" && (
+              <Note>
+                On Netlify, the content is kept with the code for now: a repository of its own isn't possible yet.
+              </Note>
+            )}
+            {(Object.keys(CONTENT_PLACES) as ContentPlace[])
+              .filter((value) => choices.host !== "netlify" || value === "together")
+              .map((value) => (
+                <Choice
+                  key={value}
+                  name={`${id}-content`}
+                  value={value}
+                  current={choices.content}
+                  {...CONTENT_PLACES[value]}
+                  onChange={(content) => choose({ content })}
+                />
+              ))}
             {separate && contentBuildsFor(choices.host).length > 1 && (
               <fieldset className="grid gap-2 pl-6">
                 <legend className="mb-1 font-medium">Which one {HOSTS[choices.host].label} builds the site from</legend>

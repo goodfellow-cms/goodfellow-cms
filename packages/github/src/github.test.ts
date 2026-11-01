@@ -308,6 +308,21 @@ describe("deploy status", () => {
     });
   });
 
+  it("follows Netlify's deploy, never taking its other checks for it", async () => {
+    const { backend, fake, write } = await publishedOnCloudflare({ netlify: { afterChecks: 1 } });
+    const revision = await write();
+    const detailsUrl = `https://app.netlify.com/sites/parish/deploys/${revision}`;
+    // Its "Header rules" check has finished, but the deploy hasn't.
+    expect(await backend.deployStatus(revision)).toEqual({ state: "building", detailsUrl });
+    expect(await backend.deployStatus(revision)).toEqual({ state: "live", detailsUrl });
+    fake.failCloudflare(revision);
+    expect(await backend.deployStatus(revision)).toEqual({
+      state: "failed",
+      detailsUrl,
+      problem: { step: "build", detail: "Deploy failed" },
+    });
+  });
+
   it("counts a commit as building before Cloudflare reports on it, if it reported on the one before", async () => {
     const { backend, fake, write } = await publishedOnCloudflare({ cloudflare: { afterChecks: 0 } });
     await write();

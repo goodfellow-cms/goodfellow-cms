@@ -411,6 +411,50 @@ export function cloudflareSiteHeaders(
   return `${SITE_HEADERS_MARK}\n${blocks.join("\n\n")}\n`;
 }
 
+/** The variable that names the host a site is built for where the build can't tell (`netlify`). */
+export const HOST_VARIABLE = "GOODFELLOW_HOST";
+
+/**
+ * The host whose own header rules a build writes into `_headers`: Netlify
+ * where it builds the site (it sets `NETLIFY`) or `GOODFELLOW_HOST` says so,
+ * else Cloudflare Pages', which other hosts serve as a file of no use.
+ */
+export function headersHost(env: Readonly<Record<string, string | undefined>>): "netlify" | undefined {
+  return env[HOST_VARIABLE] === "netlify" || env.NETLIFY === "true" ? "netlify" : undefined;
+}
+
+/**
+ * Netlify's header rules for every site, the same as `cloudflareSiteHeaders()`'s
+ * in what they send, written for what Netlify's documentation leaves open: it
+ * doesn't say how rules whose paths both match a request combine, and has no
+ * `! Header` to take one away. So no two rules a request can match set the
+ * same header but the Content Security Policy, every rule's policy is right
+ * on its own and with any other that matches, joined or not, and the admin
+ * panel's own headers are on its page's addresses alone, never on the frames
+ * under it, which their `frame-ancestors 'none'` would stop. An admin address
+ * gets no rules of its own on Netlify, which can't match hosts: its guards
+ * are what keep the site's pages from it.
+ */
+export function netlifySiteHeaders(base = "/", { broker }: { broker?: string } = {}): string {
+  const root = base.replace(/\/?$/, "/");
+  const block = (path: string, lines: string[]) => [path, ...lines.map((line) => `  ${line}`)].join("\n");
+  const headers = (record: Readonly<Record<string, string>>) =>
+    Object.entries(record).map(([name, value]) => `${name}: ${value}`);
+  const site = SITE_HEADERS["Content-Security-Policy"];
+  const withSite = (policy: string) => ({ "Content-Security-Policy": `${site}; ${policy}` });
+  const { "Content-Security-Policy": adminPolicy = "", ...adminRest } = adminPageHeaders(broker);
+  const { "Content-Security-Policy": framePolicy = "", ...frameRest } = EDITOR_FRAME_HEADERS;
+  const adminPage = [`${root}admin`, `${root}admin/`, `${root}admin/index.html`, `${root}admin.html`];
+  const blocks = [
+    block(`${root}*`, headers(SITE_HEADERS)),
+    ...SVG_SPELLINGS.map((extension) => block(`${root}media/*.${extension}`, headers(withSite("sandbox")))),
+    ...adminPage.map((path) => block(path, headers({ ...withSite(adminPolicy), ...adminRest }))),
+    block(`${root}admin/editor/*`, headers({ ...withSite(framePolicy), ...frameRest })),
+    block(`${root}admin/plugins/*`, headers({ ...withSite(framePolicy), ...frameRest })),
+  ];
+  return `${SITE_HEADERS_MARK}\n${blocks.join("\n\n")}\n`;
+}
+
 /** Vercel's header rules for every site, the same as `cloudflareSiteHeaders()`'s. `base` is the site's base path. */
 export function vercelSiteHeaders(
   base = "/",

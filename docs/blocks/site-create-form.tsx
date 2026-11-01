@@ -11,6 +11,7 @@ import {
   type FileChange,
   GOODFELLOW_REGISTRY,
   HOSTS,
+  NETLIFY_BUILD_HOOK,
   newSiteSource,
   planBroker,
   planSite,
@@ -758,6 +759,26 @@ function CloudflareSteps({
   );
 }
 
+/** How to put a new site online with Netlify: importing the repository, then giving the setup files its build hook. */
+function NetlifySteps({ created, choices }: { created: CreatedSiteRepository; choices: Choices }) {
+  const github = choices.git === "github";
+  return (
+    <Note>
+      Now put it online with Netlify. In{" "}
+      <SiteLink className={link} href="https://app.netlify.com/start" target="_blank" rel="noopener noreferrer">
+        Netlify
+      </SiteLink>
+      , choose Import an existing project, connect your {github ? "GitHub" : "GitLab"} account and choose {created.repo}
+      . Its settings are already in its netlify.toml. Then, under the site's Project configuration → Build &amp; deploy
+      → Build hooks, add a build hook for the main branch, and add it to {created.repo} as the {NETLIFY_BUILD_HOOK}{" "}
+      {github
+        ? "secret (Settings → Secrets and variables → Actions)"
+        : "variable (Settings → CI/CD → Variables, masked)"}
+      , for the nightly update and rebuild{github ? "" : ", which the admin panel's Updates screen turns on"}.
+    </Note>
+  );
+}
+
 /**
  * The site that was created. For a site whose content has a repository of its
  * own, `created` is the content's, which editors sign in to and Pages
@@ -852,6 +873,8 @@ function Created({
       )}
       {choices.host === "cloudflare-pages" ? (
         <CloudflareSteps created={created} code={code} choices={choices} />
+      ) : choices.host === "netlify" ? (
+        <NetlifySteps created={created} choices={choices} />
       ) : choices.host === "vercel" ? (
         <Note>
           Now put it online with Vercel: open{" "}

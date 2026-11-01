@@ -14,8 +14,11 @@ export {
   cloudflareSiteHeaders,
   configAdmin,
   GUARD_ATTRIBUTE,
+  HOST_VARIABLE,
   type HostHeaderRule,
   type HostRedirectRule,
+  headersHost,
+  netlifySiteHeaders,
   type PageFileKind,
   pageFileKind,
   SITE_HEADERS,
@@ -198,8 +201,12 @@ export {
 export {
   CLOUDFLARE_BUILD_SETTINGS,
   CLOUDFLARE_DEPLOY_HOOK,
+  CLOUDFLARE_HOOK_HOST,
   type CloudflareSetup,
   cloudflareSetupFiles,
+  type HookHost,
+  hookHostSetupFiles,
+  type OutsideHost,
   outsideHost,
 } from "./cloudflare-setup.js";
 export { COLOR_SCHEME_ATTRIBUTE, COLOR_SCHEME_STORAGE_KEY, colorSchemeScript } from "./color-scheme.js";
@@ -1019,6 +1026,14 @@ export {
   migrateContent,
   migrations,
 } from "./migrations/index.js";
+export {
+  NETLIFY_BUILD_HOOK,
+  NETLIFY_HOOK_HOST,
+  NETLIFY_SKIPPED_BRANCHES,
+  NETLIFY_TOML,
+  netlifySetupFiles,
+  netlifyToml,
+} from "./netlify-setup.js";
 export {
   chooseRelease,
   GOODFELLOW_PEER,

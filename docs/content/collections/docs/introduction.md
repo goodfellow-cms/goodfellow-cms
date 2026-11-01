@@ -15,7 +15,7 @@ Goodfellow CMS (Goodfellow for short) is a website builder for people who aren't
 1. An editor opens `/admin` on the site and signs in with their GitHub, GitLab or Bitbucket account.
 2. They change a page in the editor, which shows it exactly as visitors will see it.
 3. **Publish** saves the change to the site's repository, straight from their browser.
-4. The host (GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel) notices the change and rebuilds the site, usually within a minute or two. The admin panel shows when it's live.
+4. The host (GitHub Pages, GitLab Pages, Cloudflare Pages, Netlify or Vercel) notices the change and rebuilds the site, usually within a minute or two. The admin panel shows when it's live.
 
 Because the admin panel talks to GitHub, GitLab or Bitbucket directly, nothing else needs to run anywhere: no server to keep updated, and nothing for attackers to break into besides your git host account.
 
@@ -35,7 +35,7 @@ Because the admin panel talks to GitHub, GitLab or Bitbucket directly, nothing e
 - **Several languages**, with translations linked together, a language switch, and help translating with AI. See [Several languages](/docs/languages).
 - **Running the site** without a developer: inviting editors, version history for each page and for the whole site, a custom domain, plain-language explanations when a rebuild fails, and Goodfellow's fixes installed each night.
 - **Blocks of your own**, for developers: any React component can be a block, and parts that respond to visitors run in the browser, with or without Next.js. Pages without them load no JavaScript.
-- **Free hosting** on GitHub Pages, GitLab Pages, Cloudflare Pages or Vercel, with the setup for each included, and overnight rebuilds for date-based content only when something changed, so free plans' build minutes go further.
+- **Free hosting** on GitHub Pages, GitLab Pages, Cloudflare Pages, Netlify or Vercel, with the setup for each included, and overnight rebuilds for date-based content only when something changed, so free plans' build minutes go further.
 
 ## Where to start
 

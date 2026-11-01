@@ -1,4 +1,4 @@
-import { outsideHost } from "@goodfellow-cms/core";
+import { type OutsideHost, outsideHost } from "@goodfellow-cms/core";
 import { useEffect, useState } from "react";
 import { useAdmin } from "./admin-context.js";
 
@@ -8,10 +8,10 @@ import { useAdmin } from "./admin-context.js";
  * They're outside the folders the site's files are read from, so they're read
  * as version history reads files, at the loaded revision.
  */
-export function useOutsideHost(): "cloudflare-pages" | "vercel" | null | undefined {
+export function useOutsideHost(): OutsideHost | null | undefined {
   const { readFile, versions, state } = useAdmin();
   const revision = state.status === "ready" ? state.revision : undefined;
-  const [host, setHost] = useState<"cloudflare-pages" | "vercel" | null>();
+  const [host, setHost] = useState<OutsideHost | null>();
   useEffect(() => {
     let cancelled = false;
     const read = versions && revision ? (path: string) => versions.readAt(path, revision) : readFile;

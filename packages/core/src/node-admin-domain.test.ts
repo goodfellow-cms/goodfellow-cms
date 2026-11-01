@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startsWithGuard } from "./admin-domain.js";
-import { guardBuiltSite } from "./node-admin-domain.js";
+import { guardBuiltSite, writeSiteHeaders } from "./node-admin-domain.js";
 
 let dir: string;
 beforeEach(async () => {
@@ -54,6 +54,19 @@ describe("guardBuiltSite", () => {
     // Running again changes nothing.
     await guardBuiltSite(dir, options);
     expect(await read("_headers")).toBe(headers);
+  });
+
+  it("on Netlify, guards the pages but writes no rules for the admin address, which Netlify can't match", async () => {
+    await write("index.html", "<!DOCTYPE html><html><head><title>Home</title></head></html>");
+    await writeSiteHeaders(dir, { host: "netlify" });
+    const site = await read("_headers");
+    expect(site).toContain(
+      "/admin/editor/*\n  Content-Security-Policy: object-src 'none'; base-uri 'self'; frame-ancestors 'self'",
+    );
+    expect(site).not.toMatch(/^\s*!/m);
+    expect(await guardBuiltSite(dir, { ...options, host: "netlify" })).toBe(1);
+    expect(startsWithGuard(await read("index.html"), "html")).toBe(true);
+    expect(await read("_headers")).toBe(site);
   });
 
   it("refuses a site with a page that can't start with its guard", async () => {

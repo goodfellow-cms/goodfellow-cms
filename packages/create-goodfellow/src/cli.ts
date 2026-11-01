@@ -48,8 +48,8 @@ Options:
   --gitlab <project>  The GitLab project the site will be stored in, such as your-group/your-site
   --bitbucket <repo>  The Bitbucket repository the site will be stored in, such as your-workspace/your-site,
                       which Vercel builds, with Bitbucket Pipelines for its updates
-  --host <host>       github-pages, gitlab-pages, cloudflare-pages or vercel. Keeps only that
-                      host's setup files (for Cloudflare Pages, a nightly update and rebuild)
+  --host <host>       github-pages, gitlab-pages, cloudflare-pages, netlify or vercel. Keeps only that
+                      host's setup files (for Cloudflare Pages and Netlify, a nightly update and rebuild)
   --content <repo>    Keeps the site's content in a repository of its own, such as
                       your-name/your-site-content; --github or --gitlab is then the code's
   --build <where>     With --content on Vercel: content (the default) or code, the
@@ -269,7 +269,7 @@ async function main(): Promise<void> {
   const content = contentRepo === undefined ? undefined : separateContent(contentRepo, build, backend, host);
   if (admin !== undefined && !allowsAdminAddress(host as Host | undefined)) {
     throw new ScaffoldError(
-      "An admin address needs a host that serves a site at more than one address (--host gitlab-pages, cloudflare-pages or vercel). On a host of your own choosing, add it once the site is online with goodfellow admin add.",
+      "An admin address needs a host that serves a site at more than one address (--host gitlab-pages, cloudflare-pages, netlify or vercel). On a host of your own choosing, add it once the site is online with goodfellow admin add.",
     );
   }
   if (broker !== undefined) {
@@ -414,6 +414,9 @@ function separateContent(
     throw new ScaffoldError(
       "Keeping the content in a repository of its own needs the code's repository (--github, --gitlab or --bitbucket) and a host (--host).",
     );
+  }
+  if (host === "netlify") {
+    throw new ScaffoldError("Keeping the content in a repository of its own isn't possible on Netlify yet.");
   }
   const parsed = parseRepo(backend.host, repo);
   if (!parsed || parsed === backend.repo) {

@@ -94,6 +94,12 @@ export interface FakeGitHubOptions {
    * check run of Cloudflare's GitHub App, or as a commit status. Off by default.
    */
   cloudflare?: { afterChecks: number; report?: "check-runs" | "statuses" };
+  /**
+   * Simulates Netlify, as `cloudflare` does Cloudflare Pages: its GitHub App's
+   * "Header rules" check run, which finishes at once, and a commit status for
+   * the deploy, which reports success after being checked this many times.
+   */
+  netlify?: { afterChecks: number };
   /** Answers 403 to reading check runs, as GitHub does for fine-grained tokens, which can't have the permission. */
   checkRunsForbidden?: boolean;
   /** Organizations the users belong to, which new repositories can be created in. */
@@ -907,7 +913,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
   }
 
   function deploy(sha: string): void {
-    if (options.cloudflare) cloudflareBuilds.set(sha, { checks: 0 });
+    if (options.cloudflare || options.netlify) cloudflareBuilds.set(sha, { checks: 0 });
     if (options.deployAfterChecks === undefined) return;
     deployments.unshift({ id: nextDeployment++, sha, statuses: [{ state: "in_progress" }], checks: 0 });
   }
@@ -918,7 +924,9 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     if (!build) return undefined;
     build.checks += 1;
     if (build.failed) return "failure";
-    return build.checks > (options.cloudflare?.afterChecks ?? 0) ? "success" : "building";
+    return build.checks > (options.cloudflare?.afterChecks ?? options.netlify?.afterChecks ?? 0)
+      ? "success"
+      : "building";
   }
 
   function failCloudflare(sha: string): void {
@@ -1576,6 +1584,24 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     const checkRunsSha = rest.match(/^\/commits\/([0-9a-f]{40})\/check-runs$/)?.[1];
     if (checkRunsSha) {
       if (options.checkRunsForbidden) return json({ message: "Resource not accessible by personal access token" }, 403);
+      if (options.netlify) {
+        // Netlify's checks of what a deploy changes, which say nothing about whether it's live.
+        const known = cloudflareBuilds.has(checkRunsSha);
+        return json({
+          total_count: known ? 1 : 0,
+          check_runs: known
+            ? [
+                {
+                  id: 1,
+                  name: "Header rules - parish",
+                  app: { slug: "netlify" },
+                  status: "completed",
+                  conclusion: "neutral",
+                },
+              ]
+            : [],
+        });
+      }
       const state = options.cloudflare?.report === "statuses" ? undefined : cloudflareState(checkRunsSha);
       const runsFound = state
         ? [
@@ -1595,6 +1621,21 @@ export function fakeGitHub(options: FakeGitHubOptions) {
 
     const statusesSha = rest.match(/^\/commits\/([0-9a-f]{40})\/statuses$/)?.[1];
     if (statusesSha) {
+      if (options.netlify) {
+        const deploy = cloudflareState(statusesSha);
+        return json(
+          deploy
+            ? [
+                {
+                  context: "netlify/parish/deploy-preview",
+                  state: deploy === "building" ? "pending" : deploy,
+                  target_url: `https://app.netlify.com/sites/parish/deploys/${statusesSha}`,
+                  description: deploy === "failure" ? "Deploy failed" : "Deploy is ready!",
+                },
+              ]
+            : [],
+        );
+      }
       const state = options.cloudflare?.report === "statuses" ? cloudflareState(statusesSha) : undefined;
       return json(
         state
