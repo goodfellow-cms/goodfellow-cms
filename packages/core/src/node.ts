@@ -113,12 +113,18 @@ export { type RunCommand, type SiteFile, siteFileChanges, type UpdateOptions, up
 export {
   type ExportWordPressResult,
   exportWordPress,
+  formatMarkdownImport,
   formatWordPressExport,
   formatWordPressImport,
+  type ImportMarkdownOptions,
+  type ImportMarkdownResult,
   type ImportWordPressOptions,
   type ImportWordPressResult,
+  importMarkdown,
   importWordPress,
+  MarkdownFolderError,
   type MediaSkipReason,
+  markdownFolderChoices,
   readWordPressSource,
   withoutJpegDetails,
 } from "./node-wordpress.js";

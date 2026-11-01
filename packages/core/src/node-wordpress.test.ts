@@ -4,9 +4,12 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   exportWordPress,
+  formatMarkdownImport,
   formatWordPressExport,
   formatWordPressImport,
+  importMarkdown,
   importWordPress,
+  MarkdownFolderError,
   withoutJpegDetails,
 } from "./node-wordpress.js";
 import { fakeWordPress, SAMPLE_IMAGE, SAMPLE_WORDPRESS_URL, sampleWordPressExport } from "./testing.js";
@@ -162,5 +165,41 @@ describe("photos' hidden details", () => {
   it("keeps them where they turn the photo", () => {
     const turned = jpeg(exif(6));
     expect(withoutJpegDetails(turned)).toBe(turned);
+  });
+});
+
+describe("importing a folder of Markdown files on disk", () => {
+  it("writes its pages and collections, copying the pictures they use but not SVGs", async () => {
+    const write = await site();
+    await write("old/about.md", "---\ntitle: About us\n---\n\n![Church](img/church.jpg) ![Logo](img/logo.svg)\n");
+    await write("old/posts/hello.md", "---\ntitle: Hello\ndate: 2026-01-02\n---\n\nHi.\n");
+    await write("old/img/church.jpg", "a photo");
+    await write("old/img/logo.svg", "<svg/>");
+    await write("old/node_modules/x/readme.md", "# Not content");
+    await write("old/.github/notes.md", "# Not content either");
+
+    const dry = await importMarkdown(root, join(root, "old"), { dryRun: true });
+    expect(dry.written).toBe(false);
+    expect(dry.files).toEqual(["about.md", "img/church.jpg", "img/logo.svg", "posts/hello.md"]);
+    expect(formatMarkdownImport(dry)).toContain("Importing the Markdown files would bring across:");
+
+    const result = await importMarkdown(root, join(root, "old"));
+    expect(result.written).toBe(true);
+    expect(result.copied).toEqual(["img/church.jpg"]);
+    expect(result.skipped).toEqual([{ file: "img/logo.svg", reason: "type" }]);
+    // The photo the site had keeps its name; the new one gets one of its own.
+    const about = await readFile(join(root, "content/pages/about.json"), "utf8");
+    expect(about).toContain("/media/church-2.jpg");
+    expect(about).not.toContain("logo.svg");
+    expect(await readFile(join(root, "public/media/church-2.jpg"), "utf8")).toBe("a photo");
+    expect(await readFile(join(root, "content/collections/posts/hello.md"), "utf8")).toContain("date: 2026-01-02");
+    const words = formatMarkdownImport(result);
+    expect(words).toContain('- 1 item in the "posts" collection, at /posts/{slug}');
+    expect(words).toContain("1 SVG image wasn't copied");
+  });
+
+  it("says so when there's no folder", async () => {
+    await site();
+    await expect(importMarkdown(root, join(root, "missing"))).rejects.toBeInstanceOf(MarkdownFolderError);
   });
 });
