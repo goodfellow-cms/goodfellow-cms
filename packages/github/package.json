@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/github",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Edit a Goodfellow CMS site stored on GitHub, straight from the browser.",
   "keywords": [
     "goodfellow",

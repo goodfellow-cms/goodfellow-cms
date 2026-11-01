@@ -1,5 +1,16 @@
 # @goodfellow-cms/bitbucket
 
+## 0.10.0
+
+### Patch Changes
+
+- Updated dependencies [cfa0a83]
+- Updated dependencies [93fdd74]
+- Updated dependencies [cdc5103]
+- Updated dependencies [86b7c5d]
+- Updated dependencies [378dd68]
+  - @goodfellow-cms/core@0.10.0
+
 ## 0.9.0
 
 ### Patch Changes

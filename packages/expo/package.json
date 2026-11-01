@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/expo",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Shows a Goodfellow CMS site's content natively in an Expo app, from its content API, offline too.",
   "keywords": [
     "goodfellow",

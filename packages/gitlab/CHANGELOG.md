@@ -1,5 +1,17 @@
 # @goodfellow-cms/gitlab
 
+## 0.10.0
+
+### Patch Changes
+
+- cdc5103: Creating a site with its content in a project of its own on GitLab now adds the nightly pipeline schedule after the project's files are written, since GitLab can't schedule a branch an empty project doesn't have yet, and tries each connection between the projects on its own. The ones GitLab refuses come back as `unconnected`, which the setup page lists with links to where to add them and what GitLab answered.
+- Updated dependencies [cfa0a83]
+- Updated dependencies [93fdd74]
+- Updated dependencies [cdc5103]
+- Updated dependencies [86b7c5d]
+- Updated dependencies [378dd68]
+  - @goodfellow-cms/core@0.10.0
+
 ## 0.9.0
 
 ### Patch Changes
