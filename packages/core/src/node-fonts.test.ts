@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { siteSettingsSchema } from "./content/schemas.js";
-import { fontStandIns, hostFonts, selfHostFonts } from "./node-fonts.js";
+import { fetchFontsAsset, fontStandIns, hostFonts, selfHostFonts } from "./node-fonts.js";
 import { themeToCss } from "./theme.js";
 
 const theme = (fonts: object) => siteSettingsSchema.parse({ version: 1, theme: { fonts } }).theme;
@@ -136,5 +136,55 @@ describe("hostFonts", () => {
     } finally {
       await rm(pub, { recursive: true, force: true });
     }
+  });
+});
+
+describe("fetchFontsAsset", () => {
+  const url = "https://fonts.googleapis.com/css2?family=Inter";
+  const answers = (...replies: Array<Response | Error>) => {
+    const asked: string[] = [];
+    const fetch = (async (input: RequestInfo | URL) => {
+      asked.push(String(input));
+      const reply = replies.shift();
+      if (!reply || reply instanceof Error) throw reply ?? new Error("no more answers");
+      return reply;
+    }) as typeof globalThis.fetch;
+    return { fetch, asked };
+  };
+  const waited: number[] = [];
+  const wait = async (ms: number) => {
+    waited.push(ms);
+  };
+
+  it("asks again after a failed connection or an answer saying to try later, as a build's processes may all ask at once", async () => {
+    waited.length = 0;
+    const { fetch, asked } = answers(
+      new TypeError("fetch failed"),
+      new Response("", { status: 503 }),
+      new Response("css"),
+    );
+    const response = await fetchFontsAsset(url, { timeout: 1000 }, { fetch, wait, delays: [10, 20] });
+    expect(await response?.text()).toBe("css");
+    expect(asked).toHaveLength(3);
+    expect(waited).toEqual([10, 20]);
+  });
+
+  it("gives up after its last try, and at once on an answer that won't change", async () => {
+    waited.length = 0;
+    const failing = answers(
+      new TypeError("fetch failed"),
+      new TypeError("fetch failed"),
+      new TypeError("fetch failed"),
+    );
+    expect(
+      await fetchFontsAsset(url, { timeout: 1000 }, { fetch: failing.fetch, wait, delays: [10, 20] }),
+    ).toBeUndefined();
+    expect(failing.asked).toHaveLength(3);
+
+    const missing = answers(new Response("", { status: 404 }));
+    expect(
+      await fetchFontsAsset(url, { timeout: 1000 }, { fetch: missing.fetch, wait, delays: [10, 20] }),
+    ).toBeUndefined();
+    expect(missing.asked).toHaveLength(1);
   });
 });

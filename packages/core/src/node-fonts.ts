@@ -18,27 +18,63 @@ import { type FontStandIns, googleFontsUrl } from "./theme.js";
 /** How long a build waits for a stylesheet before going on without it. */
 const TIMEOUT_MS = 5000;
 
+/** How long a build waits for each font file. */
+const FONT_TIMEOUT_MS = 15000;
+
+/**
+ * How long a build waits before asking again, after each try that failed. A
+ * build can ask Google for the same fonts from several processes at once
+ * (`next build` loads the config in each), and one failed request would leave
+ * every page loading its fonts from Google, so each is asked again a few times.
+ */
+export const FONT_RETRY_DELAYS_MS = [1000, 3000];
+
+/**
+ * An answer from Google Fonts, asked again after a failed connection, a timeout
+ * or an answer saying to try later (429 or 5xx), or `undefined` where none came.
+ */
+export async function fetchFontsAsset(
+  url: string,
+  init: { headers?: Record<string, string>; timeout: number },
+  options: { fetch?: typeof fetch; delays?: number[]; wait?: (ms: number) => Promise<void> } = {},
+): Promise<Response | undefined> {
+  const send = options.fetch ?? fetch;
+  const wait = options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const delays = options.delays ?? FONT_RETRY_DELAYS_MS;
+  for (let attempt = 0; ; attempt++) {
+    let response: Response | undefined;
+    try {
+      response = await send(url, {
+        ...(init.headers && { headers: init.headers }),
+        signal: AbortSignal.timeout(init.timeout),
+      });
+      if (response.ok) return response;
+      if (response.status !== 429 && response.status < 500) return undefined;
+    } catch {
+      // A failed connection or a timeout: asked again below.
+    }
+    const delay = delays[attempt];
+    if (delay === undefined) return undefined;
+    await response?.body?.cancel().catch(() => undefined);
+    await wait(delay);
+  }
+}
+
 /** Reads a stylesheet from the web, for `fontPreloads()`. */
 export const readStylesheet: ReadStylesheet = async (url, userAgent) => {
   try {
-    const response = await fetch(url, {
-      headers: { "user-agent": userAgent },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    return response.ok ? await response.text() : undefined;
+    const response = await fetchFontsAsset(url, { headers: { "user-agent": userAgent }, timeout: TIMEOUT_MS });
+    return response ? await response.text() : undefined;
   } catch {
     return undefined;
   }
 };
 
-/** How long a build waits for each font file. */
-const FONT_TIMEOUT_MS = 15000;
-
 /** Reads a font file from the web, for `selfHostedFonts()`. */
 export const readFontFile: ReadFontFile = async (url) => {
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(FONT_TIMEOUT_MS) });
-    return response.ok ? new Uint8Array(await response.arrayBuffer()) : undefined;
+    const response = await fetchFontsAsset(url, { timeout: FONT_TIMEOUT_MS });
+    return response ? new Uint8Array(await response.arrayBuffer()) : undefined;
   } catch {
     return undefined;
   }
