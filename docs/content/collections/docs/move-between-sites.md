@@ -10,13 +10,13 @@ A Goodfellow site's content can be moved into another Goodfellow site as it is: 
 
 ## Exporting
 
-On **Site Settings → Import**, **Export for another Goodfellow site** downloads one zip file named after the site and the day, such as `st-anne-2026-11-01.zip`. It's the same file **Download a copy** on **Site Settings → Site history** makes (see [Downloading a copy](/docs/publishing#downloading-a-copy)): everything in `content/`, the media library, the lists of blocks and plugins the site added, and `goodfellow-transfer.json`, which says which release of Goodfellow made it and which blocks its pages use. A copy downloaded before that file was added imports too.
+On **Site Settings → Import / Export**, **Export for another Goodfellow site** downloads one zip file named after the site and the day, such as `st-anne-2026-11-01.zip`. It's the same file **Download a copy** on **Site Settings → Site history** makes (see [Downloading a copy](/docs/publishing#downloading-a-copy)): everything in `content/`, the media library, the lists of blocks and plugins the site added, and `goodfellow-transfer.json`, which says which release of Goodfellow made it and which blocks its pages use. A copy downloaded before that file was added imports too.
 
 Media kept in a [storage service](/docs/media#media-kept-in-a-storage-service) isn't in the file: the other site's pages link to where it's kept, or list it in their own storage where both sites use the same one.
 
 ## Importing
 
-1. On the other site, go to **Site Settings → Import**, and find **Import from another Goodfellow site**.
+1. On the other site, go to **Site Settings → Import / Export**, and find **Import from another Goodfellow site**.
 2. Choose the zip file. Nothing changes yet: you see what it brings in first.
 3. Choose how to bring it in:
    - **Add to this site** (the default) keeps this site's content and brings in the pages, collection items, synced blocks and media it doesn't have. Tick **Menus**, **Site Settings** (with colors and fonts, custom CSS and code, and the admin panel's languages), **The header and footer**, or **Redirects** to bring those in too. Menus are merged by name, and only redirects this site doesn't have are added.

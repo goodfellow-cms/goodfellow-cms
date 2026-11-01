@@ -28,6 +28,10 @@ flowchart TB
 - **Content is plain files.** One JSON file per page, readable in any diff and portable to other tools.
 - **Apps too.** Builds also write the content as [static JSON](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-api), which an [Expo app](https://goodfellow-cms.github.io/goodfellow-cms/docs/apps) for iPhone and Android shows natively, offline too.
 
+## Free, always
+
+Goodfellow's core will always be free and open source. [Goodfellow Cloud](https://goodfellow-cms.github.io/goodfellow-cms/docs/goodfellow-cloud) is planned for the future, once enough organizations are interested: a hosted service that would set up and run the services site owners put online themselves today, such as Sign in with GitHub, the token broker, the Claude connector and media storage. Everything it would run stays free to set up yourself. To hear when it opens, [join the waitlist](https://goodfellow-cms.github.io/goodfellow-cms/cloud/).
+
 ## Sponsor Goodfellow
 
 Goodfellow is free and open source. If it's useful to you, [become a sponsor](https://github.com/sponsors/goodfellow-cms) to help keep it going.

@@ -49,7 +49,7 @@ Every editor needs write access to the repository. GitHub doesn't let collaborat
 
 ### Signing in with GitHub
 
-A site whose owner runs a [sign-in service](/docs/sign-in-service), which they put online from their browser, and names it under **Site Settings → Security** also offers **Sign in with GitHub**. Goodfellow doesn't run one for everyone yet, and may in the future. Editors approve the service's app on GitHub's page the first time, and come back signed in. It needs two things:
+A site whose owner runs a [sign-in service](/docs/sign-in-service), which they put online from their browser, and names it under **Site Settings → Security** also offers **Sign in with GitHub**. Each owner runs their own; [Goodfellow Cloud](/docs/goodfellow-cloud), planned for the future, would run one for you. Editors approve the service's app on GitHub's page the first time, and come back signed in. It needs two things:
 
 - **The app is installed on the site.** GitHub only lets the service sign editors in to repositories its app is installed on. The first time anyone signs in, the sign-in screen says it isn't installed yet and offers to install it: an owner of the site installs it there, choosing the site's repository, and comes back signed in. The Editors, Domain and Updates screens offer the same for the owners' app, which owners sign in with there.
 - **The site's address is in Site settings.** The sign-in service only signs editors in at the address Site settings give, so a copy of the admin panel anywhere else can't use it. Sites made with the setup page have it already.

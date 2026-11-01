@@ -2,7 +2,7 @@
 
 Goodfellow's Claude connector: a Cloudflare Worker that's an MCP server with Goodfellow's tools (`@goodfellow-cms/mcp`), and the OAuth server Claude signs in with, through the Goodfellow for Claude GitHub App or a GitLab application. Editors add it to Claude as a custom connector. It keeps who connected and which sites only sealed in Claude's own tokens, and stores just each connection's refresh token generation, in D1.
 
-Goodfellow doesn't run it for everyone yet, and may in the future; organizations run their own. It isn't published to npm.
+Organizations run their own; [Goodfellow Cloud](https://goodfellow-cms.github.io/goodfellow-cms/docs/goodfellow-cloud), planned for the future, would run one for its sites. It isn't published to npm.
 
 See the documentation's [Claude connector service](https://goodfellow-cms.github.io/goodfellow-cms/docs/claude-connector) page for how it works, its limits, and running it:
 

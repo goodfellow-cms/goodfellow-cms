@@ -12,7 +12,7 @@ Markdown holds words and pictures, not a site's look, so the export leaves out a
 
 ## In the admin panel
 
-1. Go to **Site Settings → Import**, and find **Export as Markdown**.
+1. Go to **Site Settings → Import / Export**, and find **Export as Markdown**.
 2. Choose how links between pages are written:
    - **As the site's addresses**, such as `/about/`, for website tools, which serve each file at its address. This is the default.
    - **As links to the files**, such as `about.md`, for notes apps, which follow links between files.

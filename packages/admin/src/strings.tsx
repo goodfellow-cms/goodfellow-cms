@@ -1516,7 +1516,7 @@ export const defaultStrings = {
     "That project's Discussions have no categories yet. Open its Discussions on GitHub once, then try again.",
   "comments.error.other": "Something went wrong on GitHub. Try again in a moment.",
   "comments.error.fix": "Open it on GitHub",
-  "settings.tab.import": "Import",
+  "settings.tab.import": "Import / Export",
   "settings.tab.themes": "Themes",
   "plugins.notFound": "The site has no plugin screen at this address.",
   "plugins.failed": "{plugin}'s screen couldn't start. If it keeps happening, the plugin may need updating.",

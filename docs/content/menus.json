@@ -15,6 +15,10 @@
         "label": "Why Goodfellow"
       },
       {
+        "href": "/cloud",
+        "label": "Cloud"
+      },
+      {
         "href": "https://github.com/goodfellow-cms/goodfellow-cms",
         "label": "GitHub"
       }

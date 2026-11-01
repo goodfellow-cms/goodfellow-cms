@@ -3,6 +3,10 @@
   "description": "A website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab or Bitbucket repository.",
   "externalLinksInNewTab": true,
   "favicon": "/media/favicon.svg",
+  "forms": {
+    "accessKey": "e85b3a2c-3a15-47e7-a1ec-142fb1f15205",
+    "service": "web3forms"
+  },
   "language": "en",
   "logo": {
     "alt": "Goodfellow",
