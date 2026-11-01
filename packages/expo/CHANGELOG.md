@@ -1,5 +1,57 @@
 # @goodfellow-cms/expo
 
+## 0.9.0
+
+### Minor Changes
+
+- e7dd766: New blocks and more from the ones there are. Questions and answers shows questions that open to their answers, and tells search engines about them. The Announcement bar carries news across the top of every page between a first and last day, and visitors can close it until its message changes. Galleries open their pictures larger when clicked, with the arrow keys, buttons and swiping moving between them (new galleries start with it on). Heading blocks carry link names, which On this page now lists on any page, and it can stay in view as the page scrolls. Table cells can be bold, italic or links, which WordPress imports and exports keep. The registry's Map block also shows OpenStreetMap's maps.
+- 78f1f14: The media library describes images: **Describe** on the Media screen says what an image shows, in each of the site's languages, kept in `content/media.json`, and images whose blocks leave their description empty use it, on the site, in the editor and in apps through the content API's `site.json`. The Media screen's search finds files by their descriptions too, and **Select files** deletes several files in one publish. `mediaFileChange()` now takes `{ credits, descriptions }`, and `withoutCredits()` is `withoutMediaDetails()`.
+
+### Patch Changes
+
+- d0a47cb: Packages' npm descriptions, and the Claude Desktop extension's name, say Goodfellow CMS, the official name, so they're easier to find.
+- 9c6cb6f: Harden more of what the code review found:
+  
+  - Builds read other calendars and News feed blocks' feeds only from `https://` addresses that aren't on the building computer or a private network, checking each redirect, and stop reading past their size limit as they read (`readRemoteText()`, `isPrivateHost()`).
+  - Markdown headings never get an id starting `gf-`, which Goodfellow's own scripts look up, so a heading can't stop a page's interactive blocks from starting.
+  - Calendar files never let a carriage return in a name or event start a line of its own; sitemaps escape `"` in addresses.
+  - Players and social posts refuse every spelling of this computer's address (`localhost.`, `*.localhost`, `[::ffff:127.0.0.1]`).
+  - Registry items' files go only into their own block's folder or the shared components, whatever their `target` says.
+  - Next.js sites' redirects to addresses with `:`, `*`, `(` and the like no longer fail `next build`.
+  - `next dev`'s local server refuses requests for any name but this computer's before serving the editor's frames, reading the name Next.js passes on as `x-forwarded-host`.
+  - Sites that ask visitors first also hold back head styles that load from other sites, a `base` and a `meta` refresh.
+  - Apps download a kept file again where it's corrupt, keep the classes they can read where twrnc can't read one, and keep other sites' frames from opening other apps; on Android, links from them now open in the browser.
+  - GitLab's "let editors publish" changes the branch's protection in one step where GitLab can, and checks it after where it can't.
+  - Local screenshots never let a site's scripts write through the development server's API.
+- Updated dependencies [0177574]
+- Updated dependencies [d345032]
+- Updated dependencies [e7dd766]
+- Updated dependencies [19d7812]
+- Updated dependencies [58556ef]
+- Updated dependencies [b4f074a]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [bff0a8a]
+- Updated dependencies [d0a47cb]
+- Updated dependencies [1004f6f]
+- Updated dependencies [bd82b21]
+- Updated dependencies [78f1f14]
+- Updated dependencies [d345032]
+- Updated dependencies [181d734]
+- Updated dependencies [8dcf967]
+- Updated dependencies [cf403e0]
+- Updated dependencies [9c6cb6f]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [0b22859]
+- Updated dependencies [19d7812]
+- Updated dependencies [cb72911]
+- Updated dependencies [dfd7ea3]
+- Updated dependencies [01b7691]
+- Updated dependencies [1023c64]
+- Updated dependencies [78f1f14]
+  - @goodfellow-cms/core@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes

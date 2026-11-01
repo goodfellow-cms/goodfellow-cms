@@ -1,5 +1,46 @@
 # @goodfellow-cms/ai
 
+## 0.9.0
+
+### Minor Changes
+
+- 0177574: Owners can add a language for the admin panel and have it translated in Site Settings → Admin panel languages, with the AI service they choose, as in the editor's AI panel. The admin panel's words, the editor's controls and the site's blocks' labels are translated a batch at a time, with a glossary that keeps the admin panel's words the same throughout and plain, every answer checked before it's used, and what comes back published at once, even if the service stops part way. The screen shows how much each language says, and translates again what's missing or out of date. `@goodfellow-cms/ai` has `translateAdminText()`, `adminTextRequest()` and `readAdminTextAnswer()`.
+- e7dd766: New blocks and more from the ones there are. Questions and answers shows questions that open to their answers, and tells search engines about them. The Announcement bar carries news across the top of every page between a first and last day, and visitors can close it until its message changes. Galleries open their pictures larger when clicked, with the arrow keys, buttons and swiping moving between them (new galleries start with it on). Heading blocks carry link names, which On this page now lists on any page, and it can stay in view as the page scrolls. Table cells can be bold, italic or links, which WordPress imports and exports keep. The registry's Map block also shows OpenStreetMap's maps.
+- 58556ef: Collections have five more kinds of field: yes or no, links to items in a collection (one or several, renamed with the items they link to, taken out when one is deleted, and checked before publishing), several images, a file, and repeating groups of a few fields. Entry field shows each, Collection list and loop can show only items where a yes or no field is on, and, in a page design, only the items the page's item links to. The AI assistant fills in yes or no fields and links to items.
+
+### Patch Changes
+
+- d0a47cb: Packages' npm descriptions, and the Claude Desktop extension's name, say Goodfellow CMS, the official name, so they're easier to find.
+- 19d7812: The AI assistant and Claude never choose settings only owners may, such as using Custom HTML exactly as written, and the assistant's requests mark the site's own text as content between markers it can't close. Claude's tools ask before deleting, publishing or throwing a draft away, change only the site's presentational settings (never forms, consent, comments, languages or search engines), unlink a deleted page's or item's translations, name the menus still linking to a deleted page, and, on an editor's computer, run the admin panel's checks before publishing. The Document viewer shows only the media library's PDFs, including a storage plugin's, and links to other sites'. An item's values filled into Custom HTML in a collection's page design are escaped, as in rich text.
+- Updated dependencies [0177574]
+- Updated dependencies [d345032]
+- Updated dependencies [e7dd766]
+- Updated dependencies [19d7812]
+- Updated dependencies [58556ef]
+- Updated dependencies [b4f074a]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [bff0a8a]
+- Updated dependencies [d0a47cb]
+- Updated dependencies [1004f6f]
+- Updated dependencies [bd82b21]
+- Updated dependencies [78f1f14]
+- Updated dependencies [d345032]
+- Updated dependencies [181d734]
+- Updated dependencies [8dcf967]
+- Updated dependencies [cf403e0]
+- Updated dependencies [9c6cb6f]
+- Updated dependencies [19d7812]
+- Updated dependencies [19d7812]
+- Updated dependencies [0b22859]
+- Updated dependencies [19d7812]
+- Updated dependencies [cb72911]
+- Updated dependencies [dfd7ea3]
+- Updated dependencies [01b7691]
+- Updated dependencies [1023c64]
+- Updated dependencies [78f1f14]
+  - @goodfellow-cms/core@0.9.0
+
 ## 0.8.0
 
 ### Patch Changes

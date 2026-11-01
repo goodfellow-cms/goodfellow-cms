@@ -1,5 +1,16 @@
 # @goodfellow-cms/broker
 
+## 0.9.0
+
+### Minor Changes
+
+- 19d7812: Owners can install an update of a plugin or theme the site has before it's three days old, with **Install now**, where both the version installed and the new one have npm provenance from the same repository and workflow. First installs, releases without provenance and releases built anywhere else still wait, and waiting stays the default. Where the site is built, the check is made again with Sigstore's signatures: the lockfile job (through `goodfellow-early`, run from npm) for plugins, `goodfellow build` and `goodfellow-next finish` for themes, and the full-stack server before review, failing loudly rather than falling back. The token broker names the release's repository in its own dialog. The starters' workflows have the new lockfile step, and their builds don't run after the lockfile job fails.
+
+### Patch Changes
+
+- 19d7812: The nightly update's publish job publishes only what an update changes, with packages only from npm's registry; plugins can't ask for CI services' and hosts' own variables; the token broker asks before showing the admin panel from a new address, and can be held to one in `broker.json`; and the sign-in worker revokes a code repository's token whatever stops it being given.
+- d0a47cb: Packages' npm descriptions, and the Claude Desktop extension's name, say Goodfellow CMS, the official name, so they're easier to find.
+
 ## 0.8.0
 
 ### Minor Changes
