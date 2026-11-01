@@ -34,7 +34,7 @@
               "props": {
                 "id": "Heading-waitlist",
                 "align": "left",
-                "className": "mx-auto max-w-3xl",
+                "className": "mx-auto mt-12 max-w-3xl",
                 "level": "h2",
                 "text": "Join the waitlist"
               }
