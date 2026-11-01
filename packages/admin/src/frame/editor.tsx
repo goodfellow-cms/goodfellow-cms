@@ -53,6 +53,7 @@ import { MediaChooser } from "../media-library.js";
 import { showMediaInPreview } from "../media-previews.js";
 import { SETTINGS_SECTIONS } from "../router.js";
 import { SharePreview } from "../share-preview.js";
+import { isForwardedShortcut, isTyping, shortcutFor } from "../shortcuts.js";
 import { useDarkMode } from "../theme.js";
 import { drawerItemWithIcon } from "./block-icon.js";
 import { BlockSearch, searchableBlocks } from "./block-search.js";
@@ -339,6 +340,19 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
     },
     [client],
   );
+
+  // Shortcuts the admin panel's page runs, such as adding to a draft, work here too: the page is told
+  // only which was pressed. Puck undoes and redoes itself.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const shortcut = shortcutFor(event, isTyping(event.target));
+      if (!isForwardedShortcut(shortcut)) return;
+      event.preventDefault();
+      void client.call("shortcut", shortcut).catch(() => {});
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [client]);
 
   // Blocks a plugin adds can ask its services, which run in the plugin's own frame, through the admin panel's page.
   const callPlugin = useCallback(

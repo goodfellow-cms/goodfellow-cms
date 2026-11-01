@@ -16,6 +16,7 @@ import type { MediaFieldKind } from "@goodfellow-cms/react";
 import type { ComponentData, Config, Data, UiState } from "@puckeditor/core";
 import type { PreviewOptions } from "../admin-context.js";
 import type { PreviewScheme } from "../preview.js";
+import type { ForwardedShortcut } from "../shortcuts.js";
 import type { DrawTarget, RenderTarget } from "../site-code.js";
 import type { Strings } from "../strings.js";
 import type { ThemeChoice } from "../theme.js";
@@ -130,6 +131,8 @@ export interface AdminRequests {
   "media.bytes"(url: string): Uint8Array | null;
   /** Asks one of a plugin's services, for a block in the editor, through the plugin's own frame. */
   "plugin.call"(params: { plugin: string; method: string; args: unknown[] }): unknown;
+  /** A keyboard shortcut pressed in the editor: only its name, one of `FORWARDED_SHORTCUTS`, never what was typed. */
+  shortcut(name: ForwardedShortcut): void;
 }
 
 /** The requests frames answer for the admin panel's page. */

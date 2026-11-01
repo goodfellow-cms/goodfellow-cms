@@ -1,7 +1,23 @@
 /**
- * `@goodfellow-cms/core/wordpress`: moving sites from and to WordPress. An entry of its
- * own, so its HTML parser is only loaded where sites are imported.
+ * `@goodfellow-cms/core/wordpress`: moving sites from and to WordPress, and
+ * importing folders of Markdown files, which shares its conversion. An entry
+ * of its own, so its HTML parser is only loaded where sites are imported.
  */
+
+export {
+  DEFAULT_MARKDOWN_NAMES,
+  type MarkdownFolder,
+  type MarkdownFolderUse,
+  type MarkdownImport,
+  MarkdownImportError,
+  type MarkdownImportNames,
+  type MarkdownImportNote,
+  type MarkdownImportOptions,
+  type MarkdownImportSummary,
+  type MarkdownMediaCopy,
+  markdownFolders,
+  planMarkdownImport,
+} from "./markdown-import.js";
 export { blockHtml, hasBlocks, parseBlocks, type WordPressBlock } from "./wordpress/blocks.js";
 export type { ConversionNote } from "./wordpress/convert.js";
 export {

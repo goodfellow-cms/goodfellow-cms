@@ -55,6 +55,7 @@ body:
         - Redirects
         - Sites in several languages
         - Importing from WordPress
+        - Importing Markdown files
         - Exporting to WordPress
         - Creating a site (the setup page or npm create goodfellow)
         - The AI assistant

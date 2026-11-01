@@ -10,6 +10,7 @@
 // `goodfellow-next content link|copy [folder]` puts a content repository's files in place, for a site whose
 // content is kept in a repository of its own.
 // `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
+// `goodfellow-next import markdown <folder> [--dry-run]` imports a folder of Markdown files, as `goodfellow import` does.
 // `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, as `goodfellow export` does.
 // `goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]` makes a block of a shadcn item, as
 // `goodfellow blocks add` does, and with --native its version for an Expo app.
@@ -31,9 +32,13 @@ import {
   exportWordPress,
   formatAdminResult,
   formatAdminText,
+  formatMarkdownImport,
   formatWordPressExport,
   formatWordPressImport,
+  importMarkdown,
   importWordPress,
+  MarkdownFolderError,
+  markdownFolderChoices,
   nightlyCheck,
   reportDue,
   reportNightly,
@@ -238,10 +243,39 @@ if (command === "import") {
   const { positionals, values } = parseArgs({
     args: process.argv.slice(3),
     allowPositionals: true,
-    options: { "dry-run": { type: "boolean" } },
+    options: {
+      "dry-run": { type: "boolean" },
+      pages: { type: "string", multiple: true },
+      collection: { type: "string", multiple: true },
+      "replace-home": { type: "boolean" },
+      "replace-pages": { type: "boolean" },
+      drafts: { type: "boolean" },
+      menu: { type: "boolean" },
+      "keep-fields": { type: "boolean" },
+    },
   });
   const [kind, from] = positionals;
   const problem = contentRepositoryProblem(".");
+  if (kind === "markdown" && from && !problem) {
+    try {
+      const result = await importMarkdown(".", from, {
+        folders: markdownFolderChoices(values.pages, values.collection),
+        replaceHome: values["replace-home"],
+        replacePages: values["replace-pages"],
+        drafts: values.drafts,
+        menu: values.menu,
+        keepFields: values["keep-fields"],
+        dryRun: values["dry-run"],
+        log: (line) => console.log(line),
+      });
+      console.log(formatMarkdownImport(result));
+      process.exit(0);
+    } catch (error) {
+      if (!(error instanceof MarkdownFolderError)) throw error;
+      console.error(error.message);
+      process.exit(1);
+    }
+  }
   if (kind === "wordpress" && from && !problem) {
     try {
       const result = await importWordPress(".", from, { dryRun: values["dry-run"], log: (line) => console.log(line) });
@@ -306,6 +340,8 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next nightly [--mode changed|always|off] [--output <file>]",
       "       goodfellow-next content link|copy [folder]",
       "       goodfellow-next import wordpress <file or address> [--dry-run]",
+      "       goodfellow-next import markdown <folder> [--dry-run] [--pages <folder>] [--collection <folder>]",
+      "                                        [--replace-home] [--replace-pages] [--drafts] [--menu] [--keep-fields]",
       "       goodfellow-next export wordpress [file]",
       "       goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]",
       "       goodfellow-next admin add <address> | check | remove",
@@ -335,7 +371,9 @@ if (command !== "finish" && command !== "index") {
       "        or copies them from it, as builds do.",
       "import  Brings a WordPress site's pages, posts, categories, tags, menus and media into",
       "        this site, from its export file (Tools → Export) or its address. With --dry-run,",
-      "        says what it would bring across and changes nothing.",
+      "        says what it would bring across and changes nothing. import markdown brings a folder",
+      "        of Markdown files in: the files at the top as pages, each folder as a collection,",
+      "        unless --pages or --collection names it (. for the top).",
       "export  Writes this site as a WordPress export file (default: named after the site),",
       "        which WordPress imports with Tools → Import → WordPress.",
       "blocks  Installs a shadcn registry item (button, @acme/hero, or an item's address) with",

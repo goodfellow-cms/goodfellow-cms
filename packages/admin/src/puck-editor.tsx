@@ -32,6 +32,7 @@ import {
   useEditorChoice,
 } from "./plugin-editor.js";
 import { useUnsavedChanges } from "./router.js";
+import { useShortcutHandlers } from "./shortcuts-provider.js";
 import { type Translate, useStrings } from "./strings.js";
 import { SyncedBlockButtons } from "./synced-blocks-screen.js";
 import { Button, ErrorMessage, PublishedNotice } from "./ui.js";
@@ -520,6 +521,18 @@ export function PuckEditor({
   const aiOffered = site.ai !== false && (!plugin || Boolean(pluginEditor?.handle.set));
   const undo = plugin ? pluginEditor?.handle.undo : () => void client?.call("editor.undo");
   const redo = plugin ? pluginEditor?.handle.redo : () => void client?.call("editor.redo");
+  // Ctrl+S (⌘S on a Mac) only ever adds to a draft, so an unfinished page is never published by accident.
+  useShortcutHandlers({
+    save: () => {
+      if (state && !readOnly && status.type !== "publishing") void onPublish(true);
+    },
+    undo: () => {
+      if (state?.past) undo?.();
+    },
+    redo: () => {
+      if (state?.future) redo?.();
+    },
+  });
 
   return (
     <div className={cx("gfa-editor", `gfa-editor-for-${kind}`)}>

@@ -3,10 +3,11 @@
  * wordpress`, `goodfellow-next import wordpress` and `create-goodfellow
  * --wordpress` do: from an export file or the site's address, with the media
  * its pages and posts use downloaded into `public/media/`. Also writes a site
- * on disk as a WordPress export file, as `goodfellow export wordpress` does.
+ * on disk as a WordPress export file, as `goodfellow export wordpress` does,
+ * and imports folders of Markdown files, as `goodfellow import markdown` does.
  */
-import { readFile, stat, writeFile } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { join, relative, resolve, sep } from "node:path";
 import {
   exifOrientation,
   extensionOf,
@@ -20,6 +21,11 @@ import { fileSystemSource } from "./node-fs-source.js";
 import { localFileStore } from "./node-local-files.js";
 import {
   fetchWordPressSite,
+  type MarkdownFolderUse,
+  type MarkdownImport,
+  type MarkdownImportNote,
+  type MarkdownImportOptions,
+  planMarkdownImport,
   planWordPressImport,
   readWordPressExport,
   type WordPressExport,
@@ -306,4 +312,177 @@ export function formatWordPressExport(result: ExportWordPressResult, from = proc
   ];
   if (notes.length) lines.push("", "Check these:", ...notes.map((note) => `- ${exportNoteLine(note)}`));
   return lines.join("\n");
+}
+
+/** Folders never read from a Markdown folder: tools' own and hidden ones. */
+const SKIPPED_FOLDERS = new Set(["node_modules", "dist", "_site"]);
+
+export interface ImportMarkdownOptions
+  extends Pick<MarkdownImportOptions, "folders" | "replaceHome" | "replacePages" | "drafts" | "menu" | "keepFields"> {
+  /** Plans the import and copies nothing, writing no files. */
+  dryRun?: boolean;
+  log?(line: string): void;
+}
+
+export interface ImportMarkdownResult {
+  plan: MarkdownImport;
+  /** The files in the folder, by their paths in it. */
+  files: string[];
+  /** Media copied into `public/media/`, by its path in the folder. */
+  copied: string[];
+  /** Media that wasn't: SVGs, which only the admin panel can make safe, and files over the upload limit. */
+  skipped: Array<{ file: string; reason: "type" | "size" }>;
+  written: boolean;
+}
+
+/** Every file under a folder, by its path in it with `/` between folders, leaving out hidden folders and tools' own. */
+async function folderFiles(folder: string): Promise<string[]> {
+  const entries = await readdir(folder, { recursive: true, withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(folder, join(entry.parentPath, entry.name)).split(sep).join("/"))
+    .filter((path) => !path.split("/").some((part) => part.startsWith(".") || SKIPPED_FOLDERS.has(part)))
+    .sort();
+}
+
+/**
+ * Imports a folder of Markdown files into the site at `root`, as `goodfellow
+ * import markdown` does, with the pictures and files they use copied into
+ * `public/media/`, as uploads are: JPEGs without their details, and no SVGs
+ * or files over the upload limit.
+ */
+export async function importMarkdown(
+  root: string,
+  folder: string,
+  options: ImportMarkdownOptions = {},
+): Promise<ImportMarkdownResult> {
+  const found = await stat(folder).catch(() => undefined);
+  if (!found?.isDirectory()) throw new MarkdownFolderError(folder);
+  const files = await folderFiles(folder);
+  const texts = new Map<string, string>();
+  for (const file of files.filter((file) => /\.(md|markdown|mdx)$/i.test(file))) {
+    texts.set(file, await readFile(join(folder, file), "utf8"));
+  }
+  const source = fileSystemSource(root);
+  const content = await loadSiteContent(source);
+  const mediaFiles = await source.list(MEDIA_DIR);
+  const { dryRun, log, ...choices } = options;
+  const plan = (copied?: ReadonlySet<string>) =>
+    planMarkdownImport(files, (file) => texts.get(file), content, {
+      ...choices,
+      mediaFiles,
+      ...(copied && { copied }),
+    });
+  const first = plan();
+  if (dryRun) return { plan: first, files, copied: [], skipped: [], written: false };
+
+  const bytes = new Map<string, Uint8Array>();
+  const skipped: ImportMarkdownResult["skipped"] = [];
+  for (const copy of first.media) {
+    const extension = extensionOf(copy.file);
+    if (extension === "svg") {
+      skipped.push({ file: copy.file, reason: "type" });
+      continue;
+    }
+    const read = new Uint8Array(await readFile(join(folder, copy.file)));
+    if (read.length > MAX_UPLOAD_BYTES) {
+      skipped.push({ file: copy.file, reason: "size" });
+      continue;
+    }
+    bytes.set(
+      copy.file,
+      ["jpg", "jpeg"].includes(extension)
+        ? withoutJpegDetails(read)
+        : ["png", "webp"].includes(extension)
+          ? withoutImageDetails(read)
+          : read,
+    );
+    log?.(`Copied ${copy.path}`);
+  }
+  const final = plan(new Set(bytes.keys()));
+  const media: FileChange[] = final.media.flatMap((copy) => {
+    const read = bytes.get(copy.file);
+    return read ? [{ path: copy.path, bytes: read }] : [];
+  });
+  const store = localFileStore(root);
+  await store.write([...final.changes, ...media], {
+    expectedRevision: await store.revision(),
+    message: "Import Markdown files",
+  });
+  return { plan: final, files, copied: [...bytes.keys()], skipped, written: true };
+}
+
+/** Thrown when the folder to import from isn't one. */
+export class MarkdownFolderError extends Error {
+  override name = "MarkdownFolderError";
+
+  constructor(readonly folder: string) {
+    super(`There's no folder at ${folder}. Give the folder the Markdown files are in.`);
+  }
+}
+
+function markdownNoteLine(note: MarkdownImportNote): string {
+  const files = "files" in note ? listed(note.files) : "";
+  switch (note.kind) {
+    case "drafts":
+      return `Left out ${plural(note.files.length, "draft")}: ${files}. Use --drafts to import ${verb(note.files.length, "it", "them")} too.`;
+    case "taken":
+      return `Left out ${plural(note.files.length, "file")} at addresses the site already has: ${files}. Use --replace-pages (or --replace-home for index.md) to put ${verb(note.files.length, "it", "them")} in their place.`;
+    case "front-matter":
+      return `The front matter of ${files} couldn't be read, so ${verb(note.files.length, "it was", "they were")} imported without it.`;
+    case "missing-links":
+      return `Links to files or pages the import doesn't have are now just their words, in ${files}.`;
+    case "missing-media":
+      return `Pictures or files the folder doesn't have were left out of ${files}.`;
+    case "not-copied":
+      return `${plural(note.files.length, "file")} couldn't be copied, so ${verb(note.files.length, "it was", "they were")} left out: ${files}.`;
+    case "template-code":
+      return `Another site's template code, such as {{< … >}} or {% … %}, shows as written in ${files}.`;
+    case "html":
+      return `HTML in ${files} shows as text, since items keep their Markdown.`;
+    case "fields":
+      return `Front matter left out: ${listed(note.names)}. Use --keep-fields to keep ${verb(note.names.length, "it", "them")} as fields.`;
+    case "converted":
+      return `Something in ${files} was simplified (${note.note}: ${note.name}).`;
+  }
+}
+
+/** What a Markdown import did, in words, for the command line. */
+export function formatMarkdownImport(result: ImportMarkdownResult): string {
+  const { summary } = result.plan;
+  const lines = [
+    result.written ? "Imported the Markdown files:" : "Importing the Markdown files would bring across:",
+    `- ${plural(summary.pages.length, "page")}${summary.replaced.length ? `, replacing ${summary.replaced.join(", ")}` : ""}`,
+    ...summary.collections.map(
+      (collection) =>
+        `- ${plural(collection.items, "item")} in the "${collection.id}" collection, at ${collection.path}${collection.list ? `, listed on ${collection.list}` : ""}`,
+    ),
+    ...(summary.menu ? [`- ${plural(summary.menu, "page")} added to the main menu`] : []),
+    ...(summary.redirects ? [`- ${plural(summary.redirects, "redirect")} from old addresses`] : []),
+    `- ${plural(result.written ? result.copied.length : result.plan.media.length, "media file")}`,
+  ];
+  const notes = result.plan.notes.map(markdownNoteLine);
+  const svg = result.skipped.filter((skip) => skip.reason === "type").length;
+  if (svg) {
+    notes.push(
+      `${plural(svg, "SVG image")} ${verb(svg, "wasn't", "weren't")} copied; upload ${verb(svg, "it", "them")} in the admin panel, which makes ${verb(svg, "it", "them")} safe.`,
+    );
+  }
+  if (notes.length) lines.push("", "Check these:", ...notes.map((note) => `- ${note}`));
+  return lines.join("\n");
+}
+
+/**
+ * How folders are imported, from the commands' `--pages` and `--collection`
+ * options, each naming a folder at the top, or `.` for the files at the top.
+ */
+export function markdownFolderChoices(
+  pages: readonly string[] = [],
+  collections: readonly string[] = [],
+): Record<string, MarkdownFolderUse> {
+  const name = (folder: string) => (folder === "." ? "" : folder.replace(/^\.\//, "").replace(/\/+$/, ""));
+  return {
+    ...Object.fromEntries(pages.map((folder) => [name(folder), "pages" as const])),
+    ...Object.fromEntries(collections.map((folder) => [name(folder), "collection" as const])),
+  };
 }

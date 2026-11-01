@@ -53,6 +53,7 @@ import { hasUnsavedChanges, SETTINGS_SECTIONS, useRoute } from "./router.js";
 import { SecurityScreen } from "./security-screen.js";
 import { SETTINGS_TABS, SettingsScreen, type SettingsTab } from "./settings-screen.js";
 import { type SettingsPlace, SettingsSidebar } from "./settings-sidebar.js";
+import { ShortcutsProvider } from "./shortcuts-provider.js";
 import { SignInGate } from "./sign-in.js";
 import { SiteHistoryScreen } from "./site-history-screen.js";
 import { isPreviewAddress, SitePreview } from "./site-preview.js";
@@ -699,7 +700,11 @@ function Shell() {
         {state.status === "loading" && <p className="gfa-screen">{t("loading")}</p>}
         {state.status === "error" && <LoadError error={state.error} />}
         {/* Opening a draft, or leaving one, starts the screen again with what it has, including forms that copied it. */}
-        {state.status === "ready" && <Screen key={state.view} />}
+        {state.status === "ready" && (
+          <ShortcutsProvider>
+            <Screen key={state.view} />
+          </ShortcutsProvider>
+        )}
       </main>
     </div>
   );

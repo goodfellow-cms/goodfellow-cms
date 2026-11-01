@@ -18,9 +18,13 @@ import {
   exportWordPress,
   formatAdminResult,
   formatAdminText,
+  formatMarkdownImport,
   formatWordPressExport,
   formatWordPressImport,
+  importMarkdown,
   importWordPress,
+  MarkdownFolderError,
+  markdownFolderChoices,
   nightlyCheck,
   reportDue,
   reportNightly,
@@ -64,6 +68,13 @@ Commands:
   import    import wordpress <file or address>  brings a WordPress site's pages, posts,
                                    categories, tags, menus and media into this site,
                                    from its export file (Tools → Export) or its address
+            import markdown <folder>  brings a folder of Markdown files into this site:
+                                   the files at the top as pages, and each folder as a
+                                   collection, unless --pages <folder> or --collection
+                                   <folder> (. for the top) says otherwise; with
+                                   --replace-home, --replace-pages, --drafts, --menu
+                                   (adds the top-level pages to the main menu) and
+                                   --keep-fields (keeps other front matter as fields)
   export    export wordpress [file]  writes this site as a WordPress export file, which
                                    WordPress imports with Tools → Import → WordPress
   blocks    blocks add <item>      installs a shadcn registry item (button, @acme/hero, or
@@ -157,6 +168,13 @@ async function main(): Promise<void> {
       react: { type: "boolean" },
       network: { type: "boolean" },
       "dry-run": { type: "boolean" },
+      pages: { type: "string", multiple: true },
+      collection: { type: "string", multiple: true },
+      "replace-home": { type: "boolean" },
+      "replace-pages": { type: "boolean" },
+      drafts: { type: "boolean" },
+      menu: { type: "boolean" },
+      "keep-fields": { type: "boolean" },
       registry: { type: "string" },
       native: { type: "string" },
       help: { type: "boolean", short: "h" },
@@ -360,8 +378,24 @@ async function main(): Promise<void> {
     }
     case "import": {
       const [, kind, from] = positionals;
+      if (kind === "markdown" && from) {
+        const result = await importMarkdown(values.root ?? ".", from, {
+          folders: markdownFolderChoices(values.pages, values.collection),
+          replaceHome: values["replace-home"],
+          replacePages: values["replace-pages"],
+          drafts: values.drafts,
+          menu: values.menu,
+          keepFields: values["keep-fields"],
+          dryRun: values["dry-run"],
+          log: (line) => console.log(line),
+        });
+        console.log(formatMarkdownImport(result));
+        return;
+      }
       if (kind !== "wordpress" || !from) {
-        console.error(`Say "import wordpress" and the export file or the site's address.\n\n${HELP}`);
+        console.error(
+          `Say "import wordpress" and the export file or the site's address, or "import markdown" and the folder.\n\n${HELP}`,
+        );
         process.exitCode = 1;
         return;
       }
@@ -402,6 +436,7 @@ main().catch((error: unknown) => {
     error instanceof BrokerSetupError ||
     error instanceof AdminSetupError ||
     error instanceof WordPressReadError ||
+    error instanceof MarkdownFolderError ||
     error instanceof ShadcnBlockError
   ) {
     console.error(`\n${error.message}\n`);

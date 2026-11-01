@@ -9,6 +9,7 @@ import type {
 } from "@goodfellow-cms/core/wordpress";
 import { useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
+import { MarkdownImportSection } from "./markdown-import.js";
 import { fileName, mediaUrl } from "./media.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
 import { type StringKey, type Translate, useStrings } from "./strings.js";
@@ -396,6 +397,7 @@ export function ImportScreen() {
               </Field>
             </form>
             {stage.kind === "reading" && <p role="status">{t("import.reading")}</p>}
+            <MarkdownImportSection />
             <ExportSection />
           </>
         ) : stage.kind === "done" ? (

@@ -8,7 +8,7 @@ order: 6
 
 A WordPress site can be brought into a Goodfellow site: its pages, posts, categories, tags, menus and media, with WordPress's blocks turned into Goodfellow's and old addresses kept or sent on to the new ones. You can do it in the admin panel, or from the command line, which also copies the media.
 
-Nothing changes on the WordPress site, and you can keep it running until the new site is ready.
+Nothing changes on the WordPress site, and you can keep it running until the new site is ready. A site kept as Markdown files, such as one made with Hugo or Jekyll, comes across with [Import Markdown files](/docs/import-markdown) instead.
 
 ## Where to import from
 
@@ -17,7 +17,7 @@ Nothing changes on the WordPress site, and you can keep it running until the new
 
 ## In the admin panel
 
-1. Go to **Site Settings → WordPress**.
+1. Go to **Site Settings → Import**.
 2. Choose the export file, or type the site's address and click **Read the site**.
 3. Check what will come across: how many pages and posts, where the posts will be, which of the site's pages will be replaced, and anything that couldn't come across as it was.
 4. Click **Import**. Goodfellow copies the media, then publishes everything in one go.
@@ -82,7 +82,7 @@ Importing again brings the site across again, replacing the pages and posts at t
 A Goodfellow site can go to WordPress too, as a WordPress export file, so choosing Goodfellow never locks a site in. The export is also a copy of the site that any WordPress site can read.
 
 1. Set the site's address in **Site Settings → General**, if it hasn't one, since WordPress copies the media from it.
-2. Go to **Site Settings → WordPress** and click **Download the export file**, or run `npx goodfellow export wordpress` in the site's folder (`npx goodfellow-next export wordpress` for a Next.js site), which writes a file named after the site, or the file you name after it.
+2. Go to **Site Settings → Import** and click **Download the export file**, or run `npx goodfellow export wordpress` in the site's folder (`npx goodfellow-next export wordpress` for a Next.js site), which writes a file named after the site, or the file you name after it.
 3. In WordPress, go to **Tools → Import → WordPress**, install the importer if it asks, and choose the file.
 4. Tick **Download and import file attachments**, which copies the media library from the Goodfellow site, and click **Submit**.
 

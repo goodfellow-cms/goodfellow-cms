@@ -61,11 +61,19 @@ Then choose **Restore the site as it was** to put everything back in one publish
 - **What's restored:** everything in `content/` and `public/media/`: pages, collections and their items, the header and footer, Site Settings, menus, redirects, custom CSS and code, photo credits, and media files. The site's code, the blocks added under **Blocks**, and the [update settings](/docs/updates) stay as they are.
 - **Sites that can't be restored:** a version that uses blocks the site doesn't have any more, until they're added again under **Blocks**.
 - **Who can:** Site Settings is for owners, so on a [full-stack Next.js site](/docs/full-stack-nextjs), editors can't restore the whole site.
+
+## Downloading a copy
+
+**Download a copy**, at the top of **Site Settings → Site history**, downloads the site's content as one zip file, named after the site and the day, such as `my-site-2026-11-01.zip`, to keep somewhere safe: everything in `content/` (pages, collections and their items, the header and footer, Site Settings, menus, redirects, custom CSS and code, photo credits and descriptions), the media library in `public/media/`, and the lists of the blocks and plugins the site added (`blocks/installed/installed.json` and `plugins/installed/installed.json`). It's the site as the admin panel shows it, with a draft you're working in included. It works on every site, demos and sites on your own computer too.
+
+It doesn't hold the site's code, such as its own blocks, the blocks added under **Blocks** and its setup files, which are kept where the site is stored: download them there, with **Code → Download ZIP** on GitHub, **Code → Download source code** on GitLab, or **Download repository** in a repository's menu on Bitbucket. Media kept in a [storage service](/docs/media#media-kept-in-a-storage-service) stays there; the copy's `content/media-storage.json` lists it.
+
+To make a site again from a copy, a developer [makes a new site](/docs/create-a-site#with-create-goodfellow) from the same starter, replaces its `content/` and `public/media/` folders with the copy's, adds the blocks and plugins the two lists name (under **Blocks** and **Plugins**, or with `--plugin` when making it), and publishes it. A site whose code was downloaded too needs only the copy's folders put back in it.
 - **Where it works:** as with a page's version history, in the published site's admin panel.
 
 ## Drafts
 
-To publish changes to several pages together, with one rebuild, keep them in a **draft** first. In an editor, **Add to draft**, beside **Publish**, starts a draft with your change instead of publishing it. While you're working in a draft, a bar at the top of every screen says so, and every **Publish** button says **Add to draft**: pages, items, the header and footer, Site Settings and the media library all save into the draft. Visitors don't see any of it until it's published. The bar has:
+To publish changes to several pages together, with one rebuild, keep them in a **draft** first. In an editor, **Add to draft**, beside **Publish**, or Ctrl+S (⌘S on a Mac), starts a draft with your change instead of publishing it. While you're working in a draft, a bar at the top of every screen says so, and every **Publish** button says **Add to draft**: pages, items, the header and footer, Site Settings and the media library all save into the draft. Visitors don't see any of it until it's published. The bar has:
 
 - **Publish all**, which runs the [site checks](#site-checks) over everything in the draft, then publishes it in one change, with one rebuild. If someone else has published changes to the same pages or settings since the draft started, it stops rather than overwriting them, and the draft is kept: submit it for review, or throw it away and make the changes again.
 - **Submit for review**, so someone else checks it first. On GitHub and Bitbucket this opens a pull request, and on GitLab a merge request, asking the site's reviewers to look: every owner, unless [Limits](/docs/sign-in#limiting-what-editors-can-change) names some people. The bar then says the draft is submitted, with **See it** for the review on the host.
