@@ -11,7 +11,8 @@
 // content is kept in a repository of its own.
 // `goodfellow-next import wordpress <file or address> [--dry-run]` imports a WordPress site, as `goodfellow import` does.
 // `goodfellow-next import markdown <folder> [--dry-run]` imports a folder of Markdown files, as `goodfellow import` does.
-// `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, as `goodfellow export` does.
+// `goodfellow-next export wordpress [file]` writes the site as a WordPress export file, and `goodfellow-next export
+// markdown [folder] [--scheduled] [--links site|files]` as a folder of Markdown files, as `goodfellow export` does.
 // `goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]` makes a block of a shadcn item, as
 // `goodfellow blocks add` does, and with --native its version for an Expo app.
 // `goodfellow-next admin add <address>|check|remove` sets the admin address, and `goodfellow-next broker use <address>|remove`
@@ -30,14 +31,17 @@ import {
   checkEarlyTheme,
   checkSiteAdminAddress,
   contentRepositoryProblem,
+  exportMarkdown,
   exportWordPress,
   formatAdminResult,
   formatAdminText,
+  formatMarkdownExport,
   formatMarkdownImport,
   formatWordPressExport,
   formatWordPressImport,
   importMarkdown,
   importWordPress,
+  MarkdownExportError,
   MarkdownFolderError,
   markdownFolderChoices,
   nightlyCheck,
@@ -313,7 +317,12 @@ if (command === "import") {
   }
 }
 if (command === "export") {
-  const [kind, file] = process.argv.slice(3);
+  const { positionals, values } = parseArgs({
+    args: process.argv.slice(3),
+    allowPositionals: true,
+    options: { scheduled: { type: "boolean" }, links: { type: "string" } },
+  });
+  const [kind, file] = positionals;
   const problem = contentRepositoryProblem(".");
   if (problem) {
     console.error(problem);
@@ -322,6 +331,24 @@ if (command === "export") {
   if (kind === "wordpress") {
     console.log(formatWordPressExport(await exportWordPress(".", file)));
     process.exit(0);
+  }
+  if (kind === "markdown") {
+    if (values.links !== undefined && values.links !== "site" && values.links !== "files") {
+      console.error('Say "--links site" or "--links files".');
+      process.exit(1);
+    }
+    try {
+      const result = await exportMarkdown(".", file, {
+        scheduled: values.scheduled === true,
+        ...(values.links && { links: values.links }),
+      });
+      console.log(formatMarkdownExport(result));
+      process.exit(0);
+    } catch (error) {
+      if (!(error instanceof MarkdownExportError)) throw error;
+      console.error(error.message);
+      process.exit(1);
+    }
   }
 }
 if (command === "blocks") {
@@ -363,6 +390,7 @@ if (command !== "finish" && command !== "index") {
       "       goodfellow-next import markdown <folder> [--dry-run] [--pages <folder>] [--collection <folder>]",
       "                                        [--replace-home] [--replace-pages] [--drafts] [--menu] [--keep-fields]",
       "       goodfellow-next export wordpress [file]",
+      "       goodfellow-next export markdown [folder] [--scheduled] [--links site|files]",
       "       goodfellow-next blocks add <item> [--registry <folder>] [--native <app>]",
       "       goodfellow-next admin add <address> | check | remove",
       "       goodfellow-next broker use <address> | remove",
@@ -396,7 +424,9 @@ if (command !== "finish" && command !== "index") {
       "        of Markdown files in: the files at the top as pages, each folder as a collection,",
       "        unless --pages or --collection names it (. for the top).",
       "export  Writes this site as a WordPress export file (default: named after the site),",
-      "        which WordPress imports with Tools → Import → WordPress.",
+      "        which WordPress imports with Tools → Import → WordPress, or as a folder of Markdown",
+      "        files, for Hugo, Jekyll, Eleventy, Astro and notes apps (--scheduled also exports what",
+      "        isn't shown yet, as drafts; --links files links to the files rather than the addresses).",
       "blocks  Installs a shadcn registry item (button, @acme/hero, or an item's address) with",
       "        shadcn's own CLI, makes a block of its component, with fields from its props, and",
       "        says what it couldn't do. With --registry, writes the block into the block registry",

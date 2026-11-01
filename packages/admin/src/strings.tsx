@@ -1939,6 +1939,33 @@ export const defaultStrings = {
   "export.note.noAddress":
     "The site has no address yet, so WordPress can't copy its media. Set it on the General tab, then download the file again.",
   "export.note.layout": "The header and footer aren't in the file. WordPress's theme shows its own, with the menus.",
+  "markdownExport.title": "Export as Markdown",
+  "markdownExport.intro":
+    "Download the site's pages and collection items as Markdown files, with the media library, to use with other website tools such as Hugo, Jekyll, Eleventy or Astro, notes apps such as Obsidian, or AI tools.",
+  "markdownExport.limits":
+    "Markdown keeps words, headings, lists, links, pictures and tables. The site's layout, colors and fonts, the header and footer, and blocks such as forms, calendars and lists of items aren't exported. To keep everything, use Download a copy on the Site history tab instead.",
+  "markdownExport.stored":
+    "Media kept in your storage service isn't in the download: pages link to it where it's kept.",
+  "markdownExport.links": "Links between pages",
+  "markdownExport.links.site": "As the site's addresses, such as /about/ (for website tools)",
+  "markdownExport.links.files": "As links to the files, such as about.md (for notes apps)",
+  "markdownExport.scheduled": "Also export pages and items that aren't shown yet or anymore, marked as drafts",
+  "markdownExport.download": "Download the Markdown files",
+  "markdownExport.working": "Adding files to the download: {done} of {total}",
+  "markdownExport.done": "Downloaded the Markdown files.",
+  "markdownExport.error": "The Markdown files couldn't be made.",
+  "markdownExport.summary.items": "Collection items: {count}",
+  "markdownExport.summary.media": "Media files: {count}",
+  "markdownExport.note.leftOutBlock": "Markdown can't hold the {name} block, so it was left out: {items}.",
+  "markdownExport.note.scheduledLeftOut":
+    "Not shown now, by their schedule, so they were left out: {items}. Check the box above to include them as drafts.",
+  "markdownExport.note.scheduledIncluded": "Not shown now, by their schedule, so they're marked as drafts: {items}.",
+  "markdownExport.note.noPages":
+    "These collections have no pages of their own, so their items are in folders starting with _: {collections}.",
+  "markdownExport.note.templates":
+    "The page designs of these collections weren't exported: each item is its own details and text. {collections}.",
+  "markdownExport.note.redirects": "Redirects that don't go to an exported page aren't in the files: {count}.",
+  "markdownExport.note.layout": "The header and footer aren't in the files. The menus are, in menus.json.",
   "updates.intro":
     "Goodfellow, the software the site runs on, gets fixes and new releases. Fixes install on their own each night, and only once the site has been checked to still build with them.",
   "updates.contentOnly":

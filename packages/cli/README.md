@@ -8,6 +8,7 @@ npx goodfellow build     # writes the site to dist/
 npx goodfellow preview   # serves dist/
 npx goodfellow import wordpress export.xml   # brings a WordPress site's pages, posts and media in
 npx goodfellow export wordpress              # writes the site as a WordPress export file
+npx goodfellow export markdown               # writes the site as a folder of Markdown files
 npx goodfellow broker add --host gitlab-pages # writes the site's token broker beside it
 npx goodfellow sign-in client-id <id>          # Sign in with GitLab or Bitbucket, or `sign-in service <address>` on GitHub
 npx goodfellow admin check  # checks the admin address named with goodfellow admin add, then uses it
