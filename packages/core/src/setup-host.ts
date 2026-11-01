@@ -76,9 +76,23 @@ export type SetupWarning =
   | "sign-in-not-installed"
   /**
    * The code and content repositories couldn't be connected, such as where the
-   * sign-in can't add deploy keys or secrets: their setup files say what to add.
+   * sign-in can't add deploy keys or secrets: their setup files say what to add,
+   * and `unconnected` says what's left where the host says.
    */
   | "connect-unavailable";
+
+/**
+ * A connection between a site's code and content repositories that creating
+ * it couldn't make, for the person to make in the host's settings, with what
+ * the host answered as `reason`, for the setup page's Details.
+ */
+export type UnmadeConnection =
+  /** `reader`'s pipelines can't read `read` yet: add `reader` to `read`'s job token allowlist (GitLab). */
+  | { kind: "read"; reader: string; read: string; reason: string }
+  /** `repo`'s pipelines can't publish Goodfellow's updates yet: allow its job token to push (GitLab). */
+  | { kind: "push"; repo: string; reason: string }
+  /** `repo` has no pipeline schedule to run each night yet (GitLab). */
+  | { kind: "nightly"; repo: string; reason: string };
 
 export interface CreatedSiteRepository {
   /** `owner/name`, or the GitLab project's full path. */
@@ -94,6 +108,8 @@ export interface CreatedSiteRepository {
   /** Where to install the sign-in service's app on the repository, so editors can sign in with it. */
   signInInstallUrl?: string;
   warnings: SetupWarning[];
+  /** With `connect-unavailable`, what's left to connect, where the host can say. */
+  unconnected?: UnmadeConnection[];
 }
 
 /** Why a site couldn't be created, in a form the setup page turns into plain words. */

@@ -55,7 +55,8 @@
     "@goodfellow-cms/example-parish": "workspace:*",
     "@goodfellow-cms/registry": "workspace:*",
     "@goodfellow-cms/template-next": "workspace:*",
-    "@goodfellow-cms/template-starter": "workspace:*"
+    "@goodfellow-cms/template-starter": "workspace:*",
+    "@goodfellow-cms/worker": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

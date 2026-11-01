@@ -1281,6 +1281,74 @@ export const defaultStrings = {
   "security.broker.stopMessage": "Stop signing in at {address}",
   "security.broker.stopBody":
     "Once the site has been rebuilt, editors sign in in the admin panel itself again, which keeps their sign-in where the site's pages could reach it, and blocks from registries other than Goodfellow's can't be added there.",
+  "domain.signInSettings": "Sign-in settings",
+  "signInSetup.service.title": "Sign in with {host}",
+  "signInSetup.app.title": "Sign in with {host}",
+  "signInSetup.error": "The sign-in setting couldn't be published.",
+  "signInSetup.remove": "Stop using it",
+  "signInSetup.contentOnly":
+    "This site's config is kept with its code, which this sign-in can't publish. A developer runs this in the code's folder, then publishes the change:",
+  "signInSetup.handWritten":
+    "The site's config says where the site is stored in a way this screen can't change. A developer adds {key} to its backend line by hand.",
+  "signInSetup.copy": "Copy",
+  "signInSetup.copied": "Copied",
+  "signInSetup.or": "or",
+  "signInSetup.service.using":
+    "Editors can choose Sign in with GitHub, through the sign-in service at {address}. Changes show once the site has rebuilt.",
+  "signInSetup.service.message": "Sign in with GitHub through {address}",
+  "signInSetup.service.removeMessage": "Stop signing in through {address}",
+  "signInSetup.service.intro":
+    "Without a sign-in service, editors sign in with a token. With one, they choose Sign in with GitHub. It runs free on your own Cloudflare account, keeps nothing, and you set it up from your browser:",
+  "signInSetup.service.step.deploy":
+    "Put it online with Cloudflare's button, which copies it into your GitHub account and deploys it:",
+  "signInSetup.service.deploy": "Deploy to Cloudflare",
+  "signInSetup.service.step.setup":
+    "Open its address with /setup after it. It asks for a Cloudflare token, made from a link that fills it in, and your sites' addresses, then makes its two GitHub Apps with you.",
+  "signInSetup.service.step.use": "Put its address here and choose Use this sign-in service.",
+  "signInSetup.service.more": "How the sign-in service works",
+  "signInSetup.service.field": "The sign-in service's address",
+  "signInSetup.service.fieldHint": "Such as https://sign-in.your-name.workers.dev.",
+  "signInSetup.service.problem.invalid": "That needs to be an https:// address, with nothing after the domain.",
+  "signInSetup.service.problem.unset":
+    "That sign-in service isn't set up yet. Finish its setup page, at its address with /setup after it, first.",
+  "signInSetup.service.problem.unreachable":
+    "Nothing answered at that address as a sign-in service. Check the address, and that the service is deployed.",
+  "signInSetup.service.use": "Use this sign-in service",
+  "signInSetup.app.intro":
+    "Without this, editors sign in with a token. Register the admin panel with {host} once, and they choose Sign in with {host}. {host} doesn't let other sites do it for you, so it takes {host}'s own form, filled in with these values:",
+  "signInSetup.app.noAddress":
+    "Put the site's address in General → Site address first: the form needs the admin panel's address.",
+  "signInSetup.app.name": "Name",
+  "signInSetup.app.on": "Editors can choose Sign in with {host}. Changes show once the site has rebuilt.",
+  "signInSetup.app.message": "Sign in with {host}",
+  "signInSetup.app.removeMessage": "Stop signing in with {host}",
+  "signInSetup.app.turnOn": "Turn on Sign in with {host}",
+  "signInSetup.app.after":
+    "Once the site has rebuilt, sign out and choose Sign in with {host} to try it. If {host} says the address isn't allowed, check the addresses in its form match the ones above.",
+  "signInSetup.app.problem": "That doesn't look like what {host} shows. Copy it again.",
+  "signInSetup.app.gitlab.open": "Open GitLab's form for a new application,",
+  "signInSetup.app.gitlab.group": "in the {group} group",
+  "signInSetup.app.gitlab.own": "in your own account",
+  "signInSetup.app.gitlab.fill": "Choose Add new application, and fill it in with these:",
+  "signInSetup.app.gitlab.redirect": "Redirect URI",
+  "signInSetup.app.gitlab.settings":
+    "Untick Confidential, tick the api scope, and choose Save application. An application in the group keeps working when people leave it.",
+  "signInSetup.app.gitlab.copyId":
+    "Copy the Application ID GitLab shows (not the Secret, which isn't needed), and paste it below.",
+  "signInSetup.app.gitlab.field": "Application ID",
+  "signInSetup.app.gitlab.keep":
+    "The application's redirect URIs need every address the admin panel is at: {addresses}.",
+  "signInSetup.app.bitbucket.open": "Open Bitbucket's OAuth consumers for the workspace:",
+  "signInSetup.app.bitbucket.consumers": "{workspace}'s OAuth consumers",
+  "signInSetup.app.bitbucket.fill": "Choose Add consumer, and fill it in with these:",
+  "signInSetup.app.bitbucket.callback": "Callback URL",
+  "signInSetup.app.bitbucket.permissions": "Permissions",
+  "signInSetup.app.bitbucket.settings":
+    "Leave This is a private consumer unticked, tick those permissions, and choose Save.",
+  "signInSetup.app.bitbucket.copyId":
+    "Open the consumer, copy its Key (not the Secret, which isn't needed), and paste it below.",
+  "signInSetup.app.bitbucket.field": "Key",
+  "signInSetup.app.bitbucket.keep": "The consumer's callback URL needs to be where the admin panel is: {addresses}.",
   "broker.elsewhere":
     "Editors sign in to this site on its own sign-in page, which keeps your sign-in where the site's pages can't reach it, and shows the admin panel from there.",
   "broker.open": "Go to the sign-in page",

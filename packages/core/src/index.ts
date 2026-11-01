@@ -1273,7 +1273,18 @@ export {
   type SetupProblem,
   type SetupStep,
   type SetupWarning,
+  type UnmadeConnection,
 } from "./setup-host.js";
+export {
+  type ConfigBackendHost,
+  configBackendHost,
+  configBackendOption,
+  type SignInOption,
+  signInClientIdProblem,
+  signInRedirectAddresses,
+  signInServiceProblem,
+  withBackendOption,
+} from "./sign-in-config.js";
 export {
   adminSiteForCopy,
   describedForCopy,

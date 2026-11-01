@@ -19,6 +19,7 @@ import { OwnerTokenActive, OwnerTokenForm } from "./owner-token.js";
 import { useOutsideHost } from "./site-host.js";
 import { useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage, TextField } from "./ui.js";
+import { AppLink } from "./use-link.js";
 
 /** How often the screen checks again on its own while the domain isn't working yet. */
 const CHECK_INTERVAL = 30_000;
@@ -306,7 +307,10 @@ export function ConnectedDomain({
         <strong>{t(admin ? "domain.admin.connected" : "domain.connected", { domain })}</strong>
       </p>
       {account?.redirectAddressesListed && (
-        <p className="gfa-notice">{t("domain.signIn", { host, address: `${address}/admin/` })}</p>
+        <p className="gfa-notice">
+          {t("domain.signIn", { host, address: `${address}/admin/` })}{" "}
+          <AppLink href="#/settings/security">{t("domain.signInSettings")}</AppLink>
+        </p>
       )}
       {done && (
         <p className="gfa-notice gfa-notice-success" role="status">

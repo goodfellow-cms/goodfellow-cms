@@ -1093,6 +1093,29 @@ body,
   margin: 0 0 8px;
 }
 
+/* A value to copy into another site's form, with its own copy button. */
+.gfa-copy-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.gfa-copy-label {
+  min-width: 10rem;
+  font-weight: 600;
+}
+
+.gfa-copy-value code {
+  padding: 2px 6px;
+  border: 1px solid var(--gfa-border);
+  border-radius: 4px;
+  background: var(--gfa-checker);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .gfa-token-links {
   margin: 0 0 8px;
   padding-left: 18px;

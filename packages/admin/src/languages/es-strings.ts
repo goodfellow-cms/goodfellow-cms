@@ -1155,6 +1155,75 @@ export const strings: Strings = {
   "security.broker.stopMessage": "Dejar de iniciar sesión en {address}",
   "security.broker.stopBody":
     "Cuando el sitio se haya generado, se volverá a iniciar sesión en el propio panel de administración, que guarda las sesiones donde las páginas del sitio podrían alcanzarlas, y allí no se pueden añadir bloques de catálogos distintos del de Goodfellow.",
+  "domain.signInSettings": "Ajustes de inicio de sesión",
+  "signInSetup.service.title": "Iniciar sesión con {host}",
+  "signInSetup.app.title": "Iniciar sesión con {host}",
+  "signInSetup.error": "No se pudo publicar el ajuste de inicio de sesión.",
+  "signInSetup.remove": "Dejar de usarlo",
+  "signInSetup.contentOnly":
+    "La configuración de este sitio se guarda con su código, que esta sesión no puede publicar. Un desarrollador ejecuta esto en la carpeta del código y luego publica el cambio:",
+  "signInSetup.handWritten":
+    "La configuración del sitio indica dónde se guarda el sitio de una forma que esta pantalla no puede cambiar. Un desarrollador añade {key} a su línea backend a mano.",
+  "signInSetup.copy": "Copiar",
+  "signInSetup.copied": "Copiado",
+  "signInSetup.or": "o",
+  "signInSetup.service.using":
+    "Se puede elegir Iniciar sesión con GitHub, a través del servicio de inicio de sesión en {address}. Los cambios se ven cuando el sitio se haya generado.",
+  "signInSetup.service.message": "Iniciar sesión con GitHub a través de {address}",
+  "signInSetup.service.removeMessage": "Dejar de iniciar sesión a través de {address}",
+  "signInSetup.service.intro":
+    "Sin un servicio de inicio de sesión, se inicia sesión con un token. Con uno, se elige Iniciar sesión con GitHub. Funciona gratis en tu propia cuenta de Cloudflare, no guarda nada y se configura desde el navegador:",
+  "signInSetup.service.step.deploy":
+    "Ponlo en línea con el botón de Cloudflare, que lo copia en tu cuenta de GitHub y lo despliega:",
+  "signInSetup.service.deploy": "Deploy to Cloudflare",
+  "signInSetup.service.step.setup":
+    "Abre su dirección con /setup al final. Te pide un token de Cloudflare, creado desde un enlace que lo rellena, y las direcciones de tus sitios, y luego crea contigo sus dos GitHub Apps.",
+  "signInSetup.service.step.use": "Pon aquí su dirección y elige Usar este servicio de inicio de sesión.",
+  "signInSetup.service.more": "Cómo funciona el servicio de inicio de sesión",
+  "signInSetup.service.field": "La dirección del servicio de inicio de sesión",
+  "signInSetup.service.fieldHint": "Como https://sign-in.tu-nombre.workers.dev.",
+  "signInSetup.service.problem.invalid": "Tiene que ser una dirección https://, sin nada después del dominio.",
+  "signInSetup.service.problem.unset":
+    "Ese servicio de inicio de sesión aún no está configurado. Termina primero su página de configuración, en su dirección con /setup al final.",
+  "signInSetup.service.problem.unreachable":
+    "Nada respondió en esa dirección como servicio de inicio de sesión. Revisa la dirección y que el servicio esté desplegado.",
+  "signInSetup.service.use": "Usar este servicio de inicio de sesión",
+  "signInSetup.app.intro":
+    "Sin esto, se inicia sesión con un token. Registra una vez el panel de administración en {host} y se podrá elegir Iniciar sesión con {host}. {host} no deja que otros sitios lo hagan por ti, así que se hace en el propio formulario de {host}, rellenado con estos valores:",
+  "signInSetup.app.noAddress":
+    "Pon primero la dirección del sitio en General → Dirección del sitio: el formulario necesita la dirección del panel de administración.",
+  "signInSetup.app.name": "Nombre",
+  "signInSetup.app.on":
+    "Se puede elegir Iniciar sesión con {host}. Los cambios se ven cuando el sitio se haya generado.",
+  "signInSetup.app.message": "Iniciar sesión con {host}",
+  "signInSetup.app.removeMessage": "Dejar de iniciar sesión con {host}",
+  "signInSetup.app.turnOn": "Activar Iniciar sesión con {host}",
+  "signInSetup.app.after":
+    "Cuando el sitio se haya generado, cierra la sesión y elige Iniciar sesión con {host} para probarlo. Si {host} dice que la dirección no está permitida, comprueba que las direcciones de su formulario coinciden con las de arriba.",
+  "signInSetup.app.problem": "Eso no parece lo que muestra {host}. Cópialo de nuevo.",
+  "signInSetup.app.gitlab.open": "Abre el formulario de GitLab para una nueva aplicación,",
+  "signInSetup.app.gitlab.group": "en el grupo {group}",
+  "signInSetup.app.gitlab.own": "en tu propia cuenta",
+  "signInSetup.app.gitlab.fill": "Elige Add new application y rellénalo con esto:",
+  "signInSetup.app.gitlab.redirect": "Redirect URI",
+  "signInSetup.app.gitlab.settings":
+    "Desmarca Confidential, marca el ámbito api y elige Save application. Una aplicación del grupo sigue funcionando cuando alguien se va.",
+  "signInSetup.app.gitlab.copyId":
+    "Copia el Application ID que muestra GitLab (no el Secret, que no hace falta) y pégalo abajo.",
+  "signInSetup.app.gitlab.field": "Application ID",
+  "signInSetup.app.gitlab.keep":
+    "Las redirect URIs de la aplicación necesitan todas las direcciones donde está el panel de administración: {addresses}.",
+  "signInSetup.app.bitbucket.open": "Abre los OAuth consumers de Bitbucket del espacio de trabajo:",
+  "signInSetup.app.bitbucket.consumers": "OAuth consumers de {workspace}",
+  "signInSetup.app.bitbucket.fill": "Elige Add consumer y rellénalo con esto:",
+  "signInSetup.app.bitbucket.callback": "Callback URL",
+  "signInSetup.app.bitbucket.permissions": "Permisos",
+  "signInSetup.app.bitbucket.settings": "Deja sin marcar This is a private consumer, marca esos permisos y elige Save.",
+  "signInSetup.app.bitbucket.copyId":
+    "Abre el consumer, copia su Key (no el Secret, que no hace falta) y pégala abajo.",
+  "signInSetup.app.bitbucket.field": "Key",
+  "signInSetup.app.bitbucket.keep":
+    "La callback URL del consumer tiene que ser donde está el panel de administración: {addresses}.",
   "broker.elsewhere":
     "En este sitio se inicia sesión en su propia página de inicio de sesión, que guarda tu sesión donde las páginas del sitio no pueden alcanzarla, y muestra el panel de administración desde allí.",
   "broker.open": "Ir a la página de inicio de sesión",

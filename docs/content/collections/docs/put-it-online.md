@@ -89,19 +89,19 @@ If the host serves the site from a subfolder, such as `/your-site/` on GitHub Pa
 
 ## 4. Set up sign-in
 
-**GitHub:** editors sign in with an access token, created from a link that chooses the right permissions; see [Editors and sign-in](/docs/sign-in). For one-click **Sign in with GitHub**, run a [sign-in service](/docs/sign-in-service), name it in the site's config, and put the site's address in **Site settings**. The first time you sign in at `/admin`, the sign-in screen then offers to install the service's app on the repository, which signs you in too.
+**GitHub:** editors sign in with an access token, created from a link that chooses the right permissions; see [Editors and sign-in](/docs/sign-in). For one-click **Sign in with GitHub**, put a [sign-in service](/docs/sign-in-service#put-it-online-from-your-browser) online from your browser with Cloudflare's Deploy to Cloudflare button, name it under **Site Settings → Security**, and put the site's address in **Site settings**. The first time you sign in at `/admin`, the sign-in screen then offers to install the service's app on the repository, which signs you in too.
 
-**GitLab:** editors can sign in with an access token straight away. For one-click **Sign in with GitLab**, register the admin panel with GitLab once:
+**GitLab:** editors can sign in with an access token straight away. For one-click **Sign in with GitLab**, register the admin panel with GitLab once. **Site Settings → Security** walks you through it, with each value to copy and a link to GitLab's form, then publishes the Application ID for you. By hand:
 
 1. Go to your profile's **Preferences → Applications** (or a group's **Settings → Applications**) and add an application.
 2. Set the **Redirect URI** to the admin panel's address with a trailing slash, such as `https://your-site.example/admin/`, leave **Confidential** off, and choose the `api` scope.
-3. Copy the **Application ID** into the config: `gitlab({ project: "your-name/your-site", clientId: "…" })`. If the site moves to a domain of its own later, add its new admin address as a redirect URI too.
+3. Copy the **Application ID** into the config: `gitlab({ project: "your-name/your-site", clientId: "…" })`, or run `npx goodfellow sign-in client-id <the ID>`. If the site moves to a domain of its own later, add its new admin address as a redirect URI too.
 
-**Bitbucket:** editors can sign in with a repository access token or an Atlassian API token straight away (see [Editors and sign-in](/docs/sign-in#bitbucket)). For one-click **Sign in with Bitbucket**, register the admin panel with Bitbucket once:
+**Bitbucket:** editors can sign in with a repository access token or an Atlassian API token straight away (see [Editors and sign-in](/docs/sign-in#bitbucket)). For one-click **Sign in with Bitbucket**, register the admin panel with Bitbucket once. **Site Settings → Security** walks you through it, as for GitLab, then publishes the consumer's Key. By hand:
 
 1. In the workspace's **Settings → OAuth consumers**, add a consumer.
 2. Set the **Callback URL** to the admin panel's address with a trailing slash, such as `https://your-site.example/admin/`, leave **This is a private consumer** off, and give it the **Account: Read**, **Repositories: Write**, **Pull requests: Write** and **Pipelines: Write** permissions.
-3. Copy the consumer's **Key** into the config: `bitbucket({ repo: "your-workspace/your-site", clientId: "…" })`. If the site moves to a domain of its own later, change the callback URL to its new admin address.
+3. Copy the consumer's **Key** into the config: `bitbucket({ repo: "your-workspace/your-site", clientId: "…" })`, or run `npx goodfellow sign-in client-id <the Key>`. If the site moves to a domain of its own later, change the callback URL to its new admin address.
 
 Every editor needs permission to change the repository: on GitHub, write access; on GitLab, the Developer role or higher; on Bitbucket, Write.
 

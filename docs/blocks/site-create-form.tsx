@@ -25,6 +25,7 @@ import {
   separateSetupLinks,
   sitePackageName,
   TEMPLATES,
+  type UnmadeConnection,
   withBase,
 } from "@goodfellow-cms/core";
 import { githubSetup } from "@goodfellow-cms/github";
@@ -703,6 +704,72 @@ function TokenForm({
   );
 }
 
+/**
+ * What GitLab didn't let the setup page connect between the site's projects,
+ * each with where to do it by hand and, under Details, what GitLab answered.
+ */
+function Unconnected({ left, repos }: { left: UnmadeConnection[]; repos: CreatedSiteRepository[] }) {
+  // Each project's own page on GitLab, from the ones just created.
+  const page = (repo: string) => repos.find((created) => created.repo === repo)?.webUrl;
+  const at = (repo: string, path: string, words: string) => {
+    const web = page(repo);
+    return web ? (
+      <SiteLink className={link} href={`${web}${path}`} target="_blank" rel="noopener noreferrer">
+        {words}
+      </SiteLink>
+    ) : (
+      words
+    );
+  };
+  return (
+    // A paragraph can't hold the list, so this is Note's warning as a box of its own.
+    <div role="alert" className="grid gap-2 rounded-lg border-2 border-primary bg-muted p-3 text-sm font-medium">
+      <p>The site was created, but GitLab didn't let this page finish connecting its two projects. What's left:</p>
+      <ul className="list-disc ps-6">
+        {left.map((unmade) => (
+          <li
+            key={`${unmade.kind} ${"reader" in unmade ? unmade.reader : ""} ${"read" in unmade ? unmade.read : unmade.repo}`}
+          >
+            {unmade.kind === "read" ? (
+              <>
+                In {unmade.read}'s{" "}
+                {at(unmade.read, "/-/settings/ci_cd#js-token-access", "Settings → CI/CD → Job token permissions")}, add{" "}
+                {unmade.reader} under Authorized groups and projects, so its pipelines can read it.
+              </>
+            ) : unmade.kind === "push" ? (
+              <>
+                In {unmade.repo}'s{" "}
+                {at(unmade.repo, "/-/settings/ci_cd#js-token-access", "Settings → CI/CD → Job token permissions")}, turn
+                on Allow Git push requests to the repository, so it can install Goodfellow's fixes.
+              </>
+            ) : (
+              <>
+                In {unmade.repo}, {at(unmade.repo, "/-/pipeline_schedules/new", "add a pipeline schedule")} for the main
+                branch that runs each night, such as at <code>17 4 * * *</code>.
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      <details>
+        <summary>Details</summary>
+        <ul className="ps-6">
+          {left.map((unmade) => (
+            <li key={`${unmade.kind} ${unmade.reason} ${"read" in unmade ? unmade.read : unmade.repo}`}>
+              {unmade.kind === "read"
+                ? `${unmade.reader} reading ${unmade.read}`
+                : unmade.kind === "push"
+                  ? `${unmade.repo} publishing updates`
+                  : `${unmade.repo}'s nightly schedule`}
+              : {unmade.reason}
+            </li>
+          ))}
+        </ul>
+      </details>
+    </div>
+  );
+}
+
 function RepoLink({ repo }: { repo: CreatedSiteRepository }) {
   return (
     <SiteLink className={link} href={repo.webUrl} target="_blank" rel="noopener noreferrer">
@@ -848,16 +915,19 @@ function Created({
           Security.
         </Note>
       )}
-      {created.warnings.includes("connect-unavailable") && (
-        <Note tone="warning">
-          The two repositories couldn't be set up to read each other, perhaps because this sign-in can't add deploy keys
-          or secrets. Follow the steps for private repositories in{" "}
-          <SiteLink className={link} href="/docs/content-repository">
-            Content in a repository of its own
-          </SiteLink>
-          , and each setup file's notes.
-        </Note>
-      )}
+      {created.warnings.includes("connect-unavailable") &&
+        (created.unconnected?.length ? (
+          <Unconnected left={created.unconnected} repos={[created, ...(code ? [code] : [])]} />
+        ) : (
+          <Note tone="warning">
+            The two repositories couldn't be set up to read each other, perhaps because this sign-in can't add deploy
+            keys or secrets. Follow the steps for private repositories in{" "}
+            <SiteLink className={link} href="/docs/content-repository">
+              Content in a repository of its own
+            </SiteLink>
+            , and each setup file's notes.
+          </Note>
+        ))}
       {created.signInInstallUrl && (
         <Note>
           The first time you open the site's admin panel, Sign in with GitHub offers to install Goodfellow's sign-in on

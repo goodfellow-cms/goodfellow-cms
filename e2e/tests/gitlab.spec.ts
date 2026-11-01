@@ -40,3 +40,46 @@ test("offers a token instead of GitLab sign-in", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("link", { name: "About us", exact: true })).toBeVisible();
 });
+
+test("walks an owner through registering the admin panel with GitLab, then turns on Sign in with GitLab", async ({
+  page,
+}) => {
+  const site = { ...JSON.parse(files()["content/site.json"] ?? "{}"), url: "https://parish.example" };
+  const fake = fakeGitLab({
+    project: "parish/site",
+    files: {
+      ...files(),
+      "content/site.json": `${JSON.stringify(site, null, 2)}\n`,
+      "goodfellow.config.tsx":
+        'import { gitlab } from "@goodfellow-cms/gitlab";\nexport default defineConfig({\n  backend: gitlab({ project: "parish/site" }),\n});\n',
+    },
+    tokens: { "glpat-test": { username: "maria" } },
+  });
+  await routeToFake(page, "https://gitlab.com/api", fake.handle);
+  await page.goto(`${GITLAB_SITE}/admin/`);
+  await page.getByText("Or sign in with an access token").click();
+  await page.getByLabel("Access token").fill("glpat-test");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("link", { name: "About us", exact: true })).toBeVisible();
+
+  await page.goto(`${GITLAB_SITE}/admin/#/settings/security`);
+  await expect(page.getByRole("heading", { name: "Sign in with GitLab" })).toBeVisible();
+  // Every value GitLab's form needs, with a link to the form in the project's group.
+  await expect(page.locator(".gfa-copy-value").filter({ hasText: "Redirect URI" })).toContainText(
+    "https://parish.example/admin/",
+  );
+  await expect(page.getByRole("link", { name: "in the parish group" })).toHaveAttribute(
+    "href",
+    "https://gitlab.com/groups/parish/-/settings/applications",
+  );
+
+  await page.getByLabel("Application ID").fill("not an id");
+  await page.getByRole("button", { name: "Turn on Sign in with GitLab" }).click();
+  await expect(page.getByText("doesn't look like what GitLab shows")).toBeVisible();
+  await page.getByLabel("Application ID").fill("5832fc6e14300a0d962240a8144466ee");
+  await page.getByRole("button", { name: "Turn on Sign in with GitLab" }).click();
+  await expect
+    .poll(() => fake.repo.files().get("goodfellow.config.tsx"))
+    .toContain('backend: gitlab({ project: "parish/site", clientId: "5832fc6e14300a0d962240a8144466ee" }),');
+  await expect(page.getByText("Editors can choose Sign in with GitLab")).toBeVisible();
+});

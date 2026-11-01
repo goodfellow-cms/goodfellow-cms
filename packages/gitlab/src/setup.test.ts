@@ -115,6 +115,78 @@ describe("gitlabSetup", () => {
     expect(content.schedules).toEqual([]);
   });
 
+  it("schedules the nightly pipeline of the project it's creating once it has its files", async () => {
+    const fake = fakeGitLab({
+      project: "someone/existing",
+      groups: ["st-joseph"],
+      tokens: { t: { username: "someone" } },
+    });
+    const account = await gitlabSetup({ fetch: fake.fetch }).signInWithToken("t");
+    const group = (await account.owners())[1];
+    if (!group) throw new Error("no group");
+    const base = { owner: group, private: false, files, message: "Create" };
+    await account.createSite({ ...base, name: "site", pages: false, more: true });
+    const result = await account.createSite({
+      ...base,
+      name: "site-content",
+      pages: false,
+      link: {
+        code: "st-joseph/site",
+        content: "st-joseph/site-content",
+        private: false,
+        // Vercel builds from the code, so the content project asks it to rebuild each night.
+        links: separateSetupLinks({ git: "gitlab", host: "vercel", build: "code" }),
+      },
+    });
+    expect(result.warnings).toEqual([]);
+    expect(fake.created.get("st-joseph/site-content")?.schedules).toHaveLength(1);
+  });
+
+  it("makes every connection GitLab allows, and says which are left and what GitLab answered", async () => {
+    const fake = fakeGitLab({
+      project: "someone/existing",
+      groups: ["st-joseph"],
+      tokens: { t: { username: "someone" } },
+      refuseConnections: ["allowlist"],
+    });
+    const account = await gitlabSetup({ fetch: fake.fetch }).signInWithToken("t");
+    const group = (await account.owners())[1];
+    if (!group) throw new Error("no group");
+    const base = { owner: group, private: true, files, message: "Create" };
+    await account.createSite({ ...base, name: "site", pages: false, more: true });
+    const result = await account.createSite({
+      ...base,
+      name: "site-content",
+      pages: true,
+      link: {
+        code: "st-joseph/site",
+        content: "st-joseph/site-content",
+        private: true,
+        links: separateSetupLinks({ git: "gitlab", host: "gitlab-pages", build: "content" }),
+      },
+    });
+    expect(result.warnings).toEqual(["connect-unavailable"]);
+    expect(result.unconnected).toEqual([
+      {
+        kind: "read",
+        reader: "st-joseph/site-content",
+        read: "st-joseph/site",
+        reason: expect.stringContaining("403"),
+      },
+      {
+        kind: "read",
+        reader: "st-joseph/site",
+        read: "st-joseph/site-content",
+        reason: expect.stringContaining("403"),
+      },
+    ]);
+    // The rest is made all the same, and the site's files written.
+    const code = fake.created.get("st-joseph/site");
+    expect(code?.jobTokenPush).toBe(true);
+    expect(code?.schedules).toHaveLength(1);
+    expect(fake.created.get("st-joseph/site-content")?.repo.files().size).toBeGreaterThan(0);
+  });
+
   it("signs in by redirect with PKCE, keeping nothing but the pending sign-in", async () => {
     const fake = fakeGitLab({
       project: "someone/existing",

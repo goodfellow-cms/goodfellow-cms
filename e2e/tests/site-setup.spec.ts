@@ -274,6 +274,42 @@ test("creates a site's code and content projects on GitLab, letting each pipelin
   expect(text(content.repo.files().get(".gitlab-ci.yml"))).toContain("/st-joseph/website.git");
 });
 
+test("says what's left to connect on GitLab, where it refuses a step, and where to do it", async ({ page }) => {
+  const gitlab = fakeGitLab({
+    project: "someone/existing",
+    groups: ["st-joseph"],
+    tokens: { "gl-token": { username: "someone", name: "Some One" } },
+    refuseConnections: ["schedule"],
+  });
+  await routeToFake(page, "https://gitlab.com", gitlab.handle);
+  await page.goto(SETUP, { waitUntil: "networkidle" });
+  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "GitLab").check();
+  await openAdvanced(page);
+  await radio(page, "Built-in blocks only").check();
+  await radio(page, "In a repository of its own").check();
+  await continueToCreate(page);
+  await page.getByRole("button", { name: "paste a token" }).click();
+  await signIn(page, "gl-token");
+  await page.getByLabel("Account or group").selectOption("st-joseph");
+  await page.getByLabel("Name", { exact: true }).fill("website");
+  await page.getByRole("button", { name: "Create the site" }).click();
+
+  await expect(page.getByRole("heading", { name: "Your site has been created" })).toBeVisible();
+  const left = page.getByRole("alert").filter({ hasText: "What's left" });
+  await expect(left).toContainText("In st-joseph/website,");
+  await expect(left.getByRole("link", { name: "add a pipeline schedule" })).toHaveAttribute(
+    "href",
+    "https://gitlab.com/st-joseph/website/-/pipeline_schedules/new",
+  );
+  await left.getByText("Details").click();
+  await expect(left).toContainText("st-joseph/website's nightly schedule: GitLab answered 400");
+  // Everything else was connected all the same.
+  const code = gitlab.created.get("st-joseph/website");
+  expect(code?.jobTokenPush).toBe(true);
+  expect(code?.jobTokenAllowlist).toHaveLength(1);
+});
+
 test("creates a site on GitLab with a sign-in page of its own, on the project's unique domain", async ({ page }) => {
   const gitlab = fakeGitLab({ project: "someone/existing", tokens: { "gl-token": { username: "someone" } } });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);

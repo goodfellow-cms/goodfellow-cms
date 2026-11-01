@@ -13,6 +13,7 @@
       "!**/.turbo",
       "!**/public",
       "!pnpm-lock.yaml",
+      "!**/package-lock.json",
       "!packages/registry/site/components",
       "!packages/registry/shadcn.json"
     ]

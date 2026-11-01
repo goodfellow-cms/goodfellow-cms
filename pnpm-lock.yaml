@@ -746,6 +746,9 @@ importers:
       '@goodfellow-cms/template-starter':
         specifier: workspace:*
         version: link:../../templates/starter
+      '@goodfellow-cms/worker':
+        specifier: workspace:*
+        version: link:../worker
 
   packages/expo:
     dependencies:

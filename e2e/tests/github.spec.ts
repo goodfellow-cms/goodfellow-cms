@@ -227,3 +227,37 @@ test("adds a token broker: makes its repository from the released page, then pub
     .poll(() => fake.repo.files().get("goodfellow.config.tsx"))
     .toContain('broker: { url: "https://signin.example.org" },');
 });
+
+test("names the site's sign-in service once it's set up, for Sign in with GitHub", async ({ page }) => {
+  const site = { ...JSON.parse(files()["content/site.json"] ?? "{}"), url: "https://parish.example" };
+  const fake = await setup(page, {
+    files: {
+      ...files(),
+      "content/site.json": `${JSON.stringify(site, null, 2)}\n`,
+      "goodfellow.config.tsx":
+        'import { github } from "@goodfellow-cms/github";\nexport default defineConfig({\n  blocks,\n  backend: github({ repo: "parish/site" }),\n});\n',
+    },
+  });
+  let ready = false;
+  await page.route("https://sign-in.parish.example/health", (route) =>
+    route.fulfill({ json: { ok: ready, apps: {} }, headers: { "access-control-allow-origin": "*" } }),
+  );
+  await signIn(page);
+  await page.goto(`${GITHUB_SITE}/admin/#/settings/security`);
+  await expect(page.getByRole("heading", { name: "Sign in with GitHub" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Deploy to Cloudflare" })).toHaveAttribute(
+    "href",
+    "https://deploy.workers.cloudflare.com/?url=https://github.com/goodfellow-cms/goodfellow-sign-in",
+  );
+
+  // A service that hasn't finished its setup page isn't published, since editors couldn't sign in with it.
+  await page.getByLabel("The sign-in service's address").fill("https://sign-in.parish.example/");
+  await page.getByRole("button", { name: "Use this sign-in service" }).click();
+  await expect(page.getByText("isn't set up yet")).toBeVisible();
+  ready = true;
+  await page.getByRole("button", { name: "Use this sign-in service" }).click();
+  await expect
+    .poll(() => fake.repo.files().get("goodfellow.config.tsx"))
+    .toContain('backend: github({ repo: "parish/site", signIn: "https://sign-in.parish.example" }),');
+  await expect(page.getByText("through the sign-in service at https://sign-in.parish.example")).toBeVisible();
+});

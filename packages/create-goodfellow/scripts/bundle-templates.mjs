@@ -22,6 +22,10 @@ cpSync(join(repo, "packages/registry/r"), join(out, "registry"), { recursive: tr
 // The token broker's released page, for a site's sign-in page of its own (--broker).
 cpSync(join(repo, "packages/broker/site"), join(out, "broker"), { recursive: true });
 
+// The sign-in worker as the Deploy to Cloudflare button deploys it, which copies of it update themselves from.
+cpSync(join(repo, "packages/worker/deploy"), join(out, "sign-in"), { recursive: true });
+cpSync(join(repo, "packages/worker/dist/bundle/worker.js"), join(out, "sign-in", "worker.js"));
+
 const versions = {};
 for (const dir of readdirSync(join(repo, "packages"))) {
   const pkg = JSON.parse(readFileSync(join(repo, "packages", dir, "package.json"), "utf8"));
