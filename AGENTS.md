@@ -24,7 +24,7 @@ Content files are the product's data format; treat changes to them like API chan
 - **One file per page or entry.** `content/pages/about.json` serves `/about`; `content/pages/index.json` serves `/`. Never bundle several pages into one file.
 - **Stable output.** Write JSON with 2-space indentation, a trailing newline and a stable key order, so diffs stay small and readable. Use the shared serializer in `@goodfellow-cms/core`; never call `JSON.stringify` on content directly.
 - **Versioned.** Every content file has a `version` field. A change to the shape of stored data needs a migration in `packages/core/migrations` and a test that migrates a file from the previous version.
-- **Formatting is owned by the serializer.** Biome doesn't format `content/**/*.json`. A test checks that the starter's and the examples' content files are in canonical form, so after editing them by hand, re-save them with `serializeContent`.
+- **Formatting is owned by the serializer.** Biome doesn't format `content/**/*.json`, or any Markdown file, since changesets' front matter and the docs' items are written as they are. A test checks that the starter's and the examples' content files are in canonical form, so after editing them by hand, re-save them with `serializeContent`.
 - **Atomic saves.** A save that touches several files is a single commit. Every write passes the commit the editor started from, so that saving over someone else's change fails and triggers the merge flow instead of silently overwriting.
 
 ## Collections
