@@ -5,13 +5,14 @@
 // for other hosts, a redirect from an address a page has is left out: pages always win.
 //
 // Every file gets headers that keep browsers from guessing its type, the media library's SVGs open
-// sandboxed, and no other site can frame the admin panel. For a site with an admin address
-// (goodfellow.config.tsx's `admin` line, which Site Settings' Domain screen writes), every page at
-// that address but the admin panel's own is sandboxed, so a site page served there can't read
-// what the admin panel keeps. Pages opened at the wrong one of the two addresses are sent to the
-// right one, as the guard scripts the build puts first in every page would: a site page at the admin
-// address goes to the Site address (content/site.json's `url`), and once Site Settings has checked
-// the admin address (`checked: true`), the admin panel at the Site address goes there.
+// sandboxed, files named by what's in them are kept a year, and no other site can frame the admin
+// panel. For a site with an admin address (goodfellow.config.tsx's `admin` line, which Site
+// Settings' Domain screen writes), every page at that address but the admin panel's own is
+// sandboxed, so a site page served there can't read what the admin panel keeps. Pages opened at
+// the wrong one of the two addresses are sent to the right one, as the guard scripts the build
+// puts first in every page would: a site page at the admin address goes to the Site address
+// (content/site.json's `url`), and once Site Settings has checked the admin address
+// (`checked: true`), the admin panel at the Site address goes there.
 // This file uses only Node's own modules, since Vercel may read it before installing packages.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -148,6 +149,7 @@ function headers() {
     "Origin-Agent-Cluster": "?1",
   });
   const frames = list({ "Content-Security-Policy": "frame-ancestors 'self'", "Origin-Agent-Cluster": "?1" });
+  const cached = list({ "Cache-Control": "public, max-age=31536000, immutable" });
   const site = [
     {
       source: "/(.*)",
@@ -158,6 +160,10 @@ function headers() {
       }),
     },
     { source: "/media/(.*)\\.([sS][vV][gG])", headers: list({ "Content-Security-Policy": "sandbox" }) },
+    // Files named by what's in them, kept a year: the Google Fonts the build copies in, and its CSS
+    // and JavaScript, unless the site keeps an assets folder of its own, whose files aren't.
+    { source: "/fonts/google/(.*)", headers: cached },
+    ...(existsSync("public/assets") ? [] : [{ source: "/assets/(.*)", headers: cached }]),
   ];
   if (!url) {
     return [

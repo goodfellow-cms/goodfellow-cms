@@ -346,7 +346,7 @@ describe("the starter's vercel.ts", () => {
         },
       );
       expect(JSON.parse(empty).redirects).toEqual([]);
-      expect(JSON.parse(empty).headers).toEqual(vercelHeaders());
+      expect(JSON.parse(empty).headers).toEqual(vercelHeaders({ assets: true }));
       // A token broker frames the admin panel.
       await writeFile(
         join(site, "goodfellow.config.tsx"),
@@ -357,7 +357,7 @@ describe("the starter's vercel.ts", () => {
         ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
         { cwd: site, encoding: "utf8" },
       );
-      expect(JSON.parse(framed).headers).toEqual(vercelHeaders({ broker: "https://signin.example.org" }));
+      expect(JSON.parse(framed).headers).toEqual(vercelHeaders({ broker: "https://signin.example.org", assets: true }));
 
       // A site with an admin address sandboxes every page there but the admin panel's own, as core says.
       await writeFile(
@@ -369,7 +369,9 @@ describe("the starter's vercel.ts", () => {
         ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
         { cwd: site, encoding: "utf8" },
       );
-      expect(JSON.parse(headers).headers).toEqual(vercelHeaders({ admin: { url: "https://admin.example.org" } }));
+      expect(JSON.parse(headers).headers).toEqual(
+        vercelHeaders({ admin: { url: "https://admin.example.org" }, assets: true }),
+      );
       // Site pages opened at the admin address go to the Site address, as core says.
       expect(JSON.parse(headers).redirects).toEqual(
         vercelAdminRedirects({ url: "https://admin.example.org" }, "https://example.org/site"),
@@ -387,6 +389,15 @@ describe("the starter's vercel.ts", () => {
       );
       expect(JSON.parse(moved).redirects).toEqual(vercelAdminRedirects(checked, "https://example.org/site"));
       expect(JSON.parse(moved).redirects).toHaveLength(3);
+
+      // A site with an assets folder of its own, whose files aren't named by their content, keeps them short.
+      await mkdir(join(site, "public/assets"), { recursive: true });
+      const own = execFileSync(
+        process.execPath,
+        ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", script],
+        { cwd: site, encoding: "utf8" },
+      );
+      expect(JSON.parse(own).headers).toEqual(vercelHeaders({ admin: checked }));
     } finally {
       await rm(site, { recursive: true, force: true });
     }

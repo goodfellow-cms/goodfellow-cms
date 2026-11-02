@@ -5,6 +5,7 @@ import {
   adminAddressProblem,
   adminGuard,
   adminOrigin,
+  CACHED_FOLDERS,
   CLOUDFLARE_HEADERS_PATH,
   cloudflareAdminHeaders,
   cloudflareSiteHeaders,
@@ -21,10 +22,26 @@ import { brokerOrigin } from "./broker.js";
 /**
  * Adds Cloudflare Pages' header rules for every site (`cloudflareSiteHeaders()`),
  * or Netlify's where it builds the site (`netlifySiteHeaders()`, `headersHost()`),
- * to the built site's `_headers`, after the site's own rules, once: as
+ * to the built site's `_headers`, after the site's own rules, once, with long
+ * caching for the folders `cachedFolders()` finds named by content: as
  * `goodfellow build` and `goodfellow-next finish` do before `guardBuiltSite()`
  * adds an admin address's. Other hosts serve the file as one of no use.
  */
+/** A name Vite gives a file it writes, ending with its 8-character hash: `styles-B56g62wk.css`. */
+const HASHED_NAME = /-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$/;
+
+/**
+ * The `CACHED_FOLDERS` a built site can be sent with long caching: all of
+ * them, but `assets/` where any file there isn't named by its hash, as one
+ * the site keeps in `public/assets/` wouldn't be, since a changed one would
+ * keep its address.
+ */
+export async function cachedFolders(outDir: string): Promise<string[]> {
+  const files = await readdir(join(outDir, "assets"), { recursive: true, withFileTypes: true }).catch(() => []);
+  const unnamed = files.some((entry) => entry.isFile() && !HASHED_NAME.test(entry.name));
+  return CACHED_FOLDERS.filter((folder) => folder !== "assets/" || !unnamed);
+}
+
 export async function writeSiteHeaders(
   outDir: string,
   {
@@ -38,10 +55,11 @@ export async function writeSiteHeaders(
   const own = await readFile(file, "utf8").catch(() => "");
   if (own.includes(SITE_HEADERS_MARK)) return;
   const framer = brokerOrigin(broker);
+  const cached = await cachedFolders(outDir);
   const rules =
     host === "netlify"
-      ? netlifySiteHeaders(base, { ...(framer && { broker: framer }) })
-      : cloudflareSiteHeaders(base, { ...(admin && { admin }), ...(framer && { broker: framer }) });
+      ? netlifySiteHeaders(base, { ...(framer && { broker: framer }), cached })
+      : cloudflareSiteHeaders(base, { ...(admin && { admin }), ...(framer && { broker: framer }), cached });
   const separator = own === "" ? "" : own.endsWith("\n") ? "\n" : "\n\n";
   await writeFile(file, `${own}${separator}${rules}`);
 }
