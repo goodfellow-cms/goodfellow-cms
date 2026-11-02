@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit's settings for this repository. It reads AGENTS.md (and CLAUDE.md, which points to it)
+# as its guidelines by itself, so the rules live there; this file only keeps its reviews short and
+# away from files no one writes by hand. `@coderabbitai configuration` on a pull request shows what
+# it's using. See AGENTS.md's Tooling section.
+language: en-US
+tone_instructions: >-
+  Be brief. Put correctness, security and AGENTS.md rules first; mark style-only points as nitpicks.
+  The admin panel is for people who have never used git, so check its words for git jargon.
+early_access: false
+
+reviews:
+  profile: chill
+  # Pull request descriptions are written by hand, and say what the changelog and checklist need.
+  high_level_summary: false
+  poem: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  suggested_labels: false
+  suggested_reviewers: false
+  in_progress_fortune: false
+  auto_review:
+    enabled: true
+    drafts: false
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+  # Written by tools, never by hand: lockfiles, changelogs (Changesets), the font list and block icons
+  # (their update scripts) and the shadcn snapshot (`update-shadcn`).
+  path_filters:
+    - "!pnpm-lock.yaml"
+    - "!**/package-lock.json"
+    - "!**/CHANGELOG.md"
+    - "!packages/admin/src/google-fonts.ts"
+    - "!packages/blocks/src/icons.ts"
+    - "!packages/registry/site/components/ui/**"
+  path_instructions:
+    - path: ".github/workflows/**"
+      instructions: >-
+        This repository's own workflows pin every action to a commit, with its version in a comment.
+    - path: "templates/**/.github/workflows/**"
+      instructions: &site-workflows >-
+        Sites' workflows name GitHub's own actions by their major version (actions/checkout@v5) on
+        purpose, and use no other actions: a site's update can't change its workflows, so a pinned
+        commit would never move (AGENTS.md, Conventions: Actions). Don't suggest pinning them.
+    - path: "examples/**/.github/workflows/**"
+      instructions: *site-workflows
+    - path: "packages/admin/src/**"
+      instructions: >-
+        Every string the admin panel shows goes through useStrings() and the table in strings.tsx,
+        with its translation in every language in languages/ in the same change, and no git terms.
+    - path: "packages/core/src/**"
+      instructions: >-
+        Core has no React and no DOM and runs in Node and the browser; only src/node*.ts may use
+        Node's modules.
+    - path: "**/content/**/*.json"
+      instructions: >-
+        Content files are written by the shared serializer (serializeContent): 2-space JSON in a
+        stable key order with a trailing newline and a version field. Treat a change to their shape
+        like an API change, which needs a migration.
+    - path: "docs/content/collections/docs/**"
+      instructions: >-
+        The docs are for site owners and editors, many of whom have never used git: plain words, and
+        what to click or run. Links between pages must go somewhere.
+  tools:
+    # Biome is the repository's linter; these would repeat it or argue with its formatting.
+    eslint:
+      enabled: false
+    oxc:
+      enabled: false
+    # Markdown and YAML here follow the serializer's and the workflows' own form, and the docs' wording
+    # is checked by people, not grammar rules.
+    markdownlint:
+      enabled: false
+    yamllint:
+      enabled: false
+    languagetool:
+      enabled: false
+
+chat:
+  art: false
