@@ -1,5 +1,23 @@
 # @goodfellow-cms/core
 
+## 0.10.0
+
+### Minor Changes
+
+- cfa0a83: Setting up one-click sign-in no longer needs a developer.
+  
+  - **Sign in with GitHub:** the sign-in service is put online from the browser, with Cloudflare's Deploy to Cloudflare button. The deployed service's own setup page, at `/setup`, takes a Cloudflare API token once, made from a link that fills it in, with the sites' addresses. It saves its settings in Cloudflare and makes its two GitHub Apps with the owner, never keeping the token. Copies update themselves each week from create-goodfellow on npm, which now carries the service as `templates/sign-in/`.
+  - **Naming the service:** Site Settings → Security has a **Sign in with GitHub** section. It checks the service is set up and publishes its address in the site's config.
+  - **GitLab and Bitbucket:** the same section walks owners through GitLab's application form or Bitbucket's consumer form, with every value to copy. It then publishes the Application ID or the consumer's Key.
+  - **Content repositories:** for sites whose content is kept in a repository of its own, `goodfellow sign-in service <address>`, `goodfellow sign-in client-id <id>` and `goodfellow sign-in remove` do the same, with `goodfellow-next sign-in` for Next.js sites.
+- 86b7c5d: Export a site as a folder of Markdown files, for Hugo, Jekyll, Eleventy, Astro, notes apps and AI tools: each page and collection item at its address with YAML front matter, the media library and the menus. Site Settings → Import / Export has **Export as Markdown**, which downloads a zip, and `goodfellow export markdown` and `goodfellow-next export markdown` write a folder. Links keep the site's addresses, or link to the files with `--links files`. Layout, the header and footer, and blocks Markdown can't hold, such as forms and calendars, are left out and listed. The WordPress export now gives images without alt text of their own the media library's description.
+- 378dd68: Move content between Goodfellow sites with nothing lost. **Export for another Goodfellow site** on Site Settings → Import / Export, and `goodfellow export site`, download the same zip as Download a copy, which now includes `goodfellow-transfer.json`. **Import from another Goodfellow site**, and `goodfellow import site`, bring it into another site. They either add to its content, with a choice for each thing both sites have differently, or replace its content. The Site address, editors' limits, update settings and media storage always stay as they are. Blocks the export used from Goodfellow's block registry can be added in the same publish.
+
+### Patch Changes
+
+- 93fdd74: Builds now ask Google Fonts again, twice, after a failed connection, a timeout or an answer saying to try later, before leaving a site's fonts with Google. A single failed request used to leave every page loading its fonts from Google until the next build.
+- cdc5103: Creating a site with its content in a project of its own on GitLab now adds the nightly pipeline schedule after the project's files are written, since GitLab can't schedule a branch an empty project doesn't have yet, and tries each connection between the projects on its own. The ones GitLab refuses come back as `unconnected`, which the setup page lists with links to where to add them and what GitLab answered.
+
 ## 0.9.0
 
 ### Minor Changes
