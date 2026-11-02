@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startsWithGuard } from "./admin-domain.js";
-import { guardBuiltSite, writeSiteHeaders } from "./node-admin-domain.js";
+import { cachedFolders, guardBuiltSite, writeSiteHeaders } from "./node-admin-domain.js";
 
 let dir: string;
 beforeEach(async () => {
@@ -67,6 +67,24 @@ describe("guardBuiltSite", () => {
     expect(await guardBuiltSite(dir, { ...options, host: "netlify" })).toBe(1);
     expect(startsWithGuard(await read("index.html"), "html")).toBe(true);
     expect(await read("_headers")).toBe(site);
+  });
+
+  it("keeps a build's assets a year only where every file there is named by its content", async () => {
+    await write("assets/styles-B56g62wk.css", "body{}");
+    await write("assets/islands-CHz1ci1F.js", "");
+    expect(await cachedFolders(dir)).toEqual(["assets/", "_next/static/", "fonts/google/"]);
+    await writeSiteHeaders(dir, { host: "netlify" });
+    expect(await read("_headers")).toContain(
+      "/assets/*\n  Content-Security-Policy: object-src 'none'; base-uri 'self'\n  Cache-Control: public, max-age=31536000, immutable\n",
+    );
+    // A file the site keeps in public/assets/ keeps its name when it changes.
+    await write("assets/logo.png", "png");
+    expect(await cachedFolders(dir)).toEqual(["_next/static/", "fonts/google/"]);
+    await rm(join(dir, "_headers"));
+    await writeSiteHeaders(dir);
+    const rules = await read("_headers");
+    expect(rules).not.toContain("/assets/*");
+    expect(rules).toContain("/fonts/google/*\n  Cache-Control: public, max-age=31536000, immutable\n");
   });
 
   it("refuses a site with a page that can't start with its guard", async () => {

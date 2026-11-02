@@ -505,6 +505,8 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       return json({ id: project.id, ci_push_repository_for_job_token_allowed: project.jobTokenPush });
     }
     if (rest === "/job_token_scope/allowlist" && request.method === "POST") {
+      // GitLab takes only the project's number here, as it says.
+      if (!/^\d+$/.test(key)) return json({ error: "id is invalid" }, 400);
       const body = (await request.json()) as { target_project_id: number };
       if (options.refuseConnections?.includes("allowlist")) return json({ message: "403 Forbidden" }, 403);
       if (![...created.values()].some((candidate) => candidate.id === body.target_project_id)) {

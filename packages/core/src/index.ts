@@ -8,6 +8,8 @@ export {
   adminGuard,
   adminOrigin,
   adminPageHeaders,
+  CACHED_FOLDERS,
+  CACHED_HEADERS,
   CLOUDFLARE_HEADERS_PATH,
   checkAdminAddress,
   cloudflareAdminHeaders,
