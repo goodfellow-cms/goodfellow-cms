@@ -1,5 +1,14 @@
 # goodfellow
 
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies [5c28336]
+  - @goodfellow-cms/core@0.10.1
+  - @goodfellow-cms/admin@0.10.1
+  - @goodfellow-cms/react@0.10.1
+
 ## 0.10.0
 
 ### Minor Changes
