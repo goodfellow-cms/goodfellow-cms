@@ -468,7 +468,7 @@ export function netlifySiteHeaders(
   const block = (path: string, lines: string[]) => [path, ...lines.map((line) => `  ${line}`)].join("\n");
   const headers = (record: Readonly<Record<string, string>>) =>
     Object.entries(record).map(([name, value]) => `${name}: ${value}`);
-  const site = SITE_HEADERS["Content-Security-Policy"];
+  const site = SITE_HEADERS["Content-Security-Policy"] ?? "";
   const withSite = (policy: string) => ({ "Content-Security-Policy": `${site}; ${policy}` });
   const { "Content-Security-Policy": adminPolicy = "", ...adminRest } = adminPageHeaders(broker);
   const { "Content-Security-Policy": framePolicy = "", ...frameRest } = EDITOR_FRAME_HEADERS;
