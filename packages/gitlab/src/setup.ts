@@ -136,12 +136,15 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
       }
       for (const { reader, read } of link.links.reads) {
         const target = ids.get(reader);
+        const source = ids.get(read);
         const unmade = { kind: "read", reader: link[reader], read: link[read], reason: "" } as const;
         await attempt(
           unmade,
           async () => {
             if (target === undefined) throw new GitApiError(404, `GitLab couldn't find ${link[reader]}.`);
-            await gitlabRequest(api, `${projectPath(link[read])}/job_token_scope/allowlist`, {
+            if (source === undefined) throw new GitApiError(404, `GitLab couldn't find ${link[read]}.`);
+            // This endpoint takes only a project's number, never its path.
+            await gitlabRequest(api, `/projects/${source}/job_token_scope/allowlist`, {
               method: "POST",
               body: { target_project_id: target },
             });

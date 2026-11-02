@@ -372,6 +372,26 @@ export const SITE_HEADERS: Readonly<Record<string, string>> = {
  */
 export const SVG_MEDIA_HEADERS: Readonly<Record<string, string>> = { "Content-Security-Policy": "sandbox" };
 
+/**
+ * What files whose names change whenever their content does are sent with:
+ * browsers keep them a year without asking again, since a changed file comes
+ * at a new address.
+ */
+export const CACHED_HEADERS: Readonly<Record<string, string>> = {
+  "Cache-Control": "public, max-age=31536000, immutable",
+};
+
+/**
+ * The folders of a built site, relative to its base path, whose files are
+ * named by their content and so cached long (`CACHED_HEADERS`): `goodfellow
+ * build`'s CSS and JS, which Vite names by their hash, Next.js's, and the
+ * Google Fonts builds copy in (`FONTS_DIR`, written out here since this file
+ * imports nothing: the stylesheet named by its hash,
+ * the fonts at Google's own paths, which Google caches as long). Never
+ * `/media/`, whose files keep their names when they're replaced.
+ */
+export const CACHED_FOLDERS: readonly string[] = ["assets/", "_next/static/", "fonts/google/"];
+
 /** Every spelling of `svg`, since browsers open `x.Svg` as an SVG as they do `x.svg`. */
 const SVG_SPELLINGS = ["s", "S"].flatMap((s) => ["v", "V"].flatMap((v) => ["g", "G"].map((g) => `${s}${v}${g}`)));
 
@@ -387,7 +407,11 @@ export const SITE_HEADERS_MARK = "# Goodfellow's header rules";
  */
 export function cloudflareSiteHeaders(
   base = "/",
-  { admin, broker }: { admin?: AdminAddress; broker?: string } = {},
+  {
+    admin,
+    broker,
+    cached = CACHED_FOLDERS,
+  }: { admin?: AdminAddress; broker?: string; cached?: readonly string[] } = {},
 ): string {
   const root = base.replace(/\/?$/, "/");
   const block = (path: string, lines: string[]) => [path, ...lines.map((line) => `  ${line}`)].join("\n");
@@ -397,6 +421,7 @@ export function cloudflareSiteHeaders(
     block(`${root}*`, headers(SITE_HEADERS)),
     // A rule takes one splat and matches case as it is, so each spelling of the extension has its own.
     ...SVG_SPELLINGS.map((extension) => block(`${root}media/*.${extension}`, headers(SVG_MEDIA_HEADERS))),
+    ...cached.map((folder) => block(`${root}${folder}*`, headers(CACHED_HEADERS))),
   ];
   if (!adminOrigin(admin)) {
     const adminPath = `${root}admin/`;
@@ -435,12 +460,15 @@ export function headersHost(env: Readonly<Record<string, string | undefined>>): 
  * gets no rules of its own on Netlify, which can't match hosts: its guards
  * are what keep the site's pages from it.
  */
-export function netlifySiteHeaders(base = "/", { broker }: { broker?: string } = {}): string {
+export function netlifySiteHeaders(
+  base = "/",
+  { broker, cached = CACHED_FOLDERS }: { broker?: string; cached?: readonly string[] } = {},
+): string {
   const root = base.replace(/\/?$/, "/");
   const block = (path: string, lines: string[]) => [path, ...lines.map((line) => `  ${line}`)].join("\n");
   const headers = (record: Readonly<Record<string, string>>) =>
     Object.entries(record).map(([name, value]) => `${name}: ${value}`);
-  const site = SITE_HEADERS["Content-Security-Policy"];
+  const site = SITE_HEADERS["Content-Security-Policy"] ?? "";
   const withSite = (policy: string) => ({ "Content-Security-Policy": `${site}; ${policy}` });
   const { "Content-Security-Policy": adminPolicy = "", ...adminRest } = adminPageHeaders(broker);
   const { "Content-Security-Policy": framePolicy = "", ...frameRest } = EDITOR_FRAME_HEADERS;
@@ -448,6 +476,10 @@ export function netlifySiteHeaders(base = "/", { broker }: { broker?: string } =
   const blocks = [
     block(`${root}*`, headers(SITE_HEADERS)),
     ...SVG_SPELLINGS.map((extension) => block(`${root}media/*.${extension}`, headers(withSite("sandbox")))),
+    // No other rule sends Cache-Control; the policy is every page's, right whether rules are joined or one wins.
+    ...cached.map((folder) =>
+      block(`${root}${folder}*`, headers({ "Content-Security-Policy": site, ...CACHED_HEADERS })),
+    ),
     ...adminPage.map((path) => block(path, headers({ ...withSite(adminPolicy), ...adminRest }))),
     block(`${root}admin/editor/*`, headers({ ...withSite(framePolicy), ...frameRest })),
     block(`${root}admin/plugins/*`, headers({ ...withSite(framePolicy), ...frameRest })),
@@ -455,10 +487,16 @@ export function netlifySiteHeaders(base = "/", { broker }: { broker?: string } =
   return `${SITE_HEADERS_MARK}\n${blocks.join("\n\n")}\n`;
 }
 
-/** Vercel's header rules for every site, the same as `cloudflareSiteHeaders()`'s. `base` is the site's base path. */
+/**
+ * Vercel's header rules for every site, the same as `cloudflareSiteHeaders()`'s,
+ * but long caching only for the Google Fonts builds copy in: Vercel caches
+ * Next.js's own files itself (and Next.js warns about rules for them), and
+ * `assets/` only with `assets`, as the starters' `vercel.ts` asks where the
+ * site has no `public/assets/` of its own. `base` is the site's base path.
+ */
 export function vercelSiteHeaders(
   base = "/",
-  { admin, broker }: { admin?: AdminAddress; broker?: string } = {},
+  { admin, broker, assets = false }: { admin?: AdminAddress; broker?: string; assets?: boolean } = {},
 ): HostHeaderRule[] {
   const prefix = base.replace(/\/$/, "");
   const list = (record: Readonly<Record<string, string>>) =>
@@ -466,6 +504,8 @@ export function vercelSiteHeaders(
   const rules: HostHeaderRule[] = [
     { source: `${prefix}/(.*)`, headers: list(SITE_HEADERS) },
     { source: `${prefix}/media/(.*)\\.([sS][vV][gG])`, headers: list(SVG_MEDIA_HEADERS) },
+    { source: `${prefix}/fonts/google/(.*)`, headers: list(CACHED_HEADERS) },
+    ...(assets ? [{ source: `${prefix}/assets/(.*)`, headers: list(CACHED_HEADERS) }] : []),
   ];
   if (adminOrigin(admin)) return rules;
   return [
@@ -478,11 +518,11 @@ export function vercelSiteHeaders(
 
 /** Every one of a site's Vercel header rules: `vercelSiteHeaders()`, then an admin address's `vercelAdminHeaders()`. */
 export function vercelHeaders(
-  options: { admin?: AdminAddress; base?: string; broker?: string } = {},
+  options: { admin?: AdminAddress; base?: string; broker?: string; assets?: boolean } = {},
 ): HostHeaderRule[] {
-  const { admin, base = "/", broker } = options;
+  const { admin, base = "/", broker, assets } = options;
   return [
-    ...vercelSiteHeaders(base, { ...(admin && { admin }), ...(broker && { broker }) }),
+    ...vercelSiteHeaders(base, { ...(admin && { admin }), ...(broker && { broker }), ...(assets && { assets }) }),
     ...(admin ? vercelAdminHeaders(admin, base, broker) : []),
   ];
 }
