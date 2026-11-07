@@ -14,13 +14,20 @@ Click outside every block in a page's editor to see its own settings:
 
 - **Page title**, shown in the browser's tab and in search results.
 - **Description for search engines**, shown under the title in search results and in link previews. Without one, the site's description from Site Settings is used.
-- **Image when shared**, shown in link previews. Without one, the image from Site Settings is used.
 - **Search engines:** pages are in search results unless you choose **Hide from search results**, which asks search engines to leave the page out, and leaves it out of the sitemap. The page is still on the site, for anyone with its address, and in the site's own search; it isn't private. **Page not found** is always hidden from search results, so its setting can't be changed. A copy of the site, such as a staging site, can hide every page at once where it's built (see [Staging and production](/docs/staging)).
+
+**More for search engines**, closed until you click it, has two settings few pages change:
+
 - **This page's links:** search engines follow a page's links to find more pages, and count them for the pages they lead to. **Ask search engines not to follow them** asks them not to, such as on a page of links you don't vouch for.
 - **Text under the title in search results:** **Show none** asks search engines to show only the page's title and address, without any of its text.
-- **Picture size when shared:** how links to the page show its image: **Large**, over the title, or **Small**, beside it. Left as it is, it's large where the page or Site Settings has an image.
 
-Below them, **When a link to this page is shared** shows how a link to the page looks in a message or on social media, as you edit them: the image, large or small, the title as browser tabs show it, the description and the site's address. A collection's page design has the same settings, which its items' pages share.
+**Sharing** is how links to the page look in a message or on social media:
+
+- **Image when shared**, shown in link previews. Without one, the image from Site Settings is used.
+- **Picture size when shared:** how links to the page show its image: **Large**, over the title, or **Small**, beside it. Left as it is, it's large where the page or Site Settings has an image.
+- **When a link to this page is shared** shows how a link to the page looks, as you edit them: the image, large or small, the title as browser tabs show it, the description and the site's address.
+
+A collection's page design has the same settings, which its items' pages share.
 
 ## What search engines are told
 

@@ -121,11 +121,11 @@ describe("goodfellow update", () => {
       lockfileVersion: 3,
       packages: {
         "": { name: "parish" },
-        "node_modules/happy-dom": { version: "21.0.4" },
-        "node_modules/@puckeditor/core": { version: "0.23.0" },
-        "node_modules/@puckeditor/core/node_modules/happy-dom": { version: "20.14.6" },
-        "node_modules/@puckeditor/core/node_modules/@tiptap/html/node_modules/happy-dom": { version: "20.14.6" },
-        "node_modules/other/node_modules/happy-dom": { version: "20.14.6" },
+        "node_modules/glob": { version: "14.0.2" },
+        "node_modules/cacache": { version: "20.0.1" },
+        "node_modules/cacache/node_modules/glob": { version: "13.0.6" },
+        "node_modules/cacache/node_modules/rimraf/node_modules/glob": { version: "13.0.6" },
+        "node_modules/other/node_modules/glob": { version: "13.0.6" },
       },
     };
     await writeFile(join(root, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
@@ -134,9 +134,9 @@ describe("goodfellow update", () => {
     expect(JSON.parse(await read("package.json")).overrides).toEqual(SITE_OVERRIDES);
     expect(Object.keys(JSON.parse(await read("package-lock.json")).packages)).toEqual([
       "",
-      "node_modules/happy-dom",
-      "node_modules/@puckeditor/core",
-      "node_modules/other/node_modules/happy-dom",
+      "node_modules/glob",
+      "node_modules/cacache",
+      "node_modules/other/node_modules/glob",
     ]);
     // A site that has them already keeps its lockfile as it is.
     const text = await read("package-lock.json");

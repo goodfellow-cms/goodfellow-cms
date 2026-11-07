@@ -7,6 +7,7 @@ export const puck: Record<string, string> = {
   "header-toggle-rightsidebar": "Mostrar u ocultar la barra derecha",
   "header-toggle-menubar": "Mostrar u ocultar la barra de menú",
   "action-selectparent": "Seleccionar el bloque que lo contiene",
+  "action-drag": "Arrastrar para cambiar el orden",
   "action-duplicate": "Duplicar",
   "action-delete": "Eliminar",
   "label-page": "Página",

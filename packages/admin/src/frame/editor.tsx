@@ -52,7 +52,6 @@ import { useEditorText } from "../editor-text.js";
 import { MediaChooser } from "../media-library.js";
 import { showMediaInPreview } from "../media-previews.js";
 import { SETTINGS_SECTIONS } from "../router.js";
-import { SharePreview } from "../share-preview.js";
 import { isForwardedShortcut, isTyping, shortcutFor } from "../shortcuts.js";
 import { useDarkMode } from "../theme.js";
 import { drawerItemWithIcon } from "./block-icon.js";
@@ -63,6 +62,7 @@ import { entryConfig } from "./entry-fields.js";
 import { useAdminClient, useFrameCode } from "./frame-site.js";
 import { withLabels } from "./labels.js";
 import { withOwnersOnlyLocked } from "./owners-only.js";
+import { PageFields } from "./page-fields.js";
 import { type ShownSettings, shownSettings } from "./page-settings.js";
 import type { EditorChange, EditorOpen, EditorOpened, EditorState } from "./protocol.js";
 import { SiteFrame } from "./site-frame.js";
@@ -241,6 +241,9 @@ const entryPlugins = [legacySideBarPlugin()];
 /** Puck, set up for one page, header, footer, template or item: site context, previews and the bridge. */
 /** Puck's permissions for something shown without editing: nothing can be changed, added, moved or removed. */
 const READ_ONLY = { drag: false, duplicate: false, delete: false, edit: false, insert: false };
+
+/** Puck's drag handle in each block's action bar, which it leaves off unless asked. */
+const DND = { enableDragHandle: true } as const;
 
 export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (opened: EditorOpened) => void }) {
   const client = useAdminClient();
@@ -479,16 +482,14 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
       ),
       drawerItem,
       fieldTypes: { text: TextFieldWithMedia },
-      // A page's own settings end with how links to it look when shared.
-      ...(kind === "page" &&
-        path && {
-          fields: ({ children, itemSelector }: { children: ReactNode; itemSelector?: unknown }) => (
-            <>
-              {children}
-              {!itemSelector && <SharePreview path={path} />}
-            </>
-          ),
-        }),
+      // A page's own settings, and a template's, in groups, ending with how links to the page look when shared.
+      ...((kind === "page" || kind === "template") && {
+        fields: (props: {
+          children: ReactNode;
+          itemSelector?: unknown;
+          fields?: Partial<Record<string, ReactNode>>;
+        }) => <PageFields {...props} path={kind === "page" ? path : undefined} />,
+      }),
     }),
     [client, settings, kind, path, searchable, drawerItem],
   );
@@ -504,6 +505,8 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
           dictionary={dictionary}
           height="100%"
           iframe={{ enabled: false }}
+          // A handle in each block's action bar, so a block can be moved without dragging the block itself.
+          dnd={DND}
           ui={ui}
           {...(kind === "entry" && { plugins: entryPlugins })}
           {...(open.readOnly && { permissions: READ_ONLY })}

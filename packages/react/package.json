@@ -60,12 +60,12 @@
     "tailwind-merge": "3.7.0"
   },
   "peerDependencies": {
-    "@puckeditor/core": "0.23.0",
+    "@puckeditor/core": "0.24.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@puckeditor/core": "0.23.0",
+    "@puckeditor/core": "0.24.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "react": "19.3.0",

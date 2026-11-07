@@ -59,15 +59,15 @@ describe("sites' overrides", () => {
     expect(withSiteOverrides(undefined)).toEqual({
       overrides: SITE_OVERRIDES,
       added: [
-        ["@puckeditor/core", "happy-dom"],
         ["cacache", "glob"],
         ["@tufjs/models", "minimatch"],
       ],
     });
     const own = {
       react: "19.3.0",
-      "@puckeditor/core": { "happy-dom": "^22.0.0", tslib: "2.8.0" },
-      cacache: { glob: "^15.0.0" },
+      // Older sites keep the override Puck 0.23 needed, which does nothing now.
+      "@puckeditor/core": { "happy-dom": "^21.0.4" },
+      cacache: { glob: "^15.0.0", tslib: "2.8.0" },
       "@tufjs/models": { minimatch: "^12.0.0" },
     };
     expect(withSiteOverrides(own)).toEqual({ overrides: own, added: [] });

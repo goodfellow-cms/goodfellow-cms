@@ -274,6 +274,8 @@ export const strings: Strings = {
   "pages.view": "Ver",
   "pages.homeCantDelete": "La página de inicio no se puede eliminar.",
   "pages.schedule": "Programar",
+  "pageSettings.search": "Más para los buscadores",
+  "pageSettings.sharing": "Al compartir",
   "sharePreview.title": "Cuando se comparte un enlace a esta página",
   "sharePreview.noImage": "Sin imagen",
   "sharePreview.noAddress":

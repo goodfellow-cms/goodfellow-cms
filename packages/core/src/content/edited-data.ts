@@ -39,7 +39,7 @@ function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** The values a select or radio field offers. */
+/** The values a select, radio or checkbox field offers. */
 function optionValues(field: FieldJson): unknown[] {
   return Array.isArray(field.options)
     ? field.options.filter(isObject).map((option) => (option as { value?: unknown }).value)
@@ -70,6 +70,20 @@ function misfit(field: FieldJson, value: Json, path: string, problems: EditedDat
       if (offered.length > 0 && !resolves ? !offered.some((option) => same(option, value)) : !plain) {
         problem("isn't one of the field's choices");
       }
+      return;
+    }
+    case "checkbox": {
+      // A list of the options chosen.
+      if (!Array.isArray(value)) {
+        problem("should be a list of the field's choices");
+        return;
+      }
+      const offered = optionValues(field);
+      const fits = (item: Json) =>
+        offered.length > 0 && !resolves
+          ? offered.some((option) => same(option, item))
+          : !isObject(item) && !Array.isArray(item);
+      if (!value.every(fits)) problem("has something that isn't one of the field's choices");
       return;
     }
     case "array": {

@@ -35,7 +35,7 @@ function hintOf(field: AnyField): AiFieldHint | undefined {
 type OptionValue = string | number | boolean;
 
 function optionValues(field: AnyField): OptionValue[] {
-  if (field.type !== "select" && field.type !== "radio") return [];
+  if (field.type !== "select" && field.type !== "radio" && field.type !== "checkbox") return [];
   return field.options
     .map((option) => option.value)
     .filter((value): value is OptionValue => ["string", "number", "boolean"].includes(typeof value));
@@ -81,6 +81,15 @@ export function fieldSchema(field: AnyField): JsonSchema | undefined {
         .map((option) => `${JSON.stringify(option.value)} means "${option.label}"`)
         .join(", ");
       return withDescription({ enum: values }, describe(field, labels));
+    }
+    case "checkbox": {
+      // Puck keeps the options chosen as a list of their values.
+      const values = optionValues(field);
+      if (values.length === 0) return undefined;
+      const labels = field.options
+        .map((option) => `${JSON.stringify(option.value)} means "${option.label}"`)
+        .join(", ");
+      return withDescription({ type: "array", items: { enum: values } }, describe(field, `Any number of: ${labels}`));
     }
     case "array": {
       const item = objectSchema(field.arrayFields as Fields);
@@ -243,6 +252,12 @@ function cleanValue(field: AnyField, value: unknown): { ok: true; value: unknown
       const values = optionValues(field);
       if (values.length === 0) return typeof value === "string" ? { ok: true, value } : { ok: false };
       return values.includes(value as OptionValue) ? { ok: true, value } : { ok: false };
+    }
+    case "checkbox": {
+      if (!Array.isArray(value)) return { ok: false };
+      // The choices offered, in the field's order and once each, as Puck keeps them.
+      const values = optionValues(field);
+      return { ok: true, value: values.filter((option) => value.includes(option)) };
     }
     case "array": {
       if (!Array.isArray(value)) return { ok: false };
