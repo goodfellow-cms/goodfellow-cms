@@ -202,8 +202,13 @@ describe("build", () => {
 
   it("builds the parish example, with its own blocks and the site's contact details", async () => {
     const parishOut = await mkdtemp(join(tmpdir(), "goodfellow-parish-"));
+    // The example's events have dates of their own, so it's built as on a day before its All Souls Mass, which the
+    // Spanish home page's events then show, rather than on whatever day the test runs. Only Date is faked, and it
+    // keeps moving, so timeouts and anything measuring time work as usual.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-20T12:00:00Z"), shouldAdvanceTime: true });
     try {
       const result = await build({ root: parish, outDir: parishOut, base: "/" });
+      vi.useRealTimers();
       // Ten pages and two in Spanish, plus five events, seven news stories and two bulletins, and the events and
       // four stories in Spanish. Staff have no pages of their own. The calendar has a page for each month, from
       // last month to a year ahead, and the news a second page and one for each of its four topics.
@@ -259,6 +264,7 @@ describe("build", () => {
         "DTSTART;TZID=America/New_York:20261017T110000",
       );
     } finally {
+      vi.useRealTimers();
       await rm(parishOut, { recursive: true, force: true });
     }
   }, 60_000);
