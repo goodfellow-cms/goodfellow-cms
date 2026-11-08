@@ -33,6 +33,7 @@ import {
 import type { ComponentData, Config, Data, Fields } from "@puckeditor/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
+import { type ApplyReport, answeredBlocks, countBlocks, valuesReport } from "./ai-report.js";
 import { allowedProviders, useAiSettings, useStockPhotoChoice } from "./ai-settings.js";
 import { mediaFileChange, pageTitle } from "./changes.js";
 import { inSentence } from "./collection-screen.js";
@@ -113,14 +114,36 @@ type Status =
   | { type: "idle" }
   | { type: "working"; characters: number }
   | { type: "photos" }
-  | { type: "done"; photos?: PhotoReport }
+  | { type: "done"; photos?: PhotoReport; report?: ApplyReport }
   | { type: "failed"; error: unknown }
   | { type: "manual"; prompt: string; task: AiTask };
+
+/** What the last answer changed and left out, under "Done". */
+function ApplyReportText({ report }: { report: ApplyReport }) {
+  const t = useStrings();
+  const parts = [
+    report.settings !== undefined && t("ai.report.settings", { count: String(report.settings) }),
+    report.blocks !== undefined && t("ai.report.blocks", { count: String(report.blocks) }),
+    report.skipped > 0 && t("ai.report.skipped", { count: String(report.skipped) }),
+  ].filter(Boolean);
+  return parts.length > 0 ? <p className="gfa-hint">{parts.join(" ")}</p> : null;
+}
 
 export function problemKey(error: unknown): StringKey {
   if (error instanceof AiError) return `ai.error.${error.problem}` as StringKey;
   if (error instanceof SyntaxError) return "ai.error.answer";
   return "ai.error.service";
+}
+
+/**
+ * The services in the order editors are offered them: those that cost the
+ * editor nothing first (the site's server's, copying into a chat app, and
+ * services that need no key), then the rest, each group as it was.
+ */
+export function freeFirst(providers: readonly ProviderId[], siteServices: readonly string[] = []): ProviderId[] {
+  const free = (id: ProviderId) =>
+    siteServices.includes(id) || id === "manual" || (id !== "custom" && !PROVIDERS[id].needsKey);
+  return [...providers.filter(free), ...providers.filter((id) => !free(id))];
 }
 
 export function ServiceSettings({
@@ -175,7 +198,7 @@ export function ServiceSettings({
             value={settings.provider}
             onChange={(event) => onChange({ provider: event.target.value as ProviderId })}
           >
-            {providers.map((id) => (
+            {freeFirst(providers, siteAi?.services).map((id) => (
               <option key={id} value={id}>
                 {serviceName(id, t)}
                 {siteAi?.services.includes(id)
@@ -374,26 +397,32 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
     };
   };
 
-  /** Puts the AI's answer into the editor, where Undo can take it back. */
-  const apply = async (task: AiTask, answer: unknown) => {
+  /** Puts the AI's answer into the editor, where Undo can take it back, saying what it changed and left out. */
+  const apply = async (task: AiTask, answer: unknown): Promise<ApplyReport> => {
     if (task.kind === "fill") {
-      await editor.apply({ type: "root", props: toValues(answer, task.fields, task.values) });
-      return;
+      const props = toValues(answer, task.fields, task.values);
+      await editor.apply({ type: "root", props });
+      const values = answer && typeof answer === "object" ? (answer as { values?: unknown }).values : undefined;
+      return valuesReport(values, task.fields, task.values, props);
     }
     const blocks = toContent(answer, editor.config, newId);
     const [first] = blocks;
     if (!first) throw new AiError("answer", "The answer didn't contain any blocks that could be used.");
+    const kept = task.kind === "edit" ? countBlocks([first]) : countBlocks(blocks);
+    const left = Math.max(0, answeredBlocks(answer) - kept);
     if (task.kind === "translate") {
       const root = answer && typeof answer === "object" ? (answer as { root?: unknown }).root : undefined;
       const props = toValues({ values: root }, task.rootFields, task.root);
       await editor.apply({ type: "translate", props, content: blocks });
-      return;
+      const settings = valuesReport(root, task.rootFields, task.root, props);
+      return { settings: settings.settings, blocks: kept, skipped: settings.skipped + left };
     }
     if (task.kind === "edit") {
       await editor.apply({ type: "replace", id: String(task.block.props.id), block: first });
-      return;
+      return { blocks: kept, skipped: left };
     }
     await editor.apply({ type: "append", blocks });
+    return { blocks: kept, skipped: left };
   };
 
   /**
@@ -506,8 +535,8 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
       if (current.signal.aborted) return;
       const filled = await addPhotos(answer, current.signal);
       if (current.signal.aborted) return;
-      await apply(task, filled.answer);
-      setStatus({ type: "done", photos: filled.photos });
+      const report = await apply(task, filled.answer);
+      setStatus({ type: "done", photos: filled.photos, report });
     } catch (error) {
       if (current.signal.aborted) setStatus({ type: "idle" });
       else setStatus({ type: "failed", error });
@@ -523,8 +552,8 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
     try {
       const filled = await addPhotos(parseAnswer(reply), current.signal);
       if (current.signal.aborted) return;
-      await apply(task, filled.answer);
-      setStatus({ type: "done", photos: filled.photos });
+      const report = await apply(task, filled.answer);
+      setStatus({ type: "done", photos: filled.photos, report });
     } catch (error) {
       if (current.signal.aborted) setStatus({ type: "idle" });
       else setStatus({ type: "failed", error });
@@ -614,6 +643,7 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
             {t("ai.done")}
             {status.photos?.added.length ? ` ${t("ai.photos.added", { names: status.photos.added.join(", ") })}` : null}
           </p>
+          {status.report && <ApplyReportText report={status.report} />}
           {status.photos && <PhotoProblems report={status.photos} />}
         </>
       )}
