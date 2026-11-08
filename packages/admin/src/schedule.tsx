@@ -1,5 +1,6 @@
 import {
   type FileChange,
+  type FileDetails,
   type RepositoryVisibility,
   type Schedule,
   type ScheduledBuilds,
@@ -9,7 +10,6 @@ import {
   scheduleState,
   upcomingChanges,
   wallClock,
-  type FileDetails,
 } from "@goodfellow-cms/core";
 import { useEffect, useState } from "react";
 import { useAdmin } from "./admin-context.js";

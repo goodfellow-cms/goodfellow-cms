@@ -4,13 +4,13 @@ import {
   entryLanguage,
   entryTitle,
   eventValueProblem,
+  type FileDetails,
   findEntry,
   isEmptyValue,
+  published,
   type Schedule,
   scheduleProblem,
   withSchedule,
-  type FileDetails,
-  published,
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { useMemo } from "react";
@@ -79,7 +79,9 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
               entry.slug,
               values,
               // Publish puts an item that isn't on the site yet there; adding it to a draft leaves it as it is.
-              (draft ? (details: FileDetails) => details : published)(withSchedule(entry.content, schedule as Schedule)),
+              (draft ? (details: FileDetails) => details : published)(
+                withSchedule(entry.content, schedule as Schedule),
+              ),
             ),
             ...scheduleSettingsChanges(content, schedule as Schedule),
           ],

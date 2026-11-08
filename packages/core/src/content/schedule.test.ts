@@ -93,11 +93,12 @@ describe("pages and items that aren't published yet", () => {
     const content = await loadSiteContent(memorySource(files));
     const picnic = content.pages.find((found) => found.path === "/picnic");
     if (!picnic) throw new Error("No picnic page");
-    expect(JSON.parse(pageFileChange("/picnic", picnic.content.data, picnic.content).content)).toMatchObject({
+    const text = (change: ReturnType<typeof pageFileChange>) => ("content" in change ? change.content : "");
+    expect(JSON.parse(text(pageFileChange("/picnic", picnic.content.data, picnic.content)))).toMatchObject({
       notPublished: true,
       showFrom: "2026-06-01T00:00",
     });
-    const live = JSON.parse(pageFileChange("/picnic", picnic.content.data, published(picnic.content)).content);
+    const live = JSON.parse(text(pageFileChange("/picnic", picnic.content.data, published(picnic.content))));
     expect(live.notPublished).toBeUndefined();
     expect(live.showFrom).toBe("2026-06-01T00:00");
   });

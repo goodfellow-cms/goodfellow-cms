@@ -41,10 +41,8 @@ export function parseMarkdownEntry(text: string, body: string): Record<string, u
     throw new Error("must have front matter that lists fields, such as `title: My page`.");
   }
   // Fields' names are lowercase, so the schedule's times and the translation's details can't be one.
-  const { version, showFrom, hideAfter, notPublished, inLanguage, translationOf, translatedFrom, ...fields } = front as Record<
-    string,
-    unknown
-  >;
+  const { version, showFrom, hideAfter, notPublished, inLanguage, translationOf, translatedFrom, ...fields } =
+    front as Record<string, unknown>;
   const markdown = text
     .slice(match[0].length)
     .replace(/^\r?\n/, "")

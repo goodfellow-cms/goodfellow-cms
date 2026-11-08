@@ -217,19 +217,19 @@ export function scheduledChanges(content: SiteContent): ScheduledChange[] {
     ...content.pages
       .filter((page) => !page.content.notPublished)
       .flatMap((page: Page) =>
-      changesOf(page.content, timeZone, { file: page.file, title: pageTitle(page), path: page.path }),
-    ),
+        changesOf(page.content, timeZone, { file: page.file, title: pageTitle(page), path: page.path }),
+      ),
     ...content.collections.flatMap((collection) =>
       collection.entries
         .filter((entry) => !entry.content.notPublished)
         .flatMap((entry: Entry) =>
-        changesOf(entry.content, timeZone, {
-          file: entry.file,
-          title: entryTitle(entry),
-          ...(entry.path && { path: entry.path }),
-          entry: { collection: collection.id, slug: entry.slug },
-        }),
-      ),
+          changesOf(entry.content, timeZone, {
+            file: entry.file,
+            title: entryTitle(entry),
+            ...(entry.path && { path: entry.path }),
+            entry: { collection: collection.id, slug: entry.slug },
+          }),
+        ),
     ),
   ];
   return found.sort((a, b) => a.at.getTime() - b.at.getTime() || a.file.localeCompare(b.file));
