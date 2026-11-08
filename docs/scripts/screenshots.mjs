@@ -112,7 +112,7 @@ try {
   await page.waitForTimeout(1500);
   await shot("editor");
 
-  // The editor's header once something has changed, with Undo, Add to draft and Publish.
+  // The editor's header once something has changed, with Undo, Add to draft, and Publish.
   const title = page
     .frameLocator("iframe.gfa-editor-frame")
     .getByRole("textbox", { name: "Page title" })

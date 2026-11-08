@@ -10,7 +10,7 @@ A site can be in more than one language, such as a parish with Masses in English
 
 ## Adding a language
 
-In **Site Settings**, the **Languages** tab has the main language and a button, **Add a language**. Give the new language its code, such as `es`, `fr` or `pt-BR`. It's named in its own language (Español, Français, Português) unless you name it yourself, and it can have the site's name, description and page title pattern in that language. Publish, and the language is ready for pages.
+In **Site Settings**, the **Languages** tab has the main language and a button, **Add a language**. Give the new language its code, such as `es`, `fr`, or `pt-BR`. It's named in its own language (Español, Français, Português) unless you name it yourself, and it can have the site's name, description, and page title pattern in that language. Publish, and the language is ready for pages.
 
 A language's code is where its pages go, so it can't change once it's published, and the main language's code can't change while the site has pages or items in other languages. A language can be removed once nothing is in it.
 
@@ -33,7 +33,7 @@ In a page that's in another language, the [AI assistant](/docs/ai-assistant) has
 
 A collection's items can be in any of the site's languages. On a collection's list, each item in the main language has **Translate into Español**, which copies it with a name of its own, such as `open-house-es`, and the same **Up to date** and **Out of date** as pages. **Add** asks for the language when the site has more than one, for items in only one language, such as news that's only for Spanish speakers.
 
-An item's page is under its language's code: a story at `/news/{slug}` in English is at `/es/news/{slug}` in Spanish. Lists, calendars and feeds on a page show only the items in the page's language, so a Spanish page lists only Spanish items.
+An item's page is under its language's code: a story at `/news/{slug}` in English is at `/es/news/{slug}` in Spanish. Lists, calendars, and feeds on a page show only the items in the page's language, so a Spanish page lists only Spanish items.
 
 ## Menus
 
@@ -67,9 +67,9 @@ The admin panel speaks English or Spanish, whichever each editor's browser asks 
 
 A site can have the admin panel in any other language too, with its text in a file of the site's own: `content/admin-text/fr.json` for French, named by the language's code. The language menu then offers it, named as the file names it, and editors whose browser asks for it first start in it.
 
-Owners add one in **Site Settings → Admin panel languages**: give the language's code and its name in that language, choose the [AI service](/docs/ai-assistant) and its key, as in the editor's AI panel, and **Add and translate**. The service translates the admin panel's words, the editor's controls and your blocks' labels, a batch at a time, with a glossary that keeps words such as Publish, Draft and Version history the same throughout and never uses git's. What comes back is published as the language's file, even if the service stops part way, so nothing is translated twice. The screen then shows how much of the admin panel each language says, with **Translate what's missing**, **Translate again what's out of date** for strings whose English has changed in a later release, and **Remove**. A box says anything the translation should know, such as how formal to be. A chat app can't do it, since the admin panel asks the service itself.
+Owners add one in **Site Settings → Admin panel languages**: give the language's code and its name in that language, choose the [AI service](/docs/ai-assistant) and its key, as in the editor's AI panel, and **Add and translate**. The service translates the admin panel's words, the editor's controls, and your blocks' labels, a batch at a time, with a glossary that keeps words such as Publish, Draft, and Version history the same throughout and never uses git's. What comes back is published as the language's file, even if the service stops part way, so nothing is translated twice. The screen then shows how much of the admin panel each language says, with **Translate what's missing**, **Translate again what's out of date** for strings whose English has changed in a later release, and **Remove**. A box says anything the translation should know, such as how formal to be. A chat app can't do it, since the admin panel asks the service itself.
 
-**Edit** opens a language's words one by one: each string's English beside what the admin panel shows, a box to change it, and **Read by someone who speaks it** to mark the ones a person has checked. Search finds a string by its English, its translation or its key, and **Show** narrows the list to strings not written yet, out of date, that can't be used, or not read yet. A string with other words in curly braces than the English can't be published until it's fixed; emptying a box takes the string out of the file, so it shows the English again. **Publish** saves every change together.
+**Edit** opens a language's words one by one: each string's English beside what the admin panel shows, a box to change it, and **Read by someone who speaks it** to mark the ones a person has checked. Search finds a string by its English, its translation, or its key, and **Show** narrows the list to strings not written yet, out of date, that can't be used, or not read yet. A string with other words in curly braces than the English can't be published until it's fixed; emptying a box takes the string out of the file, so it shows the English again. **Publish** saves every change together.
 
 The same screen changes Goodfellow's own words: **Change words** beside English or Español opens the admin panel's words in that language, to write the ones you'd rather it used, such as your parish's word for an editor. Only what you change is kept, in `content/admin-text/en.json` or `es.json`; everything else stays as Goodfellow writes it and follows its updates. Your own English words show without English beside them.
 
@@ -115,7 +115,7 @@ A developer or a translation tool can write the files too:
 }
 ```
 
-- **`strings`** are the admin panel's own words, by the keys in `packages/admin/src/strings.tsx`; **`puck`** is the editor's controls, by Puck's dictionary's keys; **`labels`** are blocks' names, settings and choices, by their English wording.
+- **`strings`** are the admin panel's own words, by the keys in `packages/admin/src/strings.tsx`; **`puck`** is the editor's controls, by Puck's dictionary's keys; **`labels`** are blocks' names, settings, and choices, by their English wording.
 - **`source`** is a hash of the English the text was made from, `englishHash()` from `@goodfellow-cms/core`, so text whose English has changed since can be found again. **`reviewed`** can mark text someone who speaks the language has read.
 - **Anything the file leaves out is in English**, or in Goodfellow's own translation where it ships one, so a file for `es` changes only the strings it has.
 - **Every string is checked as it's used**: one that's empty, very long, or has other `{placeholders}` than the English, such as `{title}`, is shown in English instead.
@@ -128,7 +128,7 @@ A developer or a translation tool can write the files too:
 
 What the languages are and what translates what is all in [content files](/docs/content-files):
 
-- `content/site.json`: `languages`, a list of `{ code, name }`, besides the main `language` and its optional `languageName`, and `translations`, each language's `title`, `description` and `titleTemplate`.
+- `content/site.json`: `languages`, a list of `{ code, name }`, besides the main `language` and its optional `languageName`, and `translations`, each language's `title`, `description`, and `titleTemplate`.
 - `content/menus.json`: `languages`, each language's own menus by name.
 - Pages: a translation's file has `translationOf`, the address of the page it translates, and `translatedFrom`, a hash of that page's content when it was translated, which says whether it's out of date. A page under a language's code without `translationOf` is a page of its own in that language.
 - Items: `inLanguage`, the item's language, besides `translationOf` (the name of the item it translates) and `translatedFrom`. Markdown items have them in their front matter.

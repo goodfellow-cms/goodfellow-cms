@@ -26,7 +26,7 @@
                 "id": "Text-cloud-intro",
                 "align": "left",
                 "className": "mx-auto max-w-3xl mt-4 text-lg",
-                "content": "<p>Goodfellow Cloud is planned for the future, once enough organizations are interested: a hosted service that would set up and run the parts of a Goodfellow site that owners put online themselves today, such as Sign in with GitHub, the token broker, the Claude connector and media storage, so a new site needs nothing more than signing in. Sites would stay in your own GitHub or GitLab account, and you could leave at any time without losing anything.</p><p><strong>Goodfellow's core will always be free.</strong> Everything Goodfellow does today stays free and open source, and everything Cloud would run stays free to set up yourself, with the same documentation. Read more in <a href=\"/docs/goodfellow-cloud\">the documentation</a>.</p>"
+                "content": "<p>Goodfellow Cloud is planned for the future, once enough organizations are interested: a hosted service that would set up and run the parts of a Goodfellow site that owners put online themselves today, such as Sign in with GitHub, the token broker, the Claude connector, and media storage, so a new site needs nothing more than signing in. Sites would stay in your own GitHub or GitLab account, and you could leave at any time without losing anything.</p><p><strong>Goodfellow's core will always be free.</strong> Everything Goodfellow does today stays free and open source, and everything Cloud would run stays free to set up yourself, with the same documentation. Read more in <a href=\"/docs/goodfellow-cloud\">the documentation</a>.</p>"
               }
             },
             {
@@ -123,7 +123,7 @@
     "root": {
       "props": {
         "className": "",
-        "description": "Goodfellow Cloud is planned: a hosted service that would set up and run sign-in, the token broker, the Claude connector and media storage for Goodfellow sites. Join the waitlist.",
+        "description": "Goodfellow Cloud is planned: a hosted service that would set up and run sign-in, the token broker, the Claude connector, and media storage for Goodfellow sites. Join the waitlist.",
         "image": "",
         "title": "Goodfellow Cloud"
       }

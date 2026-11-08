@@ -27,7 +27,7 @@ export default defineConfig({
 });
 ```
 
-Name the variable whatever you like. The staging build sets `SITE_BRANCH=staging`, and the admin panel built with it publishes there. Drafts, scheduled changes, plugins' tasks and the Updates screen follow the same branch. `gitlab()` and `bitbucket()` take `branch` too.
+Name the variable whatever you like. The staging build sets `SITE_BRANCH=staging`, and the admin panel built with it publishes there. Drafts, scheduled changes, plugins' tasks, and the Updates screen follow the same branch. `gitlab()` and `bitbucket()` take `branch` too.
 
 Builds bake the config into the admin panel and into `goodfellow-site.json`, both of which anyone can read. Never put a secret in the config, even from an environment variable.
 
@@ -39,7 +39,7 @@ Site Settings' **Site address** is the live site's. The staging build sets the a
 GOODFELLOW_SITE_URL=https://staging.example.org GOODFELLOW_NO_INDEX=true npm run build
 ```
 
-- **`GOODFELLOW_SITE_URL`** replaces the Site address wherever the build uses it: canonical links, the sitemap and `robots.txt`, feeds, calendar files, link previews, redirect pages and the nightly check. Use the full address, with any subfolder.
+- **`GOODFELLOW_SITE_URL`** replaces the Site address wherever the build uses it: canonical links, the sitemap and `robots.txt`, feeds, calendar files, link previews, redirect pages, and the nightly check. Use the full address, with any subfolder.
 - **`GOODFELLOW_NO_INDEX=true`** asks search engines not to list any of the staging site's pages, as each page's own **Search engines** setting does, and leaves them all out of the sitemap.
 
 Both apply to `goodfellow build` and `goodfellow dev`. On a Next.js site, set them for `next build` and `goodfellow-next finish` alike, since both read the Site address. Without them, a build is the live site's.
