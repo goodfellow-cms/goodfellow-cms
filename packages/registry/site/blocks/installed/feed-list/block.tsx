@@ -1,4 +1,4 @@
-import { addDays, changesOn, readRemoteText, todayIn } from "@goodfellow-cms/core";
+import { addDays, changesOn, readRemoteText, todayIn, withoutTags } from "@goodfellow-cms/core";
 import { classNameField, SiteLink, useParts, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 
@@ -47,11 +47,49 @@ async function fetchFeed(address: string): Promise<string> {
 
 const entities: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
+/*
+ * Feeds come from other sites and can be any length, so what's inside a tag
+ * or CDATA section is found by searching on from where it starts, rather than
+ * with `[\s\S]*?`, which looks for the end again from every start and takes
+ * time that grows with the square of a feed's length when one never ends.
+ */
+
+/** What's inside each `<name …>…</name>` in the XML, each ending at the first `</name>` after it. */
+function elements(xml: string, name: string, first = false): string[] {
+  const opening = new RegExp(`<${name}(?:\\s[^<>]*)?>`, "gi");
+  const closing = new RegExp(`</${name}>`, "gi");
+  const found: string[] = [];
+  let close: RegExpExecArray | null = null;
+  for (let open = opening.exec(xml); open; open = opening.exec(xml)) {
+    const start = open.index + open[0].length;
+    if (!close || close.index < start) {
+      closing.lastIndex = start;
+      close = closing.exec(xml);
+      if (!close) break;
+    }
+    found.push(xml.slice(start, close.index));
+    if (first) break;
+    opening.lastIndex = close.index + close[0].length;
+  }
+  return found;
+}
+
+/** Text with each `<![CDATA[…]]>` replaced by what's inside it. */
+function withoutCdata(text: string): string {
+  let result = "";
+  let from = 0;
+  for (let start = text.indexOf("<![CDATA["); start !== -1; start = text.indexOf("<![CDATA[", from)) {
+    const end = text.indexOf("]]>", start + 9);
+    if (end === -1) break;
+    result += text.slice(from, start) + text.slice(start + 9, end);
+    from = end + 3;
+  }
+  return result + text.slice(from);
+}
+
 /** A tag's text, without CDATA markers, tags, or entities. */
 function decode(text: string): string {
-  return text
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/<[^>]*>/g, "")
+  return withoutTags(withoutCdata(text))
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
     .replace(/&([a-z]+);/gi, (match, name) => entities[name.toLowerCase()] ?? match)
@@ -59,27 +97,26 @@ function decode(text: string): string {
 }
 
 function tag(xml: string, name: string): string {
-  const match = xml.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, "i"));
-  return decode(match?.[1] ?? "");
+  return decode(elements(xml, name, true)[0] ?? "");
 }
 
 /** An Atom entry's link: its `alternate` one, or the first. */
 function atomLink(xml: string): string {
-  const links = [...xml.matchAll(/<link\b([^>]*)\/?>/gi)].map((match) => match[1] ?? "");
+  const links = [...xml.matchAll(/<link\b([^<>]*)>/gi)].map((match) => match[1] ?? "");
   const chosen = links.find((attrs) => !/rel=["'](?!alternate)/i.test(attrs)) ?? links[0] ?? "";
   return chosen.match(/href=["']([^"']+)["']/i)?.[1] ?? "";
 }
 
 /** The titles, links, and dates of an RSS or Atom feed's items. Their text and descriptions are left out. */
 export function readFeedItems(xml: string): FeedItem[] {
-  const rss = [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)].map(([, item = ""]) => ({
+  const rss = elements(xml, "item").map((item) => ({
     title: tag(item, "title"),
     link: tag(item, "link") || tag(item, "guid"),
     date: tag(item, "pubDate") || tag(item, "dc:date"),
   }));
   const items = rss.length
     ? rss
-    : [...xml.matchAll(/<entry\b[^>]*>([\s\S]*?)<\/entry>/gi)].map(([, entry = ""]) => ({
+    : elements(xml, "entry").map((entry) => ({
         title: tag(entry, "title"),
         link: atomLink(entry),
         date: tag(entry, "published") || tag(entry, "updated"),

@@ -4,7 +4,7 @@
  * hash is, so only what changed is downloaded, and what's kept is shown
  * offline. Content newer than the app reads is left until the app updates.
  */
-import { CURRENT_VERSION, mediaKind } from "@goodfellow-cms/core";
+import { CURRENT_VERSION, mediaKind, trimChars } from "@goodfellow-cms/core";
 import type {
   ApiCollectionsFile,
   ApiLayoutFile,
@@ -305,7 +305,7 @@ export async function readSiteFiles(
 /** An address's path, without its `?…`, `#…` or trailing slash. */
 function pathOf(href: string): string {
   const path = href.split(/[?#]/)[0] ?? "";
-  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+  return path.length > 1 ? trimChars(path, "/", { start: false }) : path;
 }
 
 /** The longest chain of redirects followed, in case a site's lead in a circle. */

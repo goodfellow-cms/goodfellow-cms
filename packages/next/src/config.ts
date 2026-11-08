@@ -167,7 +167,7 @@ function imageSettings(images: NextConfig["images"]): NextConfig["images"] {
 
 /** An address as Next.js matches a redirect's source, with the characters its patterns use escaped. */
 function redirectSource(path: string): string {
-  return encodeURI(path).replace(/[()[\]{}+*?:!]/g, "\\$&");
+  return encodeURI(path).replace(/[\\()[\]{}+*?:!]/g, "\\$&");
 }
 
 /**

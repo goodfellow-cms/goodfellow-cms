@@ -13,6 +13,7 @@ import {
   isGarrul,
   type SiteCommentsPlace,
   type SiteSettings,
+  trimChars,
 } from "@goodfellow-cms/core";
 import { classNameField, useParts, useSite, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
@@ -85,7 +86,7 @@ export function garrulSlugScript(): string {
 /** The page's full address, where the site has a Site address. */
 function pageUrl(siteUrl: string | undefined, path: string): string | undefined {
   if (!siteUrl) return undefined;
-  return `${siteUrl.replace(/\/+$/, "")}${path === "/" ? "/" : path}`;
+  return `${trimChars(siteUrl, "/", { start: false })}${path === "/" ? "/" : path}`;
 }
 
 /**

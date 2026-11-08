@@ -60,7 +60,7 @@ export function taskRequestProblem(request: PluginTaskRequest): string | undefin
     return "That isn't a task's request.";
   }
   if (!isTaskRequestId(request.id)) return "The request's id isn't one the admin panel makes.";
-  if (!/^[a-z0-9][a-z0-9._-]*(--[a-z0-9][a-z0-9._-]*)?$/.test(request.plugin)) return "That isn't a plugin's id.";
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(request.plugin)) return "That isn't a plugin's id.";
   if (!/^[a-z0-9][a-z0-9-]*$/.test(request.task)) return "That isn't a task's id.";
   if (request.input.length > TASK_INPUT_LIMIT) return "The task's input is too long.";
   try {
