@@ -13,7 +13,7 @@ order: 10
 The service gives the admin panel tokens from its GitHub App, which GitHub only gives for repositories the app is installed on. So the first time someone signs in to a site, an owner installs the app on it: the sign-in screen offers to, and GitHub's install page signs them in as it installs.
 
 1. The sign-in screen checks with the service that its app is installed on the site's repository, and that the admin panel is at the address the site's settings (`content/site.json`) give.
-2. **Sign in with GitHub** goes to GitHub, where the editor approves the app, and back to the admin panel.
+2. **Sign in with GitHub** goes to GitHub, where the editor approves the app, and back to the admin panel, with a one-time grant after the address's `#`, which browsers never send to the site's host, so it stays out of the host's logs.
 3. The service checks the editor can publish to the repository, and gives the admin panel a token for that repository only, lasting an hour, along with a session. The admin panel asks for a new token with the session about once an hour, and each time the service checks with GitHub that the editor still edits the site.
 
 ## What it keeps

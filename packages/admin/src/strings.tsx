@@ -469,7 +469,7 @@ export const defaultStrings = {
     "Items in {name} don't have pages of their own. They appear wherever a Collection list block shows {name}.",
 
   "template.help":
-    "Every item's page uses this design. To show an item's information, add an Entry field block, or type a field's name in braces in any text:",
+    "Every item's page uses this design. To show an item's information, add an Item field block, or type a field's name in braces in any text:",
   "template.message": "Update the page design for {name}",
   "template.noPages":
     "Items in {name} don't have pages of their own, so there's no page design. To give them pages, turn that on in Settings.",

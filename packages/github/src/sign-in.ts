@@ -108,9 +108,35 @@ export function browserLocation(): BrowserLocation | undefined {
   };
 }
 
-/** Query parameters the worker comes back with. */
+/** Parameters the worker comes back with: after the address's `#`, or in its query from workers before that. */
 export const GRANT_PARAM = "goodfellow_sign_in";
 export const ERROR_PARAM = "goodfellow_sign_in_error";
+
+/**
+ * The grant or problem a sign-in came back with, and the address without
+ * them, for the address bar. The worker puts them after the `#` (in the
+ * admin panel's own screen address's query, such as
+ * `#/settings/editors?goodfellow_sign_in=…`), so they never reach a server's
+ * logs, or in the query where it predates that.
+ */
+export function signInReturn(href: string): { grant?: string; failed?: string; cleaned: string } {
+  const url = new URL(href);
+  const hash = url.hash.slice(1);
+  const at = hash.indexOf("?");
+  const screen = at === -1 ? "" : hash.slice(0, at);
+  const fragment = new URLSearchParams(at === -1 ? "" : hash.slice(at + 1));
+  const grant = fragment.get(GRANT_PARAM) ?? url.searchParams.get(GRANT_PARAM) ?? undefined;
+  const failed = fragment.get(ERROR_PARAM) ?? url.searchParams.get(ERROR_PARAM) ?? undefined;
+  for (const params of [fragment, url.searchParams]) {
+    params.delete(GRANT_PARAM);
+    params.delete(ERROR_PARAM);
+  }
+  if (at !== -1) {
+    const rest = fragment.toString();
+    url.hash = rest ? `${screen}?${rest}` : screen;
+  }
+  return { ...(grant && { grant }), ...(failed && { failed }), cleaned: url.toString() };
+}
 
 export class SignInService {
   readonly url: string;
@@ -184,6 +210,8 @@ export class SignInService {
       challenge: options.challenge,
       remember: options.remember ? "1" : "0",
       ...(options.install && { install: "1" }),
+      // Read back from after the `#`, so the grant never reaches a server's logs (`signInReturn()`).
+      fragment: "1",
     });
     return `${this.url}/github/start?${query}`;
   }

@@ -50,7 +50,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Collection list | A collection's items as a list or cards, with a heading, on pages of their own and a page for each choice (see [Showing collections](/docs/showing-collections)) |
 | Collection loop | Blocks you design, shown once for each of a collection's items |
 | Calendar | Events coming up, or a month at a time, from a collection of events or another calendar (see [Calendars and events](/docs/calendars)) |
-| Entry field | One of the item's fields, in a collection's page design only |
+| Item field | One of the item's fields, in a collection's page design only |
 | Add to calendar | Links that add the item's event to visitors' calendars, in a page design only |
 | Previous and next | Links to the items before and after this one, in a page design only |
 | On this page | Links to the page's headings, or to the headings of an item's Markdown text (see [Headings and On this page](#headings-and-on-this-page)) |
@@ -191,7 +191,7 @@ Every part of a built-in block has a name, which is on the part as a class, and 
 - **Contact details:** `gf-contact` (Contact details), `gf-contact-address` (Address), `gf-contact-phone` (Phone number), `gf-contact-email` (Email address).
 - **Details:** `gf-details` (Details), `gf-details-summary` (Summary), `gf-details-content` (What it shows).
 - **Dark mode switch:** `gf-dark-mode-switch` (Dark mode switch), `gf-dark-mode-switch-track` (Switch's track), `gf-dark-mode-switch-thumb` (Switch's knob).
-- **Entry field:** `gf-entry-field` (Entry field), `gf-entry-field-link` (Field's link), `gf-entry-field-image` (Each of several images), `gf-entry-field-row` (Each of a group's rows), `gf-code` (Code), `gf-code-title` (Code's title), `gf-code-copy` (Copy button).
+- **Item field:** `gf-entry-field` (Item field), `gf-entry-field-link` (Field's link), `gf-entry-field-image` (Each of several images), `gf-entry-field-row` (Each of a group's rows), `gf-code` (Code), `gf-code-title` (Code's title), `gf-code-copy` (Copy button).
 - **File:** `gf-file` (File), `gf-file-link` (File's link), `gf-file-button` (Download button).
 - **Form:** `gf-form` (Form), `gf-form-embed` (Google Form), `gf-form-questions` (Questions), `gf-form-question` (Question), `gf-form-label` (Question's wording), `gf-form-hint` (Help text), `gf-form-input` (Answer field), `gf-form-choice` (Choice), `gf-form-check` (Checkbox or option), `gf-form-required` (Required mark), `gf-form-submit` (Send button).
 - **Newsletter signup:** `gf-newsletter` (Newsletter signup), `gf-newsletter-heading` (Heading), `gf-newsletter-text` (Text), `gf-newsletter-form` (Form), `gf-newsletter-field` (Field), `gf-newsletter-label` (Field's label), `gf-newsletter-input` (Email box), `gf-newsletter-submit` (Subscribe button), `gf-newsletter-note` (Words under the form).

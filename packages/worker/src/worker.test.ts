@@ -83,6 +83,22 @@ describe("signing in", () => {
     expect(reads()).toBe(2);
   });
 
+  it("puts the grant after the #, in the screen's address, for admin panels that ask, and in the query otherwise", async () => {
+    const { post, redirect } = setup();
+    const { back, verifier } = await redirect("maria", "edit", `${SITE}/admin/#/settings/editors`, { fragment: true });
+    expect(back.search).toBe("");
+    expect(back.hash.startsWith("#/settings/editors?goodfellow_sign_in=")).toBe(true);
+    const grant = new URLSearchParams(back.hash.slice(back.hash.indexOf("?") + 1)).get("goodfellow_sign_in");
+    expect((await post("/github/session", { grant, verifier })).status).toBe(200);
+    // A return address with no screen gets one with only the grant.
+    const bare = await redirect("maria", "edit", `${SITE}/admin/`, { fragment: true });
+    expect(bare.back.hash.startsWith("#?goodfellow_sign_in=")).toBe(true);
+    // Admin panels from before read the query, so that's where they get it.
+    const older = await redirect("maria", "edit", `${SITE}/admin/#/pages`);
+    expect(older.back.searchParams.get("goodfellow_sign_in")).toBeTruthy();
+    expect(older.back.hash).toBe("#/pages");
+  });
+
   it("gives tokens to the site's admin address too, which its build names", async () => {
     const admin = "https://admin.parish.example";
     const { call, post, redirect } = setup({ admin });
