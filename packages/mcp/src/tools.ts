@@ -70,6 +70,7 @@ import {
   listMedia,
   listPages,
   listSyncedBlocks,
+  loadWholeSite,
   mediaImage,
   pageAddress,
   readCollection,
@@ -685,8 +686,8 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       if (from === to) throw new ToolError(`The page is at ${to} already.`);
       if (isReservedPagePath(to)) throw new ToolError(`${to} is kept for the admin panel. Choose another address.`);
       const draft = await changing(site, name);
-      // Links anywhere on the site can point to it, so this reads the whole site.
-      const content = await loadSiteContent(draft.store);
+      // Links anywhere on the site can point to it, so this reads the whole site, in batches.
+      const content = await loadWholeSite(draft.store);
       const page = content.pages.find((candidate) => candidate.path === from);
       if (!page) throw new ToolError(`The site has no page at ${from}. get_site lists its pages.`);
       if (content.pages.some((candidate) => candidate.path === to) || (await takenAddresses(draft.store)).has(to)) {
