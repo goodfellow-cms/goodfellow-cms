@@ -77,6 +77,9 @@ describe("guards", () => {
   it("refuses comments that browsers end sooner than they seem to end", () => {
     const after = `<script data-goodfellow-guard>${script}</script>`;
     // Each of these ends the comment at once, so the script after it runs before the guard.
+    // Any attribute names <html> has, with either quotes.
+    expect(startsWithGuard(`<!doctype html><html lang="en" data-v1='x' class="a_b"><head>${after}`, "html")).toBe(true);
+    expect(startsWithGuard(`<html data-x="<img src=x onerror=steal()>"><head>${after}`, "html")).toBe(false);
     for (const opening of ["<!-->", "<!--->", "<!-- a --!>"]) {
       expect(startsWithGuard(`${opening}<script>steal()</script>--><html><head>${after}`, "html")).toBe(false);
     }
@@ -85,8 +88,30 @@ describe("guards", () => {
   it("puts the guard just inside an SVG's or XML file's root element", () => {
     const svg = '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect/></svg>';
     const guardedSvg = withGuard(svg, "svg", script) ?? "";
-    expect(guardedSvg).toContain('viewBox="0 0 1 1"><script data-goodfellow-guard=""><![CDATA[');
+    expect(guardedSvg).toContain(
+      'viewBox="0 0 1 1"><script xmlns="http://www.w3.org/2000/svg" data-goodfellow-guard=""><![CDATA[',
+    );
     expect(startsWithGuard(guardedSvg, "svg")).toBe(true);
+    // Guards from before the namespace was written still count inside an unprefixed <svg>.
+    expect(startsWithGuard(guardedSvg.replace(' xmlns="http://www.w3.org/2000/svg" data-', " data-"), "svg")).toBe(
+      true,
+    );
+
+    // A root with a prefix leaves no default namespace, so the guard names SVG's itself.
+    const prefixed = '<svg:svg xmlns:svg="http://www.w3.org/2000/svg"><svg:rect/></svg:svg>';
+    const guardedPrefixed = withGuard(prefixed, "svg", script) ?? "";
+    expect(guardedPrefixed).toContain(
+      '<svg:svg xmlns:svg="http://www.w3.org/2000/svg"><script xmlns="http://www.w3.org/2000/svg" ',
+    );
+    expect(startsWithGuard(guardedPrefixed, "svg")).toBe(true);
+    expect(startsWithGuard(guardedPrefixed.replace(' xmlns="http://www.w3.org/2000/svg" data-', " data-"), "svg")).toBe(
+      false,
+    );
+
+    // An empty root element is opened and closed around the guard.
+    const empty = withGuard('<svg xmlns="http://www.w3.org/2000/svg" width="1"/>', "svg", script) ?? "";
+    expect(empty).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="1"><script [\s\S]*<\/script><\/svg>$/);
+    expect(startsWithGuard(empty, "svg")).toBe(true);
 
     const rss = '<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel/></rss>';
     const guardedRss = withGuard(rss, "xml", script) ?? "";
