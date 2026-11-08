@@ -21,7 +21,7 @@ The tools read the site's files from its repository, and what blocks the site ha
 
 ## What it keeps
 
-Who connected and which sites they chose are sealed inside the tokens Claude holds, with AES-GCM under a key only the connector has, so Claude can't read or change them. The one thing stored, in Cloudflare's D1 database, is each connection's refresh token generation and when it lapses, so a refresh token used twice ends the connection, as OAuth asks. The one before the current one still works for a minute, so Claude asking again after an answer it didn't get doesn't end it. Revoking either of a connection's tokens ends it.
+Who connected and which sites they chose are sealed inside the tokens Claude holds, with AES-GCM under a key only the connector has, so Claude can't read or change them. The one thing stored, in Cloudflare's D1 database, is each connection's refresh token generation and when it lapses, so a refresh token used twice ends the connection, as OAuth asks. The one before the current one still works for a minute, so Claude asking again after an answer it didn't get doesn't end it; with GitLab and Bitbucket it's refused instead, without ending the connection, since the host's own refresh token in it has been used already. Revoking either of a connection's tokens ends it.
 
 | Host | What the connector signs in with |
 |---|---|

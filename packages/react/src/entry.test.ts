@@ -7,6 +7,16 @@ const config = {
   components: {
     Heading: { fields: { text: { type: "text" } }, render: () => null },
     Html: { fields: { html: { type: "textarea", metadata: { html: true } } }, render: () => null },
+    Questions: {
+      fields: {
+        items: {
+          type: "array",
+          arrayFields: { question: { type: "text" }, answer: { type: "richtext" } },
+        },
+        more: { type: "object", objectFields: { note: { type: "richtext" } } },
+      },
+      render: () => null,
+    },
   },
 } as unknown as Config;
 
@@ -48,5 +58,35 @@ describe("filling in an item's values", () => {
     expect(filled.content[1]?.props.html).toBe(
       '<div class="news">&lt;img src=x onerror=&quot;alert(1)&quot;&gt;</div>',
     );
+  });
+
+  it("escapes them in rich text inside lists and objects too", () => {
+    const filled = applyEntry(
+      {
+        root: { props: {} },
+        content: [
+          {
+            type: "Questions",
+            props: {
+              id: "q",
+              items: [{ question: "{title}?", answer: "<p>{title}</p>" }],
+              more: { note: "<p>{title}</p>" },
+            },
+          },
+        ],
+      },
+      config,
+      news,
+      {
+        collection: "news",
+        slug: "a",
+        file: "content/collections/news/a.json",
+        path: "/news/a",
+        content: { version: 1, fields: { title: "<b>x</b>" } },
+      },
+    );
+    const props = filled.content[0]?.props as { items: { question: string; answer: string }[]; more: { note: string } };
+    expect(props.items[0]).toEqual({ question: "<b>x</b>?", answer: "<p>&lt;b&gt;x&lt;/b&gt;</p>" });
+    expect(props.more.note).toBe("<p>&lt;b&gt;x&lt;/b&gt;</p>");
   });
 });

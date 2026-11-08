@@ -607,6 +607,16 @@ describe("connecting with GitLab", () => {
     expect(renewed.status).toBe(200);
     const next = (await renewed.json()) as { access_token: string };
     expect((await (await mcp(next.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(false);
+
+    // Asked again with the same one, GitLab isn't asked to renew its refresh token twice, and what was given still works.
+    const again = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+      client_id: clientId,
+    });
+    expect(again.status).toBe(400);
+    expect(await again.json()).toMatchObject({ error: "invalid_grant" });
+    expect((await (await mcp(next.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(false);
   });
 });
 
