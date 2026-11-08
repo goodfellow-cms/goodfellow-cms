@@ -42,7 +42,7 @@ test("creates a site on GitHub with GitHub Pages, as npm create goodfellow would
 
   // Only what the site is for, at first: everything else follows from it.
   await expect(page.getByRole("group", { name: "Start from" })).toBeHidden();
-  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "A church, charity, school, or club").check();
   await radio(page, "Parish example").check();
   // GitLab is recommended for every site.
   await expect(radio(page, "GitLab")).toBeChecked();
@@ -97,7 +97,7 @@ test("creates a site on GitHub with GitHub Pages, as npm create goodfellow would
 test("recommends hosts whose free plans allow the site, and keeps what people chose themselves", async ({ page }) => {
   const label = (name: string) => page.locator("label", { has: radio(page, name) });
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "A church, charity, school, or club").check();
   await openAdvanced(page);
   await radio(page, "Private").check();
   // GitLab Pages publishes private sites, which kept on GitHub go on Cloudflare Pages; Vercel is never the recommendation.
@@ -156,7 +156,7 @@ test("creates a private project on GitLab with public GitLab Pages", async ({ pa
   });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "A church, charity, school, or club").check();
   await radio(page, "GitLab").check();
   await openAdvanced(page);
   await radio(page, "Private").check();
@@ -194,7 +194,7 @@ test("creates a site on GitHub with its content in a repository of its own", asy
   });
   await routeToFake(page, "https://api.github.com", github.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "A church, charity, school, or club").check();
   await radio(page, "GitHub").check();
   await openAdvanced(page);
   await radio(page, "In a repository of its own").check();
@@ -241,7 +241,7 @@ test("creates a site's code and content projects on GitLab, letting each pipelin
   });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "A church, charity, school, or club").check();
   await radio(page, "GitLab").check();
   await openAdvanced(page);
   await radio(page, "Private").check();
@@ -283,7 +283,7 @@ test("says what's left to connect on GitLab, where it refuses a step, and where 
   });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "A church, charity, school, or club").check();
   await radio(page, "GitLab").check();
   await openAdvanced(page);
   await radio(page, "Built-in blocks only").check();
@@ -314,7 +314,7 @@ test("creates a site on GitLab with a sign-in page of its own, on the project's 
   const gitlab = fakeGitLab({ project: "someone/existing", tokens: { "gl-token": { username: "someone" } } });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "A church, charity, school, or club").check();
   await openAdvanced(page);
   await radio(page, "At a sign-in page of its own").check();
   await expect(radio(page, "GitLab Pages, at an address GitLab gives it")).toBeChecked();
@@ -345,7 +345,7 @@ test("creates a site on GitLab with a sign-in page of its own, on the project's 
 
 test("recommends a sign-in page of its own, or with a domain chooses an admin address", async ({ page }) => {
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "A church, charity, school, or club").check();
   await openAdvanced(page);
   const signIn = (name: string) => page.locator("label", { has: radio(page, name) });
   // Without a domain, editors sign in at the site's address unless the owner chooses otherwise.
@@ -369,7 +369,7 @@ test("names an admin address of its own in a new site's config", async ({ page }
   const gitlab = fakeGitLab({ project: "someone/existing", tokens: { "gl-token": { username: "someone" } } });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);
   await page.goto(SETUP, { waitUntil: "networkidle" });
-  await radio(page, "A church, charity, school or club").check();
+  await radio(page, "A church, charity, school, or club").check();
   await openAdvanced(page);
   await radio(page, "At an admin address of its own").check();
   await expect(page.getByRole("link", { name: "Continue" })).toBeHidden();
