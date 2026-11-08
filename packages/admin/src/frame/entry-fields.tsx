@@ -68,6 +68,9 @@ function aiHint(
       return { type: "choices", options: field.options ?? [], description };
     case "yesno":
       return { type: "boolean", description };
+    // Its start and end; how it repeats stays as the editor set it (`toValues()`).
+    case "event":
+      return { type: "event", description };
     case "item": {
       // The items it can link to, by their names, as choices.
       const options = linkableItems(collections.find((candidate) => candidate.id === field.collection))
@@ -103,8 +106,7 @@ const MAX_AI_ITEMS = 200;
 function puckField(field: CollectionField, collection: Collection, content: SiteContent): Field {
   const markdown = collection.settings.markdown?.body === field.name;
   const control = fieldControl(field, markdown, content);
-  // The assistant leaves events' dates and times alone: they're structured, and editors know them best.
-  const ai = field.type === "event" ? undefined : aiHint(field, markdown, content.collections);
+  const ai = aiHint(field, markdown, content.collections);
   return ai ? { ...control, metadata: { ai } } : control;
 }
 

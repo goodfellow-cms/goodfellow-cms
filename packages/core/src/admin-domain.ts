@@ -117,11 +117,14 @@ export function pageFileKind(path: string): PageFileKind | undefined {
   return dot === -1 ? undefined : PAGE_EXTENSIONS[name.slice(dot + 1).toLowerCase()];
 }
 
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+const XHTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+
 function guardElement(script: string, kind: PageFileKind): string {
   if (kind === "html") return `<script ${GUARD_ATTRIBUTE}>${script}</script>`;
-  // XML's scripts run only in the XHTML or SVG namespace, and their text can't hold a bare "<" or "&".
-  const namespace = kind === "svg" ? "" : ' xmlns="http://www.w3.org/1999/xhtml"';
-  return `<script${namespace} ${GUARD_ATTRIBUTE}=""><![CDATA[${script}]]></script>`;
+  // XML's scripts run only in the XHTML or SVG namespace, and their text can't hold a bare "<" or "&". The
+  // namespace is written out, since a root element with a prefix (`<svg:svg>`) leaves no default one.
+  return `<script xmlns="${kind === "svg" ? SVG_NAMESPACE : XHTML_NAMESPACE}" ${GUARD_ATTRIBUTE}=""><![CDATA[${script}]]></script>`;
 }
 
 /** Where the guard goes: just after `<head>`, or failing that `<html>` or the doctype, in HTML; just inside the root element in XML. */
@@ -138,16 +141,25 @@ function guardPosition(text: string, kind: PageFileKind): number | undefined {
 }
 
 /** The root element's start tag in an XML file, after its declaration, comments, doctype and processing instructions. */
-function rootElement(text: string): { start: number; end: number; tag: string } | undefined {
+function rootElement(
+  text: string,
+): { start: number; end: number; tag: string; name: string; empty: boolean } | undefined {
   const prolog = /^(?:\uFEFF)?(?:\s+|<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE(?:[^[>]|\[[\s\S]*?\])*>)*/i.exec(text);
   const start = prolog ? prolog[0].length : 0;
-  const tag = /^<[A-Za-z_][^\s/>]*(?:\s+[^\s=/>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'))?)*\s*>/.exec(text.slice(start));
-  return tag ? { start, end: start + tag[0].length, tag: tag[0] } : undefined;
+  const tag = /^<([A-Za-z_][^\s/>]*)(?:\s+[^\s=/>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'))?)*\s*(\/?)>/.exec(text.slice(start));
+  if (!tag) return undefined;
+  return { start, end: start + tag[0].length, tag: tag[0], name: tag[1] ?? "", empty: tag[2] === "/" };
 }
 
 /** A page with the guard put in first, or `undefined` if it isn't a page the guard can go in, such as an empty file. */
 export function withGuard(text: string, kind: PageFileKind, script: string): string | undefined {
   if (startsWithGuard(text, kind)) return text;
+  const root = kind === "html" ? undefined : rootElement(text);
+  if (root?.empty) {
+    // An empty root element (`<svg …/>`) is opened and closed, so the guard can go inside it.
+    const open = `${root.tag.slice(0, -2).trimEnd()}>`;
+    return `${text.slice(0, root.start)}${open}${guardElement(script, kind)}</${root.name}>${text.slice(root.end)}`;
+  }
   const at = guardPosition(text, kind);
   if (at === undefined) return undefined;
   return `${text.slice(0, at)}${guardElement(script, kind)}${text.slice(at)}`;
@@ -165,15 +177,19 @@ export function startsWithGuard(text: string, kind: PageFileKind): boolean {
   if (kind === "html") {
     const before = text.slice(0, at);
     const safe =
-      // Comments only as browsers end them: `<!-->` and `<!--->` end at once, and `--!>` ends one too, so a
+      // Attributes on `<html>` may be quoted or not, but hold no markup. Comments only as browsers end them: `<!-->` and `<!--->` end at once, and `--!>` ends one too, so a
       // comment written that way would leave what follows it to run before the guard.
-      /^(?:\uFEFF)?\s*(?:<!doctype[^>]*>\s*)?(?:<!--(?!-?>)(?:(?!--!?>)[\s\S])*-->\s*)*(?:<html(?:\s+[a-z:-]+(?:="[^"<>]*")?)*\s*>\s*)?(?:<head\s*>\s*)?$/i;
+      /^(?:\uFEFF)?\s*(?:<!doctype[^>]*>\s*)?(?:<!--(?!-?>)(?:(?!--!?>)[\s\S])*-->\s*)*(?:<html(?:\s+[a-z_:][\w.:-]*(?:\s*=\s*(?:"[^"<>]*"|'[^'<>]*'|[^\s"'<>=`]+))?)*\s*>\s*)?(?:<head\s*>\s*)?$/i;
     return safe.test(before) && !/\son[a-z]+\s*=/i.test(before);
   }
   const root = rootElement(text);
-  if (!root || /<\?xml-stylesheet/i.test(text.slice(0, root.start)) || /\son[a-z]+\s*=/i.test(root.tag)) return false;
-  const opening = kind === "svg" ? "<script " : '<script xmlns="http://www.w3.org/1999/xhtml" ';
-  return text.startsWith(`${opening}${marker}`, root.end);
+  if (!root || root.empty || /<\?xml-stylesheet/i.test(text.slice(0, root.start)) || /\son[a-z]+\s*=/i.test(root.tag)) {
+    return false;
+  }
+  const opening = `<script xmlns="${kind === "svg" ? SVG_NAMESPACE : XHTML_NAMESPACE}" `;
+  if (text.startsWith(`${opening}${marker}`, root.end)) return true;
+  // Guards written before the namespace was, inside an unprefixed `<svg>`, whose default namespace is SVG's.
+  return kind === "svg" && root.name === "svg" && text.startsWith(`<script ${marker}`, root.end);
 }
 
 /** What checking an admin address found. */

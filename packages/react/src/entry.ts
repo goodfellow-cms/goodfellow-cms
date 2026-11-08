@@ -38,15 +38,20 @@ function fillValue(value: unknown, values: Values): unknown {
   return value;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function fillProps(
   props: Record<string, unknown>,
   fields: Fields | undefined,
   values: Values,
   config: Config,
+  nested = false,
 ): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(props).map(([key, value]) => {
-      if (key === "id") return [key, value];
+      if (key === "id" && !nested) return [key, value];
       const type = fields?.[key]?.type;
       if (type === "slot" && Array.isArray(value)) {
         return [key, value.map((child) => fillComponent(child as ComponentData, values, config))];
@@ -54,6 +59,18 @@ function fillProps(
       // Rich text, and text a block shows as HTML, such as Custom HTML's, get values as text, never markup.
       if ((type === "richtext" || isHtmlField(fields?.[key])) && typeof value === "string") {
         return [key, fillText(value, values, true)];
+      }
+      // A list's rows and an object's settings follow their own fields, so rich text inside them is escaped too.
+      const field = fields?.[key] as { arrayFields?: Fields; objectFields?: Fields } | undefined;
+      if (type === "array" && Array.isArray(value) && field?.arrayFields) {
+        const rows = field.arrayFields;
+        return [
+          key,
+          value.map((row) => (isRecord(row) ? fillProps(row, rows, values, config, true) : fillValue(row, values))),
+        ];
+      }
+      if (type === "object" && isRecord(value) && field?.objectFields) {
+        return [key, fillProps(value, field.objectFields, values, config, true)];
       }
       return [key, fillValue(value, values)];
     }),

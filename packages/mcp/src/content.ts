@@ -18,6 +18,7 @@ import {
   isAddressSegment,
   type LayoutFile,
   layoutFileSchema,
+  loadSiteContent,
   MEDIA_DIR,
   MEDIA_FILE,
   MENUS_FILE,
@@ -36,6 +37,7 @@ import {
   parseEntryFile,
   readTextFiles,
   SITE_FILE,
+  type SiteContent,
   type SiteSettings,
   SYNCED_BLOCKS_DIR,
   type SyncedBlockFile,
@@ -182,7 +184,7 @@ export async function readCollection(source: ContentSource, id: string): Promise
   const collection = (await listCollections(source)).find((candidate) => candidate.id === id);
   const text = collection && (await source.read(collection.file));
   if (!collection || text === undefined) {
-    throw new ToolError(`The site has no collection "${id}". list_collections lists the ones it has.`);
+    throw new ToolError(`The site has no collection "${id}". get_site lists the ones it has.`);
   }
   return {
     ...collection,
@@ -311,6 +313,20 @@ export async function mediaImage(source: ContentSource, input: string): Promise<
     throw new ToolError(`There's no file at ${address}. list_media lists the media library.`);
   }
   return address;
+}
+
+/**
+ * The whole site as loading it gives it, read in as few requests as the source
+ * can (`readFiles()`), for tools whose changes reach every page, such as moving
+ * one, since `loadSiteContent()` reads each file on its own.
+ */
+export async function loadWholeSite(source: ContentSource): Promise<SiteContent> {
+  const paths = await source.list("content");
+  const files = await readTextFiles(source, paths);
+  return loadSiteContent({
+    read: async (path) => files.get(path),
+    list: async (dir) => paths.filter((path) => path.startsWith(`${dir}/`)),
+  });
 }
 
 /** Every content file, as text: what the preview page needs to show a draft as the site would. */

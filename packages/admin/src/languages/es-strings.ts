@@ -874,6 +874,9 @@ export const strings: Strings = {
   "ai.working": "Escribiendo…",
   "ai.progress": "Escribiendo… {count} caracteres hasta ahora",
   "ai.done": "Listo. Revísalo y publica cuando te guste. Deshacer lo revierte.",
+  "ai.report.settings": "Ajustes cambiados: {count}.",
+  "ai.report.blocks": "Bloques añadidos: {count}.",
+  "ai.report.skipped": "Se omitieron porque no encajaban en este sitio: {count}. Pide de nuevo o complétalos tú.",
   "ai.check":
     "La IA puede equivocarse, así que lee lo que escribe antes de publicar. No se inventa horarios, nombres ni precios: deja [marcadores] para que los rellenes.",
   "ai.needsKey":
