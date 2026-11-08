@@ -197,7 +197,7 @@ describe("site checks", () => {
     ]);
   });
 
-  it("stops publishes only for the errors they bring, and warns about the files they change", async () => {
+  it("stops publishes only for the errors they bring, and warns only about what they bring to the files they change", async () => {
     const before = await site({
       "content/pages/about.json": page("About", [block("Button", "Button-1", { href: "/visit" })]),
       "content/pages/visit.json": page("Visit"),
@@ -206,9 +206,7 @@ describe("site checks", () => {
     // Deleting /visit breaks the About page's link.
     const after = await site({
       "content/pages/about.json": page("About", [block("Button", "Button-1", { href: "/visit" })]),
-      "content/pages/old.json": page("Old", [block("Button", "Button-1", { href: "/already-broken" })], {
-        description: "",
-      }),
+      "content/pages/old.json": page("", [block("Button", "Button-1", { href: "/already-broken" })]),
     });
     const options = { media: [], blocks };
     const { blocking, warnings } = publishProblems(checkSite(before, options), checkSite(after, options), [
@@ -216,8 +214,8 @@ describe("site checks", () => {
       "content/pages/old.json",
     ]);
     expect(errors(blocking)).toEqual([["missing-page", "content/pages/about.json", "/visit"]]);
-    // The old page's broken link was there before, so it's mentioned, but doesn't stop the publish.
-    expect(warnings.map(({ kind, file }) => [kind, file])).toEqual([["missing-page", "content/pages/old.json"]]);
+    // The old page's broken link was there before, so it isn't mentioned again; its emptied title is new.
+    expect(warnings.map(({ kind, file }) => [kind, file])).toEqual([["no-title", "content/pages/old.json"]]);
   });
 
   it("reads addresses on the site, and leaves the rest alone", () => {

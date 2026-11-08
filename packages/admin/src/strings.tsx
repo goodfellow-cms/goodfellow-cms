@@ -37,7 +37,7 @@ export const defaultStrings = {
   "signIn.token.step2": "Copy the token and paste it here:",
   "signIn.token.label": "Access token",
   "signIn.remember": "Stay signed in on this device",
-  "signIn.rememberHint": "Leave this off on shared or public computers.",
+  "signIn.rememberHint": "Turn this off on shared or public computers.",
   "signIn.submit": "Sign in",
   "signIn.checking": "Signing in…",
   "signIn.error.invalid": "That sign-in didn't work. Check that the whole token was copied and that it hasn't expired.",

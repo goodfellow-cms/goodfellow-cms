@@ -85,12 +85,17 @@ export async function checkPublish(
   const today = todayIn(after.settings.timeZone);
   const changed = new Set(changes.map((change) => change.path));
   // Without the site's code, such as when its frame doesn't start, links are checked against pages alone.
-  const [pagesBefore, pagesAfter, rendered] = await Promise.all([
+  // The same pages are rendered as they were too, so a warning they had before isn't asked about again.
+  const [pagesBefore, pagesAfter, renderedBefore, rendered] = await Promise.all([
     code.sitePages(loaded.content, today).catch(() => allPages(loaded.content)),
     code.sitePages(after, today).catch(() => allPages(after)),
+    code.renderedProblems(loaded.content, pagesToRender(loaded.content, changed), today).catch((): SiteProblem[] => []),
     code.renderedProblems(after, pagesToRender(after, changed), today).catch((): SiteProblem[] => []),
   ]);
-  const before = checkSite(loaded.content, { media: mediaAddresses(loaded.media), blocks, pages: pagesBefore });
+  const before = [
+    ...checkSite(loaded.content, { media: mediaAddresses(loaded.media), blocks, pages: pagesBefore }),
+    ...renderedBefore,
+  ];
   const problems = [...checkSite(after, { media: mediaAddresses(media), blocks, pages: pagesAfter }), ...rendered];
   const found = publishProblems(before, problems, changed);
   return { ...found, content: after };

@@ -32,7 +32,7 @@ export const strings: Strings = {
   "signIn.token.step2": "Copia el token y pégalo aquí:",
   "signIn.token.label": "Token de acceso",
   "signIn.remember": "Mantener la sesión iniciada en este dispositivo",
-  "signIn.rememberHint": "Déjalo desactivado en equipos compartidos o públicos.",
+  "signIn.rememberHint": "Desactívalo en equipos compartidos o públicos.",
   "signIn.submit": "Iniciar sesión",
   "signIn.checking": "Iniciando sesión…",
   "signIn.error.invalid": "No se pudo iniciar sesión. Comprueba que copiaste el token entero y que no ha caducado.",
