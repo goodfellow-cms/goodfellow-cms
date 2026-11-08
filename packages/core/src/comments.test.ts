@@ -37,7 +37,7 @@ describe("where comments are kept", () => {
 });
 
 describe("Disqus's shortname", () => {
-  it("is read from Disqus's code, its addresses or the shortname itself", () => {
+  it("is read from Disqus's code, its addresses, or the shortname itself", () => {
     const code = `<div id="disqus_thread"></div>
 <script>
     (function() { // DON'T EDIT BELOW THIS LINE

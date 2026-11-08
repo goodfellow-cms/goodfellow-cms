@@ -40,7 +40,7 @@ function exif(orientation: number): number[] {
 const chunk = (name: string, data: number[] = []) => bytes(be32(data.length), name, data, [0, 0, 0, 0]);
 
 describe("imageSize", () => {
-  it("reads PNG, GIF and JPEG headers", () => {
+  it("reads PNG, GIF, and JPEG headers", () => {
     expect(imageSize(bytes([0x89], "PNG", [13, 10, 26, 10], be32(13), "IHDR", be32(640), be32(480)))).toEqual({
       width: 640,
       height: 480,

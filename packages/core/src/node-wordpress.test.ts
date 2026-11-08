@@ -85,7 +85,7 @@ describe("importing a WordPress site on disk", () => {
 });
 
 describe("exporting a site on disk to WordPress", () => {
-  it("writes an export file with the site's pages, posts and media", async () => {
+  it("writes an export file with the site's pages, posts, and media", async () => {
     const write = await site();
     await write("wordpress.xml", sampleWordPressExport());
     await importWordPress(root, join(root, "wordpress.xml"), { fetch: fetcher() });

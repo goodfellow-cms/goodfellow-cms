@@ -1,7 +1,7 @@
 /**
  * Blocks written from React components' props, for `goodfellow blocks add`:
  * what a component takes, read from its code elsewhere (`node-shadcn.ts`),
- * becomes a block's fields, defaults and source. Nothing here reads files or
+ * becomes a block's fields, defaults, and source. Nothing here reads files or
  * TypeScript, so what a component gives can be tested on its own.
  */
 

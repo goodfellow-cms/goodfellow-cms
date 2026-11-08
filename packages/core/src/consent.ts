@@ -30,7 +30,7 @@ export const CONSENT_MESSAGE_ID = "gf-consent-message";
 /** Links to this, such as a menu's "Privacy choices", open the notice again. */
 export const CONSENT_LINK = "#consent";
 
-/** On a player, frame or script held back: the address it loads once the visitor agrees, in place of `src`. */
+/** On a player, frame, or script held back: the address it loads once the visitor agrees, in place of `src`. */
 export const CONSENT_SRC_ATTRIBUTE = "data-gf-consent-src";
 
 /** On what's shown in place of a player held back, which goes once the visitor agrees. */
@@ -72,7 +72,7 @@ export const CONSENT_SAVE_ATTRIBUTE = "data-gf-consent-save";
  * It shows the notice until the visitor answers about every kind the site
  * asks about, keeps the answer in their browser (`ConsentAnswer`) for the
  * notice's number of days, and loads what was held back of each kind they
- * allow: each player's address, Web3Forms' hCaptcha script and the site's
+ * allow: each player's address, Web3Forms' hCaptcha script, and the site's
  * custom code, written again so its scripts run. A player's own button allows
  * only its kind; the notice's Choose shows a choice for each kind. It
  * watches the page, so what Next.js shows later is held back or loaded too,

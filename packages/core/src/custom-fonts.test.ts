@@ -132,7 +132,7 @@ describe("files", () => {
     expect(isSafeFontFile("public/media/fonts/sample.woff2", undefined)).toBe(false);
   });
 
-  it("guess a file's weight, style and family from its name", () => {
+  it("guess a file's weight, style, and family from its name", () => {
     expect(guessFontFile("Brandon-SemiBoldItalic.woff2")).toEqual({ weight: 600, style: "italic" });
     expect(guessFontFile("brandon_grotesque_bold.woff2")).toEqual({ weight: 700 });
     expect(guessFontFile("Brandon-ExtraLight.woff2")).toEqual({ weight: 200 });

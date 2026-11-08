@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isExternalLink, isScriptUrl, setLinkTargets } from "./external-links.js";
 
 describe("isExternalLink", () => {
-  it("counts addresses on other sites, not the site's own pages, files or email links", () => {
+  it("counts addresses on other sites, not the site's own pages, files, or email links", () => {
     expect(isExternalLink("https://github.com/someone")).toBe(true);
     expect(isExternalLink("http://example.com")).toBe(true);
     expect(isExternalLink("/about")).toBe(false);
@@ -34,7 +34,7 @@ describe("isScriptUrl", () => {
     }
   });
 
-  it("leaves the site's own pages, the web's, apps' and calendars' addresses alone", () => {
+  it("leaves the site's own pages, the web's, apps', and calendars' addresses alone", () => {
     for (const url of [
       "/about",
       "#top",

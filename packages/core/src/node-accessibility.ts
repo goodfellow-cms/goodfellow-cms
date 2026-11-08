@@ -28,7 +28,7 @@ export interface BuiltPage {
 
 /**
  * axe-core's rules that these checks leave out: ones the site checks make in
- * words editors understand (alt text, heading levels and links' text, and the
+ * words editors understand (alt text, heading levels, and links' text, and the
  * theme's contrast), and ones that need a browser's layout, which happy-dom
  * doesn't have.
  */
@@ -61,7 +61,7 @@ const PLAIN_WORDS: Record<string, string> = {
   listitem: "A list item isn't in a list.",
   "meta-viewport": "The page stops people zooming in.",
   "nested-interactive": "A link or button has another one inside it, which keyboards and screen readers can't use.",
-  region: "Some of the page's content isn't in its header, main content or footer, so screen readers may skip it.",
+  region: "Some of the page's content isn't in its header, main content, or footer, so screen readers may skip it.",
   "role-img-alt": "Something shown as an image has no description.",
   "scrollable-region-focusable": "A part of the page that scrolls can't be scrolled with the keyboard.",
   "select-name": "A drop-down list has no label saying what to choose.",

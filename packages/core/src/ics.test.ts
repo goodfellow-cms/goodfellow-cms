@@ -21,7 +21,7 @@ describe("writing calendar files", () => {
     }
   });
 
-  it("writes events with their repeats, skipped dates and time zone", () => {
+  it("writes events with their repeats, skipped dates, and time zone", () => {
     const text = calendarFile(
       [
         {

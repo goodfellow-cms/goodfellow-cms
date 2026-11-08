@@ -79,7 +79,7 @@ export interface GuardOptions {
 /**
  * Makes a built site ready for its admin address, as `goodfellow build` and
  * `goodfellow-next finish` do last: puts the guard first in every page a
- * browser opens (HTML, SVG and XML files, `404.html`, redirect pages and media
+ * browser opens (HTML, SVG, and XML files, `404.html`, redirect pages, and media
  * included), then checks every one, and adds Cloudflare Pages' header rules to
  * `_headers`. The admin panel's page gets its own guard; the editor's frames'
  * pages have theirs in the script they start with. Throws, naming them, if
@@ -136,7 +136,7 @@ export async function guardBuiltSite(
   }
   if (unguarded.length > 0) {
     throw new Error(
-      `The admin address needs every page to start with its guard, and ${unguarded.length === 1 ? "this one can't" : "these can't"}: ${unguarded.join(", ")}. A page can't have a script, an event handler or a frame before it, or an XML stylesheet, and a compressed SVG can't be changed: remove or change ${unguarded.length === 1 ? "it" : "them"}.`,
+      `The admin address needs every page to start with its guard, and ${unguarded.length === 1 ? "this one can't" : "these can't"}: ${unguarded.join(", ")}. A page can't have a script, an event handler, or a frame before it, or an XML stylesheet, and a compressed SVG can't be changed: remove or change ${unguarded.length === 1 ? "it" : "them"}.`,
     );
   }
   // Cloudflare Pages sandboxes the rest of the admin address itself. Other hosts serve this as a file of no use,

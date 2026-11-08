@@ -29,7 +29,7 @@ describe("planBroker", () => {
       "site/vercel.json",
     ]);
     expect(JSON.parse(text(files, "site/broker.json") ?? "")).toEqual({ sites: [site] });
-    expect(text(files, "README.md")).toContain("no build command and `site` as the output directory");
+    expect(text(files, "README.md")).toContain("no build command, and `site` as the output directory");
   });
 
   it("publishes it with GitHub Pages at its own domain, from a workflow that runs no code", () => {

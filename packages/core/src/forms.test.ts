@@ -4,7 +4,7 @@ import { formRedirect, formspreeAddress, formTarget, googleFormUrl } from "./for
 const KEY = "0b5c4f7e-1a2b-4c3d-8e9f-0123456789ab";
 
 describe("formTarget", () => {
-  it("posts to Web3Forms by default, with its key, subject, redirect and honeypot", () => {
+  it("posts to Web3Forms by default, with its key, subject, redirect, and honeypot", () => {
     expect(
       formTarget(
         { service: "web3forms", accessKey: ` ${KEY} ` },

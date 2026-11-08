@@ -103,7 +103,7 @@ describe("componentBlockSource", () => {
     expect(source).toContain('{ "gf-button": "Button" },');
   });
 
-  it("gives a section the block's classes itself, with groups, lists and pictures, and notes what's left", () => {
+  it("gives a section the block's classes itself, with groups, lists, and pictures, and notes what's left", () => {
     const source = componentBlockSource(hero);
     expect(source).toContain(
       'import { classNameField, mediaField, useParts, withParts } from "@goodfellow-cms/react";',

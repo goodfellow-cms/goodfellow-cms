@@ -166,7 +166,7 @@ export interface HostSource {
 
 /**
  * A host's `source`: its options without those `omit` names, which only tests
- * give (a `fetch`, storage or a location), and anything else JSON can't hold.
+ * give (a `fetch`, storage, or a location), and anything else JSON can't hold.
  */
 export function hostSource(pkg: string, exportName: string, options: object, omit: readonly string[]): HostSource {
   const kept = Object.fromEntries(Object.entries(options).filter(([name]) => !omit.includes(name)));

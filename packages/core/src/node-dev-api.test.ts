@@ -71,7 +71,7 @@ describe("handleDevApi", { timeout: NODE_TIMEOUT }, () => {
     expect(Buffer.from(read.base64, "base64")).toEqual(bytes);
   });
 
-  it("reads, writes and lists files", async () => {
+  it("reads, writes, and lists files", async () => {
     const { revision } = await (await fetch(`${base}/revision`, { headers })).json();
     const write = await fetch(`${base}/write`, {
       method: "POST",
