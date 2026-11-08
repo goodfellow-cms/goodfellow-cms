@@ -12,7 +12,7 @@ import type { Page, SiteContent } from "../content/load.js";
 import { markdownToHtml } from "../content/markdown.js";
 import type { PageHeading } from "../content/page-headings.js";
 import { type PageLink, pageLinks } from "../content/page-links.js";
-import { redirectFrom, redirectTarget } from "../content/redirects.js";
+import { redirectFrom, redirectProblems, redirectTarget } from "../content/redirects.js";
 import { sanitizeHtml, tableCellHtml } from "../content/sanitize.js";
 import { isAddedPage, type PageView } from "../content/site-pages.js";
 import { setLinkTargets } from "../external-links.js";
@@ -341,10 +341,13 @@ function collectionsFile(content: SiteContent, language: string): ApiCollections
 /** The redirects builds write pages for: from addresses no page has, each once. */
 function apiRedirects(content: SiteContent, pages: ReadonlySet<string>): ApiRedirect[] {
   const seen = new Set<string>();
-  return (content.redirects ?? []).flatMap(({ from, to }) => {
+  const redirects = content.redirects ?? [];
+  // As builds, the redirects the checks refuse (reserved addresses, loops) are left out.
+  const problems = redirectProblems(redirects);
+  return redirects.flatMap(({ from, to }, index) => {
     const path = redirectFrom(from);
     const target = redirectTarget(to);
-    if (!path.ok || !target || pages.has(path.path) || seen.has(path.path)) return [];
+    if (problems[index] !== undefined || !path.ok || !target || pages.has(path.path) || seen.has(path.path)) return [];
     seen.add(path.path);
     return [{ from: path.path, to: target }];
   });

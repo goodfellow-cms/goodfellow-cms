@@ -314,6 +314,8 @@ describe("contentApiFiles", () => {
         },
       }),
     );
+    // Builds leave out redirects the checks refuse, such as ones going round in a loop, wherever the site came from.
+    content.redirects?.push({ from: "/a", to: "/b" }, { from: "/b", to: "/a" });
     const pages = content.pages.map((page) => ({
       page,
       head: pageHead(content, page),

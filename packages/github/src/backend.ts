@@ -245,7 +245,13 @@ export class GitHubBackend implements GitBackend {
           body: { ref: `refs/heads/${branch}`, sha: revision },
           allow: [422],
         });
-        if (response.status === 422) throw new DraftError("exists", `There's already a draft called ${branch}.`);
+        if (response.status === 422) {
+          // GitHub says 422 for a revision it doesn't have, too.
+          const { message = "" } = (await response.json().catch(() => ({}))) as { message?: string };
+          if (/already exists/i.test(message))
+            throw new DraftError("exists", `There's already a draft called ${branch}.`);
+          throw new GitApiError(422, `GitHub answered 422: ${message || "the draft couldn't be started"}`);
+        }
       },
       deleteBranch: async (branch) => {
         await githubRequest(this.api, ref(branch), { method: "DELETE", allow: [404, 422] });
@@ -305,7 +311,8 @@ export class GitHubBackend implements GitBackend {
         const repo = decodeURIComponent(this.repo).toLowerCase();
         return pulls
           .filter(
-            (pull) => pull.head.ref.startsWith(prefix) && (pull.head.repo?.full_name ?? repo).toLowerCase() === repo,
+            // A pull request from a fork that's since been deleted has no repository, so it's no draft of the site's.
+            (pull) => pull.head.ref.startsWith(prefix) && (pull.head.repo?.full_name ?? "").toLowerCase() === repo,
           )
           .map((pull) => ({ branch: pull.head.ref, url: pull.html_url, title: pull.title }));
       },
