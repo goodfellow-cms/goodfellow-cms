@@ -71,6 +71,15 @@ describe("guards", () => {
     expect(startsWithGuard(`<html onload="steal()"><head>${after}`, "html")).toBe(false);
     expect(startsWithGuard(`<html><head><iframe src="/x"></iframe>${after}`, "html")).toBe(false);
     expect(startsWithGuard(`<!-- note --><html lang="en"><head>${after}`, "html")).toBe(true);
+    expect(startsWithGuard(`<!----><html><head>${after}`, "html")).toBe(true);
+  });
+
+  it("refuses comments that browsers end sooner than they seem to end", () => {
+    const after = `<script data-goodfellow-guard>${script}</script>`;
+    // Each of these ends the comment at once, so the script after it runs before the guard.
+    for (const opening of ["<!-->", "<!--->", "<!-- a --!>"]) {
+      expect(startsWithGuard(`${opening}<script>steal()</script>--><html><head>${after}`, "html")).toBe(false);
+    }
   });
 
   it("puts the guard just inside an SVG's or XML file's root element", () => {

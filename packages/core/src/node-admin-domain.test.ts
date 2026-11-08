@@ -96,6 +96,12 @@ describe("guardBuiltSite", () => {
     );
   });
 
+  it("refuses a page whose comment a browser ends before the guard", async () => {
+    await write("index.html", "<html><head></head></html>");
+    await write("early.html", "<!--><script>steal()</script>--><html><head></head></html>");
+    await expect(guardBuiltSite(dir, options)).rejects.toThrow(/early\.html/);
+  });
+
   it("refuses an admin address that's the site's own", async () => {
     await expect(guardBuiltSite(dir, { ...options, admin: { url: "https://example.org" } })).rejects.toThrow(
       /is the Site address/,

@@ -552,7 +552,9 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
             ? "confirmCode"
             : question.kind === "custom-code"
               ? "confirmCustomCode"
-              : "confirmSiteAddress";
+              : question.kind === "media-code"
+                ? "confirmMediaCode"
+                : "confirmSiteAddress";
         body.push(
           element("p", {}, t(intro)),
           element("ul", {}, ...question.paths.map((path) => element("li", {}, element("code", {}, path)))),

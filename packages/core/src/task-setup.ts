@@ -12,7 +12,6 @@
  * plugin declared.
  */
 import { GITHUB_INSTALL_STEPS } from "./github-workflows.js";
-import { CORE_RELEASE_COMMAND } from "./lockfile-setup.js";
 import { TASK_BRANCH_PREFIX, TASK_EVENT, TASK_JOB, TASK_RESULT_FILE } from "./plugin-tasks.js";
 
 /** The CLI a site's setup runs: `goodfellow`, or `goodfellow-next` for Next.js sites. */
@@ -28,16 +27,28 @@ export const TASK_DESCRIBE_JOB = `${TASK_JOB}-describe`;
 export const TASK_ENVIRONMENT = "goodfellow-tasks";
 
 /**
+ * A Node.js script, on one line with no single quotes, that prints the exact
+ * release of `@goodfellow-cms/core` the site's `package-lock.json` installs and,
+ * after a space, a day after npm published it, as `installedBefore()` gives
+ * updates, and exits with 1 where it can't tell either: the task runner is
+ * installed in the one job that holds the secrets, so it takes neither a
+ * range nor packages published since that release.
+ */
+export const TASK_CORE_RELEASE = String.raw`const fs = require("fs"); let lock; try { lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8")); } catch { console.error("package-lock.json cannot be read, so the release of @goodfellow-cms/core the site uses is not known."); process.exit(1); } const release = ((lock.packages || {})["node_modules/@goodfellow-cms/core"] || (lock.dependencies || {})["@goodfellow-cms/core"] || {}).version; if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package-lock.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } fetch("https://registry.npmjs.org/@goodfellow-cms%2fcore", { signal: AbortSignal.timeout(30000) }).then((response) => { if (!response.ok) throw new Error("npm answered " + response.status + " for @goodfellow-cms/core."); return response.json(); }).then((packument) => { const published = Date.parse(((packument || {}).time || {})[release]); if (Number.isNaN(published)) throw new Error("npm gives no publish time for @goodfellow-cms/core " + release + "."); console.log(release + " " + new Date(published + 24 * 60 * 60 * 1000).toISOString()); }).catch((error) => { console.error(error.message); process.exit(1); });`;
+
+/**
  * Installs Goodfellow's task runner into `dir`, outside the site, from
- * npm's own registry, at the release of `@goodfellow-cms/core` the site
- * names (`CORE_RELEASE`), running no install scripts, with none of the
- * site's npm settings: script lines, each starting at `indent`.
+ * npm's own registry, at the exact release of `@goodfellow-cms/core` the
+ * site's lockfile installs, taking nothing npm published more than a day
+ * after it (`TASK_CORE_RELEASE`), running no install scripts, with none of
+ * the site's npm settings: script lines, each starting at `indent`.
  */
 export function taskRunnerInstall(dir: string, indent: string): string {
   return [
-    CORE_RELEASE_COMMAND,
+    `release=$(node -e '${TASK_CORE_RELEASE}') || exit 1`,
+    `core="\${release% *}"; before="\${release#* }"`,
     `mkdir -p "${dir}"`,
-    `(cd "${dir}" && npm install --prefix . --no-save --no-package-lock --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ "@goodfellow-cms/core@$core")`,
+    `(cd "${dir}" && npm install --prefix . --no-save --no-package-lock --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ --before="$before" "@goodfellow-cms/core@$core")`,
   ]
     .map((line) => `${indent}${line}`)
     .join("\n");

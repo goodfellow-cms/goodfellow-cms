@@ -18,6 +18,7 @@ import {
   bitbucketRequest,
   credentialsFrom,
   type Paged,
+  pagesOf,
   quoted,
 } from "./api.js";
 
@@ -50,11 +51,28 @@ function isNotAllowed(error: unknown): boolean {
   return error instanceof GitApiError && (error.status === 403 || error.status === 404);
 }
 
-function sameName(account: Account, name: string): boolean {
+/**
+ * The member a name means: by their account's ids or nickname, which are
+ * theirs alone, before their display name, which anyone in the workspace can
+ * set to anything, someone else's nickname included. A name more than one
+ * member answers to is refused, never given to the first.
+ */
+function memberNamed(accounts: readonly Account[], name: string, complete = true): Account | undefined {
   const wanted = name.toLowerCase();
-  return [account.nickname, account.display_name, account.account_id, account.uuid].some(
-    (value) => value?.toLowerCase() === wanted,
-  );
+  const matching = (values: (account: Account) => Array<string | undefined>) =>
+    accounts.filter((account) => values(account).some((value) => value?.toLowerCase() === wanted));
+  for (const found of [
+    matching((account) => [account.account_id, account.uuid]),
+    matching((account) => [account.nickname]),
+    // Without every member, a display name could be someone else's whose account wasn't read.
+    ...(complete ? [matching((account) => [account.display_name])] : []),
+  ]) {
+    if (found.length > 1) {
+      throw new EditorsError("ambiguous", `More than one member of the workspace goes by ${name}.`);
+    }
+    if (found[0]) return found[0];
+  }
+  return undefined;
 }
 
 /**
@@ -102,8 +120,12 @@ export function bitbucketEditors(
       ).catch(() => undefined);
       return found?.values[0]?.user;
     }
-    const members = await allPages<{ user: Account }>(api, `/workspaces/${workspace}/members?pagelen=100`, 10);
-    return members.map((member) => member.user).find((account) => sameName(account, who));
+    const members = await pagesOf<{ user: Account }>(api, `/workspaces/${workspace}/members?pagelen=100`, 10);
+    return memberNamed(
+      members.items.map((member) => member.user),
+      who,
+      members.complete,
+    );
   }
 
   return {

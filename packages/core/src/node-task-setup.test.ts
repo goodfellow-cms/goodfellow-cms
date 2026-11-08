@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { bitbucketPipelines } from "./bitbucket-setup.js";
 import { CORE_RELEASE } from "./lockfile-setup.js";
-import { GITLAB_TASK_RULE, githubTaskWorkflow, gitlabTaskJob } from "./task-setup.js";
+import { GITLAB_TASK_RULE, githubTaskWorkflow, gitlabTaskJob, TASK_CORE_RELEASE } from "./task-setup.js";
 
 const ROOT = join(import.meta.dirname, "../../..");
 const read = (path: string) => readFile(join(ROOT, path), "utf8");
@@ -103,5 +103,46 @@ describe("CORE_RELEASE", () => {
       expect(await release({ "@goodfellow-cms/core": spec }), spec).toBe("refused");
     }
     expect(await release({})).toBe("refused");
+  });
+});
+
+describe("TASK_CORE_RELEASE", () => {
+  /** Runs the script in a site with `lock` as its lockfile, with npm's registry answering `time` for core. */
+  const release = async (lock: unknown, time: Record<string, string> = { "0.9.3": "2026-10-01T12:00:00.000Z" }) => {
+    const dir = await mkdtemp(join(tmpdir(), "goodfellow-task-core-"));
+    try {
+      if (lock !== undefined) await writeFile(join(dir, "package-lock.json"), JSON.stringify(lock));
+      // npm's registry, as the job asks it: only for core's releases.
+      await writeFile(
+        join(dir, "registry.cjs"),
+        'globalThis.fetch = async (url) => { if (url !== "https://registry.npmjs.org/@goodfellow-cms%2fcore") throw new Error("asked " + url); return { ok: true, json: async () => JSON.parse(process.env.PACKUMENT) }; };',
+      );
+      return execFileSync(process.execPath, ["-r", "./registry.cjs", "-e", TASK_CORE_RELEASE], {
+        cwd: dir,
+        encoding: "utf8",
+        stdio: "pipe",
+        env: { ...process.env, PACKUMENT: JSON.stringify({ time }) },
+      }).trim();
+    } catch {
+      return "refused";
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+  const locked = (version: unknown) => ({
+    lockfileVersion: 3,
+    packages: { "": {}, "node_modules/@goodfellow-cms/core": { version } },
+  });
+
+  it("names the exact release the lockfile installs, and a day after npm published it", async () => {
+    expect(await release(locked("0.9.3"))).toBe("0.9.3 2026-10-02T12:00:00.000Z");
+  });
+
+  it("refuses a site without a lockfile, a release npm didn't publish, or anything that isn't a release", async () => {
+    expect(await release(undefined)).toBe("refused");
+    expect(await release(locked("0.9.4"))).toBe("refused");
+    for (const version of ["^0.9.3", "https://evil.example/core.tgz", "file:../core", undefined]) {
+      expect(await release(locked(version)), String(version)).toBe("refused");
+    }
   });
 });

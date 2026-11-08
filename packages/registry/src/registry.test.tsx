@@ -483,15 +483,20 @@ describe("people, numbers, timelines, countdowns and comments", () => {
   it("shows Garrul's comments from the owner's own Worker, named by the page's address", async () => {
     const code = `<div id="garrul" data-slug="my-post-slug" data-api="https://comments.example.org"></div>
 <script src="https://comments.example.org/embed.js" defer></script>`;
-    const shown = await render("comments", { code });
-    expect(shown).toContain(
-      '<div id="garrul" class="gf-comments-frame w-full" data-api="https://comments.example.org" data-slug="/news/fair" data-lang="en" data-theme="light"></div>',
-    );
     const kept = siteSettingsSchema.parse({
       ...base,
       url: "https://stjoseph.example/",
       comments: { garrul: "https://comments.example.org" },
     });
+    const shown = await render("comments", { code }, kept);
+    expect(shown).toContain(
+      '<div id="garrul" class="gf-comments-frame w-full" data-api="https://comments.example.org" data-slug="/news/fair" data-url="https://stjoseph.example/news/fair" data-lang="en" data-theme="light"></div>',
+    );
+    // Garrul's script comes from its address, so a block's code, which any editor can change, names only the owners'.
+    expect(await render("comments", { code })).not.toContain("comments.example.org");
+    const other = await render("comments", { code: "https://elsewhere.example" }, kept);
+    expect(other).not.toContain("elsewhere.example");
+    expect(other).not.toContain("<script");
     expect(await render("comments", {}, kept)).toContain('data-url="https://stjoseph.example/news/fair"');
     const held = await render(
       "comments",

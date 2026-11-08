@@ -31,8 +31,8 @@ export interface FakeBitbucketOptions {
   oauth?: { clientId: string; callback: string; user: FakeBitbucketUser; secret?: string };
   /** Simulates Vercel building each published commit, live after being checked this many times. Off by default. */
   deployAfterChecks?: number;
-  /** Other people in the repository's workspace, who can be given permissions. */
-  members?: string[];
+  /** Other people in the repository's workspace, who can be given permissions, by nickname or in full. */
+  members?: Array<string | FakeBitbucketUser>;
   /** Who can see the repository. Private by default. */
   private?: boolean;
   /** Whether Pipelines is turned on. Off by default, as in a new repository. */
@@ -124,7 +124,10 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
     members.set(user.nickname, user);
     permissions.set(`{${user.nickname}}`, { user, permission: user.permission ?? "admin" });
   }
-  for (const name of options.members ?? []) if (!members.has(name)) members.set(name, { nickname: name });
+  for (const member of options.members ?? []) {
+    const user = typeof member === "string" ? { nickname: member } : member;
+    if (!members.has(user.nickname)) members.set(user.nickname, user);
+  }
   const oauthTokens = new Map<string, FakeBitbucketUser>();
   /** Codes and refresh tokens the code grant gave, which each work once here. */
   const oauthCodes = new Set<string>();

@@ -91,6 +91,15 @@ export interface Paged<T> {
 
 /** Every item of a list, following its pages, up to `limit` pages. */
 export async function allPages<T>(api: ApiOptions, path: string, limit = 20): Promise<T[]> {
+  return (await pagesOf<T>(api, path, limit)).items;
+}
+
+/** Up to `limit` pages, and whether that was all of them. */
+export async function pagesOf<T>(
+  api: ApiOptions,
+  path: string,
+  limit = 20,
+): Promise<{ items: T[]; complete: boolean }> {
   const items: T[] = [];
   let next: string | undefined = path;
   for (let page = 0; next && page < limit; page++) {
@@ -98,7 +107,7 @@ export async function allPages<T>(api: ApiOptions, path: string, limit = 20): Pr
     items.push(...found.values);
     next = found.next;
   }
-  return items;
+  return { items, complete: !next };
 }
 
 /** A query for Bitbucket's filters (`q=`), with a value quoted as they need. */

@@ -477,6 +477,44 @@ describe("editors", () => {
     expect(fake.permissions.has("{helper}")).toBe(false);
   });
 
+  it("gives permission to the member a name is theirs alone, never to one who chose it as their display name", async () => {
+    const { fake, backend } = await signedIn({
+      members: [
+        { nickname: "maria", displayName: "Maria Lopez" },
+        // Anyone in the workspace can choose any display name, someone else's nickname included.
+        { nickname: "mallory", displayName: "maria" },
+        { nickname: "ana", displayName: "Ana Ruiz" },
+        { nickname: "ana2", displayName: "Ana Ruiz" },
+      ],
+    });
+    const editors = backend.editors;
+    if (!editors) throw new Error("No editors");
+    await editors.invite("maria", "editor");
+    expect(fake.permissions.get("{maria}")?.permission).toBe("write");
+    expect(fake.permissions.has("{mallory}")).toBe(false);
+    await editors.invite("Maria Lopez", "owner").catch(() => undefined);
+    expect(fake.permissions.has("{mallory}")).toBe(false);
+    // Two members go by the same display name, so neither is chosen.
+    await expect(editors.invite("Ana Ruiz", "editor")).rejects.toMatchObject({ problem: "ambiguous" });
+    expect(fake.permissions.has("{ana}") || fake.permissions.has("{ana2}")).toBe(false);
+    await editors.invite("ana2", "editor");
+    expect(fake.permissions.get("{ana2}")?.permission).toBe("write");
+  });
+
+  it("won't go by a display name in a workspace too large to read every member of", async () => {
+    const crowd = Array.from({ length: 1000 }, (_, at) => `member${String(at).padStart(4, "0")}`);
+    const { fake, backend } = await signedIn({
+      members: [{ nickname: "aaa-mallory", displayName: "Maria Lopez" }, ...crowd, "maria"],
+    });
+    const editors = backend.editors;
+    if (!editors) throw new Error("No editors");
+    // The real Maria Lopez could be among the members past the last page read.
+    await expect(editors.invite("Maria Lopez", "editor")).rejects.toMatchObject({ problem: "not-found" });
+    expect(fake.permissions.has("{aaa-mallory}")).toBe(false);
+    await editors.invite("member0001", "editor");
+    expect(fake.permissions.get("{member0001}")?.permission).toBe("write");
+  });
+
   it("asks for an owner token where the sign-in can't see everyone's permissions", async () => {
     const { backend } = await signedIn({
       tokens: { [TOKEN]: { nickname: "editor", permission: "write" } },
