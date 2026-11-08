@@ -4,9 +4,11 @@
  * service's own script, which both renderers add to the site's pages, and
  * `statsDashboard()` where its owner reads the counts. No React or DOM.
  */
+
 import type { HeadElement } from "./content/code.js";
 import type { ConsentKind, ConsentSettings } from "./content/schemas.js";
 import { isPrivateHost } from "./hosts.js";
+import { trimChars } from "./trim.js";
 
 export const STATS_SERVICES = ["plausible", "umami", "goatcounter"] as const;
 
@@ -193,7 +195,7 @@ export function readStatsCode(service: StatsService, pasted: string): StatsSetti
   const scripts = scriptAttributes(text);
   if (service === "plausible") {
     if (!scripts.length) {
-      const domain = text.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+      const domain = trimChars(text.replace(/^https?:\/\//i, ""), "/", { start: false });
       return PLAUSIBLE_DOMAIN.test(domain) ? { service, domain, script: PLAUSIBLE_SCRIPT } : undefined;
     }
     const found = scripts.find(

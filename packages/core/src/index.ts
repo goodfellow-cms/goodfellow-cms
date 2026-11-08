@@ -656,8 +656,10 @@ export {
   dueChanges,
   type FileDetails,
   fileDetailsOf,
+  isOnSite,
   isScheduled,
   isShown,
+  published,
   type Schedule,
   type ScheduledChange,
   type ScheduleState,
@@ -785,6 +787,7 @@ export {
   syncedBlockProblems,
   syncedBlockUses,
 } from "./content/synced-blocks.js";
+export { withoutTags } from "./content/tags.js";
 export {
   parseThemeLayout,
   parseThemeRecord,

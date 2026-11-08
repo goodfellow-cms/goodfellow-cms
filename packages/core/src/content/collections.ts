@@ -1,4 +1,5 @@
 import { eventValueProblem, formatOccurrence, isEventLike, shownOccurrence, todayIn, wallClock } from "../calendar.js";
+import { trimChars } from "../trim.js";
 import type { CollectionField, CollectionFile, EntryFile, GroupField } from "./schemas.js";
 import { TITLE_FIELD } from "./schemas.js";
 import { withoutTags } from "./tags.js";
@@ -295,12 +296,14 @@ export function isChoiceField(field: CollectionField): boolean {
  * `undefined` for a choice with none of those, such as one in another script.
  */
 export function choiceSlug(choice: string): string | undefined {
-  const slug = choice
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const slug = trimChars(
+    choice
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-"),
+    "-",
+  );
   return slug || undefined;
 }
 

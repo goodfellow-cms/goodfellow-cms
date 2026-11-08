@@ -5,6 +5,13 @@
  */
 import { RESERVED_PAGE_PATHS } from "./paths.js";
 
+/** `path` without slashes at its end, walked rather than matched with `/\/+$/`, which is slow on long runs of them. */
+function withoutTrailingSlashes(path: string): string {
+  let end = path.length;
+  while (end > 0 && path.charAt(end - 1) === "/") end--;
+  return path.slice(0, end);
+}
+
 /**
  * A page's path as its full address ends it: with a `/` (`/about/`) unless
  * `trailingSlash` is `false`. The home page, files (a last part with a dot,
@@ -15,7 +22,7 @@ export function pageAddressPath(path: string, trailingSlash = true): string {
   const end = path.search(/[?#]/);
   const bare = end === -1 ? path : path.slice(0, end);
   const rest = end === -1 ? "" : path.slice(end);
-  if (!trailingSlash) return `${bare === "/" ? bare : bare.replace(/\/+$/, "")}${rest}`;
+  if (!trailingSlash) return `${bare === "/" ? bare : withoutTrailingSlashes(bare)}${rest}`;
   const last = bare.slice(bare.lastIndexOf("/") + 1);
   return bare.endsWith("/") || last.includes(".") ? path : `${bare}/${rest}`;
 }
@@ -38,7 +45,7 @@ export function linkTarget(link: string): { kind: "page" | "media"; path: string
   if (RESERVED_PAGE_PATHS.some((reserved) => path === reserved || path.startsWith(`${reserved}/`))) return undefined;
   // Other files, such as /favicon.ico or a feed, are the site's code's: only the build knows they're there.
   if (/\.[a-z0-9]+$/i.test(path.split("/").at(-1) ?? "")) return undefined;
-  const trimmed = path.replace(/\/+$/, "");
+  const trimmed = withoutTrailingSlashes(path);
   return { kind: "page", path: trimmed || "/" };
 }
 

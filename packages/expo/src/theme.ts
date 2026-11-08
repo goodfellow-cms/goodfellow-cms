@@ -19,7 +19,7 @@ export interface NativeTheme {
 
 /** A CSS length in points, as the theme's radius is written: `0.5rem` is 8. */
 function points(length: string | undefined, fallback: number): number {
-  const match = /^(-?\d*\.?\d+)(rem|px|em)?$/.exec((length ?? "").trim());
+  const match = /^(-?(?:\d+(?:\.\d+)?|\.\d+))(rem|px|em)?$/.exec((length ?? "").trim());
   if (!match) return fallback;
   const value = Number(match[1]);
   return match[2] === "px" ? value : value * 16;

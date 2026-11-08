@@ -1,5 +1,7 @@
 // What the Document viewer shows, with no React, so its web and native versions share it.
 
+import { trimChars } from "@goodfellow-cms/core";
+
 export interface DocumentProps {
   /** A PDF from the media library, such as `/media/bulletin.pdf`. */
   file: string;
@@ -32,7 +34,7 @@ export function documentAddress(file: string): string | undefined {
 export function isFramedDocument(address: string, storage: string | undefined): boolean {
   if (address.startsWith("/media/")) return true;
   if (!storage) return false;
-  const prefix = storage.replace(/\/*$/, "/");
+  const prefix = `${trimChars(storage, "/", { start: false })}/`;
   return address.startsWith(prefix) && !address.slice(prefix.length).split(/[?#]/)[0]?.split("/").includes("..");
 }
 

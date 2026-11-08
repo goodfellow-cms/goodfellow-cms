@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import { entryFileChange, pageFileChange, relinkedChanges } from "./changes.js";
 import { type ContentSource, loadSiteContent } from "./load.js";
 import { parseMarkdownEntry, serializeMarkdownEntry } from "./markdown.js";
-import { dueChanges, scheduleProblem, scheduleState, shownContent, upcomingChanges } from "./schedule.js";
+import {
+  dueChanges,
+  published,
+  scheduledChanges,
+  scheduleProblem,
+  scheduleState,
+  shownContent,
+  upcomingChanges,
+} from "./schedule.js";
 import { collectionFileSchema, siteSettingsSchema } from "./schemas.js";
 
 function memorySource(files: Record<string, unknown>): ContentSource {
@@ -54,6 +62,63 @@ const site = (timeZone?: string) =>
       "content/collections/news/choir.json": { version: 1, fields: { title: "The choir" } },
     }),
   );
+
+describe("pages and items that aren't published yet", () => {
+  const files = {
+    "content/site.json": { version: 1, title: "Parish" },
+    "content/menus.json": { version: 1, menus: { main: [{ label: "Picnic", href: "/picnic" }] } },
+    "content/pages/index.json": page("Home"),
+    "content/pages/picnic.json": { ...page("Picnic", { showFrom: "2026-06-01T00:00" }), notPublished: true },
+    "content/collections/news/_collection.json": {
+      version: 1,
+      name: "News",
+      entryName: "Story",
+      path: "/news/{slug}",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    },
+    "content/collections/news/fair.json": { version: 1, notPublished: true, fields: { title: "The fair" } },
+  };
+
+  it("are left out of the site, its menus and its schedule's changes until published", async () => {
+    const content = await loadSiteContent(memorySource(files));
+    expect(content.pages.find((found) => found.path === "/picnic")?.content.notPublished).toBe(true);
+    const shown = shownContent(content, new Date("2026-07-01T12:00:00Z"));
+    expect(shown.pages.map((found) => found.path)).toEqual(["/"]);
+    expect(shown.collections[0]?.entries).toEqual([]);
+    expect(shown.menus.main).toEqual([]);
+    expect(scheduledChanges(content)).toEqual([]);
+  });
+
+  it("keep the flag through saves, until published", async () => {
+    const content = await loadSiteContent(memorySource(files));
+    const picnic = content.pages.find((found) => found.path === "/picnic");
+    if (!picnic) throw new Error("No picnic page");
+    const text = (change: ReturnType<typeof pageFileChange>) => ("content" in change ? change.content : "");
+    expect(JSON.parse(text(pageFileChange("/picnic", picnic.content.data, picnic.content)))).toMatchObject({
+      notPublished: true,
+      showFrom: "2026-06-01T00:00",
+    });
+    const live = JSON.parse(text(pageFileChange("/picnic", picnic.content.data, published(picnic.content))));
+    expect(live.notPublished).toBeUndefined();
+    expect(live.showFrom).toBe("2026-06-01T00:00");
+  });
+
+  it("keep it in a Markdown item's front matter, where no field can be called it", () => {
+    const settings = collectionFileSchema.parse({
+      version: 1,
+      name: "Notes",
+      entryName: "Note",
+      markdown: { body: "body" },
+      fields: [
+        { name: "title", label: "Title", type: "text" },
+        { name: "body", label: "Body", type: "richtext" },
+      ],
+    });
+    const text = serializeMarkdownEntry(settings, { title: "Hi", body: "Text" }, { notPublished: true });
+    expect(text).toContain("notPublished: true");
+    expect(parseMarkdownEntry(text, "body")).toMatchObject({ notPublished: true, fields: { title: "Hi" } });
+  });
+});
 
 describe("scheduled publishing", () => {
   it("shows pages and items only while their schedules say, in the site's time zone", async () => {

@@ -18,7 +18,7 @@ A language's code is where its pages go, so it can't change once it's published,
 
 On the **Pages** screen, each page in the main language lists the site's other languages:
 
-- **Translate into Español** makes a copy of the page under the language's code, which you then translate in the editor. The copy remembers which page it translates.
+- **Translate into Español** makes a copy of the page under the language's code, which you then translate in the editor. The copy remembers which page it translates, and isn't on the site until it's published (see [Not published yet](/docs/edit-pages#not-published-yet)).
 - Once a translation exists, it shows **Up to date**, or **Out of date** when the original has changed since. Update the translation, then **Mark as up to date**.
 
 The editor shows a page in its own language: the site's name and menus in that language, and only that language's items in lists. Its header has a **Language** menu, as **Header & Footer** does: pick a language to open the page's translation in it, marked **(out of date)** where the original has changed since, or **Translate into Español…** for a language it has none in. A translation's menu goes back to the original, and to its other translations. Items' editors have the same.
