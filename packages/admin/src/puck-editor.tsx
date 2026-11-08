@@ -458,7 +458,7 @@ export function PuckEditor({
       return;
     }
     setStatus({ type: "publishing" });
-    const { changes, message } = toChanges(next, { draft });
+    const { changes, message } = toChanges(next, { draft: draft === true });
     // Where the changes were kept: adding to a draft opens the screen again for it.
     const keptAt = keptKey;
     const result = await publish(changes, message, { draft });
