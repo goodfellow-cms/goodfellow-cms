@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { readMediaSizes, writeImageSizes } from "./node-media.js";
+import { readMediaHashes, readMediaSizes, writeImageSizes } from "./node-media.js";
 
 describe("readMediaSizes", () => {
   let root: string;
@@ -26,6 +26,17 @@ describe("readMediaSizes", () => {
 
   it("returns nothing for a site without media", async () => {
     expect(await readMediaSizes(join(root, "missing"))).toEqual({});
+  });
+
+  it("hashes every file by address, and again once one is replaced", async () => {
+    const before = await readMediaHashes(root);
+    expect(Object.keys(before)).toEqual(["/media/broken.png", "/media/bulletin.pdf", "/media/logos/mark.svg"]);
+    expect(before["/media/bulletin.pdf"]).toMatch(/^[0-9a-f]{64}$/);
+    await writeFile(join(root, "public/media/bulletin.pdf"), "%PDF-1.7 replaced");
+    const after = await readMediaHashes(root);
+    expect(after["/media/bulletin.pdf"]).not.toBe(before["/media/bulletin.pdf"]);
+    expect(after["/media/logos/mark.svg"]).toBe(before["/media/logos/mark.svg"]);
+    expect(await readMediaHashes(join(root, "missing"))).toEqual({});
   });
 });
 

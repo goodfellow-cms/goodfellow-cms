@@ -43,6 +43,7 @@ import {
   fileSystemSource,
   guardBuiltSite,
   type ImageSizesResult,
+  readMediaHashes,
   readMediaSizes,
   runPluginBuildSteps,
   selfHostFonts,
@@ -354,7 +355,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     }
 
     // The content API: the site's content as JSON, each page as it's shown, for apps and other sites.
-    const apiFiles = await api(content, pages, { base });
+    const apiFiles = await api(content, pages, { base, media: await readMediaHashes(root) });
     for (const file of apiFiles) {
       const target = join(outDir, file.path.slice(1));
       await mkdir(dirname(target), { recursive: true });

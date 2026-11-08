@@ -62,7 +62,7 @@ export interface ServerEntry {
   /** What the admin panel's page knows about the site, which never loads its config. */
   admin: () => AdminSite;
   /** The content API's files (`contentApi()`), none where the config turns it off. */
-  api: (content: SiteContent, pages: readonly Page[], options?: { base?: string }) => Promise<ContentApiFile[]>;
+  api: (content: SiteContent, pages: readonly Page[], options?: { base?: string; media?: Record<string, string> }) => Promise<ContentApiFile[]>;
 }
 
 export function loadServerEntry(server: ViteDevServer): Promise<ServerEntry> {

@@ -117,6 +117,25 @@ describe("syncSite", () => {
     expect(storage.downloaded).toEqual(["https://parish.example/media/church.jpg"]);
   });
 
+  it("downloads a picture again once the site replaces it at the same address", async () => {
+    const site = fakeSite();
+    const storage = storageWithMedia();
+    // A manifest from before media hashes: the picture is kept, and nothing is downloaded twice.
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    site.manifest({ media: { "/media/church.jpg": "a" } });
+    storage.downloaded.length = 0;
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(storage.downloaded).toEqual([]);
+    // The same hash again keeps it; a new one downloads it again.
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(storage.downloaded).toEqual([]);
+    site.manifest({ media: { "/media/church.jpg": "b" } });
+    const result = await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(storage.downloaded).toEqual(["https://parish.example/media/church.jpg"]);
+    expect(result.changed).toContain("media/church.jpg");
+    expect(result.removed).not.toContain("media/church.jpg");
+  });
+
   it("downloads only what changed, and removes what the site no longer has", async () => {
     const site = fakeSite();
     const storage = storageWithMedia();

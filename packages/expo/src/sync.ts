@@ -223,8 +223,15 @@ export async function syncSite(options: SyncOptions): Promise<SyncResult> {
       for (const address of mediaAddresses(text)) shown.add(mediaFile(address));
     }
     const download = storage.download.bind(storage);
+    // A file replaced at the same address is downloaded again, once the kept manifest has hashes to compare.
+    const replaced = (file: string) => {
+      const address = `/media/${file.slice(MEDIA_FOLDER.length)}`;
+      const was = kept?.media?.[address];
+      const now = manifest.media?.[address];
+      return kept?.media !== undefined && now !== undefined && was !== now;
+    };
     await inTurn(
-      [...shown].filter((file) => !stored.has(file)),
+      [...shown].filter((file) => !stored.has(file) || replaced(file)),
       async (file) => {
         try {
           await download(siteAddress(site, manifest, `/media/${file.slice(MEDIA_FOLDER.length)}`), file);
