@@ -28,7 +28,7 @@ Deleting or replacing a photo in the media library removes its credit too. A sit
 
 ## Choosing a service
 
-Each editor chooses a service in the AI panel's settings, which lists the ones that cost nothing first, and it's called straight from their browser, with their own account:
+Each editor chooses a service in the AI panel's settings, which lists the ones that cost nothing first, and it's called straight from their browser, with their own account. Until one is set up, the panel shows a card for each free one, with **Use this** and, where it needs a key, a link to get one free:
 
 | Service | Needs | Cost |
 |---|---|---|
