@@ -9,6 +9,7 @@ import {
   githubLockfileJobs,
   gitlabLockfileScript,
   LOCKFILE_CHECK,
+  LOCKFILE_REGISTRY_CHECK,
 } from "./lockfile-setup.js";
 
 const ROOT = join(import.meta.dirname, "../../..");
@@ -52,6 +53,43 @@ describe("the lockfile check", { timeout: NODE_TIMEOUT }, () => {
     ).toBe(false);
     expect(await check({ ...site, devDependencies: { goodfellow: "0.40.1" } }, lock)).toBe(false);
     expect(await check(site)).toBe(false);
+  });
+});
+
+describe("the lockfile's registry check", { timeout: NODE_TIMEOUT }, () => {
+  it("refuses a lockfile that takes a package from anywhere but npm's registry the committed one didn't", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "goodfellow-lockfile-registry-"));
+    const lock = (...resolved: string[]) =>
+      JSON.stringify({
+        packages: Object.fromEntries(
+          resolved.map((address, index) => [`node_modules/p${index}`, { resolved: address }]),
+        ),
+      });
+    const passes = async (text: string) => {
+      await writeFile(join(dir, "package-lock.json"), text);
+      try {
+        execFileSync(process.execPath, ["-e", LOCKFILE_REGISTRY_CHECK], { cwd: dir, stdio: "ignore" });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    try {
+      const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" });
+      git("init", "-q");
+      // A package the site already took from elsewhere stays allowed.
+      await writeFile(join(dir, "package-lock.json"), lock("https://git.example/own.tgz"));
+      git("add", "package-lock.json");
+      git("-c", "user.name=T", "-c", "user.email=t@example.org", "commit", "-q", "-m", "lock");
+      expect(await passes(lock("https://git.example/own.tgz", "https://registry.npmjs.org/a/-/a-1.0.0.tgz"))).toBe(
+        true,
+      );
+      expect(await passes(lock("https://registry.npmjs.org/a/-/a-1.0.0.tgz", "https://evil.example/b.tgz"))).toBe(
+        false,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

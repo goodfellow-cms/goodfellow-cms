@@ -33,7 +33,14 @@ import { SUMMARY_LENGTH } from "../content/entry-details.js";
 import { allPages, type SiteContent } from "../content/load.js";
 import { isSafeUrl } from "../content/markdown.js";
 import { mediaKind, uploadName } from "../content/media-files.js";
-import { entryAddress, isAddressSegment, isReservedPagePath, MEDIA_DIR, SLUG_PLACEHOLDER } from "../content/paths.js";
+import {
+  entryAddress,
+  isAddressSegment,
+  isReservedPagePath,
+  MEDIA_DIR,
+  SLUG_PLACEHOLDER,
+  unreservedPagePath,
+} from "../content/paths.js";
 import { isReservedRedirect, type Redirect, redirectFrom } from "../content/redirects.js";
 import type { CollectionField, CollectionFile, MenuItem, Menus } from "../content/schemas.js";
 import type { FileChange } from "../content/store.js";
@@ -347,8 +354,7 @@ export function planWordPressImport(
               .map((part, index) => segment(part, `page-${page.id}-${index}`))
           : chain(page);
     let path = `/${segments.join("/")}`;
-    if (isReservedPagePath(path))
-      path = `/${segments.map((part, index) => (index === 0 ? `${part}-page` : part)).join("/")}`;
+    if (isReservedPagePath(path)) path = unreservedPagePath(path);
     if (takenPagePaths.has(path)) {
       const parent = path.slice(0, path.lastIndexOf("/"));
       const siblings = [...takenPagePaths]

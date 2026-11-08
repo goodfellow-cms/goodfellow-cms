@@ -501,6 +501,11 @@ export function createConnector(options: ConnectorOptions = {}) {
         }
         let tokens: HostTokens | undefined;
         const { host } = data.connection;
+        if (host !== "github" && rotation === "repeated") {
+          // The host's refresh token in it was used by the answer before, and using one twice can end the tokens
+          // that answer gave, which the client may have, so the host isn't asked again.
+          throw new OAuthError("invalid_grant", "The refresh token has been used already. Connect again.");
+        }
         if (host !== "github") {
           const refresh = data.token ?? data.gitlab;
           const name = host === "gitlab" ? "GitLab" : "Bitbucket";
@@ -514,10 +519,12 @@ export function createConnector(options: ConnectorOptions = {}) {
                 : await bb.refreshTokens(bitbucket as bb.BitbucketConfig, refresh, now());
           } catch (error) {
             if ((error instanceof gl.GitLabError || error instanceof bb.BitbucketError) && error.status === 0) {
+              // No new tokens were given, so the refresh token Claude has stays the one to try again with. If the
+              // host did get the request and renewed its own, trying again fails there and ends the connection.
+              if (rotation === "rotated") await grants.unrotate(data.grant, data.generation);
               throw new OAuthError("temporarily_unavailable", `${name} couldn't be reached.`, 503);
             }
-            // Asked again with the refresh token before the current one: the tokens already given still work.
-            if (rotation === "rotated") await grants.revoke(data.grant);
+            await grants.revoke(data.grant);
             throw new OAuthError("invalid_grant", `${name} didn't renew the sign-in. Connect again.`);
           }
         }

@@ -221,6 +221,70 @@ describe("changing a site", () => {
     expect((await call("get_draft", { draft })).text).toContain("isn't there any more");
   });
 
+  it("lists the drafts there are, and moves a page with every link to it, sending its old address on", async () => {
+    // The About page shows the starter's placeholder picture.
+    const { call, fake } = await connect({
+      files: { ...starterFiles(), "public/media/placeholder.svg": "<svg xmlns='http://www.w3.org/2000/svg'/>" },
+    });
+    expect((await call("list_drafts")).json()).toEqual({ drafts: [] });
+    const moved = (await call("move_page", { address: "/about", to: "/about-us" })).json();
+    expect(moved).toMatchObject({ address: "/about-us", from: "/about", saved: "moved" });
+    expect((await call("list_drafts")).json()).toEqual({ drafts: [{ draft: moved.draft }] });
+    const files = fake.repo.files(`goodfellow-draft-${moved.draft}`);
+    expect(files.has("content/pages/about.json")).toBe(false);
+    expect(files.get("content/pages/about-us.json")).toContain("About us");
+    expect(files.get("content/menus.json")).toContain('"/about-us"');
+    expect(files.get("content/menus.json")).not.toContain('"/about"');
+    expect(JSON.parse(String(files.get("content/redirects.json") ?? "{}")).redirects).toContainEqual({
+      from: "/about",
+      to: "/about-us",
+    });
+    // Nothing links to the old address, so publishing passes the checks.
+    expect((await call("publish", { draft: moved.draft, message: "Move About" })).isError).toBe(false);
+
+    expect((await call("move_page", { address: "/", to: "/home" })).text).toContain("home page can't move");
+    expect((await call("move_page", { address: "/about-us", to: "/news/welcome" })).text).toContain("already taken");
+  });
+
+  it("schedules pages and items, and keeps a schedule it isn't given", async () => {
+    const { call, fake } = await connect();
+    const { draft } = (
+      await call("save_page", { address: "/advent", blocks: [heading("Advent")], showFrom: "2026-11-29T09:00" })
+    ).json();
+    const file = () =>
+      JSON.parse(String(fake.repo.files(`goodfellow-draft-${draft}`).get("content/pages/advent.json") ?? "{}"));
+    expect(file().showFrom).toBe("2026-11-29T09:00");
+    await call("save_page", { address: "/advent", draft, settings: { title: "Advent" } });
+    expect(file().showFrom).toBe("2026-11-29T09:00");
+    await call("save_page", { address: "/advent", draft, showFrom: "", hideAfter: "2026-12-25T00:00" });
+    expect(file()).toMatchObject({ hideAfter: "2026-12-25T00:00" });
+    expect(file()).not.toHaveProperty("showFrom");
+    expect((await call("save_page", { address: "/advent", draft, showFrom: "2026-02-30T09:00" })).text).toContain(
+      "must be a date and time that exists",
+    );
+    expect(
+      (
+        await call("save_page", {
+          address: "/advent",
+          draft,
+          showFrom: "2026-12-26T00:00",
+          hideAfter: "2026-12-25T00:00",
+        })
+      ).text,
+    ).toContain("hideAfter must come after showFrom");
+
+    await call("save_item", {
+      collection: "news",
+      slug: "fair",
+      draft,
+      values: { title: "Fair news", date: "2026-07-01" },
+      hideAfter: "2026-08-01T00:00",
+    });
+    expect(fake.repo.files(`goodfellow-draft-${draft}`).get("content/collections/news/fair.json")).toContain(
+      '"hideAfter": "2026-08-01T00:00"',
+    );
+  });
+
   it("saves only blocks the site has, and says what it left out", async () => {
     const { call, fake } = await connect();
     const saved = (

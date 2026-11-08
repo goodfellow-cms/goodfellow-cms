@@ -21,7 +21,7 @@ The tools read the site's files from its repository, and what blocks the site ha
 
 ## What it keeps
 
-Who connected and which sites they chose are sealed inside the tokens Claude holds, with AES-GCM under a key only the connector has, so Claude can't read or change them. The one thing stored, in Cloudflare's D1 database, is each connection's refresh token generation and when it lapses, so a refresh token used twice ends the connection, as OAuth asks. The one before the current one still works for a minute, so Claude asking again after an answer it didn't get doesn't end it. Revoking either of a connection's tokens ends it.
+Who connected and which sites they chose are sealed inside the tokens Claude holds, with AES-GCM under a key only the connector has, so Claude can't read or change them. The one thing stored, in Cloudflare's D1 database, is each connection's refresh token generation and when it lapses, so a refresh token used twice ends the connection, as OAuth asks. The one before the current one still works for a minute, so Claude asking again after an answer it didn't get doesn't end it; with GitLab and Bitbucket it's refused instead, without ending the connection, since the host's own refresh token in it has been used already. Revoking either of a connection's tokens ends it.
 
 | Host | What the connector signs in with |
 |---|---|
@@ -34,7 +34,7 @@ Who connected and which sites they chose are sealed inside the tokens Claude hol
 The connector runs on Cloudflare Workers' free plan:
 
 - **Requests:** 100,000 a day, for every editor together. A tool call is one request, and Claude makes a few more to start. When the day's are used, Cloudflare stops answering until midnight UTC and Claude says the connector isn't available. As with the sign-in service, the connector keeps no counts of its own; [Cloudflare's rate limiting rules](/docs/sign-in-service#limits) can stop one computer using them up.
-- **Work per request:** 10 milliseconds of the processor's time and 50 requests to GitHub, GitLab, Bitbucket or the site. So the tools read only the files they need, in batches through GitHub's and GitLab's GraphQL APIs, rather than loading the whole site. Bitbucket has no such API and reads each file with a request of its own, so on Bitbucket a tool that reads many files, such as listing every item of a large collection, can reach the limit.
+- **Work per request:** 10 milliseconds of the processor's time and 50 requests to GitHub, GitLab, Bitbucket or the site. So the tools read only the files they need, in batches through GitHub's and GitLab's GraphQL APIs, rather than loading the whole site. Bitbucket has no such API and reads each file with a request of its own, so on Bitbucket a tool that reads many files, such as listing every item of a large collection or moving a page (which reads every page and item to point their links at its new address), can reach the limit. Claude on an editor's computer has no such limit.
 - **Checks before publishing:** the admin panel's checks for broken links read the whole site twice, more than a request's time allows, so the connector publishes drafts without them; the site's build still checks it, and Claude on an editor's computer runs them.
 - **Screenshots:** Cloudflare's Browser Rendering gives the free plan 10 minutes of browser time a day, with up to three browsers at once. A screenshot takes a few seconds.
 

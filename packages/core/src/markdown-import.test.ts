@@ -120,6 +120,13 @@ describe("planMarkdownImport", () => {
     expect(json(files["content/pages/visit.json"]).data.root.props).toMatchObject({ title: "Visit", noIndex: true });
   });
 
+  it("gives a page whose address ends in index one a page can have, rather than stopping", async () => {
+    const content = await loadSiteContent(source(STARTER));
+    const files = { "guide.md": "---\ntitle: Guide\npermalink: /docs/index\n---\n\nRead on.\n" };
+    const plan = planMarkdownImport(Object.keys(files), (file) => files[file as keyof typeof files], content, {});
+    expect(plan.summary.pages).toEqual(["/docs/index-page"]);
+  });
+
   it("leaves the home page, pages the site has and drafts alone unless asked", async () => {
     const { plan, files } = await importFolder();
     expect(files["content/pages/index.json"]).toBe(STARTER["content/pages/index.json"]);

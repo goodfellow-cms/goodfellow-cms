@@ -5,6 +5,7 @@ import {
   GitApiError,
   type ScheduledBuilds,
   ScheduledBuildsError,
+  stopsScheduledBuild,
 } from "@goodfellow-cms/core";
 import { type ApiOptions, bitbucketJson, bitbucketRequest } from "./api.js";
 import { type Schedule, schedules } from "./pipelines.js";
@@ -62,7 +63,7 @@ export function bitbucketScheduledBuilds(
       return setup?.includes(" nightly ") ? "nightly" : "none";
     },
 
-    async sync(times) {
+    async sync(times, options = {}) {
       const api = manage() ?? read;
       const after = now();
       const wanted = new Map<string, Date>();
@@ -77,7 +78,7 @@ export function bitbucketScheduledBuilds(
         if (at) ours.set(minute(at), schedule);
       }
       for (const [time, schedule] of ours) {
-        if (wanted.has(time)) continue;
+        if (wanted.has(time) || !stopsScheduledBuild(new Date(`${time}Z`), after, options.known)) continue;
         // A leftover schedule only rebuilds the site again, so one that can't be removed is left.
         await bitbucketRequest(api, `${base}/${encodeURIComponent(schedule.uuid)}`, {
           method: "DELETE",
