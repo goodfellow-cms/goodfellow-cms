@@ -136,6 +136,25 @@ describe("syncSite", () => {
     expect(result.removed).not.toContain("media/church.jpg");
   });
 
+  it("tries a replaced picture again next time when its download fails", async () => {
+    const site = fakeSite();
+    const storage = storageWithMedia();
+    site.manifest({ media: { "/media/church.jpg": "a" } });
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    const download = storage.download;
+    storage.download = async () => {
+      throw new Error("offline");
+    };
+    site.manifest({ media: { "/media/church.jpg": "b" } });
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(JSON.parse(storage.files.get(MANIFEST_FILE) ?? "{}").media).toEqual({ "/media/church.jpg": "a" });
+    storage.download = download;
+    storage.downloaded.length = 0;
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(storage.downloaded).toEqual(["https://parish.example/media/church.jpg"]);
+    expect(JSON.parse(storage.files.get(MANIFEST_FILE) ?? "{}").media).toEqual({ "/media/church.jpg": "b" });
+  });
+
   it("downloads only what changed, and removes what the site no longer has", async () => {
     const site = fakeSite();
     const storage = storageWithMedia();
