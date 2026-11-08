@@ -49,6 +49,7 @@ import { type AddedFontFiles, OwnFonts, useOwnFontsShown } from "./own-fonts.js"
 import { PartsEditor } from "./parts-editor.js";
 import { PreviewFrame, type PreviewScheme } from "./preview.js";
 import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
+import { FreeServices } from "./free-services.js";
 import { type SettingsSection, sectionId, useUnsavedChanges } from "./router.js";
 import { useSignInExposed } from "./security-screen.js";
 import { describeContrast } from "./site-checks.js";
@@ -339,6 +340,7 @@ function GeneralTab({
   });
   return (
     <div className="gfa-form">
+      <FreeServices settings={draft} />
       <TextField label={t("general.siteTitle")} {...text("title")} />
       <TextField label={t("general.description")} hint={t("general.descriptionHint")} {...text("description")} />
       <TextField

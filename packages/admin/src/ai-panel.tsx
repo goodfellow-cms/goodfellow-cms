@@ -146,6 +146,63 @@ export function freeFirst(providers: readonly ProviderId[], siteServices: readon
   return [...providers.filter(free), ...providers.filter((id) => !free(id))];
 }
 
+/** The services that cost nothing, in the order the AI panel offers them as cards. */
+export const FREE_SERVICES: readonly ProviderId[] = ["manual", "ovhcloud", "gemini", "groq", "mistral", "openrouter"];
+
+const FREE_SERVICE_TEXT: Partial<Record<ProviderId, StringKey>> = {
+  manual: "ai.free.manual",
+  ovhcloud: "ai.free.ovhcloud",
+  gemini: "ai.free.gemini",
+  groq: "ai.free.groq",
+  mistral: "ai.free.mistral",
+  openrouter: "ai.free.openrouter",
+};
+
+/** The free services offered as cards: those the site allows, but not the one already chosen. */
+export function freeCards(providers: readonly ProviderId[], chosen: ProviderId): ProviderId[] {
+  return FREE_SERVICES.filter((id) => id !== chosen && providers.includes(id));
+}
+
+/** Cards for the services that cost nothing, shown until the editor has one set up. */
+function FreeServiceCards({
+  providers,
+  chosen,
+  onChoose,
+}: {
+  providers: readonly ProviderId[];
+  chosen: ProviderId;
+  onChoose: (id: ProviderId) => void;
+}) {
+  const t = useStrings();
+  const offered = freeCards(providers, chosen);
+  if (offered.length === 0) return null;
+  return (
+    <div className="gfa-ai-free">
+      <p className="gfa-hint">{t("ai.free.intro")}</p>
+      <ul className="gfa-ai-free-list">
+        {offered.map((id) => {
+          const info = PROVIDERS[id];
+          const text = FREE_SERVICE_TEXT[id];
+          return (
+            <li key={id} className="gfa-ai-free-card">
+              <strong>{serviceName(id, t)}</strong>
+              {text && <span className="gfa-hint">{t(text)}</span>}
+              <div className="gfa-ai-free-actions">
+                <Button onClick={() => onChoose(id)}>{t("ai.free.use")}</Button>
+                {info.needsKey && info.keyUrl && (
+                  <a className="gfa-hint" href={info.keyUrl} target="_blank" rel="noreferrer">
+                    {t("ai.free.getKey")}
+                  </a>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function ServiceSettings({
   providers,
   settings,
@@ -618,7 +675,19 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
         </div>
       )}
 
-      {!ready && <p className="gfa-hint">{t("ai.needsKey", { service })}</p>}
+      {!ready && (
+        <>
+          <p className="gfa-hint">{t("ai.needsKey", { service })}</p>
+          <FreeServiceCards
+            providers={providers}
+            chosen={settings.provider}
+            onChoose={(provider) => {
+              updateSettings({ provider });
+              setSettingsOpen(true);
+            }}
+          />
+        </>
+      )}
 
       <div className="gfa-ai-actions">
         <Button variant="primary" disabled={working || !ready || !instruction.trim()} onClick={() => void run()}>
