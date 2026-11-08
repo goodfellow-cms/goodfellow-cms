@@ -75,7 +75,8 @@ function SignInScreen({
 }) {
   const t = useStrings();
   const [token, setToken] = useState("");
-  const [remember, setRemember] = useState(false);
+  // On unless the editor turns it off, as on a shared computer.
+  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<unknown>(error);
   const values = { host: host.name };

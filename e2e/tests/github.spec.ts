@@ -20,7 +20,7 @@ function setup(page: Page, options: Partial<Parameters<typeof fakeGitHub>[0]> = 
 async function signIn(page: Page, token = "good-token", remember = false) {
   await page.goto(`${GITHUB_SITE}/admin/`);
   await page.getByLabel("Access token").fill(token);
-  if (remember) await page.getByLabel("Stay signed in on this device").check();
+  await page.getByLabel("Stay signed in on this device").setChecked(remember);
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
