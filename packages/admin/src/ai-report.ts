@@ -26,13 +26,23 @@ export function countBlocks(content: unknown): number {
   }, 0);
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
 /**
- * Whether putting in an answered value would keep it, by the same rules that
- * put answers in (`toValues()`), from nothing, so a value that came out the
- * same as before because it was the same isn't counted as left out.
+ * Whether an answered value was the field's value already, rather than one
+ * left out: the value as putting it in would clean it (`toValues()` on its own,
+ * which drops what doesn't fit and empty parts) says what the field held. An
+ * object needs to agree only on what it gives, since putting it in keeps the
+ * rest, as an event keeps how it repeats.
  */
-function usable(name: string, field: Fields[string], value: unknown): boolean {
-  return toValues({ values: { [name]: value } }, { [name]: field }, {})[name] !== undefined;
+function alreadyThere(name: string, field: Fields[string], value: unknown, before: unknown): boolean {
+  const cleaned = toValues({ values: { [name]: value } }, { [name]: field }, {})[name];
+  if (cleaned === undefined) return false;
+  if (isRecord(cleaned) && isRecord(before)) {
+    return Object.entries(cleaned).every(([key, part]) => same(part, before[key]));
+  }
+  return same(cleaned, before);
 }
 
 /** What putting in an answer's `values` for `fields` changed from `before`, and how many it left out. */
@@ -47,7 +57,7 @@ export function valuesReport(
   let skipped = 0;
   for (const [name, field] of Object.entries(fields)) {
     if (!same(after[name], before[name])) settings++;
-    else if (name in given && given[name] !== "" && !usable(name, field, given[name])) skipped++;
+    else if (name in given && given[name] !== "" && !alreadyThere(name, field, given[name], before[name])) skipped++;
   }
   return { settings, skipped };
 }

@@ -1,3 +1,4 @@
+import { toValues } from "@goodfellow-cms/ai";
 import type { Fields } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
 import { answeredBlocks, countBlocks, valuesReport } from "./ai-report.js";
@@ -50,5 +51,15 @@ describe("what an answer changed", () => {
     expect(report({ start: "", end: "2026-12-06T11:00" })).toEqual({ settings: 0, skipped: 1 });
     expect(report({})).toEqual({ settings: 0, skipped: 1 });
     expect(report({ start: "next week" })).toEqual({ settings: 0, skipped: 1 });
+  });
+
+  it("counts a new time its repeat no longer fits as left out, as putting it in keeps the event as it was", () => {
+    const before = {
+      when: { start: "2026-12-06T10:00", end: "2026-12-06T11:00", repeat: { every: "week", until: "2027-01-31" } },
+    };
+    const answer = { values: { when: { start: "2027-03-07T10:00", end: "2027-03-07T11:00" } } };
+    const after = toValues(answer, eventFields, before);
+    expect(after).toEqual(before);
+    expect(valuesReport(answer.values, eventFields, before, after)).toEqual({ settings: 0, skipped: 1 });
   });
 });
