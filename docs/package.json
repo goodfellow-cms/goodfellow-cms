@@ -26,6 +26,7 @@
   "devDependencies": {
     "@types/react": "^19.2.0",
     "create-goodfellow": "workspace:*",
-    "goodfellow": "workspace:*"
+    "goodfellow": "workspace:*",
+    "playwright-core": "1.63.0"
   }
 }

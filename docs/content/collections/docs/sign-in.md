@@ -8,6 +8,8 @@ order: 2
 
 Editors sign in at `/admin` on the live site with their own GitHub, GitLab, or Bitbucket account. There's no separate list of users: anyone who can change the site's repository can edit the site, and the site's owners invite and remove them under **Site Settings → Editors**. [Full-stack sites](/docs/full-stack-nextjs) are different: editors sign in with the site's own sign-in.
 
+![The sign-in screen of a site stored on GitHub, asking for an access token](/screenshots/sign-in.png)
+
 ## Inviting and removing editors
 
 **Site Settings → Editors** lists everyone who can edit the site, and the invitations they haven't accepted yet. There are two roles:

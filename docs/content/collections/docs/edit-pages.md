@@ -8,9 +8,13 @@ order: 1
 
 Open `/admin` on the site and sign in. The **Pages** screen lists every page with its address.
 
+![The Pages screen of a parish's site, listing each page with its address and buttons to edit, view, duplicate, schedule, and delete it](/screenshots/pages.png)
+
 ## Edit a page
 
 Click **Edit** beside a page. The editor shows the page with the site's own header, footer, colors, and fonts, exactly as visitors will see it.
+
+![The editor, with the blocks to add on the left, the home page in the middle and the page's settings on the right](/screenshots/editor.png)
 
 - **Add a block** by dragging it from the list on the left onto the page. Each block has its own icon. Blocks are grouped: layout, text, buttons and forms, media, navigation, collections, and any [added to the site](/docs/add-blocks). The groups that fit what you're editing start open, such as navigation in the header and footer, and the rest open with a click. To find a block without looking through the groups, type in **Search blocks** at the top of the list: it finds blocks by their names and by other words for them, such as "divider", "columns", or "picture", and WordPress's names for its blocks, such as "Cover". Drag a block from what it finds as from the list; Escape shows the groups again.
 - **Change a block** by clicking it: its settings appear on the right. Text in headings and text blocks can also be typed straight onto the page.
