@@ -543,6 +543,8 @@ const scheduleTime = z
 const scheduleShape = {
   showFrom: scheduleTime.optional(),
   hideAfter: scheduleTime.optional(),
+  /** Not on the site until someone publishes it: new pages, duplicates and translations start so. */
+  notPublished: z.literal(true).optional(),
 };
 
 /**

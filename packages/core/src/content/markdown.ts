@@ -41,10 +41,8 @@ export function parseMarkdownEntry(text: string, body: string): Record<string, u
     throw new Error("must have front matter that lists fields, such as `title: My page`.");
   }
   // Fields' names are lowercase, so the schedule's times and the translation's details can't be one.
-  const { version, showFrom, hideAfter, inLanguage, translationOf, translatedFrom, ...fields } = front as Record<
-    string,
-    unknown
-  >;
+  const { version, showFrom, hideAfter, notPublished, inLanguage, translationOf, translatedFrom, ...fields } =
+    front as Record<string, unknown>;
   const markdown = text
     .slice(match[0].length)
     .replace(/^\r?\n/, "")
@@ -53,6 +51,7 @@ export function parseMarkdownEntry(text: string, body: string): Record<string, u
     version,
     ...(showFrom !== undefined && { showFrom }),
     ...(hideAfter !== undefined && { hideAfter }),
+    ...(notPublished !== undefined && { notPublished }),
     ...(inLanguage !== undefined && { inLanguage }),
     ...(translationOf !== undefined && { translationOf }),
     ...(translatedFrom !== undefined && { translatedFrom }),
@@ -71,6 +70,7 @@ export function serializeMarkdownEntry(
   schedule: {
     showFrom?: string;
     hideAfter?: string;
+    notPublished?: true;
     inLanguage?: string;
     translationOf?: string;
     translatedFrom?: string;
@@ -82,6 +82,7 @@ export function serializeMarkdownEntry(
     version: CURRENT_VERSION.entry,
     ...(schedule.showFrom && { showFrom: schedule.showFrom }),
     ...(schedule.hideAfter && { hideAfter: schedule.hideAfter }),
+    ...(schedule.notPublished && { notPublished: true }),
     ...(schedule.inLanguage && { inLanguage: schedule.inLanguage }),
     ...(schedule.translationOf && { translationOf: schedule.translationOf }),
     ...(schedule.translatedFrom && { translatedFrom: schedule.translatedFrom }),

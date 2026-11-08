@@ -38,6 +38,8 @@ export function scheduleOf(file: Schedule): Schedule {
  * address) and what it translates.
  */
 export interface FileDetails extends Schedule {
+  /** Not on the site until someone publishes it (`published()`), whatever its schedule says. */
+  notPublished?: true;
   inLanguage?: string;
   translationOf?: string;
   translatedFrom?: string;
@@ -47,6 +49,7 @@ export interface FileDetails extends Schedule {
 export function fileDetailsOf(file: FileDetails): FileDetails {
   return {
     ...scheduleOf(file),
+    ...(file.notPublished && { notPublished: true as const }),
     ...(file.inLanguage && { inLanguage: file.inLanguage }),
     ...(file.translationOf && { translationOf: file.translationOf }),
     ...(file.translatedFrom && { translatedFrom: file.translatedFrom }),
@@ -57,6 +60,17 @@ export function fileDetailsOf(file: FileDetails): FileDetails {
 export function withSchedule(file: FileDetails, schedule: Schedule): FileDetails {
   const { showFrom: _from, hideAfter: _after, ...rest } = fileDetailsOf(file);
   return { ...rest, ...scheduleOf(schedule) };
+}
+
+/** A file's details once it's published, so its page or item is on the site as its schedule says. */
+export function published(file: FileDetails): FileDetails {
+  const { notPublished: _notPublished, ...rest } = fileDetailsOf(file);
+  return rest;
+}
+
+/** Whether a page's or item's file is on the site at an instant: published, and shown by its schedule. */
+export function isOnSite(file: FileDetails, now: Date, timeZone: string | undefined): boolean {
+  return !file.notPublished && isShown(file, now, timeZone);
 }
 
 /** Whether a schedule has either time. */
@@ -128,14 +142,14 @@ function scheduledContent(content: SiteContent, now: Date): SiteContent {
   const { timeZone } = content.settings;
   const hidden = new Set<string>();
   const pages = content.pages.filter((page) => {
-    const shown = isShown(page.content, now, timeZone);
+    const shown = isOnSite(page.content, now, timeZone);
     if (!shown) hidden.add(page.path);
     return shown;
   });
   let changed = pages.length !== content.pages.length;
   const collections = content.collections.map((collection): Collection => {
     const entries = collection.entries.filter((entry) => {
-      const shown = isShown(entry.content, now, timeZone);
+      const shown = isOnSite(entry.content, now, timeZone);
       if (!shown && entry.path) hidden.add(entry.path);
       return shown;
     });
@@ -199,18 +213,23 @@ function changesOf(
 export function scheduledChanges(content: SiteContent): ScheduledChange[] {
   const { timeZone } = content.settings;
   const found = [
-    ...content.pages.flatMap((page: Page) =>
-      changesOf(page.content, timeZone, { file: page.file, title: pageTitle(page), path: page.path }),
-    ),
-    ...content.collections.flatMap((collection) =>
-      collection.entries.flatMap((entry: Entry) =>
-        changesOf(entry.content, timeZone, {
-          file: entry.file,
-          title: entryTitle(entry),
-          ...(entry.path && { path: entry.path }),
-          entry: { collection: collection.id, slug: entry.slug },
-        }),
+    // A page or item that isn't published yet goes on the site when it's published, not by its schedule.
+    ...content.pages
+      .filter((page) => !page.content.notPublished)
+      .flatMap((page: Page) =>
+        changesOf(page.content, timeZone, { file: page.file, title: pageTitle(page), path: page.path }),
       ),
+    ...content.collections.flatMap((collection) =>
+      collection.entries
+        .filter((entry) => !entry.content.notPublished)
+        .flatMap((entry: Entry) =>
+          changesOf(entry.content, timeZone, {
+            file: entry.file,
+            title: entryTitle(entry),
+            ...(entry.path && { path: entry.path }),
+            entry: { collection: collection.id, slug: entry.slug },
+          }),
+        ),
     ),
   ];
   return found.sort((a, b) => a.at.getTime() - b.at.getTime() || a.file.localeCompare(b.file));
