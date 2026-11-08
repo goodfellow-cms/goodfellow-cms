@@ -115,12 +115,13 @@ describe("TASK_CORE_RELEASE", () => {
       // npm's registry, as the job asks it: only for core's releases.
       await writeFile(
         join(dir, "registry.cjs"),
-        `globalThis.fetch = async (url) => { if (url !== "https://registry.npmjs.org/@goodfellow-cms%2fcore") throw new Error("asked " + url); return { json: async () => (${JSON.stringify({ time })}) }; };`,
+        'globalThis.fetch = async (url) => { if (url !== "https://registry.npmjs.org/@goodfellow-cms%2fcore") throw new Error("asked " + url); return { json: async () => JSON.parse(process.env.PACKUMENT) }; };',
       );
       return execFileSync(process.execPath, ["-r", "./registry.cjs", "-e", TASK_CORE_RELEASE], {
         cwd: dir,
         encoding: "utf8",
         stdio: "pipe",
+        env: { ...process.env, PACKUMENT: JSON.stringify({ time }) },
       }).trim();
     } catch {
       return "refused";
