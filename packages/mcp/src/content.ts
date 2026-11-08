@@ -182,7 +182,7 @@ export async function readCollection(source: ContentSource, id: string): Promise
   const collection = (await listCollections(source)).find((candidate) => candidate.id === id);
   const text = collection && (await source.read(collection.file));
   if (!collection || text === undefined) {
-    throw new ToolError(`The site has no collection "${id}". list_collections lists the ones it has.`);
+    throw new ToolError(`The site has no collection "${id}". get_site lists the ones it has.`);
   }
   return {
     ...collection,

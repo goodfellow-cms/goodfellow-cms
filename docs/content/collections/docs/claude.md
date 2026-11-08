@@ -103,6 +103,8 @@ On your computer, screenshots use your own browser, Chrome or else Edge, without
 
 - Read pages, the header and footer, [synced blocks](/docs/synced-blocks), collections and their items, menus and the site's settings, and list the media library with each file's size and credit. Photos with a credit, such as those the AI assistant adds from Openverse, show it on every page that uses them, so Claude can use them as they are.
 - Create, change and delete pages and items, create and change synced blocks, and change the header and footer, menus and the site's name, description, logo, icon, picture for shared links, contact details, theme and time zone, in a draft. Deleting a page or item leaves its translations as pages and items of their own, as the admin panel does, and Claude says which menus still link to a deleted page.
+- [Schedule](/docs/scheduling) when a page or item is shown and hidden, in the site's time zone, and move a page to a new address, with every link to it pointing to the new one and visitors to the old one sent on, as the admin panel's **Move** does.
+- List the drafts there are, whoever started them, with the ones waiting for review, to add to one or finish it.
 - Show you a screenshot of any page, live or with its draft, or look at an image in the media library.
 - Publish a draft, submit it for review, or throw it away.
 
