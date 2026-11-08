@@ -884,6 +884,8 @@ export const strings: Strings = {
   "ai.free.intro": "Estos no cuestan nada:",
   "ai.free.use": "Usar este",
   "ai.free.getKey": "Conseguir una clave gratuita",
+  "ai.free.useLabel": "Usar {service}",
+  "ai.free.getKeyLabel": "Conseguir una clave gratuita para {service}",
   "ai.free.manual":
     "Copia cada solicitud en una app de chat que ya uses, como Claude.ai o ChatGPT, y su respuesta de vuelta. No hace falta clave.",
   "ai.free.ovhcloud": "Gratis, sin clave ni cuenta, pero lento: unas 2 solicitudes por minuto.",
@@ -1275,6 +1277,8 @@ export const strings: Strings = {
   "freeServices.off": "Sin configurar",
   "freeServices.setUp": "Configurarlo",
   "freeServices.change": "Cambiar",
+  "freeServices.setUpLabel": "Configurar {service}",
+  "freeServices.changeLabel": "Cambiar {service}",
   "stats.intro":
     "Cuenta cuántas personas visitan las páginas del sitio, y cuáles, con Plausible, Umami o GoatCounter. Cuentan sin cookies y guardan los números en sus propios sitios, donde los consultas. No se cuentan las visitas mientras pruebas el sitio en tu ordenador ni en el panel de administración.",
   "stats.state.title": "Contando visitas",

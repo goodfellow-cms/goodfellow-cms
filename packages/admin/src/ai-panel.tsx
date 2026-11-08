@@ -188,9 +188,20 @@ function FreeServiceCards({
               <strong>{serviceName(id, t)}</strong>
               {text && <span className="gfa-hint">{t(text)}</span>}
               <div className="gfa-ai-free-actions">
-                <Button onClick={() => onChoose(id)}>{t("ai.free.use")}</Button>
+                <Button
+                  onClick={() => onChoose(id)}
+                  aria-label={t("ai.free.useLabel", { service: serviceName(id, t) })}
+                >
+                  {t("ai.free.use")}
+                </Button>
                 {info.needsKey && info.keyUrl && (
-                  <a className="gfa-hint" href={info.keyUrl} target="_blank" rel="noreferrer">
+                  <a
+                    className="gfa-hint"
+                    href={info.keyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={t("ai.free.getKeyLabel", { service: serviceName(id, t) })}
+                  >
                     {t("ai.free.getKey")}
                   </a>
                 )}

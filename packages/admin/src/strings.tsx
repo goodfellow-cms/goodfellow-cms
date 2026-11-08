@@ -895,6 +895,8 @@ export const defaultStrings = {
   "ai.free.intro": "These cost nothing:",
   "ai.free.use": "Use this",
   "ai.free.getKey": "Get a free key",
+  "ai.free.useLabel": "Use {service}",
+  "ai.free.getKeyLabel": "Get a free key for {service}",
   "ai.free.manual":
     "Copy each request into a chat app you already use, such as Claude.ai or ChatGPT, and its answer back. No key needed.",
   "ai.free.ovhcloud": "Free, with no key or account, but slow: about 2 requests a minute.",
@@ -1399,6 +1401,8 @@ export const defaultStrings = {
   "freeServices.off": "Not set up yet",
   "freeServices.setUp": "Set it up",
   "freeServices.change": "Change",
+  "freeServices.setUpLabel": "Set up {service}",
+  "freeServices.changeLabel": "Change {service}",
   "stats.intro":
     "Count how many people visit the site's pages, and which pages, with Plausible, Umami or GoatCounter. They count without cookies, and keep the counts on their own sites, where you read them. Visits aren't counted while you try the site on your computer, or in the admin panel.",
   "stats.state.title": "Counting visits",
