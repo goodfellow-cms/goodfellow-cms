@@ -324,7 +324,7 @@ export const GALLERY_PARTS: BlockParts = {
   "gf-gallery-lightbox": "Picture shown larger",
   "gf-gallery-lightbox-picture": "Larger picture",
   "gf-gallery-lightbox-caption": "Larger picture's caption",
-  "gf-gallery-lightbox-button": "Close, Previous and Next buttons",
+  "gf-gallery-lightbox-button": "Close, Previous, and Next buttons",
 };
 
 export const BREADCRUMBS_PARTS: BlockParts = {

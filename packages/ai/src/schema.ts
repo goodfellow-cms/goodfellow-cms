@@ -17,7 +17,7 @@ export interface AiFieldHint {
 
 /** What a block's style field holds (`classNameField` in `@goodfellow-cms/react`). */
 const STYLE_HINT =
-  "Tailwind CSS classes for the block's look, such as text-center, text-lg, text-primary, bg-muted, p-6, mt-8 or rounded-lg, using the theme's colors; empty for the block's own look";
+  "Tailwind CSS classes for the block's look, such as text-center, text-lg, text-primary, bg-muted, p-6, mt-8, or rounded-lg, using the theme's colors; empty for the block's own look";
 
 /** What an event field's value is, for the `event` hint. How it repeats isn't asked for: it stays as editors set it. */
 const EVENT_HINT =

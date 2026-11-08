@@ -16,7 +16,7 @@ describe("frameRequest", () => {
     expect(frameRequest(player, { url: "https://www.youtube.com/watch?v=abc", isTopFrame: true })).toBe("open");
   });
 
-  it("refuses to call, write or open other apps", () => {
+  it("refuses to call, write, or open other apps", () => {
     for (const url of [
       "tel:5550100",
       "mailto:a@example.org",

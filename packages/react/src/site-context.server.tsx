@@ -30,7 +30,7 @@ export function setSite(site: SiteContextValue): void {
   current().value = site;
 }
 
-/** Site settings, menus, collections and the current page. Must be used inside a Goodfellow page. */
+/** Site settings, menus, collections, and the current page. Must be used inside a Goodfellow page. */
 export function useSite(): SiteContextValue {
   const { value } = current();
   if (!value) {

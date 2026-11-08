@@ -47,7 +47,7 @@ async function fetchFeed(address: string): Promise<string> {
 
 const entities: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
-/** A tag's text, without CDATA markers, tags or entities. */
+/** A tag's text, without CDATA markers, tags, or entities. */
 function decode(text: string): string {
   return text
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -70,7 +70,7 @@ function atomLink(xml: string): string {
   return chosen.match(/href=["']([^"']+)["']/i)?.[1] ?? "";
 }
 
-/** The titles, links and dates of an RSS or Atom feed's items. Their text and descriptions are left out. */
+/** The titles, links, and dates of an RSS or Atom feed's items. Their text and descriptions are left out. */
 export function readFeedItems(xml: string): FeedItem[] {
   const rss = [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)].map(([, item = ""]) => ({
     title: tag(item, "title"),
@@ -97,7 +97,7 @@ function formatDate(date: string, timeZone: string | undefined, language: string
  * The latest items of another site's news feed (RSS or Atom), such as a podcast's episodes or a
  * news site's headlines: each one's title, linking to it, and its date. The feed is read when the
  * site is built, and the block asks for a rebuild the next day, so overnight builds keep it current.
- * Only titles, links and dates are shown, never the items' text.
+ * Only titles, links, and dates are shown, never the items' text.
  */
 const FeedList: ComponentConfig<FeedListProps> = withParts(
   {

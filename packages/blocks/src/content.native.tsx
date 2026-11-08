@@ -66,7 +66,7 @@ export function Text({ id }: TextProps & { id?: string }) {
   return <RichText nodes={id ? site.richText(id, "content") : undefined} />;
 }
 
-/** A button, which takes its Style itself: its colors, space and corners are the button's, as on the web. */
+/** A button, which takes its Style itself: its colors, space, and corners are the button's, as on the web. */
 export const Button = stylesItself(function Button({ label, href, variant, size }: ButtonProps) {
   const { view, text } = useBlockStyle();
   return <SiteButton label={label} href={href} variant={variant} size={size} style={view} textStyle={text} />;

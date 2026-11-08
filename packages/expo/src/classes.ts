@@ -3,7 +3,7 @@
  * settings keep in their `className` (alignment, text size, colors, space
  * inside and around, rounded corners) and any others editors typed. They're
  * read with twrnc while the app runs, since content brings classes no build
- * of the app has seen, with the site's theme colors, corners and fonts as the
+ * of the app has seen, with the site's theme colors, corners, and fonts as the
  * site's Tailwind has them. Classes React Native has nothing like (grids,
  * hover states, the site's own CSS classes) are left out.
  */
@@ -40,7 +40,7 @@ const TEXT_KEYS = new Set<string>([
 
 const made = new Map<string, TailwindFn>();
 
-/** A Tailwind for the theme: its colors by their names in classes, its corners and its fonts. */
+/** A Tailwind for the theme: its colors by their names in classes, its corners, and its fonts. */
 function tailwindFor(theme: NativeTheme): TailwindFn {
   const { radius, fonts } = theme;
   const colors = Object.fromEntries(THEME_COLORS.map((name) => [colorSlug(name), theme.colors[name]]));

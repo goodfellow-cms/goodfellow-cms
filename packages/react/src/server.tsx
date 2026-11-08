@@ -91,7 +91,7 @@ export function createPageRenderer(config: GoodfellowConfig) {
   ): Promise<string> {
     const prepared = await preparePage(configs, content, page, options);
     page = prepared.page;
-    // The site in the page's language: its title, menus and feeds.
+    // The site in the page's language: its title, menus, and feeds.
     const shown = contentForPage(content, page);
     const { settings } = shown;
 
@@ -204,7 +204,7 @@ export type PageRenderer = ReturnType<typeof createPageRenderer>;
 /**
  * React moves what a Suspense boundary shows to the end of a long page, for a
  * script to put back, so a page streams sooner. Built pages aren't streamed,
- * and visitors without JavaScript, search engines and the site checks would
+ * and visitors without JavaScript, search engines, and the site checks would
  * find that content hidden outside `<main>`, so every page is written whole.
  */
 const WHOLE_PAGE = Number.MAX_SAFE_INTEGER;
