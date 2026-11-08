@@ -243,3 +243,43 @@ describe("tables", () => {
     ]);
   });
 });
+
+describe("events", () => {
+  const fields: Fields = {
+    when: { type: "custom", label: "When", render: () => <span />, metadata: { ai: { type: "event" } } },
+  };
+
+  it("asks for an event's start and end, and keeps only times that exist, in the right order", () => {
+    expect(valuesSchema(fields)).toMatchObject({
+      properties: { values: { properties: { when: { type: "object", required: ["start", "end"] } } } },
+    });
+
+    const current = { when: { start: "2026-10-04T09:00" } };
+    expect(toValues({ values: { when: { start: "2026-12-24T23:00", end: "" } } }, fields, current)).toEqual({
+      when: { start: "2026-12-24T23:00" },
+    });
+    expect(toValues({ values: { when: { start: "2026-12-24", end: "2026-12-26" } } }, fields, current)).toEqual({
+      when: { start: "2026-12-24", end: "2026-12-26" },
+    });
+    for (const when of [
+      { start: "2026-02-30T09:00", end: "" },
+      { start: "2026-12-24T23:00", end: "2026-12-24T22:00" },
+      { start: "2026-12-24", end: "2026-12-25T10:00" },
+      "Christmas Eve",
+    ]) {
+      expect(toValues({ values: { when } }, fields, current)).toEqual(current);
+    }
+  });
+
+  it("keeps how an event repeats, which it isn't asked for, unless the new time doesn't fit it", () => {
+    const repeat = { every: "week", until: "2026-12-31" };
+    const current = { when: { start: "2026-10-04T09:00", end: "2026-10-04T10:00", repeat } };
+    expect(
+      toValues({ values: { when: { start: "2026-10-04T10:00", end: "2026-10-04T11:00" } } }, fields, current),
+    ).toEqual({
+      when: { start: "2026-10-04T10:00", end: "2026-10-04T11:00", repeat },
+    });
+    // Starting after it stops repeating: the event stays as it was.
+    expect(toValues({ values: { when: { start: "2027-01-03T09:00", end: "" } } }, fields, current)).toEqual(current);
+  });
+});

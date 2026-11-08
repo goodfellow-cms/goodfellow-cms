@@ -10,10 +10,10 @@ The **AI** button above the editor opens the AI panel beside it, which writes wi
 
 - With nothing selected, it adds new blocks to the end of the page.
 - With a block selected, it changes that block.
-- For a collection's item, it fills in the item's fields.
+- For a collection's item, it fills in the item's fields, an event's start and end too, keeping how it repeats as you set it.
 - On a page or item in another of the site's [languages](/docs/languages), **Translate into** translates all of it, keeping its layout.
 
-The result goes straight into the editor, so you can check it, change it or undo it before publishing. It's told never to make up facts such as times or names, and to leave `[placeholders]` instead.
+The result goes straight into the editor, so you can check it, change it or undo it before publishing. The panel then says how many settings it changed and blocks it put in, and how many it left out because they didn't fit the site's blocks and fields, which you can ask for again or fill in yourself. It's told never to make up facts such as times or names, and to leave `[placeholders]` instead.
 
 ## Photos
 
@@ -28,7 +28,7 @@ Deleting or replacing a photo in the media library removes its credit too. A sit
 
 ## Choosing a service
 
-Each editor chooses a service in the AI panel's settings, and it's called straight from their browser, with their own account:
+Each editor chooses a service in the AI panel's settings, which lists the ones that cost nothing first, and it's called straight from their browser, with their own account:
 
 | Service | Needs | Cost |
 |---|---|---|
