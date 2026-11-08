@@ -50,7 +50,7 @@ describe("checkPublish", () => {
     expect(checks.warnings).toEqual([]);
   });
 
-  it("knows the files a publish adds, and leaves problems it didn't bring as warnings", async () => {
+  it("knows the files a publish adds, and doesn't ask again about problems it didn't bring", async () => {
     const checks = await checkPublish(
       source,
       await loaded(),
@@ -66,9 +66,7 @@ describe("checkPublish", () => {
       { blocks: config.blocks, code: localSiteCode(config) },
     );
     expect(checks.blocking).toEqual([]);
-    // The old page's link was already broken, so it's only a warning.
-    expect(checks.warnings.map((problem) => describeProblem(t, checks.content, problem))).toEqual([
-      'The page "Older" links to /gone, which isn\'t a page on the site.',
-    ]);
+    // The old page's link was already broken, so the publish that renames the page isn't stopped or asked about it.
+    expect(checks.warnings.map((problem) => describeProblem(t, checks.content, problem))).toEqual([]);
   });
 });

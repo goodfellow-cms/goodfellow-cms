@@ -220,6 +220,8 @@ export async function syncSite(options: SyncOptions): Promise<SyncResult> {
     }
   }
 
+  /** Replaced media whose new file couldn't be downloaded, which keep their old hash so the next sync tries again. */
+  const stale = new Map<string, string>();
   if (options.media !== false && storage.download) {
     const shown = new Set<string>();
     for (const name of wanted.keys()) {
@@ -227,14 +229,24 @@ export async function syncSite(options: SyncOptions): Promise<SyncResult> {
       for (const address of mediaAddresses(text)) shown.add(mediaFile(address));
     }
     const download = storage.download.bind(storage);
+    // A file replaced at the same address is downloaded again, once the kept manifest has hashes to compare.
+    const replaced = (file: string) => {
+      const address = `/media/${file.slice(MEDIA_FOLDER.length)}`;
+      const was = kept?.media?.[address];
+      const now = manifest.media?.[address];
+      return kept?.media !== undefined && now !== undefined && was !== now;
+    };
     await inTurn(
-      [...shown].filter((file) => !stored.has(file)),
+      [...shown].filter((file) => !stored.has(file) || replaced(file)),
       async (file) => {
         try {
           await download(siteAddress(site, manifest, `/media/${file.slice(MEDIA_FOLDER.length)}`), file);
           changed.push(file);
         } catch {
           // A picture that can't be downloaded shows from the site while the app is online.
+          const address = `/media/${file.slice(MEDIA_FOLDER.length)}`;
+          const was = kept?.media?.[address];
+          if (stored.has(file) && was !== undefined) stale.set(address, was);
         }
       },
     );
@@ -247,7 +259,11 @@ export async function syncSite(options: SyncOptions): Promise<SyncResult> {
   }
 
   // Last, so the manifest never names a copy the app doesn't have yet.
-  await storage.write(MANIFEST_FILE, JSON.stringify(manifest));
+  const keptManifest =
+    stale.size > 0 && manifest.media
+      ? { ...manifest, media: { ...manifest.media, ...Object.fromEntries(stale) } }
+      : manifest;
+  await storage.write(MANIFEST_FILE, JSON.stringify(keptManifest));
   return { manifest, changed, removed };
 }
 

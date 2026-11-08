@@ -1,14 +1,4 @@
-import {
-  canvas,
-  expect,
-  field,
-  openPageEditor,
-  publishInEditor,
-  readJson,
-  readSiteFile,
-  test,
-  writeSiteFile,
-} from "./helpers";
+import { canvas, expect, field, openPageEditor, publishInEditor, readJson, readSiteFile, test } from "./helpers";
 
 test("stops a publish that would leave links to a page that's gone", async ({ page }) => {
   await page.goto("/admin");
@@ -50,18 +40,13 @@ test("shows colors that are hard to read as they're chosen, and publishes them i
   });
 });
 
-test("warns about what a page has wrong as it shows, such as an image without a description", async ({ page }) => {
-  // The About page's picture, as an editor might leave it.
-  writeSiteFile(
-    "content/pages/about.json",
-    readSiteFile("content/pages/about.json").replace(
-      '"alt": "A placeholder picture, to replace with a photo of your own"',
-      '"alt": ""',
-    ),
-  );
+test("warns about what a publish brings to a page as it shows, such as an image without a description", async ({
+  page,
+}) => {
   await openPageEditor(page, "/about", "About us");
-  await canvas(page).getByRole("heading", { name: "About us" }).click();
-  await field(page, "text").fill("About our parish");
+  // An editor empties the About page's picture's description.
+  await canvas(page).getByRole("img", { name: "A placeholder picture, to replace with a photo of your own" }).click();
+  await field(page, "alt").fill("");
   await publishInEditor(page);
 
   const dialog = page.getByRole("dialog", { name: "Publish anyway?" });
@@ -70,5 +55,13 @@ test("warns about what a page has wrong as it shows, such as an image without a 
   );
   await dialog.getByRole("button", { name: "Publish anyway" }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  expect(readSiteFile("content/pages/about.json")).toContain('"alt": ""');
+
+  // Published anyway, it isn't asked about again when the page next changes.
+  await canvas(page).getByRole("heading", { name: "About us" }).click();
+  await field(page, "text").fill("About our parish");
+  await publishInEditor(page);
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Publish anyway?" })).toHaveCount(0);
   expect(readSiteFile("content/pages/about.json")).toContain('"text": "About our parish"');
 });

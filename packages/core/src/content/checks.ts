@@ -355,9 +355,9 @@ export function problemKey(problem: SiteProblem): string {
 
 /**
  * What a publish needs to say: the errors it would bring, which stop it
- * (such as a link to a page it deletes, wherever the link is), and what the
- * files it changes have wrong besides, which the editor can publish anyway.
- * Problems in other files that were there before aren't mentioned.
+ * (such as a link to a page it deletes, wherever the link is), and the
+ * warnings it would bring to the files it changes, which the editor can
+ * publish anyway. Problems that were there before aren't mentioned.
  */
 export function publishProblems(
   before: readonly SiteProblem[],
@@ -368,19 +368,13 @@ export function publishProblems(
   const changed = new Set(changedFiles);
   const blocking = after.filter((problem) => problem.severity === "error" && !existing.has(problemKey(problem)));
   const blocked = new Set(blocking);
-  // Translations missing or out of date are said once, when a publish brings them: a site may well leave pages
-  // untranslated for good.
+  // Warnings too only when the publish brings them, so one an editor has published anyway isn't asked about
+  // again on every publish of that page, as a page left untranslated for good would be.
   const warnings = after.filter(
-    (problem) =>
-      !blocked.has(problem) &&
-      changed.has(problem.file) &&
-      (!ONCE_ONLY.has(problem.kind) || !existing.has(problemKey(problem))),
+    (problem) => !blocked.has(problem) && changed.has(problem.file) && !existing.has(problemKey(problem)),
   );
   return { blocking, warnings };
 }
-
-/** Warnings a publish shows only when it brings them. */
-const ONCE_ONLY = new Set<SiteProblem["kind"]>(["missing-translation", "outdated-translation"]);
 
 /** A problem as developers' tools say it, such as `goodfellow build`, naming the file it's in. */
 export function formatSiteProblem(problem: SiteProblem): string {

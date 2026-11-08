@@ -74,6 +74,6 @@ Editors need Write permission on the repository, or Admin to change editors or s
 
 ## Staying signed in
 
-Editors choose whether to stay signed in on the device (**Stay signed in on this device**; leave it off on shared computers). Otherwise the sign-in lasts until the browser tab closes. **Sign out** forgets the token, and the AI keys entered in the AI panel too. On a site with a [token broker](/docs/token-broker), editors sign in on the broker's page instead, which keeps the sign-in and the AI keys, and shows the admin panel from there.
+Editors stay signed in on the device unless they turn off **Stay signed in on this device**, as they should on shared computers; then the sign-in lasts until the browser tab closes, and the tab keeps it off if signing in at the host comes back with a problem. **Sign out** forgets the token, and the AI keys entered in the AI panel too. On a site with a [token broker](/docs/token-broker), editors sign in on the broker's page instead, which keeps the sign-in and the AI keys, and shows the admin panel from there.
 
 Tokens are only ever sent to GitHub, GitLab, or Bitbucket, never anywhere else. Signing in with GitHub keeps only the sign-in service's session, which holds no token, and signing out forgets it. If a sign-in stops working, for example because it expired, the admin panel asks to sign in again.

@@ -22,7 +22,7 @@ export async function prepareContentApi(
   config: GoodfellowConfig,
   content: SiteContent,
   pages: readonly Page[],
-  options: { base?: string } = {},
+  options: { base?: string; media?: Record<string, string> } = {},
 ): Promise<ContentApiInput> {
   const configs = createPuckConfigs(config);
   const prepared: ContentApiInput["pages"] = [];
@@ -48,6 +48,7 @@ export async function prepareContentApi(
     pages: prepared,
     layouts,
     base: normalizeBase(options.base),
+    ...(options.media && { media: options.media }),
   };
 }
 
@@ -59,7 +60,7 @@ export async function contentApi(
   config: GoodfellowConfig,
   content: SiteContent,
   pages: readonly Page[],
-  options: { base?: string } = {},
+  options: { base?: string; media?: Record<string, string> } = {},
 ): Promise<ContentApiFile[]> {
   if (config.api === false) return [];
   return contentApiFiles(await prepareContentApi(config, content, pages, options));

@@ -214,6 +214,7 @@ describe("contentApiFiles", () => {
         { language: "es", header: { root: { props: {} }, content: [] }, footer: { root: { props: {} }, content: [] } },
       ],
       base: "/site/",
+      media: { "/media/a.jpg": "abc" },
     });
     const byPath = Object.fromEntries(files.map((file) => [file.path, JSON.parse(file.content)]));
     expect(Object.keys(byPath).sort()).toEqual([
@@ -241,6 +242,8 @@ describe("contentApiFiles", () => {
       blocks: ["Cards", "EntryField", "Section", "Text"],
     });
     expect(manifest).not.toHaveProperty("redirects");
+    // Media by its hash, so an app downloads a file replaced at the same address again.
+    expect(manifest.media).toEqual({ "/media/a.jpg": "abc" });
     expect(manifest.languages.es?.site.file).toBe("es/site.json");
     expect(manifest.pages.map(({ path, file, language }) => ({ path, file, language }))).toEqual([
       { path: "/", file: "pages/index.json", language: "en" },

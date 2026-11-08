@@ -117,6 +117,44 @@ describe("syncSite", () => {
     expect(storage.downloaded).toEqual(["https://parish.example/media/church.jpg"]);
   });
 
+  it("downloads a picture again once the site replaces it at the same address", async () => {
+    const site = fakeSite();
+    const storage = storageWithMedia();
+    // A manifest from before media hashes: the picture is kept, and nothing is downloaded twice.
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    site.manifest({ media: { "/media/church.jpg": "a" } });
+    storage.downloaded.length = 0;
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(storage.downloaded).toEqual([]);
+    // The same hash again keeps it; a new one downloads it again.
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(storage.downloaded).toEqual([]);
+    site.manifest({ media: { "/media/church.jpg": "b" } });
+    const result = await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(storage.downloaded).toEqual(["https://parish.example/media/church.jpg"]);
+    expect(result.changed).toContain("media/church.jpg");
+    expect(result.removed).not.toContain("media/church.jpg");
+  });
+
+  it("tries a replaced picture again next time when its download fails", async () => {
+    const site = fakeSite();
+    const storage = storageWithMedia();
+    site.manifest({ media: { "/media/church.jpg": "a" } });
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    const download = storage.download;
+    storage.download = async () => {
+      throw new Error("offline");
+    };
+    site.manifest({ media: { "/media/church.jpg": "b" } });
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(JSON.parse(storage.files.get(MANIFEST_FILE) ?? "{}").media).toEqual({ "/media/church.jpg": "a" });
+    storage.download = download;
+    storage.downloaded.length = 0;
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(storage.downloaded).toEqual(["https://parish.example/media/church.jpg"]);
+    expect(JSON.parse(storage.files.get(MANIFEST_FILE) ?? "{}").media).toEqual({ "/media/church.jpg": "b" });
+  });
+
   it("downloads only what changed, and removes what the site no longer has", async () => {
     const site = fakeSite();
     const storage = storageWithMedia();
