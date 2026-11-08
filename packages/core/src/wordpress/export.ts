@@ -4,6 +4,7 @@
  * blocks turned into WordPress's, collections' items as posts, the menus, and
  * the media library, which the importer downloads from the site's address.
  */
+
 import { isEventLike, zonedInstant, zonedTime } from "../calendar.js";
 import {
   type Collection,
@@ -23,6 +24,7 @@ import { MEDIA_DIR } from "../content/paths.js";
 import { type Schedule, scheduleState } from "../content/schedule.js";
 import type { CollectionField } from "../content/schemas.js";
 import { type EmbedSite, embeddedPost } from "../embeds.js";
+import { trimChars } from "../trim.js";
 import { vimeoVideo, youtubeVideo } from "../video.js";
 import {
   audio,
@@ -456,7 +458,7 @@ export function wordPressExport(content: SiteContent, options: WordPressExportOp
   const now = options.now ?? new Date();
   const { settings } = content;
   const timeZone = settings.timeZone;
-  const siteUrl = (settings.url ?? "").replace(/\/+$/, "");
+  const siteUrl = trimChars(settings.url ?? "", "/", { start: false });
   const notes: WordPressExportNote[] = [];
   let nextId = 1;
   const newId = () => nextId++;
@@ -796,11 +798,13 @@ function postmeta(key: string, value: string): string {
 
 /** A file name for the export: the site's title, then `.wordpress.xml`. */
 export function wordPressExportName(content: Pick<SiteContent, "settings">): string {
-  const base = content.settings.title
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const base = trimChars(
+    content.settings.title
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-"),
+    "-",
+  );
   return `${base || "site"}.wordpress.xml`;
 }

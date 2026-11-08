@@ -161,8 +161,26 @@ function allowedLoad(address: string): boolean {
  * such as pictures or fonts from other sites, which visitors' browsers would
  * then ask those sites for. The admin panel lists them before installing it.
  */
+/**
+ * CSS without its comments. Searching on from each comment's start, rather
+ * than matching `/\/\*[\s\S]*?\*\//g`, keeps a comment that never ends from
+ * taking time that grows with the square of the CSS's length. One that never
+ * ends stays, so what it names is still listed.
+ */
+function withoutCssComments(css: string): string {
+  let result = "";
+  let from = 0;
+  for (let start = css.indexOf("/*"); start !== -1; start = css.indexOf("/*", from)) {
+    const end = css.indexOf("*/", start + 2);
+    if (end === -1) break;
+    result += css.slice(from, start);
+    from = end + 2;
+  }
+  return result + css.slice(from);
+}
+
 export function themeCssLoads(css: string): string[] {
-  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const text = withoutCssComments(css);
   const found = new Set<string>();
   const unescaped = (value: string) => value.replace(/\\(.)/g, "$1").trim();
   for (const match of text.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi)) {

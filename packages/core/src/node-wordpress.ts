@@ -7,6 +7,7 @@
  * and imports folders of Markdown files, as `goodfellow import markdown` does,
  * and exports the site as one, as `goodfellow export markdown` does.
  */
+
 import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import {
@@ -20,6 +21,7 @@ import {
 } from "./index.js";
 import { fileSystemSource } from "./node-fs-source.js";
 import { localFileStore } from "./node-local-files.js";
+import { trimChars } from "./trim.js";
 import {
   fetchWordPressSite,
   type MarkdownExport,
@@ -486,7 +488,8 @@ export function markdownFolderChoices(
   pages: readonly string[] = [],
   collections: readonly string[] = [],
 ): Record<string, MarkdownFolderUse> {
-  const name = (folder: string) => (folder === "." ? "" : folder.replace(/^\.\//, "").replace(/\/+$/, ""));
+  const name = (folder: string) =>
+    folder === "." ? "" : trimChars(folder.replace(/^\.\//, ""), "/", { start: false });
   return {
     ...Object.fromEntries(pages.map((folder) => [name(folder), "pages" as const])),
     ...Object.fromEntries(collections.map((folder) => [name(folder), "collection" as const])),
