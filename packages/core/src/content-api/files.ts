@@ -146,6 +146,13 @@ export interface ApiManifest {
    * Left out where the site has none.
    */
   redirects?: ApiRedirect[];
+  /**
+   * A hash of each file in the media library, by address (`/media/photo.jpg`),
+   * so an app downloads a file replaced at the same address again. Left out
+   * where the build didn't give them; files a media storage plugin keeps,
+   * which are at its own addresses, aren't listed.
+   */
+  media?: Record<string, string>;
 }
 
 /** An old address and where it sends visitors, in the manifest's `redirects`. */
@@ -177,6 +184,8 @@ export interface ContentApiInput {
   layouts: Array<{ language: string; header: ApiData; footer: ApiData }>;
   /** The path the site is served from (default `/`). */
   base?: string;
+  /** A hash of each of the media library's files, by address, for the manifest's `media` (`readMediaHashes()`). */
+  media?: Record<string, string>;
 }
 
 /** A file of the content API, by its address: `/api/manifest.json`. */
@@ -445,6 +454,7 @@ export async function contentApiFiles(input: ContentApiInput): Promise<ContentAp
     pages,
     blocks: [...used].sort(),
     ...(redirects.length > 0 && { redirects }),
+    ...(input.media && Object.keys(input.media).length > 0 && { media: input.media }),
   };
   files.push({ path: CONTENT_API_MANIFEST, content: json(manifest) });
   return files;

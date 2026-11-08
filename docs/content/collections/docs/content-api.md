@@ -19,7 +19,7 @@ Start with `/api/manifest.json`. Every other file's address in it is relative to
 
 | File | What it holds |
 |---|---|
-| `manifest.json` | The Goodfellow release (`goodfellow`), the version of each kind of content file the site reads (`content`), `base`, `url`, `mainLanguage`, each language's files (`languages`), every page with its file and hash (`pages`), the blocks the site's pages, headers and footers use (`blocks`), and the site's [redirects](/docs/layout-and-settings#redirects) (`redirects`). |
+| `manifest.json` | The Goodfellow release (`goodfellow`), the version of each kind of content file the site reads (`content`), `base`, `url`, `mainLanguage`, each language's files (`languages`), every page with its file and hash (`pages`), the blocks the site's pages, headers and footers use (`blocks`), the site's [redirects](/docs/layout-and-settings#redirects) (`redirects`), and a hash of each file in the media library by its address (`media`). |
 | `pages/….json` | One page, named from its address: `/` is `pages/index.json`, `/news/fair` is `pages/news/fair.json` and Spanish's home page is `pages/es.json`. It holds its `path`, `language`, `head` (the title as the browser shows it, description, social image, `noIndex`, the canonical address and translations), `entry` on an item's page, `view` on a page a block adds, such as a calendar's month, `data` (its blocks, as Puck stores them), `richText` (see below), `credits` for the photos it shows, and `headings`, the Heading blocks' text, level and link name (`anchor`, which the heading carries as its `id`). |
 | `site.json` | The site's settings, menus and pages (the same list the Page list block shows), as blocks read them with `useSite()`, `descriptions`: the media library's descriptions of its images in that language, by address, for images whose blocks leave theirs empty, and `focus`: its images' focal points as CSS positions, such as `30% 60%`. |
 | `collections.json` | Every collection's settings, without its template, and its items' values. |
@@ -32,6 +32,8 @@ Addresses in the files, such as links and pictures (`/about`, `/media/photo.jpg`
 The manifest's `pages` includes pages that blocks add, such as a list's second page (`added: true`), and items' pages (`entry`).
 
 Its `redirects` lists each old address (`from`, spelled without a trailing slash) and where it sends visitors (`to`: a page's address, which can end in `#…`, or another site's `https://` one), as the website sends them: an address with a page is never redirected, since pages win. A redirect can lead to an address that's redirected again, so follow them until one has a page. The manifest leaves `redirects` out when the site has none.
+
+Its `media` gives a hash of each file in the media library, by address (`/media/photo.jpg`). A file replaced in the media library keeps its address, so compare its hash with the one you kept to know when to download it again. Files a [media storage plugin](/docs/plugins#keeping-media) keeps aren't listed.
 
 ## Rich text
 

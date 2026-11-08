@@ -44,6 +44,7 @@ import {
   guardBuiltSite,
   type ImageResizer,
   type ImageSizesResult,
+  readMediaHashes,
   reportedDate,
   runPluginBuildSteps,
   runPluginTask,
@@ -103,7 +104,10 @@ export async function writeContentApi(outDir: string, root = process.cwd()): Pro
   const { contentApi } = await import("@goodfellow-cms/react/server");
   const content = shownContent(await loadSiteContent(builtSiteSource(dir)));
   const pages = sitePages(content, todayIn(content.settings.timeZone), config.blocks);
-  const files = await contentApi(config, content, pages, { base: await exportBasePath(dir) });
+  const files = await contentApi(config, content, pages, {
+    base: await exportBasePath(dir),
+    media: await readMediaHashes(dir),
+  });
   await rm(join(outDir, CONTENT_API_DIR), { recursive: true, force: true });
   for (const file of files) {
     const target = join(outDir, file.path.slice(1));

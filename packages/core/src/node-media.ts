@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { copyFile, mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { IMAGE_WIDTHS, type ImageSize, imageSize, imageVariantPath, imageWidths, MEDIA_DIR } from "./index.js";
@@ -52,6 +54,49 @@ export async function readMediaSizes(root: string): Promise<Record<string, Image
     }),
   );
   return sizes;
+}
+
+const hashes = new Map<string, { modified: number; hash: string }>();
+
+/** A file's SHA-256 in hex, read a piece at a time. */
+async function hashFile(file: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return hash.digest("hex");
+}
+
+/**
+ * A SHA-256 hash of each file in a site's `public/media/`, by address
+ * (`/media/photo.jpg`), which the content API's manifest lists, so an app
+ * downloads a file replaced at the same address again. Files are only read
+ * again once they've changed.
+ */
+export async function readMediaHashes(root: string): Promise<Record<string, string>> {
+  const dir = join(root, MEDIA_DIR);
+  let files: string[];
+  try {
+    files = (await readdir(dir, { recursive: true, withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name));
+  } catch {
+    return {};
+  }
+  const found: Record<string, string> = {};
+  // One file at a time, streamed, so a library of large videos never sits in memory at once.
+  for (const file of files) {
+    try {
+      const { mtimeMs } = await stat(file);
+      let cached = hashes.get(file);
+      if (cached?.modified !== mtimeMs) {
+        cached = { modified: mtimeMs, hash: await hashFile(file) };
+        hashes.set(file, cached);
+      }
+      found[`/${relative(join(root, "public"), file).split(sep).join("/")}`] = cached.hash;
+    } catch {
+      // A file that can't be read is left out, and an app keeps the copy it has.
+    }
+  }
+  return Object.fromEntries(Object.entries(found).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
 /** Makes a copy of an image `width` wide, in the image's own format, such as with sharp. */
