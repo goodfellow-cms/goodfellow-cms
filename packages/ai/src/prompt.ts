@@ -145,7 +145,7 @@ export function buildRequest(task: AiTask, config: Config, site: SiteSummary): A
   if (task.kind === "add") {
     const current = toFlatBlocks(task.content, config);
     const template = task.template
-      ? `\n\nThis page is the shared design for every item in the "${task.template.name}" collection. To show an item's information, write a field's name in braces in any text, such as {title}, or use an Entry field block. The fields are: ${task.template.fields
+      ? `\n\nThis page is the shared design for every item in the "${task.template.name}" collection. To show an item's information, write a field's name in braces in any text, such as {title}, or use an Item field block. The fields are: ${task.template.fields
           .map((field) => `{${field.name}} (${field.label})`)
           .join(", ")}.`
       : "";

@@ -144,7 +144,7 @@ export const labels: Record<string, string> = {
   "Email address (optional)": "Correo electrónico (opcional)",
   "Email address's label": "Etiqueta del correo electrónico",
   "End with this page": "Terminar con esta página",
-  "Entry field": "Campo del elemento",
+  "Item field": "Campo del elemento",
   Events: "Eventos",
   FAQ: "Preguntas frecuentes",
   Field: "Campo",
