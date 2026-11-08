@@ -81,11 +81,18 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
   const unreachable = new Set<string>();
   /** Hosts whose answers are lost on the way back, after they've done what was asked. */
   const lost = new Set<string>();
+  /** Hosts whose requests arrive late, after the connector has given up on them (`deliverLate()`). */
+  const late = new Set<string>();
+  const held: Array<{ host: string; request: Request }> = [];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
     const { host, pathname } = new URL(request.url);
     outgoing.push(request.url);
     if (unreachable.has(host)) throw new TypeError("fetch failed");
+    if (late.has(host)) {
+      held.push({ host, request: request.clone() });
+      throw new TypeError("fetch failed");
+    }
     if (lost.has(host)) {
       await (host === "gitlab.example" ? gitlab : bitbucket).fetch(request);
       throw new TypeError("fetch failed");
@@ -245,6 +252,15 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
     bitbucket,
     unreachable,
     lost,
+    late,
+    /** Lets the requests held back reach their hosts at last, giving each answer's status. */
+    async deliverLate() {
+      const statuses: number[] = [];
+      for (const { host, request } of held.splice(0)) {
+        statuses.push((await (host === "gitlab.example" ? gitlab : bitbucket).fetch(request)).status);
+      }
+      return statuses;
+    },
     grants,
     documents,
     outgoing,
@@ -589,7 +605,21 @@ describe("working on sites", () => {
 
 describe("connecting with GitLab", () => {
   it("keeps the person's GitLab tokens sealed in Claude's, and renews them with Claude's", async () => {
-    const { unreachable, lost, grants, gitlab, register, startAuthorize, visit, allow, exchange, post, mcp } = setup();
+    const {
+      unreachable,
+      lost,
+      late,
+      deliverLate,
+      grants,
+      gitlab,
+      register,
+      startAuthorize,
+      visit,
+      allow,
+      exchange,
+      post,
+      mcp,
+    } = setup();
     const clientId = await register();
     const started = await startAuthorize(clientId);
     const toGitLab = await visit(started.link("gitlab"));
@@ -639,19 +669,45 @@ describe("connecting with GitLab", () => {
     expect(await again.json()).toMatchObject({ error: "invalid_grant" });
     expect((await (await mcp(next.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(false);
 
+    // Two renewals at once: the first can't be told whether it worked, so Claude tries again, and the first only
+    // reaches GitLab after the second has renewed GitLab's token. GitLab refuses the late one, which nobody is
+    // waiting for, and the connection carries on with the second's tokens.
+    late.add("gitlab.example");
+    const slow = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(slow.status).toBe(503);
+    late.delete("gitlab.example");
+    const overtaking = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(overtaking.status).toBe(200);
+    const latest = (await overtaking.json()) as { access_token: string; refresh_token: string };
+    const lateAnswers = await deliverLate();
+    expect(lateAnswers).toHaveLength(1);
+    expect(lateAnswers[0]).toBeGreaterThanOrEqual(400);
+    expect((await (await mcp(latest.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(
+      false,
+    );
+    expect(grants.rows.size).toBe(1);
+
     // If GitLab did renew its own token and only its answer was lost, trying again fails at GitLab and ends the
     // connection, so the refresh token left usable gets no one anything.
     lost.add("gitlab.example");
     const lostRenewal = await post("/token", {
       grant_type: "refresh_token",
-      refresh_token: next.refresh_token,
+      refresh_token: latest.refresh_token,
       client_id: clientId,
     });
     expect(lostRenewal.status).toBe(503);
     lost.delete("gitlab.example");
     const retried = await post("/token", {
       grant_type: "refresh_token",
-      refresh_token: next.refresh_token,
+      refresh_token: latest.refresh_token,
       client_id: clientId,
     });
     expect(retried.status).toBe(400);
@@ -664,6 +720,8 @@ describe("connecting with Bitbucket", () => {
     const {
       unreachable,
       lost,
+      late,
+      deliverLate,
       grants,
       bitbucket,
       register,
@@ -728,19 +786,45 @@ describe("connecting with Bitbucket", () => {
     });
     expect(again.status).toBe(400);
 
+    // Two renewals at once: the first can't be told whether it worked, so Claude tries again, and the first only
+    // reaches Bitbucket after the second has renewed Bitbucket's token. Bitbucket refuses the late one, which nobody is
+    // waiting for, and the connection carries on with the second's tokens.
+    late.add("bitbucket.org");
+    const slow = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(slow.status).toBe(503);
+    late.delete("bitbucket.org");
+    const overtaking = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(overtaking.status).toBe(200);
+    const latest = (await overtaking.json()) as { access_token: string; refresh_token: string };
+    const lateAnswers = await deliverLate();
+    expect(lateAnswers).toHaveLength(1);
+    expect(lateAnswers[0]).toBeGreaterThanOrEqual(400);
+    expect((await (await mcp(latest.access_token)).call("get_site", { site: "bitbucket:parish/site" })).isError).toBe(
+      false,
+    );
+    expect(grants.rows.size).toBe(1);
+
     // If Bitbucket did renew its own token and only its answer was lost, trying again fails at Bitbucket and ends the
     // connection, so the refresh token left usable gets no one anything.
     lost.add("bitbucket.org");
     const lostRenewal = await post("/token", {
       grant_type: "refresh_token",
-      refresh_token: next.refresh_token,
+      refresh_token: latest.refresh_token,
       client_id: clientId,
     });
     expect(lostRenewal.status).toBe(503);
     lost.delete("bitbucket.org");
     const retried = await post("/token", {
       grant_type: "refresh_token",
-      refresh_token: next.refresh_token,
+      refresh_token: latest.refresh_token,
       client_id: clientId,
     });
     expect(retried.status).toBe(400);
