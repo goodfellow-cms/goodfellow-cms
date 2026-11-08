@@ -80,7 +80,7 @@
   },
   "peerDependencies": {
     "@goodfellow-cms/admin": "workspace:*",
-    "@puckeditor/core": "0.23.0",
+    "@puckeditor/core": "0.24.0",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -90,7 +90,7 @@
     "@goodfellow-cms/bitbucket": "workspace:*",
     "@goodfellow-cms/github": "workspace:*",
     "@goodfellow-cms/gitlab": "workspace:*",
-    "@puckeditor/core": "0.23.0",
+    "@puckeditor/core": "0.24.0",
     "@tailwindcss/browser": "4.3.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

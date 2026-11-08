@@ -16,6 +16,7 @@ const description: Pick<SiteDescription, "blocks" | "root"> = {
       },
     },
     Section: { fields: { content: { type: "slot" }, padding: { type: "number" } } },
+    Share: { fields: { sites: { type: "checkbox", options: [{ value: "x" }, { value: "email" }] } } },
     Cards: { fields: { cards: { type: "array", arrayFields: { title: { type: "text" } } } } },
     EntryField: { fields: { field: { type: "text" } }, templateOnly: true },
     List: {
@@ -114,6 +115,20 @@ describe("checkEditedData", () => {
       ["Cards", "cards"],
       ["Cards", "cards"],
     ]);
+  });
+
+  it("takes a checkbox field's list of choices, and refuses anything else", () => {
+    const share = (sites: unknown) => ({
+      ...copy(opened),
+      content: [{ type: "Share", props: { id: "s2", sites } }],
+    });
+    expect(check(share([])).ok).toBe(true);
+    expect(check(share(["email", "x"])).ok).toBe(true);
+    for (const sites of ["x", ["x", "fax"], [{ value: "x" }]]) {
+      const result = check(share(sites));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.problems.map((problem) => problem.path)).toEqual(["content[0].props.sites"]);
+    }
   });
 
   it("keeps choices blocks fill in themselves, and values left as they were", () => {

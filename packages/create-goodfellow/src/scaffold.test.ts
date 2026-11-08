@@ -55,7 +55,7 @@ describe("scaffold", { timeout: GIT_TIMEOUT }, () => {
     const pkg = JSON.parse(await readFile(join(target, "package.json"), "utf8"));
     expect(pkg.name).toBe("my-site");
     expect(pkg.dependencies["@goodfellow-cms/core"]).toBe("^1.2.3");
-    expect(pkg.dependencies["@puckeditor/core"]).toBe("0.23.0");
+    expect(pkg.dependencies["@puckeditor/core"]).toBe("0.24.0");
     expect(pkg.devDependencies.goodfellow).toBe("^1.2.3");
     expect(JSON.stringify(pkg)).not.toContain("workspace:");
 

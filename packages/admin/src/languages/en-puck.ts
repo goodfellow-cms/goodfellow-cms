@@ -12,6 +12,7 @@ export const PUCK_ENGLISH: Readonly<Record<string, string>> = {
   "header-toggle-rightsidebar": "Toggle right sidebar",
   "header-toggle-menubar": "Toggle menu bar",
   "action-selectparent": "Select parent",
+  "action-drag": "Drag to reorder",
   "action-duplicate": "Duplicate",
   "action-delete": "Delete",
   "label-page": "Page",

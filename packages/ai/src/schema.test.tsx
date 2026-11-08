@@ -163,15 +163,26 @@ describe("values", () => {
     },
     featured: { type: "custom", label: "Featured", render: () => <span />, metadata: { ai: { type: "boolean" } } },
     secret: { type: "custom", label: "Secret", render: () => <span /> },
+    days: {
+      type: "checkbox",
+      label: "Days",
+      options: [
+        { value: "sat", label: "Saturday" },
+        { value: "sun", label: "Sunday" },
+      ],
+    },
   };
 
   it("describes fields, including custom ones that say what they hold", () => {
     const schema = valuesSchema(fields) as { properties: { values: { properties: Record<string, Loose> } } };
     const properties = schema.properties.values.properties;
-    expect(Object.keys(properties)).toEqual(["title", "date", "kind", "topics", "featured"]);
+    expect(Object.keys(properties)).toEqual(["title", "date", "kind", "topics", "featured", "days"]);
     expect(properties.featured.type).toBe("boolean");
     expect(properties.kind.enum).toEqual(["", "homily"]);
     expect(properties.topics).toMatchObject({ type: "array", items: { enum: ["music", "youth"] } });
+    // Puck's checkbox field keeps the options chosen as a list.
+    expect(properties.days).toMatchObject({ type: "array", items: { enum: ["sat", "sun"] } });
+    expect(properties.days.description).toContain('"sun" means "Sunday"');
   });
 
   it("keeps the current value where the answer doesn't fit", () => {
@@ -185,6 +196,7 @@ describe("values", () => {
             topics: ["youth", "sport", "music"],
             featured: "yes",
             secret: "x",
+            days: ["sun", "mon", "sat", "sun"],
           },
         },
         fields,
@@ -197,6 +209,7 @@ describe("values", () => {
       topics: ["music", "youth"],
       featured: true,
       secret: "kept",
+      days: ["sat", "sun"],
     });
   });
 });

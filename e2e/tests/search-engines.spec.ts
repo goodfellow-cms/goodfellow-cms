@@ -76,6 +76,9 @@ test("asks search engines not to follow a page's links or show its text, and sha
 }) => {
   await openPageEditor(page, "/about", "About us");
   const preview = editor(page).getByRole("region", { name: "When a link to this page is shared" });
+  // The rarer search engine settings are in a group of their own, which starts closed.
+  await expect(editor(page).getByRole("radio", { name: "Search engines follow them" })).toHaveCount(0);
+  await editor(page).getByRole("button", { name: "More for search engines" }).filter({ visible: true }).click();
   await expect(editor(page).getByRole("radio", { name: "Search engines follow them" })).toBeChecked();
   await editor(page).getByRole("radio", { name: "Ask search engines not to follow them" }).check({ force: true });
   await editor(page).getByRole("radio", { name: "Show none" }).check({ force: true });

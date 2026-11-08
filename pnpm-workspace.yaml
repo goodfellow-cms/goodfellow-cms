@@ -10,10 +10,6 @@ overrides:
   # the connector never runs (Workers use Browser Rendering's browsers) and
   # which brings in extract-zip and basic-ftp, both with security advisories.
   "@cloudflare/puppeteer>@puppeteer/browsers": "-"
-  # Puck renders rich text on the server with @tiptap/html, which asks for
-  # happy-dom 20. Only 21.0.4 and later fix GHSA-834v-8h66-3h79, and the few
-  # calls tiptap makes (a Window with scripts and loading turned off) work the same.
-  "@puckeditor/core>happy-dom": "^21.0.4"
   # Expo's code signing asks for node-forge 1.4.0; 1.4.1 fixes GHSA-86w9-cpqp-85rv.
   "@expo/code-signing-certificates>node-forge": "^1.4.1"
   # Express, which the MCP SDK uses, asks for qs 6.16.0; 6.16.1 fixes GHSA-6pq8-jhm2-2vcw.
@@ -36,4 +32,6 @@ auditConfig:
 
 peerDependencyRules:
   allowedVersions:
+    # @tiptap/html 3.31, which Puck renders rich text with, asks for happy-dom 20;
+    # 3.32 and later accept 21 too.
     "@tiptap/html>happy-dom": "21"

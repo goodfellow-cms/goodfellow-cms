@@ -86,10 +86,10 @@
     "zod": "4.6.6"
   },
   "peerDependencies": {
-    "@puckeditor/core": "0.23.0"
+    "@puckeditor/core": "0.24.0"
   },
   "devDependencies": {
-    "@puckeditor/core": "0.23.0",
+    "@puckeditor/core": "0.24.0",
     "@types/node": "^22.19.0",
     "react": "19.3.0",
     "typescript": "7.0.2"

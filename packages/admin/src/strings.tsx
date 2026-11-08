@@ -274,6 +274,8 @@ export const defaultStrings = {
   "pages.view": "View",
   "pages.homeCantDelete": "The home page can't be deleted.",
   "pages.schedule": "Schedule",
+  "pageSettings.search": "More for search engines",
+  "pageSettings.sharing": "Sharing",
   "sharePreview.title": "When a link to this page is shared",
   "sharePreview.noImage": "No image",
   "sharePreview.noAddress":

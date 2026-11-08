@@ -20,7 +20,7 @@
     "@goodfellow-cms/react": "workspace:*",
     "@goodfellow-cms/registry": "workspace:*",
     "@goodfellow-cms/worker": "workspace:*",
-    "@puckeditor/core": "0.23.0",
+    "@puckeditor/core": "0.24.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cn": "0.4.0",

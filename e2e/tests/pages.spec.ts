@@ -286,3 +286,31 @@ test("styles a block with its Style settings, kept as Tailwind classes beside it
     0,
   );
 });
+
+test("moves a block by the handle in its toolbar", async ({ page }) => {
+  await openPageEditor(page, "/", "Welcome to my site");
+  await canvas(page).locator('[data-puck-component="Heading-hero"]').click();
+  const handle = editor(page).getByRole("button", { name: "Drag to reorder" }).filter({ visible: true });
+  const target = canvas(page).locator('[data-puck-component="Text-hero"]');
+  const from = await handle.boundingBox();
+  const to = await target.boundingBox();
+  if (!from || !to) throw new Error("Nothing to drag");
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 + 10, { steps: 5 });
+  // Below the text's middle, so the heading goes after it.
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height - 2, { steps: 20 });
+  await expect(editor(page).locator('[class*="_DropZone-linePlaceholder_"]')).toBeVisible();
+  await page.mouse.up();
+
+  await publishInEditor(page);
+  await expect(page.getByText("Published.", { exact: true })).toBeVisible();
+  const saved = JSON.parse(readSiteFile("content/pages/index.json")) as {
+    data: { content: { props: { content: { props: { id: string } }[] } }[] };
+  };
+  expect(saved.data.content[0]?.props.content.map((block) => block.props.id)).toEqual([
+    "Text-hero",
+    "Heading-hero",
+    "Flex-hero",
+  ]);
+});
