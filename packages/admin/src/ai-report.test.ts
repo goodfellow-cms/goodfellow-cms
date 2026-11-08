@@ -24,7 +24,7 @@ describe("what an answer changed", () => {
   });
 
   it("doesn't count an event answered as it was as left out, though the answer leaves its repeat out", () => {
-    const fields: Fields = { when: { type: "custom", render: () => null } };
+    const fields: Fields = { when: { type: "text" } };
     const before = { when: { start: "2026-12-06T10:00", end: "2026-12-06T11:00", repeat: { every: "week" } } };
     expect(
       valuesReport({ when: { end: "2026-12-06T11:00", start: "2026-12-06T10:00" } }, fields, before, before),
