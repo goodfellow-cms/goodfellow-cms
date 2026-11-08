@@ -7,6 +7,9 @@
 //
 // The site's packages come from npm, so the release must be published first.
 // GOODFELLOW_SITE_URL, if set, is the demo's address, for its feeds and sitemap.
+// GOODFELLOW_SIGN_IN_PREVIEW, if set, is a folder to build the same site into again,
+// stored on GitHub rather than a demo, for scripts/screenshots.mjs to show its sign-in
+// screen. It's never published.
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -79,6 +82,26 @@ try {
   run("npx", ["goodfellow", "build", "--base", base], site, { GOODFELLOW_NO_INDEX: "true" });
   rmSync(resolve(out), { recursive: true, force: true });
   cpSync(join(site, "dist"), resolve(out), { recursive: true });
+  const preview = process.env.GOODFELLOW_SIGN_IN_PREVIEW;
+  if (preview) {
+    // The same site as `npm create goodfellow -- --github` makes it, so its admin panel asks editors to sign in.
+    const signIn = config
+      .replace(
+        '// import { github } from "@goodfellow-cms/github";',
+        'import { github } from "@goodfellow-cms/github";',
+      )
+      .replace(
+        '// backend: github({ repo: "your-name/your-site" }),',
+        'backend: github({ repo: "your-name/your-site" }),',
+      );
+    if (!signIn.includes("\n  backend: github("))
+      throw new Error("The parish example's config has no GitHub backend line.");
+    writeFileSync(configPath, signIn);
+    run("npx", ["goodfellow", "build"], site, { GOODFELLOW_NO_INDEX: "true" });
+    rmSync(resolve(preview), { recursive: true, force: true });
+    cpSync(join(site, "dist"), resolve(preview), { recursive: true });
+    console.log(`Built the sign-in preview into ${preview}.`);
+  }
   console.log(`Built the demo${plugins.length ? ` with ${plugins.join(", ")}` : ""} into ${out}.`);
 } finally {
   rmSync(dir, { recursive: true, force: true });

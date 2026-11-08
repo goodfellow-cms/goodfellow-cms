@@ -84,6 +84,14 @@ jobs:
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
           GOODFELLOW_SITE_URL: ${{ steps.pages.outputs.base_url }}/demo
+          GOODFELLOW_SIGN_IN_PREVIEW: ${{ runner.temp }}/sign-in-preview
+      # The docs' screenshots of the setup page and the demo's admin panel, taken with the runner's Chrome into
+      # dist/screenshots/, so they're never kept in the repository.
+      - if: hashFiles('docs/scripts/screenshots.mjs') != ''
+        run: node scripts/screenshots.mjs dist "$BASE_PATH" "$RUNNER_TEMP/sign-in-preview"
+        working-directory: docs
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
       # The Claude Desktop extension, which the Work with Claude page links to. Releases from before it don't have it.
       - if: hashFiles('packages/mcp/scripts/pack-extension.mjs') != ''
         run: |

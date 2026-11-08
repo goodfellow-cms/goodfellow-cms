@@ -237,6 +237,9 @@ importers:
       goodfellow:
         specifier: workspace:*
         version: link:../packages/cli
+      playwright-core:
+        specifier: 1.63.0
+        version: 1.63.0
 
   e2e:
     dependencies:
