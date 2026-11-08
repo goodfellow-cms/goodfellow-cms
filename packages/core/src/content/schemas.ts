@@ -30,7 +30,7 @@ export type ThemeColor = (typeof THEME_COLORS)[number];
 const cssColor = z
   .string()
   .regex(/^[#a-zA-Z0-9(),.%\s/+-]{1,100}$/, "must be a CSS color, such as #1e3a8a or rgb(30 58 138)")
-  // A hex color, a color function or a named color, never `url(…)`, which a background would load.
+  // A hex color, a color function, or a named color, never `url(…)`, which a background would load.
   .regex(
     /^\s*(#[0-9a-fA-F]{3,8}|(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\([^()]*(\([^()]*\)[^()]*)*\)|[a-zA-Z]+)\s*$/,
     "must be a CSS color, such as #1e3a8a or rgb(30 58 138)",
@@ -242,7 +242,7 @@ export function consentInLanguage<Settings extends ConsentWords>(
 
 /**
  * What visitors can allow one at a time: other sites' content (players,
- * maps, forms and their scripts), statistics and advertising. Other sites'
+ * maps, forms, and their scripts), statistics and advertising. Other sites'
  * content is always asked about; the others only where the site's code is for them.
  */
 export const CONSENT_KINDS = ["content", "statistics", "marketing"] as const;
@@ -331,7 +331,7 @@ export const siteSettingsSchema = z
     noIndex: z.boolean().optional(),
     /**
      * Whether pages' full addresses (their canonical address, the sitemap's,
-     * `hreflang`'s, feeds' and structured data's) end with `/`, as
+     * `hreflang`'s, feeds', and structured data's) end with `/`, as
      * `https://example.org/about/`. Set only where the site is built, from the
      * config's `trailingSlash` or Next.js's, through `GOODFELLOW_TRAILING_SLASH`
      * (`TRAILING_SLASH_VARIABLE`), so it follows how the host serves pages;
@@ -364,7 +364,7 @@ export const siteSettingsSchema = z
           seen.add(prefix);
         });
       }),
-    /** The site's title, description and title template in each of its other languages, by code. */
+    /** The site's title, description, and title template in each of its other languages, by code. */
     translations: z.record(z.string(), settingsTranslation).optional(),
     favicon: z.string().optional(),
     logo: z
@@ -379,7 +379,7 @@ export const siteSettingsSchema = z
     titleTemplate: z.string().default("%s"),
     /** Image shown when a page is shared on social media, unless the page sets its own. */
     socialImage: z.string().optional(),
-    /** Whether links to other sites open in a new tab, wherever they are: menus, buttons, rich text and Markdown. */
+    /** Whether links to other sites open in a new tab, wherever they are: menus, buttons, rich text, and Markdown. */
     externalLinksInNewTab: z.boolean().optional(),
     /** The time zone events' times are in, such as `America/New_York`. Without one, times are shown as they're written. */
     timeZone: z
@@ -467,7 +467,7 @@ export const siteSettingsSchema = z
       .optional(),
     /**
      * Whether pages ask visitors before loading other sites' content: players
-     * from YouTube, Vimeo and other sites, Google Forms, hCaptcha and the site's
+     * from YouTube, Vimeo, and other sites, Google Forms, hCaptcha, and the site's
      * custom code wait until they agree. Asks only where it's set.
      */
     consent: consentSchema.optional(),
@@ -619,7 +619,7 @@ export const MAX_GROUP_FIELDS = 10;
 /** A field's name, which also makes its placeholder: `speaker` → `{speaker}`. */
 const fieldName = z
   .string()
-  .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, "must use lowercase letters, numbers and hyphens, starting with a letter");
+  .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, "must use lowercase letters, numbers, and hyphens, starting with a letter");
 
 const fieldOption = z.object({
   value: z.string().min(1),

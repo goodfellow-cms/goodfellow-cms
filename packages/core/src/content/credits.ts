@@ -1,6 +1,6 @@
 /**
  * What the site says about its media (`content/media.json`): credits, who
- * made a photo, where it came from and its license, such as for a photo the
+ * made a photo, where it came from, and its license, such as for a photo the
  * AI assistant added from Openverse, which pages show for the photos they use,
  * as the photos' licenses require; and descriptions, what an image shows, in
  * words for people who can't see it, which images use where a block leaves
@@ -156,7 +156,7 @@ function mentions(text: string, url: string): boolean {
 
 /**
  * The descriptions of the images a page uses (`data`, as prepared to render:
- * its content, header and footer), in its language, for `SiteImage` to use
+ * its content, header, and footer), in its language, for `SiteImage` to use
  * where a block leaves an image's description empty.
  */
 export function pageDescriptions(
@@ -197,7 +197,7 @@ function shownCollections(value: unknown, found: Set<string>): Set<string> {
 }
 
 /**
- * The credits of the media a page uses: in its content, header and footer
+ * The credits of the media a page uses: in its content, header, and footer
  * (`data`, as prepared to render), and in the items of the collections its
  * blocks show. In the order the site's credits list them.
  */

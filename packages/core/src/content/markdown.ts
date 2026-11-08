@@ -181,8 +181,8 @@ const FORMATTABLE = new Set([
 
 /**
  * Whether Markdown only uses what a formatted editor can show: headings,
- * paragraphs, lists, quotes, code, links, bold, italic and strikethrough. Tables,
- * images, HTML, task lists and link definitions can only be edited as Markdown.
+ * paragraphs, lists, quotes, code, links, bold, italic, and strikethrough. Tables,
+ * images, HTML, task lists, and link definitions can only be edited as Markdown.
  */
 export function canFormatMarkdown(markdown: string): boolean {
   let formattable = true;

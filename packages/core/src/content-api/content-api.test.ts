@@ -7,7 +7,7 @@ import { type ApiCollectionsFile, type ApiManifest, type ApiPageFile, apiPageFil
 import { isMarkdownParts, markdownPartsNodes, richTextNodes } from "./rich-text.js";
 
 describe("richTextNodes", () => {
-  it("reads paragraphs, headings and marked text", () => {
+  it("reads paragraphs, headings, and marked text", () => {
     expect(
       richTextNodes(
         '<h2 id="times">Mass  times</h2><p>Come <strong>early</strong>, <em>or <a href="/about">read</a></em><br>on.</p>',
@@ -29,7 +29,7 @@ describe("richTextNodes", () => {
     ]);
   });
 
-  it("reads lists, quotes, code, rules, tables and pictures", () => {
+  it("reads lists, quotes, code, rules, tables, and pictures", () => {
     expect(
       richTextNodes(
         [

@@ -1,7 +1,7 @@
 /**
  * Parts as a post's Markdown, which collections of Markdown items show with
- * their tables, pictures and code: headings, paragraphs, lists, quotes,
- * pictures with their captions, code and tables. What Markdown can't hold,
+ * their tables, pictures, and code: headings, paragraphs, lists, quotes,
+ * pictures with their captions, code, and tables. What Markdown can't hold,
  * such as columns, is written one part after another; videos become links.
  */
 
@@ -15,7 +15,7 @@ function escapeText(text: string): string {
   return text.replace(/[\\`*_[\]]/g, "\\$&").replace(/&(?=[a-z#][a-z0-9]*;)/gi, "&amp;");
 }
 
-/** A paragraph's start can't be read as a heading, a list or a quote. */
+/** A paragraph's start can't be read as a heading, a list, or a quote. */
 function escapeStart(text: string): string {
   return text.replace(/^(#{1,6}\s|[-+]\s|\d+[.)]\s|>)/, "\\$1");
 }

@@ -130,7 +130,7 @@ export function entryPathIn(
   return pattern === undefined ? undefined : entryAddress(pattern, slug);
 }
 
-/** The site's settings in a language: its code, and its own title, description and title template where it has them. */
+/** The site's settings in a language: its code, and its own title, description, and title template where it has them. */
 export function localizedSettings(settings: SiteSettings, language: string): SiteSettings {
   const main = mainLanguage(settings);
   if (language === main) {

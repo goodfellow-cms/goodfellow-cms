@@ -42,7 +42,7 @@ export const TEMPLATES = {
   starter: { label: "Starter", description: "A simple site with a few pages and a news section" },
   parish: {
     label: "Parish example",
-    description: "A made-up parish with Mass times, events, news, bulletins and staff, and blocks of its own",
+    description: "A made-up parish with Mass times, events, news, bulletins, and staff, and blocks of its own",
   },
   next: {
     label: "Starter for Next.js",
@@ -80,7 +80,7 @@ export const HOSTS = {
   vercel: {
     label: "Vercel",
     files: ["vercel.ts"],
-    note: "Works with GitHub, GitLab and Bitbucket. The free plan is for non-commercial sites only.",
+    note: "Works with GitHub, GitLab, and Bitbucket. The free plan is for non-commercial sites only.",
   },
   // Its setup files are written for the site by cloudflareSetupFiles(), in place of the other hosts'.
   "cloudflare-pages": {
@@ -116,7 +116,7 @@ export function hostsFor(backend: Backend["host"] | undefined): Host[] {
 export const BLOCK_CHOICES = {
   recommended: {
     label: "Recommended",
-    description: "Adds the recommended blocks, such as Hero, Cards and FAQ. Others can be added in the admin panel.",
+    description: "Adds the recommended blocks, such as Hero, Cards, and FAQ. Others can be added in the admin panel.",
   },
   "built-in": {
     label: "Built-in blocks only",
@@ -164,7 +164,7 @@ const REPO_PATTERNS: Record<Backend["host"], RegExp> = {
 
 /**
  * Reads a repository from what someone typed: `owner/name`, or its address on
- * GitHub, GitLab or Bitbucket. Returns `undefined` if it isn't one.
+ * GitHub, GitLab, or Bitbucket. Returns `undefined` if it isn't one.
  */
 export function parseRepo(host: Backend["host"], input: string): string | undefined {
   let path = trimChars(input.trim().replace(/\.git$/, ""), "/", { start: false });

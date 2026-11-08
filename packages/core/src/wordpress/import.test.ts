@@ -9,7 +9,7 @@ import { planWordPressImport, WordPressImportError } from "./import.js";
 import { WordPressReadError } from "./model.js";
 import { fetchWordPressSite, wordPressAddress } from "./rest.js";
 
-/** A small site to import into, like the starter: a home page, an about page and a main menu. */
+/** A small site to import into, like the starter: a home page, an about page, and a main menu. */
 const STARTER: Record<string, string> = {
   "content/site.json": JSON.stringify({ version: 1, title: "My site", url: "https://new.example.org/" }),
   "content/menus.json": JSON.stringify({ version: 1, menus: { main: [{ label: "Home", href: "/" }], footer: [] } }),
@@ -46,7 +46,7 @@ async function importSample(options: Parameters<typeof planWordPressImport>[2] =
 const json = (text: string | undefined) => JSON.parse(text ?? "{}");
 
 describe("WordPress's blocks", () => {
-  it("reads nested blocks, ones with no HTML and HTML between them", () => {
+  it("reads nested blocks, ones with no HTML, and HTML between them", () => {
     const blocks = parseBlocks(
       '<p>Classic</p>\n<!-- wp:columns --><div><!-- wp:column {"width":"50%"} --><div><!-- wp:spacer {"height":"40px"} /--></div><!-- /wp:column --></div><!-- /wp:columns -->',
     );
@@ -59,7 +59,7 @@ describe("WordPress's blocks", () => {
 });
 
 describe("WordPress export files", () => {
-  it("reads pages, posts, categories, tags, menus, media and what isn't imported", () => {
+  it("reads pages, posts, categories, tags, menus, media, and what isn't imported", () => {
     const site = readWordPressExport(sampleWordPressExport());
     expect(site).toMatchObject({ title: "St. Brendan's Parish", url: SAMPLE_WORDPRESS_URL, language: "en-US" });
     expect(site.items.filter((item) => item.type === "page")).toHaveLength(5);

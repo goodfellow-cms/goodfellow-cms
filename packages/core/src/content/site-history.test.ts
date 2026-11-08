@@ -165,7 +165,7 @@ describe("restoring the whole site", () => {
     ]);
   });
 
-  it("says what changed as pages, settings and media", async () => {
+  it("says what changed as pages, settings, and media", async () => {
     const { repo, before } = repository();
     repo.commit(
       [

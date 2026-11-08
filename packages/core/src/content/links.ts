@@ -5,7 +5,7 @@
  *
  * A whole value is a link when its field is a single line of text, as links
  * and media fields are; elsewhere, such as rich text and HTML, links are found
- * in the HTML's `href`, `src` and `poster` attributes, and in Markdown bodies,
+ * in the HTML's `href`, `src`, and `poster` attributes, and in Markdown bodies,
  * in Markdown's links and images. Values with a template's `{placeholder}`
  * are filled in for each item, so they're left alone.
  */

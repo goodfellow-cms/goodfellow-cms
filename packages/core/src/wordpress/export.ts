@@ -115,7 +115,7 @@ const LEFT_OUT = new Set([
 /** The Space block's sizes, in pixels. */
 const SPACES: Record<string, number> = { sm: 16, md: 32, lg: 64, xl: 96 };
 
-/** A Section's overlay strengths, heights and focuses as a cover's `dimRatio`, least height and focal point. */
+/** A Section's overlay strengths, heights, and focuses as a cover's `dimRatio`, least height, and focal point. */
 const DIM_RATIOS: Record<string, number> = { light: 30, medium: 50, strong: 70 };
 const MIN_HEIGHTS: Record<string, number> = { small: 256, medium: 384, large: 576, screen: 800 };
 const FOCAL_POINTS: Record<string, { x: number; y: number }> = {
@@ -389,7 +389,7 @@ function buttonOf(props: Record<string, unknown>, context: ConvertContext): WpBu
     : undefined;
 }
 
-/** Buttons, rows and columns. */
+/** Buttons, rows, and columns. */
 function layoutBlocks(block: PuckBlock, context: ConvertContext): string[] {
   const { props } = block;
   if (block.type === "Button") {

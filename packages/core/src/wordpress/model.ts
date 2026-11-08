@@ -41,7 +41,7 @@ export type WordPressItemType = "page" | "post";
 export interface WordPressItem {
   id: number;
   type: WordPressItemType;
-  /** `publish`, `future` (scheduled), `draft`, `pending`, `private`, `trash` and so on. */
+  /** `publish`, `future` (scheduled), `draft`, `pending`, `private`, `trash`, and so on. */
   status: string;
   /** Plain text. */
   title: string;
