@@ -9,6 +9,7 @@ import {
   scheduleState,
   upcomingChanges,
   wallClock,
+  type FileDetails,
 } from "@goodfellow-cms/core";
 import { useEffect, useState } from "react";
 import { useAdmin } from "./admin-context.js";
@@ -182,8 +183,9 @@ export function ScheduleFields({
 }
 
 /** Whether a page or item is on the site now, for lists: nothing for one that's shown with nothing to come. */
-export function ScheduleStatus({ schedule, content }: { schedule: Schedule; content: SiteContent }) {
+export function ScheduleStatus({ schedule, content }: { schedule: FileDetails; content: SiteContent }) {
   const t = useStrings();
+  if (schedule.notPublished) return <span className="gfa-schedule-status">{t("schedule.status.notPublished")}</span>;
   const { language, timeZone } = content.settings;
   const state = scheduleState(schedule, new Date(), timeZone);
   const time = (value: string) => formatScheduleTime(value, language);

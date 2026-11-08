@@ -9,6 +9,8 @@ import {
   type Schedule,
   scheduleProblem,
   withSchedule,
+  type FileDetails,
+  published,
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { useMemo } from "react";
@@ -45,6 +47,7 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
       entry={entry.slug}
       actions={
         <>
+          {entry.content.notPublished && <span className="gfa-schedule-status">{t("editor.notPublished")}</span>}
           <EntryEditorTranslations collection={collection} entry={entry} />
           <VersionsLink file={entry.file} />
         </>
@@ -64,14 +67,20 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
           ? t("editEntry.invalidEvent", { fields: badEvents.map((field) => field.label).join(", ") })
           : undefined;
       }}
-      toChanges={(next) => {
+      toChanges={(next, { draft }) => {
         const { [SCHEDULE_PROP]: schedule = {}, ...values } = Object.fromEntries(
           Object.entries(next.root.props ?? {}).filter(([name]) => name !== "id"),
         );
         const title = typeof values.title === "string" && values.title.trim() ? values.title.trim() : entry.slug;
         return {
           changes: [
-            entryFileChange(collection, entry.slug, values, withSchedule(entry.content, schedule as Schedule)),
+            entryFileChange(
+              collection,
+              entry.slug,
+              values,
+              // Publish puts an item that isn't on the site yet there; adding it to a draft leaves it as it is.
+              (draft ? (details: FileDetails) => details : published)(withSchedule(entry.content, schedule as Schedule)),
+            ),
             ...scheduleSettingsChanges(content, schedule as Schedule),
           ],
           message: t("editEntry.message", { entry: entryName, title }),

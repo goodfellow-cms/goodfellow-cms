@@ -53,7 +53,8 @@ export interface PuckEditorProps {
   /** Returns why `data` can't be published yet, as text to show, or `undefined` if it can. */
   validate?: (data: Data) => string | undefined;
   /** The changes that publish `data`, and the save's description. */
-  toChanges: (data: Data) => { changes: FileChange[]; message: string };
+  /** The files to publish; `draft` is true for Add to draft, false for Publish, which puts a new page on the site. */
+  toChanges: (data: Data, options: { draft: boolean }) => { changes: FileChange[]; message: string };
   actions?: ReactNode;
   /** Shown above the editor, such as help for the screen. */
   notice?: ReactNode;
@@ -457,7 +458,7 @@ export function PuckEditor({
       return;
     }
     setStatus({ type: "publishing" });
-    const { changes, message } = toChanges(next);
+    const { changes, message } = toChanges(next, { draft });
     // Where the changes were kept: adding to a draft opens the screen again for it.
     const keptAt = keptKey;
     const result = await publish(changes, message, { draft });

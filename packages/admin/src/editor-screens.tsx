@@ -1,4 +1,4 @@
-import { FOOTER_FILE, HEADER_FILE, languageLayoutFile, siteLanguages } from "@goodfellow-cms/core";
+import { FOOTER_FILE, HEADER_FILE, languageLayoutFile, published, siteLanguages } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
@@ -35,16 +35,19 @@ export function PageEditorScreen({ path }: { path: string }) {
       data={page.content.data as Data}
       actions={
         <>
+          {page.content.notPublished && <span className="gfa-schedule-status">{t("editor.notPublished")}</span>}
           <PageEditorTranslations page={page} />
           <VersionsLink file={page.file} />
         </>
       }
-      toChanges={(data) => {
+      toChanges={(data, { draft }) => {
         const title =
           typeof data.root.props?.title === "string" && data.root.props.title.trim()
             ? data.root.props.title
             : page.path;
-        return { changes: [pageFileChange(page.path, data, page.content)], message: t("editPage.message", { title }) };
+        // Publish puts a page that isn't on the site yet there; adding it to a draft leaves it as it is.
+        const details = draft ? page.content : published(page.content);
+        return { changes: [pageFileChange(page.path, data, details)], message: t("editPage.message", { title }) };
       }}
     />
   );

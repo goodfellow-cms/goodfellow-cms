@@ -2,6 +2,7 @@ import {
   allPages,
   isLanguageHome,
   type Page,
+  published,
   type Schedule,
   scheduleOf,
   scheduleProblem,
@@ -72,7 +73,8 @@ function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) 
     setBusy(true);
     const data = from ? duplicatePageData(from.content.data as Data, title.trim()) : newPageData(title.trim());
     const result = await publish(
-      [pageFileChange(check.path, data, undefined)],
+      // Not on the site until someone publishes it from its editor or here.
+      [pageFileChange(check.path, data, { notPublished: true })],
       from
         ? t("duplicatePage.message", { title: title.trim(), from: fromTitle })
         : t("newPage.message", { title: title.trim() }),
@@ -175,6 +177,31 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
         </div>
       </form>
     </Dialog>
+  );
+}
+
+/** Puts a page that isn't on the site yet there, as it is, without opening its editor. */
+function PublishPageButton({ page }: { page: Page }) {
+  const t = useStrings();
+  const { publish } = useAdmin();
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<Failure>(null);
+  const onClick = async () => {
+    setBusy(true);
+    const result = await publish(
+      [pageFileChange(page.path, page.content.data as Data, published(page.content))],
+      t("publishPage.message", { title: pageTitle(page) }),
+    );
+    setBusy(false);
+    setFailure(result.ok ? null : result);
+  };
+  return (
+    <>
+      <Button variant="ghost" onClick={() => void onClick()} disabled={busy}>
+        {busy ? t("publish.publishing") : t("pages.publishPage")}
+      </Button>
+      <PublishFailure failure={failure} />
+    </>
   );
 }
 
@@ -314,14 +341,18 @@ export function PagesScreen() {
                     <a className="gfa-button gfa-button-secondary" href={pageEditorHref(page.path)}>
                       {t(changeable ? "pages.edit" : "pages.look")}
                     </a>
-                    <a
-                      className="gfa-button gfa-button-ghost"
-                      href={`${siteUrl.replace(/\/$/, "")}${page.path}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {t("pages.view")}
-                    </a>
+                    {page.content.notPublished ? (
+                      changeable && <PublishPageButton page={page} />
+                    ) : (
+                      <a
+                        className="gfa-button gfa-button-ghost"
+                        href={`${siteUrl.replace(/\/$/, "")}${page.path}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {t("pages.view")}
+                      </a>
+                    )}
                     {changeable && (
                       <Button
                         variant="ghost"
