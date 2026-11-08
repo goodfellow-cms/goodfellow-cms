@@ -519,6 +519,9 @@ export function createConnector(options: ConnectorOptions = {}) {
                 : await bb.refreshTokens(bitbucket as bb.BitbucketConfig, refresh, now());
           } catch (error) {
             if ((error instanceof gl.GitLabError || error instanceof bb.BitbucketError) && error.status === 0) {
+              // No new tokens were given, so the refresh token Claude has stays the one to try again with. If the
+              // host did get the request and renewed its own, trying again fails there and ends the connection.
+              if (rotation === "rotated") await grants.unrotate(data.grant, data.generation);
               throw new OAuthError("temporarily_unavailable", `${name} couldn't be reached.`, 503);
             }
             await grants.revoke(data.grant);

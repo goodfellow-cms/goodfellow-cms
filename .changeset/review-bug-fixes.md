@@ -11,4 +11,4 @@ Fix several bugs found in review:
 - WordPress and Markdown imports give a page whose address ends in `index`, or is under `/admin`, an address a page can have (`/docs/index-page`), rather than stopping.
 - Apps keep their whole copy of the site, manifest included, when a download fails part way through updating it.
 - An item's values are escaped in rich text inside a block's lists and objects (such as Questions and answers'), as they are elsewhere.
-- The Calendar's Subscribe links on a page in another language subscribe to that language's calendar file.
+- The Calendar's Subscribe links on a page in another language subscribe to that language's calendar file, which builds now write for every language, empty until it has events.

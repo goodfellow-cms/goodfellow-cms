@@ -77,10 +77,13 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
   });
   const documents = new Map<string, unknown>();
   const outgoing: string[] = [];
+  /** Hosts that can't be reached, as when the network drops. */
+  const unreachable = new Set<string>();
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
     const { host, pathname } = new URL(request.url);
     outgoing.push(request.url);
+    if (unreachable.has(host)) throw new TypeError("fetch failed");
     if (host === "api.github.com" || host === "github.com") return github.fetch(request);
     if (host === "gitlab.example") return gitlab.fetch(request);
     if (host === "api.bitbucket.org" || host === "bitbucket.org") return bitbucket.fetch(request);
@@ -234,6 +237,7 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
     github,
     gitlab,
     bitbucket,
+    unreachable,
     grants,
     documents,
     outgoing,
@@ -578,7 +582,7 @@ describe("working on sites", () => {
 
 describe("connecting with GitLab", () => {
   it("keeps the person's GitLab tokens sealed in Claude's, and renews them with Claude's", async () => {
-    const { gitlab, register, startAuthorize, visit, allow, exchange, post, mcp } = setup();
+    const { unreachable, gitlab, register, startAuthorize, visit, allow, exchange, post, mcp } = setup();
     const clientId = await register();
     const started = await startAuthorize(clientId);
     const toGitLab = await visit(started.link("gitlab"));
@@ -598,6 +602,16 @@ describe("connecting with GitLab", () => {
 
     const { call } = await mcp(tokens.access_token);
     expect((await call("get_site", { site: "gitlab:parish/site" })).json()).toMatchObject({ address: SITE });
+
+    // A renewal the host couldn't be reached for gives no new tokens, so the same refresh token works again.
+    unreachable.add("gitlab.example");
+    const failed = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+      client_id: clientId,
+    });
+    expect(failed.status).toBe(503);
+    unreachable.delete("gitlab.example");
 
     const renewed = await post("/token", {
       grant_type: "refresh_token",
@@ -622,7 +636,7 @@ describe("connecting with GitLab", () => {
 
 describe("connecting with Bitbucket", () => {
   it("keeps the person's Bitbucket tokens sealed in Claude's, and renews them with Claude's", async () => {
-    const { bitbucket, register, startAuthorize, visit, allow, exchange, post, mcp, outgoing } = setup();
+    const { unreachable, bitbucket, register, startAuthorize, visit, allow, exchange, post, mcp, outgoing } = setup();
     const clientId = await register();
     const started = await startAuthorize(clientId);
     const toBitbucket = await visit(started.link("bitbucket"));
@@ -647,6 +661,16 @@ describe("connecting with Bitbucket", () => {
     expect((await call("get_site", { site: "bitbucket:parish/site" })).json()).toMatchObject({ address: SITE });
     expect((await call("get_site", { site: "bitbucket:parish/other" })).isError).toBe(true);
     expect(outgoing.some((address) => /oauth-|refresh-|bb-secret/.test(address))).toBe(false);
+
+    // A renewal the host couldn't be reached for gives no new tokens, so the same refresh token works again.
+    unreachable.add("bitbucket.org");
+    const failed = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+      client_id: clientId,
+    });
+    expect(failed.status).toBe(503);
+    unreachable.delete("bitbucket.org");
 
     const renewed = await post("/token", {
       grant_type: "refresh_token",

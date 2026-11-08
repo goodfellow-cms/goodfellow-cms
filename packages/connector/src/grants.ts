@@ -23,6 +23,12 @@ export interface GrantStore {
    * less than `REFRESH_GRACE_MS` ago.
    */
   rotate(id: string, generation: number, expires: number, now: number): Promise<Rotation>;
+  /**
+   * Undoes a rotation from `generation` whose new tokens were never given,
+   * as when GitLab or Bitbucket couldn't be reached to renew theirs, so the
+   * same refresh token can be tried again.
+   */
+  unrotate(id: string, generation: number): Promise<void>;
   /** Ends a connection. */
   revoke(id: string): Promise<void>;
   /** Whether a connection hasn't ended or lapsed, which every request with its access tokens checks. */
@@ -66,6 +72,12 @@ export function d1Grants(db: D1Like): GrantStore {
         .first();
       return repeated === null ? false : "repeated";
     },
+    async unrotate(id, generation) {
+      await db
+        .prepare("UPDATE grants SET generation = ?, rotated_at = 0 WHERE id = ? AND generation = ?")
+        .bind(generation, id, generation + 1)
+        .run();
+    },
     async revoke(id) {
       await db.prepare("DELETE FROM grants WHERE id = ?").bind(id).run();
     },
@@ -96,6 +108,10 @@ export function memoryGrants(): GrantStore & {
         return "rotated";
       }
       return row.generation === generation + 1 && row.rotated > now - REFRESH_GRACE_MS ? "repeated" : false;
+    },
+    async unrotate(id, generation) {
+      const row = rows.get(id);
+      if (row && row.generation === generation + 1) rows.set(id, { ...row, generation, rotated: 0 });
     },
     async revoke(id) {
       rows.delete(id);
