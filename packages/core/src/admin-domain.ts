@@ -177,9 +177,9 @@ export function startsWithGuard(text: string, kind: PageFileKind): boolean {
   if (kind === "html") {
     const before = text.slice(0, at);
     const safe =
-      // Comments only as browsers end them: `<!-->` and `<!--->` end at once, and `--!>` ends one too, so a
+      // Attributes on `<html>` may be quoted or not, but hold no markup. Comments only as browsers end them: `<!-->` and `<!--->` end at once, and `--!>` ends one too, so a
       // comment written that way would leave what follows it to run before the guard.
-      /^(?:\uFEFF)?\s*(?:<!doctype[^>]*>\s*)?(?:<!--(?!-?>)(?:(?!--!?>)[\s\S])*-->\s*)*(?:<html(?:\s+[a-z_:][\w.:-]*(?:="[^"<>]*"|='[^'<>]*')?)*\s*>\s*)?(?:<head\s*>\s*)?$/i;
+      /^(?:\uFEFF)?\s*(?:<!doctype[^>]*>\s*)?(?:<!--(?!-?>)(?:(?!--!?>)[\s\S])*-->\s*)*(?:<html(?:\s+[a-z_:][\w.:-]*(?:\s*=\s*(?:"[^"<>]*"|'[^'<>]*'|[^\s"'<>=`]+))?)*\s*>\s*)?(?:<head\s*>\s*)?$/i;
     return safe.test(before) && !/\son[a-z]+\s*=/i.test(before);
   }
   const root = rootElement(text);

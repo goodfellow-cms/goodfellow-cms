@@ -80,6 +80,10 @@ describe("guards", () => {
     // Any attribute names <html> has, with either quotes.
     expect(startsWithGuard(`<!doctype html><html lang="en" data-v1='x' class="a_b"><head>${after}`, "html")).toBe(true);
     expect(startsWithGuard(`<html data-x="<img src=x onerror=steal()>"><head>${after}`, "html")).toBe(false);
+    // Unquoted values, as minifiers write them, but never markup or a handler.
+    expect(startsWithGuard(`<!doctype html><html lang=en dir = ltr><head>${after}`, "html")).toBe(true);
+    expect(startsWithGuard(`<html lang=en onload=steal()><head>${after}`, "html")).toBe(false);
+    expect(startsWithGuard(`<html lang=<script>><head>${after}`, "html")).toBe(false);
     for (const opening of ["<!-->", "<!--->", "<!-- a --!>"]) {
       expect(startsWithGuard(`${opening}<script>steal()</script>--><html><head>${after}`, "html")).toBe(false);
     }
