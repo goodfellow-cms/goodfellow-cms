@@ -12,7 +12,7 @@ order: 3
 - **Whether the site is for a business:** some hosts' free plans don't allow business sites, so the setup page asks what it's for and recommends a host that does (see [Hosts](/docs/hosts)).
 - **An account with the host, if it isn't the same one:** Cloudflare, Netlify or Vercel. GitLab Pages and GitHub Pages need nothing more.
 - **A domain, if you have one:** a site works at the host's own address until you [connect one](/docs/custom-domains), and a domain lets editors sign in at an address of their own (see [Security](/docs/security)).
-- **To make it on your computer instead:** a terminal (Terminal on a Mac, PowerShell on Windows) and [Node.js](https://nodejs.org) 22.23.4 or later. Type `node --version` in the terminal to see which you have.
+- **To make it on your computer instead:** a terminal (Terminal on a Mac, PowerShell on Windows) and [Node.js](https://nodejs.org) 22.23.4 or later within version 22, 24.22.1 or later within version 24, or 26.12.1 or later. Type `node --version` in the terminal to see which you have.
 
 ## In your browser
 
@@ -29,7 +29,7 @@ The site's first build starts at once. Once it's online, sign in to its admin pa
 
 ## With create-goodfellow
 
-You need [Node.js](https://nodejs.org) 22.23.4 or later, 24.22.1 or later, or 26.12.1 or later. Earlier versions have a security problem that a calendar feed or another site the build reads could use to run code on the computer building the site.
+You need [Node.js](https://nodejs.org) 22.23.4 or later within version 22, 24.22.1 or later within version 24, or 26.12.1 or later. Earlier versions have a security problem that a calendar feed or another site the build reads could use to run code on the computer building the site.
 
 ```sh
 npm create goodfellow@latest my-site
@@ -44,7 +44,7 @@ It asks these questions, with menus you move through with the arrow keys and cho
 - **Where editors sign in:** in the admin panel at the site's address, at an admin address of its own (where the host serves a site at more than one address), or at a sign-in page of its own, a [token broker](/docs/token-broker), which it writes into a folder beside the site's. It asks first whether you have a domain: with one, on a host that can serve an admin address, that's the choice it starts with; otherwise it recommends the sign-in page, which needs a domain only on GitHub Pages. See [Security](/docs/security).
 - **Which blocks to start with:** the recommended blocks from Goodfellow's [block registry](/docs/add-blocks), such as an FAQ and tabs, or the built-in blocks only. Either way, blocks can be added and removed later in the admin panel.
 
-To answer nothing and take the defaults for whatever the command doesn't name, add `-y` (`--yes`).
+To answer nothing and take the defaults for whatever the command doesn't name, add `-y` (`--yes`) after `--`, which passes it to Goodfellow rather than npm: `npm create goodfellow@latest my-site -- -y`.
 
 It then runs `npm install`, and makes the new folder a git repository on the branch `main`, with everything, `package-lock.json` included, in its first commit and `origin` set when you gave it the repository. `--no-install` and `--no-git` leave those out; it also doesn't make a repository inside another git repository.
 

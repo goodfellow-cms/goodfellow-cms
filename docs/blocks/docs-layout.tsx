@@ -32,7 +32,7 @@ export const DocsLayout: ComponentConfig<DocsLayoutProps> = {
       {/* Above the page on small screens too, kept short there so the page starts close below. */}
       <Sidebar className="max-lg:max-h-72 max-lg:overflow-y-auto max-lg:border-b max-lg:border-border max-lg:pb-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto" />
       <Content className="min-w-0" />
-      <Aside className="hidden lg:sticky lg:top-6 lg:block lg:self-start" />
+      <Aside className="hidden lg:sticky lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto" />
     </div>
   ),
 };
