@@ -44,7 +44,7 @@ Links follow the items they name: renaming an item changes every link to it in t
 
 ### Repeating groups
 
-A **Repeating group** has fields of its own, up to ten, each a short or long text, number, date, link, image or yes or no. Editors add, reorder and remove its rows on each item. On the page, the **Entry field** block shows each row's values one after another; in braces, rows go in as words, values joined with " · " and rows with "; ".
+A **Repeating group** has fields of its own, up to ten, each a short or long text, number, date, link, image or yes or no. Editors add, reorder and remove its rows on each item. On the page, the **Item field** block shows each row's values one after another; in braces, rows go in as words, values joined with " · " and rows with "; ".
 
 Settings also choose the order items are listed in, such as newest first, and whether items are events that calendars show.
 
