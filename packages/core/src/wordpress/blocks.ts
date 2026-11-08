@@ -17,7 +17,60 @@ export interface WordPressBlock {
   innerContent: Array<string | null>;
 }
 
-const DELIMITER = /<!--\s+(\/)?wp:([a-z][a-z0-9_-]*(?:\/[a-z][a-z0-9_-]*)?)\s+(\{[\s\S]*?\}\s+)?(\/)?-->/g;
+/** A block comment's start, after `<!--` and spaces: `/` for a closer, the block's name, then spaces. */
+const DELIMITER_START = /(\/)?wp:([a-z][a-z0-9_-]*(?:\/[a-z][a-z0-9_-]*)?)\s+/y;
+
+interface Delimiter {
+  index: number;
+  length: number;
+  closer: boolean;
+  name: string;
+  attrs: string | undefined;
+  selfClosing: boolean;
+}
+
+/**
+ * The block comments in content, in order: `<!-- wp:name {attributes} /-->`.
+ * Each ends at the first `-->` after it, as HTML comments do. It walks the
+ * content once, since a pattern that looks for the comment's end from every
+ * `<!--` takes time that grows with the square of the content's length when
+ * one never ends.
+ */
+function* delimiters(content: string): Generator<Delimiter> {
+  let close = -1;
+  for (let open = content.indexOf("<!--"); open !== -1; open = content.indexOf("<!--", open + 1)) {
+    if (close < open + 4) {
+      close = content.indexOf("-->", open + 4);
+      if (close === -1) return;
+    }
+    let name = open + 4;
+    while (name < close && /\s/.test(content.charAt(name))) name++;
+    if (name === open + 4) continue;
+    DELIMITER_START.lastIndex = name;
+    const start = DELIMITER_START.exec(content);
+    const after = DELIMITER_START.lastIndex;
+    if (!start || after > close) continue;
+    // What's left before `-->`: nothing, `/`, or the attributes as JSON and spaces, then perhaps `/`.
+    const selfClosing = close > after && content.charAt(close - 1) === "/";
+    const end = selfClosing ? close - 1 : close;
+    let attrs: string | undefined;
+    if (end > after) {
+      let json = end;
+      while (json > after && /\s/.test(content.charAt(json - 1))) json--;
+      if (json === end || content.charAt(after) !== "{" || content.charAt(json - 1) !== "}") continue;
+      attrs = content.slice(after, end);
+    }
+    yield {
+      index: open,
+      length: close + 3 - open,
+      closer: Boolean(start[1]),
+      name: start[2] ?? "",
+      attrs,
+      selfClosing,
+    };
+    open = close + 2;
+  }
+}
 
 /** Whether content has block comments, as content saved by the block editor does. */
 export function hasBlocks(content: string): boolean {
@@ -74,11 +127,10 @@ export function parseBlocks(content: string): WordPressBlock[] {
     }
   };
 
-  for (const match of content.matchAll(DELIMITER)) {
-    const [whole, closer, rawName, attrs, selfClosing] = match;
-    const name = fullName(rawName ?? "");
-    addHtml(content.slice(last, match.index));
-    last = match.index + whole.length;
+  for (const { index, length, closer, name: rawName, attrs, selfClosing } of delimiters(content)) {
+    const name = fullName(rawName);
+    addHtml(content.slice(last, index));
+    last = index + length;
     if (closer) {
       // Close back to the block it names, closing any left open inside it.
       const at = stack.map((block) => block.name).lastIndexOf(name);

@@ -50,6 +50,22 @@ describe("withBackendOption", () => {
 `);
   });
 
+  it("puts the comma before a comment that ends the last option's line", () => {
+    const source = `  backend: gitlab({
+    project: "parish/site", // https://gitlab.com/parish/site
+    branch: "main" // the live site
+    // more later
+  }),
+`;
+    expect(withBackendOption(source, "clientId", "abc123")).toBe(`  backend: gitlab({
+    project: "parish/site", // https://gitlab.com/parish/site
+    branch: "main", // the live site
+    // more later
+    clientId: "abc123",
+  }),
+`);
+  });
+
   it("takes out the first option without leaving a comma", () => {
     const source = `  backend: bitbucket({ clientId: "key", repo: "parish/site" }),\n`;
     expect(withBackendOption(source, "clientId", undefined)).toBe(`  backend: bitbucket({ repo: "parish/site" }),\n`);

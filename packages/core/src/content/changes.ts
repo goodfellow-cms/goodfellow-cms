@@ -5,6 +5,7 @@
  */
 import type { ComponentConfig, Data } from "@puckeditor/core";
 import { CURRENT_VERSION } from "../migrations/index.js";
+import { trimChars } from "../trim.js";
 import { updateSettingsFile } from "../updates.js";
 import { storedCode } from "./code.js";
 import { type Collection, cleanEntryValues, type Entry, isEmptyValue } from "./collections.js";
@@ -51,12 +52,14 @@ import type { FileChange } from "./store.js";
 
 /** `"Mass & Confession Times"` → `"mass-confession-times"`. */
 export function slugify(text: string): string {
-  return text
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return trimChars(
+    text
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-"),
+    "-",
+  );
 }
 
 /** The title shown for a page in lists: its own title, or its address. */

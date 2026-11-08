@@ -785,6 +785,7 @@ export {
   syncedBlockProblems,
   syncedBlockUses,
 } from "./content/synced-blocks.js";
+export { withoutTags } from "./content/tags.js";
 export {
   parseThemeLayout,
   parseThemeRecord,

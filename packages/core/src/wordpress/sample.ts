@@ -471,7 +471,7 @@ export function fakeWordPress(options: FakeWordPressOptions = {}) {
         slug: item.slug,
         status: item.status,
         link: item.link,
-        title: rendered(item.title.replace("'", "&#8217;")),
+        title: rendered(item.title.replaceAll("'", "&#8217;")),
         content: rendered(item.rendered),
         excerpt: rendered(item.excerpt ?? ""),
         parent: item.parent ?? 0,
