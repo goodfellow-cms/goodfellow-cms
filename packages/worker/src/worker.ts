@@ -202,6 +202,11 @@ interface StateData {
   remember: boolean;
   /** Sent to GitHub's install page first, so the return address can only be checked once it's back. */
   install?: boolean;
+  /**
+   * The page reads the grant from after the `#` (newer admin panels ask with `fragment=1`), so it never
+   * reaches a server's logs; older ones read it from the query.
+   */
+  fragment?: boolean;
 }
 
 interface SessionData {
@@ -858,7 +863,16 @@ export function createWorker(options: WorkerOptions = {}) {
 
     function backTo(state: StateData, params: Record<string, string>): Response {
       const target = new URL(state.return);
-      for (const [key, value] of Object.entries(params)) target.searchParams.set(key, value);
+      if (state.fragment) {
+        // In the query of the page's own screen address, such as `#/settings/editors?goodfellow_sign_in=…`.
+        const hash = target.hash.slice(1);
+        const at = hash.indexOf("?");
+        const query = new URLSearchParams(at === -1 ? "" : hash.slice(at + 1));
+        for (const [key, value] of Object.entries(params)) query.set(key, value);
+        target.hash = `${at === -1 ? hash : hash.slice(0, at)}?${query}`;
+      } else {
+        for (const [key, value] of Object.entries(params)) target.searchParams.set(key, value);
+      }
       return new Response(null, { status: 302, headers: { location: target.toString(), "cache-control": "no-store" } });
     }
 
@@ -941,6 +955,7 @@ export function createWorker(options: WorkerOptions = {}) {
           // An owner's sign-in is kept only while the page is open, so nothing a link says makes it last longer.
           remember: purpose !== "owner" && params.get("remember") === "1",
           ...(install && { install }),
+          ...(params.get("fragment") === "1" && { fragment: true }),
         };
         const sealed = await (await sealer()).seal("state", state, STATE_LIFETIME);
         const app = appFor(purpose);
