@@ -79,11 +79,17 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
   const outgoing: string[] = [];
   /** Hosts that can't be reached, as when the network drops. */
   const unreachable = new Set<string>();
+  /** Hosts whose answers are lost on the way back, after they've done what was asked. */
+  const lost = new Set<string>();
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
     const { host, pathname } = new URL(request.url);
     outgoing.push(request.url);
     if (unreachable.has(host)) throw new TypeError("fetch failed");
+    if (lost.has(host)) {
+      await (host === "gitlab.example" ? gitlab : bitbucket).fetch(request);
+      throw new TypeError("fetch failed");
+    }
     if (host === "api.github.com" || host === "github.com") return github.fetch(request);
     if (host === "gitlab.example") return gitlab.fetch(request);
     if (host === "api.bitbucket.org" || host === "bitbucket.org") return bitbucket.fetch(request);
@@ -238,6 +244,7 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
     gitlab,
     bitbucket,
     unreachable,
+    lost,
     grants,
     documents,
     outgoing,
@@ -582,7 +589,7 @@ describe("working on sites", () => {
 
 describe("connecting with GitLab", () => {
   it("keeps the person's GitLab tokens sealed in Claude's, and renews them with Claude's", async () => {
-    const { unreachable, gitlab, register, startAuthorize, visit, allow, exchange, post, mcp } = setup();
+    const { unreachable, lost, grants, gitlab, register, startAuthorize, visit, allow, exchange, post, mcp } = setup();
     const clientId = await register();
     const started = await startAuthorize(clientId);
     const toGitLab = await visit(started.link("gitlab"));
@@ -619,7 +626,7 @@ describe("connecting with GitLab", () => {
       client_id: clientId,
     });
     expect(renewed.status).toBe(200);
-    const next = (await renewed.json()) as { access_token: string };
+    const next = (await renewed.json()) as { access_token: string; refresh_token: string };
     expect((await (await mcp(next.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(false);
 
     // Asked again with the same one, GitLab isn't asked to renew its refresh token twice, and what was given still works.
@@ -631,12 +638,43 @@ describe("connecting with GitLab", () => {
     expect(again.status).toBe(400);
     expect(await again.json()).toMatchObject({ error: "invalid_grant" });
     expect((await (await mcp(next.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(false);
+
+    // If GitLab did renew its own token and only its answer was lost, trying again fails at GitLab and ends the
+    // connection, so the refresh token left usable gets no one anything.
+    lost.add("gitlab.example");
+    const lostRenewal = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(lostRenewal.status).toBe(503);
+    lost.delete("gitlab.example");
+    const retried = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(retried.status).toBe(400);
+    expect(grants.rows.size).toBe(0);
   });
 });
 
 describe("connecting with Bitbucket", () => {
   it("keeps the person's Bitbucket tokens sealed in Claude's, and renews them with Claude's", async () => {
-    const { unreachable, bitbucket, register, startAuthorize, visit, allow, exchange, post, mcp, outgoing } = setup();
+    const {
+      unreachable,
+      lost,
+      grants,
+      bitbucket,
+      register,
+      startAuthorize,
+      visit,
+      allow,
+      exchange,
+      post,
+      mcp,
+      outgoing,
+    } = setup();
     const clientId = await register();
     const started = await startAuthorize(clientId);
     const toBitbucket = await visit(started.link("bitbucket"));
@@ -689,6 +727,24 @@ describe("connecting with Bitbucket", () => {
       client_id: clientId,
     });
     expect(again.status).toBe(400);
+
+    // If Bitbucket did renew its own token and only its answer was lost, trying again fails at Bitbucket and ends the
+    // connection, so the refresh token left usable gets no one anything.
+    lost.add("bitbucket.org");
+    const lostRenewal = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(lostRenewal.status).toBe(503);
+    lost.delete("bitbucket.org");
+    const retried = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(retried.status).toBe(400);
+    expect(grants.rows.size).toBe(0);
   });
 
   it("says when the account can't publish to any repository", async () => {
@@ -699,5 +755,22 @@ describe("connecting with Bitbucket", () => {
     const callback = await visit((await bitbucket.fetch(authorize.toString())).headers.get("location") ?? "");
     expect(callback.status).toBe(400);
     expect(await callback.text()).toContain("publish to any repository");
+  });
+});
+
+describe("undoing a rotation", () => {
+  it("never undoes a later rotation, or brings back a connection that ended", async () => {
+    const grants = memoryGrants();
+    await grants.create("a", 10_000, 0);
+    expect(await grants.rotate("a", 1, 10_000, 1)).toBe("rotated");
+    expect(await grants.rotate("a", 2, 10_000, 2)).toBe("rotated");
+    // Undoing the first rotation, after a second, changes nothing.
+    await grants.unrotate("a", 1);
+    expect(grants.rows.get("a")?.generation).toBe(3);
+    await grants.unrotate("a", 2);
+    expect(grants.rows.get("a")?.generation).toBe(2);
+    await grants.revoke("a");
+    await grants.unrotate("a", 1);
+    expect(grants.rows.has("a")).toBe(false);
   });
 });
