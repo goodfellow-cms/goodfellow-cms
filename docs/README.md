@@ -26,6 +26,8 @@ Both `pnpm dev` and `pnpm build` first run `scripts/starters.mjs`, which packs t
 
 `scripts/demo.mjs` builds [the demo](https://goodfellow-cms.github.io/goodfellow-cms/demo/admin/), which `docs.yml` publishes at `/demo/` beside the docs: the parish example as create-goodfellow makes it, with the recommended blocks and the Gutenberg plugin, in demo mode, from the packages on npm. Try it with `node scripts/demo.mjs /demo/ dist/demo` after `pnpm build`.
 
+`scripts/screenshots.mjs` takes the docs' screenshots (`/screenshots/*.png`, which pages show as Markdown images) after the demo is built: the setup page, the demo's Pages screen, editor and Publish button, and the sign-in screen of the same site stored on GitHub, which `demo.mjs` builds into the folder `GOODFELLOW_SIGN_IN_PREVIEW` names. It writes them into `dist/screenshots/` only, so they're never kept in the repository, and `pnpm dev` shows their descriptions in their place. Try it with `GOODFELLOW_SIGN_IN_PREVIEW=../.sign-in node scripts/demo.mjs /demo/ dist/demo`, then `node scripts/screenshots.mjs dist "" ../.sign-in`; it uses Chrome, or the browser `CHROME_PATH` names.
+
 ## Online
 
 The site is at <https://goodfellow-cms.github.io/goodfellow-cms/>, published with GitHub Pages by `.github/workflows/docs.yml`. It describes the latest release: the release workflow deploys it after publishing a new version to npm, from that version's commit, so changes to these pages go online with the next release. To publish a fix sooner, run **Deploy docs** in the repository's Actions tab with `master` as the version. See [RELEASING.md](../RELEASING.md).
