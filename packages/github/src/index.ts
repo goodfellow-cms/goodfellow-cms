@@ -18,14 +18,13 @@ import { githubSetup } from "./setup.js";
 import {
   type BrowserLocation,
   browserLocation,
-  ERROR_PARAM,
-  GRANT_PARAM,
   type IssuedToken,
   isLocalAddress,
   newVerifier,
   renewingToken,
   SignInService,
   signInProblem,
+  signInReturn,
 } from "./sign-in.js";
 
 export { GitHubBackend } from "./backend.js";
@@ -247,14 +246,10 @@ export function github(options: GitHubOptions): GitHost {
   /** Finishes a sign-in through the worker if the page has just come back from it. */
   async function completeRedirect(): Promise<GitHubBackend | null | undefined> {
     if (!location) return undefined;
-    const url = new URL(location.href());
-    const grant = url.searchParams.get(GRANT_PARAM);
-    const failed = url.searchParams.get(ERROR_PARAM);
+    const { grant, failed, cleaned } = signInReturn(location.href());
     if (!grant && !failed) return undefined;
     // Remove the sign-in's details from the address bar, staying on the screen it started from.
-    url.searchParams.delete(GRANT_PARAM);
-    url.searchParams.delete(ERROR_PARAM);
-    location.replace(url.toString());
+    location.replace(cleaned);
     const saved = pending.load();
     pending.clear();
     const redirect = saved ? (JSON.parse(saved) as PendingRedirect) : undefined;

@@ -117,7 +117,12 @@ export function setup(
   }
 
   /** Goes through GitHub's sign-in as `login`, as the admin panel's redirect does, and returns the grant it comes back with. */
-  async function redirect(login: string, purpose = "edit", back = `${SITE}/admin/#/pages`) {
+  async function redirect(
+    login: string,
+    purpose = "edit",
+    back = `${SITE}/admin/#/pages`,
+    { fragment = false }: { fragment?: boolean } = {},
+  ) {
     const verifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
     const query = new URLSearchParams({
       purpose,
@@ -125,6 +130,7 @@ export function setup(
       return: back,
       challenge: await challengeFor(verifier),
       remember: "1",
+      ...(fragment && { fragment: "1" }),
     });
     const start = await confirmed(await call(`/github/start?${query}`));
     expect(start.status).toBe(302);

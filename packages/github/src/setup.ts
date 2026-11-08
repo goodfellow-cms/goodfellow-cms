@@ -20,13 +20,12 @@ import { type ApiOptions, githubJson, githubRequest, repoPath } from "./api.js";
 import {
   type BrowserLocation,
   browserLocation,
-  ERROR_PARAM,
-  GRANT_PARAM,
   isLocalAddress,
   newVerifier,
   SignInService,
   type SignInUser,
   signInProblem,
+  signInReturn,
   type WorkerProblem,
 } from "./sign-in.js";
 
@@ -433,13 +432,9 @@ export function githubSetup(options: GitHubSetupOptions = {}): SetupHost {
     ],
     async restore() {
       if (!location) return null;
-      const url = new URL(location.href());
-      const grant = url.searchParams.get(GRANT_PARAM);
-      const failed = url.searchParams.get(ERROR_PARAM);
+      const { grant, failed, cleaned } = signInReturn(location.href());
       if (!grant && !failed) return null;
-      url.searchParams.delete(GRANT_PARAM);
-      url.searchParams.delete(ERROR_PARAM);
-      location.replace(url.toString());
+      location.replace(cleaned);
       const verifier = pending.load();
       pending.clear();
       if (failed || !grant || !verifier || !service) throw signInProblem({ problem: failed ?? "cancelled" });
