@@ -1,5 +1,5 @@
 // What the code scanner found could be slow on long input: each of these reads text
-// that comes from editors, other sites or WordPress, so each is tried with a long run
+// that comes from editors, other sites, or WordPress, so each is tried with a long run
 // of what used to make it slow, and with the ordinary cases it must still read.
 import { describe, expect, it } from "vitest";
 import { slugify } from "./content/changes.js";
@@ -15,7 +15,7 @@ import { expandShortcodes } from "./wordpress/convert.js";
 const LONG = 100_000;
 
 describe("parseBlocks", () => {
-  it("reads block comments, with and without attributes, closers and self-closing ones", () => {
+  it("reads block comments, with and without attributes, closers, and self-closing ones", () => {
     const blocks = parseBlocks(
       '<!-- wp:group {"layout":{"type":"flex"}} --><!-- wp:paragraph --><p>Hi</p><!-- /wp:paragraph --><!-- wp:separator /--><!-- wp:acme/card {"a":1} /--><!-- /wp:group -->',
     );
@@ -45,7 +45,7 @@ describe("parseBlocks", () => {
 });
 
 describe("renderedProblems", () => {
-  it("leaves out what's in comments, scripts and styles", () => {
+  it("leaves out what's in comments, scripts, and styles", () => {
     const problems = renderedProblems({
       html: '<main class="gf-main"><!-- <img src="/a.jpg"> --><script>"<img src=/b.jpg>"</script><style>/* <img> */</style><img src="/c.jpg"></main>',
       path: "/",
