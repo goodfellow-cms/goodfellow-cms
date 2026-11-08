@@ -58,7 +58,7 @@ function setup(options: Partial<Parameters<typeof fakeGitLab>[0]> = {}, clientId
 }
 
 describe("signing in with a token", () => {
-  it("signs in, loads the site and saves the token where asked", async () => {
+  it("signs in, loads the site, and saves the token where asked", async () => {
     const { host, local, session } = setup();
     expect(host.canRedirect).toBe(false);
     expect(host.tokenLinks?.[0]?.url).toBe(
@@ -188,7 +188,7 @@ describe("publishing", () => {
     return { ...context, backend: await context.host.signInWithToken("test-token", false) };
   }
 
-  it("creates, updates and deletes files in one commit", async () => {
+  it("creates, updates, and deletes files in one commit", async () => {
     const { fake, backend } = await signedIn();
     const start = await backend.revision();
     const { revision } = await backend.write(
@@ -462,7 +462,7 @@ describe("failed rebuilds", () => {
     expect(await backend.deployStatus(newer)).toMatchObject({ state: "live" });
   });
 
-  it("tells installing packages, GitLab's own problems and used-up minutes apart", async () => {
+  it("tells installing packages, GitLab's own problems, and used-up minutes apart", async () => {
     expect((await published({ trace: "$ npm ci --cache .npm\nnpm ERR! code ERESOLVE\n" })).problem?.step).toBe(
       "install",
     );

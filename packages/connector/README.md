@@ -9,7 +9,7 @@ See the documentation's [Claude connector service](https://goodfellow-cms.github
 ```sh
 pnpm install
 cd packages/connector
-pnpm run setup    # creates its database, deploys it, creates the GitHub App, sets its secrets and deploys it again
+pnpm run setup    # creates its database, deploys it, creates the GitHub App, sets its secrets, and deploys it again
 ```
 
 `scripts/setup.mjs` creates the app with GitHub's app manifest flow, from a page it serves on 127.0.0.1, and gives its keys to Wrangler through its standard input, so they're never printed or written to disk. Its parts that don't touch the computer are in `src/setup.ts`.

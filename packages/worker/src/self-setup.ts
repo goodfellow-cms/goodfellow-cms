@@ -229,7 +229,7 @@ export function createSelfSetup(options: SelfSetupOptions) {
     const what =
       next === "edit"
         ? "the editors' app, which signs editors in"
-        : "the owners' app, which owners use to change who edits a site, its domain and its updates";
+        : "the owners' app, which owners use to change who edits a site, its domain, and its updates";
     return htmlPage(
       "Set up the sign-in service",
       `${made.includes("edit") ? "<p>Made the editors' app.</p>" : "<p>Saved the sites' addresses.</p>"}

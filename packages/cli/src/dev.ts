@@ -293,7 +293,7 @@ function devPlugin(
       server.middlewares.use(serveEditor(editor));
       server.middlewares.use(servePluginFrames(pluginFrames));
 
-      // Runs after Vite's own middleware, so modules, assets and public/ files are served first.
+      // Runs after Vite's own middleware, so modules, assets, and public/ files are served first.
       return () => {
         server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
           if (req.url === DEV_ADMIN_SITE_PATH) {

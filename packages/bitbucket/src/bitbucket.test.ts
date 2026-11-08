@@ -76,7 +76,7 @@ async function signedIn(options: Partial<Parameters<typeof fakeBitbucket>[0]> = 
 }
 
 describe("signing in with a token", () => {
-  it("signs in with an API token and its email address, loads the site and saves it where asked", async () => {
+  it("signs in with an API token and its email address, loads the site, and saves it where asked", async () => {
     const { host, local, session } = setup();
     expect(host.canRedirect).toBe(false);
     expect(host.tokenLinks?.[0]?.url).toBe("https://bitbucket.org/parish/site/admin/access-tokens");
@@ -209,7 +209,7 @@ describe("the API", () => {
 describe("publishing", () => {
   const about = (title: string) => `{"version":1,"data":{"root":{"props":{"title":"${title}"}},"content":[]}}`;
 
-  it("creates, updates and deletes files in one commit that names the editor", async () => {
+  it("creates, updates, and deletes files in one commit that names the editor", async () => {
     const { fake, backend } = await signedIn();
     const before = fake.repo.head();
     const { revision } = await backend.write(

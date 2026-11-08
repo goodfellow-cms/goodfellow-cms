@@ -6,7 +6,7 @@
  * 2. Deploys the connector with Wrangler, to learn its address.
  * 3. Creates the Goodfellow for Claude GitHub App from a manifest: a page on
  *    this computer posts it to GitHub, and GitHub comes back with a code that
- *    gives the app's id, keys and secret, so nothing is copied by hand.
+ *    gives the app's id, keys, and secret, so nothing is copied by hand.
  * 4. Optionally, takes a GitLab OAuth application's id and secret, and a
  *    Bitbucket OAuth consumer's key and secret.
  * 5. Sets the secrets through Wrangler's standard input, deploys again and
