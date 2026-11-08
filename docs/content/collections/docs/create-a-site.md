@@ -6,6 +6,14 @@ section: start
 order: 3
 ---
 
+## Before you start
+
+- **An account where the site's files are kept:** [GitLab](https://gitlab.com), [GitHub](https://github.com) or, from your computer, [Bitbucket](https://bitbucket.org). Each is free for a site.
+- **Whether the site is for a business:** some hosts' free plans don't allow business sites, so the setup page asks what it's for and recommends a host that does (see [Hosts](/docs/hosts)).
+- **An account with the host, if it isn't the same one:** Cloudflare, Netlify or Vercel. GitLab Pages and GitHub Pages need nothing more.
+- **A domain, if you have one:** a site works at the host's own address until you [connect one](/docs/custom-domains), and a domain lets editors sign in at an address of their own (see [Security](/docs/security)).
+- **To make it on your computer instead:** a terminal (Terminal on a Mac, PowerShell on Windows) and [Node.js](https://nodejs.org) 22.23.4 or later. Type `node --version` in the terminal to see which you have.
+
 ## In your browser
 
 The [setup page](/new-site) creates a site without installing anything. It asks what the site is for first, so it can recommend a host whose free plan allows it, then which starter to begin from and where to keep the site's files: GitLab, with GitLab Pages, for every kind of site (see [Which to choose](/docs/hosts#which-to-choose)), or GitHub. The rest of `create-goodfellow`'s questions, below, are under **Advanced settings**, already set to what suits most sites, which the page sums up in one line: which blocks, who can see the files, where to put the site online, where to keep the content, and where editors sign in. With a sign-in page of its own, it creates the broker's repository beside the site's, and you set its address on the site's **Site Settings → Security** once both are online. **Continue** goes to the second step, where you sign in, choose the account and the name, and the page creates the repository in your GitHub or GitLab account, with the site's files in its first commit, and turns on GitHub Pages or GitLab Pages. Its address holds your choices, and **Change** goes back to them.
@@ -32,9 +40,11 @@ It asks these questions, with menus you move through with the arrow keys and cho
 - **Which site to start from:** the **Starter** (a home page, an about page and a news section), the **Parish example** (a complete made-up parish site, with collections and blocks of its own) or the **Starter for Next.js** (see [Next.js](/docs/nextjs)).
 - **Where the site will be stored:** GitHub, GitLab or Bitbucket, and the repository's name.
 - **Where it will be hosted:** GitHub Pages, GitLab Pages, Cloudflare Pages, Netlify or Vercel, with each host's rules for business sites. Only that host's setup files are kept; Cloudflare Pages and Netlify get setup files of their own, for their nightly update and rebuild, and Netlify `netlify.toml`. A site on Bitbucket is hosted on Vercel, with `bitbucket-pipelines.yml` for its nightly update (see [Put it online](/docs/put-it-online#3-choose-a-host)).
-- **Where the content will be kept:** with the code, or, for organizations with a developer, in a [repository of its own](/docs/content-repository), so editors can change the content but never the code.
+- **Where the content will be kept:** with the code, or, for organizations with a developer, in a [repository of its own](/docs/content-repository), so editors can change the content but never the code. With a repository of its own on a host that can build from either, such as Vercel, it also asks which repository the host builds the site from.
 - **Where editors sign in:** in the admin panel at the site's address, at an admin address of its own (where the host serves a site at more than one address), or at a sign-in page of its own, a [token broker](/docs/token-broker), which it writes into a folder beside the site's. It asks first whether you have a domain: with one, on a host that can serve an admin address, that's the choice it starts with; otherwise it recommends the sign-in page, which needs a domain only on GitHub Pages. See [Security](/docs/security).
 - **Which blocks to start with:** the recommended blocks from Goodfellow's [block registry](/docs/add-blocks), such as an FAQ and tabs, or the built-in blocks only. Either way, blocks can be added and removed later in the admin panel.
+
+To answer nothing and take the defaults for whatever the command doesn't name, add `-y` (`--yes`).
 
 It then runs `npm install`, and makes the new folder a git repository on the branch `main`, with everything, `package-lock.json` included, in its first commit and `origin` set when you gave it the repository. `--no-install` and `--no-git` leave those out; it also doesn't make a repository inside another git repository.
 
