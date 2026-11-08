@@ -601,7 +601,7 @@ describe("appApi", () => {
     ]);
   });
 
-  it("gives versions, changes between revisions and whether the site is live", async () => {
+  it("gives versions, changes between revisions, and whether the site is live", async () => {
     const { call, post } = setup();
     const { revision } = (await (await call("revision")).json()) as { revision: string };
     const { revision: next } = (await (

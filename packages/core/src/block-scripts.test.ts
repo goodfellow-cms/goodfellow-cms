@@ -155,7 +155,7 @@ describe("the built-in blocks' scripts", () => {
     expect(results.hidden).toBe(true);
   });
 
-  it("open a Gallery's pictures larger, move between them and give the focus back when closed", () => {
+  it("open a Gallery's pictures larger, move between them, and give the focus back when closed", () => {
     const item = (src: string, alt: string, caption?: string) =>
       `<li><figure><a href="${src}" ${LIGHTBOX_ITEM_ATTRIBUTE}=""><img src="${src}" alt="${alt}"></a>${caption ? `<figcaption>${caption}</figcaption>` : ""}</figure></li>`;
     const { window, document, find } = open(

@@ -9,7 +9,7 @@ const json = (value: unknown) => JSON.stringify(value);
 const page = (title: string, content: unknown[], extra: Record<string, unknown> = {}) =>
   json({ version: 1, ...extra, data: { root: { props: { title, description: `${title}, described` } }, content } });
 
-/** A made-up parish's site: pages, a news collection, a staff collection without pages, menus and redirects. */
+/** A made-up parish's site: pages, a news collection, a staff collection without pages, menus, and redirects. */
 const FILES: Record<string, string> = {
   "content/site.json": json({
     version: 1,
@@ -180,7 +180,7 @@ describe("markdownExport", () => {
 
   it("writes a page with pages under it as its folder's index, and redirects to it as its aliases", async () => {
     const { result, file } = await exported();
-    // `/about` has `/about/history` under it, so it's its folder's index, as Jekyll, Eleventy and Astro read it.
+    // `/about` has `/about/history` under it, so it's its folder's index, as Jekyll, Eleventy, and Astro read it.
     expect(file("about/index.md").front.aliases).toEqual(["/who-we-are/"]);
     expect(file("about/index.md").front.redirect_from).toEqual(["/who-we-are/"]);
     expect(result.notes).toContainEqual({ kind: "redirects", count: 1 });
@@ -217,7 +217,7 @@ describe("markdownExport", () => {
     expect(file("about/history.md").body).toContain("[About](index.md)");
   });
 
-  it("is read back by the Markdown import: pages, items, their addresses and the redirects", async () => {
+  it("is read back by the Markdown import: pages, items, their addresses, and the redirects", async () => {
     const { result } = await exported();
     const texts = Object.fromEntries(result.files.map((found) => [found.path, found.content]));
     const target = await loadSiteContent(

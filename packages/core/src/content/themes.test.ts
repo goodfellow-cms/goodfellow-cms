@@ -138,7 +138,7 @@ describe("planTheme", () => {
     expect(removed.settings.theme.fonts.custom).toEqual(custom);
   });
 
-  it("installs a theme's settings, CSS and record, keeping settings it doesn't give", async () => {
+  it("installs a theme's settings, CSS, and record, keeping settings it doesn't give", async () => {
     const before = site();
     const plan = await planTheme(before, harbor("1.0.0"));
     expect(plan.settings.theme).toEqual({
@@ -166,7 +166,7 @@ describe("planTheme", () => {
 
   it("updates only what nobody changed, and lists what it kept", async () => {
     const installed = after(await planTheme(site(), harbor("1.0.0"), { layout: true }), site());
-    // The owner changes the primary color, the CSS and the header.
+    // The owner changes the primary color, the CSS, and the header.
     const changed: ThemeSite = {
       ...installed,
       settings: {

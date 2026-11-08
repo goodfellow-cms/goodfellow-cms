@@ -136,7 +136,7 @@ export function configBroker(source: string): BrokerAddress | undefined {
 
 /** What a change asks the editor about before the broker publishes it. */
 export type BrokerConfirmKind =
-  /** The site's code, its config or its packages, which run when it's built. */
+  /** The site's code, its config, or its packages, which run when it's built. */
   | "code"
   /** The site's own code that runs on its pages (`content/code/`). */
   | "custom-code"
@@ -312,7 +312,7 @@ interface SentError {
   fields: Record<string, unknown>;
 }
 
-/** An error as it can cross a port: its name, message and plain fields such as `problem`. */
+/** An error as it can cross a port: its name, message, and plain fields such as `problem`. */
 function sendError(error: unknown): SentError {
   if (!(error instanceof Error)) return { name: "Error", message: String(error), fields: {} };
   const fields: Record<string, unknown> = {};

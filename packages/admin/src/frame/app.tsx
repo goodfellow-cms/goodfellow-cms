@@ -1,5 +1,5 @@
 /**
- * The site's frame: Puck, the site's config and every block, sandboxed away
+ * The site's frame: Puck, the site's config, and every block, sandboxed away
  * from the admin panel's page, which signs in and publishes. It tells the page
  * it's ready, gets a port back, and from then on only answers on that port.
  */

@@ -11,7 +11,7 @@ export interface HeadElement {
   tag: HeadTag;
   /** Attribute names in lowercase, with their values; `""` for one written without a value, such as `async`. */
   attributes: Array<[name: string, value: string]>;
-  /** What's inside a `script`, `style` or `noscript`, as it was written. */
+  /** What's inside a `script`, `style`, or `noscript`, as it was written. */
   content?: string;
 }
 
@@ -143,7 +143,7 @@ function cssAddresses(css: string): string[] {
  * such as another site's stylesheet; styles that load from other sites
  * (`@import` or `url()`, or any CSS escape, which could spell one); a `base`,
  * which would send the page's own addresses elsewhere; and a `meta` refresh.
- * Links on the site itself (its own stylesheet, manifest or icons, by a
+ * Links on the site itself (its own stylesheet, manifest, or icons, by a
  * root-relative address or the Site address, `siteUrl`), styles that load
  * only from it and other `meta` tags stay in the page.
  */

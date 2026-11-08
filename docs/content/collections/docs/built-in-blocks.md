@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Built-in blocks
-description: The blocks every Goodfellow site has, from sections and columns to code, search and collection navigation.
+description: The blocks every Goodfellow site has, from sections and columns to code, search, and collection navigation.
 section: editors
 order: 7
 ---
@@ -10,11 +10,11 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 
 | Block | What it's for |
 |---|---|
-| Section | A full-width band of the page with a background, centering its content; with a picture behind it, a color over it and a height, it's WordPress's Cover (see [Sections as covers](#sections-as-covers)) |
+| Section | A full-width band of the page with a background, centering its content; with a picture behind it, a color over it, and a height, it's WordPress's Cover (see [Sections as covers](#sections-as-covers)) |
 | Columns | Equal-width columns that stack on phones |
 | Row | Blocks side by side, such as a group of buttons |
 | Space | Empty vertical space |
-| Separator | A line between parts of the page: short, full width or dots |
+| Separator | A line between parts of the page: short, full width, or dots |
 | Media and text | A picture or uploaded video beside other blocks, on either side, which stack on phones |
 | Details | A summary that opens to show the blocks inside it, with no JavaScript |
 | Synced block | One of the site's [synced blocks](/docs/synced-blocks), kept once and shown wherever it's placed, so changing it changes every page |
@@ -23,23 +23,23 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 | Button | A link styled as a button |
 | Questions and answers | Questions that each open to show their answer, which search engines are told about too (see [Questions and answers](#questions-and-answers)) |
 | Pullquote | A quote shown large, set off from the text around it, with who said it |
-| Table | A table of text, which can be bold, italic or a link, with an optional row of headings, a footer, a caption and stripes (see [Table](#table)) |
+| Table | A table of text, which can be bold, italic, or a link, with an optional row of headings, a footer, a caption, and stripes (see [Table](#table)) |
 | Preformatted text | Text shown exactly as it's typed, spaces and line breaks included, in a fixed-width font |
 | Verse | Poetry or lyrics, with their lines and spaces as typed, in the page's own font |
 | Image | An image with an optional caption, and a description for people who can't see it, unless it's only decoration |
 | Gallery | Pictures in two to four columns, each with an optional caption, cropped to squares or not, which open larger when clicked (see [Gallery](#gallery)) |
-| Video | A video from the media library, YouTube, Vimeo or another site's player |
-| Social post | A post from Bluesky, Mastodon, Instagram or X, or a track or playlist from Spotify or SoundCloud (see [Social posts](#social-posts)) |
+| Video | A video from the media library, YouTube, Vimeo, or another site's player |
+| Social post | A post from Bluesky, Mastodon, Instagram, or X, or a track or playlist from Spotify or SoundCloud (see [Social posts](#social-posts)) |
 | Audio | A sound file from the media library, such as a homily, with the browser's own player |
 | File | A link to a file from the media library, such as a PDF, with an optional download button |
 | Document viewer | A PDF from the media library shown on the page, such as a bulletin or a newsletter, with a link to open it (see [Documents](#documents)) |
 | Form | A form whose answers a form service emails to you, or a Google form (see [Forms](/docs/forms)) |
-| Newsletter signup | An email box that signs visitors up to a newsletter on Mailchimp, Buttondown, Kit or another service whose signup form is HTML, or through the site's form service (see [Newsletter signup](#newsletter-signup)) |
-| Code | Code with syntax highlighting, an optional title and a copy button |
-| Contact details | The address, phone number and email address from Site Settings |
+| Newsletter signup | An email box that signs visitors up to a newsletter on Mailchimp, Buttondown, Kit, or another service whose signup form is HTML, or through the site's form service (see [Newsletter signup](#newsletter-signup)) |
+| Code | Code with syntax highlighting, an optional title, and a copy button |
+| Contact details | The address, phone number, and email address from Site Settings |
 | Donate button | A button to your giving page, such as a Stripe payment link or a PayPal donate button, with an optional heading and text (see [Giving and sharing](#giving-and-sharing)) |
-| Share buttons | Links that share the page on Facebook, X, Bluesky, LinkedIn or WhatsApp, or by email (see [Giving and sharing](#giving-and-sharing)) |
-| Menu | One of the site's menus, with dropdowns for submenus. **Colors** puts it in a bar of the theme's primary or secondary color, its dropdowns see-through in the same color, **Show the pages under each submenu link** opens a submenu link's own pages as a third level, so a section's pages need no menu entries of their own, and **Show the links behind a menu button (☰)** puts every link, every level of them, under a menu button on phones, on phones and small tablets, on phones and tablets, always or never (see [Menus on phones](#menus-on-phones)) |
+| Share buttons | Links that share the page on Facebook, X, Bluesky, LinkedIn, or WhatsApp, or by email (see [Giving and sharing](#giving-and-sharing)) |
+| Menu | One of the site's menus, with dropdowns for submenus. **Colors** puts it in a bar of the theme's primary or secondary color, its dropdowns see-through in the same color, **Show the pages under each submenu link** opens a submenu link's own pages as a third level, so a section's pages need no menu entries of their own, and **Show the links behind a menu button (☰)** puts every link, every level of them, under a menu button on phones, on phones and small tablets, on phones and tablets, always, or never (see [Menus on phones](#menus-on-phones)) |
 | Announcement bar | A bar across the page with a short message and a link, between a first and last day, which visitors can close (see [Announcement bar](#announcement-bar)) |
 | Site name and logo | The site's logo and name, linking home, with the site's description under the name if you like |
 | Search | A search box for the whole site, with results as you type |
@@ -57,7 +57,7 @@ Every site has these blocks. Sites can also have [blocks from block registries](
 
 The blocks from Separator to File in the list match WordPress's own blocks of the same names, and Synced block matches WordPress's synced patterns, so [moving from WordPress](/docs/move-from-wordpress) keeps them as they are, and [exporting to WordPress](/docs/move-from-wordpress) makes them WordPress's again.
 
-Blocks use the site's colors, fonts and corner rounding. Every block's **Style** setting changes its look, as Tailwind classes that override the block's own styles: **Space inside** on a Section replaces its default padding (see [A block's look](/docs/edit-pages#a-blocks-look)). Every part of a block also has a name, which the site's theme can give classes to (see [Named parts](#named-parts)).
+Blocks use the site's colors, fonts, and corner rounding. Every block's **Style** setting changes its look, as Tailwind classes that override the block's own styles: **Space inside** on a Section replaces its default padding (see [A block's look](/docs/edit-pages#a-blocks-look)). Every part of a block also has a name, which the site's theme can give classes to (see [Named parts](#named-parts)).
 
 ## Video
 
@@ -72,7 +72,7 @@ Give every video a description for screen readers. It can also have a caption be
 
 ## Social posts
 
-The Social post block shows a post from **Bluesky**, **Mastodon** (or another server that works like Mastodon's), **Instagram** or **X**, or a track, album, playlist or episode from **Spotify** or **SoundCloud**. Paste the post's address, or the embed code its site gives (such as **Embed post** in a Bluesky post's menu, or **Embed** under an Instagram post's ⋯). Short links, such as `spotify.link` or `on.soundcloud.com`, can't be followed: open them and paste the address they go to.
+The Social post block shows a post from **Bluesky**, **Mastodon** (or another server that works like Mastodon's), **Instagram** or **X**, or a track, album, playlist, or episode from **Spotify** or **SoundCloud**. Paste the post's address, or the embed code its site gives (such as **Embed post** in a Bluesky post's menu, or **Embed** under an Instagram post's ⋯). Short links, such as `spotify.link` or `on.soundcloud.com`, can't be followed: open them and paste the address they go to.
 
 Each post is drawn by its own site, in a sandbox, and as tall as that site usually draws one; set **Height in pixels** if a long post is cut off. Give it a description for screen readers if the post's site isn't enough, and a caption if you like. On a site that asks [visitors' consent](/docs/layout-and-settings#visitors-consent), posts load only once visitors agree, like videos.
 
@@ -86,19 +86,19 @@ The Document viewer shows a PDF from the media library on the page, in the brows
 
 ## Giving and sharing
 
-The **Donate button** links to your giving page, such as a Stripe payment link, a PayPal donate button's address, or Givebutter, Donorbox, Tithe.ly or Pushpay's. People give on that service's secure page, so no card details reach your site, and the button only takes an address that starts with `https://`. Under the button, it can say where people give ("You'll give on Stripe's secure page."). The page loads nothing from the service until someone clicks.
+The **Donate button** links to your giving page, such as a Stripe payment link, a PayPal donate button's address, or Givebutter, Donorbox, Tithe.ly, or Pushpay's. People give on that service's secure page, so no card details reach your site, and the button only takes an address that starts with `https://`. Under the button, it can say where people give ("You'll give on Stripe's secure page."). The page loads nothing from the service until someone clicks.
 
-**Share buttons** link to share the page on Facebook, X, Bluesky, LinkedIn or WhatsApp, or by email, with the page's title, in the order you list them, as buttons or plain links. They're only links, so the page loads nothing from those sites and they can't follow visitors. They need the **Site address** in Site Settings, which says where the page is.
+**Share buttons** link to share the page on Facebook, X, Bluesky, LinkedIn, or WhatsApp, or by email, with the page's title, in the order you list them, as buttons or plain links. They're only links, so the page loads nothing from those sites and they can't follow visitors. They need the **Site address** in Site Settings, which says where the page is.
 
 ## Table
 
-Select a Table block to edit its cells in a grid in the block's settings: type in each cell, and add or remove rows and columns. **First row is headings** makes the first row the columns' headings, and **Last row is a footer** sets the last row apart, such as for totals. Words in a cell can be bold or italic, or a link: select them, then choose **Bold**, **Italic** or **Link** above the grid (or press Ctrl+B or Ctrl+I), and press Enter for a new line in the same cell. The table scrolls sideways on phones when it's wider than the screen.
+Select a Table block to edit its cells in a grid in the block's settings: type in each cell, and add or remove rows and columns. **First row is headings** makes the first row the columns' headings, and **Last row is a footer** sets the last row apart, such as for totals. Words in a cell can be bold or italic, or a link: select them, then choose **Bold**, **Italic**, or **Link** above the grid (or press Ctrl+B or Ctrl+I), and press Enter for a new line in the same cell. The table scrolls sideways on phones when it's wider than the screen.
 
 Tables made before cells could be formatted keep their text exactly as it was typed, even where it looks like code, such as `<b>`, and become formatted tables the first time they're changed.
 
 ## Gallery
 
-With **Open pictures larger when clicked**, which new Galleries start with, clicking a picture shows it larger over the page, with its caption. The arrow keys, the **Previous** and **Next** buttons and swiping move between the Gallery's pictures, and Escape, **Close** or a click beside the picture closes it. The buttons' names, which screen readers say, are in the block's settings, so you can put them in the page's language. Without JavaScript, or with a key held down, clicking a picture opens its file. Galleries made before this keep showing their pictures as they were until you turn it on. In the site's [app](/docs/apps), pictures open full screen.
+With **Open pictures larger when clicked**, which new Galleries start with, clicking a picture shows it larger over the page, with its caption. The arrow keys, the **Previous** and **Next** buttons, and swiping move between the Gallery's pictures, and Escape, **Close**, or a click beside the picture closes it. The buttons' names, which screen readers say, are in the block's settings, so you can put them in the page's language. Without JavaScript, or with a key held down, clicking a picture opens its file. Galleries made before this keep showing their pictures as they were until you turn it on. In the site's [app](/docs/apps), pictures open full screen.
 
 ## Questions and answers
 
@@ -118,11 +118,11 @@ With **Visitors can close it**, the bar has a close button, and a visitor who cl
 
 ## Sections as covers
 
-A Section with a background picture can be a cover, like WordPress's Cover block: **Color over the background** puts a dark, light or primary color over the picture, **How strong a color** sets how much, so text on the photo can be read, and the text color changes to suit it. **Part of the picture to keep in view** chooses what stays visible when the picture is cropped, and **Height at least** makes the section taller, up to the whole screen, with its content in the middle.
+A Section with a background picture can be a cover, like WordPress's Cover block: **Color over the background** puts a dark, light, or primary color over the picture, **How strong a color** sets how much, so text on the photo can be read, and the text color changes to suit it. **Part of the picture to keep in view** chooses what stays visible when the picture is cropped, and **Height at least** makes the section taller, up to the whole screen, with its content in the middle.
 
 ## Code
 
-The Code block highlights code when the site is built, so visitors' browsers don't have to. It knows Bash, CSS, diffs, HTML, JavaScript, JSON, JSX, Markdown, Python, TSX, TypeScript and YAML, in colors like the page's (light, or dark when the site's [dark mode](/docs/layout-and-settings#dark-mode) shows it dark), or always light or dark. Which colors those are is a site setting, [Code colors](/docs/layout-and-settings#code-colors). The copy button's label is the block's to set, so sites in other languages can translate it; leave it empty for no button.
+The Code block highlights code when the site is built, so visitors' browsers don't have to. It knows Bash, CSS, diffs, HTML, JavaScript, JSON, JSX, Markdown, Python, TSX, TypeScript, and YAML, in colors like the page's (light, or dark when the site's [dark mode](/docs/layout-and-settings#dark-mode) shows it dark), or always light or dark. Which colors those are is a site setting, [Code colors](/docs/layout-and-settings#code-colors). The copy button's label is the block's to set, so sites in other languages can translate it; leave it empty for no button.
 
 ## Menus on phones
 
@@ -141,7 +141,7 @@ A menu across the page that has submenus and never shows the button says so in t
 On a site with [dark mode](/docs/layout-and-settings#dark-mode), the Dark mode switch lets visitors choose light or dark colors instead of following their computer's setting. **Show as** chooses:
 
 - **A switch between light and dark**, with a sun or a moon on it, and the words **Light** and **Dark** beside it if **Words beside the switch** is **Show**.
-- **A menu:** **Light**, **Dark** or **Follow my computer**, which goes back to following the computer's setting.
+- **A menu:** **Light**, **Dark**, or **Follow my computer**, which goes back to following the computer's setting.
 
 The visitor's choice is kept in their browser and put back at the start of every page, before it shows, so pages never flash the other colors first. Every word is the block's to set, so sites in other languages can translate them. On a site without dark mode, the switch isn't shown, and the editor says where to turn dark mode on.
 
@@ -157,7 +157,7 @@ On a site in [several languages](/docs/languages), the Language switch links to 
 
 ## Search
 
-The Search block searches the whole site in the visitor's browser, with [Pagefind](https://pagefind.app), so no search service is needed. When a site has a Search block, its build makes a search index of every page's main content; headers, footers and "Page not found" are left out. Search only works on the built site, so in the editor the box says so. See [Search](/docs/search) for details.
+The Search block searches the whole site in the visitor's browser, with [Pagefind](https://pagefind.app), so no search service is needed. When a site has a Search block, its build makes a search index of every page's main content; headers, footers, and "Page not found" are left out. Search only works on the built site, so in the editor the box says so. See [Search](/docs/search) for details.
 
 ## Newsletter signup
 
@@ -166,12 +166,12 @@ The Newsletter signup block is an email box and a button that sign visitors up t
 - **Mailchimp:** in Mailchimp, open **Audience**, then **Signup forms**, then **Embedded forms**, and copy the code there.
 - **Buttondown:** your Buttondown username, or the embed code from Buttondown's sharing settings.
 - **Kit (ConvertKit):** open the form in Kit, choose **Publish**, then **HTML**, and copy the code there.
-- **Another service:** most email list services give their signup form as HTML in their embed or sharing settings, often under a name such as **Embedded form** or **HTML form**. Copy that HTML into the block. The block reads where the form sends signups, its email box, its first name box, its hidden fields and the box that catches spam, and leaves out its other questions, such as which lists to join; the editor says when it leaves any out.
+- **Another service:** most email list services give their signup form as HTML in their embed or sharing settings, often under a name such as **Embedded form** or **HTML form**. Copy that HTML into the block. The block reads where the form sends signups, its email box, its first name box, its hidden fields, and the box that catches spam, and leaves out its other questions, such as which lists to join; the editor says when it leaves any out.
 - **The site's form service:** the one in Site Settings, under Forms (see [Forms](/docs/forms)), which emails you each signup, for a list you keep yourself.
 
 The block keeps only where the form sends signups, so it looks like the rest of the site, and it's a plain form that posts straight to the service: it works without JavaScript, and pages load nothing from the service until someone signs up. The service then shows its own page, such as Mailchimp's "Almost finished" page asking people to confirm by email; with the site's form service, **Page visitors see after signing up** can be one of the site's pages. **Ask for a first name too** adds a box for it (Buttondown takes only the address). **Button beside the box** hides the boxes' labels, which screen readers still read, behind their placeholders. Until the form can sign anyone up, the block isn't shown on the site, and the editor says what's missing.
 
-Some services give no HTML form, only a script or a frame that draws their own, and some forms need questions the block leaves out. For those, add the **Custom HTML** block from the Blocks screen (see [Add blocks](/docs/add-blocks)), paste the service's embed code into it, and set **Make it safe** to **No: use it exactly as written**, since making it safe takes out scripts, frames and forms. The form then looks as the service draws it, and loads the service's code on the page; on a site that [asks visitors first](/docs/layout-and-settings#visitors-consent), it waits until they agree.
+Some services give no HTML form, only a script or a frame that draws their own, and some forms need questions the block leaves out. For those, add the **Custom HTML** block from the Blocks screen (see [Add blocks](/docs/add-blocks)), paste the service's embed code into it, and set **Make it safe** to **No: use it exactly as written**, since making it safe takes out scripts, frames, and forms. The form then looks as the service draws it, and loads the service's code on the page; on a site that [asks visitors first](/docs/layout-and-settings#visitors-consent), it waits until they agree.
 
 In the site's app, signups through the site's form service are sent from the app itself; with a newsletter service, the button opens the page on the website.
 
@@ -195,7 +195,7 @@ Every part of a built-in block has a name, which is on the part as a class, and 
 - **File:** `gf-file` (File), `gf-file-link` (File's link), `gf-file-button` (Download button).
 - **Form:** `gf-form` (Form), `gf-form-embed` (Google Form), `gf-form-questions` (Questions), `gf-form-question` (Question), `gf-form-label` (Question's wording), `gf-form-hint` (Help text), `gf-form-input` (Answer field), `gf-form-choice` (Choice), `gf-form-check` (Checkbox or option), `gf-form-required` (Required mark), `gf-form-submit` (Send button).
 - **Newsletter signup:** `gf-newsletter` (Newsletter signup), `gf-newsletter-heading` (Heading), `gf-newsletter-text` (Text), `gf-newsletter-form` (Form), `gf-newsletter-field` (Field), `gf-newsletter-label` (Field's label), `gf-newsletter-input` (Email box), `gf-newsletter-submit` (Subscribe button), `gf-newsletter-note` (Words under the form).
-- **Gallery:** `gf-gallery` (Gallery), `gf-gallery-items` (Pictures), `gf-gallery-item` (Picture and caption), `gf-gallery-picture` (Picture), `gf-gallery-item-caption` (Picture's caption), `gf-gallery-caption` (Gallery's caption), `gf-gallery-lightbox` (Picture shown larger), `gf-gallery-lightbox-picture` (Larger picture), `gf-gallery-lightbox-caption` (Larger picture's caption), `gf-gallery-lightbox-button` (Close, Previous and Next buttons).
+- **Gallery:** `gf-gallery` (Gallery), `gf-gallery-items` (Pictures), `gf-gallery-item` (Picture and caption), `gf-gallery-picture` (Picture), `gf-gallery-item-caption` (Picture's caption), `gf-gallery-caption` (Gallery's caption), `gf-gallery-lightbox` (Picture shown larger), `gf-gallery-lightbox-picture` (Larger picture), `gf-gallery-lightbox-caption` (Larger picture's caption), `gf-gallery-lightbox-button` (Close, Previous, and Next buttons).
 - **Questions and answers:** `gf-faq` (Questions and answers), `gf-faq-heading` (Heading), `gf-faq-items` (Questions), `gf-faq-item` (Question and answer), `gf-faq-question` (Question), `gf-faq-answer` (Answer).
 - **Announcement bar:** `gf-announcement` (Announcement bar), `gf-announcement-message` (Message), `gf-announcement-link` (Link), `gf-announcement-close` (Close button).
 - **Heading:** `gf-heading` (Heading).

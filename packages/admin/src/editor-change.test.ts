@@ -30,7 +30,7 @@ describe("the AI assistant's changes outside Puck", () => {
     ).toThrow(/no longer on the page/);
   });
 
-  it("sets the page's settings, translates and adds blocks at the end", () => {
+  it("sets the page's settings, translates, and adds blocks at the end", () => {
     expect(applyEditorChange(data, { type: "root", props: { title: "Come" } }).root.props).toEqual({ title: "Come" });
     const translated = applyEditorChange(data, {
       type: "translate",

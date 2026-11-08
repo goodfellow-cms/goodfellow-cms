@@ -1,5 +1,5 @@
 /**
- * The page, header, footer, template and item editors, in the admin panel's
+ * The page, header, footer, template, and item editors, in the admin panel's
  * page. Puck and the site's blocks run in a sandboxed frame (`frame/editor.tsx`);
  * this draws the editor's header around it, with Publish, which only this page
  * can do, and the AI assistant, which keeps editors' keys out of the frame.
@@ -105,14 +105,14 @@ function keptTime(savedAt: number): string {
 /** How long typing has to stop before what's edited is kept in the browser. */
 const KEEP_AFTER_MS = 1000;
 
-/** The widths the editor previews pages at: the editor's own, a tablet's and a phone's. */
+/** The widths the editor previews pages at: the editor's own, a tablet's, and a phone's. */
 const VIEWPORTS = [
   { width: null, label: "editor.viewport.full" },
   { width: 768, label: "editor.viewport.tablet" },
   { width: 360, label: "editor.viewport.phone" },
 ] as const;
 
-/** Puck in the site's frame, set up for one page, header, footer, template or item, with publishing. */
+/** Puck in the site's frame, set up for one page, header, footer, template, or item, with publishing. */
 export function PuckEditor({
   kind,
   path,

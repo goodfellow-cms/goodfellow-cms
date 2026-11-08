@@ -17,7 +17,7 @@ export interface AiFieldHint {
 
 /** What a block's style field holds (`classNameField` in `@goodfellow-cms/react`). */
 const STYLE_HINT =
-  "Tailwind CSS classes for the block's look, such as text-center, text-lg, text-primary, bg-muted, p-6, mt-8 or rounded-lg, using the theme's colors; empty for the block's own look";
+  "Tailwind CSS classes for the block's look, such as text-center, text-lg, text-primary, bg-muted, p-6, mt-8, or rounded-lg, using the theme's colors; empty for the block's own look";
 
 export const RICH_TEXT_HINT =
   "Formatted text as simple HTML: <p>, <h2>, <h3>, <strong>, <em>, <a href>, <ul>, <ol>, <li> and <blockquote> only.";

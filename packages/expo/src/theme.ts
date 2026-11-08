@@ -7,7 +7,7 @@ import {
   type ThemeColor,
 } from "@goodfellow-cms/core";
 
-/** The site's theme as native blocks style themselves with it: its colors in light or dark, corners and fonts. */
+/** The site's theme as native blocks style themselves with it: its colors in light or dark, corners, and fonts. */
 export interface NativeTheme {
   dark: boolean;
   colors: Record<ThemeColor, string>;

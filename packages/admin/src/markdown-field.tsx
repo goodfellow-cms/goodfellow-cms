@@ -6,7 +6,7 @@ import { useStrings } from "./strings.js";
 
 /**
  * Puck's formatted editor, without what Markdown can't store: underlining and
- * alignment. Links, pictures and tables are edited in the Markdown tab.
+ * alignment. Links, pictures, and tables are edited in the Markdown tab.
  */
 const formattedField: RichtextField = {
   type: "richtext",

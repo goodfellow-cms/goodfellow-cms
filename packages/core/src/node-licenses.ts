@@ -175,7 +175,7 @@ interface BundleChunk {
 }
 
 /**
- * A Vite, Rollup or Rolldown plugin that writes a frame's notices
+ * A Vite, Rollup, or Rolldown plugin that writes a frame's notices
  * (`licenseNotices()`) as `fileName` among what it builds, from the modules
  * its chunks hold, on every build.
  */

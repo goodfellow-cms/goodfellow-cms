@@ -92,7 +92,7 @@ export function signInServiceProblem(url: string): "invalid" | undefined {
   }
 }
 
-/** Why `id` can't be a GitLab application's ID or a Bitbucket consumer's Key: letters, numbers, `.`, `_` and `-`. */
+/** Why `id` can't be a GitLab application's ID or a Bitbucket consumer's Key: letters, numbers, `.`, `_`, and `-`. */
 export function signInClientIdProblem(id: string): "invalid" | undefined {
   return /^[A-Za-z0-9._-]{8,128}$/.test(id.trim()) ? undefined : "invalid";
 }

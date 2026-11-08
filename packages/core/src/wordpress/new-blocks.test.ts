@@ -171,7 +171,7 @@ describe("WordPress's own blocks", () => {
     ]);
   });
 
-  it("make a cover's overlay, height and focal point the Section's", () => {
+  it("make a cover's overlay, height, and focal point the Section's", () => {
     const [section] = pageBlocks(undefined, itemParts({ content: COVER, rendered: false }, context), {
       link: context.link,
     });

@@ -12,7 +12,7 @@ cd docs
 pnpm dev                     # site at http://localhost:4321, admin panel at /admin
 ```
 
-Each file starts with its front matter: `title`, a `description` shown under the title and in search results, its `section` (`start`, `editors`, `owners` or `developers`) and its `order` within the section. Links between pages are root-relative, such as `/docs/create-a-site`, and headings can be linked to as `/docs/create-a-site#try-it-on-your-computer`. A test checks that every link and heading link goes somewhere.
+Each file starts with its front matter: `title`, a `description` shown under the title and in search results, its `section` (`start`, `editors`, `owners`, or `developers`) and its `order` within the section. Links between pages are root-relative, such as `/docs/create-a-site`, and headings can be linked to as `/docs/create-a-site#try-it-on-your-computer`. A test checks that every link and heading link goes somewhere.
 
 Keep files in the form the admin panel writes them: after editing one by hand, `pnpm test` in `packages/cli` says if it isn't.
 

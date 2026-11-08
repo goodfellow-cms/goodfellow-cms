@@ -1,5 +1,5 @@
 /**
- * Visit counts: Plausible, Umami or GoatCounter, which count visits without
+ * Visit counts: Plausible, Umami, or GoatCounter, which count visits without
  * cookies. `content/site.json`'s `stats` names one; `statsElements()` gives the
  * service's own script, which both renderers add to the site's pages, and
  * `statsDashboard()` where its owner reads the counts. No React or DOM.

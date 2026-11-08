@@ -21,7 +21,7 @@ const MULTI_LINE = `export default defineConfig({
 `;
 
 describe("withBackendOption", () => {
-  it("adds, changes and takes out an option on one line", () => {
+  it("adds, changes, and takes out an option on one line", () => {
     const added = withBackendOption(ONE_LINE, "signIn", "https://sign-in.example");
     expect(added).toContain(`backend: github({ repo: "parish/site", signIn: "https://sign-in.example" }),`);
     expect(configBackendOption(added ?? "", "signIn")).toBe("https://sign-in.example");

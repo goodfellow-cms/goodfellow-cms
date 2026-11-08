@@ -29,9 +29,9 @@ npm create goodfellow@latest my-site
 
 It asks these questions, with menus you move through with the arrow keys and choose from with Enter:
 
-- **Which site to start from:** the **Starter** (a home page, an about page and a news section), the **Parish example** (a complete made-up parish site, with collections and blocks of its own) or the **Starter for Next.js** (see [Next.js](/docs/nextjs)).
-- **Where the site will be stored:** GitHub, GitLab or Bitbucket, and the repository's name.
-- **Where it will be hosted:** GitHub Pages, GitLab Pages, Cloudflare Pages, Netlify or Vercel, with each host's rules for business sites. Only that host's setup files are kept; Cloudflare Pages and Netlify get setup files of their own, for their nightly update and rebuild, and Netlify `netlify.toml`. A site on Bitbucket is hosted on Vercel, with `bitbucket-pipelines.yml` for its nightly update (see [Put it online](/docs/put-it-online#3-choose-a-host)).
+- **Which site to start from:** the **Starter** (a home page, an about page, and a news section), the **Parish example** (a complete made-up parish site, with collections and blocks of its own) or the **Starter for Next.js** (see [Next.js](/docs/nextjs)).
+- **Where the site will be stored:** GitHub, GitLab, or Bitbucket, and the repository's name.
+- **Where it will be hosted:** GitHub Pages, GitLab Pages, Cloudflare Pages, Netlify, or Vercel, with each host's rules for business sites. Only that host's setup files are kept; Cloudflare Pages and Netlify get setup files of their own, for their nightly update and rebuild, and Netlify `netlify.toml`. A site on Bitbucket is hosted on Vercel, with `bitbucket-pipelines.yml` for its nightly update (see [Put it online](/docs/put-it-online#3-choose-a-host)).
 - **Where the content will be kept:** with the code, or, for organizations with a developer, in a [repository of its own](/docs/content-repository), so editors can change the content but never the code.
 - **Where editors sign in:** in the admin panel at the site's address, at an admin address of its own (where the host serves a site at more than one address), or at a sign-in page of its own, a [token broker](/docs/token-broker), which it writes into a folder beside the site's. It asks first whether you have a domain: with one, on a host that can serve an admin address, that's the choice it starts with; otherwise it recommends the sign-in page, which needs a domain only on GitHub Pages. See [Security](/docs/security).
 - **Which blocks to start with:** the recommended blocks from Goodfellow's [block registry](/docs/add-blocks), such as an FAQ and tabs, or the built-in blocks only. Either way, blocks can be added and removed later in the admin panel.
@@ -44,7 +44,7 @@ To skip the questions, give the answers as options:
 npm create goodfellow@latest my-site -- --template parish --github your-name/your-site --host github-pages --blocks built-in
 ```
 
-`--gitlab your-group/your-site` and `--bitbucket your-workspace/your-site` store it on GitLab or Bitbucket instead. `--admin https://admin.example.org` gives editors an admin address of its own, `--broker gitlab-pages` (or `github-pages` with `--broker-domain signin.example.org`, `cloudflare-pages` or `vercel`) writes a token broker beside the site, `--content your-name/your-site-content` keeps the content in a repository of its own, and `--wordpress wordpress-export.xml` (or a WordPress site's address) starts the site with a WordPress site's pages, posts, menus and media; see [Move from WordPress](/docs/move-from-wordpress). `--plugin goodfellow-plugin-guestbook`, once for each, installs a [plugin](/docs/plugins#install-a-plugin-from-the-admin-panel) as the admin panel would, saying what it asks to do. Run it with `--help` for every option.
+`--gitlab your-group/your-site` and `--bitbucket your-workspace/your-site` store it on GitLab or Bitbucket instead. `--admin https://admin.example.org` gives editors an admin address of its own, `--broker gitlab-pages` (or `github-pages` with `--broker-domain signin.example.org`, `cloudflare-pages`, or `vercel`) writes a token broker beside the site, `--content your-name/your-site-content` keeps the content in a repository of its own, and `--wordpress wordpress-export.xml` (or a WordPress site's address) starts the site with a WordPress site's pages, posts, menus, and media; see [Move from WordPress](/docs/move-from-wordpress). `--plugin goodfellow-plugin-guestbook`, once for each, installs a [plugin](/docs/plugins#install-a-plugin-from-the-admin-panel) as the admin panel would, saying what it asks to do. Run it with `--help` for every option.
 
 > To try changes that haven't been released yet, use the sites in [the repository](https://github.com/goodfellow-cms/goodfellow-cms) instead: install [pnpm](https://pnpm.io) 12, run `pnpm install` and `pnpm build` at the root, then `pnpm dev` in `templates/starter`.
 
@@ -67,7 +67,7 @@ npm run preview  # serves dist/ the way a host would
 
 ```text
 my-site/
-├── goodfellow.config.tsx    # the site's blocks, plugins and where it's stored
+├── goodfellow.config.tsx    # the site's blocks, plugins, and where it's stored
 ├── blocks/                  # the site's own blocks, and blocks/installed/ from block registries
 ├── components/ui/           # shadcn components that installed blocks use
 ├── plugins/installed/       # the plugins installed from the admin panel, and what each was approved to do

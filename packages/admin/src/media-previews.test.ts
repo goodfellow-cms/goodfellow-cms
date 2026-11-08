@@ -12,7 +12,7 @@ describe("showMediaInPreview", () => {
   const previews = () =>
     createMediaPreviews({ readBytes: async () => undefined }, "/goodfellow-demo/", () => storage as never);
 
-  it("shows media from the site's folder, from memory and from storage, as the preview changes", async () => {
+  it("shows media from the site's folder, from memory, and from storage, as the preview changes", async () => {
     const shown = previews();
     shown.remember("/media/new.png", new Uint8Array([1]));
     document.body.innerHTML = '<img src="/media/church.svg">';

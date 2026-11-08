@@ -1,6 +1,6 @@
 /**
  * Git hosts limit how many requests a sign-in may make in a minute, and
- * answer the rest with 429 (GitLab, Bitbucket and GitHub) or 403 (GitHub,
+ * answer the rest with 429 (GitLab, Bitbucket, and GitHub) or 403 (GitHub,
  * with headers saying so) until the limit resets. Many changes in a row, such
  * as Claude's, can reach it, so backends wait and try again where the wait is
  * short, rather than failing part-way through.
@@ -79,7 +79,7 @@ export interface RateLimitOptions {
  * A limit that lasts longer throws `RateLimitError`. Limited requests weren't
  * carried out, so sending them again is safe, publishing included.
  */
-// biome-ignore lint/suspicious/noExplicitAny: any fetch, the browser's, Node's or a fake's
+// biome-ignore lint/suspicious/noExplicitAny: any fetch, the browser's, Node's, or a fake's
 export function withRateLimits<Fetch extends (input: any, init?: any) => Promise<LimitedResponse>>(
   fetcher: Fetch,
   options: RateLimitOptions,

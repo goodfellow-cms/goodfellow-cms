@@ -41,7 +41,7 @@ const t = (key: StringKey, values?: Record<string, string>) =>
   defaultStrings[key].replace(/\{(\w+)\}/g, (match, name: string) => values?.[name] ?? match);
 
 describe("checkPublish on rendered pages", () => {
-  it("warns about images without alt text, skipped headings and links that don't say where they go", async () => {
+  it("warns about images without alt text, skipped headings, and links that don't say where they go", async () => {
     const loaded = { content: await loadSiteContent(source), media: ["public/media/photo.jpg"] };
     const checks = await checkPublish(
       source,

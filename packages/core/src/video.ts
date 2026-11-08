@@ -1,5 +1,5 @@
 /**
- * Videos from YouTube, Vimeo and other sites: reading the addresses editors
+ * Videos from YouTube, Vimeo, and other sites: reading the addresses editors
  * paste, in any of the forms those sites give them, and the addresses of
  * their players.
  */
@@ -53,7 +53,7 @@ function parseUrl(input: string): URL | undefined {
   }
 }
 
-/** A time such as `90`, `90s`, `1m30s` or `1h2m3s`, in seconds. */
+/** A time such as `90`, `90s`, `1m30s`, or `1h2m3s`, in seconds. */
 export function parseStartTime(value: string | null | undefined): number | undefined {
   if (!value) return undefined;
   const text = value.trim().toLowerCase();
@@ -66,7 +66,7 @@ export function parseStartTime(value: string | null | undefined): number | undef
 
 /**
  * A YouTube video from its ID or any of its addresses: `watch?v=`, `youtu.be`,
- * Shorts, live, embed and mobile addresses, or an embed code. `undefined` if
+ * Shorts, live, embed, and mobile addresses, or an embed code. `undefined` if
  * it isn't one.
  */
 export function youtubeVideo(input: string): YouTubeVideo | undefined {

@@ -26,8 +26,8 @@ The tokens it gives are GitHub App installation tokens:
 
 | Sign-in | GitHub App | What its tokens can do |
 |---|---|---|
-| Editors | The everyday app | Read and change the site's files, and see its builds, deployments and GitHub Pages, and what Cloudflare Pages says of its builds |
-| Owners, on the Editors, Domain and Updates screens | The owners' app | Change who edits the site, its GitHub Pages settings and when it rebuilds overnight, and run its workflows |
+| Editors | The everyday app | Read and change the site's files, and see its builds, deployments, and GitHub Pages, and what Cloudflare Pages says of its builds |
+| Owners, on the Editors, Domain, and Updates screens | The owners' app | Change who edits the site, its GitHub Pages settings, and when it rebuilds overnight, and run its workflows |
 | The setup page | The owners' app | Create the repository, write its first files and workflows, and turn on GitHub Pages and protect its history |
 
 Editors' tokens can't change workflows or the repository's settings. Commits made with them name the editor as their author, with GitHub's private email address for them, so they show on the editor's GitHub account.
@@ -63,7 +63,7 @@ To change the addresses later, open `/setup` again: it asks for a token each tim
 
 ## Running your own from a computer
 
-To run it from your own computer instead, which developers may prefer, you need a Cloudflare account, a GitHub account and Node.js 22.23.4 or later, 24.22.1 or later, or 26.12.1 or later, which fix a security problem in earlier versions.
+To run it from your own computer instead, which developers may prefer, you need a Cloudflare account, a GitHub account, and Node.js 22.23.4 or later, 24.22.1 or later, or 26.12.1 or later, which fix a security problem in earlier versions.
 
 1. In a copy of Goodfellow's repository, run `pnpm install`.
 2. In `packages/worker`, run `pnpm run setup`. It:
@@ -71,7 +71,7 @@ To run it from your own computer instead, which developers may prefer, you need 
    - asks whether an organization should own the GitHub Apps, and whether anyone's sites can use them;
    - opens a page in your browser that creates the two apps on GitHub with their settings filled in. For each, check its name, which editors see when they sign in, and choose **Create GitHub App**;
    - asks for your setup page's address, if you run one;
-   - gives the service the apps' keys and a key for sealing sessions, deploys it again and checks it answers.
+   - gives the service the apps' keys and a key for sealing sessions, deploys it again, and checks it answers.
 
    Keep the changes it makes to `wrangler.jsonc`, so later deploys keep them.
 3. **List your sites' addresses** in `wrangler.jsonc`'s `ALLOWED_ORIGINS`, separated by commas: each Site address, and each admin address and token broker's address. It's optional, but recommended: without it, the service gives tokens to the addresses the sites' own files name, which their editors can change (see [Where it works](#where-it-works)). Run `pnpm run deploy` again after changing it, and add a site's new address there before publishing it as the Site address.
@@ -91,8 +91,8 @@ If the script can't run, the same steps by hand are:
    - under **Where can this GitHub App be installed?**, choose **Any account**, unless only your own sites will use it.
 
    Give them these repository permissions:
-   - the everyday app: **Contents** and **Pull requests** read and write; **Actions**, **Checks**, **Commit statuses**, **Deployments**, **Metadata** and **Pages** read-only. **Pull requests** lets editors [submit drafts for review](/docs/publishing#drafts) and ask the site's reviewers to look. **Checks** and **Commit statuses** show when [Cloudflare Pages](/docs/put-it-online#3-choose-a-host) has built the site. An app made before it asked for these still signs editors in, without them, until every installation has accepted them;
+   - the everyday app: **Contents** and **Pull requests** read and write; **Actions**, **Checks**, **Commit statuses**, **Deployments**, **Metadata**, and **Pages** read-only. **Pull requests** lets editors [submit drafts for review](/docs/publishing#drafts) and ask the site's reviewers to look. **Checks** and **Commit statuses** show when [Cloudflare Pages](/docs/put-it-online#3-choose-a-host) has built the site. An app made before it asked for these still signs editors in, without them, until every installation has accepted them;
    - the owners' app: **Administration**, **Actions**, **Contents**, **Pages**, **Secrets**, **Variables** and **Workflows** read and write; **Metadata** read-only. The Updates screen uses **Variables** for when the site rebuilds overnight; an app made before it asked for Variables still signs owners in, and changing that setting asks for an owner token instead. The setup page uses **Secrets** to connect a site's code and content repositories, where its [content is kept in a repository of its own](/docs/content-repository); an app made before it asked for Secrets still creates sites, and the setup page explains what to add instead. Adding either to an existing app asks every installation to accept it.
 
-   For each, note its **App ID**, its **Client ID** and the last part of its address (its slug), generate a client secret, and generate a private key, which downloads a `.pem` file.
-3. **Set up the service** for your apps. In `wrangler.jsonc`, put your apps' slugs, your setup page's address if you have one, and, as we recommend, your sites' addresses in `ALLOWED_ORIGINS`. Set its secrets with `npx wrangler@4 secret put EDIT_APP_ID`, then `EDIT_CLIENT_ID`, `EDIT_CLIENT_SECRET` and `EDIT_PRIVATE_KEY` (the `.pem` file's contents), the same four for `OWNER_`, and `SESSION_KEY`, from `openssl rand -base64 32`. Then run `pnpm run deploy` again. Changing `SESSION_KEY` later signs everyone out.
+   For each, note its **App ID**, its **Client ID**, and the last part of its address (its slug), generate a client secret, and generate a private key, which downloads a `.pem` file.
+3. **Set up the service** for your apps. In `wrangler.jsonc`, put your apps' slugs, your setup page's address if you have one, and, as we recommend, your sites' addresses in `ALLOWED_ORIGINS`. Set its secrets with `npx wrangler@4 secret put EDIT_APP_ID`, then `EDIT_CLIENT_ID`, `EDIT_CLIENT_SECRET`, and `EDIT_PRIVATE_KEY` (the `.pem` file's contents), the same four for `OWNER_`, and `SESSION_KEY`, from `openssl rand -base64 32`. Then run `pnpm run deploy` again. Changing `SESSION_KEY` later signs everyone out.

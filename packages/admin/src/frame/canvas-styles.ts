@@ -70,7 +70,7 @@ export function installSiteCss(css: string[]): void {
 }
 
 /**
- * The theme, fonts, custom CSS and Tailwind for the canvas, as the site
+ * The theme, fonts, custom CSS, and Tailwind for the canvas, as the site
  * shows them, light or dark as `scheme` says. The site's own fonts come from
  * their bytes, through `media`, since the frame can't load the site's files.
  */

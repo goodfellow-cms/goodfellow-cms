@@ -7,7 +7,7 @@ describe("cleanSponsors", () => {
     expect(anySponsors(cleanSponsors(file))).toBe(false);
   });
 
-  it("keeps only names, web addresses and https logos", () => {
+  it("keeps only names, web addresses, and https logos", () => {
     const list = cleanSponsors({
       version: 1,
       patrons: [

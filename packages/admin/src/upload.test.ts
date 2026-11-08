@@ -87,7 +87,7 @@ describe("cleanSvg", () => {
     );
   });
 
-  it("removes processing instructions, comments and attributes from other namespaces", () => {
+  it("removes processing instructions, comments, and attributes from other namespaces", () => {
     const cleaned = cleanSvg(
       `<?xml-stylesheet type="text/xsl" href="https://evil.example/page.xsl"?><!-- hi -->${svg(
         '<rect ev:event="click" xmlns:ev="http://www.w3.org/2001/xml-events"/><!-- there -->',

@@ -90,7 +90,7 @@ describe("choosing and crediting photos", () => {
     expect(pickStockPhoto([])).toBeUndefined();
   });
 
-  it("credits a photo with its title, creator, source and license", async () => {
+  it("credits a photo with its title, creator, source, and license", async () => {
     const fake = fakeOpenverse({
       photos: () => [choir, { ...choir, id: "pd", license: "pdm", license_version: "1.0", source: "wikimedia" }],
     });

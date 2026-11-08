@@ -2,13 +2,13 @@
 export const NEW_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
 
 /**
- * Addresses that can't run code: the site's own, the web's, email and phone.
+ * Addresses that can't run code: the site's own, the web's, email, and phone.
  * Anything with another scheme, such as `javascript:`, `data:` or `blob:`, isn't.
  */
 export function isSafeUrl(url: string): boolean {
   const trimmed = url.trim();
   if (/^(?:https?:|mailto:|tel:)/i.test(trimmed)) return true;
-  // No scheme at all: relative, root-relative or a fragment. Anything with a colon before the first slash has one.
+  // No scheme at all: relative, root-relative, or a fragment. Anything with a colon before the first slash has one.
   return !/^[^/?#]*:/.test(trimmed);
 }
 

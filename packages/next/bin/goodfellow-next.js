@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // After `next build`: `goodfellow-next finish out` fixes the export's prefetch files on Windows,
 // writes the calendar files of collections of events, collections' feeds, the pages at redirects' old addresses and Cloudflare Pages' _redirects, and the search index for sites with a search block,
-// copies the site's Google Fonts into the export, builds plugins' admin frames and runs their build steps, starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
+// copies the site's Google Fonts into the export, builds plugins' admin frames, and runs their build steps, starts every page with the admin address's guard for a site with one, and reports what automated checks find on the exported pages. `index` only writes the index.
 // `goodfellow-next update` updates Goodfellow, as `goodfellow update` does for other sites.
 // `goodfellow-next task [--describe] [--out <file>]` runs one of a plugin's tasks for the admin panel, or with
 // --describe only writes it down for a job with no secrets, as `goodfellow task` does.
@@ -19,7 +19,7 @@
 // `goodfellow blocks add` does, and with --native its version for an Expo app.
 // `goodfellow-next admin add <address>|check|remove` sets the admin address, and `goodfellow-next broker use <address>|remove`
 // the token broker, and `goodfellow-next sign-in service <address>|client-id <id>|remove` how editors sign in, in
-// goodfellow.config.tsx, as `goodfellow admin`, `goodfellow broker` and `goodfellow sign-in` do.
+// goodfellow.config.tsx, as `goodfellow admin`, `goodfellow broker`, and `goodfellow sign-in` do.
 import { existsSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
@@ -102,7 +102,7 @@ import {
 const [command, dir = "out"] = process.argv.slice(2);
 const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
 // A full-stack site (withGoodfellow(config, { server: true })): Next.js serves its pages and sends redirects
-// itself, so the calendar files, feeds and the search index are written into public/, which `next start` and hosts
+// itself, so the calendar files, feeds, and the search index are written into public/, which `next start` and hosts
 // serve as static files, as they are for an export.
 // A theme installed before it was three days old is used only once its provenance checks out, whatever the
 // admin panel said, since a browser can lie.
@@ -459,8 +459,8 @@ if (command !== "finish" && command !== "index") {
       "",
       "finish  Gets the exported site in folder (default: out) ready to publish: puts the files",
       "        Next.js uses to load pages ahead where browsers look for them, writes calendar files",
-      "        for collections of events, collections' feeds and pages that send visitors on from",
-      "        old addresses, builds plugins' admin frames and runs their build steps, indexes it",
+      "        for collections of events, collections' feeds, and pages that send visitors on from",
+      "        old addresses, builds plugins' admin frames, and runs their build steps, indexes it",
       "        for search, and lists what automated accessibility checks",
       "        find on its pages. With --server, for a full-stack site, writes the calendar files",
       "        and feeds into public/calendars and public/feeds and indexes and checks the pages",
@@ -474,22 +474,22 @@ if (command !== "finish" && command !== "index") {
       "        GitHub Actions, or adds it to --output.",
       "nightly Says whether tonight's build is needed: when the site has changed since the live",
       "        site was built, what it shows by today's date has, or an update is available",
-      "        (--mode, or GOODFELLOW_NIGHTLY: changed, the default, always or off), and sets the",
+      "        (--mode, or GOODFELLOW_NIGHTLY: changed, the default, always, or off), and sets the",
       "        step's build and update outputs on GitHub Actions, or adds them to --output.",
       "content For a site whose content is kept in a repository of its own: links content/ and",
       "        public/media/ to the content repository in folder (default: content-repository),",
       "        or copies them from it, as builds do.",
-      "import  Brings a WordPress site's pages, posts, categories, tags, menus and media into",
+      "import  Brings a WordPress site's pages, posts, categories, tags, menus, and media into",
       "        this site, from its export file (Tools → Export) or its address. With --dry-run,",
       "        says what it would bring across and changes nothing. import markdown brings a folder",
       "        of Markdown files in: the files at the top as pages, each folder as a collection,",
       "        unless --pages or --collection names it (. for the top). import site brings another",
-      "        Goodfellow site's export in: its pages, items, synced blocks and media, keeping this",
+      "        Goodfellow site's export in: its pages, items, synced blocks, and media, keeping this",
       "        site's version of what both have unless --take export; --menus, --settings, --layout",
       "        and --redirects bring those too, and --replace makes this site's content the export's.",
       "export  Writes this site as a WordPress export file (default: named after the site),",
       "        which WordPress imports with Tools → Import → WordPress, or as a folder of Markdown",
-      "        files, for Hugo, Jekyll, Eleventy, Astro and notes apps (--scheduled also exports what",
+      "        files, for Hugo, Jekyll, Eleventy, Astro, and notes apps (--scheduled also exports what",
       "        isn't shown yet, as drafts; --links files links to the files rather than the addresses).",
       "        export site writes this site's content and media as a zip for another Goodfellow site.",
       "blocks  Installs a shadcn registry item (button, @acme/hero, or an item's address) with",

@@ -76,7 +76,7 @@ function aiHint(
       if (options.length === 0) return undefined;
       return { type: field.multiple ? "choices" : "choice", options, description };
     }
-    // Images, files and groups are left to editors: the assistant can't know the site's files.
+    // Images, files, and groups are left to editors: the assistant can't know the site's files.
     case "images":
     case "file":
     case "group":

@@ -7,7 +7,7 @@ const usePuck = createUsePuck();
 
 /**
  * How the page looks when a link to it is shared, such as in a message or on
- * social media: its title, description and image as link previews show them,
+ * social media: its title, description, and image as link previews show them,
  * from the page's settings or else Site Settings', updated as they're edited,
  * with the picture large over the title or small beside it, as its settings say.
  */

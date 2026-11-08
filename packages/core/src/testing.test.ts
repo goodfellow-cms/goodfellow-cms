@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FakeConflictError, FakeRepo, fakeFileBytes, fakeFileFromBytes, gitBlobSha } from "./testing.js";
 
 describe("FakeRepo", () => {
-  it("records commits, history and changed paths", () => {
+  it("records commits, history, and changed paths", () => {
     const repo = new FakeRepo({ "content/a.json": "1" });
     const first = repo.head();
     const second = repo.write("content/b.json", "2");

@@ -1,12 +1,12 @@
 ---
 version: 1
 title: Move content between Goodfellow sites
-description: Export a Goodfellow site's pages, collections, synced blocks, menus, settings and media as one file, and import it into another Goodfellow site, adding to its content or replacing it, with nothing lost.
+description: Export a Goodfellow site's pages, collections, synced blocks, menus, settings, and media as one file, and import it into another Goodfellow site, adding to its content or replacing it, with nothing lost.
 section: owners
 order: 6.3
 ---
 
-A Goodfellow site's content can be moved into another Goodfellow site as it is: pages keep their blocks and layout, collections keep their fields and design, and synced blocks, menus, settings and media come across too. It's for starting a new site from an old one, bringing two sites together, or copying a section from one site to another. Unlike [Move from WordPress](/docs/move-from-wordpress) or [Export as Markdown](/docs/export-markdown), nothing is converted, so nothing is lost that the other site can show.
+A Goodfellow site's content can be moved into another Goodfellow site as it is: pages keep their blocks and layout, collections keep their fields and design, and synced blocks, menus, settings, and media come across too. It's for starting a new site from an old one, bringing two sites together, or copying a section from one site to another. Unlike [Move from WordPress](/docs/move-from-wordpress) or [Export as Markdown](/docs/export-markdown), nothing is converted, so nothing is lost that the other site can show.
 
 ## Exporting
 
@@ -19,7 +19,7 @@ Media kept in a [storage service](/docs/media#media-kept-in-a-storage-service) i
 1. On the other site, go to **Site Settings → Import / Export**, and find **Import from another Goodfellow site**.
 2. Choose the zip file. Nothing changes yet: you see what it brings in first.
 3. Choose how to bring it in:
-   - **Add to this site** (the default) keeps this site's content and brings in the pages, collection items, synced blocks and media it doesn't have. Tick **Menus**, **Site Settings** (with colors and fonts, custom CSS and code, and the admin panel's languages), **The header and footer**, or **Redirects** to bring those in too. Menus are merged by name, and only redirects this site doesn't have are added.
+   - **Add to this site** (the default) keeps this site's content and brings in the pages, collection items, synced blocks, and media it doesn't have. Tick **Menus**, **Site Settings** (with colors and fonts, custom CSS and code, and the admin panel's languages), **The header and footer**, or **Redirects** to bring those in too. Menus are merged by name, and only redirects this site doesn't have are added.
    - **Replace this site's content** makes this site's content the other site's, and removes everything it doesn't have.
 4. Where both sites have something, differently, such as a page at the same address, a collection item with the same name, or a media file with the same name, it's listed under **Both sites have these, differently**. This site's version is kept unless you tick **Use the other site's**, one by one or for all.
 5. Click **Import**. It's published in one go, after the usual [site checks](/docs/publishing#site-checks). If it isn't what you wanted, go back on **Site Settings → Site history**.
@@ -35,7 +35,7 @@ Whichever way you import, these stay as the receiving site has them:
 
 ## Blocks and collections
 
-- **Blocks the site doesn't have:** pages and the rest that use one of the other site's own blocks, or a block it added from a block registry that this site hasn't, are left out, and the list says which. Tick **Bring in what uses blocks this site doesn't have, without those blocks** to bring them in anyway, missing those blocks. Blocks the other site added from Goodfellow's block registry can be added in the same publish: tick **Add … from Goodfellow's block registry**, and the editor offers them once the site has been rebuilt. Blocks from other registries are only listed: add them under **Blocks** first. Sites whose code is kept apart from their content, demos and full-stack Next.js sites can't add blocks here.
+- **Blocks the site doesn't have:** pages and the rest that use one of the other site's own blocks, or a block it added from a block registry that this site hasn't, are left out, and the list says which. Tick **Bring in what uses blocks this site doesn't have, without those blocks** to bring them in anyway, missing those blocks. Blocks the other site added from Goodfellow's block registry can be added in the same publish: tick **Add … from Goodfellow's block registry**, and the editor offers them once the site has been rebuilt. Blocks from other registries are only listed: add them under **Blocks** first. Sites whose code is kept apart from their content, demos, and full-stack Next.js sites can't add blocks here.
 - **Collections:** a collection this site doesn't have comes in whole. One it has with the same fields gets the other site's items added. One it has with other fields is listed under **Both sites have these, differently**: this site's collection is kept, with only the other site's items that fit it, unless you choose the other site's, which replaces this site's collection and its items.
 - **Addresses:** a new page at an address one of this site's collection items has, or the other way round, is left out.
 - **Plugins** aren't installed, only listed: add them under **Plugins**.
@@ -54,4 +54,4 @@ npx goodfellow export site
 npx goodfellow import site st-anne-2026-11-01.zip
 ```
 
-(`npx goodfellow-next export site` and `npx goodfellow-next import site` for a Next.js site.) `export site` writes the zip, named after the site, or the file you name, which has to be new. `import site` takes the zip, or the folder it unpacks to, and writes the changes into the site's folder, to publish with git. It keeps this site's version of what both have differently unless `--take export`; `--menus`, `--settings`, `--layout` and `--redirects` bring those in too, `--replace` replaces the site's content, `--without-missing-blocks` brings in what uses blocks the site lacks without them, and `--dry-run` says what would come across and changes nothing. It lists blocks to add from Goodfellow's block registry, which you add under **Blocks**.
+(`npx goodfellow-next export site` and `npx goodfellow-next import site` for a Next.js site.) `export site` writes the zip, named after the site, or the file you name, which has to be new. `import site` takes the zip, or the folder it unpacks to, and writes the changes into the site's folder, to publish with git. It keeps this site's version of what both have differently unless `--take export`; `--menus`, `--settings`, `--layout`, and `--redirects` bring those in too, `--replace` replaces the site's content, `--without-missing-blocks` brings in what uses blocks the site lacks without them, and `--dry-run` says what would come across and changes nothing. It lists blocks to add from Goodfellow's block registry, which you add under **Blocks**.

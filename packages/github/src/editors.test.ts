@@ -33,7 +33,7 @@ describe("GitHub editors", () => {
     expect(owner.tokenLink.url).toBe(githubTokenLinks("parish/site").owner);
   });
 
-  it("invites, changes and removes editors with an owner token", async () => {
+  it("invites, changes, and removes editors with an owner token", async () => {
     const { fake, editors, owner } = await signIn();
     await owner.applyToken("owner");
     expect(owner.active).toBe(true);

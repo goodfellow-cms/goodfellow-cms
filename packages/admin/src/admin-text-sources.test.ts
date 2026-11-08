@@ -43,7 +43,7 @@ describe("what the admin panel says", () => {
     expect(Object.keys(PUCK_ENGLISH).sort()).toEqual(Object.keys(spanishPuck).sort());
   });
 
-  it("lists the site's blocks' labels, choices and placeholders, with any more given", () => {
+  it("lists the site's blocks' labels, choices, and placeholders, with any more given", () => {
     expect(labelSources(description, ["Layout"])).toEqual([
       "Hero",
       "Large",
@@ -82,7 +82,7 @@ describe("a language's translation", () => {
     labels: {},
   };
 
-  it("counts what's current, out of date, unusable and missing", () => {
+  it("counts what's current, out of date, unusable, and missing", () => {
     expect(languageStatus(file, sources)).toEqual({
       total: 4,
       current: 1,
@@ -130,7 +130,7 @@ describe("a language's translation", () => {
     });
   });
 
-  it("finds strings by their English, key or text, and by where they stand", () => {
+  it("finds strings by their English, key, or text, and by where they stand", () => {
     const keys = (found: { key: string }[]) => found.map((source) => source.key);
     expect(keys(filterSources(file, sources, { query: "PUBLISH" }))).toEqual(["strings:publish.button"]);
     expect(keys(filterSources(file, sources, { query: "publier" }))).toEqual(["strings:publish.button"]);

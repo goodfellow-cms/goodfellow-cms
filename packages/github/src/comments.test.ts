@@ -84,7 +84,7 @@ describe("GitHub comments", () => {
     });
   });
 
-  it("lists pages' comments, and hides, shows, deletes and locks them", async () => {
+  it("lists pages' comments, and hides, shows, deletes, and locks them", async () => {
     const { fake, comments, signOut } = await signIn();
     await comments.access.applyToken("comments");
     fake.addRepo("maria/talk", { discussions: true });

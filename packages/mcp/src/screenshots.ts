@@ -57,7 +57,7 @@ class BrowserClosed extends Error {
   override name = "BrowserClosed";
 }
 
-/** Waits until the page's requests have stopped for `QUIET`, its fonts are loaded and its images are in, or until `MAX_SETTLE`. */
+/** Waits until the page's requests have stopped for `QUIET`, its fonts are loaded, and its images are in, or until `MAX_SETTLE`. */
 async function settle(page: Page, inFlight: () => number, until: number): Promise<void> {
   const settleUntil = Math.min(until, Date.now() + MAX_SETTLE);
   let quietSince = inFlight() === 0 ? Date.now() : 0;

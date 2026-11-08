@@ -566,7 +566,7 @@ function changed(
 
 type Asking = { kind: "hide" | "delete"; comment: SiteComment };
 
-/** Pages' comments, those commented on most recently first, with hiding, deleting and closing them. */
+/** Pages' comments, those commented on most recently first, with hiding, deleting, and closing them. */
 function Moderation({ place }: { place: CommentsPlace }) {
   const t = useStrings();
   const { comments } = useAdmin();

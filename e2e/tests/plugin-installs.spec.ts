@@ -16,7 +16,7 @@ import { ADMIN_ADDRESSES } from "../scripts/site.mjs";
 import { files, routeToFake } from "./backends.js";
 
 // Installing plugins from Site Settings' Plugins screen, which needs the admin panel out of the site's pages'
-// reach: the admin address test site (`builtSites.admin`), against fakes of GitHub, npm and jsDelivr.
+// reach: the admin address test site (`builtSites.admin`), against fakes of GitHub, npm, and jsDelivr.
 const { admin } = ADMIN_ADDRESSES;
 const starter = join(import.meta.dirname, "../../templates/starter");
 /** The test site's own config, which doesn't list installed plugins yet. */

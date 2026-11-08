@@ -43,7 +43,7 @@ import { partsMarkdown } from "./markdown.js";
 import type { WordPressItem, WordPressMedia, WordPressMenu, WordPressSite, WordPressTerm } from "./model.js";
 import { type BlockData, BlockWriter, IMPORT_BLOCKS, pageBlocks, partBlocks } from "./page-blocks.js";
 
-/** Words the import writes into content: the posts collection's names, its fields' labels and the link back to all posts. */
+/** Words the import writes into content: the posts collection's names, its fields' labels, and the link back to all posts. */
 export interface WordPressImportNames {
   posts: string;
   post: string;
@@ -362,7 +362,7 @@ export function planWordPressImport(
   const importedPagePaths = new Set(pagePaths.values());
   const keptPages = content.pages.filter((page) => !importedPagePaths.has(page.path));
 
-  /* Posts: a collection, its items' names and their addresses. */
+  /* Posts: a collection, its items' names, and their addresses. */
   const existingPosts = content.collections.find((collection) => collection.id === "posts");
   const collectionId =
     posts.length === 0

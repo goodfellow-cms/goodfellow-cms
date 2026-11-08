@@ -35,7 +35,7 @@ describe("shortcutFor", () => {
     expect(shortcutFor(press("s"), false)).toBeUndefined();
   });
 
-  it("undoes, redoes and lists the shortcuts only outside text fields", () => {
+  it("undoes, redoes, and lists the shortcuts only outside text fields", () => {
     expect(shortcutFor(press("z", { ctrlKey: true }), false)).toBe("undo");
     expect(shortcutFor(press("Z", { metaKey: true, shiftKey: true }), false)).toBe("redo");
     expect(shortcutFor(press("y", { ctrlKey: true }), false)).toBe("redo");
@@ -46,7 +46,7 @@ describe("shortcutFor", () => {
     expect(shortcutFor(press("?", { ctrlKey: true }), false)).toBeUndefined();
   });
 
-  it("lets frames pass on only adding to a draft, the Go to box and the list", () => {
+  it("lets frames pass on only adding to a draft, the Go to box, and the list", () => {
     expect(["save", "goTo", "help"].every(isForwardedShortcut)).toBe(true);
     expect(isForwardedShortcut("undo")).toBe(false);
     expect(isForwardedShortcut("navigate")).toBe(false);
@@ -101,7 +101,7 @@ describe("the Go to box", () => {
   const screens: GoToPlace[] = [{ kind: "screen", label: "Media", href: "#/media" }];
   const places = goToPlaces(content, screens);
 
-  it("lists the screens, then pages, collections, items and synced blocks", () => {
+  it("lists the screens, then pages, collections, items, and synced blocks", () => {
     expect(places.map((place) => [place.kind, place.label, place.href])).toEqual([
       ["screen", "Media", "#/media"],
       ["page", "Home", "#/pages/edit?path=%2F"],

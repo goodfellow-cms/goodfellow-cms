@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Plugins
-description: Add what blocks can't, such as screens in the admin panel, steps in the build and routes on a full-stack site's server, each held to the permissions it declares.
+description: Add what blocks can't, such as screens in the admin panel, steps in the build, and routes on a full-stack site's server, each held to the permissions it declares.
 section: developers
 order: 8.5
 ---
@@ -22,7 +22,7 @@ Owners install plugins from the admin panel's **Site Settings → Plugins**, whe
 
 - **An update, sooner, where its provenance allows:** an owner can install an update of a plugin the site has before it's three days old with **Install now**, but only where both the version installed and the new one have provenance from the same repository and the same workflow file in it. Releases published with a stolen token, which the wait is for, come from somewhere else; a version number proves nothing, so provenance is all that counts. A first install always waits, a release without provenance or from anywhere else waits, and the wait stays the default: Install now is only ever a choice. The record says it was installed early (`early`, with the version it updates and the repository and workflow), and the site's lockfile job checks it again before it writes the lockfile, since the admin panel's word isn't enough: it verifies both releases' Sigstore signatures from npm's registry, and fails, publishing nothing, if anything doesn't match. It then installs the release with nothing published after it, so the packages it needs can't bring anything newer. On full-stack sites, the site's server checks it before the change goes for review. Sites made before this have the job from the starter's setup, and the admin panel only offers Install now where the setup checks it.
 
-The site's build then writes `package-lock.json`, with `npm install --package-lock-only --ignore-scripts`: it installs nothing and runs none of the plugin's code, and takes only releases at least three days old for the packages the plugin needs. It publishes the lockfile, and builds the site with it. The starters' setups for GitHub Pages, GitLab Pages and Cloudflare Pages do this, and so does the `bitbucket-pipelines.yml` of sites on Bitbucket; the admin panel says when a site's setup doesn't, and installs nothing until a developer updates it from the starter's. Vercel builds sites itself, so on Vercel, other than from Bitbucket, developers add plugins in code for now.
+The site's build then writes `package-lock.json`, with `npm install --package-lock-only --ignore-scripts`: it installs nothing and runs none of the plugin's code, and takes only releases at least three days old for the packages the plugin needs. It publishes the lockfile, and builds the site with it. The starters' setups for GitHub Pages, GitLab Pages, and Cloudflare Pages do this, and so does the `bitbucket-pipelines.yml` of sites on Bitbucket; the admin panel says when a site's setup doesn't, and installs nothing until a developer updates it from the starter's. Vercel builds sites itself, so on Vercel, other than from Bitbucket, developers add plugins in code for now.
 
 A plugin that asks for more than its owner approved, in a later release or by changing what its package exports, stops the site from loading, and says what it asked for: install it again from the Plugins screen to approve it.
 
@@ -32,7 +32,7 @@ A plugin's code is included when the site builds, so the admin panel installs pl
 
 - **At an admin address of its own** ([Security](/docs/security)), where the Plugins screen asks before installing, outside the editor's sandbox.
 - **With a token broker** ([Security](/docs/security)), which asks again in its own dialog, naming the plugin and what it asks to do.
-- **On full-stack Next.js sites**, whose builds and servers hold the site's secrets, installing, updating or removing a plugin is submitted for review, for a developer to accept. Only owners can.
+- **On full-stack Next.js sites**, whose builds and servers hold the site's secrets, installing, updating, or removing a plugin is submitted for review, for a developer to accept. Only owners can.
 
 Elsewhere the screen lists plugins and explains, and developers add them in code. Plugins whose blocks are on a page can't be removed until the page no longer uses them. The Updates screen warns when a Goodfellow release is outside an installed plugin's range; installing such a release fails, as npm refuses it, and the site stays as it was.
 
@@ -62,7 +62,7 @@ Rebuild the site, or restart `goodfellow dev` the first time, and the plugin's s
 
 ## What a plugin is
 
-A plugin is an object made with `definePlugin()` from `@goodfellow-cms/core`, usually returned by a function its package exports so sites can pass it options. Its admin, build and server parts are named by module, never imported into the config, since the config is loaded in the browser too: each part is loaded only where it runs.
+A plugin is an object made with `definePlugin()` from `@goodfellow-cms/core`, usually returned by a function its package exports so sites can pass it options. Its admin, build, and server parts are named by module, never imported into the config, since the config is loaded in the browser too: each part is loaded only where it runs.
 
 ```ts
 import { definePlugin } from "@goodfellow-cms/core";
@@ -113,7 +113,7 @@ A plugin gets nothing it doesn't declare. Leave out what it doesn't need.
 | `connect` | The addresses its admin module may request, as origins: `https://api.example.com`, or `https://*.example.com` | The plugin's frame has a Content Security Policy that reaches only these. |
 | `files` | The content files and media its screens may read and publish: a file such as `content/gallery.json`, or a folder ending in `/`, under `content/` or `public/media/` | The admin panel refuses any other read or publish. The site's own code in `content/code/` can never be declared. |
 | `secrets` | The environment variables its build steps and tasks get | A step's or task's process gets these and nothing else of the build's environment. The tokens that can publish to the repository can never be declared. |
-| `read` | Files and folders from the site's root its build steps and tasks may read, besides the built site, their own package and `node_modules` | Node's permission model refuses every other read. |
+| `read` | Files and folders from the site's root its build steps and tasks may read, besides the built site, their own package, and `node_modules` | Node's permission model refuses every other read. |
 | `write` | Files and folders in the built site its build steps may write | Node's permission model refuses every other write. |
 
 Services the admin module requests must allow requests from any origin (`Access-Control-Allow-Origin: *`): its frame is sandboxed, so it has no origin of its own.
@@ -142,13 +142,13 @@ export default definePluginAdmin({
 });
 ```
 
-**Screens** draw into the element they're given, with plain DOM or a framework of the plugin's own, and may return a function that cleans up. A screen's frame is the whole screen, as wide as the admin panel's other screens and as tall as what it draws, so start with the screen's own heading (`<h1>`). The frame has the admin panel's colors as `--gfa-*` custom properties, which follow its light or dark choice, and plain styles for headings, sections, fields, buttons, lists and code.
+**Screens** draw into the element they're given, with plain DOM or a framework of the plugin's own, and may return a function that cleans up. A screen's frame is the whole screen, as wide as the admin panel's other screens and as tall as what it draws, so start with the screen's own heading (`<h1>`). The frame has the admin panel's colors as `--gfa-*` custom properties, which follow its light or dark choice, and plain styles for headings, sections, fields, buttons, lists, and code.
 
 **`api`**, which screens and services are given, asks the admin panel for:
 
 - `read(paths)` and `readBytes(path)`: files the plugin declared, as the site is loaded.
 - `list(folder)`: the files the plugin declared under a folder, such as `public/media/`.
-- `publish(changes, message)`: changes to files the plugin declared, in one publish, after the same checks as any publish, answering whether it was published. A change is `{ path, text }`, `{ path, bytes }` or `{ path, delete: true }`.
+- `publish(changes, message)`: changes to files the plugin declared, in one publish, after the same checks as any publish, answering whether it was published. A change is `{ path, text }`, `{ path, bytes }`, or `{ path, delete: true }`.
 - `server(path, request)`: the plugin's server module on a full-stack site, signed in as the editor. `path` is under the plugin's own address, so paths that would leave it (`..`, in any spelling) are refused.
 - `task(id, input)`: one of the plugin's [tasks](#tasks), run in the site's CI, answering with what it returned. It takes about a minute.
 - `secretsHelp()`: how the site's owner adds the secrets the plugin declared, for this site as it's set up, in the admin panel's words: on GitHub, the form for a new Actions secret and what to type in it; on GitLab, the CI/CD variables; on Bitbucket, the repository variables; in `goodfellow dev` and `next dev`, the lines of `.env.local`; on a full-stack site, the server's environment, then the CI. Show its steps as they are.
@@ -179,7 +179,7 @@ Other plugins' blocks can ask a plugin's services too, so a service should offer
 
 `goodfellow build` and `goodfellow-next finish` bundle each plugin's admin module into its frame, at `admin/plugins/<id>/`, and run its build steps once the site's pages are written, before the search index and the [admin address's](/docs/custom-domains#an-admin-address) guards, which then cover what the steps wrote.
 
-Serving a frame hands its code to whoever opens it, so every build, the development servers' included, writes `admin/plugins/<id>/LICENSES.txt` beside it, and its page links to it. It lists every package the frame bundles, the plugin's own and the ones it needs, with its version, its license and where its source is (its repository, or else its page on npm), then each license text once, after the packages it covers.
+Serving a frame hands its code to whoever opens it, so every build, the development servers' included, writes `admin/plugins/<id>/LICENSES.txt` beside it, and its page links to it. It lists every package the frame bundles, the plugin's own and the ones it needs, with its version, its license, and where its source is (its repository, or else its page on npm), then each license text once, after the packages it covers.
 
 ```js
 export default async function thumbnails({ root, outDir, base, secrets }) {
@@ -203,7 +203,7 @@ export default async function publishAlbum(input, { root, secrets }) {
 }
 ```
 
-Each task runs in a Node process of its own, held as build steps are: it reads only its own package, `node_modules` and what it declared in `read`, writes nothing, starts no other processes, and gets only the secrets it declared, which can't be the git hosts', CI services' or hosts' own variables (`GITHUB_*`, `CI_*`, `BITBUCKET_*`, `VERCEL_*`, `CLOUDFLARE_*`, `NETLIFY_*`, `NODE_*`, `NPM_*` and the like). Loading a site's config runs every package it imports, plugins' own included, with nothing to hold them, and on Linux a process can read the environment the process that started it began with, so the config is never loaded where the secrets are. That keeps the secrets from plugins' and other packages' code, but not from anyone who can publish to the site's code, who can change which plugins it has and what they ask for, or the workflow itself: give tasks keys that can do only what the plugin needs (see [Security](/docs/security)). Its input and answer are JSON, at most 32,000 and 512,000 characters.
+Each task runs in a Node process of its own, held as build steps are: it reads only its own package, `node_modules`, and what it declared in `read`, writes nothing, starts no other processes, and gets only the secrets it declared, which can't be the git hosts', CI services', or hosts' own variables (`GITHUB_*`, `CI_*`, `BITBUCKET_*`, `VERCEL_*`, `CLOUDFLARE_*`, `NETLIFY_*`, `NODE_*`, `NPM_*`, and the like). Loading a site's config runs every package it imports, plugins' own included, with nothing to hold them, and on Linux a process can read the environment the process that started it began with, so the config is never loaded where the secrets are. That keeps the secrets from plugins' and other packages' code, but not from anyone who can publish to the site's code, who can change which plugins it has and what they ask for, or the workflow itself: give tasks keys that can do only what the plugin needs (see [Security](/docs/security)). Its input and answer are JSON, at most 32,000 and 512,000 characters.
 
 - **On GitHub**, the starters' `.github/workflows/plugin-task.yml` runs it, started by a `repository_dispatch` event, which any sign-in that can publish can send. Its `describe` job loads the site's config with read access only and no secrets, its `task` job runs the task with `${{ toJSON(secrets) }}` from Goodfellow's task runner, running none of the site's other code, and a third job, which runs none of it either, puts the sealed answer on a branch of its own, `goodfellow-task-<request>`, which the admin panel reads and deletes. Add the secrets under the repository's **Settings → Secrets and variables → Actions**.
 - **On GitLab**, the starters' `.gitlab-ci.yml` has a `plugin-task-describe` job and a `plugin-task` job, run in a pipeline the admin panel starts with the request's variables, whose artifact holds the sealed answer. Add the secrets under **Settings → CI/CD → Variables**, masked and protected, since tasks run on the main branch, and with their environment set to `goodfellow-tasks`, the `plugin-task` job's alone, where your GitLab plan offers it: GitLab gives every job a variable that isn't scoped to an environment, the site's build and the job that loads its config included.
@@ -236,7 +236,7 @@ Its screens turn it on by publishing `content/media-storage.json` (declared in i
 
 ## A page editor of its own
 
-A plugin with `editor` offers a page editor of its own, such as one people already know from elsewhere. Each person editing the site chooses it, or the standard editor, from **Editor** in the editor's header, and their browser remembers the choice. It edits pages unless it lists other `kinds`: `"header"`, `"footer"` and `"template"` (collections' templates) are the others. Items' fields are always edited in the standard editor.
+A plugin with `editor` offers a page editor of its own, such as one people already know from elsewhere. Each person editing the site chooses it, or the standard editor, from **Editor** in the editor's header, and their browser remembers the choice. It edits pages unless it lists other `kinds`: `"header"`, `"footer"`, and `"template"` (collections' templates) are the others. Items' fields are always edited in the standard editor.
 
 ```ts
 definePlugin({
@@ -276,7 +276,7 @@ export default definePluginAdmin({
 });
 ```
 
-The session also carries the page's `kind`, `path`, `title` and `language`, the site's settings, its pages for links, and for a template, the collection whose fields its `{name}` placeholders fill in. The editor never sees the site's blocks' code, only their fields.
+The session also carries the page's `kind`, `path`, `title`, and `language`, the site's settings, its pages for links, and for a template, the collection whose fields its `{name}` placeholders fill in. The editor never sees the site's blocks' code, only their fields.
 
 To show blocks as they look on the site, it asks for them to be drawn:
 
@@ -284,7 +284,7 @@ To show blocks as they look on the site, it asks for them to be drawn:
 - **`session.fields(block)`** gives a block's settings as its props now make them, in the same form as `session.blocks`' fields. Some blocks choose their settings in the site's own code, and their description says `resolvesFields`: the Comments block, for one, offers Giscus's settings only for comments kept by Giscus. Ask for those blocks' settings again as their props change, and show what comes back. Admin panels from before Goodfellow 0.9 don't have it, so call it as `session.fields?.(block)` and keep `session.blocks`' fields where it's missing.
 - **`session.styles()`** gives what to style what's drawn with: `stylesheets`, the site's stylesheets as CSS text, as its last build compiled them, with the theme's colors and fonts as they are now; and `tailwind`, Tailwind's source for the site (the theme's classes and the custom CSS as it is now). Classes the site's build hasn't seen yet, such as ones an editor just chose, aren't in the stylesheets: compile `tailwind` with `@tailwindcss/browser` in a `<style type="text/tailwindcss">` where blocks are shown, as the admin panel's own previews do. The stylesheets name the theme's fonts without loading them: `fonts`, where the theme uses Google Fonts, is their stylesheet's address, to load with a `<link rel="stylesheet">`. The site's [own fonts](/docs/layout-and-settings#your-own-fonts) are in `customFonts`, which the frame's runtime adds to the frame's page from their files when `styles()` is called, since the frame can't load the site's files itself.
 
-Content names media files as `/media/…`, and so do drawn blocks. Leave those addresses as they are: the admin panel shows the site's media in the editor's page itself, as it does in the standard editor, so `/media/…` addresses in images, links, posters and inline styles anywhere in it are shown from wherever each file is now: the site's folder on a site in a folder of its domain, the browser's memory for a file just uploaded that the site doesn't have yet, or the storage a plugin keeps the site's media in. Text edited in place (`contenteditable`) is left as it is, so what's read back from it keeps content's addresses. Releases of Goodfellow that do this say so with `session.showsMedia`; on older ones, add the site's address (`api.siteUrl`) to what's shown yourself.
+Content names media files as `/media/…`, and so do drawn blocks. Leave those addresses as they are: the admin panel shows the site's media in the editor's page itself, as it does in the standard editor, so `/media/…` addresses in images, links, posters, and inline styles anywhere in it are shown from wherever each file is now: the site's folder on a site in a folder of its domain, the browser's memory for a file just uploaded that the site doesn't have yet, or the storage a plugin keeps the site's media in. Text edited in place (`contenteditable`) is left as it is, so what's read back from it keeps content's addresses. Releases of Goodfellow that do this say so with `session.showsMedia`; on older ones, add the site's address (`api.siteUrl`) to what's shown yourself.
 
 Pasted HTML becomes the site's blocks with `htmlBlocks(html, { blocks })` from `@goodfellow-cms/core/wordpress`, the WordPress import's own conversion: WordPress's block markup, which copying from its editor gives, by its blocks, and any other HTML by its elements, leaving out scripts and anything else that would run code. Give it the site's blocks (`Object.keys(session.blocks)`), so WordPress's blocks the site doesn't have come across as the ones it does would show them, and `link` and `media` to change addresses as the site keeps them. It answers with the blocks, without a Section around them, each with an id of its own, and `notes` saying what couldn't come across as it was.
 
@@ -313,7 +313,7 @@ Its default export gets the request and `{ path, editor }`: the path after its i
 ## What can't be enforced
 
 - **A server module** runs with everything the site's server has, its token and secrets included. Only a review backs what it declares.
-- **A build step's or task's network requests** aren't limited: Node's permission model covers files, processes and workers, not the network. The packages it loads share its process and what it was given. Node calls its permission model a seat belt, not a sandbox: it keeps a step or task to what it declared by mistake, not one written to get around it.
+- **A build step's or task's network requests** aren't limited: Node's permission model covers files, processes, and workers, not the network. The packages it loads share its process and what it was given. Node calls its permission model a seat belt, not a sandbox: it keeps a step or task to what it declared by mistake, not one written to get around it.
 - **Blocks on the site's pages** run with everything visitors' browsers allow, like any block, since pages have no Content Security Policy.
 - **A sandboxed frame can leave for another address**, so a plugin's policy limits what its admin module can send while it's there without sealing it. Its sandbox is what keeps it from the admin panel's sign-in.
 
@@ -333,6 +333,6 @@ import plugin from "./dist/index.js";
 writeFileSync("goodfellow-plugin.json", `${JSON.stringify(pluginManifest(plugin), null, 2)}\n`);
 ```
 
-Every site that uses it serves its admin frame, so the code bundled into it is distributed with each one, under its license. Builds write the notices (see [In the build](#in-the-build)) from each package's `package.json` and license files, so give the plugin a `license`, a `repository` and a `LICENSE` file.
+Every site that uses it serves its admin frame, so the code bundled into it is distributed with each one, under its license. Builds write the notices (see [In the build](#in-the-build)) from each package's `package.json` and license files, so give the plugin a `license`, a `repository`, and a `LICENSE` file.
 
-The manifest lists the plugin's title, description and permissions, and whether it has blocks (by name), an admin module, screens, build steps, tasks, a server module and media storage. A site that installed a release runs it only while it asks for no more than that.
+The manifest lists the plugin's title, description, and permissions, and whether it has blocks (by name), an admin module, screens, build steps, tasks, a server module, and media storage. A site that installed a release runs it only while it asks for no more than that.

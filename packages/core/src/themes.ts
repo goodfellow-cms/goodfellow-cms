@@ -151,7 +151,7 @@ function notATheme(name: string): ThemeError {
 
 /**
  * Built-in blocks a theme's header and footer may use: ones that show text or
- * the site's own settings, menus and pages, and load nothing from elsewhere.
+ * the site's own settings, menus, and pages, and load nothing from elsewhere.
  * A site's other blocks, such as Custom HTML, could run a theme's code.
  */
 export const THEME_LAYOUT_BLOCKS: readonly string[] = [

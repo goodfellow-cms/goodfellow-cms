@@ -4,7 +4,7 @@
  * shapes on a 24-unit grid, drawn with a 2-unit stroke and no fill, as
  * Lucide's icons are (`import { Heading } from "lucide"` is one). Only plain
  * shapes and the attributes that place them are kept, so an icon can't carry
- * a script, a link or anything loaded from elsewhere.
+ * a script, a link, or anything loaded from elsewhere.
  */
 import { z } from "zod";
 
@@ -38,7 +38,7 @@ export type BlockIcon = ReadonlyArray<readonly [IconShape, Readonly<Record<strin
 const MAX_SHAPES = 32;
 const MAX_VALUE = 2_000;
 
-/** Numbers, letters and the punctuation of path data and points: never `url(…)`, quotes or `<`. */
+/** Numbers, letters, and the punctuation of path data and points: never `url(…)`, quotes, or `<`. */
 const SAFE_VALUE = /^[\d\s.,+\-eEaAcChHlLmMqQsStTvVzZ]*$/;
 
 /**

@@ -74,7 +74,7 @@ describe("checkEarlyInstall", () => {
     expect(await checkEarlyInstall(earlyUpdate(), "1.0.0", options)).toMatchObject({ ok: true, young: true });
   });
 
-  it("refuses a first install, another workflow, another repository, a missing attestation and a bad signature", async () => {
+  it("refuses a first install, another workflow, another repository, a missing attestation, and a bad signature", async () => {
     const problem = async (releases: Partial<FakeThemeRelease>[], installed: string | undefined = "1.0.0") => {
       const checked = await checkEarlyInstall(earlyUpdate(), installed, npm(releases));
       return checked.ok ? "ok" : checked.problem;

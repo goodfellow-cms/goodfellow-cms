@@ -75,7 +75,7 @@ describe("localFileStore", () => {
     expect(await store.revision()).not.toBe(revision);
   });
 
-  it("only touches content, media and installed blocks' code", async () => {
+  it("only touches content, media, and installed blocks' code", async () => {
     const start = await store.revision();
     await expect(
       store.write([{ path: "goodfellow.config.tsx", content: "x" }], { message: "Bad", expectedRevision: start }),

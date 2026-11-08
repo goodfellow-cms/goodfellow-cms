@@ -30,7 +30,7 @@ export const themeManifestSchema = z.object({
   title: z.string().trim().min(1).max(80),
   description: z.string().max(500).optional(),
   /**
-   * Its colors, fonts and other settings, as `content/site.json`'s `theme` has
+   * Its colors, fonts, and other settings, as `content/site.json`'s `theme` has
    * them, except the site's own fonts, which are files a theme can't install.
    */
   theme: themeSchema
@@ -75,7 +75,7 @@ export const themeRecordSchema = z.object({
   goodfellow: z.string().optional(),
   /** The theme's settings as its release gave them. */
   theme: themeSchema.default({ colors: {}, fonts: {} }),
-  /** Hashes of the CSS, header and footer it wrote, where it wrote them. */
+  /** Hashes of the CSS, header, and footer it wrote, where it wrote them. */
   css: hash.optional(),
   header: hash.optional(),
   footer: hash.optional(),
@@ -201,7 +201,7 @@ export interface ThemeOptions {
 
 export interface ThemePlan {
   changes: FileChange[];
-  /** The site's settings, custom CSS, header and footer as the changes leave them, for previews. */
+  /** The site's settings, custom CSS, header, and footer as the changes leave them, for previews. */
   settings: SiteSettings;
   customCss: string;
   header: LayoutFile;
@@ -220,7 +220,7 @@ function layoutText(file: string, layout: LayoutFile): string {
 /**
  * The changes that install a theme's release, update the installed theme to
  * it, or, with no theme, remove the installed one. An update (the same theme)
- * replaces only settings, CSS, header and footer nobody has changed since the
+ * replaces only settings, CSS, header, and footer nobody has changed since the
  * release before, and lists the rest as `kept`. Another theme replaces every
  * setting it gives and the theme before's CSS, and removes the theme before's
  * other settings nobody changed, so they fall back to the defaults; removing

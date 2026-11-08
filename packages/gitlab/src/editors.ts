@@ -8,7 +8,7 @@ import {
 } from "@goodfellow-cms/core";
 import { type ApiOptions, gitlabJson, gitlabRequest } from "./api.js";
 
-/** GitLab's roles: Developer, Maintainer and Owner. */
+/** GitLab's roles: Developer, Maintainer, and Owner. */
 const DEVELOPER = 30;
 const MAINTAINER = 40;
 

@@ -82,7 +82,7 @@ export interface TextProps {
   className: string;
 }
 
-/** Formatted text: paragraphs, lists, links and subheadings. */
+/** Formatted text: paragraphs, lists, links, and subheadings. */
 export const Text: ComponentConfig<TextProps> = withParts(
   {
     label: "Text",

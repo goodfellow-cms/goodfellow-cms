@@ -556,7 +556,7 @@ function DarkModeSwitch() {
 }
 
 /**
- * The header's links, the site's address and the account, which narrow
+ * The header's links, the site's address, and the account, which narrow
  * windows show under a menu button: closed again by choosing a link, pressing
  * Escape or clicking elsewhere.
  */

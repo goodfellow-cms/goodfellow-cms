@@ -54,7 +54,7 @@ export interface ApiPageFile {
   version: 1;
   path: string;
   language: string;
-  /** What the page's head says: its title as the browser shows it, description, social image and so on. */
+  /** What the page's head says: its title as the browser shows it, description, social image, and so on. */
   head: Omit<PageHead, "favicon">;
   /** On an item's page, which item it shows. */
   entry?: { collection: string; slug: string };
@@ -131,13 +131,13 @@ export interface ApiManifest {
   /** The Site address, where it's set. */
   url?: string;
   mainLanguage: string;
-  /** Each language's site, collections, header and footer, by its code. */
+  /** Each language's site, collections, header, and footer, by its code. */
   languages: Record<string, { site: ApiFile; collections: ApiFile; header: ApiFile; footer: ApiFile }>;
   /** Every page, "Page not found" (`/404`) and pages blocks add included. */
   pages: Array<
     ApiFile & { path: string; language: string; entry?: { collection: string; slug: string }; added?: true }
   >;
-  /** The blocks the site's pages, headers and footers use, by name. */
+  /** The blocks the site's pages, headers, and footers use, by name. */
   blocks: string[];
   /**
    * The site's redirects, as builds send them: old addresses spelled one way
@@ -355,7 +355,7 @@ function apiRedirects(content: SiteContent, pages: ReadonlySet<string>): ApiRedi
 
 /**
  * The content API's files: each page as it's shown (`pages/…json`), each
- * language's site settings, menus and pages (`site.json`), collections
+ * language's site settings, menus, and pages (`site.json`), collections
  * (`collections.json`), header and footer, and the manifest listing them all
  * with their hashes, so a client downloads only what changed. Addresses in
  * them are from the site's root, without the base path the manifest gives.

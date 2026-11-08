@@ -1,7 +1,7 @@
 /**
  * Parts as a page's Puck blocks, built from Goodfellow's built-in blocks:
  * Sections holding Headings, Text, Images, Columns, Rows of Buttons, Space,
- * Videos, Code and Collection lists, with every prop written out as the
+ * Videos, Code, and Collection lists, with every prop written out as the
  * editor would, and the blocks made for WordPress's own (`WORDPRESS_BLOCKS`)
  * where the site has them.
  */
@@ -148,7 +148,7 @@ function coverFocus({ x, y }: { x: number; y: number }): string {
 
 /**
  * A table's cells as the Table block keeps them: rows of formatted text (bold,
- * italics, links and line breaks, `tableCellHtml()`), the header first and the
+ * italics, links, and line breaks, `tableCellHtml()`), the header first and the
  * footer last.
  */
 function tableCells(rows: TableRow[], link: (address: string) => string): string[][] {

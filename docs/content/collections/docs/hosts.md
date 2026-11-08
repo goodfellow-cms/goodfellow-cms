@@ -29,7 +29,7 @@ GitHub suits a site whose editors already use GitHub, or one with a developer wh
 
 | On the free plan | GitHub Free | GitLab Free | Bitbucket Free |
 |---|---|---|---|
-| Free static hosting | GitHub Pages, public repositories only; or Cloudflare Pages or Netlify, public or private | GitLab Pages, Cloudflare Pages or Netlify, public or private | Vercel only, for non-commercial sites |
+| Free static hosting | GitHub Pages, public repositories only; or Cloudflare Pages or Netlify, public or private | GitLab Pages, Cloudflare Pages, or Netlify, public or private | Vercel only, for non-commercial sites |
 | Editors | Unlimited collaborators | Up to 5 users in a private group or account; unlimited if public | Up to 5 users in a workspace |
 | Build minutes | Unlimited for public repositories, 2,000 a month for private | 400 a month (or build on Cloudflare Pages or Vercel instead) | 50 a month for Pipelines (Vercel builds the site itself) |
 | Sign-in | Personal access token (fine-grained, or classic for collaborators), or Sign in with GitHub with a [sign-in service](/docs/sign-in-service) you run | One-click sign-in (OAuth) or personal access token | One-click sign-in (OAuth, about two hours at a time), repository access token or Atlassian API token |
@@ -48,7 +48,7 @@ The [setup page](/new-site) doesn't offer Bitbucket; make the site with `npm cre
 
 [Cloudflare Pages](https://pages.cloudflare.com) builds sites from repositories on GitHub and GitLab, public or private. Its free plan's limits ([Pages limits](https://developers.cloudflare.com/pages/platform/limits/)):
 
-- **500 builds a month**, one at a time, each up to 20 minutes. Each publish, overnight rebuild and scheduled change that comes due is one build; the site is rebuilt overnight only when something changed.
+- **500 builds a month**, one at a time, each up to 20 minutes. Each publish, overnight rebuild, and scheduled change that comes due is one build; the site is rebuilt overnight only when something changed.
 - **20,000 files**, each up to 25 MiB.
 - **2,000 redirects** in the `_redirects` file the build writes, two for each old address, so about 1,000 old addresses; past that, the build says so, and the pages it writes at old addresses handle the rest.
 - **Domains:** a subdomain, such as `www.example.org`, can keep its DNS where it is, with a CNAME record; the domain itself, such as `example.org`, has to use Cloudflare's nameservers, or redirect to the subdomain through your registrar or a redirect service. See [Custom domains](/docs/custom-domains#sites-on-cloudflare-pages).
@@ -59,7 +59,7 @@ Cloudflare can't build on a schedule, so the site's nightly check, which install
 
 [Netlify](https://www.netlify.com) builds sites from repositories on GitHub and GitLab, public or private. Its free plan, for accounts made since September 4, 2025, counts everything in credits: 300 a month, a hard limit ([Netlify pricing](https://www.netlify.com/pricing/)):
 
-- **15 credits for each production deploy,** which every publish, overnight rebuild and scheduled change that comes due is, so about **20 a month** if the site used nothing else. Failed deploys, and builds Netlify skips, such as drafts', cost nothing.
+- **15 credits for each production deploy,** which every publish, overnight rebuild, and scheduled change that comes due is, so about **20 a month** if the site used nothing else. Failed deploys, and builds Netlify skips, such as drafts', cost nothing.
 - **20 credits for each GB** visitors download, and 2 for each 10,000 requests.
 - **When the credits run out, every site on the account is paused** until the next month, and visitors see "Site not available". Free plans can't buy more.
 

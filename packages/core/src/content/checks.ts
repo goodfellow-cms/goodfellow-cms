@@ -4,7 +4,7 @@
  * worked out from content files alone, so they run in the browser and in
  * Node alike, without rendering pages.
  *
- * - Errors: links to pages, items or media that don't exist, and items'
+ * - Errors: links to pages, items, or media that don't exist, and items'
  *   links to items that don't exist, and synced blocks that aren't there or
  *   that place others.
  * - Warnings: pages without a title or description, theme colors that text

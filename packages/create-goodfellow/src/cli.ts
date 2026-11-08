@@ -48,7 +48,7 @@ Options:
   --gitlab <project>  The GitLab project the site will be stored in, such as your-group/your-site
   --bitbucket <repo>  The Bitbucket repository the site will be stored in, such as your-workspace/your-site,
                       which Vercel builds, with Bitbucket Pipelines for its updates
-  --host <host>       github-pages, gitlab-pages, cloudflare-pages, netlify or vercel. Keeps only that
+  --host <host>       github-pages, gitlab-pages, cloudflare-pages, netlify, or vercel. Keeps only that
                       host's setup files (for Cloudflare Pages and Netlify, a nightly update and rebuild)
   --content <repo>    Keeps the site's content in a repository of its own, such as
                       your-name/your-site-content; --github or --gitlab is then the code's
@@ -58,11 +58,11 @@ Options:
   --admin <address>   An admin address of its own for editors, such as https://admin.example.org,
                       where the host serves a site at more than one address (not GitHub Pages)
   --broker <host>     Also writes a sign-in page of its own, a token broker, into a folder beside
-                      the site, for github-pages, gitlab-pages, cloudflare-pages or vercel
+                      the site, for github-pages, gitlab-pages, cloudflare-pages, or vercel
   --broker-domain <d> The sign-in page's own domain, such as signin.example.org (needed on GitHub Pages)
   --plugin <name>     Installs a plugin, such as goodfellow-plugin-guestbook, as the admin panel's
                       Plugins screen would. Give it once for each plugin
-  --wordpress <from>  Brings a WordPress site's pages, posts, menus and media into the new site,
+  --wordpress <from>  Brings a WordPress site's pages, posts, menus, and media into the new site,
                       from its export file (Tools → Export) or its address
   --no-install        Don't run npm install
   --no-git            Don't make the site a git repository, or commit it
@@ -130,7 +130,7 @@ function isHost(name: string): name is Host {
 
 function backendFromOptions(given: Partial<Record<Backend["host"], string>>): Backend | undefined {
   const named = (Object.keys(REPO_WORDS) as Backend["host"][]).filter((host) => given[host] !== undefined);
-  if (named.length > 1) throw new ScaffoldError("Choose one of --github, --gitlab and --bitbucket, not several.");
+  if (named.length > 1) throw new ScaffoldError("Choose one of --github, --gitlab, and --bitbucket, not several.");
   const [host] = named;
   if (!host) return undefined;
   const repo = parseRepo(host, given[host] as string);
@@ -269,12 +269,12 @@ async function main(): Promise<void> {
   const content = contentRepo === undefined ? undefined : separateContent(contentRepo, build, backend, host);
   if (admin !== undefined && !allowsAdminAddress(host as Host | undefined)) {
     throw new ScaffoldError(
-      "An admin address needs a host that serves a site at more than one address (--host gitlab-pages, cloudflare-pages, netlify or vercel). On a host of your own choosing, add it once the site is online with goodfellow admin add.",
+      "An admin address needs a host that serves a site at more than one address (--host gitlab-pages, cloudflare-pages, netlify, or vercel). On a host of your own choosing, add it once the site is online with goodfellow admin add.",
     );
   }
   if (broker !== undefined) {
     if (!backend) {
-      throw new ScaffoldError("A sign-in page needs the site's repository (--github, --gitlab or --bitbucket).");
+      throw new ScaffoldError("A sign-in page needs the site's repository (--github, --gitlab, or --bitbucket).");
     }
     if (!brokerHostsFor(backend.host).includes(broker as BrokerHost)) {
       throw new ScaffoldError(
@@ -412,7 +412,7 @@ function separateContent(
 ): SeparateContent {
   if (!backend || !host) {
     throw new ScaffoldError(
-      "Keeping the content in a repository of its own needs the code's repository (--github, --gitlab or --bitbucket) and a host (--host).",
+      "Keeping the content in a repository of its own needs the code's repository (--github, --gitlab, or --bitbucket) and a host (--host).",
     );
   }
   if (host === "netlify") {

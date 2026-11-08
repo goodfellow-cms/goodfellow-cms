@@ -169,7 +169,7 @@ export function cleanEntryValues(
   return cleaned;
 }
 
-/** A tag that shows something without words: anything but paragraphs, line breaks and formatting. */
+/** A tag that shows something without words: anything but paragraphs, line breaks, and formatting. */
 const SHOWN_TAG = /<(?!\/|(?:p|br|span|strong|b|em|i|u|s|sub|sup|mark|code|a)\b)[a-z]/i;
 
 /** Whether a field has no value worth showing. */
@@ -188,7 +188,7 @@ const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"'
 /** Tags that end a line, which become spaces in plain text. */
 const BREAKS = /^<(br|\/p|\/h[1-6]|\/li|\/blockquote)\b/i;
 
-/** Rich text as plain text: tags removed, common entities decoded and whitespace collapsed. */
+/** Rich text as plain text: tags removed, common entities decoded, and whitespace collapsed. */
 export function richTextToPlainText(html: string): string {
   return withoutTags(html, (tag) => (BREAKS.test(tag) ? " " : ""))
     .replace(/&(amp|lt|gt|quot|#39|apos|nbsp);/g, (_, name: string) => ENTITIES[name] ?? "")
@@ -291,7 +291,7 @@ export function isChoiceField(field: CollectionField): boolean {
 
 /**
  * A choice as part of an address, such as `youth-ministry` for "Youth
- * ministry": lowercase letters, numbers and hyphens, without accents.
+ * ministry": lowercase letters, numbers, and hyphens, without accents.
  * `undefined` for a choice with none of those, such as one in another script.
  */
 export function choiceSlug(choice: string): string | undefined {

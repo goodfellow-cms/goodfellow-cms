@@ -25,7 +25,7 @@ export function setup(
     repositories?: string[];
     /** The owners' app as it was before it asked for the Secrets permission. */
     withoutSecrets?: boolean;
-    /** The everyday app as it was before it asked for the Checks, Commit statuses and Pull requests permissions. */
+    /** The everyday app as it was before it asked for the Checks, Commit statuses, and Pull requests permissions. */
     withoutChecks?: boolean;
     /** The admin address the site's build names, in the `goodfellow-site.json` the Site address serves. */
     admin?: string;

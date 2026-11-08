@@ -24,7 +24,7 @@ export const site = join(here, "../.site");
 const INSTALLED_CODE = ["components", "lib", "hooks"];
 
 /**
- * Resets a site's editable files to those of `from`: content, media and installed blocks. Returns
+ * Resets a site's editable files to those of `from`: content, media, and installed blocks. Returns
  * whether it reset blocks' code, which a running dev server takes a moment to notice.
  */
 /** Removes what `target` has that `from` doesn't, folder by folder. */

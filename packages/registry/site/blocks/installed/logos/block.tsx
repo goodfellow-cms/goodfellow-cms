@@ -70,7 +70,7 @@ function LogosView({ heading, logos, size, gray, className, puck }: LogosProps &
   );
 }
 
-/** A row of logos, such as sponsors, partners or the organizations a site belongs to, each linking to its site. */
+/** A row of logos, such as sponsors, partners, or the organizations a site belongs to, each linking to its site. */
 const Logos: ComponentConfig<LogosProps> = withParts(
   {
     label: "Logos",

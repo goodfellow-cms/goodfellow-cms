@@ -62,7 +62,7 @@ async function indexWith(
   try {
     const { index, errors } = await pagefind.createIndex({});
     if (!index) throw new Error(`Pagefind couldn't start: ${errors.join("; ")}`);
-    // Pages mark the content to index with data-pagefind-body, so headers, footers and "Page not found" are left out.
+    // Pages mark the content to index with data-pagefind-body, so headers, footers, and "Page not found" are left out.
     const added = await add(index);
     if (added.errors.length > 0) throw new Error(`Pagefind couldn't index the site: ${added.errors.join("; ")}`);
     // Pagefind's writeFiles can answer before every file is on disk, so the index is written here instead.

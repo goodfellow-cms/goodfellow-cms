@@ -1,6 +1,6 @@
 /**
  * Other words the editor's block list finds the built-in blocks by, besides
- * their labels, names and groups: what people coming from elsewhere may call
+ * their labels, names, and groups: what people coming from elsewhere may call
  * them, WordPress's names for its blocks among them.
  */
 export const BLOCK_KEYWORDS: Readonly<Record<string, readonly string[]>> = {

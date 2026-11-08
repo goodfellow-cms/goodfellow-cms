@@ -347,7 +347,7 @@ function DeleteEntryDialog({
 
 type DialogState = { type: "new" } | { type: "move"; entry: Entry } | { type: "delete"; entry: Entry } | null;
 
-/** A collection's items, with buttons to add, edit, rename and delete them. */
+/** A collection's items, with buttons to add, edit, rename, and delete them. */
 export function EntriesScreen({ collection }: { collection: Collection }) {
   const { content } = useSiteContent();
   const t = useStrings();

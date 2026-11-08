@@ -1,12 +1,12 @@
 ---
 version: 1
 title: Work with Claude
-description: Connect Claude to your site, so it can read and change pages, items and settings, show them in screenshots, and publish them when you say so.
+description: Connect Claude to your site, so it can read and change pages, items, and settings, show them in screenshots, and publish them when you say so.
 section: editors
 order: 6.5
 ---
 
-Goodfellow has a connector for [Claude](https://claude.ai), so you can work on your site by asking Claude: "add our summer fair to the events", "make the About page shorter", "what does the home page look like on a phone?". Claude reads the site's pages, items and settings, makes changes in a **draft**, shows you screenshots of them, and publishes them, or submits them for review, only when you say so.
+Goodfellow has a connector for [Claude](https://claude.ai), so you can work on your site by asking Claude: "add our summer fair to the events", "make the About page shorter", "what does the home page look like on a phone?". Claude reads the site's pages, items, and settings, makes changes in a **draft**, shows you screenshots of them, and publishes them, or submits them for review, only when you say so.
 
 It works with the sites' own blocks and settings, as the admin panel does: Claude sees what blocks the site has and what each one's settings are, and Goodfellow checks every change before it's saved.
 
@@ -32,7 +32,7 @@ Claude needs a token for each host your sites are on, which can change the sites
 2. In Claude Desktop, open **Settings → Extensions**. Drag `goodfellow.mcpb` into that window, or choose **Advanced settings → Install Extension…** and pick the file. (Opening the file from your downloads may do the same.)
 3. Claude shows what the extension is. Choose **Install**.
 4. Fill in its settings, then choose **Save**:
-   - **Sites**: each site's repository, separated by commas, such as `github:your-name/your-site, gitlab:your-group/other-site`. The repository is its address on the host after `github.com/`, `gitlab.com/` or `bitbucket.org/`.
+   - **Sites**: each site's repository, separated by commas, such as `github:your-name/your-site, gitlab:your-group/other-site`. The repository is its address on the host after `github.com/`, `gitlab.com/`, or `bitbucket.org/`.
    - **Sites in folders on this computer**: folders holding a site, if you work on one there (see [Sites on your computer](#sites-on-your-computer)).
    - **GitHub token**, **GitLab token**, **Bitbucket token**: the tokens from step 1, for the hosts your sites are on. Leave the others empty.
    - **GitLab address**: only for a GitLab of your own, such as `https://gitlab.example.org`.
@@ -46,7 +46,7 @@ Claude Desktop runs the extension itself, so there's nothing else to install. To
 claude mcp add goodfellow --env GOODFELLOW_SITE="github:your-name/your-site, gitlab:your-group/other-site" --env GOODFELLOW_GITHUB_TOKEN=your-github-token --env GOODFELLOW_GITLAB_TOKEN=your-gitlab-token -- npx -y @goodfellow-cms/mcp
 ```
 
-Give the token for each host your sites are on: `GOODFELLOW_GITHUB_TOKEN`, `GOODFELLOW_GITLAB_TOKEN` or `GOODFELLOW_BITBUCKET_TOKEN`, or `GOODFELLOW_TOKEN` for all of them. For a GitLab of your own, add `--env GITLAB_URL=https://gitlab.example.org`.
+Give the token for each host your sites are on: `GOODFELLOW_GITHUB_TOKEN`, `GOODFELLOW_GITLAB_TOKEN`, or `GOODFELLOW_BITBUCKET_TOKEN`, or `GOODFELLOW_TOKEN` for all of them. For a GitLab of your own, add `--env GITLAB_URL=https://gitlab.example.org`.
 
 With several sites, Claude asks which one you mean, or you can say: "add a page to the school's site".
 
@@ -60,7 +60,7 @@ Changes wait in a draft, one at a time, kept beside the site's packages. Publish
 
 ### Through a connector service
 
-A connector service lets editors add Goodfellow to Claude on the web, on phones and in Claude Code without a token, by signing in with GitHub, GitLab or Bitbucket. An organization runs its own, and [Goodfellow Cloud](/docs/goodfellow-cloud), planned for the future, would run one for you; see [Claude connector service](/docs/claude-connector). Then editors add it once:
+A connector service lets editors add Goodfellow to Claude on the web, on phones, and in Claude Code without a token, by signing in with GitHub, GitLab, or Bitbucket. An organization runs its own, and [Goodfellow Cloud](/docs/goodfellow-cloud), planned for the future, would run one for you; see [Claude connector service](/docs/claude-connector). Then editors add it once:
 
 1. In Claude, open **Settings → Connectors** and choose **Add custom connector**. (In a Claude Team or Enterprise organization, an owner adds it for everyone in the organization's settings.)
 2. Name it **Goodfellow**, and give the connector's address, such as `https://claude.your-name.workers.dev/mcp`.
@@ -101,12 +101,12 @@ On your computer, screenshots use your own browser, Chrome or else Edge, without
 
 ## What Claude can do
 
-- Read pages, the header and footer, [synced blocks](/docs/synced-blocks), collections and their items, menus and the site's settings, and list the media library with each file's size and credit. Photos with a credit, such as those the AI assistant adds from Openverse, show it on every page that uses them, so Claude can use them as they are.
-- Create, change and delete pages and items, create and change synced blocks, and change the header and footer, menus and the site's name, description, logo, icon, picture for shared links, contact details, theme and time zone, in a draft. Deleting a page or item leaves its translations as pages and items of their own, as the admin panel does, and Claude says which menus still link to a deleted page.
+- Read pages, the header and footer, [synced blocks](/docs/synced-blocks), collections and their items, menus, and the site's settings, and list the media library with each file's size and credit. Photos with a credit, such as those the AI assistant adds from Openverse, show it on every page that uses them, so Claude can use them as they are.
+- Create, change, and delete pages and items, create and change synced blocks, and change the header and footer, menus, and the site's name, description, logo, icon, picture for shared links, contact details, theme, and time zone, in a draft. Deleting a page or item leaves its translations as pages and items of their own, as the admin panel does, and Claude says which menus still link to a deleted page.
 - Show you a screenshot of any page, live or with its draft, or look at an image in the media library.
 - Publish a draft, submit it for review, or throw it away.
 
-Claude can't upload new photos, add or remove blocks from block registries, change who edits the site, change the site's address, or change where forms send their answers, what visitors are asked before other sites' content loads, comments, languages or whether search engines list the site; do those in the admin panel. It also never chooses settings only owners may, such as using Custom HTML exactly as written: blocks it writes keep those settings' starting values. Since a page can say anything, Claude treats what it reads on the site as content to work with, never as instructions, and asks you before deleting, publishing or throwing a draft away.
+Claude can't upload new photos, add or remove blocks from block registries, change who edits the site, change the site's address, or change where forms send their answers, what visitors are asked before other sites' content loads, comments, languages, or whether search engines list the site; do those in the admin panel. It also never chooses settings only owners may, such as using Custom HTML exactly as written: blocks it writes keep those settings' starting values. Since a page can say anything, Claude treats what it reads on the site as content to work with, never as instructions, and asks you before deleting, publishing, or throwing a draft away.
 
 ## Sites it works with
 

@@ -1,6 +1,6 @@
 /**
  * A page of the site shown in a frame, as the live site would show it: for
- * Site Settings' and Version history's previews, an item's preview and the
+ * Site Settings' and Version history's previews, an item's preview, and the
  * preview page tools take screenshots with.
  */
 import { todayIn } from "@goodfellow-cms/core";

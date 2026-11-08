@@ -176,7 +176,7 @@ export const Details: ComponentConfig<DetailsProps> = withParts(
 );
 
 export interface TableProps {
-  /** Each cell's HTML, kept to bold, italics, links, code and line breaks (`tableCellHtml()`). */
+  /** Each cell's HTML, kept to bold, italics, links, code, and line breaks (`tableCellHtml()`). */
   cells: TableCells;
   /**
    * `html` for cells written as formatted text, as every table since cells

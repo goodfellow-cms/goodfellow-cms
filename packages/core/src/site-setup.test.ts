@@ -244,7 +244,7 @@ describe("planSite", () => {
     ]);
   });
 
-  it("gives a site on Bitbucket Pipelines for its updates, scheduled changes and plugins' tasks, with Vercel building it", async () => {
+  it("gives a site on Bitbucket Pipelines for its updates, scheduled changes, and plugins' tasks, with Vercel building it", async () => {
     const files = await planSite({
       template: template(),
       name: "my-parish",

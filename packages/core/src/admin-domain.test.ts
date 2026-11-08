@@ -185,7 +185,7 @@ describe("host rules", () => {
     expect(withVercelAdminAddress("  redirects: redirects(),\n", admin)).toBeUndefined();
   });
 
-  it("gives every site's files safe headers, sandboxes its SVGs and keeps its admin panel from being framed", () => {
+  it("gives every site's files safe headers, sandboxes its SVGs, and keeps its admin panel from being framed", () => {
     const rules = cloudflareSiteHeaders("/site/");
     expect(rules.startsWith(`${SITE_HEADERS_MARK}\n/site/*\n  X-Content-Type-Options: nosniff\n`)).toBe(true);
     expect(rules).toContain("/site/media/*.svg\n  Content-Security-Policy: sandbox\n");
@@ -246,7 +246,7 @@ describe("host rules", () => {
 describe("the config's admin line", () => {
   const config = 'export default defineConfig({\n  blocks,\n  // backend: github({ repo: "a/b" }),\n});\n';
 
-  it("adds, changes and removes it", () => {
+  it("adds, changes, and removes it", () => {
     const added = withAdminConfig(config, admin) ?? "";
     expect(added).toBe(
       'export default defineConfig({\n  admin: { url: "https://admin.example.org" },\n  blocks,\n  // backend: github({ repo: "a/b" }),\n});\n',

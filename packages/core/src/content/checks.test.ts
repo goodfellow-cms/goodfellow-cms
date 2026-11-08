@@ -138,7 +138,7 @@ describe("site checks", () => {
     ]);
   });
 
-  it("refuses links that would run code, in menus, blocks, items and settings, however they're spelled", async () => {
+  it("refuses links that would run code, in menus, blocks, items, and settings, however they're spelled", async () => {
     const content = await site({
       "content/menus.json": {
         version: 1,

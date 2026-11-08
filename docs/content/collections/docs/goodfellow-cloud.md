@@ -21,7 +21,7 @@ Some parts of a Goodfellow site are services that its owner puts online themselv
 - the [Claude connector service](/docs/claude-connector), for adding Goodfellow to Claude without a token;
 - [media storage](/docs/media#media-kept-in-a-storage-service), for large files kept outside the repository.
 
-Goodfellow Cloud would set these up when a site is created, run them and keep them up to date, so a new site needs nothing more than signing in, with no outside accounts to manage and nothing for a developer to change in the code. Later, it could host sites too.
+Goodfellow Cloud would set these up when a site is created, run them, and keep them up to date, so a new site needs nothing more than signing in, with no outside accounts to manage and nothing for a developer to change in the code. Later, it could host sites too.
 
 Sites would still be kept in your own GitHub or GitLab account, and built there, so you'd own your content as you do today, and you could leave Cloud at any time, putting each service back in your own hands without losing anything.
 

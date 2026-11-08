@@ -2,7 +2,7 @@
  * A made-up WordPress site for tests: St. Brendan's, a parish, as an export
  * file (`sampleWordPressExport()`) and as WordPress's API answers it
  * (`fakeWordPress()`), with pages, posts, categories, tags, menus, media,
- * a draft, a private post, comments and a kind of content that isn't imported.
+ * a draft, a private post, comments, and a kind of content that isn't imported.
  */
 
 export const SAMPLE_WORDPRESS_URL = "https://stbrendan.example.org";

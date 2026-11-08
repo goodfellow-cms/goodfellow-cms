@@ -784,7 +784,7 @@ function CodeTab({
 }
 
 /**
- * Site settings, theme, menus, custom CSS and the site's own code, with a live
+ * Site settings, theme, menus, custom CSS, and the site's own code, with a live
  * preview of the home page (without the code, which never runs in the admin
  * panel). Publishing saves every changed file in one go.
  */

@@ -25,7 +25,7 @@ export interface EditorBundle {
 }
 
 /**
- * The editor's frames' bundle: the site's config, Puck and every block, as
+ * The editor's frames' bundle: the site's config, Puck, and every block, as
  * one classic script, with WebRTC removed first. The frames are sandboxed
  * with `allow-scripts` alone, so their origin is `null`, and module scripts
  * would need the server to let every website's sandboxed frames read its

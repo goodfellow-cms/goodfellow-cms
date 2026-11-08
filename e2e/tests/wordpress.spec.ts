@@ -29,7 +29,7 @@ async function importAndPublish(page: Page) {
   await expect(done).toBeVisible({ timeout: 30_000 });
 }
 
-test("imports a WordPress export file: its pages, posts, menus, media and old addresses", async ({ page }) => {
+test("imports a WordPress export file: its pages, posts, menus, media, and old addresses", async ({ page }) => {
   await routeToWordPress(page, { mediaCors: true });
   await page.goto("/admin/#/settings/import");
   await page.getByLabel("WordPress export file").setInputFiles({

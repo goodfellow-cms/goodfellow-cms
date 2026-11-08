@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { escapeCellText, sanitizeHtml, tableCellHtml } from "./sanitize.js";
 
 describe("sanitizeHtml", () => {
-  it("keeps text, formatting, links, images and classes", () => {
+  it("keeps text, formatting, links, images, and classes", () => {
     const html =
       '<h2 class="title">Hours</h2><p>Open <strong>daily</strong>, see <a href="/about" target="_blank">us</a>.</p><img src="/media/a.jpg" alt="A" class="w-full"><table><tr><td>Mon</td></tr></table>';
     expect(sanitizeHtml(html)).toBe(html);
@@ -26,7 +26,7 @@ describe("sanitizeHtml", () => {
 });
 
 describe("tableCellHtml", () => {
-  it("keeps bold, italics, links and line breaks, and nothing else", () => {
+  it("keeps bold, italics, links, and line breaks, and nothing else", () => {
     expect(tableCellHtml('<strong>Sunday</strong><br><em>and</em> <a href="/mass" title="Times">Mass</a>')).toBe(
       '<strong>Sunday</strong><br><em>and</em> <a href="/mass" title="Times">Mass</a>',
     );

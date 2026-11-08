@@ -150,7 +150,7 @@ function pathOf(segments: string[] | undefined): string {
   }
 }
 
-/** Every page the site's export has: its pages, entries' pages and the pages blocks add, such as a calendar's months. */
+/** Every page the site's export has: its pages, entries' pages, and the pages blocks add, such as a calendar's months. */
 function exportedPages(content: SiteContent, blocks: GoodfellowConfig["blocks"]): Page[] {
   return sitePages(content, todayIn(content.settings.timeZone), blocks);
 }
@@ -198,7 +198,7 @@ function toAbsolute(siteUrl: string | undefined, url: string | undefined): strin
 }
 
 /**
- * A page's title, description, search engine settings and link previews, as
+ * A page's title, description, search engine settings, and link previews, as
  * Next.js metadata, with the shared picture's size where `media` has it.
  */
 export function pageMetadata(
@@ -405,7 +405,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       return (
         <>
           <Theme content={content} />
-          {/* React moves the head's links, meta tags and loading scripts into the head; inline scripts run here. */}
+          {/* React moves the head's links, meta tags, and loading scripts into the head; inline scripts run here. */}
           <HeadCode
             code={content.code?.head}
             held={heldCode(content.settings.consent, "head")}

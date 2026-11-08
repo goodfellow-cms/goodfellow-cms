@@ -19,7 +19,7 @@ export const MEDIA_SIZES_DIR = "media-sizes";
 /** The media library's files builds make smaller copies of: photos a browser can show, but not GIFs, which may move. */
 const RESIZED = /^\/media\/.+\.(jpe?g|png|webp)$/i;
 
-/** The widths a build makes of the image at `src`, of `size`, from `widths`: none for SVGs, GIFs and other sites' images. */
+/** The widths a build makes of the image at `src`, of `size`, from `widths`: none for SVGs, GIFs, and other sites' images. */
 export function imageWidths(
   src: string,
   size: ImageSize | undefined,

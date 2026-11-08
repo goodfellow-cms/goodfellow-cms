@@ -129,7 +129,7 @@ const PASSED_ON = [
 /**
  * Runs every plugin's build steps, in order, each in a Node process of its
  * own with Node's permission model on: it can read only the built site, its
- * own package, the site's `node_modules` and what its plugin declared in
+ * own package, the site's `node_modules`, and what its plugin declared in
  * `read`, write only what it declared in `write` (in the built site), and
  * start no other processes or workers. It gets only the environment variables
  * its plugin declared in `secrets`, besides what Node needs to run. Node

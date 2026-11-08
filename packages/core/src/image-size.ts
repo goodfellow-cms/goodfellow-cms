@@ -178,7 +178,7 @@ function svgSize(bytes: Uint8Array): ImageSize | undefined {
 }
 
 /**
- * The size of a PNG, JPEG, GIF, WebP or SVG image, read from the start of its
+ * The size of a PNG, JPEG, GIF, WebP, or SVG image, read from the start of its
  * file, or `undefined` for other formats and files it can't read.
  */
 export function imageSize(bytes: Uint8Array): ImageSize | undefined {

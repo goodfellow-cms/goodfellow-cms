@@ -4,7 +4,7 @@
  * offers and themes use: hex, `rgb()`, `hsl()`, `oklch()` and `oklab()`.
  */
 
-/** A color as red, green and blue from 0 to 1, in sRGB. */
+/** A color as red, green, and blue from 0 to 1, in sRGB. */
 type Rgb = [number, number, number];
 
 function clamp(value: number): number {

@@ -34,7 +34,7 @@ mkdirSync(join(out, "server/node_modules"), { recursive: true });
 cpSync(playwright, join(out, "server/node_modules/playwright-core"), { recursive: true, dereference: true });
 
 const tools = [
-  ["get_site", "An overview of a site: its pages, collections, menus and blocks."],
+  ["get_site", "An overview of a site: its pages, collections, menus, and blocks."],
   ["get_page", "A page's settings and blocks."],
   ["save_page", "Creates or changes a page, in a draft."],
   ["get_collection", "A collection's fields and items."],
@@ -111,7 +111,7 @@ const manifest = {
       type: "string",
       title: "Bitbucket token",
       description:
-        "For sites on Bitbucket: a repository access token, or your email address, a colon and an API token. It stays on this computer.",
+        "For sites on Bitbucket: a repository access token, or your email address, a colon, and an API token. It stays on this computer.",
       sensitive: true,
       required: false,
       default: "",

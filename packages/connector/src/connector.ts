@@ -56,7 +56,7 @@ export interface ConnectorEnv {
 }
 
 export interface ConnectorOptions {
-  /** Every request the connector makes: to GitHub, GitLab, Bitbucket, clients' documents and sites. */
+  /** Every request the connector makes: to GitHub, GitLab, Bitbucket, clients' documents, and sites. */
   fetch?: typeof fetch;
   now?: () => number;
   /** Where refresh token generations are kept. Defaults to `env.DB`. */

@@ -223,7 +223,7 @@ interface GrantData extends SessionData {
 /**
  * The setup page's grant, which goes back to it in the address: GitHub's
  * one-time code, which `/github/session` exchanges, rather than the person's
- * token, so no token is ever in an address, a browser's history or a log.
+ * token, so no token is ever in an address, a browser's history, or a log.
  */
 interface SetupGrantData extends Omit<SessionData, "user" | "tokens"> {
   purpose: "setup";
@@ -352,7 +352,7 @@ function escapeHtml(text: string): string {
 function confirmPage(url: URL, repo: string, origin: string, nonce: string): Response {
   const next = new URL(url);
   next.searchParams.set("confirm", nonce);
-  const body = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in as an owner?</title><main style="font: 16px/1.5 system-ui, sans-serif; max-width: 36rem; margin: 4rem auto; padding: 0 1rem"><h1>Sign in as an owner?</h1><p>You're signing in with GitHub as an owner of <strong>${escapeHtml(repo)}</strong>, so the admin panel at <strong>${escapeHtml(origin)}</strong> can manage the site's editors, domain and updates.</p><p>Only continue if you opened the admin panel at that address yourself. If a link brought you here, close this page.</p><p><a href="${escapeHtml(next.href)}" style="display: inline-block; padding: 0.5rem 1rem; border-radius: 0.375rem; background: #1f2937; color: #fff; text-decoration: none">Continue to GitHub</a></p></main></html>`;
+  const body = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in as an owner?</title><main style="font: 16px/1.5 system-ui, sans-serif; max-width: 36rem; margin: 4rem auto; padding: 0 1rem"><h1>Sign in as an owner?</h1><p>You're signing in with GitHub as an owner of <strong>${escapeHtml(repo)}</strong>, so the admin panel at <strong>${escapeHtml(origin)}</strong> can manage the site's editors, domain, and updates.</p><p>Only continue if you opened the admin panel at that address yourself. If a link brought you here, close this page.</p><p><a href="${escapeHtml(next.href)}" style="display: inline-block; padding: 0.5rem 1rem; border-radius: 0.375rem; background: #1f2937; color: #fff; text-decoration: none">Continue to GitHub</a></p></main></html>`;
   return new Response(body, {
     status: 200,
     headers: {
@@ -540,7 +540,7 @@ export function createWorker(options: WorkerOptions = {}) {
     }
 
     /**
-     * The admin address, token broker and other copies of the site in its
+     * The admin address, token broker, and other copies of the site in its
      * description (`goodfellow-site.json`, which builds write from the site's
      * config) at the Site address, where editors sign in when the site has
      * them. Tokens already go to the Site address, so what it serves names no

@@ -197,7 +197,7 @@ const HOST_STEPS: Record<BrokerHost, string> = {
     "GitHub Pages publishes it with `.github/workflows/deploy.yml`. Give it a domain of its own in the repository's Settings → Pages, never a `github.io` address, which every Pages site in the same account shares.",
   "gitlab-pages":
     "GitLab Pages publishes it with `.gitlab-ci.yml`, at the project's unique domain (Deploy → Pages, on for new projects), or a domain of its own. Never turn the unique domain off without a domain, since `gitlab.io` addresses are shared by every project in the group.",
-  "cloudflare-pages": `Cloudflare Pages publishes it: create a Pages project from this repository with no framework preset, no build command and \`${BROKER_SITE_DIR}\` as the output directory. Its \`_headers\` file stops other pages from framing it.`,
+  "cloudflare-pages": `Cloudflare Pages publishes it: create a Pages project from this repository with no framework preset, no build command, and \`${BROKER_SITE_DIR}\` as the output directory. Its \`_headers\` file stops other pages from framing it.`,
   vercel: `Vercel publishes it: import this repository as a project with \`${BROKER_SITE_DIR}\` as its root directory and no build command. Its \`vercel.json\` stops other pages from framing it.`,
 };
 

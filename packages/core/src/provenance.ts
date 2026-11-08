@@ -58,7 +58,7 @@ export function attestationsUrl(name: string, version: string): string {
 /**
  * A repository's address spelled one way, so two spellings of one compare
  * equal: lowercase (GitHub's and GitLab's names don't tell case apart),
- * without `git+`, `.git` or a trailing slash.
+ * without `git+`, `.git`, or a trailing slash.
  */
 export function normalizedRepository(url: string): string {
   return url

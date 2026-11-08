@@ -258,7 +258,7 @@ function CommentsView({
  * Comments on the page, kept as GitHub Discussions in a repository of their
  * own, through Giscus, where visitors sign in with GitHub to comment, by
  * Disqus, or by Garrul, which the site's owner runs on Cloudflare. Where they're kept is Site Settings' Comments (`content/site.json`'s
- * `comments`), unless the block is given Giscus's, Disqus's or Garrul's code
+ * `comments`), unless the block is given Giscus's, Disqus's, or Garrul's code
  * for somewhere else.
  * Either loads only on the built site, never in the editor or previews, and
  * on a site that asks visitors before loading other sites' content, it waits

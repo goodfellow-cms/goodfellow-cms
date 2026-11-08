@@ -28,7 +28,7 @@ import { type GoodfellowPlugin, type PluginPermissions, pluginId, pluginProblems
 /** Where the job that loads the config writes the task's description, for the job with the secrets. */
 export const TASK_DESCRIPTION_FILE = "goodfellow-task.json";
 
-/** A plugin's task as the site's config has it, as data: the plugin's name, title and permissions, and the task's module. */
+/** A plugin's task as the site's config has it, as data: the plugin's name, title, and permissions, and the task's module. */
 export type TaskDescription =
   | {
       version: 1;

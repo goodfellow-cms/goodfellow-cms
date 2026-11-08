@@ -197,7 +197,7 @@ function transitions(timeZone: string, year: number): Transition[] {
   return found;
 }
 
-/** A transition's yearly rule: the month, weekday and which one of it, such as the last Sunday of March. */
+/** A transition's yearly rule: the month, weekday, and which one of it, such as the last Sunday of March. */
 interface YearlyRule {
   month: number;
   weekday: number;
