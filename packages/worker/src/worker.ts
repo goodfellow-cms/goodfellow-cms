@@ -29,6 +29,7 @@
  */
 
 import githubAppJwt from "universal-github-app-jwt";
+import { boundedText } from "./bounded.js";
 import {
   type App,
   type GitHubConfig,
@@ -373,6 +374,28 @@ function cookie(request: Request, name: string): string | undefined {
 /** How long a check before signing in trusts the site's addresses it last read. */
 const ADDRESS_CHECK_MS = 2 * 60_000;
 
+/** How long the site's description has to answer, and the most of it read: addresses come from editors. */
+const DESCRIPTION_TIMEOUT_MS = 5_000;
+const MAX_DESCRIPTION_BYTES = 1_000_000;
+
+/**
+ * How many repositories' installations and addresses a worker remembers.
+ * Anyone can ask about any repository, so past this the longest remembered
+ * are forgotten, and asking about many costs only the asker's own requests.
+ */
+export const MAX_REMEMBERED = 1_000;
+
+/** Sets `key` in `map`, forgetting the entry set longest ago where it holds `MAX_REMEMBERED` already. */
+export function remember<K, V>(map: Map<K, V>, key: K, value: V): void {
+  map.delete(key);
+  while (map.size >= MAX_REMEMBERED) {
+    const oldest = map.keys().next();
+    if (oldest.done) break;
+    map.delete(oldest.value);
+  }
+  map.set(key, value);
+}
+
 export function createWorker(options: WorkerOptions = {}) {
   const now = options.now ?? Date.now;
   const sealers = new Map<string, Promise<Sealer>>();
@@ -466,7 +489,7 @@ export function createWorker(options: WorkerOptions = {}) {
         const { id } = await githubJson<{ id: number }>(config, `/repos/${repoPath(repo)}/installation`, {
           auth: { bearer: await jwtFor(app) },
         });
-        installations.set(key, { id, at: now() });
+        remember(installations, key, { id, at: now() });
         return id;
       } catch (error) {
         if (error instanceof GitHubError && error.status === 404) return undefined;
@@ -554,9 +577,12 @@ export function createWorker(options: WorkerOptions = {}) {
       try {
         const response = await config.fetch(new URL("goodfellow-site.json", siteUrl.replace(/\/?$/, "/")).href, {
           redirect: "error",
+          signal: AbortSignal.timeout(DESCRIPTION_TIMEOUT_MS),
         });
         if (!response.ok) return {};
-        const description = JSON.parse(await response.text()) as {
+        const text = await boundedText(response, MAX_DESCRIPTION_BYTES);
+        if (text === undefined) return {};
+        const description = JSON.parse(text) as {
           admin?: { url?: unknown };
           broker?: { url?: unknown };
           copies?: unknown;
@@ -618,7 +644,7 @@ export function createWorker(options: WorkerOptions = {}) {
       } finally {
         await revoke(reader.token);
       }
-      checkedAddresses.set(key, { addresses, at: now() });
+      remember(checkedAddresses, key, { addresses, at: now() });
       return verdict(addresses, installation);
     }
 
