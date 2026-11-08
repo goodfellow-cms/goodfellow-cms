@@ -115,7 +115,7 @@ export function getPageHead(settings: SiteSettings, page: Page): PageHead {
   const isHome = isLanguageHome(settings, page.path);
 
   return {
-    title: pageTitle && !isHome ? settings.titleTemplate.replaceAll("%s", pageTitle) : pageTitle || settings.title,
+    title: pageTitle && !isHome ? settings.titleTemplate.split("%s").join(pageTitle) : pageTitle || settings.title,
     description: readString(props, "description") || settings.description,
     language: settings.language,
     canonicalUrl: settings.url ? pageUrl(settings, settings.url, page.path) : undefined,

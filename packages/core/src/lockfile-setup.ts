@@ -6,6 +6,7 @@
  * releases at least `RELEASE_AGE_DAYS` old for what it adds. The starters'
  * workflows have them as written here, which a test checks.
  */
+import { UPDATE_REGISTRY } from "./github-workflows.js";
 import { RELEASE_AGE_DAYS } from "./npm-packages.js";
 
 /** The job that writes the lockfile, and the job that publishes it without running any of the site's code. */
@@ -50,6 +51,25 @@ export const CORE_RELEASE_COMMAND = `core=$(node -e '${CORE_RELEASE}') || exit 1
  * from the site's own packages, which the lockfile isn't written for yet.
  */
 export const EARLY_COMMAND = `${CORE_RELEASE_COMMAND}; npm exec --yes --package="@goodfellow-cms/core@$core" -- goodfellow-early`;
+
+/**
+ * A Node.js script, on one line with no single quotes, that exits with 1 when
+ * the lockfile written takes a package from anywhere but npm's registry that
+ * the committed one didn't, as `UPDATE_CHECK` does for updates: run before
+ * it's published, reading only git and the file, never the site's packages.
+ */
+export const LOCKFILE_REGISTRY_CHECK = [
+  'const { execFileSync } = require("child_process"); const fs = require("fs");',
+  "const read = (text) => { try { return JSON.parse(text); } catch { return undefined; } };",
+  'const found = (value, into) => { if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) { if (key === "resolved") into.add(String(item)); else found(item, into); } return into; };',
+  'let before; try { before = read(execFileSync("git", ["show", "HEAD:package-lock.json"], { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] })); } catch {}',
+  "const had = found(before, new Set());",
+  'const refused = [...found(read(fs.readFileSync("package-lock.json", "utf8")), new Set())].filter((address) => !had.has(address) && !address.startsWith(' +
+    JSON.stringify(UPDATE_REGISTRY) +
+    "));",
+  'for (const address of refused) console.log("::error::package-lock.json takes a package from somewhere other than npm, so it was not published: " + address);',
+  "process.exit(refused.length > 0 ? 1 : 0);",
+].join(" ");
 
 const COMMIT_AS = '-c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid';
 const COMMIT_MESSAGE = "Write package-lock.json for the packages package.json names";
@@ -115,7 +135,11 @@ export function githubLockfileJobs(): string {
         with:
           name: lockfile
       - id: publish
+        env:
+          # The lockfile was written where the site's packages were read, so it's checked before it's published.
+          CHECK: '${LOCKFILE_REGISTRY_CHECK}'
         run: |
+          node -e "$CHECK"
           git add package-lock.json
           git ${COMMIT_AS} commit -m "${COMMIT_MESSAGE}"
           git push origin "HEAD:$GITHUB_REF_NAME"
@@ -127,6 +151,7 @@ export function githubLockfileJobs(): string {
 export const GITLAB_LOCKFILE_VARIABLES = `variables:
   LOCKFILE_CHECK: '${LOCKFILE_CHECK}'
   EARLY_CHECK: '${EARLY_CHECK}'
+  LOCKFILE_REGISTRY_CHECK: '${LOCKFILE_REGISTRY_CHECK}'
 `;
 
 /**
@@ -145,6 +170,7 @@ export function gitlabLockfileScript({ skipPipeline }: { skipPipeline: boolean }
         # A plugin installed before it was ${RELEASE_AGE_DAYS} days old is checked against its provenance first,
         # and the job fails if it doesn't check out.
         if node -e "$EARLY_CHECK"; then ${LOCKFILE_COMMAND}; else ${EARLY_COMMAND}; fi
+        node -e "$LOCKFILE_REGISTRY_CHECK"
         git remote set-url origin "https://gitlab-ci-token:\${CI_JOB_TOKEN}@\${CI_SERVER_FQDN:-$CI_SERVER_HOST}/\${CI_PROJECT_PATH}.git"
         git ${COMMIT_AS} commit -m "${COMMIT_MESSAGE}" package-lock.json
         git push${skipPipeline ? " -o ci.skip" : ""} origin "HEAD:$CI_COMMIT_BRANCH" || echo "package-lock.json wasn't published: turn on \\"Allow Git push requests to the repository\\" under Settings → CI/CD → Job token permissions."

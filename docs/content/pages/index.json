@@ -26,7 +26,7 @@
                 "id": "Text-10",
                 "align": "left",
                 "className": "mt-6 max-w-2xl text-lg opacity-90",
-                "content": "<p>Goodfellow CMS is a drag-and-drop website builder for churches, clubs, small businesses, and anyone else without a developer on hand, and for larger organizations whose marketing team runs the content while developers own the code. Its pages are files in your own GitHub or GitLab repository, and free hosts put them online, so there's no server, database, or monthly bill.</p>"
+                "content": "<p>Goodfellow CMS is a drag-and-drop website builder for churches, clubs, small businesses, and anyone else without a developer on hand, and for larger organizations whose marketing team runs the content while developers own the code. Its pages are files in your own GitHub, GitLab, or Bitbucket repository, and free hosts put them online, so there's no server, database, or monthly bill.</p>"
               }
             },
             {
@@ -302,7 +302,7 @@
                             "id": "Text-31",
                             "align": "left",
                             "className": "text-muted-foreground",
-                            "content": "<p>Built-in blocks need nothing but Tailwind. Admins can add more, built with shadcn/ui, without a developer.</p>"
+                            "content": "<p>Built-in blocks need nothing but Tailwind. Owners can add more, built with shadcn/ui, without a developer.</p>"
                           }
                         }
                       ],

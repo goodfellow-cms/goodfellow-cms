@@ -886,6 +886,9 @@ export const defaultStrings = {
   "ai.working": "Writing…",
   "ai.progress": "Writing… {count} characters so far",
   "ai.done": "Done. Check it over, then publish when you're happy. Undo takes it back.",
+  "ai.report.settings": "Settings changed: {count}.",
+  "ai.report.blocks": "Blocks put in: {count}.",
+  "ai.report.skipped": "Left out, since they didn't fit this site: {count}. Ask again, or fill them in yourself.",
   "ai.check":
     "AI can get things wrong, so read what it writes before publishing. It won't make up times, names, or prices: it leaves [placeholders] for you to fill in.",
   "ai.needsKey": "To use {service}, add an API key under the AI service settings below, or choose another service.",

@@ -6,6 +6,7 @@ import {
   pageFileToPath,
   pageOutputFile,
   pagePathToFile,
+  unreservedPagePath,
 } from "./paths.js";
 
 describe("page paths", () => {
@@ -35,6 +36,16 @@ describe("page paths", () => {
   it.each(["/index", "/news/index"])("refuses %s, whose file is another page's", (path) => {
     expect(() => pagePathToFile(path)).toThrow(InvalidPathError);
     expect(isReservedPagePath(path)).toBe(true);
+  });
+
+  it("gives imports an address a page can have for one that's reserved", () => {
+    expect(unreservedPagePath("/docs/index")).toBe("/docs/index-page");
+    expect(unreservedPagePath("/index")).toBe("/index-page");
+    expect(unreservedPagePath("/admin/help")).toBe("/admin-page/help");
+    for (const path of ["/docs/index", "/index", "/admin/help", "/admin/index"]) {
+      expect(isReservedPagePath(unreservedPagePath(path)), path).toBe(false);
+      expect(() => pagePathToFile(unreservedPagePath(path))).not.toThrow();
+    }
   });
 
   it("keeps addresses that only have index in them", () => {

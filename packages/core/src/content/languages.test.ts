@@ -387,8 +387,8 @@ describe("files in each language", () => {
     ]);
   });
 
-  it("writes calendar files only for the languages that have events", async () => {
+  it("writes a calendar file for each language, empty where it has no events, since its pages link to it", async () => {
     const paths = calendarFiles(await site()).map((file) => file.path);
-    expect(paths).toEqual(["/calendars/events.ics", "/calendars/events/mass.ics"]);
+    expect(paths).toEqual(["/calendars/events.ics", "/calendars/events/mass.ics", "/es/calendars/events.ics"]);
   });
 });

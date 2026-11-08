@@ -45,7 +45,7 @@ Every link and button the block shows has its own text in its settings, for site
 ## Adding to calendars and subscribing
 
 - **Add to calendar**, beside each event in a list and on each event's page, adds it to Google Calendar, Outlook.com, or Apple Calendar and other calendar apps, repeats included (Outlook.com's link adds only the first time).
-- **Subscribe** adds the whole collection to a visitor's calendar app, which then keeps up with it: new events, changes, and cancellations show up on their own, as their app checks again, usually every few hours. Subscribing from Google Calendar or other apps needs the site's address, set under **Site Settings → General**.
+- **Subscribe** adds the whole collection to a visitor's calendar app, which then keeps up with it: new events, changes, and cancellations show up on their own, as their app checks again, usually every few hours. Subscribing from Google Calendar or other apps needs the site's address, set under **Site Settings → General**. On a site in [several languages](/docs/languages), a page in another language subscribes to that language's events.
 
 Builds write the files calendar apps read: `/calendars/events.ics` for subscribing to a collection called `events`, and one for each event, such as `/calendars/events/fall-festival.ics`.
 

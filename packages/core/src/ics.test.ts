@@ -10,6 +10,17 @@ function lines(text: string): string[] {
 }
 
 describe("writing calendar files", () => {
+  it("gives a calendar with no events yet a component, as RFC 5545 asks, which reads back as empty", () => {
+    for (const timeZone of ["Europe/Madrid", undefined]) {
+      const text = calendarFile([], { name: "Eventos", timeZone, now });
+      const all = lines(text);
+      expect(all).toContain("BEGIN:VTIMEZONE");
+      expect(all).toContain(`TZID:${timeZone ?? "UTC"}`);
+      expect(all).not.toContain("BEGIN:VEVENT");
+      expect(readCalendar(text, { timeZone: "UTC", from: "2026-10-10", to: "2027-10-10" })).toEqual([]);
+    }
+  });
+
   it("writes events with their repeats, skipped dates, and time zone", () => {
     const text = calendarFile(
       [

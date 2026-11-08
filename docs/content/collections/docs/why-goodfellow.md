@@ -18,7 +18,7 @@ It isn't only for small organizations, though. The same design suits a company w
 - **No server or database.** A Goodfellow site is static files. The admin panel is part of the site, and publishing saves to GitHub, GitLab, or Bitbucket straight from the editor's browser, so there's nothing to install, patch, back up, or pay for besides the free host.
 - **Your content is yours.** Every page is a readable file in your repository, with its whole history. You can move to another host, or another tool, whenever you like.
 - **Made for people who've never used git.** The admin panel says "Publish", not "commit", and explains problems in plain words. Sign-in is a button or a token link with the right permissions already chosen.
-- **Editors can do more without a developer.** Admins create collections and choose their fields, design the page every item shares, upload media, and add blocks from block registries, all from the admin panel.
+- **Editors can do more without a developer.** Owners create collections and choose their fields, design the page every item shares, upload media, and add blocks from block registries, all from the admin panel.
 - **AI help at no extra cost.** The AI assistant is built into the editor, for anyone who wants it. Editors can use a free AI service, or their own account with Claude or another service, and nothing goes through Goodfellow.
 - **Built for developers to extend.** Any React component can become a block, sites can be part of a Next.js app, and the content format is documented.
 
@@ -48,7 +48,7 @@ These comparisons are as of October 2026. The other products change too, so chec
 
 The trade-off is that WordPress is a program that has to run on a server, with PHP and a MySQL or MariaDB database. Someone has to pay for that server and keep WordPress, its theme, and its plugins up to date, because they're a common target: Patchstack recorded [11,334 new vulnerabilities in the WordPress ecosystem in 2025](https://patchstack.com/whitepaper/state-of-wordpress-security-in-2026/), 91% of them in plugins. WordPress.com hosts sites for free, but its free plan shows WordPress.com's ads, uses a `wordpress.com` address, and doesn't allow plugins; see [its plans](https://wordpress.com/pricing/).
 
-**Choose WordPress** if the site needs a shop, memberships, comments from visitors without a GitHub account, or other features that need a server, or a particular plugin. **Choose Goodfellow** if the site is mainly pages and news that volunteers, staff, or a marketing team keep up to date, and you'd rather have no server to maintain or pay for.
+**Choose WordPress** if the site needs a shop, memberships, comments kept on the site's own server, or other features that need a server, or a particular plugin. **Choose Goodfellow** if the site is mainly pages and news that volunteers, staff, or a marketing team keep up to date, and you'd rather have no server to maintain or pay for.
 
 ### TinaCMS
 
@@ -68,7 +68,7 @@ The other differences are about who it's for. Tina's content model, its collecti
 ## What Goodfellow can't do (yet)
 
 - **It's early.** Goodfellow is new, so it has fewer themes, plugins, and ready-made blocks than older systems, and fewer people who know it. Moving from WordPress, and back to it, [works already](/docs/move-from-wordpress).
-- **Sites are static.** Shops and member logins need a service of their own, or a developer who makes the site part of a [Next.js app with a server](/docs/full-stack-nextjs). Contact forms work through a form service; see [Forms](/docs/forms). Comments work through GitHub, so visitors need a GitHub account to write one; see [Comments](/docs/comments).
+- **Sites are static.** Shops and member logins need a service of their own, or a developer who makes the site part of a [Next.js app with a server](/docs/full-stack-nextjs). Contact forms work through a form service; see [Forms](/docs/forms). Comments go through a service of their own: Giscus, where visitors write with a GitHub account, Disqus, which lets guests comment, or Garrul, which you run yourself; see [Comments](/docs/comments).
 - **Publishing takes a minute or two**, while the host rebuilds the site. The editor shows changes at once, but visitors see them after the rebuild.
 - **Editors need a GitHub, GitLab, or Bitbucket account** with permission to change the site's repository, except on [full-stack Next.js sites](/docs/full-stack-nextjs), where they sign in with the app's own accounts.
 - **Free hosts have rules.** Some free plans don't allow business sites; see [Hosts and business sites](/docs/hosts).

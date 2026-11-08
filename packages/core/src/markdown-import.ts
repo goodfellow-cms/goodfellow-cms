@@ -31,7 +31,14 @@ import { SUMMARY_LENGTH } from "./content/entry-details.js";
 import { allPages, type SiteContent } from "./content/load.js";
 import { isSafeUrl } from "./content/markdown.js";
 import { mediaKind, uploadName } from "./content/media-files.js";
-import { entryAddress, isAddressSegment, isReservedPagePath, MEDIA_DIR, SLUG_PLACEHOLDER } from "./content/paths.js";
+import {
+  entryAddress,
+  isAddressSegment,
+  isReservedPagePath,
+  MEDIA_DIR,
+  SLUG_PLACEHOLDER,
+  unreservedPagePath,
+} from "./content/paths.js";
 import { isReservedRedirect, type Redirect, redirectFrom } from "./content/redirects.js";
 import type { CollectionField, CollectionFile, MenuItem } from "./content/schemas.js";
 import type { FileChange } from "./content/store.js";
@@ -487,8 +494,7 @@ export function planMarkdownImport(
       notes.add("taken", file.file);
       continue;
     }
-    if (isReservedPagePath(path))
-      path = `/${parts.map((part, index) => (index === 0 ? `${part}-page` : part)).join("/")}`;
+    if (isReservedPagePath(path)) path = unreservedPagePath(path);
     if (path !== "/" && sitePaths.has(path) && !options.replacePages) {
       notes.add("taken", file.file);
       continue;

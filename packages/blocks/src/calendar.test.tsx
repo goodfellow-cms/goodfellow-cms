@@ -139,6 +139,19 @@ describe("Calendar", () => {
     expect(html).toContain('href="/calendars/events.ics" download=""');
   });
 
+  it("subscribes to the calendar file of the page's language", async () => {
+    const spanish = { ...content, settings: { ...content.settings, languages: [{ code: "es" }] } } as SiteContent;
+    const page = {
+      path: "/es/calendar",
+      file: "content/pages/es/calendar.json",
+      content: { version: 1, data: { root: { props: {} }, content: [calendar({})] } },
+      view: { block: "c", path: "/es/calendar" },
+    } as Page;
+    const html = await renderPage(spanish, page);
+    expect(html).toContain("webcal://parish.example.org/es/calendars/events.ics");
+    expect(html).toContain('href="/es/calendars/events.ics" download=""');
+  });
+
   it("says when what it shows changes, for the nightly check", async () => {
     // A list of the next 30 days changes once Sunday's Mass is over, and the fall fair, after it, comes within it.
     resetDateChanges();

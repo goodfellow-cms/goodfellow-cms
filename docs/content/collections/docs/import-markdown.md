@@ -20,7 +20,7 @@ A folder of Markdown files, such as the content of a site made with Hugo, Jekyll
 
 Each file in a folder imported as pages becomes a page of built-in blocks, as [WordPress pages do](/docs/move-from-wordpress): headings, paragraphs, lists, quotes, tables, code, and pictures.
 
-- **Addresses:** `about.md` and `about/index.md` become `/about`, as do `_index.md` and `README.md` for their folder. A `permalink` or `url` in the front matter wins, and `slug` changes the last part.
+- **Addresses:** `about.md` and `about/index.md` become `/about`, as do `_index.md` and `README.md` for their folder. A `permalink` or `url` in the front matter wins, and `slug` changes the last part. An address a page can't have, such as one ending in `/index` or under `/admin`, gets `-page` added (`/docs/index-page`, `/admin-page/help`).
 - **The home page:** the top's `index.md` replaces it only when you tick **Replace the home page**.
 - **Pages the site has:** a file at an address the site already has a page at is left out, unless you tick **Replace pages**. Version history keeps the old ones.
 - **Settings:** `title` (or the first heading, or the file's name), `description`, `image`, and `noindex` become the page's settings.

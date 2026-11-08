@@ -44,4 +44,4 @@ Because the admin panel talks to GitHub, GitLab, or Bitbucket directly, nothing 
 - To see if Goodfellow fits, read [Why Goodfellow](/docs/why-goodfellow).
 - To make a site, follow [Create a site](/docs/create-a-site), then [Put it online](/docs/put-it-online).
 - To edit a site someone has set up for you, start with [Edit pages](/docs/edit-pages).
-- To write your own blocks or use Goodfellow in a Next.js app, see [Configuration](/docs/configuration).
+- To write your own blocks, see [Write blocks](/docs/write-blocks); to use Goodfellow in a Next.js app, see [Next.js](/docs/nextjs); for every setting, see [Configuration](/docs/configuration).

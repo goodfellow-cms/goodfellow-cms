@@ -1,4 +1,4 @@
-import { GitApiError, type ScheduledBuilds, ScheduledBuildsError } from "@goodfellow-cms/core";
+import { GitApiError, type ScheduledBuilds, ScheduledBuildsError, stopsScheduledBuild } from "@goodfellow-cms/core";
 import { type ApiOptions, gitlabJson, gitlabRequest } from "./api.js";
 
 /** The start of the description of the pipeline schedules the admin panel adds, which `sync()` keeps. */
@@ -58,7 +58,7 @@ export function gitlabScheduledBuilds(
       return (await readCi()) === undefined ? "none" : "exact";
     },
 
-    async sync(times) {
+    async sync(times, options = {}) {
       const after = now();
       const wanted = new Map<string, Date>();
       for (const at of [...times].filter((time) => time > after).sort((a, b) => a.getTime() - b.getTime())) {
@@ -77,7 +77,7 @@ export function gitlabScheduledBuilds(
         ours.set(schedule.description.slice(SCHEDULED_BUILD_DESCRIPTION.length), schedule);
       }
       for (const [time, schedule] of ours) {
-        if (wanted.has(time)) continue;
+        if (wanted.has(time) || !stopsScheduledBuild(new Date(time), after, options.known)) continue;
         // Only a schedule's owner or a Maintainer can delete it; a leftover one only builds the site again.
         await gitlabRequest(api, `${base}/${schedule.id}`, { method: "DELETE", allow: [403, 404] });
       }

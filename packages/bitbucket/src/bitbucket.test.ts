@@ -561,7 +561,10 @@ describe("updates and scheduled changes", () => {
     expect(bitbucketCronAt(later)).toBe(`0 30 9 4 3 ? ${later.getUTCFullYear()}`);
     expect(bitbucketCronInstant(bitbucketCronAt(later))).toEqual(later);
 
-    await scheduledBuilds?.sync?.([later]);
+    // A caller that never knew of the soon one, as when someone else scheduled it since it loaded, leaves it.
+    await scheduledBuilds?.sync?.([later], { known: [later] });
+    expect(ours()).toEqual([bitbucketCronAt(soon), bitbucketCronAt(later)]);
+    await scheduledBuilds?.sync?.([later], { known: [soon, later] });
     expect(ours()).toEqual([bitbucketCronAt(later)]);
     expect(fake.schedules.some((schedule) => schedule.uuid === "{nightly}")).toBe(true);
   });

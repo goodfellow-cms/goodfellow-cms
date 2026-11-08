@@ -18,6 +18,7 @@ import {
   entryFileChange,
   entryPathIn,
   type FileChange,
+  type FileDetails,
   FOOTER_FILE,
   formatSiteProblem,
   HEADER_FILE,
@@ -37,6 +38,7 @@ import {
   mainLanguage,
   menusFileChange,
   menusFileSchema,
+  movePageChanges,
   newDraftName,
   outsideLimits,
   pageFileChange,
@@ -51,6 +53,8 @@ import {
   siteSettingsFileChange,
   siteSettingsSchema,
   syncedBlockFileChange,
+  wallClock,
+  withSchedule,
   writeChanges,
 } from "@goodfellow-cms/core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -66,6 +70,7 @@ import {
   listMedia,
   listPages,
   listSyncedBlocks,
+  loadWholeSite,
   mediaImage,
   pageAddress,
   readCollection,
@@ -84,7 +89,7 @@ import { type ConnectorContext, type OpenedSite, openSite } from "./site.js";
 export const INSTRUCTIONS = `These tools edit websites built with Goodfellow, for people who aren't developers.
 
 - Start with get_site, which lists the site's pages, collections, and blocks.
-- Changes are saved in a draft, never straight to the live site. The first change starts one and returns its name: pass that name as "draft" to every later change and read, so they build on each other.
+- Changes are saved in a draft, never straight to the live site. The first change starts one and returns its name: pass that name as "draft" to every later change and read, so they build on each other. list_drafts shows the drafts there are already, the admin panel's too.
 - Pages, the header, and the footer are made of blocks. get_blocks says which blocks the site has and what each one's props are. Blocks are written as a flat list in page order: a block inside another names it as "parent", and which of its places it goes in as "slot".
 - Show the editor what a draft looks like with screenshot before anything goes live.
 - Only publish when the editor says to. If they'd like someone to check it first, use submit_for_review instead.
@@ -408,6 +413,50 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     await writeChanges(store, changes, { message, expectedRevision: await store.revision() });
   }
 
+  const scheduleArgs = {
+    showFrom: z
+      .string()
+      .optional()
+      .describe(
+        "When it's first shown on the site, as YYYY-MM-DDTHH:MM in the site's time zone (get_settings' timeZone, or UTC without one). An empty string shows it at once. Leave it out to keep its schedule.",
+      ),
+    hideAfter: z
+      .string()
+      .optional()
+      .describe(
+        "When it stops being shown, as YYYY-MM-DDTHH:MM in the site's time zone. An empty string keeps it shown. Leave it out to keep its schedule.",
+      ),
+  };
+
+  /**
+   * A file's details with the schedule a tool was given, in place of its own
+   * where it was given one: a time, or an empty string for none. Without
+   * either, the file keeps its own, as the admin panel's editors do.
+   */
+  function scheduled(
+    details: FileDetails | undefined,
+    showFrom: string | undefined,
+    hideAfter: string | undefined,
+  ): FileDetails | undefined {
+    if (showFrom === undefined && hideAfter === undefined) return details;
+    for (const [name, time] of [
+      ["showFrom", showFrom],
+      ["hideAfter", hideAfter],
+    ] as const) {
+      if (time && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(time) || wallClock(time) === undefined)) {
+        throw new ToolError(`${name} must be a date and time that exists, written as YYYY-MM-DDTHH:MM.`);
+      }
+    }
+    const schedule = {
+      showFrom: showFrom === undefined ? details?.showFrom : showFrom || undefined,
+      hideAfter: hideAfter === undefined ? details?.hideAfter : hideAfter || undefined,
+    };
+    if (schedule.showFrom && schedule.hideAfter && schedule.hideAfter <= schedule.showFrom) {
+      throw new ToolError("hideAfter must come after showFrom.");
+    }
+    return withSchedule(details ?? {}, schedule);
+  }
+
   /**
    * What a tool does beyond changing a draft, which clients use to decide what
    * to ask about first: `read` changes nothing, `destructive` can't be undone
@@ -540,7 +589,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
 
   tool(
     "save_page",
-    "Creates a page, or changes one, in a draft. Give the whole list of blocks: it replaces the page's blocks. Leave blocks out to change only its settings.",
+    "Creates a page, or changes one, in a draft. Give the whole list of blocks: it replaces the page's blocks. Leave blocks out to change only its settings. showFrom and hideAfter schedule when it's shown.",
     {
       site: siteArg,
       address: z.string().describe("The page's address, such as /about. A new address makes a new page."),
@@ -550,8 +599,9 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         .optional()
         .describe("Page settings to change, such as title and description, as get_blocks describes them."),
       blocks: z.array(flatBlock).optional(),
+      ...scheduleArgs,
     },
-    async ({ site: given, address, draft: name, settings, blocks }) => {
+    async ({ site: given, address, draft: name, settings, blocks, showFrom, hideAfter }) => {
       const site = await open(given);
       const path = pageAddress(address);
       const draft = await changing(site, name);
@@ -571,12 +621,9 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       const built = blocks ? blocksFrom(blocks, site.pageConfig) : { content: before.content, ignored: 0 };
       const data: Data = { ...before, root: { ...before.root, props }, content: built.content };
       const title = typeof props.title === "string" && props.title ? props.title : path;
-      // A page scheduled in the admin panel keeps its schedule.
-      await save(
-        draft,
-        [pageFileChange(path, data, existing?.content)],
-        `${existing ? "Update" : "Add"} page "${title}"`,
-      );
+      // A page scheduled in the admin panel keeps its schedule, unless it's given one.
+      const details = scheduled(existing?.content, showFrom, hideAfter);
+      await save(draft, [pageFileChange(path, data, details)], `${existing ? "Update" : "Add"} page "${title}"`);
       return text({
         draft: draft.name,
         address: path,
@@ -616,6 +663,43 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       });
     },
     "destructive",
+  );
+
+  tool(
+    "move_page",
+    "Moves a page to a new address, in a draft, pointing every link to it on the site at the new one, and, unless redirect is false, sending visitors from its old address there. Pages under it keep their addresses.",
+    {
+      site: siteArg,
+      address: z.string().describe("The page's address now, such as /about."),
+      to: z.string().describe("Its new address, such as /about-us."),
+      redirect: z
+        .boolean()
+        .optional()
+        .describe("Whether visitors to the old address go to the new one. Yes unless false."),
+      draft: draftArg,
+    },
+    async ({ site: given, address, to: newAddress, redirect, draft: name }) => {
+      const site = await open(given);
+      const from = pageAddress(address);
+      const to = pageAddress(newAddress);
+      if (from === "/") throw new ToolError("The home page can't move. Change it instead.");
+      if (from === to) throw new ToolError(`The page is at ${to} already.`);
+      if (isReservedPagePath(to)) throw new ToolError(`${to} is kept for the admin panel. Choose another address.`);
+      const draft = await changing(site, name);
+      // Links anywhere on the site can point to it, so this reads the whole site, in batches.
+      const content = await loadWholeSite(draft.store);
+      const page = content.pages.find((candidate) => candidate.path === from);
+      if (!page) throw new ToolError(`The site has no page at ${from}. get_site lists its pages.`);
+      if (content.pages.some((candidate) => candidate.path === to) || (await takenAddresses(draft.store)).has(to)) {
+        throw new ToolError(`${to} is already taken on the site. Choose another address.`);
+      }
+      const changes = movePageChanges(content, page, to, {
+        blocks: site.pageConfig.components as Record<string, ComponentConfig>,
+        redirect: redirect !== false,
+      });
+      await save(draft, changes, `Move page ${from} to ${to}`);
+      return text({ draft: draft.name, address: to, from, saved: "moved", filesChanged: changes.length });
+    },
   );
 
   tool(
@@ -796,7 +880,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
 
   tool(
     "save_item",
-    "Creates an item of a collection, or changes one, in a draft. Values not given stay as they are. Formatted text is simple HTML; a collection's Markdown field is Markdown.",
+    "Creates an item of a collection, or changes one, in a draft. Values not given stay as they are. Formatted text is simple HTML; a collection's Markdown field is Markdown. showFrom and hideAfter schedule when it's shown.",
     {
       site: siteArg,
       collection: z.string(),
@@ -813,8 +897,9 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
           "For a new item on a site in several languages, the code of the language it's in, from get_site. Leave it out for the site's main language. Names are the collection's whatever an item's language, so a translation has a name of its own.",
         ),
       draft: draftArg,
+      ...scheduleArgs,
     },
-    async ({ site: given, collection: id, slug, values, language, draft: name }) => {
+    async ({ site: given, collection: id, slug, values, language, draft: name, showFrom, hideAfter }) => {
       const site = await open(given);
       const draft = await changing(site, name);
       const collection = await readCollection(draft.store, id);
@@ -861,7 +946,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         { id, settings: collection.settings },
         slug,
         fields,
-        existing?.content ?? (inLanguage ? { inLanguage } : undefined),
+        scheduled(existing?.content ?? (inLanguage ? { inLanguage } : undefined), showFrom, hideAfter),
       );
       const title = typeof fields.title === "string" ? fields.title : slug;
       await save(
@@ -1010,6 +1095,26 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     async ({ site: given }) => {
       const site = await open(given);
       return text(await listMedia(site.backend));
+    },
+    true,
+  );
+
+  tool(
+    "list_drafts",
+    "The drafts there are, newest first, whoever started them: in the admin panel or from Claude, with the ones waiting for review and where they're reviewed.",
+    { site: siteArg },
+    async ({ site: given }) => {
+      const site = await open(given);
+      const drafts = site.backend.drafts;
+      if (!drafts) throw new ToolError("This site's host can't keep drafts, which Claude's changes need.");
+      const [names, reviews] = await Promise.all([drafts.list(), drafts.reviews().catch(() => [])]);
+      const reviewed = new Map(reviews.map((review) => [review.name, review]));
+      return text({
+        drafts: names.map((draft) => {
+          const review = reviewed.get(draft);
+          return { draft, ...(review && { waitingForReview: { title: review.title, url: review.url } }) };
+        }),
+      });
     },
     true,
   );

@@ -145,11 +145,12 @@ export function calendarFile(events: CalendarEvent[], options: CalendarFileOptio
   calendar.addPropertyWithValue("calscale", "GREGORIAN");
   calendar.addPropertyWithValue("method", "PUBLISH");
   calendar.addPropertyWithValue("x-wr-calname", text(options.name));
-  if (timeZone) {
-    calendar.addPropertyWithValue("x-wr-timezone", timeZone);
-    const timed = events.some(({ event }) => !isAllDay(event.start));
-    if (timed) calendar.addSubcomponent(timeZoneComponent(timeZone, yearsFor(events, now)));
-  }
+  if (timeZone) calendar.addPropertyWithValue("x-wr-timezone", timeZone);
+  // A calendar holds at least one component (RFC 5545's `icalbody`), so one with no events yet, which a
+  // language's pages still link to, has its time zone's, or UTC's, for calendars that check.
+  const timed = events.some(({ event }) => !isAllDay(event.start));
+  if (timeZone && timed) calendar.addSubcomponent(timeZoneComponent(timeZone, yearsFor(events, now)));
+  else if (events.length === 0) calendar.addSubcomponent(timeZoneComponent(timeZone ?? "UTC", yearsFor(events, now)));
   const stamp = ICAL.Time.fromJSDate(now, true);
   for (const item of events) calendar.addSubcomponent(eventComponent(item, timeZone, stamp));
 

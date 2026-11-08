@@ -97,6 +97,22 @@ export function isReservedPagePath(path: string): boolean {
   return RESERVED_PAGE_PATHS.some((reserved) => path === reserved || path.startsWith(`${reserved}/`));
 }
 
+/**
+ * An address like `path` that a page can have, for imports, which bring
+ * addresses from elsewhere: a last segment `index`, which would be the page
+ * above's file, becomes `index-page`, and the first segment of a reserved
+ * address such as `/admin` gets `-page` after it.
+ */
+export function unreservedPagePath(path: string): string {
+  const parts = pathSegments(path);
+  if (parts.at(-1) === "index") parts[parts.length - 1] = "index-page";
+  let unreserved = `/${parts.join("/")}`;
+  if (isReservedPagePath(unreserved)) {
+    unreserved = `/${parts.map((part, index) => (index === 0 ? `${part}-page` : part)).join("/")}`;
+  }
+  return unreserved;
+}
+
 /** Normalizes a page path: `"/about/"` → `"/about"`. */
 export function normalizePagePath(path: string): string {
   return `/${pathSegments(path).join("/")}`;

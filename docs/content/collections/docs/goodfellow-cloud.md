@@ -2,8 +2,8 @@
 version: 1
 title: Goodfellow Cloud
 description: Goodfellow Cloud, planned for the future, would set up and run the services site owners put online themselves today. Goodfellow's core will always be free.
-section: start
-order: 2.5
+section: owners
+order: 6.9
 ---
 
 **Goodfellow Cloud** is planned for the future, once enough organizations are interested. It isn't available yet, and there's nothing to pay for: everything these pages describe works today, for free.
@@ -23,7 +23,7 @@ Some parts of a Goodfellow site are services that its owner puts online themselv
 
 Goodfellow Cloud would set these up when a site is created, run them, and keep them up to date, so a new site needs nothing more than signing in, with no outside accounts to manage and nothing for a developer to change in the code. Later, it could host sites too.
 
-Sites would still be kept in your own GitHub or GitLab account, and built there, so you'd own your content as you do today, and you could leave Cloud at any time, putting each service back in your own hands without losing anything.
+Sites would still be kept in your own GitHub, GitLab, or Bitbucket account, and built there, so you'd own your content as you do today, and you could leave Cloud at any time, putting each service back in your own hands without losing anything.
 
 ## Join the waitlist
 
