@@ -752,6 +752,8 @@ export function AdminProvider({
   // left from before is removed (GitLab's have no year, so one would build again a year later), then whenever they
   // change. Never from a draft, whose schedules aren't live: the live site's are synced once it's back.
   const syncedTimes = useRef<string>(undefined);
+  // What the last sync listed, so a time only another editor's publish added is never taken away (`known`).
+  const knownTimes = useRef<Date[]>(undefined);
   useEffect(() => {
     const sync = scheduledBuilds?.sync?.bind(scheduledBuilds);
     if (!sync || state.status !== "ready" || draft) return;
@@ -759,8 +761,12 @@ export function AdminProvider({
     const key = times.join(" ");
     if (key === syncedTimes.current) return;
     syncedTimes.current = key;
-    void sync(times.map((time) => new Date(time))).then(
-      () => setScheduleSyncProblem(undefined),
+    const dates = times.map((time) => new Date(time));
+    void sync(dates, { ...(knownTimes.current && { known: knownTimes.current }) }).then(
+      () => {
+        knownTimes.current = dates;
+        setScheduleSyncProblem(undefined);
+      },
       (error: unknown) => {
         // Changes still go live with the next nightly build; screens say so, where anything is scheduled.
         if (error instanceof ScheduledBuildsError) setScheduleSyncProblem(times.length > 0 ? error.problem : undefined);

@@ -93,7 +93,11 @@ jobs:
         with:
           name: lockfile
       - id: publish
+        env:
+          # The lockfile was written where the site's packages were read, so it's checked before it's published.
+          CHECK: 'const { execFileSync } = require("child_process"); const fs = require("fs"); const read = (text) => { try { return JSON.parse(text); } catch { return undefined; } }; const found = (value, into) => { if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) { if (key === "resolved") into.add(String(item)); else found(item, into); } return into; }; let before; try { before = read(execFileSync("git", ["show", "HEAD:package-lock.json"], { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] })); } catch {} const had = found(before, new Set()); const refused = [...found(read(fs.readFileSync("package-lock.json", "utf8")), new Set())].filter((address) => !had.has(address) && !address.startsWith("https://registry.npmjs.org/")); for (const address of refused) console.log("::error::package-lock.json takes a package from somewhere other than npm, so it was not published: " + address); process.exit(refused.length > 0 ? 1 : 0);'
         run: |
+          node -e "$CHECK"
           git add package-lock.json
           git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names"
           git push origin "HEAD:$GITHUB_REF_NAME"
