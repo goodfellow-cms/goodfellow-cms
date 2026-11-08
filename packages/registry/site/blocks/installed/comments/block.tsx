@@ -92,6 +92,11 @@ function pageUrl(siteUrl: string | undefined, path: string): string | undefined 
  * Where the block's comments are: what its code names, Giscus's, Disqus's or
  * Garrul's, else Site settings' place. Code that's none of theirs names
  * nothing, so a mistake shows in the editor rather than other comments.
+ *
+ * Giscus and Disqus load their scripts from their own sites, whatever the code
+ * names, but Garrul's comes from wherever its address says, and any editor
+ * can change a block's code. So Garrul is taken only where Site settings,
+ * which only owners change, already names the same address.
  */
 export function commentsPlace(code: string | undefined, settings: Pick<SiteSettings, "comments">) {
   const pasted = code?.trim() ?? "";
@@ -101,7 +106,12 @@ export function commentsPlace(code: string | undefined, settings: Pick<SiteSetti
   const disqus = disqusShortname(pasted);
   if (disqus) return { disqus };
   const garrul = garrulAddress(pasted);
-  return garrul ? { garrul } : undefined;
+  return garrul && garrul === settledGarrul(settings) ? { garrul } : undefined;
+}
+
+/** The Garrul address Site settings names, if its comments are Garrul's. */
+function settledGarrul(settings: Pick<SiteSettings, "comments">): string | undefined {
+  return settings.comments && isGarrul(settings.comments) ? settings.comments.garrul : undefined;
 }
 
 /** Whether the comments are Giscus's, whose reactions and box for writing the block's settings choose. */
@@ -140,10 +150,14 @@ function CommentsView({
   );
   let body: ReactNode;
   if (!place) {
-    const link = pasted ? undefined : adminLink?.("comments-settings");
-    const text = pasted
-      ? "This isn't Giscus's, Disqus's or Garrul's code. On giscus.app, choose the repository and category, then copy the code at the end of the page; or paste Disqus's code or its site's shortname, or Garrul's code or its address."
-      : "Set up comments in Site settings' Comments to show them here.";
+    // Garrul's address is the owners' to choose, since its script comes from there.
+    const otherGarrul = pasted !== "" && garrulAddress(pasted) !== undefined;
+    const link = pasted && !otherGarrul ? undefined : adminLink?.("comments-settings");
+    const text = otherGarrul
+      ? "Garrul's comments show only from the address in Site settings' Comments, which an owner sets there."
+      : pasted
+        ? "This isn't Giscus's, Disqus's or Garrul's code. On giscus.app, choose the repository and category, then copy the code at the end of the page; or paste Disqus's code or its site's shortname, or Garrul's code or its address."
+        : "Set up comments in Site settings' Comments to show them here.";
     body = (
       <p className="rounded-lg bg-muted p-6 text-muted-foreground">
         {link ? (

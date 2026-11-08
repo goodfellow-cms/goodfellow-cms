@@ -477,6 +477,30 @@ describe("editors", () => {
     expect(fake.permissions.has("{helper}")).toBe(false);
   });
 
+  it("gives permission to the member a name is theirs alone, never to one who chose it as their display name", async () => {
+    const { fake, backend } = await signedIn({
+      members: [
+        { nickname: "maria", displayName: "Maria Lopez" },
+        // Anyone in the workspace can choose any display name, someone else's nickname included.
+        { nickname: "mallory", displayName: "maria" },
+        { nickname: "ana", displayName: "Ana Ruiz" },
+        { nickname: "ana2", displayName: "Ana Ruiz" },
+      ],
+    });
+    const editors = backend.editors;
+    if (!editors) throw new Error("No editors");
+    await editors.invite("maria", "editor");
+    expect(fake.permissions.get("{maria}")?.permission).toBe("write");
+    expect(fake.permissions.has("{mallory}")).toBe(false);
+    await editors.invite("Maria Lopez", "owner").catch(() => undefined);
+    expect(fake.permissions.has("{mallory}")).toBe(false);
+    // Two members go by the same display name, so neither is chosen.
+    await expect(editors.invite("Ana Ruiz", "editor")).rejects.toMatchObject({ problem: "ambiguous" });
+    expect(fake.permissions.has("{ana}") || fake.permissions.has("{ana2}")).toBe(false);
+    await editors.invite("ana2", "editor");
+    expect(fake.permissions.get("{ana2}")?.permission).toBe("write");
+  });
+
   it("asks for an owner token where the sign-in can't see everyone's permissions", async () => {
     const { backend } = await signedIn({
       tokens: { [TOKEN]: { nickname: "editor", permission: "write" } },

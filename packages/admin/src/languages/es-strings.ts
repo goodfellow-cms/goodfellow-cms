@@ -2090,6 +2090,7 @@ export const strings: Strings = {
   "editors.error.not-found": "No hay ninguna cuenta de {host} con ese nombre. Revisa cómo está escrito.",
   "editors.error.invalid": "Eso no es un nombre de usuario ni un correo electrónico que acepte {host}.",
   "editors.error.already": "Ya edita el sitio, o ya está invitado.",
+  "editors.error.ambiguous": "Más de una persona en {host} usa ese nombre. Escribe su nombre de usuario.",
   "editors.error.other": "Algo salió mal. Inténtalo de nuevo en un momento.",
   "permissions.title": "Límites",
   "permissions.intro":

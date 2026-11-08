@@ -261,6 +261,38 @@ export function isLocalAddress(origin: string): boolean {
   );
 }
 
+/**
+ * An address tokens may go to, and the paths of the page there that signs in:
+ * the admin panel, under the address's own path or the origin's root, or the
+ * token broker's page itself. A sign-in comes back only to one of them, never
+ * to another page at the origin, where an editor's redirect could pass the
+ * grant on.
+ */
+interface SiteAddress {
+  origin: string;
+  paths: string[];
+}
+
+/** The paths the admin panel is served at under `base`, as hosts serve its page. */
+function adminPaths(base: string): string[] {
+  const root = base.replace(/\/?$/, "/");
+  return [`${root}admin`, `${root}admin/`, `${root}admin/index.html`, `${root}admin.html`];
+}
+
+/** Where the admin panel signs in at an address whose own path is `path`: under it, or at the origin's root. */
+function adminAddress(origin: string, ...bases: string[]): SiteAddress {
+  return { origin, paths: [...new Set(["/", ...bases].flatMap(adminPaths))] };
+}
+
+/** The path of an address, with a trailing slash, or `/`. */
+function pathOf(url: string): string {
+  try {
+    return new URL(url).pathname.replace(/\/?$/, "/");
+  } catch {
+    return "/";
+  }
+}
+
 function originOf(url: string): string | undefined {
   try {
     const parsed = new URL(url);
@@ -346,7 +378,7 @@ export function createWorker(options: WorkerOptions = {}) {
   const sealers = new Map<string, Promise<Sealer>>();
   const installations = new Map<string, { id: number | undefined; at: number }>();
   // Sites' addresses as the last check found them, so checks anyone can ask for don't each cost GitHub requests.
-  const checkedAddresses = new Map<string, { addresses: string[]; at: number }>();
+  const checkedAddresses = new Map<string, { addresses: SiteAddress[]; at: number }>();
 
   async function handle(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
@@ -468,9 +500,10 @@ export function createWorker(options: WorkerOptions = {}) {
      * The addresses tokens may go to: the Site address in the site's settings
      * (`content/site.json`), read with an installation token, and the admin
      * address and the site's other copies, such as staging, that the site's
-     * build names there, if it has them. Empty without a Site address.
+     * build names there, if it has them, each with the paths a sign-in may
+     * come back to. Empty without a Site address.
      */
-    async function siteAddresses(repo: string, token: string): Promise<string[]> {
+    async function siteAddresses(repo: string, token: string): Promise<SiteAddress[]> {
       let url: string | undefined;
       try {
         const response = await github(config, `/repos/${repoPath(repo)}/contents/content/site.json`, {
@@ -485,9 +518,25 @@ export function createWorker(options: WorkerOptions = {}) {
       const site = url && originOf(url);
       if (!url || !site) return [];
       const { admin, broker, copies = [] } = await describedAddresses(url);
+      const base = pathOf(url);
       // A site with a token broker signs in only there, so its tokens never reach the site's own pages.
-      const addresses = broker ? [broker] : [...new Set([site, ...(admin ? [admin] : []), ...copies])];
-      return allowedOrigins.length > 0 ? addresses.filter((address) => allowedOrigins.includes(address)) : addresses;
+      const addresses: SiteAddress[] = broker
+        ? [{ origin: broker.origin, paths: [broker.path, `${broker.path}index.html`] }]
+        : [
+            adminAddress(site, base),
+            ...(admin ? [adminAddress(admin.origin, base, admin.path)] : []),
+            ...copies.map((copy) => adminAddress(copy.origin, base, copy.path)),
+          ];
+      const merged = new Map<string, SiteAddress>();
+      for (const address of addresses) {
+        const known = merged.get(address.origin);
+        merged.set(address.origin, {
+          origin: address.origin,
+          paths: [...new Set([...(known?.paths ?? []), ...address.paths])],
+        });
+      }
+      const all = [...merged.values()];
+      return allowedOrigins.length > 0 ? all.filter((address) => allowedOrigins.includes(address.origin)) : all;
     }
 
     /**
@@ -497,9 +546,11 @@ export function createWorker(options: WorkerOptions = {}) {
      * them. Tokens already go to the Site address, so what it serves names no
      * address editors couldn't.
      */
-    async function describedAddresses(
-      siteUrl: string,
-    ): Promise<{ admin?: string; broker?: string; copies?: string[] }> {
+    async function describedAddresses(siteUrl: string): Promise<{
+      admin?: { origin: string; path: string };
+      broker?: { origin: string; path: string };
+      copies?: Array<{ origin: string; path: string }>;
+    }> {
       try {
         const response = await config.fetch(new URL("goodfellow-site.json", siteUrl.replace(/\/?$/, "/")).href, {
           redirect: "error",
@@ -512,26 +563,39 @@ export function createWorker(options: WorkerOptions = {}) {
         };
         const address = (url: unknown) => {
           const origin = typeof url === "string" ? originOf(url) : undefined;
-          return origin && !isLocalAddress(origin) ? origin : undefined;
+          return typeof url === "string" && origin && !isLocalAddress(origin)
+            ? { origin, path: pathOf(url) }
+            : undefined;
         };
         const admin = address(description.admin?.url);
         const broker = address(description.broker?.url);
         const copies = (Array.isArray(description.copies) ? description.copies : [])
           .map(address)
-          .filter((origin): origin is string => origin !== undefined);
+          .filter((found): found is { origin: string; path: string } => found !== undefined);
         return { ...(admin && { admin }), ...(broker && { broker }), ...(copies.length > 0 && { copies }) };
       } catch {
         return {};
       }
     }
 
-    /** Checks that the app is installed on the repository and that `origin` is the site's own address, its admin address, another copy's, or its token broker's. */
-    async function checkSite(purpose: Purpose, repo: string, origin: string | undefined): Promise<number> {
+    /**
+     * Checks that the app is installed on the repository and that `origin` is
+     * the site's own address, its admin address, another copy's, or its token
+     * broker's, and, given the `path` a sign-in comes back to, that it's the
+     * page there that signs in.
+     */
+    async function checkSite(
+      purpose: Purpose,
+      repo: string,
+      origin: string | undefined,
+      path?: string,
+    ): Promise<number> {
       if (!origin || !originOf(origin) || isLocalAddress(origin)) throw new Problem("local-address", 403);
       const app = appFor(purpose);
-      const verdict = (addresses: string[], installation: number) => {
+      const verdict = (addresses: SiteAddress[], installation: number) => {
         if (addresses.length === 0) throw new Problem("no-address", 409);
-        if (!addresses.includes(origin)) throw new Problem("wrong-address", 403);
+        const address = addresses.find((known) => known.origin === origin);
+        if (!address || (path !== undefined && !address.paths.includes(path))) throw new Problem("wrong-address", 403);
         return installation;
       };
       // Checks before signing in can be asked for by anyone, so they read the site's addresses at most every
@@ -548,7 +612,7 @@ export function createWorker(options: WorkerOptions = {}) {
         installation,
         reader: await installationToken(config, jwt, installation, repo, { contents: "read", metadata: "read" }),
       }));
-      let addresses: string[];
+      let addresses: SiteAddress[];
       try {
         addresses = await siteAddresses(repo, reader.token);
       } finally {
@@ -669,7 +733,7 @@ export function createWorker(options: WorkerOptions = {}) {
       try {
         await checkStillAllowed(session, repo, issued.token);
         // Checked every time, since the site's address can change, and its old address shouldn't keep getting tokens.
-        if (!(await siteAddresses(repo, issued.token)).includes(session.origin)) {
+        if (!(await siteAddresses(repo, issued.token)).some((address) => address.origin === session.origin)) {
           throw new Problem("wrong-address", 403);
         }
         const sealed = await sealSession(session);
@@ -818,6 +882,7 @@ export function createWorker(options: WorkerOptions = {}) {
         const purpose: Purpose = purposeParam === "owner" || purposeParam === "setup" ? purposeParam : "edit";
         const back = params.get("return") ?? "";
         const origin = originOf(back);
+        const backPath = origin ? new URL(back).pathname : "";
         const challenge = params.get("challenge") ?? "";
         const repo = params.get("repo") ?? undefined;
         if (!origin || !CHALLENGE.test(challenge) || (purpose !== "setup" && !REPO.test(repo ?? ""))) {
@@ -828,7 +893,7 @@ export function createWorker(options: WorkerOptions = {}) {
           if (purpose === "setup") checkSetupOrigin(origin);
           else {
             // Until it's installed, the site's settings can't be read, so installing checks the address on the way back.
-            if (!install) await checkSite(purpose, repo ?? "", origin);
+            if (!install) await checkSite(purpose, repo ?? "", origin, backPath);
             else if (isLocalAddress(origin)) throw new Problem("local-address", 403);
           }
         } catch (error) {
@@ -847,7 +912,8 @@ export function createWorker(options: WorkerOptions = {}) {
           ...(purpose !== "setup" && { repo }),
           return: back,
           challenge,
-          remember: params.get("remember") === "1",
+          // An owner's sign-in is kept only while the page is open, so nothing a link says makes it last longer.
+          remember: purpose !== "owner" && params.get("remember") === "1",
           ...(install && { install }),
         };
         const sealed = await (await sealer()).seal("state", state, STATE_LIFETIME);
@@ -884,7 +950,7 @@ export function createWorker(options: WorkerOptions = {}) {
         if (state.install && state.repo) {
           // Coming back from installing: only now can the site's settings say where it may go back to.
           try {
-            await checkSite(state.purpose, state.repo, origin);
+            await checkSite(state.purpose, state.repo, origin, new URL(state.return).pathname);
           } catch (error) {
             // The return address isn't known to be the site's, so the answer is a page here, never a redirect.
             if (error instanceof Problem) return page(error.problem, error.status);

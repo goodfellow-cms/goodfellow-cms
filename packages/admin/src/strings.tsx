@@ -2186,6 +2186,7 @@ export const defaultStrings = {
   "editors.error.not-found": "There's no {host} account with that name. Check the spelling.",
   "editors.error.invalid": "That isn't a username or email address that {host} accepts.",
   "editors.error.already": "They already edit the site, or have been invited.",
+  "editors.error.ambiguous": "More than one person on {host} goes by that name. Use their username instead.",
   "editors.error.other": "Something went wrong. Try again in a moment.",
   "permissions.title": "Limits",
   "permissions.intro":

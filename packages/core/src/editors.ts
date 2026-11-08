@@ -101,7 +101,9 @@ export type EditorsProblem =
   /** It isn't an account name or email address the host accepts. */
   | "invalid"
   /** They already edit the site, or have been invited. */
-  | "already";
+  | "already"
+  /** More than one account goes by that name, so it can't say which is meant. */
+  | "ambiguous";
 
 export class EditorsError extends Error {
   override name = "EditorsError";

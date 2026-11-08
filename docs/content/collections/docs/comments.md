@@ -115,7 +115,7 @@ Moderate Garrul's comments on Garrul: **Site Settings**, **Comments** links to *
 ## Choices
 
 - **Heading** shows above the comments. Leave it empty for none.
-- **Giscus's, Disqus's or Garrul's code** is only for comments kept somewhere other than Site Settings says. Leave it empty to show the ones set up there.
+- **Giscus's, Disqus's or Garrul's code** is only for comments kept somewhere other than Site Settings says. Leave it empty to show the ones set up there. Garrul's comments load a script from wherever its address says, and anyone who edits pages can change a block, so the block shows Garrul only from the address in Site Settings, which only owners change.
 - **Reactions to the page (Giscus)** shows or hides the row of reactions, such as 👍 and ❤️, above the comments. Disqus has its own setting for reactions, on Disqus.
 - **Box for writing a comment (Giscus)** puts it above the comments or under them. Disqus and Garrul have their own.
 

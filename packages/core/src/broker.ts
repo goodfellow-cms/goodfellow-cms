@@ -9,7 +9,8 @@
  */
 import { adminOrigin } from "./admin-domain.js";
 import { CommentsError } from "./comments.js";
-import { CONTENT_DIR } from "./content/paths.js";
+import { mediaKind } from "./content/media-files.js";
+import { CONTENT_DIR, MEDIA_DIR } from "./content/paths.js";
 import { CodeChangeError, ConflictError, type FileChange, isContentPath } from "./content/store.js";
 import { DomainError } from "./domains.js";
 import { DraftError } from "./drafts.js";
@@ -173,6 +174,8 @@ export function brokerChangeCheck(changes: readonly FileChange[], siteUrl: strin
     if (isWorkflowPath(path) || path.startsWith("/") || path.split("/").includes("..")) check.refused.push(path);
     else if (path.startsWith(`${CONTENT_DIR}/code/`)) check.confirm.push({ path, kind: "custom-code" });
     else if (!isContentPath(path)) check.confirm.push({ path, kind: "code" });
+    // The media library's own kinds can't run on the site's address; anything else there (a page, a script) could.
+    else if (path.startsWith(`${MEDIA_DIR}/`) && !mediaKind(path)) check.confirm.push({ path, kind: "code" });
     else if (path === `${CONTENT_DIR}/site.json`) {
       // Written as text or as bytes, which every backend publishes alike; deleting it takes the address away.
       const text =

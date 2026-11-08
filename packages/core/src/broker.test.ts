@@ -52,6 +52,25 @@ describe("what the broker publishes without asking", () => {
     content: JSON.stringify({ version: 1, url }),
   });
 
+  it("asks about files in the media folder that aren't media, which could run on the site's address", () => {
+    const check = brokerChangeCheck(
+      [
+        { path: "public/media/a.png", bytes: new Uint8Array() },
+        { path: "public/media/fonts/inter.woff2", bytes: new Uint8Array() },
+        { path: "public/media/bulletin.pdf", bytes: new Uint8Array() },
+        { path: "public/media/page.html", content: "<script></script>" },
+        { path: "public/media/app.js", content: "" },
+        { path: "public/media/_headers", content: "" },
+      ],
+      undefined,
+    );
+    expect(check.confirm).toEqual([
+      { path: "public/media/page.html", kind: "code" },
+      { path: "public/media/app.js", kind: "code" },
+      { path: "public/media/_headers", kind: "code" },
+    ]);
+  });
+
   it("publishes content and media, asks about code, custom code and the Site address, and never changes workflows", () => {
     const check = brokerChangeCheck(
       [

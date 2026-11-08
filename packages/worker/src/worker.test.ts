@@ -195,6 +195,61 @@ describe("signing in", () => {
   });
 });
 
+describe("coming back", () => {
+  async function start(call: ReturnType<typeof setup>["call"], back: string, extra: Record<string, string> = {}) {
+    const query = new URLSearchParams({
+      purpose: "edit",
+      repo: "parish/site",
+      return: back,
+      challenge: await challengeFor("x".repeat(43)),
+      ...extra,
+    });
+    return call(`/github/start?${query}`);
+  }
+
+  it("goes back only to the admin panel, never to another page at the site's address", async () => {
+    const { call } = setup();
+    // An editor's redirect at the site's address would pass the grant on, wherever it went.
+    for (const back of [`${SITE}/r`, `${SITE}/news/admin/`, `${SITE}/admin/editor/`, `${SITE}/`]) {
+      const response = await start(call, back);
+      expect(response.status).toBe(403);
+      expect(response.headers.get("location")).toBeNull();
+    }
+    for (const back of [`${SITE}/admin`, `${SITE}/admin/`, `${SITE}/admin/index.html`, `${SITE}/admin/?x=1#/pages`]) {
+      expect((await start(call, back)).status).toBe(302);
+    }
+  });
+
+  it("goes back to the admin panel under a site's own folder, and to a token broker's page only", async () => {
+    const inFolder = setup({ url: `${SITE}/parish/` });
+    expect((await start(inFolder.call, `${SITE}/parish/admin/`)).status).toBe(302);
+    expect((await start(inFolder.call, `${SITE}/parish/r`)).status).toBe(403);
+
+    const broker = "https://broker.parish.example";
+    const withBroker = setup({ broker: `${broker}/` });
+    expect((await start(withBroker.call, `${broker}/?site=parish`)).status).toBe(302);
+    expect((await start(withBroker.call, `${broker}/admin/`)).status).toBe(403);
+  });
+
+  it("checks the page it goes back to once Goodfellow is installed, too", async () => {
+    const { fake, call } = setup({ installed: false });
+    const started = await start(call, `${SITE}/r`, { install: "1" });
+    const state = new URL(started.headers.get("location") ?? "").searchParams.get("state") ?? "";
+    const { code } = fake.install("goodfellow-cms", "olivia", ["parish/site"]);
+    const back = await call(`/github/callback?${new URLSearchParams({ code, state })}`);
+    expect(back.status).toBe(403);
+    expect(back.headers.get("location")).toBeNull();
+  });
+
+  it("never keeps an owner signed in for longer because a link says to", async () => {
+    const { signIn, post, tick } = setup({ env: { ALLOWED_ORIGINS: SITE } });
+    // The sign-in asks to be remembered, as any link could.
+    const { body } = await signIn("olivia", "owner");
+    tick(13 * 3_600_000);
+    expect((await post("/github/token", { session: body.session })).status).toBe(401);
+  });
+});
+
 describe("staying signed in", () => {
   it("renews the token from the session, checking each time that the person still edits the site", async () => {
     const { fake, signIn, post } = setup();
