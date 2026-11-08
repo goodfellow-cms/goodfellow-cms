@@ -6,13 +6,13 @@ test("? lists the shortcuts, and Ctrl+K goes to a page by its name", async ({ pa
   await page.keyboard.press("Shift+?");
   const list = page.getByRole("dialog", { name: "Keyboard shortcuts" });
   await expect(list).toContainText("Add your changes to a draft, in an editor");
-  await expect(list).toContainText("Go to a page, item or screen");
+  await expect(list).toContainText("Go to a page, item, or screen");
   await list.getByRole("button", { name: "Close" }).click();
   await expect(list).toBeHidden();
 
   await page.keyboard.press("Control+k");
   const box = page.getByRole("dialog", { name: "Go to…" });
-  const search = box.getByRole("combobox", { name: "Page, item or screen" });
+  const search = box.getByRole("combobox", { name: "Page, item, or screen" });
   await expect(search).toBeFocused();
   // Typing ? in the box is a letter, not the list of shortcuts.
   await search.fill("?");

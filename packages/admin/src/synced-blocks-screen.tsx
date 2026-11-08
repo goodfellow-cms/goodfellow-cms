@@ -1,8 +1,8 @@
 /**
  * Synced blocks: blocks kept once, in `content/synced-blocks/`, which pages,
- * collections' designs, the header and the footer place with the Synced block
+ * collections' designs, the header, and the footer place with the Synced block
  * block, so changing one changes every page in one publish. The Synced blocks
- * screen lists them, makes new ones, renames and deletes them; each opens in
+ * screen lists them, makes new ones, renames, and deletes them; each opens in
  * an editor of its own, like the header's; and the page editors save a block
  * as one, or put a synced block's own blocks in place of its Synced block
  * (Detach).

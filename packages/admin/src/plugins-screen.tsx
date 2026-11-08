@@ -1,6 +1,6 @@
 /**
  * Site Settings' Plugins screen: plugins published on npm as
- * `goodfellow-plugin-<name>`, which owners install, update and remove. A
+ * `goodfellow-plugin-<name>`, which owners install, update, and remove. A
  * plugin has code, which is included when the site builds, so the screen
  * shows what each asks to do (its `goodfellow-plugin.json`) and what its
  * packages' code could do (`reviewPluginPackages()`) before installing it,
@@ -811,7 +811,7 @@ function PluginDetails({
   );
 }
 
-/** Packages every site has, which reviews leave out: Goodfellow's own, React and Puck. */
+/** Packages every site has, which reviews leave out: Goodfellow's own, React, and Puck. */
 const KNOWN_PACKAGES = [
   "react",
   "react-dom",

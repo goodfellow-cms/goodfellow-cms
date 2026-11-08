@@ -13,7 +13,7 @@ export const CANVAS_CONTAINER = "gf-canvas";
 /** At-rules whose blocks hold rules like the top level's, which are kept to the canvas too. */
 const GROUPS = new Set(["media", "supports", "layer", "container", "document", "starting-style"]);
 
-/** Where `text` has a comment, string or escape starting at `index`, the index just after it. */
+/** Where `text` has a comment, string, or escape starting at `index`, the index just after it. */
 function skipAtom(text: string, index: number): number {
   const char = text[index];
   if (char === "/" && text[index + 1] === "*") {
@@ -55,7 +55,7 @@ function splitList(list: string): string[] {
 /** The page itself, as selectors name it, which becomes the canvas: `:root`, `html`, `html > body` or `body`. */
 const ROOT = /^(?:(?:html|:root|:host)(?![\w-])(?:\s*>?\s*body(?![\w-]))?|body(?![\w-]))/i;
 
-/** Attributes, classes and pseudo-classes on the page itself, such as `[data-gf-color-scheme="dark"]`. */
+/** Attributes, classes, and pseudo-classes on the page itself, such as `[data-gf-color-scheme="dark"]`. */
 const QUALIFIERS = /^(?:\[[^\]]*\]|[.#][\w-]+|:[\w-]+(?:\((?:[^()]|\([^()]*\))*\))?)+/;
 
 /** A pseudo-element at the end of a selector, which `:is()` can't hold. */

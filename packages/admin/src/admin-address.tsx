@@ -321,7 +321,7 @@ function AdminAddressState({
       )}
       {error !== undefined && <DomainProblem error={error} onRetry={() => setError(undefined)} />}
 
-      {/* The git host's own Pages: its records, the host's checks and HTTPS, as for the site's own domain. */}
+      {/* The git host's own Pages: its records, the host's checks, and HTTPS, as for the site's own domain. */}
       {onGitHost && !admin.checked && (
         <ConnectedDomain
           admin

@@ -40,7 +40,7 @@ const page = (path: string, title?: string): Page => ({
 
 const pages = [page("/", "Home"), page("/about", "About us")];
 
-/** A site with these pages, collections, menus and redirects, and nothing else. */
+/** A site with these pages, collections, menus, and redirects, and nothing else. */
 const site = (parts: Partial<SiteContent>): SiteContent => ({
   settings: siteSettingsSchema.parse({ version: 1, title: "St. Joseph" }),
   menus: {},
@@ -90,7 +90,7 @@ describe("checkPageAddress", () => {
     expect(checkPageAddress("events/picnic/", pages)).toEqual({ ok: true, path: "/events/picnic" });
   });
 
-  it("refuses invalid, reserved and taken addresses", () => {
+  it("refuses invalid, reserved, and taken addresses", () => {
     expect(checkPageAddress("/Bad Name", pages)).toEqual({ ok: false, problem: "invalid" });
     expect(checkPageAddress("/admin/x", pages)).toEqual({ ok: false, problem: "reserved" });
     // Its file would be the home page's, and replace it.
@@ -447,7 +447,7 @@ describe("collections", () => {
     expect(changes[2]).toMatchObject({ content: expect.stringContaining('"href": "/videos/easter-sunday"') });
   });
 
-  it("starts new collections with a title, some text and a template showing them", () => {
+  it("starts new collections with a title, some text, and a template showing them", () => {
     const created = newCollectionSettings({
       name: "Events",
       entryName: "Event",
@@ -461,7 +461,7 @@ describe("collections", () => {
     ).toEqual([]);
   });
 
-  it("starts collections of events as calendars, with dates and times, a place and a summary", () => {
+  it("starts collections of events as calendars, with dates and times, a place, and a summary", () => {
     const created = collectionFileSchema.parse(
       newCollectionSettings({
         name: "Events",

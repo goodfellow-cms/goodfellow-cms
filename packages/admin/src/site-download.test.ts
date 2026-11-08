@@ -13,7 +13,7 @@ const files: Record<string, Uint8Array> = {
 const list = async (dir: string) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`));
 
 describe("downloadPaths", () => {
-  it("lists the content, the media and the records the site has, never its code", async () => {
+  it("lists the content, the media, and the records the site has, never its code", async () => {
     expect(await downloadPaths(list)).toEqual([
       "blocks/installed/installed.json",
       "content/pages/index.json",

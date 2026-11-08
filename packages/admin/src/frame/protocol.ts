@@ -1,7 +1,7 @@
 /**
  * What the admin panel and the site's frames say to each other. The admin
  * panel's page is trusted: it signs in and publishes. Frames run the site's
- * config, Puck and every block, sandboxed without `allow-same-origin`, so they
+ * config, Puck, and every block, sandboxed without `allow-same-origin`, so they
  * get only what's in these messages and can only ask for the few things below.
  */
 import type {
@@ -60,7 +60,7 @@ export interface FrameInit extends FrameSite {
 /** Which editor to open (`editor.open`). */
 export interface EditorOpen {
   kind: "page" | "header" | "footer" | "template" | "entry" | "synced";
-  /** The page's address, or the language's home for the header, footer and synced blocks. */
+  /** The page's address, or the language's home for the header, footer, and synced blocks. */
   path: string;
   title: string;
   data: Data;

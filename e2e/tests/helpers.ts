@@ -51,7 +51,7 @@ export function readJson(path: string): Record<string, unknown> {
   return JSON.parse(readSiteFile(path));
 }
 
-/** The editor: Puck, the site's config and its blocks, in the frame sandboxed away from the admin panel's page. */
+/** The editor: Puck, the site's config, and its blocks, in the frame sandboxed away from the admin panel's page. */
 export function editor(page: Page) {
   return page.frameLocator("iframe.gfa-editor-frame");
 }

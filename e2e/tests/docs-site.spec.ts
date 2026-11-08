@@ -22,7 +22,7 @@ test("finds pages with the search box, from the site's own index", async ({ page
   await expect(page.getByText("Nothing matches “qxjvwk”.")).toBeVisible();
 });
 
-test("shows a documentation page with its navigation, headings and highlighted, copyable code", async ({
+test("shows a documentation page with its navigation, headings, and highlighted, copyable code", async ({
   page,
   context,
 }) => {

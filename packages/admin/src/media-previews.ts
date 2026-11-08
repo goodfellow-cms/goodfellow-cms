@@ -111,7 +111,7 @@ const MEDIA_IN_STYLE = /url\((['"]?)(\/media\/[^'")]+)\1\)/g;
 
 /**
  * Keeps media in a preview document showing: rewrites `/media/…` addresses in
- * images, links and inline styles as the preview changes, and if an image
+ * images, links, and inline styles as the preview changes, and if an image
  * still doesn't load, reads it from the repository instead. Elements inside
  * `keep` (a selector) are left as they are, such as text edited in place,
  * whose HTML is read back into content.

@@ -1,5 +1,5 @@
 /**
- * A copy of the site to keep: its content, its media library and the records
+ * A copy of the site to keep: its content, its media library, and the records
  * of the blocks and plugins it installed, as one zip file, read at the
  * revision the admin panel loaded. fflate is loaded only when a copy is made.
  * No React or DOM, so it's tested in Node.

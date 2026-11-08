@@ -1,6 +1,6 @@
 /**
  * Site Settings' Themes screen: themes published on npm as
- * `goodfellow-theme-<name>`, which owners install, update and remove. A theme
+ * `goodfellow-theme-<name>`, which owners install, update, and remove. A theme
  * is data with no code, so installing one runs nobody else's code: its
  * settings, CSS and optional header and footer are copied into the site
  * (`planTheme()`), where owners change them like any setting.

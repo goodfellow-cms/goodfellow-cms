@@ -216,7 +216,7 @@ export function useAdminLanguage(): AdminLanguage | undefined {
 
 /**
  * Strings whose English is shown beside the site's own translation of them:
- * those about signing in, tokens, owners' access, plugins and what can't be
+ * those about signing in, tokens, owners' access, plugins, and what can't be
  * undone, where a wrong translation, by a machine or by someone else, could
  * cost the editor their access or the site its files.
  */

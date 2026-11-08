@@ -33,7 +33,7 @@ describe("media addresses", () => {
 });
 
 describe("uploads", () => {
-  it("allows images, documents, audio and video, but nothing that could run code", () => {
+  it("allows images, documents, audio, and video, but nothing that could run code", () => {
     expect(mediaKind("a.JPG")).toBe("image");
     expect(mediaKind("bulletin.pdf")).toBe("document");
     expect(mediaKind("homily.mp3")).toBe("audio");
@@ -55,7 +55,7 @@ describe("uploads", () => {
 });
 
 describe("mediaUsage", () => {
-  it("finds every page, layout, setting and entry that uses a file", () => {
+  it("finds every page, layout, setting, and entry that uses a file", () => {
     const content: SiteContent = {
       settings: siteSettingsSchema.parse({ version: 1, logo: { src: "/media/logo.svg", alt: "" } }),
       menus: {},

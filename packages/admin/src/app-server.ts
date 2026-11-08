@@ -79,7 +79,7 @@ export function appServer(api: string) {
   return {
     /**
      * Submits changes for a developer to review, which on a full-stack site
-     * is how plugins are installed, updated and removed, since its builds and
+     * is how plugins are installed, updated, and removed, since its builds and
      * server hold its secrets. Gives the review's address.
      */
     async review(
