@@ -1,3 +1,4 @@
+import { toValues } from "@goodfellow-cms/ai";
 import type { Fields } from "@puckeditor/core";
 
 /** What an answer changed once it was put in, and what was left out since it didn't fit the site's fields. */
@@ -12,24 +13,6 @@ export interface ApplyReport {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
-
-/**
- * Whether an answered value says what the field already held. An object only
- * needs to agree on what it gives, since putting it in keeps the rest: an event
- * answered with its start and end keeps its repeat (`toValues()`). Empty parts,
- * which putting it in leaves out, say nothing, and an object that says nothing
- * at all isn't one the field can hold.
- */
-function agrees(given: unknown, before: unknown): boolean {
-  if (isRecord(given) && isRecord(before)) {
-    const said = Object.entries(given).filter(([, value]) => value !== "" && value !== undefined);
-    return said.length > 0 && said.every(([key, value]) => agrees(value, before[key]));
-  }
-  return same(given, before);
-}
-
 /** How many blocks a list holds, counting those in their slots. */
 export function countBlocks(content: unknown): number {
   if (!Array.isArray(content)) return 0;
@@ -43,6 +26,15 @@ export function countBlocks(content: unknown): number {
   }, 0);
 }
 
+/**
+ * Whether putting in an answered value would keep it, by the same rules that
+ * put answers in (`toValues()`), from nothing, so a value that came out the
+ * same as before because it was the same isn't counted as left out.
+ */
+function usable(name: string, field: Fields[string], value: unknown): boolean {
+  return toValues({ values: { [name]: value } }, { [name]: field }, {})[name] !== undefined;
+}
+
 /** What putting in an answer's `values` for `fields` changed from `before`, and how many it left out. */
 export function valuesReport(
   answered: unknown,
@@ -53,9 +45,9 @@ export function valuesReport(
   const given = answered && typeof answered === "object" ? (answered as Record<string, unknown>) : {};
   let settings = 0;
   let skipped = 0;
-  for (const name of Object.keys(fields)) {
+  for (const [name, field] of Object.entries(fields)) {
     if (!same(after[name], before[name])) settings++;
-    else if (name in given && given[name] !== "" && !agrees(given[name], before[name])) skipped++;
+    else if (name in given && given[name] !== "" && !usable(name, field, given[name])) skipped++;
   }
   return { settings, skipped };
 }
