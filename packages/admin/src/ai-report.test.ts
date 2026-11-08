@@ -32,6 +32,14 @@ describe("what an answer changed", () => {
       settings: 0,
       skipped: 0,
     });
+    // An empty end, which putting it in leaves out, says nothing.
+    const once = { when: { start: "2026-12-06T10:00" } };
+    expect(valuesReport({ when: { start: "2026-12-06T10:00", end: "" } }, fields, once, once)).toEqual({
+      settings: 0,
+      skipped: 0,
+    });
+    // An event that says nothing isn't one, so it's left out.
+    expect(valuesReport({ when: {} }, fields, before, before)).toEqual({ settings: 0, skipped: 1 });
     // A new time that didn't fit is still left out.
     expect(valuesReport({ when: { start: "next week" } }, fields, before, before)).toEqual({ settings: 0, skipped: 1 });
   });

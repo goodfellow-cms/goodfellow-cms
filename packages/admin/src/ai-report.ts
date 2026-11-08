@@ -18,11 +18,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /**
  * Whether an answered value says what the field already held. An object only
  * needs to agree on what it gives, since putting it in keeps the rest: an event
- * answered with its start and end keeps its repeat (`toValues()`).
+ * answered with its start and end keeps its repeat (`toValues()`). Empty parts,
+ * which putting it in leaves out, say nothing, and an object that says nothing
+ * at all isn't one the field can hold.
  */
 function agrees(given: unknown, before: unknown): boolean {
   if (isRecord(given) && isRecord(before)) {
-    return Object.entries(given).every(([key, value]) => agrees(value, before[key]));
+    const said = Object.entries(given).filter(([, value]) => value !== "" && value !== undefined);
+    return said.length > 0 && said.every(([key, value]) => agrees(value, before[key]));
   }
   return same(given, before);
 }
