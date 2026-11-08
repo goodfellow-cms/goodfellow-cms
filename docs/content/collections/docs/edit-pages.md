@@ -56,10 +56,20 @@ Select a block, and its **Style** settings are at the end of its settings:
 
 ## Create, move and delete pages
 
-- **New page** asks for a title and suggests an address from it, such as `/mass-times` for "Mass Times". Addresses use lowercase letters, numbers and hyphens, and folders such as `/about/staff` are fine. An address can't end in `/index` or be inside `/admin`: `/about/index` would be stored as the file of `/about` itself.
-- **Duplicate** makes a new page from a copy of one that's already there, with the same blocks and settings, so a page much like another needn't start from scratch. It suggests the title with "(copy)" after it, and an address beside the page it copies, which you can change. The copy is shown on the site at once, even if the page it copies is scheduled, and it isn't a translation of anything.
+- **New page** asks for a title and suggests an address from it, such as `/mass-times` for "Mass Times". Addresses use lowercase letters, numbers and hyphens, and folders such as `/about/staff` are fine. An address can't end in `/index` or be inside `/admin`: `/about/index` would be stored as the file of `/about` itself. The new page isn't on the site yet: it's saved, so other editors see it, but visitors don't until it's published (see [Not published yet](#not-published-yet)).
+- **Duplicate** makes a new page from a copy of one that's already there, with the same blocks and settings, so a page much like another needn't start from scratch. It suggests the title with "(copy)" after it, and an address beside the page it copies, which you can change. Like a new page, the copy isn't on the site until it's published, even if the page it copies is, and it isn't a translation of anything.
 - **Change address** moves a page. Every link to it on the site, in menus, buttons, text and items alike, changes to the new address in the same publish, and a [redirect](/docs/layout-and-settings#redirects) keeps the old address working for links from other websites.
 - **Delete** removes a page. The home page can't be deleted, and a page other pages or menus link to can't be deleted until those links are changed (see [Site checks](/docs/publishing#site-checks)).
+
+
+## Not published yet
+
+New pages, copies made with **Duplicate**, and translations made with **Translate into** start out not published: they're saved with the site, so every editor sees them in the Pages screen, marked **Not published yet**, but builds leave them out, so visitors and search engines don't see them, and menus leave out links to them.
+
+- **Publish** in the page's editor puts it on the site with your changes. **Add to draft** (and Ctrl+S) keeps it off the site, so you can work on it over several sessions.
+- **Publish** beside it in the Pages screen puts it on the site as it is.
+- A schedule still applies once it's published: a page that's published and scheduled is shown from its time.
+- Links to it from other pages work only once it's published, as with a scheduled page.
 
 ## A page's settings
 

@@ -184,8 +184,10 @@ function AddPageTranslationDialog({
     const result = await publish(
       [
         pageFileChange(check.path, page.content.data as Data, {
-          // A page that isn't shown yet isn't shown in another language either.
+          // A page that isn't shown yet isn't shown in another language either, and a new translation is on
+          // the site only once someone publishes it.
           ...scheduleOf(page.content),
+          notPublished: true,
           translationOf: page.path,
           translatedFrom: pageSourceHash(page),
         }),
@@ -351,6 +353,7 @@ function AddEntryTranslationDialog({
       [
         entryFileChange(collection, check.slug, entry.content.fields, {
           ...scheduleOf(entry.content),
+          notPublished: true,
           inLanguage: language.code,
           translationOf: entry.slug,
           translatedFrom: entrySourceHash(entry),
