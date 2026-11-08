@@ -17,8 +17,8 @@ export interface WordPressBlock {
   innerContent: Array<string | null>;
 }
 
-/** A block comment's start, after `<!--`: spaces, `/` for a closer, the block's name, then spaces. */
-const DELIMITER_START = /\s+(\/)?wp:([a-z][a-z0-9_-]*(?:\/[a-z][a-z0-9_-]*)?)\s+/y;
+/** A block comment's start, after `<!--` and spaces: `/` for a closer, the block's name, then spaces. */
+const DELIMITER_START = /(\/)?wp:([a-z][a-z0-9_-]*(?:\/[a-z][a-z0-9_-]*)?)\s+/y;
 
 interface Delimiter {
   index: number;
@@ -43,7 +43,10 @@ function* delimiters(content: string): Generator<Delimiter> {
       close = content.indexOf("-->", open + 4);
       if (close === -1) return;
     }
-    DELIMITER_START.lastIndex = open + 4;
+    let name = open + 4;
+    while (name < close && /\s/.test(content.charAt(name))) name++;
+    if (name === open + 4) continue;
+    DELIMITER_START.lastIndex = name;
     const start = DELIMITER_START.exec(content);
     const after = DELIMITER_START.lastIndex;
     if (!start || after > close) continue;

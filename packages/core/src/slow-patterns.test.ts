@@ -33,6 +33,11 @@ describe("parseBlocks", () => {
     expect(blocks.map((block) => block.name)).toEqual(["core/freeform", "core/paragraph"]);
   });
 
+  it("reads block comments after long runs of spaces quickly", () => {
+    const blocks = parseBlocks(`${"<!--\t".repeat(LONG)}<!--${"\t".repeat(LONG)}wp:separator /-->`);
+    expect(blocks.map((block) => block.name)).toEqual(["core/freeform", "core/separator"]);
+  });
+
   it("reads many block comments that never end quickly", () => {
     const blocks = parseBlocks("<!-- wp:a {{".repeat(LONG));
     expect(blocks.map((block) => block.name)).toEqual(["core/freeform"]);
@@ -71,6 +76,12 @@ describe("expandShortcodes", () => {
     ).toBe(
       '<figure class="wp-caption"><img src="/a.jpg"><figcaption>The choir</figcaption></figure> and <figure class="wp-caption"><img src="/b.jpg"><figcaption></figcaption></figure>',
     );
+  });
+
+  it("reads many shortcodes whose brackets never close quickly", () => {
+    for (const name of ["gallery", "video", "caption", "acme"]) {
+      expect(expandShortcodes(`[${name}\\`.repeat(LONG), context)).toHaveLength(`[${name}\\`.length * LONG);
+    }
   });
 
   it("reads many captions that never close quickly", () => {

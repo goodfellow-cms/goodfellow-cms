@@ -179,7 +179,8 @@ function embedFigure(url: string): string {
  * closes.
  */
 function replaceEnclosing(text: string, name: string, replace: (inner: string) => string): string {
-  const opening = new RegExp(`\\[${name}[^\\]]*\\]`, "gi");
+  // Attributes never hold `[`, so a shortcode that never closes its bracket is given up on at the next one.
+  const opening = new RegExp(`\\[${name}[^\\][]*\\]`, "gi");
   const closing = new RegExp(`\\[\\/${name}\\]`, "gi");
   let result = "";
   let last = 0;
@@ -209,7 +210,7 @@ export function expandShortcodes(text: string, context: ConvertContext): string 
     const image = /<a\b[^>]*>\s*<img\b[^>]*>\s*<\/a>|<img\b[^>]*>/i.exec(inner)?.[0] ?? "";
     const caption = inner.replace(image, "").trim();
     return `<figure class="wp-caption">${image}<figcaption>${caption}</figcaption></figure>`;
-  }).replace(/\[gallery([^\]]*)\]/gi, (_, attributes: string) => {
+  }).replace(/\[gallery([^\][]*)\]/gi, (_, attributes: string) => {
     const values = shortcodeAttributes(attributes);
     const ids = (values.ids ?? values.include ?? "")
       .split(",")
@@ -222,7 +223,7 @@ export function expandShortcodes(text: string, context: ConvertContext): string 
     return `<figure class="wp-block-gallery columns-${values.columns ?? "3"}">${ids.map((id) => attachmentImage(context, id)).join("")}</figure>`;
   });
   html = replaceEnclosing(html, "embed", (url) => embedFigure(url))
-    .replace(/\[(video|audio)([^\]]*)\](?:\[\/\1\])?/gi, (_, kind: string, attributes: string) => {
+    .replace(/\[(video|audio)([^\][]*)\](?:\[\/\1\])?/gi, (_, kind: string, attributes: string) => {
       const values = shortcodeAttributes(attributes);
       const src = values.src ?? values.mp4 ?? values.webm ?? values.mp3 ?? values.m4a ?? values.ogg ?? "";
       return src ? `<${kind.toLowerCase()} src="${escapeAttribute(src)}"></${kind.toLowerCase()}>` : "";
@@ -236,7 +237,7 @@ export function expandShortcodes(text: string, context: ConvertContext): string 
     names.add(name.toLowerCase());
     return "";
   });
-  html = html.replace(/\[([a-z][a-z0-9_-]*)(\s[^\]]*)?\]/gi, (whole, name: string, attributes?: string) => {
+  html = html.replace(/\[([a-z][a-z0-9_-]*)(\s[^\][]*)?\]/gi, (whole, name: string, attributes?: string) => {
     const lower = name.toLowerCase();
     // Text in brackets, such as "[sic]", isn't a shortcode.
     if (!names.has(lower) && !attributes?.includes("=") && !/[_-]/.test(lower)) return whole;
