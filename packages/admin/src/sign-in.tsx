@@ -64,6 +64,39 @@ export function SignInProblem({
   );
 }
 
+/** Where the editor's choice not to stay signed in is kept for the tab, so a sign-in that comes back with a problem keeps it. */
+export const REMEMBER_CHOICE_KEY = "goodfellow.signIn.remember";
+
+/** Whether to stay signed in: on, unless the editor turned it off in this tab. */
+export function rememberChoice(storage: Pick<Storage, "getItem"> | undefined = tabStorage()): boolean {
+  try {
+    return storage?.getItem(REMEMBER_CHOICE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+/** Keeps the editor's choice for the tab. Only a yes or no, never a sign-in. */
+export function keepRememberChoice(
+  remember: boolean,
+  storage: Pick<Storage, "setItem" | "removeItem"> | undefined = tabStorage(),
+): void {
+  try {
+    if (remember) storage?.removeItem(REMEMBER_CHOICE_KEY);
+    else storage?.setItem(REMEMBER_CHOICE_KEY, "off");
+  } catch {
+    // Without storage, a sign-in that comes back with a problem starts with it on again.
+  }
+}
+
+function tabStorage(): Storage | undefined {
+  try {
+    return typeof sessionStorage === "undefined" ? undefined : sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 function SignInScreen({
   host,
   error,
@@ -75,8 +108,12 @@ function SignInScreen({
 }) {
   const t = useStrings();
   const [token, setToken] = useState("");
-  // On unless the editor turns it off, as on a shared computer.
-  const [remember, setRemember] = useState(true);
+  // On unless the editor turns it off, as on a shared computer, which this tab remembers through a sign-in at the host.
+  const [remember, setRememberState] = useState(rememberChoice);
+  const setRemember = (value: boolean) => {
+    setRememberState(value);
+    keepRememberChoice(value);
+  };
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<unknown>(error);
   const values = { host: host.name };
