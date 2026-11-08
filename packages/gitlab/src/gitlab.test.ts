@@ -873,6 +873,22 @@ describe("scheduled builds", () => {
     expect(fake.updateSettings.schedules.map((schedule) => schedule.id)).toEqual([99, 2]);
   });
 
+  it("keeps the schedule of a time the caller never knew of, as one someone else scheduled since it loaded", async () => {
+    const { fake, builds } = await site();
+    const advent = new Date("2099-11-29T14:00:00Z");
+    const fair = new Date("2099-11-01T23:00:00Z");
+    await builds?.sync?.([advent, fair]);
+    expect(fake.updateSettings.schedules).toHaveLength(2);
+    // An editor who only ever saw Advent scheduled leaves the fair's schedule alone.
+    await builds?.sync?.([advent], { known: [advent] });
+    expect(fake.updateSettings.schedules).toHaveLength(2);
+    // One who saw the fair scheduled, and took it away, removes it.
+    await builds?.sync?.([advent], { known: [advent, fair] });
+    expect(fake.updateSettings.schedules.map((schedule) => schedule.variables)).toEqual([
+      { GOODFELLOW_SCHEDULED_CHANGE: "2099-11-29T14:00Z" },
+    ]);
+  });
+
   it("removes a schedule it couldn't give its variable, which would run the nightly update", async () => {
     const fake = fakeGitLab({ project: "parish/site", files: { ...FILES, ".gitlab-ci.yml": "pages: {}\n" } });
     const failing: typeof fetch = async (input, init) => {

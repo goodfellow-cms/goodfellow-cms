@@ -14,7 +14,7 @@ Free plans have limits worth knowing about. These are the hosts' rules, not Good
 
 We recommend keeping the site on GitLab and publishing it with GitLab Pages, whatever the site is for. The [setup page](/new-site) starts with that.
 
-- **Editors sign in with GitLab** straight away. Sign in with GitHub needs a [sign-in service](/docs/sign-in-service) someone runs; without one, GitHub editors paste a token.
+- **Editors sign in with GitLab** once the admin panel is registered with GitLab, which Site Settings' Security tab walks you through in a few minutes; until then, they paste a token. Sign in with GitHub needs a [sign-in service](/docs/sign-in-service) someone runs; without one, GitHub editors paste a token.
 - **No other account:** GitLab Pages publishes business sites and private projects for free, where on GitHub those need Cloudflare Pages and an account there.
 - **Scheduled changes go live on time,** where on GitHub they go live within the hour ([Scheduling](/docs/scheduling)).
 

@@ -1,4 +1,4 @@
-import { isOwnersOnlyField } from "@goodfellow-cms/core";
+import { type EventValue, eventValueProblem, isOwnersOnlyField } from "@goodfellow-cms/core";
 import type { ComponentConfig, ComponentData, Config, Content, Field, Fields } from "@puckeditor/core";
 
 /** A JSON Schema, in the subset structured outputs accept: no recursion, `additionalProperties: false` everywhere. */
@@ -9,7 +9,7 @@ export type JsonSchema = { [key: string]: unknown };
  * say what they hold. Set it as `metadata: { ai: … }` on the field.
  */
 export interface AiFieldHint {
-  type: "string" | "number" | "boolean" | "date" | "choice" | "choices" | "table";
+  type: "string" | "number" | "boolean" | "date" | "choice" | "choices" | "table" | "event";
   /** The choices, for `choice` (one of them) and `choices` (any number of them). */
   options?: Array<{ value: string; label: string }>;
   description?: string;
@@ -18,6 +18,10 @@ export interface AiFieldHint {
 /** What a block's style field holds (`classNameField` in `@goodfellow-cms/react`). */
 const STYLE_HINT =
   "Tailwind CSS classes for the block's look, such as text-center, text-lg, text-primary, bg-muted, p-6, mt-8 or rounded-lg, using the theme's colors; empty for the block's own look";
+
+/** What an event field's value is, for the `event` hint. How it repeats isn't asked for: it stays as editors set it. */
+const EVENT_HINT =
+  "When it happens, in the site's time zone: start and end written as YYYY-MM-DDTHH:MM, or as YYYY-MM-DD for an all-day event, whose end is its last day. end may be empty, and is written the same way as start";
 
 export const RICH_TEXT_HINT =
   "Formatted text as simple HTML: <p>, <h2>, <h3>, <strong>, <em>, <a href>, <ul>, <ol>, <li> and <blockquote> only.";
@@ -121,6 +125,17 @@ export function fieldSchema(field: AnyField): JsonSchema | undefined {
       }
       if (hint.type === "date")
         return withDescription({ type: "string" }, describe(field, "A date written as YYYY-MM-DD, or empty"));
+      if (hint.type === "event") {
+        return withDescription(
+          {
+            type: "object",
+            properties: { start: { type: "string" }, end: { type: "string" } },
+            required: ["start", "end"],
+            additionalProperties: false,
+          },
+          describe(field, [hint.description, EVENT_HINT].filter(Boolean).join(". ")),
+        );
+      }
       if (hint.type === "choice" && hint.options?.length) {
         return withDescription({ enum: ["", ...hint.options.map((option) => option.value)] }, description);
       }
@@ -284,6 +299,12 @@ function cleanValue(field: AnyField, value: unknown): { ok: true; value: unknown
         const width = Math.max(1, ...rows.map((row) => row.length));
         return { ok: true, value: rows.map((row) => [...row, ...Array<string>(width - row.length).fill("")]) };
       }
+      if (hint.type === "event") {
+        if (!isRecord(value) || typeof value.start !== "string") return { ok: false };
+        const end = typeof value.end === "string" && value.end.trim() ? value.end.trim() : undefined;
+        const event: EventValue = { start: value.start.trim(), ...(end && { end }) };
+        return eventValueProblem(event) === undefined ? { ok: true, value: event } : { ok: false };
+      }
       if (hint.type === "choices") {
         if (!Array.isArray(value)) return { ok: false };
         const offered = (hint.options ?? []).map((option) => option.value);
@@ -384,5 +405,15 @@ export function toFlatBlocks(content: Content, config: Config): FlatBlock[] {
 /** The AI's values for a set of fields, keeping `current` for any it got wrong or left out. */
 export function toValues(answer: unknown, fields: Fields, current: Record<string, unknown>): Record<string, unknown> {
   const values = isRecord(answer) ? answer.values : undefined;
-  return { ...current, ...cleanProps(fields, values, current) };
+  const cleaned = { ...current, ...cleanProps(fields, values, current) };
+  // An event keeps how it repeats, which the assistant isn't asked for, or stays as it was where that no longer fits.
+  for (const [name, field] of Object.entries(fields)) {
+    if (field.type !== "custom" || hintOf(field)?.type !== "event") continue;
+    const before = current[name];
+    const after = cleaned[name];
+    if (!isRecord(before) || !isRecord(before.repeat) || !isRecord(after) || after === before) continue;
+    const kept = { ...after, repeat: before.repeat };
+    cleaned[name] = eventValueProblem(kept) === undefined ? kept : before;
+  }
+  return cleaned;
 }

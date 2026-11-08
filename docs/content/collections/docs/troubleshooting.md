@@ -54,7 +54,7 @@ Some blocks need something set up first, and say so in the editor, with a link t
 
 - **A picture is missing:** its file may have been deleted or renamed. Publishing lists links to media that doesn't exist ([Site checks](/docs/publishing#site-checks)); choose the picture again. A picture just uploaded shows in the editor at once, and on the site once it has rebuilt.
 - **Pictures, videos or maps from other sites show a box asking first:** the site asks visitors before loading other sites' content ([Visitors' consent](/docs/layout-and-settings#visitors-consent)). They show once the visitor allows it.
-- **The whole site looks unstyled:** usually the site's address or folder changed without a rebuild, as above. On a host other than the four Goodfellow sets up, check the [build's folder and addresses](/docs/any-host).
+- **The whole site looks unstyled:** usually the site's address or folder changed without a rebuild, as above. On a host other than the five Goodfellow sets up, check the [build's folder and addresses](/docs/any-host).
 - **Your own font doesn't show:** check its files are WOFF2 and are still in the media library's fonts folder, which publishing reports if not ([Your own fonts](/docs/layout-and-settings#your-own-fonts)). While a font loads, pages show one of the computer's fonts in its place.
 - **A Google font doesn't show:** builds copy Google's fonts into the site; if Google couldn't be reached during the build, pages load them from Google instead, which some networks block. The next rebuild copies them again.
 

@@ -17,6 +17,7 @@ import {
   readCalendar,
   readRemoteText,
   type SiteSettings,
+  settingsPrefix,
   todayIn,
   variantPath,
   WEEKDAYS,
@@ -91,7 +92,8 @@ function SubscribeLinks({ collection, label, otherLabel }: { collection: string;
   const { settings } = useSite();
   const part = useParts();
   if (!label) return null;
-  const file = calendarFilePath(collection);
+  // Each language has its own calendar files, of its own items (`/es/calendars/…`).
+  const file = calendarFilePath(collection, settingsPrefix(settings));
   const address = settings.url ? new URL(file.slice(1), `${settings.url.replace(/\/?$/, "/")}`).href : undefined;
   const webcal = address?.replace(/^https?:/, "webcal:");
   return (

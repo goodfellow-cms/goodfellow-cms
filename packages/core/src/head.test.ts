@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { localizedSettings } from "./content/languages.js";
 import type { Page } from "./content/load.js";
 import { pageAddressPath } from "./content/page-address.js";
 import { siteSettingsSchema } from "./content/schemas.js";
@@ -38,6 +39,14 @@ describe("getPageHead", () => {
     expect(head.socialImage).toBe("/media/share.png");
     expect(head.noIndex).toBe(false);
     expect(head).toMatchObject({ siteName: "St. Joseph", locale: "en", type: "website", card: "summary_large_image" });
+  });
+
+  it("puts a title with $ in it into the template as it's written", () => {
+    expect(getPageHead(settings, page("/sale", { title: "Save $$$ & $& now" })).title).toBe(
+      "Save $$$ & $& now | St. Joseph",
+    );
+    const own = { ...settings, title: "St. Joseph", translations: { es: { title: "San $& José" } } };
+    expect(localizedSettings(own, "es").titleTemplate).toBe("%s | San $& José");
   });
 
   it("uses the page title as-is on the home page, falling back to the site title", () => {

@@ -64,7 +64,7 @@ export interface SyncResult {
   manifest?: ApiManifest;
   /** The files downloaded. */
   changed: string[];
-  /** The files removed, since the site no longer has them or they changed. */
+  /** The files removed, since the site no longer has them, or they changed and aren't kept ahead. */
   removed: string[];
   /** Why the copy wasn't brought up to date, if it wasn't. */
   problem?: "offline" | "newer-content" | "no-api";
@@ -189,31 +189,35 @@ export async function syncSite(options: SyncOptions): Promise<SyncResult> {
   const wanted = wantedFiles(manifest, keep);
   const changed: string[] = [];
   const removed: string[] = [];
+  /** Kept as it was: stored, and the same as the site has it now. */
+  const current = (name: string) => stored.has(name) && after.get(name) === before.get(name);
 
-  // Files the site no longer has, or whose content changed, aren't kept as they were.
-  for (const name of stored) {
-    if (name === MANIFEST_FILE || name.startsWith(MEDIA_FOLDER)) continue;
+  // Every new file is downloaded before anything kept is changed, so a sync that stops part way leaves the copy
+  // it had, all of it, with its manifest.
+  const texts = new Map<string, string>();
+  try {
+    await inTurn([...wanted.keys()], async (name) => {
+      if (current(name)) return;
+      const response = await get(apiAddress(site, name));
+      if (!response.ok) throw new Error(`${name}: ${response.status}`);
+      texts.set(name, await response.text());
+    });
+  } catch {
+    return { ...(kept && { manifest: kept }), changed: [], removed: [], problem: "offline" };
+  }
+  for (const [name, text] of texts) {
+    await storage.write(name, text);
+    stored.add(name);
+    changed.push(name);
+  }
+  // Then files the site no longer has, or whose content changed and that weren't downloaded again.
+  for (const name of [...stored]) {
+    if (name === MANIFEST_FILE || name.startsWith(MEDIA_FOLDER) || texts.has(name)) continue;
     if (after.get(name) !== before.get(name)) {
       await storage.remove(name);
       removed.push(name);
       stored.delete(name);
     }
-  }
-
-  const texts = new Map<string, string>();
-  try {
-    await inTurn([...wanted.keys()], async (name) => {
-      if (stored.has(name)) return;
-      const response = await get(apiAddress(site, name));
-      if (!response.ok) throw new Error(`${name}: ${response.status}`);
-      const text = await response.text();
-      await storage.write(name, text);
-      texts.set(name, text);
-      changed.push(name);
-    });
-  } catch {
-    // Part of the copy is new and part isn't yet: the old manifest stays, so the rest comes next time.
-    return { ...(kept && { manifest: kept }), changed, removed, problem: "offline" };
   }
 
   if (options.media !== false && storage.download) {
@@ -249,6 +253,7 @@ export async function syncSite(options: SyncOptions): Promise<SyncResult> {
     }
   }
 
+  // Last, so the manifest never names a copy the app doesn't have yet.
   await storage.write(MANIFEST_FILE, JSON.stringify(manifest));
   return { manifest, changed, removed };
 }
