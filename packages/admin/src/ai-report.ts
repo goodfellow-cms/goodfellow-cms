@@ -12,6 +12,21 @@ export interface ApplyReport {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * Whether an answered value says what the field already held. An object only
+ * needs to agree on what it gives, since putting it in keeps the rest: an event
+ * answered with its start and end keeps its repeat (`toValues()`).
+ */
+function agrees(given: unknown, before: unknown): boolean {
+  if (isRecord(given) && isRecord(before)) {
+    return Object.entries(given).every(([key, value]) => agrees(value, before[key]));
+  }
+  return same(given, before);
+}
+
 /** How many blocks a list holds, counting those in their slots. */
 export function countBlocks(content: unknown): number {
   if (!Array.isArray(content)) return 0;
@@ -37,7 +52,7 @@ export function valuesReport(
   let skipped = 0;
   for (const name of Object.keys(fields)) {
     if (!same(after[name], before[name])) settings++;
-    else if (name in given && given[name] !== "" && !same(given[name], before[name])) skipped++;
+    else if (name in given && given[name] !== "" && !agrees(given[name], before[name])) skipped++;
   }
   return { settings, skipped };
 }

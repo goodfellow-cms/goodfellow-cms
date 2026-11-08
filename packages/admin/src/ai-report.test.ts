@@ -22,4 +22,17 @@ describe("what an answer changed", () => {
       skipped: 1,
     });
   });
+
+  it("doesn't count an event answered as it was as left out, though the answer leaves its repeat out", () => {
+    const fields: Fields = { when: { type: "custom", render: () => null } };
+    const before = { when: { start: "2026-12-06T10:00", end: "2026-12-06T11:00", repeat: { every: "week" } } };
+    expect(
+      valuesReport({ when: { end: "2026-12-06T11:00", start: "2026-12-06T10:00" } }, fields, before, before),
+    ).toEqual({
+      settings: 0,
+      skipped: 0,
+    });
+    // A new time that didn't fit is still left out.
+    expect(valuesReport({ when: { start: "next week" } }, fields, before, before)).toEqual({ settings: 0, skipped: 1 });
+  });
 });
