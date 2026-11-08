@@ -101,7 +101,7 @@ export interface BuildFile {
  * The calendar files a build writes: one for each calendar collection, which
  * visitors subscribe to, and one for each of its events, which visitors add to
  * their calendars. A site in several languages has a collection's file for
- * each, with the events in that language.
+ * each, with the events in that language, empty where there are none yet.
  */
 export function calendarFiles(content: SiteContent, now = new Date()): BuildFile[] {
   return siteLanguages(content.settings).flatMap((language) =>
@@ -116,8 +116,7 @@ function languageCalendarFiles(content: SiteContent, now: Date): BuildFile[] {
   return calendarCollections(content).flatMap((collection) => {
     const events = collectionEvents(collection, settings.url, settings.trailingSlash !== false);
     const name = `${collection.settings.name} – ${settings.title}`;
-    // A site in one language has a file for each collection; in several, one for each language that has events.
-    if (prefix && events.length === 0) return [];
+    // Each language has a collection's file, empty where it has no events yet, since its pages link to it.
     return [
       { path: calendarFilePath(collection.id, prefix), content: calendarFile(events, { ...options, name }) },
       ...events.map(({ slug, ...event }) => ({

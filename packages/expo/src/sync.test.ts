@@ -127,7 +127,7 @@ describe("syncSite", () => {
     site.manifest();
     const result = await syncSite({ site: SITE, storage, fetch: site.fetch });
     expect(result.changed).toEqual(["pages/about.json"]);
-    expect(result.removed.sort()).toEqual(["media/church.jpg", "pages/about.json", "pages/index.json"]);
+    expect(result.removed.sort()).toEqual(["media/church.jpg", "pages/index.json"]);
     expect(site.requests).toEqual([`${SITE}api/manifest.json`, `${SITE}api/pages/about.json`]);
     expect(storage.files.has("pages/index.json")).toBe(false);
   });
@@ -168,6 +168,22 @@ describe("syncSite", () => {
     expect(offline.problem).toBe("offline");
     expect(offline.manifest).toEqual(first.manifest);
     expect(storage.files.has("pages/index.json")).toBe(true);
+  });
+
+  it("leaves its copy as it was when a download fails part way", async () => {
+    const site = fakeSite();
+    const storage = memoryStorage();
+    const first = await syncSite({ site: SITE, storage, fetch: site.fetch });
+    const before = new Map(storage.files);
+    site.put("pages/index.json", { path: "/", data: { content: [] }, extra: "changed" });
+    site.put("pages/about.json", { path: "/about", data: { content: [] }, extra: "changed" });
+    site.manifest();
+    // The manifest names the new about page, which the site can't give.
+    site.files.delete("pages/about.json");
+    const result = await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(result).toMatchObject({ problem: "offline", changed: [], removed: [] });
+    expect(result.manifest).toEqual(first.manifest);
+    expect(storage.files).toEqual(before);
   });
 
   it("says when the site has no content API", async () => {

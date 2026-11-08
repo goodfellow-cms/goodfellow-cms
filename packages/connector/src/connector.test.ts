@@ -77,10 +77,26 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
   });
   const documents = new Map<string, unknown>();
   const outgoing: string[] = [];
+  /** Hosts that can't be reached, as when the network drops. */
+  const unreachable = new Set<string>();
+  /** Hosts whose answers are lost on the way back, after they've done what was asked. */
+  const lost = new Set<string>();
+  /** Hosts whose requests arrive late, after the connector has given up on them (`deliverLate()`). */
+  const late = new Set<string>();
+  const held: Array<{ host: string; request: Request }> = [];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
     const { host, pathname } = new URL(request.url);
     outgoing.push(request.url);
+    if (unreachable.has(host)) throw new TypeError("fetch failed");
+    if (late.has(host)) {
+      held.push({ host, request: request.clone() });
+      throw new TypeError("fetch failed");
+    }
+    if (lost.has(host)) {
+      await (host === "gitlab.example" ? gitlab : bitbucket).fetch(request);
+      throw new TypeError("fetch failed");
+    }
     if (host === "api.github.com" || host === "github.com") return github.fetch(request);
     if (host === "gitlab.example") return gitlab.fetch(request);
     if (host === "api.bitbucket.org" || host === "bitbucket.org") return bitbucket.fetch(request);
@@ -234,6 +250,17 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
     github,
     gitlab,
     bitbucket,
+    unreachable,
+    lost,
+    late,
+    /** Lets the requests held back reach their hosts at last, giving each answer's status. */
+    async deliverLate() {
+      const statuses: number[] = [];
+      for (const { host, request } of held.splice(0)) {
+        statuses.push((await (host === "gitlab.example" ? gitlab : bitbucket).fetch(request)).status);
+      }
+      return statuses;
+    },
     grants,
     documents,
     outgoing,
@@ -578,7 +605,21 @@ describe("working on sites", () => {
 
 describe("connecting with GitLab", () => {
   it("keeps the person's GitLab tokens sealed in Claude's, and renews them with Claude's", async () => {
-    const { gitlab, register, startAuthorize, visit, allow, exchange, post, mcp } = setup();
+    const {
+      unreachable,
+      lost,
+      late,
+      deliverLate,
+      grants,
+      gitlab,
+      register,
+      startAuthorize,
+      visit,
+      allow,
+      exchange,
+      post,
+      mcp,
+    } = setup();
     const clientId = await register();
     const started = await startAuthorize(clientId);
     const toGitLab = await visit(started.link("gitlab"));
@@ -599,20 +640,99 @@ describe("connecting with GitLab", () => {
     const { call } = await mcp(tokens.access_token);
     expect((await call("get_site", { site: "gitlab:parish/site" })).json()).toMatchObject({ address: SITE });
 
+    // A renewal the host couldn't be reached for gives no new tokens, so the same refresh token works again.
+    unreachable.add("gitlab.example");
+    const failed = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+      client_id: clientId,
+    });
+    expect(failed.status).toBe(503);
+    unreachable.delete("gitlab.example");
+
     const renewed = await post("/token", {
       grant_type: "refresh_token",
       refresh_token: tokens.refresh_token,
       client_id: clientId,
     });
     expect(renewed.status).toBe(200);
-    const next = (await renewed.json()) as { access_token: string };
+    const next = (await renewed.json()) as { access_token: string; refresh_token: string };
     expect((await (await mcp(next.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(false);
+
+    // Asked again with the same one, GitLab isn't asked to renew its refresh token twice, and what was given still works.
+    const again = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+      client_id: clientId,
+    });
+    expect(again.status).toBe(400);
+    expect(await again.json()).toMatchObject({ error: "invalid_grant" });
+    expect((await (await mcp(next.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(false);
+
+    // Two renewals at once: the first can't be told whether it worked, so Claude tries again, and the first only
+    // reaches GitLab after the second has renewed GitLab's token. GitLab refuses the late one, which nobody is
+    // waiting for, and the connection carries on with the second's tokens.
+    late.add("gitlab.example");
+    const slow = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(slow.status).toBe(503);
+    late.delete("gitlab.example");
+    const overtaking = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(overtaking.status).toBe(200);
+    const latest = (await overtaking.json()) as { access_token: string; refresh_token: string };
+    const lateAnswers = await deliverLate();
+    expect(lateAnswers).toHaveLength(1);
+    expect(lateAnswers[0]).toBeGreaterThanOrEqual(400);
+    expect((await (await mcp(latest.access_token)).call("get_site", { site: "gitlab:parish/site" })).isError).toBe(
+      false,
+    );
+    expect(grants.rows.size).toBe(1);
+
+    // If GitLab did renew its own token and only its answer was lost, trying again fails at GitLab and ends the
+    // connection, so the refresh token left usable gets no one anything.
+    lost.add("gitlab.example");
+    const lostRenewal = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: latest.refresh_token,
+      client_id: clientId,
+    });
+    expect(lostRenewal.status).toBe(503);
+    lost.delete("gitlab.example");
+    const retried = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: latest.refresh_token,
+      client_id: clientId,
+    });
+    expect(retried.status).toBe(400);
+    expect(grants.rows.size).toBe(0);
   });
 });
 
 describe("connecting with Bitbucket", () => {
   it("keeps the person's Bitbucket tokens sealed in Claude's, and renews them with Claude's", async () => {
-    const { bitbucket, register, startAuthorize, visit, allow, exchange, post, mcp, outgoing } = setup();
+    const {
+      unreachable,
+      lost,
+      late,
+      deliverLate,
+      grants,
+      bitbucket,
+      register,
+      startAuthorize,
+      visit,
+      allow,
+      exchange,
+      post,
+      mcp,
+      outgoing,
+    } = setup();
     const clientId = await register();
     const started = await startAuthorize(clientId);
     const toBitbucket = await visit(started.link("bitbucket"));
@@ -638,6 +758,16 @@ describe("connecting with Bitbucket", () => {
     expect((await call("get_site", { site: "bitbucket:parish/other" })).isError).toBe(true);
     expect(outgoing.some((address) => /oauth-|refresh-|bb-secret/.test(address))).toBe(false);
 
+    // A renewal the host couldn't be reached for gives no new tokens, so the same refresh token works again.
+    unreachable.add("bitbucket.org");
+    const failed = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+      client_id: clientId,
+    });
+    expect(failed.status).toBe(503);
+    unreachable.delete("bitbucket.org");
+
     const renewed = await post("/token", {
       grant_type: "refresh_token",
       refresh_token: tokens.refresh_token,
@@ -655,6 +785,50 @@ describe("connecting with Bitbucket", () => {
       client_id: clientId,
     });
     expect(again.status).toBe(400);
+
+    // Two renewals at once: the first can't be told whether it worked, so Claude tries again, and the first only
+    // reaches Bitbucket after the second has renewed Bitbucket's token. Bitbucket refuses the late one, which nobody is
+    // waiting for, and the connection carries on with the second's tokens.
+    late.add("bitbucket.org");
+    const slow = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(slow.status).toBe(503);
+    late.delete("bitbucket.org");
+    const overtaking = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: next.refresh_token,
+      client_id: clientId,
+    });
+    expect(overtaking.status).toBe(200);
+    const latest = (await overtaking.json()) as { access_token: string; refresh_token: string };
+    const lateAnswers = await deliverLate();
+    expect(lateAnswers).toHaveLength(1);
+    expect(lateAnswers[0]).toBeGreaterThanOrEqual(400);
+    expect((await (await mcp(latest.access_token)).call("get_site", { site: "bitbucket:parish/site" })).isError).toBe(
+      false,
+    );
+    expect(grants.rows.size).toBe(1);
+
+    // If Bitbucket did renew its own token and only its answer was lost, trying again fails at Bitbucket and ends the
+    // connection, so the refresh token left usable gets no one anything.
+    lost.add("bitbucket.org");
+    const lostRenewal = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: latest.refresh_token,
+      client_id: clientId,
+    });
+    expect(lostRenewal.status).toBe(503);
+    lost.delete("bitbucket.org");
+    const retried = await post("/token", {
+      grant_type: "refresh_token",
+      refresh_token: latest.refresh_token,
+      client_id: clientId,
+    });
+    expect(retried.status).toBe(400);
+    expect(grants.rows.size).toBe(0);
   });
 
   it("says when the account can't publish to any repository", async () => {
@@ -665,5 +839,22 @@ describe("connecting with Bitbucket", () => {
     const callback = await visit((await bitbucket.fetch(authorize.toString())).headers.get("location") ?? "");
     expect(callback.status).toBe(400);
     expect(await callback.text()).toContain("publish to any repository");
+  });
+});
+
+describe("undoing a rotation", () => {
+  it("never undoes a later rotation, or brings back a connection that ended", async () => {
+    const grants = memoryGrants();
+    await grants.create("a", 10_000, 0);
+    expect(await grants.rotate("a", 1, 10_000, 1)).toBe("rotated");
+    expect(await grants.rotate("a", 2, 10_000, 2)).toBe("rotated");
+    // Undoing the first rotation, after a second, changes nothing.
+    await grants.unrotate("a", 1);
+    expect(grants.rows.get("a")?.generation).toBe(3);
+    await grants.unrotate("a", 2);
+    expect(grants.rows.get("a")?.generation).toBe(2);
+    await grants.revoke("a");
+    await grants.unrotate("a", 1);
+    expect(grants.rows.has("a")).toBe(false);
   });
 });
