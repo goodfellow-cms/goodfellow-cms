@@ -18,6 +18,7 @@ import {
   bitbucketRequest,
   credentialsFrom,
   type Paged,
+  pagesOf,
   quoted,
 } from "./api.js";
 
@@ -56,14 +57,15 @@ function isNotAllowed(error: unknown): boolean {
  * set to anything, someone else's nickname included. A name more than one
  * member answers to is refused, never given to the first.
  */
-function memberNamed(accounts: readonly Account[], name: string): Account | undefined {
+function memberNamed(accounts: readonly Account[], name: string, complete = true): Account | undefined {
   const wanted = name.toLowerCase();
   const matching = (values: (account: Account) => Array<string | undefined>) =>
     accounts.filter((account) => values(account).some((value) => value?.toLowerCase() === wanted));
   for (const found of [
     matching((account) => [account.account_id, account.uuid]),
     matching((account) => [account.nickname]),
-    matching((account) => [account.display_name]),
+    // Without every member, a display name could be someone else's whose account wasn't read.
+    ...(complete ? [matching((account) => [account.display_name])] : []),
   ]) {
     if (found.length > 1) {
       throw new EditorsError("ambiguous", `More than one member of the workspace goes by ${name}.`);
@@ -118,10 +120,11 @@ export function bitbucketEditors(
       ).catch(() => undefined);
       return found?.values[0]?.user;
     }
-    const members = await allPages<{ user: Account }>(api, `/workspaces/${workspace}/members?pagelen=100`, 10);
+    const members = await pagesOf<{ user: Account }>(api, `/workspaces/${workspace}/members?pagelen=100`, 10);
     return memberNamed(
-      members.map((member) => member.user),
+      members.items.map((member) => member.user),
       who,
+      members.complete,
     );
   }
 

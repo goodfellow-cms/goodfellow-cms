@@ -47,7 +47,9 @@ export function extensionOf(name: string): string {
 
 /** What kind of file a name or address is, or `undefined` if it can't be uploaded. */
 export function mediaKind(name: string): MediaKind | undefined {
-  return KINDS[extensionOf(name)];
+  const extension = extensionOf(name);
+  // Only the table's own names: `.constructor` or `.__proto__` would otherwise find what every object has.
+  return Object.hasOwn(KINDS, extension) ? KINDS[extension] : undefined;
 }
 
 /** The file's name, without its folder: `public/media/photo.jpg` → `photo.jpg`. */

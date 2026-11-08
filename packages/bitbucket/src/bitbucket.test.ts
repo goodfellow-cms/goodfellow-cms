@@ -501,6 +501,20 @@ describe("editors", () => {
     expect(fake.permissions.get("{ana2}")?.permission).toBe("write");
   });
 
+  it("won't go by a display name in a workspace too large to read every member of", async () => {
+    const crowd = Array.from({ length: 1000 }, (_, at) => `member${String(at).padStart(4, "0")}`);
+    const { fake, backend } = await signedIn({
+      members: [{ nickname: "aaa-mallory", displayName: "Maria Lopez" }, ...crowd, "maria"],
+    });
+    const editors = backend.editors;
+    if (!editors) throw new Error("No editors");
+    // The real Maria Lopez could be among the members past the last page read.
+    await expect(editors.invite("Maria Lopez", "editor")).rejects.toMatchObject({ problem: "not-found" });
+    expect(fake.permissions.has("{aaa-mallory}")).toBe(false);
+    await editors.invite("member0001", "editor");
+    expect(fake.permissions.get("{member0001}")?.permission).toBe("write");
+  });
+
   it("asks for an owner token where the sign-in can't see everyone's permissions", async () => {
     const { backend } = await signedIn({
       tokens: { [TOKEN]: { nickname: "editor", permission: "write" } },

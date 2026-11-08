@@ -156,7 +156,7 @@ function CommentsView({
     const text = otherGarrul
       ? "Garrul's comments show only from the address in Site settings' Comments, which an owner sets there."
       : pasted
-        ? "This isn't Giscus's, Disqus's or Garrul's code. On giscus.app, choose the repository and category, then copy the code at the end of the page; or paste Disqus's code or its site's shortname, or Garrul's code or its address."
+        ? "This isn't Giscus's or Disqus's code. On giscus.app, choose the repository and category, then copy the code at the end of the page; or paste Disqus's code or its site's shortname. Garrul's address goes in Site settings' Comments."
         : "Set up comments in Site settings' Comments to show them here.";
     body = (
       <p className="rounded-lg bg-muted p-6 text-muted-foreground">
@@ -271,7 +271,7 @@ const Comments: ComponentConfig<CommentsProps> = withParts(
       heading: { type: "text", label: "Heading", contentEditable: true },
       code: {
         type: "textarea",
-        label: "Giscus's, Disqus's or Garrul's code, for comments kept elsewhere than Site settings says (optional)",
+        label: "Giscus's or Disqus's code, for comments kept elsewhere than Site settings says (optional)",
       },
       reactions: {
         type: "radio",

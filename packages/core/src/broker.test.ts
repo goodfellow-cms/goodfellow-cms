@@ -61,6 +61,9 @@ describe("what the broker publishes without asking", () => {
         { path: "public/media/page.html", content: "<script></script>" },
         { path: "public/media/app.js", content: "" },
         { path: "public/media/_headers", content: "" },
+        // Names every object has aren't media kinds either.
+        { path: "public/media/page.constructor", content: "" },
+        { path: "public/media/page.__proto__", content: "" },
       ],
       undefined,
     );
@@ -68,6 +71,8 @@ describe("what the broker publishes without asking", () => {
       { path: "public/media/page.html", kind: "code" },
       { path: "public/media/app.js", kind: "code" },
       { path: "public/media/_headers", kind: "code" },
+      { path: "public/media/page.constructor", kind: "code" },
+      { path: "public/media/page.__proto__", kind: "code" },
     ]);
   });
 

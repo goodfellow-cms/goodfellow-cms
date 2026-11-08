@@ -12,5 +12,5 @@ Security fixes from the November code review:
 - The Comments block shows Garrul's comments only from the address in Site Settings, which only owners change, since Garrul's script comes from wherever its address says.
 - A token broker asks before publishing a file in the media folder that isn't a kind the media library takes, such as a page or a script.
 - Builds refuse a page whose comment a browser would end before the admin address's guard (`<!-->`, `<!--->` or `--!>`).
-- Plugins' tasks install Goodfellow's task runner at the exact release the site's lockfile has, with nothing npm published more than a day after it, in new sites' setups.
+- Plugins' tasks install Goodfellow's task runner at the exact release the site's lockfile has, with nothing npm published more than a day after it. New sites get it in their setup; an update can't change a site's workflows, so an existing site that runs plugins' tasks gets it by copying the starter's `.github/workflows/plugin-task.yml`, or the `plugin-task` job of its `.gitlab-ci.yml`, over its own.
 - Bitbucket invitations match a member by their account or username before the name they show, and refuse a name more than one member uses.

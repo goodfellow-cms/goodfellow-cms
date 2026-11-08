@@ -95,7 +95,7 @@ A block with Giscus's code shows the comments the code names, whatever Site Sett
 3. In the admin panel, open **Site Settings**, then **Comments**. Under **Use Disqus**, paste the shortname, or the code Disqus gives you when you choose to install it on a site, which names it, and choose **Use Disqus**.
 4. On the **Blocks** screen, add **Comments** and publish, then add the **Comments** block to a page or a collection's page design and publish.
 
-Disqus matches each page to its comments by the page's address on the site, so the site needs its address in Site settings for Disqus to link back to pages. To keep one page's comments with another Disqus site, paste that site's shortname or code into the block's **Giscus's, Disqus's or Garrul's code**.
+Disqus matches each page to its comments by the page's address on the site, so the site needs its address in Site settings for Disqus to link back to pages. To keep one page's comments with another Disqus site, paste that site's shortname or code into the block's **Giscus's or Disqus's code**.
 
 Moderate Disqus's comments on Disqus: **Site Settings**, **Comments** links to **Moderate comments on Disqus**, where you approve, hide and delete comments, and block people. Choose in Disqus's settings what it emails you about. **Stop using comments** on the same screen stops pages showing them once the site has been rebuilt, leaving everything visitors wrote on Disqus.
 
@@ -115,7 +115,7 @@ Moderate Garrul's comments on Garrul: **Site Settings**, **Comments** links to *
 ## Choices
 
 - **Heading** shows above the comments. Leave it empty for none.
-- **Giscus's, Disqus's or Garrul's code** is only for comments kept somewhere other than Site Settings says. Leave it empty to show the ones set up there. Garrul's comments load a script from wherever its address says, and anyone who edits pages can change a block, so the block shows Garrul only from the address in Site Settings, which only owners change.
+- **Giscus's or Disqus's code** is only for comments kept somewhere other than Site Settings says. Leave it empty to show the ones set up there. Garrul is set up only in **Site Settings → Comments**: its comments load a script from wherever its address says, and anyone who edits pages can change a block, so a block shows Garrul only from the address there, which only owners change.
 - **Reactions to the page (Giscus)** shows or hides the row of reactions, such as 👍 and ❤️, above the comments. Disqus has its own setting for reactions, on Disqus.
 - **Box for writing a comment (Giscus)** puts it above the comments or under them. Disqus and Garrul have their own.
 
