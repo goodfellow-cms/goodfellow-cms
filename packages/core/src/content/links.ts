@@ -435,8 +435,13 @@ export function relinkSite(
     const exact = moved.get(path);
     if (exact !== undefined) return exact;
     if (staying.has(path)) return undefined;
-    for (const [from, to] of moved) {
-      if (from !== "/" && path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
+    // An address under a moved one goes with the nearest above it, unless a page that stays is nearer, as for
+    // the pages a block adds under a page that stays (`/news/events/page/2` when only `/news` moves).
+    for (let at = path.lastIndexOf("/"); at > 0; at = path.lastIndexOf("/", at - 1)) {
+      const above = path.slice(0, at);
+      const to = moved.get(above);
+      if (to !== undefined) return `${to}${path.slice(above.length)}`;
+      if (staying.has(above)) return undefined;
     }
     return undefined;
   };

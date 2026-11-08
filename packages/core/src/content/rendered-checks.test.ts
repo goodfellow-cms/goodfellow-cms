@@ -12,6 +12,10 @@ const found = (html: string) =>
   });
 
 describe("renderedProblems", () => {
+  it("reads a character past Unicode's last as browsers do, rather than stopping", () => {
+    expect(() => found(body("", '<a href="/">&#x110000;</a><a href="/">&#99999999;</a>'))).not.toThrow();
+  });
+
   it("finds images without alt text, unless they're only decoration", () => {
     expect(
       found(

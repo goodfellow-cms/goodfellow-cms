@@ -628,6 +628,10 @@ describe("drafts", () => {
     await expect(drafts.open("20261014-zzz999")).rejects.toMatchObject({ problem: "not-found" });
     await expect(drafts.open("../main")).rejects.toMatchObject({ problem: "not-found" });
     await expect(drafts.create("20261014-abc123")).rejects.toMatchObject({ problem: "exists" });
+    // GitHub says 422 for a revision it doesn't have too, which isn't a draft by that name.
+    const unknown = drafts.create("20261014-new", { from: "0".repeat(40) });
+    await expect(unknown).rejects.toThrow(/Object does not exist/);
+    await expect(unknown).rejects.not.toMatchObject({ problem: "exists" });
   });
 
   it("publishes a draft in one commit, on top of other people's changes to other files, then removes it", async () => {

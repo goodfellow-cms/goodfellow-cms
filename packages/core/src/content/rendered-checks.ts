@@ -65,10 +65,15 @@ const ATTRIBUTE = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
+/** A character by its number, or the replacement character for one past Unicode's last, as browsers read it. */
+function character(code: number): string {
+  return code <= 0x10ffff ? String.fromCodePoint(code) : "\uFFFD";
+}
+
 function decode(text: string): string {
   return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, name: string) => {
-    if (name.startsWith("#x") || name.startsWith("#X")) return String.fromCodePoint(Number.parseInt(name.slice(2), 16));
-    if (name.startsWith("#")) return String.fromCodePoint(Number.parseInt(name.slice(1), 10));
+    if (name.startsWith("#x") || name.startsWith("#X")) return character(Number.parseInt(name.slice(2), 16));
+    if (name.startsWith("#")) return character(Number.parseInt(name.slice(1), 10));
     return ENTITIES[name.toLowerCase()] ?? match;
   });
 }

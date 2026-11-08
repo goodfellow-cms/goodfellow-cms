@@ -104,6 +104,26 @@ describe("relinkSite", () => {
     expect(relinked.content.redirects).toEqual([{ from: "/advent", to: "/talks/advent-2026" }]);
   });
 
+  it("leaves addresses under a page that stays where they are, as the pages its blocks add", async () => {
+    const content = await loadSiteContent(
+      memorySource({
+        "content/site.json": { version: 1, title: "Parish" },
+        "content/pages/index.json": page("Home", [
+          { type: "Button", props: { id: "Button-1", href: "/news/events/page/2" } },
+          { type: "Button", props: { id: "Button-2", href: "/news/page/2" } },
+        ]),
+        "content/pages/news.json": page("News"),
+        "content/pages/news/events.json": page("Events"),
+      }),
+    );
+    const relinked = relinkSite(content, [{ from: "/news", to: "/updates" }], blocks);
+    const home = relinked.content.pages.find((page) => page.path === "/");
+    expect(home?.content.data.content.map((block) => block.props.href)).toEqual([
+      "/news/events/page/2",
+      "/updates/page/2",
+    ]);
+  });
+
   it("changes nothing when nothing moves", async () => {
     const content = await loadSiteContent(memorySource({ "content/site.json": { version: 1, title: "Parish" } }));
     expect(relinkSite(content, [{ from: "/a", to: "/a" }])).toEqual({ content, files: [] });
