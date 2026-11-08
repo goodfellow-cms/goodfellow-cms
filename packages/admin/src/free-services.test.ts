@@ -7,7 +7,11 @@ describe("freeServicesSetUp", () => {
     const settings = siteSettingsSchema.parse({ version: 1, title: "Parish" });
     expect(freeServicesSetUp(settings)).toEqual({ forms: false, comments: false, stats: false });
     expect(
-      freeServicesSetUp({ ...settings, forms: { service: "web3forms", key: "abc" }, stats: { endpoint: "https://parish.goatcounter.com/count" } } as never),
+      freeServicesSetUp({
+        ...settings,
+        forms: { service: "web3forms", key: "abc" },
+        stats: { endpoint: "https://parish.goatcounter.com/count" },
+      } as never),
     ).toEqual({ forms: true, comments: false, stats: true });
   });
 

@@ -12,7 +12,12 @@ interface FreeService {
 
 /** The free services Site Settings' General tab offers as cards, in its order. */
 export const FREE_SITE_SERVICES: readonly FreeService[] = [
-  { id: "forms", title: "freeServices.forms", text: "freeServices.formsText", href: "#/settings/general?section=forms" },
+  {
+    id: "forms",
+    title: "freeServices.forms",
+    text: "freeServices.formsText",
+    href: "#/settings/general?section=forms",
+  },
   { id: "comments", title: "freeServices.comments", text: "freeServices.commentsText", href: "#/settings/comments" },
   { id: "stats", title: "freeServices.stats", text: "freeServices.statsText", href: "#/settings/stats" },
 ];

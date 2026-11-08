@@ -41,6 +41,7 @@ import {
 import { CodeEditor } from "./code-editor.js";
 import { ConsentSection, cleanConsent } from "./consent-settings.js";
 import { FontPicker } from "./font-picker.js";
+import { FreeServices } from "./free-services.js";
 import { useHistory } from "./history.js";
 import { cleanLanguages, LanguagesTab, languagesProblem } from "./languages-tab.js";
 import { MediaField } from "./media-library.js";
@@ -49,7 +50,6 @@ import { type AddedFontFiles, OwnFonts, useOwnFontsShown } from "./own-fonts.js"
 import { PartsEditor } from "./parts-editor.js";
 import { PreviewFrame, type PreviewScheme } from "./preview.js";
 import { filledRedirects, RedirectsEditor } from "./redirects-editor.js";
-import { FreeServices } from "./free-services.js";
 import { type SettingsSection, sectionId, useUnsavedChanges } from "./router.js";
 import { useSignInExposed } from "./security-screen.js";
 import { describeContrast } from "./site-checks.js";

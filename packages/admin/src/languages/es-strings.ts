@@ -1262,9 +1262,11 @@ export const strings: Strings = {
   "comments.demo": "Los comentarios no se pueden configurar en la demostración.",
   "settings.tab.stats": "Visitas",
   "freeServices.title": "Servicios gratuitos",
-  "freeServices.intro": "Tu sitio puede usar los planes gratuitos de estos servicios. Cada uno se configura en pocos minutos.",
+  "freeServices.intro":
+    "Tu sitio puede usar los planes gratuitos de estos servicios. Cada uno se configura en pocos minutos.",
   "freeServices.forms": "Formularios",
-  "freeServices.formsText": "Formularios de contacto e inscripción que te envían cada respuesta por correo, con Web3Forms o Formspree.",
+  "freeServices.formsText":
+    "Formularios de contacto e inscripción que te envían cada respuesta por correo, con Web3Forms o Formspree.",
   "freeServices.comments": "Comentarios",
   "freeServices.commentsText": "Comentarios de los visitantes bajo las páginas, con Giscus, Disqus o Garrul.",
   "freeServices.stats": "Visitas",
