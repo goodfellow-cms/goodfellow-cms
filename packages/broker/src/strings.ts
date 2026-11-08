@@ -36,6 +36,8 @@ export const STRINGS = {
     "The admin panel asked to publish changes that need you to say so here, where nothing it runs can say so for you:",
   confirmCode: "The site's code, which runs when the site is built:",
   confirmCustomCode: "Code that runs on the site's pages:",
+  confirmMediaCode:
+    "Files for the media library that can hold code, such as SVG pictures. Only publish them if you added them yourself:",
   confirmSiteAddress:
     "A new Site address, which is where this page shows the admin panel from. Only publish it if you changed it yourself:",
   confirmUpdate: "Installing Goodfellow {release}, which changes the site's packages.",

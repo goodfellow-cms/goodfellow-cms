@@ -52,7 +52,7 @@ describe("what the broker publishes without asking", () => {
     content: JSON.stringify({ version: 1, url }),
   });
 
-  it("asks about files in the media folder that aren't media, which could run on the site's address", () => {
+  it("asks about files in the media folder that could run on the site's address: SVGs and what isn't media", () => {
     const check = brokerChangeCheck(
       [
         { path: "public/media/a.png", bytes: new Uint8Array() },
@@ -64,16 +64,21 @@ describe("what the broker publishes without asking", () => {
         // Names every object has aren't media kinds either.
         { path: "public/media/page.constructor", content: "" },
         { path: "public/media/page.__proto__", content: "" },
+        // The admin panel cleans SVGs, but the broker can't tell whether it did.
+        { path: "public/media/logo.svg", content: "<svg></svg>" },
       ],
       undefined,
     );
     expect(check.confirm).toEqual([
-      { path: "public/media/page.html", kind: "code" },
-      { path: "public/media/app.js", kind: "code" },
-      { path: "public/media/_headers", kind: "code" },
-      { path: "public/media/page.constructor", kind: "code" },
-      { path: "public/media/page.__proto__", kind: "code" },
+      { path: "public/media/page.html", kind: "media-code" },
+      { path: "public/media/app.js", kind: "media-code" },
+      { path: "public/media/_headers", kind: "media-code" },
+      { path: "public/media/page.constructor", kind: "media-code" },
+      { path: "public/media/page.__proto__", kind: "media-code" },
+      { path: "public/media/logo.svg", kind: "media-code" },
     ]);
+    // Taking files away runs nothing.
+    expect(brokerChangeCheck([{ path: "public/media/page.html", delete: true }], undefined).confirm).toEqual([]);
   });
 
   it("publishes content and media, asks about code, custom code and the Site address, and never changes workflows", () => {
