@@ -57,7 +57,7 @@ Rich text is sanitized HTML, as pages have it, wherever a block's field holds it
 }
 ```
 
-Parts are paragraphs, headings (with `level` and the `id` Markdown's headings have), `quote`, `list` (`ordered`, `start` and `items`, each a list of parts), `code` (`code` and its `language`), `image` (`src`, `alt` and a `caption`), `rule` and `table` (`rows`, each with `header` and `cells`). Within a line, text has `bold`, `italic`, `underline`, `strike`, `code`, `superscript` and `subscript` where they're on, and `link` and `newTab` where it's a link, beside line breaks (`break`) and pictures. An item's page has its Markdown body this way too, under the Entry field block's `markdown` prop. `collections.json` gives each item's rich text and Markdown fields the same way, under the item's `richText`.
+Parts are paragraphs, headings (with `level` and the `id` Markdown's headings have), `quote`, `list` (`ordered`, `start` and `items`, each a list of parts), `code` (`code` and its `language`), `image` (`src`, `alt` and a `caption`), `rule` and `table` (`rows`, each with `header` and `cells`). Within a line, text has `bold`, `italic`, `underline`, `strike`, `code`, `superscript` and `subscript` where they're on, and `link` and `newTab` where it's a link, beside line breaks (`break`) and pictures. An item's page has its Markdown body this way too, under the Item field block's `markdown` prop. `collections.json` gives each item's rich text and Markdown fields the same way, under the item's `richText`.
 
 `@goodfellow-cms/core/content-api` has the files' types (`ApiManifest`, `ApiPageFile` and the rest) and `richTextNodes()`, which turns HTML into these parts.
 

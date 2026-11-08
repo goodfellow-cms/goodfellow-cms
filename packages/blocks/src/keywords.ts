@@ -56,7 +56,7 @@ export const BLOCK_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
   CollectionList: ["latest posts", "posts", "news", "query loop", "list"],
   CollectionLoop: ["query loop", "repeat", "posts"],
   Calendar: ["events", "dates", "schedule"],
-  EntryField: ["post content", "field"],
+  EntryField: ["entry field", "post content", "field"],
   AddToCalendar: ["event", "ics"],
   EntryPager: ["next", "previous", "post navigation"],
   OnThisPage: ["table of contents", "toc", "contents"],

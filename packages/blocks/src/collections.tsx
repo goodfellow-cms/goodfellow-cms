@@ -309,7 +309,7 @@ function GroupRows({ fields, value, className }: { fields: GroupField[]; value: 
 }
 
 const entryField: ComponentConfig<EntryFieldProps> = {
-  label: "Entry field",
+  label: "Item field",
   fields: {
     field: { type: "select", label: "Field", options: [] },
     style: {
