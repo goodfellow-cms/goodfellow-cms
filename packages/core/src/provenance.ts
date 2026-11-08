@@ -10,7 +10,9 @@
  * (`verifiedSource()` in `@goodfellow-cms/core/node`), since a browser can
  * lie.
  */
+
 import { z } from "zod";
+import { trimChars } from "./trim.js";
 import { compareReleases, NPM_REGISTRY } from "./updates.js";
 
 /** The predicate type of npm's build provenance, SLSA's. */
@@ -52,7 +54,7 @@ export interface ProvenanceAttestation {
 
 /** npm's address for a release's attestations. */
 export function attestationsUrl(name: string, version: string): string {
-  return `${NPM_REGISTRY}/-/npm/v1/attestations/${name.replace("/", "%2F")}@${version}`;
+  return `${NPM_REGISTRY}/-/npm/v1/attestations/${name.replaceAll("/", "%2F")}@${version}`;
 }
 
 /**
@@ -61,10 +63,7 @@ export function attestationsUrl(name: string, version: string): string {
  * without `git+`, `.git`, or a trailing slash.
  */
 export function normalizedRepository(url: string): string {
-  return url
-    .trim()
-    .replace(/^git\+/, "")
-    .replace(/\/+$/, "")
+  return trimChars(url.trim().replace(/^git\+/, ""), "/", { start: false })
     .replace(/\.git$/, "")
     .toLowerCase();
 }

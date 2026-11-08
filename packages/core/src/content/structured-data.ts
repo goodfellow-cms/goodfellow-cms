@@ -50,7 +50,14 @@ function organization(content: SiteContent, siteUrl: string): StructuredData {
     ...(contact?.email && { email: contact.email }),
     ...(contact?.phone && { telephone: contact.phone }),
     ...(contact?.address && {
-      address: { "@type": "PostalAddress", streetAddress: contact.address.replace(/\s*\n\s*/g, ", ") },
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: contact.address
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .join(", "),
+      },
     }),
   };
 }

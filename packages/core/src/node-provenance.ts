@@ -226,8 +226,20 @@ export class EarlyInstallError extends Error {
 /** Runs npm in a folder, for `writeEarlyLockfile()`; tests pass their own. */
 export type NpmRunner = (args: string[], cwd: string) => Promise<number>;
 
+/**
+ * What npm's arguments may hold here: its options, package names, exact
+ * releases and dates. Names and releases come from the site's install
+ * records, which anyone who can publish the site can change, and cmd.exe
+ * reads `%` and `^` even in quotes, so anything else is refused.
+ */
+const NPM_ARGUMENT = /^[\w@+=:,./~-]+$/;
+
 const runNpm: NpmRunner = (args, cwd) =>
   new Promise((done) => {
+    if (!args.every((arg) => NPM_ARGUMENT.test(arg))) {
+      done(1);
+      return;
+    }
     const run = commandToRun("npm", args);
     const child = spawn(run.file, run.args, { cwd, stdio: "inherit", shell: run.shell });
     child.on("error", () => done(1));

@@ -33,6 +33,23 @@ export function configBackendOption(source: string, key: string): string | undef
   return quoted.startsWith('"') ? (JSON.parse(quoted) as string) : quoted.slice(1, -1).replace(/\\(.)/g, "$1");
 }
 
+/** Where a `//` comment starts on a line of code, outside its strings, or -1. */
+function lineCommentAt(line: string): number {
+  let quote = "";
+  for (let at = 0; at < line.length; at++) {
+    const char = line.charAt(at);
+    if (quote) {
+      if (char === "\\") at++;
+      else if (char === quote) quote = "";
+    } else if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+    } else if (char === "/" && line.charAt(at + 1) === "/") {
+      return at;
+    }
+  }
+  return -1;
+}
+
 /**
  * `goodfellow.config.tsx` with the backend's `key` option set to `value`, or
  * taken out; `undefined` where the file has no `backend:` call whose options
@@ -62,10 +79,18 @@ export function withBackendOption(source: string, key: SignInOption, value: stri
     const entry = `${key}: ${JSON.stringify(value)}`;
     if (options.includes("\n")) {
       // One option a line: the new one goes last, indented as the others are.
-      const lines = options.replace(/\s*$/, "");
+      const rows = options.trimEnd().split("\n");
       const lineIndent = /\n([ \t]+)\S/.exec(options)?.[1] ?? `${indent}  `;
-      const comma = lines.trimEnd().endsWith(",") ? "" : ",";
-      next = `${lines}${comma}\n${lineIndent}${entry},\n${indent}`;
+      // The last option gets a comma if it has none, before a `//` comment that ends its line.
+      for (let at = rows.length - 1; at >= 0; at--) {
+        const row = rows[at] ?? "";
+        const comment = lineCommentAt(row);
+        const code = (comment === -1 ? row : row.slice(0, comment)).trimEnd();
+        if (!code.trim()) continue;
+        if (!code.endsWith(",")) rows[at] = `${code},${row.slice(code.length)}`;
+        break;
+      }
+      next = `${rows.join("\n")}\n${lineIndent}${entry},\n${indent}`;
     } else {
       const trimmed = options.trim().replace(/,$/, "");
       next = trimmed ? ` ${trimmed}, ${entry} ` : ` ${entry} `;

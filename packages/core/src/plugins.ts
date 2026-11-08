@@ -823,7 +823,10 @@ export function pluginMayList(permissions: PluginPermissions, folder: string): b
  */
 export function pluginFrameUrl(editorUrl: string, id: string): string {
   const base = editorUrl.endsWith("/") ? editorUrl : `${editorUrl}/`;
-  return `${base.replace(/[^/]+\/$/, "")}plugins/${encodeURIComponent(id)}/index.html`;
+  // The editor's folder's parent: `…/admin/editor/` → `…/admin/`.
+  const cut = base.lastIndexOf("/", base.length - 2);
+  const parent = cut === base.length - 2 ? base : base.slice(0, cut + 1);
+  return `${parent}plugins/${encodeURIComponent(id)}/index.html`;
 }
 
 /**

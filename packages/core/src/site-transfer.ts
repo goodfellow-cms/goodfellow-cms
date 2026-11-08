@@ -37,6 +37,7 @@ import { SYNCED_BLOCK } from "./content/synced-blocks.js";
 import { type ContentKind, CURRENT_VERSION, MigrationError, migrateContent } from "./migrations/index.js";
 import { GOODFELLOW_REGISTRY, parseInstalledRecord } from "./registry.js";
 import { GOODFELLOW_VERSION } from "./site-description.js";
+import { trimChars } from "./trim.js";
 
 /** What an export says about itself, beside the site's files. */
 export const TRANSFER_MANIFEST = "goodfellow-transfer.json";
@@ -105,15 +106,15 @@ export function transferManifestFile(
  * `st-anne-parish-2026-11-01.zip`, or `site-…` for a title with none.
  */
 export function transferName(title: string | undefined, date: Date): string {
-  const slug =
+  const words = trimChars(
     (title ?? "")
       .normalize("NFKD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60)
-      .replace(/-+$/, "") || "site";
+      .replace(/[^a-z0-9]+/g, "-"),
+    "-",
+  );
+  const slug = trimChars(words.slice(0, 60), "-", { start: false }) || "site";
   const day = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
     .map((part) => String(part).padStart(2, "0"))
     .join("-");
@@ -473,7 +474,7 @@ export async function planSiteImport(
     storage !== undefined &&
     own !== undefined &&
     own.plugin === storage.plugin &&
-    own.url.replace(/\/+$/, "") === storage.url.replace(/\/+$/, "");
+    trimChars(own.url, "/", { start: false }) === trimChars(storage.url, "/", { start: false });
   const never = new Set<string>(NEVER_IMPORTED);
   const read = (path: string): string | undefined => {
     if (!exported.has(path) || never.has(path)) return undefined;

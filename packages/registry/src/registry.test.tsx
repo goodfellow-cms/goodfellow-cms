@@ -234,6 +234,14 @@ describe("the parish site's blocks", () => {
     ]);
   });
 
+  it("reads feeds whose tags never end quickly", async () => {
+    const { readFeedItems } = await import("../site/blocks/installed/feed-list/block.js");
+    const item = `<item><title>${"<![CDATA[".repeat(100_000)}</title><link>https://news.example/1</link></item>`;
+    expect(readFeedItems(item)).toHaveLength(1);
+    for (const broken of ["<item>", "<item ", "<entry>", "<link "])
+      expect(readFeedItems(broken.repeat(100_000))).toEqual([]);
+  });
+
   it("maps an address, or Google Maps' own embed code, and nothing else", async () => {
     const { mapAddress } = await import("../site/blocks/installed/map/block.js");
     expect(mapAddress("1 Main St, Springfield", 15)).toBe(
