@@ -234,9 +234,26 @@ function shortSummary(text: string): string {
   return ended.length > SUMMARY_LENGTH ? `${ended.slice(0, SUMMARY_LENGTH - 1).trimEnd()}…` : ended;
 }
 
+/**
+ * HTML without its comments, each a space. Searching on from each comment's
+ * start, rather than matching `/<!--[\s\S]*?-->/g`, keeps a comment that never
+ * ends from taking time that grows with the square of the HTML's length.
+ */
+function withoutComments(html: string): string {
+  let result = "";
+  let from = 0;
+  for (let start = html.indexOf("<!--"); start !== -1; start = html.indexOf("<!--", from)) {
+    const end = html.indexOf("-->", start + 4);
+    if (end === -1) break;
+    result += `${html.slice(from, start)} `;
+    from = end + 3;
+  }
+  return result + html.slice(from);
+}
+
 /** A summary written as HTML, such as a WordPress excerpt. */
 function summaryOf(html: string): string {
-  return shortSummary(plainText(html.replace(/<!--[\s\S]*?-->/g, " ")));
+  return shortSummary(plainText(withoutComments(html)));
 }
 
 /** A summary from a post's first paragraphs, where it has none of its own. */

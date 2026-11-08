@@ -1,4 +1,4 @@
-import { addDays, changesOn, readRemoteText, todayIn } from "@goodfellow-cms/core";
+import { addDays, changesOn, readRemoteText, todayIn, withoutTags } from "@goodfellow-cms/core";
 import { classNameField, SiteLink, useParts, withKeywords, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 
@@ -49,9 +49,7 @@ const entities: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"'
 
 /** A tag's text, without CDATA markers, tags or entities. */
 function decode(text: string): string {
-  return text
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/<[^>]*>/g, "")
+  return withoutTags(text.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1"))
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
     .replace(/&([a-z]+);/gi, (match, name) => entities[name.toLowerCase()] ?? match)

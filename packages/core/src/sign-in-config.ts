@@ -62,7 +62,7 @@ export function withBackendOption(source: string, key: SignInOption, value: stri
     const entry = `${key}: ${JSON.stringify(value)}`;
     if (options.includes("\n")) {
       // One option a line: the new one goes last, indented as the others are.
-      const lines = options.replace(/\s*$/, "");
+      const lines = options.trimEnd();
       const lineIndent = /\n([ \t]+)\S/.exec(options)?.[1] ?? `${indent}  `;
       const comma = lines.trimEnd().endsWith(",") ? "" : ",";
       next = `${lines}${comma}\n${lineIndent}${entry},\n${indent}`;

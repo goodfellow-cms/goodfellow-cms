@@ -60,7 +60,35 @@ const VOID = new Set([
 ]);
 
 const TOKEN =
-  /<!--[\s\S]*?-->|<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>|<\/([a-zA-Z][\w:-]*)\s*>|<([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>|([^<]+)/g;
+  /<!--|<(script|style)\b[^>]*>|<\/([a-zA-Z][\w:-]*)\s*>|<([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>|([^<]+)/g;
+const RAW_END: Record<string, RegExp> = { script: /<\/script\s*>/g, style: /<\/style\s*>/g };
+
+/**
+ * The HTML's tags and text, without its comments and what's in its scripts
+ * and styles. Each comment, script and style ends at the first end after it
+ * (or the page's end, as in browsers), found by searching on from its start,
+ * since a pattern that looks for the end from every start takes time that
+ * grows with the square of the page's length when one never ends.
+ */
+function* tokens(html: string): Generator<RegExpExecArray> {
+  const token = new RegExp(TOKEN.source, "g");
+  for (let match = token.exec(html); match; match = token.exec(html)) {
+    const raw = match[1];
+    if (match[0] === "<!--") {
+      const end = html.indexOf("-->", token.lastIndex);
+      if (end === -1) return;
+      token.lastIndex = end + 3;
+    } else if (raw) {
+      const ending = RAW_END[raw] as RegExp;
+      ending.lastIndex = token.lastIndex;
+      const end = ending.exec(html);
+      if (!end) return;
+      token.lastIndex = end.index + end[0].length;
+    } else {
+      yield match;
+    }
+  }
+}
 const ATTRIBUTE = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
@@ -187,9 +215,8 @@ export function renderedProblems(page: RenderedPage): SiteProblem[] {
     }
   };
 
-  for (const match of page.html.matchAll(TOKEN)) {
-    const [, raw, closing, opening, source = "", text] = match;
-    if (raw) continue;
+  for (const match of tokens(page.html)) {
+    const [, , closing, opening, source = "", text] = match;
     if (text !== undefined) {
       if (hidden()) continue;
       const decoded = decode(text);

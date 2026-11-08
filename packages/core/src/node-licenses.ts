@@ -136,7 +136,7 @@ export async function bundledPackages(moduleIds: Iterable<string>): Promise<Bund
   const dirs = new Set<string>();
   for (const id of moduleIds) {
     if (id.startsWith("\0") || (!id.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(id))) continue;
-    const dir = await owningPackage(id.replace(/[?#].*$/, ""), cache);
+    const dir = await owningPackage(id.split(/[?#]/, 1)[0] ?? id, cache);
     if (dir) dirs.add(dir);
   }
   const packages = await Promise.all([...dirs].map(describePackage));

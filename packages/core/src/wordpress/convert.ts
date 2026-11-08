@@ -6,6 +6,7 @@
  * where they say what a block was. `blocks.ts` and `markdown.ts` write the
  * parts as Puck blocks and as Markdown.
  */
+import { withoutTags } from "../content/tags.js";
 import { embeddedPost } from "../embeds.js";
 import { vimeoVideo, youtubeVideo } from "../video.js";
 import { blockHtml, hasBlocks, parseBlocks, type WordPressBlock } from "./blocks.js";
@@ -170,31 +171,57 @@ function embedFigure(url: string): string {
 }
 
 /**
+ * Text with each `[name …]…[/name]` shortcode, in any case, replaced by what
+ * `replace` returns for what's inside it, which ends at the first `[/name]`
+ * after it. One that's never closed stays as it is. It searches on from each
+ * start, since a pattern such as `/\[caption[^\]]*\]([\s\S]*?)\[\/caption\]/g`
+ * takes time that grows with the square of the text's length when one never
+ * closes.
+ */
+function replaceEnclosing(text: string, name: string, replace: (inner: string) => string): string {
+  const opening = new RegExp(`\\[${name}[^\\]]*\\]`, "gi");
+  const closing = new RegExp(`\\[\\/${name}\\]`, "gi");
+  let result = "";
+  let last = 0;
+  let close: RegExpExecArray | null = null;
+  for (let open = opening.exec(text); open; open = opening.exec(text)) {
+    const start = open.index + open[0].length;
+    if (!close || close.index < start) {
+      closing.lastIndex = start;
+      close = closing.exec(text);
+      if (!close) break;
+    }
+    result += text.slice(last, open.index) + replace(text.slice(start, close.index));
+    last = close.index + close[0].length;
+    opening.lastIndex = last;
+  }
+  return result + text.slice(last);
+}
+
+/**
  * Puts WordPress's own shortcodes in HTML: `[caption]`, `[gallery]`,
  * `[embed]`, `[video]` and `[audio]`, and addresses on lines of their own,
  * which WordPress shows as what they link to. Other shortcodes are left out,
  * keeping any text they wrap.
  */
 export function expandShortcodes(text: string, context: ConvertContext): string {
-  let html = text
-    .replace(/\[caption([^\]]*)\]([\s\S]*?)\[\/caption\]/gi, (_, _attributes: string, inner: string) => {
-      const image = /<a\b[^>]*>\s*<img\b[^>]*>\s*<\/a>|<img\b[^>]*>/i.exec(inner)?.[0] ?? "";
-      const caption = inner.replace(image, "").trim();
-      return `<figure class="wp-caption">${image}<figcaption>${caption}</figcaption></figure>`;
-    })
-    .replace(/\[gallery([^\]]*)\]/gi, (_, attributes: string) => {
-      const values = shortcodeAttributes(attributes);
-      const ids = (values.ids ?? values.include ?? "")
-        .split(",")
-        .map((id) => Number.parseInt(id.trim(), 10))
-        .filter((id) => id > 0);
-      if (ids.length === 0) {
-        context.note("shortcode", "gallery");
-        return "";
-      }
-      return `<figure class="wp-block-gallery columns-${values.columns ?? "3"}">${ids.map((id) => attachmentImage(context, id)).join("")}</figure>`;
-    })
-    .replace(/\[embed[^\]]*\]([\s\S]*?)\[\/embed\]/gi, (_, url: string) => embedFigure(url))
+  let html = replaceEnclosing(text, "caption", (inner) => {
+    const image = /<a\b[^>]*>\s*<img\b[^>]*>\s*<\/a>|<img\b[^>]*>/i.exec(inner)?.[0] ?? "";
+    const caption = inner.replace(image, "").trim();
+    return `<figure class="wp-caption">${image}<figcaption>${caption}</figcaption></figure>`;
+  }).replace(/\[gallery([^\]]*)\]/gi, (_, attributes: string) => {
+    const values = shortcodeAttributes(attributes);
+    const ids = (values.ids ?? values.include ?? "")
+      .split(",")
+      .map((id) => Number.parseInt(id.trim(), 10))
+      .filter((id) => id > 0);
+    if (ids.length === 0) {
+      context.note("shortcode", "gallery");
+      return "";
+    }
+    return `<figure class="wp-block-gallery columns-${values.columns ?? "3"}">${ids.map((id) => attachmentImage(context, id)).join("")}</figure>`;
+  });
+  html = replaceEnclosing(html, "embed", (url) => embedFigure(url))
     .replace(/\[(video|audio)([^\]]*)\](?:\[\/\1\])?/gi, (_, kind: string, attributes: string) => {
       const values = shortcodeAttributes(attributes);
       const src = values.src ?? values.mp4 ?? values.webm ?? values.mp3 ?? values.m4a ?? values.ogg ?? "";
@@ -360,9 +387,7 @@ function blockToParts(block: WordPressBlock, context: ConvertContext, reused: Se
       if (name.startsWith("core/"))
         return block.innerBlocks.length > 0 && !block.innerHTML.trim() ? inner() : htmlOf(html(), context);
       context.note("block", name);
-      return block.innerBlocks.length > 0 && !block.innerHTML.replace(/<[^>]*>/g, "").trim()
-        ? inner()
-        : htmlOf(html(), context);
+      return block.innerBlocks.length > 0 && !withoutTags(block.innerHTML).trim() ? inner() : htmlOf(html(), context);
   }
 }
 

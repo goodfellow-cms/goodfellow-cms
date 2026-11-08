@@ -3,7 +3,9 @@
  * host. Each backend package builds a fake of its host's API on top of it.
  * Never shipped to browsers: import it only from tests.
  */
+
 import type { FileChange } from "./content/store.js";
+import { trimChars } from "./trim.js";
 
 /** A file in a fake repository: text, or bytes for files that aren't text, such as images. */
 export type FakeFile = string | Uint8Array;
@@ -185,7 +187,7 @@ export class FakeRepo {
    */
   history(path: string, ref: string = this.defaultBranch): FakeCommit[] {
     const found: FakeCommit[] = [];
-    const folder = `${path.replace(/\/+$/, "")}/`;
+    const folder = `${trimChars(path, "/", { start: false })}/`;
     const changed = (commit: FakeCommit, parent: FakeCommit | undefined) => {
       if (fileKey(commit.files.get(path)) !== fileKey(parent?.files.get(path))) return true;
       const paths = new Set([...commit.files.keys(), ...(parent?.files.keys() ?? [])]);

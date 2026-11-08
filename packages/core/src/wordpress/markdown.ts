@@ -184,7 +184,9 @@ function list(items: ChildNode[], ordered: boolean, link: Link): string {
 function table(rows: TableRow[], link: Link): string {
   const width = Math.max(0, ...rows.map((row) => row.cells.length));
   if (width === 0) return "";
-  const cell = (nodes: ChildNode[]) => inline(nodes, link, " ").replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
+  // A pipe ends a cell unless it's written `\|`. Backslashes need nothing more: `inline()` writes the text's own as `\\`, and
+  // GitHub's tables read a pipe after one as written with `\|` too, then take that backslash away, so code keeps its own.
+  const cell = (nodes: ChildNode[]) => inline(nodes, link, " ").split("|").join("\\|").replace(/\s+/g, " ").trim();
   const line = (cells: string[]) =>
     `| ${Array.from({ length: width }, (_, index) => cells[index] ?? "").join(" | ")} |`;
   const [head, ...body] = rows;
