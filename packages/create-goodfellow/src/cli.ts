@@ -471,7 +471,9 @@ function gitLines(git: GitResult, commit: CommitResult | undefined, installed: b
       `${repository}, but git doesn't know your name and email yet, so nothing is committed. Tell it, then commit:`,
       '  git config --global user.name "Your Name"',
       "  git config --global user.email you@example.com",
-      '  git add -A && git commit -m "Create the site"',
+      // Two commands, since Windows PowerShell 5.1 has no &&.
+      "  git add -A",
+      '  git commit -m "Create the site"',
       ...origin,
     ];
   }

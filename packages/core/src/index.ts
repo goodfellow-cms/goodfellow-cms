@@ -1017,6 +1017,7 @@ export {
   LOCKFILE_CHECK,
   LOCKFILE_COMMAND,
   LOCKFILE_JOB,
+  LOCKFILE_REGISTRY_CHECK,
   PUBLISH_LOCKFILE_JOB,
 } from "./lockfile-setup.js";
 export {
@@ -1261,7 +1262,9 @@ export {
   type RepositoryVisibility,
   type ScheduledBuilds,
   ScheduledBuildsError,
+  type ScheduledBuildsSyncOptions,
   type ScheduledBuildTiming,
+  stopsScheduledBuild,
 } from "./scheduled-builds.js";
 export { SEARCH_ATTRIBUTE, SEARCH_INDEX_DIR } from "./search.js";
 export {

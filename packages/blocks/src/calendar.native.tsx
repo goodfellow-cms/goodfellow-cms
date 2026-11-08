@@ -9,6 +9,7 @@ import {
   formatMonth,
   formatTime,
   monthOf,
+  settingsPrefix,
   todayIn,
   variantPath,
   WEEKDAYS,
@@ -58,7 +59,7 @@ function AddLinks({ item, label, otherLabel }: { item: CalendarItem; label: stri
 function SubscribeLinks({ collection, label, otherLabel }: { collection: string; label: string; otherLabel: string }) {
   const site = useNativeSite();
   if (!label) return null;
-  const address = site.address(calendarFilePath(collection));
+  const address = site.address(calendarFilePath(collection, settingsPrefix(site.settings)));
   const webcal = address.replace(/^https?:/, "webcal:");
   return (
     <Disclosure

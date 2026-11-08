@@ -157,7 +157,7 @@ export function localizedSettings(settings: SiteSettings, language: string): Sit
     titleTemplate:
       own?.titleTemplate ||
       (own?.title && settings.title
-        ? settings.titleTemplate.replaceAll(settings.title, own.title)
+        ? settings.titleTemplate.split(settings.title).join(own.title)
         : settings.titleTemplate),
   };
 }

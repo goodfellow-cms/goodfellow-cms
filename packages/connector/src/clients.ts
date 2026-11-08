@@ -9,6 +9,7 @@
  *   and gets an id, which is those details sealed.
  */
 import type { Sealer } from "@goodfellow-cms/worker/seal";
+import { boundedText } from "./bounded.js";
 
 export interface Client {
   id: string;
@@ -116,8 +117,8 @@ export async function findClient(sealer: Sealer, id: string, fetcher: typeof fet
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) return undefined;
-    const text = await response.text();
-    if (text.length > MAX_DOCUMENT_BYTES) return undefined;
+    const text = await boundedText(response, MAX_DOCUMENT_BYTES);
+    if (text === undefined) return undefined;
     document = JSON.parse(text) as Record<string, unknown>;
   } catch {
     return undefined;
