@@ -1,7 +1,7 @@
 /**
  * The item editor's controls for links to items and for several images: a
  * searchable list of another collection's items, and a list of images to add
- * to, order and take out.
+ * to, order, and take out.
  */
 import { type Collection, entryTitle } from "@goodfellow-cms/core";
 import { useId, useState } from "react";

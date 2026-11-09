@@ -142,7 +142,7 @@ test("refuses addresses that can't be used", async ({ page }) => {
   await expect(page.getByText(/This address can't be used: the admin panel uses it/)).toBeVisible();
 
   await address.fill("/Not Valid");
-  await expect(page.getByText(/Use lowercase letters, numbers and hyphens/)).toBeVisible();
+  await expect(page.getByText(/Use lowercase letters, numbers, and hyphens/)).toBeVisible();
 });
 
 test("changes a page's address, updates links to it, and sends visitors on from the old one", async ({ page }) => {

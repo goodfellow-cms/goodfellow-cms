@@ -2,7 +2,7 @@
  * The Admin panel languages screen's Language packs section: finding the
  * admin panel's text in a language on npm (`searchLanguagePacks()`, packages
  * named `goodfellow-language-<name>`), showing what installing a release
- * would say and keep, and installing, updating and removing it with
+ * would say and keep, and installing, updating, and removing it with
  * `planLanguagePack()`, which keeps every string an owner wrote or changed.
  * Packs have no code, so publishing one is a publish of the site's file
  * like any other; nothing updates them by itself.

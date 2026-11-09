@@ -7,7 +7,7 @@ import { expect, readJson, test } from "./helpers.js";
 /** A made-up parish's old static site: a page at the top, posts in a folder with its own page, and a picture. */
 const FOLDER = join(dirname(fileURLToPath(import.meta.url)), "../fixtures/markdown/old-site");
 
-test("imports a folder of Markdown files as pages and a collection, with links, pictures and the menu", async ({
+test("imports a folder of Markdown files as pages and a collection, with links, pictures, and the menu", async ({
   page,
 }) => {
   await page.goto("/admin#/settings/import");

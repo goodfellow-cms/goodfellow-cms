@@ -4,7 +4,7 @@ import { expect as baseExpect, test } from "@playwright/test";
 const SITE = "http://localhost:4404/site";
 const expect = baseExpect.configure({ timeout: 15_000 });
 
-test("serves every page, style and image from the base path", async ({ page }) => {
+test("serves every page, style, and image from the base path", async ({ page }) => {
   await page.goto(`${SITE}/about/`);
   await expect(page.getByRole("heading", { name: "About us", level: 1 })).toBeVisible();
   await expect(page).toHaveTitle("About us | My site");

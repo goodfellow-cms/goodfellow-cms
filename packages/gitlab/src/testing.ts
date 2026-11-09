@@ -39,7 +39,7 @@ export interface FakeGitLabOptions {
   pages?: { uniqueDomain?: boolean };
   /** Domains another GitLab Pages site already uses. */
   takenDomains?: string[];
-  /** What connecting created projects GitLab refuses, as a plan or a sign-in might: job token allowlists, job token pushes or pipeline schedules. */
+  /** What connecting created projects GitLab refuses, as a plan or a sign-in might: job token allowlists, job token pushes, or pipeline schedules. */
   refuseConnections?: Array<"allowlist" | "push" | "schedule">;
   /** Other GitLab accounts that exist, which can be added to the project. Every token's user exists and is a member. */
   accounts?: string[];

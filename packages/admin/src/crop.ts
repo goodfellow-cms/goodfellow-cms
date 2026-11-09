@@ -12,7 +12,7 @@ export interface CropBox {
   height: number;
 }
 
-/** A quarter turn clockwise, as many times as given: 0, 90, 180 or 270 degrees. */
+/** A quarter turn clockwise, as many times as given: 0, 90, 180, or 270 degrees. */
 export type Turn = 0 | 90 | 180 | 270;
 
 /** The shapes a crop can keep, as width over height, or `undefined` for any. */

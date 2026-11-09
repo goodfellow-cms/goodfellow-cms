@@ -10,7 +10,7 @@ export interface ApiOptions {
 
 /** How a sign-in authenticates with Bitbucket's API. */
 export type Credentials =
-  /** A repository, project or workspace access token, sent as a bearer token. */
+  /** A repository, project, or workspace access token, sent as a bearer token. */
   | { type: "token"; token: string }
   /** An Atlassian account's API token, sent with the account's email address. */
   | { type: "api-token"; email: string; token: string }

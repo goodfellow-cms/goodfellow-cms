@@ -3,7 +3,7 @@ import { canvas, editor, expect, publishInEditor, readJson, test, writeSiteFile 
 
 const SETTINGS = "content/collections/news/_collection.json";
 
-/** The news collection with yes or no, links to other stories and a schedule, shown on each story's page. */
+/** The news collection with yes or no, links to other stories, and a schedule, shown on each story's page. */
 function addFields() {
   const settings = readJson(SETTINGS) as {
     fields: unknown[];

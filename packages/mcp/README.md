@@ -1,8 +1,8 @@
 # @goodfellow-cms/mcp
 
-Work on a [Goodfellow](https://goodfellow-cms.github.io/goodfellow-cms/) site from Claude. An [MCP](https://modelcontextprotocol.io) server with Goodfellow's tools: Claude reads a site's pages, items and settings, sees what blocks it has, makes changes in a draft, takes screenshots, and publishes the draft or submits it for review.
+Work on a [Goodfellow](https://goodfellow-cms.github.io/goodfellow-cms/) site from Claude. An [MCP](https://modelcontextprotocol.io) server with Goodfellow's tools: Claude reads a site's pages, items, and settings, sees what blocks it has, makes changes in a draft, takes screenshots, and publishes the draft or submits it for review.
 
-See [Work with Claude](https://goodfellow-cms.github.io/goodfellow-cms/docs/claude) for setting it up. This package runs the tools on your own computer, signed in with GitHub, GitLab or Bitbucket tokens that stay there, for as many sites as you like, including sites in folders on your computer.
+See [Work with Claude](https://goodfellow-cms.github.io/goodfellow-cms/docs/claude) for setting it up. This package runs the tools on your own computer, signed in with GitHub, GitLab, or Bitbucket tokens that stay there, for as many sites as you like, including sites in folders on your computer.
 
 ## Claude Code
 
@@ -28,7 +28,7 @@ import { createGoodfellowServer } from "@goodfellow-cms/mcp";
 
 const server = createGoodfellowServer({
   sites: async () => [{ id: "github:your-name/your-site" }],
-  backend: async (site) => signInSomehow(site), // a GitBackend from @goodfellow-cms/github, gitlab or bitbucket
+  backend: async (site) => signInSomehow(site), // a GitBackend from @goodfellow-cms/github, gitlab, or bitbucket
 });
 ```
 

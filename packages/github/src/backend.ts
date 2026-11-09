@@ -615,7 +615,7 @@ export class GitHubBackend implements GitBackend {
   }
 
   /**
-   * Reads the deployment GitHub Pages, Vercel or Netlify created for a commit,
+   * Reads the deployment GitHub Pages, Vercel, or Netlify created for a commit,
    * or what Cloudflare Pages or Netlify reports on it, and for GitHub Actions, the workflow run
    * that builds it: a build that fails never creates a deployment. Before any
    * exists, the site counts as building if it has ever been deployed, or if

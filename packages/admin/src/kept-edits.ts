@@ -1,7 +1,7 @@
 /**
  * What an editor has changed but not published, kept in this browser as they
- * type, so a closed tab, a crash or a sign-in that ran out doesn't lose it.
- * Each is kept by site, by what's edited and by draft, with what was
+ * type, so a closed tab, a crash, or a sign-in that ran out doesn't lose it.
+ * Each is kept by site, by what's edited, and by draft, with what was
  * published when the changes started, so the editor can tell when someone
  * else has published since. They're removed once published or undone, after
  * `KEPT_EDIT_DAYS`, and on signing out, so the next person on this computer
@@ -16,7 +16,7 @@ const TABLE = "edits";
 export const KEPT_EDIT_DAYS = 30;
 const KEPT_EDIT_MS = KEPT_EDIT_DAYS * 24 * 60 * 60 * 1000;
 
-/** Unpublished changes to one page, header, footer, template or item. */
+/** Unpublished changes to one page, header, footer, template, or item. */
 export interface KeptEdit {
   /** What's edited, as the editor had it. */
   data: Data;

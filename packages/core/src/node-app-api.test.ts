@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { APP_API_HEADER, type AppEditor, isSettingsPath } from "./app-api.js";
 import type { OwnersOnlyFields } from "./content/owners-only.js";
 import { ConflictError, type FileChange } from "./content/store.js";
+import type { EarlyInstallCheck } from "./early-installs.js";
 import { type CommitAuthor, encodeBase64Bytes, GitApiError, type GitBackend, type ServerGit } from "./git.js";
-import { appApi } from "./node-app-api.js";
-import type { ProvenanceOptions } from "./node-provenance.js";
+import { appApi as nodeAppApi } from "./node-app-api.js";
+import { nodeProvenance } from "./node-provenance.js";
 import { newTaskRequestId, PluginTaskError, type PluginTaskRequest, taskKeys } from "./plugin-tasks.js";
+import { appApi } from "./server-app-api.js";
 import { FakeRepo, fakeFileBytes, fakePlugins, fakeVerifier } from "./testing.js";
 
 const FILES = {
@@ -138,7 +140,7 @@ function setup(
     contentOnly?: boolean;
     codeChanges?: "review" | "publish";
     ownersOnly?: OwnersOnlyFields;
-    provenance?: ProvenanceOptions;
+    provenance?: EarlyInstallCheck;
   } = {},
 ) {
   const repo = new FakeRepo(FILES);
@@ -449,7 +451,9 @@ describe("appApi", () => {
         },
       ],
     });
-    const { repo, call, post, signIn } = setup(OWEN, { provenance: { fetch: npm.fetch, verify: fakeVerifier } });
+    const { repo, call, post, signIn } = setup(OWEN, {
+      provenance: nodeProvenance({ fetch: npm.fetch, verify: fakeVerifier }),
+    });
     const entry = (release: string, extra: Record<string, unknown> = {}) => ({
       release,
       installed: "2026-10-30",
@@ -479,6 +483,58 @@ describe("appApi", () => {
     expect((await post("review", update("1.1.0"))).status).toBe(200);
     signIn({ ...OWEN, role: "editor" });
     expect(await (await post("review", update("1.1.0"))).json()).toMatchObject({ error: "owners-only" });
+  });
+
+  it("refuses plugins installed early where the server can't check them, and says so in the session", async () => {
+    const NAME = "goodfellow-plugin-guestbook";
+    const source = { repository: "https://github.com/example/goodfellow-plugin-guestbook", workflow: "release.yml" };
+    const record = (release: string, extra: Record<string, unknown> = {}) =>
+      `${JSON.stringify(
+        {
+          version: 1,
+          plugins: {
+            [NAME]: { release, installed: "2026-10-30", manifest: { version: 1, title: "Guestbook" }, ...extra },
+          },
+        },
+        null,
+        2,
+      )}\n`;
+    const { repo, call, post } = setup(OWEN);
+    expect(await (await call("session")).json()).not.toHaveProperty("earlyInstalls");
+    repo.commit([{ path: "plugins/installed/installed.json", content: record("1.0.0") }], "Install the Guestbook");
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const early = await post("review", {
+      changes: [
+        { path: "package.json", content: `{"dependencies":{"${NAME}":"1.1.0"}}` },
+        { path: "plugins/installed/installed.json", content: record("1.1.0", { early: { from: "1.0.0", ...source } }) },
+      ],
+      title: "Update the Guestbook to 1.1.0",
+      from: revision,
+    });
+    expect(early.status).toBe(403);
+    expect(await early.json()).toEqual({ error: "early-unavailable" });
+    // Waiting for the release to be old enough needs no check.
+    const waited = await post("review", {
+      changes: [
+        { path: "package.json", content: `{"dependencies":{"${NAME}":"1.1.0"}}` },
+        { path: "plugins/installed/installed.json", content: record("1.1.0") },
+      ],
+      title: "Update the Guestbook to 1.1.0",
+      from: revision,
+    });
+    expect(waited.status).toBe(200);
+  });
+
+  it("checks plugins installed early with npm and Sigstore where Node runs it", async () => {
+    const repo = new FakeRepo(FILES);
+    const api = nodeAppApi({ git: fakeServerGit(repo).git, authorize: () => OWEN, signIn: "/sign-in" });
+    const session = await api(
+      new Request("https://parish.example/api/goodfellow/session", {
+        headers: { [APP_API_HEADER]: "1", "sec-fetch-site": "same-origin" },
+      }),
+      "session",
+    );
+    expect(await session.json()).toMatchObject({ signedIn: true, earlyInstalls: true });
   });
 
   it("adds plugins only through a review, which only owners can ask for", async () => {

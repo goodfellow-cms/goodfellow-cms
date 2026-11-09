@@ -37,7 +37,7 @@ const source: ContentSource = {
 };
 
 describe("versionSubject", () => {
-  it("finds the page, layout part or item a file is", async () => {
+  it("finds the page, layout part, or item a file is", async () => {
     const content = await loadSiteContent(source);
     const about = versionSubject(content, "content/pages/about.json");
     expect(about?.kind).toBe("page");

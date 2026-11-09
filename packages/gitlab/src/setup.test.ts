@@ -75,7 +75,7 @@ describe("gitlabSetup", () => {
     expect(taken.warnings).toEqual(["domain-unavailable"]);
   });
 
-  it("connects a site's code and content projects: job token allowlists, pushes and a nightly schedule", async () => {
+  it("connects a site's code and content projects: job token allowlists, pushes, and a nightly schedule", async () => {
     const fake = fakeGitLab({
       project: "someone/existing",
       groups: ["st-joseph"],

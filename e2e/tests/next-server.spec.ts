@@ -63,7 +63,7 @@ test("publishes through the site's server, naming the editor as the author", asy
   expect(Buffer.from(about.content, "base64").toString("utf8")).toContain("About our parish");
 });
 
-test("leaves Site Settings, blocks and collections' settings to owners", async ({ page }) => {
+test("leaves Site Settings, blocks, and collections' settings to owners", async ({ page }) => {
   await signIn(page, "alice");
   await expect(page.getByRole("link", { name: "About us", exact: true })).toBeVisible();
   const nav = page.locator(".gfa-nav");

@@ -56,7 +56,7 @@ describe("scopeCss", () => {
     expect(css).toContain("@media print{.gf-canvas :is(a){b:c}}");
   });
 
-  it("scopes rules in layers and supports, but not keyframes, font faces or nested rules", () => {
+  it("scopes rules in layers and supports, but not keyframes, font faces, or nested rules", () => {
     const css = scopeCss(
       "@layer theme, base;@layer base{*{margin:0}}@supports (display:grid){.g{display:grid}}" +
         "@keyframes spin{to{transform:rotate(1turn)}}@font-face{font-family:x;src:url(x.woff2)}" +

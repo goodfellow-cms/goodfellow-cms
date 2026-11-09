@@ -19,7 +19,7 @@ const test = base.extend({
   },
 });
 
-test("serves the site's pages, header and footer with Next.js", async ({ page }) => {
+test("serves the site's pages, header, and footer with Next.js", async ({ page }) => {
   await page.goto(`${BASE}/about/`);
   await expect(page.getByRole("heading", { name: "About us", level: 1 })).toBeVisible();
   await expect(page.locator("header nav").getByRole("link", { name: "News" })).toBeVisible();

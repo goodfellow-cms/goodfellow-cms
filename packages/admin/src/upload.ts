@@ -208,7 +208,7 @@ export async function prepareStoredUpload(file: File, maxBytes: number): Promise
  * Changes as they're published: a file into the media library must be a kind
  * the site can use by the name it's saved under, whatever it was chosen as,
  * and an SVG keeps only what draws it (`cleanSvg()`), however it got there,
- * from an upload, a replaced file or a plugin. Throws `UploadError` for a file
+ * from an upload, a replaced file, or a plugin. Throws `UploadError` for a file
  * that can't be saved there.
  */
 export function safeMediaChanges(changes: readonly FileChange[]): FileChange[] {

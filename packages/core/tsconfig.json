@@ -5,6 +5,6 @@
     "types": []
   },
   "include": ["src"],
-  // Node only: checked with tsconfig.node.json.
-  "exclude": ["src/node.ts", "src/node-*.ts"]
+  // Node only, checked with tsconfig.node.json, and servers', checked with tsconfig.server.json.
+  "exclude": ["src/node.ts", "src/node-*.ts", "src/server.ts", "src/server-*.ts"]
 }

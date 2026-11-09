@@ -27,7 +27,7 @@ function listFiles(): Plugin {
   };
 }
 
-// The broker is static files: index.html, its script and styles, deployed on an address of its own.
+// The broker is static files: index.html, its script, and styles, deployed on an address of its own.
 export default defineConfig({
   base: "./",
   plugins: [listFiles()],

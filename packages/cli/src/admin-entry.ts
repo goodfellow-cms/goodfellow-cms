@@ -6,7 +6,7 @@ import type { Plugin } from "vite";
 export const ADMIN_ENTRY = "virtual:goodfellow/admin";
 const RESOLVED_ADMIN_ENTRY = `\0${ADMIN_ENTRY}`;
 
-/** The editor's frames' entry: the site's config, Puck and every block, which the admin panel's page never loads. */
+/** The editor's frames' entry: the site's config, Puck, and every block, which the admin panel's page never loads. */
 export const EDITOR_ENTRY = "virtual:goodfellow/editor";
 const RESOLVED_EDITOR_ENTRY = `\0${EDITOR_ENTRY}`;
 
