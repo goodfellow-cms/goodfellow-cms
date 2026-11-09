@@ -147,6 +147,18 @@ function listFrom(tree: Map<string, string>, dir: string): string[] {
   return [...tree.keys()].filter((path) => path.startsWith(prefix)).sort();
 }
 
+const COMMIT_ID = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+
+/**
+ * A revision as it goes into GitHub's addresses: a commit's id, SHA-1 or
+ * SHA-256, since revisions can come from a browser, and anything else could
+ * reach another of GitHub's paths.
+ */
+function commitId(revision: string): string {
+  if (typeof revision !== "string" || !COMMIT_ID.test(revision)) throw new GitApiError(400, "That isn't a commit.");
+  return revision;
+}
+
 /**
  * The site's files on GitHub. Reads come from the commit `revision()` last
  * returned; saves are single commits made with GraphQL's `createCommitOnBranch`,
@@ -242,7 +254,7 @@ export class GitHubBackend implements GitBackend {
       createBranch: async (branch, revision) => {
         const response = await githubRequest(this.api, `${base}/git/refs`, {
           method: "POST",
-          body: { ref: `refs/heads/${branch}`, sha: revision },
+          body: { ref: `refs/heads/${branch}`, sha: commitId(revision) },
           allow: [422],
         });
         if (response.status === 422) {
@@ -344,6 +356,7 @@ export class GitHubBackend implements GitBackend {
 
   /** Path → blob id for every file at a commit. Commits never change, so this is cached. */
   private tree(sha: string): Promise<Map<string, string>> {
+    commitId(sha);
     let tree = this.trees.get(sha);
     if (!tree) {
       tree = githubJson<TreeResponse>(this.api, `/repos/${this.repo}/git/trees/${sha}?recursive=1`).then((response) => {
@@ -607,7 +620,7 @@ export class GitHubBackend implements GitBackend {
   async changedPaths(from: string, to: string): Promise<string[]> {
     const comparison = await githubJson<{ files?: Array<{ filename: string; previous_filename?: string }> }>(
       this.api,
-      `/repos/${this.repo}/compare/${from}...${to}`,
+      `/repos/${this.repo}/compare/${commitId(from)}...${commitId(to)}`,
     );
     const files = comparison.files ?? [];
     // GitHub lists at most 300 files: past that, some changes would be missing, which callers take as unchanged.
@@ -625,6 +638,7 @@ export class GitHubBackend implements GitBackend {
    * Cloudflare reported on the commit before.
    */
   async deployStatus(revision: string): Promise<DeployStatus> {
+    commitId(revision);
     try {
       const deployments = await githubJson<Array<{ id: number }>>(
         this.api,
