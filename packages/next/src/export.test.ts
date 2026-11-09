@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cloudflareSiteHeaders, startsWithGuard } from "@goodfellow-cms/core";
+import { cloudflareSiteHeaders, editorPolicy, startsWithGuard } from "@goodfellow-cms/core";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -12,6 +12,7 @@ import {
   fixSegmentFiles,
   guardExport,
   nextDistDir,
+  writeEditorFrames,
   writeExportHeaders,
   writeImageFiles,
   writePluginFiles,
@@ -245,6 +246,38 @@ describe("writePluginFiles", () => {
     await writeFile(join(out, "goodfellow.config.tsx"), "throw new Error('loaded');\n");
     expect(await writePluginFiles("out", out)).toEqual({ frames: [], steps: [] });
   });
+});
+
+describe("writeEditorFrames", () => {
+  it("bundles the editor's frames from the site's code alone, with a page that runs no inline scripts", async () => {
+    // Inside the package, so the site's imports find its packages.
+    const site = await mkdtemp(join(import.meta.dirname, "../.editor-site-"));
+    out = join(site, "public");
+    try {
+      await writeFile(join(site, "package.json"), '{ "name": "editor-site", "type": "module" }');
+      await writeFile(
+        join(site, "goodfellow.config.tsx"),
+        // A server's variable, which browser code built by Next.js reads as undefined, as the frames must.
+        'import { defineConfig } from "@goodfellow-cms/core";\nexport default defineConfig({ blocks: {}, ...(process.env.SERVER_ONLY ? { demo: true } : {}) });\n',
+      );
+      // No .next/: it runs before `next build` as well as after it.
+      const dir = await writeEditorFrames("public", site);
+      expect(dir).toBe(join(out, "admin/editor/frames/"));
+      expect((await readdir(dir)).sort()).toEqual(["editor.css", "editor.js", "index.html", "tailwind-browser.js"]);
+      const page = await readFile(join(dir, "index.html"), "utf8");
+      // Its policy, which the server sends as a header too, needs no hashes of anything Next.js renders.
+      expect(page).toContain(`content="${editorPolicy()}"`);
+      // Its one script is the bundle, named by its address: nothing inline.
+      expect(page.match(/<script\b[^>]*>/gi)).toEqual(['<script src="editor.js">']);
+      // The prelude first, which stops it anywhere but a sandboxed frame (minified, so it reads a little differently).
+      const code = await readFile(join(dir, "editor.js"), "utf8");
+      expect(code).toMatch(/^\(\(\)=>\{if\(self\.origin!==/);
+      // Browsers have no process: nothing in the bundle reads its environment.
+      expect(code).not.toContain("process.env");
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  }, 120_000);
 });
 
 describe("blockPageRender", () => {
