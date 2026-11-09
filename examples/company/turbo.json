@@ -13,7 +13,8 @@
         "public/feeds/**",
         "public/fonts/google/**",
         "public/admin/text/**",
-        "public/admin/plugins/**"
+        "public/admin/plugins/**",
+        "public/admin/editor/frames/**"
       ]
     },
     "typecheck": {
