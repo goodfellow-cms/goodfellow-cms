@@ -62,7 +62,7 @@ import { DIST_DIR_RECORD, IMAGE_SIZES_MARK, SITE_SERVING, type SiteServing } fro
 import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule } from "./plugins.js";
 
 export { EDITOR_FRAMES_PAGE, EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
-export { NEXT_SITE_FILES } from "./site-files.js";
+export { NEXT_SITE_FILES, nextSiteFiles } from "./site-files.js";
 
 /**
  * Writes the calendar files of the site's collections of events into the

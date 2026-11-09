@@ -64,3 +64,20 @@ export const NEXT_SITE_FILES: readonly SiteFile[] = [
   { path: "app/admin/editor/page.tsx", since: FRAMES_RELEASE, content: EDITOR_PAGE, earlier: [] },
   { path: "vercel.json", since: VERCEL_BRANCHES_RELEASE, content: VERCEL_JSON, earlier: [] },
 ];
+
+/**
+ * The starter's files `goodfellow-next update` keeps up to date on a site,
+ * given its `app/admin/page.tsx`: none without one, and the editor's page only
+ * where the admin page is one the starter wrote, which loads the editor's
+ * frames from it. A full-stack site's admin page (`server`) loads them from
+ * the static files `goodfellow-next finish --server` writes, so it has no
+ * editor page, whose code (Puck and every block) its server would otherwise
+ * bundle a second time.
+ */
+export function nextSiteFiles(adminPage: string | undefined): readonly SiteFile[] {
+  if (adminPage === undefined) return [];
+  const text = adminPage.replace(/\r\n/g, "\n");
+  const starters = NEXT_SITE_FILES.find((file) => file.path === "app/admin/page.tsx");
+  if (starters && (text === starters.content || starters.earlier.includes(text))) return NEXT_SITE_FILES;
+  return NEXT_SITE_FILES.filter((file) => file.path !== "app/admin/editor/page.tsx");
+}
