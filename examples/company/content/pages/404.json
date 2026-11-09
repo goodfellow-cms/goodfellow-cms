@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-not-found",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-not-found",
+                "align": "center",
+                "className": "",
+                "level": "h1",
+                "text": "Page not found"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-not-found",
+                "align": "center",
+                "className": "mt-4 text-muted-foreground",
+                "content": "<p>The page you're looking for doesn't exist or has moved.</p>"
+              }
+            },
+            {
+              "type": "Flex",
+              "props": {
+                "id": "Flex-not-found",
+                "align": "center",
+                "className": "mt-8",
+                "direction": "row",
+                "gap": "md",
+                "items": [
+                  {
+                    "type": "Button",
+                    "props": {
+                      "id": "Button-home",
+                      "className": "",
+                      "href": "/",
+                      "label": "Go to the home page",
+                      "newTab": false,
+                      "size": "md",
+                      "variant": "primary"
+                    }
+                  }
+                ],
+                "justify": "center",
+                "wrap": true
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "narrow"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "",
+        "image": "",
+        "title": "Page not found"
+      }
+    }
+  }
+}

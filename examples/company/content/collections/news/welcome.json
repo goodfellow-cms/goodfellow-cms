@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "fields": {
+    "date": "2026-10-01",
+    "image": "/media/placeholder.svg",
+    "summary": "Our new site is easier to keep up to date, so you'll always find the latest news here.",
+    "text": "<p>This is a news story. Add your own on the <strong>Collections</strong> screen of the admin panel, and they'll appear on the news page in date order.</p>",
+    "title": "Welcome to our new website"
+  }
+}

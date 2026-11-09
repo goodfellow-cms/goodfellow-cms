@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "entryName": "News story",
+  "fields": [
+    {
+      "type": "text",
+      "label": "Title",
+      "name": "title",
+      "required": true
+    },
+    {
+      "type": "date",
+      "label": "Date",
+      "name": "date",
+      "required": true
+    },
+    {
+      "type": "textarea",
+      "hint": "One or two sentences, shown in lists of news.",
+      "label": "Summary",
+      "name": "summary"
+    },
+    {
+      "type": "image",
+      "label": "Image",
+      "name": "image"
+    },
+    {
+      "type": "richtext",
+      "label": "Text",
+      "name": "text"
+    }
+  ],
+  "name": "News",
+  "path": "/news/{slug}",
+  "sort": {
+    "field": "date",
+    "order": "desc"
+  },
+  "template": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-news",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "EntryField",
+              "props": {
+                "id": "EntryField-date",
+                "className": "",
+                "field": "date",
+                "style": "small"
+              }
+            },
+            {
+              "type": "EntryField",
+              "props": {
+                "id": "EntryField-title",
+                "className": "mt-2",
+                "field": "title",
+                "style": "title"
+              }
+            },
+            {
+              "type": "EntryField",
+              "props": {
+                "id": "EntryField-image",
+                "className": "mt-8",
+                "field": "image",
+                "style": "text"
+              }
+            },
+            {
+              "type": "EntryField",
+              "props": {
+                "id": "EntryField-text",
+                "className": "mt-8",
+                "field": "text",
+                "style": "text"
+              }
+            },
+            {
+              "type": "Button",
+              "props": {
+                "id": "Button-news",
+                "className": "mt-10",
+                "href": "/news",
+                "label": "All news",
+                "newTab": false,
+                "size": "md",
+                "variant": "outline"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "narrow"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "{summary}",
+        "image": "{image}",
+        "title": "{title}"
+      }
+    }
+  }
+}

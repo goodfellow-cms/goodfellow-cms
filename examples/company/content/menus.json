@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "menus": {
+    "footer": [
+      {
+        "href": "/about",
+        "label": "About"
+      }
+    ],
+    "main": [
+      {
+        "href": "/",
+        "label": "Home"
+      },
+      {
+        "href": "/about",
+        "label": "About"
+      },
+      {
+        "href": "/news",
+        "label": "News"
+      }
+    ]
+  }
+}

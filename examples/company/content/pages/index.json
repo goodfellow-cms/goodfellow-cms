@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-hero",
+          "background": "primary",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-hero",
+                "align": "left",
+                "className": "",
+                "level": "h1",
+                "text": "Welcome to my site"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-hero",
+                "align": "left",
+                "className": "mt-4 max-w-2xl text-lg opacity-90",
+                "content": "<p>This page is stored as a file in your site's repository. Edit it in the admin panel, or change <code>content/pages/index.json</code> directly.</p>"
+              }
+            },
+            {
+              "type": "Flex",
+              "props": {
+                "id": "Flex-hero",
+                "align": "center",
+                "className": "mt-8",
+                "direction": "row",
+                "gap": "md",
+                "items": [
+                  {
+                    "type": "Button",
+                    "props": {
+                      "id": "Button-primary",
+                      "className": "",
+                      "href": "/about",
+                      "label": "About us",
+                      "newTab": false,
+                      "size": "lg",
+                      "variant": "secondary"
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "props": {
+                      "id": "Button-secondary",
+                      "className": "",
+                      "href": "/about",
+                      "label": "Contact",
+                      "newTab": false,
+                      "size": "lg",
+                      "variant": "outline"
+                    }
+                  }
+                ],
+                "justify": "start",
+                "wrap": true
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      },
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-features",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-features",
+                "align": "center",
+                "className": "mb-10",
+                "level": "h2",
+                "text": "Everything in one place"
+              }
+            },
+            {
+              "type": "Grid",
+              "props": {
+                "id": "Grid-features",
+                "className": "",
+                "columns": "3",
+                "gap": "md",
+                "items": [
+                  {
+                    "type": "Section",
+                    "props": {
+                      "id": "Section-feature-1",
+                      "background": "none",
+                      "backgroundImage": "",
+                      "className": "rounded-lg border px-2 py-6",
+                      "content": [
+                        {
+                          "type": "Heading",
+                          "props": {
+                            "id": "Heading-feature-1",
+                            "align": "left",
+                            "className": "",
+                            "level": "h3",
+                            "text": "Pages"
+                          }
+                        },
+                        {
+                          "type": "Text",
+                          "props": {
+                            "id": "Text-feature-1",
+                            "align": "left",
+                            "className": "mt-2 text-muted-foreground",
+                            "content": "<p>Build pages from blocks: sections, columns, text, images and buttons.</p>"
+                          }
+                        }
+                      ],
+                      "padding": "none",
+                      "width": "full"
+                    }
+                  },
+                  {
+                    "type": "Section",
+                    "props": {
+                      "id": "Section-feature-2",
+                      "background": "none",
+                      "backgroundImage": "",
+                      "className": "rounded-lg border px-2 py-6",
+                      "content": [
+                        {
+                          "type": "Heading",
+                          "props": {
+                            "id": "Heading-feature-2",
+                            "align": "left",
+                            "className": "",
+                            "level": "h3",
+                            "text": "Your design"
+                          }
+                        },
+                        {
+                          "type": "Text",
+                          "props": {
+                            "id": "Text-feature-2",
+                            "align": "left",
+                            "className": "mt-2 text-muted-foreground",
+                            "content": "<p>Set colors and fonts once in the site settings, and every page follows.</p>"
+                          }
+                        }
+                      ],
+                      "padding": "none",
+                      "width": "full"
+                    }
+                  },
+                  {
+                    "type": "Section",
+                    "props": {
+                      "id": "Section-feature-3",
+                      "background": "none",
+                      "backgroundImage": "",
+                      "className": "rounded-lg border px-2 py-6",
+                      "content": [
+                        {
+                          "type": "Heading",
+                          "props": {
+                            "id": "Heading-feature-3",
+                            "align": "left",
+                            "className": "",
+                            "level": "h3",
+                            "text": "No hosting bills"
+                          }
+                        },
+                        {
+                          "type": "Text",
+                          "props": {
+                            "id": "Text-feature-3",
+                            "align": "left",
+                            "className": "mt-2 text-muted-foreground",
+                            "content": "<p>The whole site is static files, so free hosting is enough.</p>"
+                          }
+                        }
+                      ],
+                      "padding": "none",
+                      "width": "full"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "",
+        "image": "",
+        "title": "Welcome"
+      }
+    }
+  }
+}

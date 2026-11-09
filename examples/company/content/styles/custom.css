@@ -1,0 +1,4 @@
+/* Site-wide CSS. Anything here overrides the blocks' own styles. */
+.gf-header {
+  border-bottom: 1px solid var(--color-border);
+}

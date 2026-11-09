@@ -522,6 +522,7 @@ A pnpm workspace managed with Turborepo. Each package's README describes it for 
 | `templates/starter` | | The default site |
 | `templates/next` | | The starter as a Next.js app |
 | `examples/parish` | | A complete example for a made-up parish, with collections and blocks of its own |
+| `examples/company` | | A full-stack example for a made-up company, on its own server: sign-in of its own (Better Auth) and a database (Kysely, over Cloudflare D1 or Postgres), with every page static (see the docs' full-stack Next.js page). Being built in steps, not released or bundled by `create-goodfellow` yet |
 | `docs` | | The documentation site, built with Goodfellow |
 | `e2e` | | End-to-end tests (see Tooling) |
 

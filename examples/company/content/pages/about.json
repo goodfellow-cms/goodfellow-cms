@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-about",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-about",
+                "align": "left",
+                "className": "",
+                "level": "h1",
+                "text": "About us"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-about",
+                "align": "left",
+                "className": "mt-6",
+                "content": "<p>Tell visitors who you are. This text supports <strong>bold</strong>, <em>italics</em>, lists and <a href=\"/\">links</a>.</p><ul><li>Founded in 2026</li><li>Based wherever you are</li></ul>"
+              }
+            },
+            {
+              "type": "Image",
+              "props": {
+                "id": "Image-about",
+                "alt": "A placeholder picture, to replace with a photo of your own",
+                "aspect": "wide",
+                "caption": "Replace this image with one of your own.",
+                "className": "mt-8",
+                "rounded": true,
+                "src": "/media/placeholder.svg"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "narrow"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "Who we are and what we do.",
+        "image": "",
+        "title": "About us"
+      }
+    }
+  }
+}

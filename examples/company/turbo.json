@@ -1,0 +1,14 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      // A full-stack build: Next.js's server build, and what `goodfellow-next finish --server` writes into public/.
+      "outputs": [".next/**", "!.next/cache/**", "public/api/**", "public/pagefind/**", "public/calendars/**"]
+    },
+    "typecheck": {
+      // `next build` rewrites the route types in .next/types that the typecheck reads.
+      "dependsOn": ["^build", "build"]
+    }
+  }
+}
