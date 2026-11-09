@@ -677,13 +677,20 @@ export function AdminProvider({
       void refreshDrafts(current);
       return { ok: false, reason: "checks", error: undefined };
     }
+    // Files saved to the draft some other way than here may never have been through the media library's checks.
+    try {
+      changes = safeMediaChanges(changes);
+    } catch (error) {
+      return { ok: false, reason: "error", error };
+    }
     // Every file in the draft, against the live site as it is now.
     if (!(await confirmChecks(await checkPublish(store, live, changes, { blocks, code })))) {
       return { ok: false, reason: "checks", error: undefined };
     }
     let revision: string;
     try {
-      ({ revision } = await draft.publish(t("draft.message", { name: draft.name })));
+      // Exactly what was checked goes live.
+      ({ revision } = await draft.publish(t("draft.message", { name: draft.name }), { changes }));
     } catch (error) {
       if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
       return { ok: false, reason: error instanceof ConflictError ? "conflict" : "error", error };

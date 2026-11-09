@@ -128,4 +128,29 @@ describe("drafts kept in the browser", () => {
     await expect(draft.publish("Publish the draft")).rejects.toBeInstanceOf(ConflictError);
     expect(live.current.get("content/pages/about.json")).toBe("theirs");
   });
+
+  it("publish nothing outside the editable folders, and exactly the changes they're given", async () => {
+    const live = liveSite({ "content/pages/about.json": "about" });
+    const keeper = memoryKeeper();
+    const drafts = keptDrafts(live.store, keeper);
+    const draft = await drafts.create("20261024-abc123");
+    await draft.store.write([{ path: "content/pages/about.json", content: "about, edited" }], {
+      message: "Edit",
+      expectedRevision: await draft.store.revision(),
+    });
+    // The site's pages can reach the browser's storage where they share the admin panel's address.
+    const kept = await keeper.load();
+    if (!kept) throw new Error("No draft kept");
+    await keeper.save({ ...kept, changes: [...kept.changes, { path: "src/styles.css", content: "evil" }] });
+    await expect(draft.publish("Publish all")).rejects.toMatchObject({
+      problem: "not-editable",
+      paths: ["src/styles.css"],
+    });
+    expect(live.writes).toEqual([]);
+
+    await keeper.save(kept);
+    await expect(draft.publish("Publish all", { changes: [] })).rejects.toBeInstanceOf(ConflictError);
+    await draft.publish("Publish all", { changes: [{ path: "content/pages/about.json", content: "checked" }] });
+    expect(live.current.get("content/pages/about.json")).toBe("checked");
+  });
 });

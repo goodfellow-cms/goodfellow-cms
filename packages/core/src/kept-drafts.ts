@@ -11,7 +11,14 @@
  */
 import { MEDIA_DIR } from "./content/paths.js";
 import { ConflictError, type ContentStore, type FileChange, writeChanges } from "./content/store.js";
-import { type Draft, DraftError, isDraftName, type SiteDrafts } from "./drafts.js";
+import {
+  assertEditableDraft,
+  type Draft,
+  DraftError,
+  isDraftName,
+  publishedChanges,
+  type SiteDrafts,
+} from "./drafts.js";
 
 /** What a file was on the live site before a draft changed it: its text, its bytes, or nothing. */
 export type KeptOriginal = { content: string } | { bytes: Uint8Array } | { missing: true };
@@ -140,8 +147,16 @@ export function keptDrafts(live: ContentStore, keeper: DraftKeeper): SiteDrafts 
       store,
       changes: async () => (await current(name)).changes,
       paths: async () => (await current(name)).changes.map((change) => change.path),
-      async publish(message) {
+      async publish(message, options) {
         const kept = await current(name);
+        // Drafts kept in a browser are in storage the site's pages may share.
+        assertEditableDraft(kept.changes.map((change) => change.path));
+        const changes = options?.changes
+          ? publishedChanges(
+              kept.changes.map((change) => change.path),
+              options.changes,
+            )
+          : kept.changes;
         const revision = await live.revision();
         // Someone else changed a file the draft changes since it did: as a publish over their change would.
         for (const [path, before] of Object.entries(kept.originals)) {
@@ -150,9 +165,7 @@ export function keptDrafts(live: ContentStore, keeper: DraftKeeper): SiteDrafts 
         // Where the live site says what changed since the draft started, that catches changes made before its first save too.
         const expectedRevision = live.changedPaths ? kept.base : revision;
         const result =
-          kept.changes.length > 0
-            ? await writeChanges(live, kept.changes, { message, expectedRevision })
-            : { revision };
+          changes.length > 0 ? await writeChanges(live, changes, { message, expectedRevision }) : { revision };
         await keeper.save(undefined);
         return result;
       },

@@ -1,6 +1,7 @@
 import {
   CodeChangeError,
   ConflictError,
+  DraftError,
   type GitBackend,
   loadSiteContent,
   SignInError,
@@ -652,6 +653,43 @@ describe("drafts", () => {
     await expect(draft.publish("Update About")).rejects.toBeInstanceOf(ConflictError);
     expect(fake.repo.files().get("content/pages/about.json")).toBe(about("About the parish"));
     expect(fake.repo.branches.has("goodfellow-draft-20261014-abc123")).toBe(true);
+  });
+
+  it("takes only commits' ids as revisions, which go into GitHub's addresses", async () => {
+    const { backend } = await signedIn();
+    const revision = await backend.revision();
+    for (const bad of ["../../../user", `${revision}?recursive=0`, "main", ""]) {
+      await expect(backend.readAt("content/site.json", bad)).rejects.toMatchObject({ status: 400 });
+      await expect(backend.changedPaths(bad, revision)).rejects.toMatchObject({ status: 400 });
+      await expect(backend.deployStatus(bad)).rejects.toMatchObject({ status: 400 });
+    }
+    expect(await backend.changedPaths(revision, revision)).toEqual([]);
+  });
+
+  it("publishes nothing from a draft that changes files outside the editable folders", async () => {
+    const { fake, draft } = await withDraft();
+    // Saved to the draft's branch some other way than through Goodfellow, by someone who can't publish.
+    fake.repo.commit([{ path: "package.json", content: '{"name":"evil"}' }], "Add a package", {
+      branch: "goodfellow-draft-20261014-abc123",
+    });
+    const refused = draft.publish("Publish all");
+    await expect(refused).rejects.toBeInstanceOf(DraftError);
+    await expect(refused).rejects.toMatchObject({ problem: "not-editable", paths: ["package.json"] });
+    expect(fake.repo.files().has("package.json")).toBe(false);
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(FILES["content/pages/about.json"]);
+    expect(fake.repo.branches.has("goodfellow-draft-20261014-abc123")).toBe(true);
+  });
+
+  it("publishes exactly the changes it's given, where they're the draft's files", async () => {
+    const { fake, draft } = await withDraft();
+    const changes = await draft.changes();
+    await expect(draft.publish("Publish all", { changes: changes.slice(1) })).rejects.toBeInstanceOf(ConflictError);
+    const checked = changes.map((change) =>
+      change.path === "content/pages/new.json" ? { path: change.path, content: about("Checked") } : change,
+    );
+    await draft.publish("Publish all", { changes: checked });
+    expect(fake.repo.files().get("content/pages/new.json")).toBe(about("Checked"));
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(about("About us"));
   });
 
   it("lists every draft and every one waiting for review, past the first page of pull requests", async () => {

@@ -7,7 +7,7 @@
  * module does the rest, the same way for every host.
  */
 import { MEDIA_DIR } from "./content/paths.js";
-import { type ContentStore, type FileChange, writeChanges } from "./content/store.js";
+import { ConflictError, type ContentStore, type FileChange, isEditablePath, writeChanges } from "./content/store.js";
 
 /** Draft branches are named this, then the draft's name. */
 export const DRAFT_BRANCH_PREFIX = "goodfellow-draft-";
@@ -25,16 +25,65 @@ export type DraftProblem =
   /** There's already a draft by that name. */
   | "exists"
   /** The host or this sign-in can't open pull or merge requests. */
-  | "no-reviews";
+  | "no-reviews"
+  /**
+   * The draft changes files outside the editable folders (`paths`), such as
+   * the site's code, which only a review on the host can bring to the live site.
+   */
+  | "not-editable";
 
 export class DraftError extends Error {
   override name = "DraftError";
   readonly problem: DraftProblem;
+  /** With `not-editable`: the files outside the editable folders. */
+  readonly paths: readonly string[];
 
-  constructor(problem: DraftProblem, message: string) {
+  constructor(problem: DraftProblem, message: string, paths: readonly string[] = []) {
     super(message);
     this.problem = problem;
+    this.paths = paths;
   }
+}
+
+/**
+ * Throws `DraftError` (`not-editable`) where a draft about to be published
+ * changes files outside the editable folders: anyone who can save to a draft's
+ * branch on the host can put any file there, and publishing would copy it to
+ * the live site as it is.
+ */
+export function assertEditableDraft(paths: readonly string[]): void {
+  const outside = paths.filter((path) => !isEditablePath(path));
+  if (outside.length > 0) {
+    throw new DraftError(
+      "not-editable",
+      `This draft changes files that can't be published from a draft: ${outside.join(", ")}.`,
+      outside,
+    );
+  }
+}
+
+/** How a draft is published. */
+export interface DraftPublishOptions {
+  /**
+   * The changes to publish, as the caller read them with `changes()` and
+   * checked them, as its own publish would (`safeMediaChanges()` in the admin
+   * panel, `unsafeMediaChanges()` on a server), since anyone who can save to a
+   * draft's branch can put files there that never went through those checks.
+   * They're published as given, so what's checked is what goes live; they must
+   * be the draft's files, every one, or the publish throws `ConflictError`, as
+   * where the draft changed since they were read.
+   */
+  changes?: readonly FileChange[];
+}
+
+/** The changes to publish: `given`, where they're the same files as the draft's `paths`. */
+export function publishedChanges(paths: readonly string[], given: readonly FileChange[]): FileChange[] {
+  const expected = new Set(paths);
+  const named = new Set(given.map((change) => change.path));
+  if (named.size !== given.length || named.size !== expected.size || [...named].some((path) => !expected.has(path))) {
+    throw new ConflictError();
+  }
+  return [...given];
 }
 
 /** What a backend does with branches for drafts. */
@@ -80,9 +129,10 @@ export interface Draft {
   /**
    * Publishes the draft's changes to the live site in one save, then removes
    * the draft. Throws `ConflictError` if someone changed the same files on the
-   * live site meanwhile; the draft is kept.
+   * live site meanwhile, and `DraftError` (`not-editable`) where it changes
+   * files outside the editable folders; the draft is kept.
    */
-  publish(message: string): Promise<{ revision: string }>;
+  publish(message: string, options?: DraftPublishOptions): Promise<{ revision: string }>;
   /**
    * Asks for the draft to be reviewed before it's published: a pull or merge
    * request, which asks `reviewers` (sign-in names on the host) to review it.
@@ -156,8 +206,12 @@ export function branchDrafts(live: ContentStore, host: DraftHost): SiteDrafts {
     }
 
     async function changes(): Promise<FileChange[]> {
+      return changesAt(await paths());
+    }
+
+    async function changesAt(changedPaths: readonly string[]): Promise<FileChange[]> {
       const result: FileChange[] = [];
-      for (const path of await paths()) {
+      for (const path of changedPaths) {
         if (path.startsWith(`${MEDIA_DIR}/`)) {
           const bytes = await store.readBytes(path);
           result.push(bytes ? { path, bytes } : { path, delete: true });
@@ -174,9 +228,14 @@ export function branchDrafts(live: ContentStore, host: DraftHost): SiteDrafts {
       store,
       changes,
       paths,
-      async publish(message) {
+      async publish(message, options) {
         const base = await host.mergeBase(branch);
-        const changed = await changes();
+        const changedPaths = await store.changedPaths(base, await store.revision());
+        // Before reading any: outside the editable folders, a host's store may read a file as missing, which would delete it.
+        assertEditableDraft(changedPaths);
+        const changed = options?.changes
+          ? publishedChanges(changedPaths, options.changes)
+          : await changesAt(changedPaths);
         const result =
           changed.length > 0
             ? await writeChanges(live, changed, { message, expectedRevision: base })
