@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
+import { type AddressInfo, connect } from "node:net";
+import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
   type AdminAddress,
@@ -131,6 +132,42 @@ const PHASE_PRODUCTION_BUILD = "phase-production-build";
 
 const SERVER_KEY = Symbol.for("goodfellow.next.devApi");
 
+/** What to run instead, where `next dev` answers other computers. */
+const EXPOSED_MESSAGE =
+  "next dev is answering other computers on the network, so the admin panel's local backend is turned off: anyone on the network could change the site's files through it. Run next dev -H 127.0.0.1, as the starters' dev script does.";
+
+/**
+ * Whether Next.js's development server, at `port`, answers on this computer's
+ * network addresses, as `next dev` does unless it's started with `-H`. Next.js
+ * passes on every header a client sends as it is, so the local backend can't
+ * tell another computer's requests from this one's: it's safe only while
+ * Next.js answers this computer alone.
+ */
+export async function answersNetwork(port: number): Promise<boolean> {
+  const addresses = Object.values(networkInterfaces())
+    .flat()
+    .filter((address) => address !== undefined && !address.internal)
+    // Link-local IPv6 addresses need the interface named to connect to, and IPv4's cover the same server.
+    .filter((address) => address.family === "IPv4" || !address.address.toLowerCase().startsWith("fe80"))
+    .map((address) => address.address);
+  const answers = await Promise.all(
+    addresses.map(
+      (host) =>
+        new Promise<boolean>((resolveAnswer) => {
+          const socket = connect({ host, port, timeout: 1000 });
+          const done = (answered: boolean) => {
+            socket.destroy();
+            resolveAnswer(answered);
+          };
+          socket.once("connect", () => done(true));
+          socket.once("error", () => done(false));
+          socket.once("timeout", () => done(false));
+        }),
+    ),
+  );
+  return answers.some(Boolean);
+}
+
 /**
  * The admin panel's local backend, which reads and writes the site's files on
  * disk. It runs beside `next dev`, on this computer only, and Next.js passes
@@ -155,7 +192,17 @@ function startDevApi(root: string): Promise<number> {
       plugins: async () => (await (await import("./plugins.js")).loadSiteConfig(root)).plugins ?? [],
       server: "next-dev" as const,
     };
+    // Asked once Next.js is answering, at the first request, which comes through it.
+    let exposed: Promise<boolean> | undefined;
     const server = createServer(async (req, res) => {
+      exposed ??= answersNetwork(Number(process.env.PORT) || 3000).then((answers) => {
+        if (answers) console.error(EXPOSED_MESSAGE);
+        return answers;
+      });
+      if (await exposed) {
+        res.writeHead(403, { "content-type": "application/json" }).end(JSON.stringify({ error: EXPOSED_MESSAGE }));
+        return;
+      }
       // A website can point its own name at this computer, so nothing here, the frames' bundle of the site's
       // config included, answers a request for any other name. Next.js passes requests on with this server's
       // own name, and the one the browser asked for as `x-forwarded-host`, so both must be this computer's.

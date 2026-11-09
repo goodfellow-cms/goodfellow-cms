@@ -1,10 +1,12 @@
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import { editorPolicy, vercelHeaders } from "@goodfellow-cms/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { redirectDestination, withGoodfellow } from "./config.js";
+import { answersNetwork, redirectDestination, withGoodfellow } from "./config.js";
 import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK, SITE_SERVING } from "./image-sizes-mark.js";
 
 describe("withGoodfellow", () => {
@@ -282,6 +284,33 @@ describe("withGoodfellow", () => {
       expect(process.env[IMAGE_SIZES_ENV]).toBeUndefined();
     } finally {
       delete process.env[IMAGE_SIZES_ENV];
+    }
+  });
+});
+
+describe("answersNetwork", () => {
+  const listening = (host: string) =>
+    new Promise<Server>((resolveServer) => {
+      const server = createServer((_req, res) => res.end());
+      server.listen(0, host, () => resolveServer(server));
+    });
+  const external = Object.values(networkInterfaces())
+    .flat()
+    .some((address) => address?.family === "IPv4" && !address.internal);
+
+  it("says when a server answers on this computer's network addresses, as next dev does without -H", async () => {
+    const local = await listening("127.0.0.1");
+    try {
+      expect(await answersNetwork((local.address() as AddressInfo).port)).toBe(false);
+    } finally {
+      local.close();
+    }
+    if (!external) return;
+    const everywhere = await listening("0.0.0.0");
+    try {
+      expect(await answersNetwork((everywhere.address() as AddressInfo).port)).toBe(true);
+    } finally {
+      everywhere.close();
     }
   });
 });
