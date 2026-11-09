@@ -1,8 +1,9 @@
 // Better Auth's tables, with the admin plugin's columns: users, their sessions, their sign-in accounts, and the
 // links sign-in emails carry. Written once from `npx @better-auth/cli generate`, in Kysely's schema builder, so
 // SQLite (D1) and Postgres (Neon) get the same tables; `migrations.test.ts` checks Better Auth finds nothing missing.
+// A migration is a file of its own, named by when it was made (`npm run migration -- <what it does>`).
 import type { Kysely } from "kysely";
-import { type DatabaseType, typesFor } from "./types.ts";
+import { type DatabaseType, typesFor } from "../types.ts";
 
 /** This migration's statements, in order, for `type`'s database. */
 export function statements(db: Kysely<unknown>, type: DatabaseType) {

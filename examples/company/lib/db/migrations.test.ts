@@ -1,4 +1,5 @@
-import { readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { betterAuth } from "better-auth";
@@ -7,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { authOptions, authorizeWith } from "../auth.ts";
 import type { SiteEnv } from "../env.ts";
 import { dialectFor } from "./dialect.ts";
-import { migrationFiles } from "./migrations/index.ts";
+import { migrationFiles, migrationNames } from "./migrations-sql.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 const SITE_ENV: SiteEnv = {
@@ -32,7 +33,20 @@ describe("the database's migrations", () => {
           (await readdir(dir)).map(async (name) => [name, await readFile(join(dir, name), "utf8")] as const),
         ),
       );
-      expect(written).toEqual(migrationFiles(type));
+      expect(written).toEqual(await migrationFiles(type));
+    }
+  });
+
+  it("are found by their names, so branches that each add one change no file in common", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "company-migrations-"));
+    try {
+      // Two branches' migrations, merged in either order, and files that aren't migrations.
+      for (const name of ["20261201090000_add-jobs.ts", "20261130170000_add-orders.ts", "notes.md", "draft.ts"]) {
+        await writeFile(join(dir, name), "");
+      }
+      expect(await migrationNames(dir)).toEqual(["20261130170000_add-orders", "20261201090000_add-jobs"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 

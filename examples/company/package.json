@@ -7,6 +7,7 @@
     "dev": "next dev --port 4321",
     "build": "next build && goodfellow-next finish --server",
     "start": "next start",
+    "migration": "node scripts/new-migration.ts",
     "migrations": "node scripts/emit-migrations.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

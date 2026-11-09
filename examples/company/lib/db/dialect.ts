@@ -1,7 +1,7 @@
 // The one module that knows which database the site uses. Everything else sees a Kysely dialect, never a driver.
 import type { Dialect, PostgresPool } from "kysely";
 import type { SiteEnv } from "../env.ts";
-import type { DatabaseType } from "./migrations/index.ts";
+import type { DatabaseType } from "./types.ts";
 
 export interface SiteDialect {
   dialect: Dialect;
