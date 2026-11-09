@@ -26,7 +26,7 @@ On your own computer, the admin panel saves straight to the files in `content/`,
 
 ## Putting it online on Cloudflare
 
-Cloudflare's free plan allows a Worker of 3 MB, compressed, and this one is about 3.5 MB, so it needs [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/), $5 a month, which also allows far more of each request's CPU time. Every page is rendered while the site builds, so most visits cost almost nothing.
+It runs on Cloudflare's free plan. Every page is rendered while the site builds, so most visits cost almost nothing.
 
 1. **The content repository.** Make it as the [content repository](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
 2. **The database.** Sign in with `npx wrangler login`, run `npx wrangler d1 create goodfellow-company`, and put the `database_id` it gives in `wrangler.jsonc`.
