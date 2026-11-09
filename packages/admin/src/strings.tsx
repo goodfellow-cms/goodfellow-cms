@@ -1656,6 +1656,8 @@ export const defaultStrings = {
     "{version} was built from the same place as {installed}, the version installed ({source}), by the same publishing setup, so it can be installed now, without the wait. The site's build checks that before it uses it.",
   "plugins.earlyNotice": "Installing {version} before it's {days} days old, since it was built where {installed} was.",
   "plugins.earlyRefused": "The site wouldn't take {version} before it's {days} days old: {reasons}",
+  "plugins.earlyUnavailable":
+    "The site's server can't check versions installed before they're {days} days old, so {version} can be installed once it's {days} days old.",
   "plugins.incompatible": "Version {version} doesn't say it works with Goodfellow {goodfellow}.",
   "plugins.tooNew":
     "This plugin's versions are too new to install. Versions can be installed once they're {days} days old.",

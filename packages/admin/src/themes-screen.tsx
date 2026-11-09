@@ -330,7 +330,7 @@ function ThemeDetails({
   onPublished: (message: string) => void;
 }) {
   const t = useStrings();
-  const { publish, site, demo } = useAdmin();
+  const { publish, site, demo, account } = useAdmin();
   const { content } = useSiteContent();
   const { choice, error: choiceError, retry } = useThemeChoice(name);
   const [theme, setTheme] = useState<ThemePackage>();
@@ -342,15 +342,16 @@ function ThemeDetails({
   // The page the preview shows: the home page until another is chosen.
   const [shown, setShown] = useState("/");
   const update = record?.name === name;
-  // Where the newer release waiting could be installed now: built where the release installed was. Owners only.
-  const owner = useCanChangeSettings();
+  // Where the newer release waiting could be installed now: built where the release installed was. Owners only, and
+  // on a full-stack site only where its server checks that (`earlyInstalls`).
+  const mayOffer = useCanChangeSettings() && account?.earlyInstalls !== false;
   const [offer, setOffer] = useState<ProvenanceSource>();
   const [early, setEarly] = useState<ProvenanceSource>();
   const waiting = choice?.waiting;
   useEffect(() => {
     setOffer(undefined);
     setEarly(undefined);
-    if (!waiting || !update || !record || !owner || demo) return;
+    if (!waiting || !update || !record || !mayOffer || demo) return;
     let current = true;
     const options = { fetch: themeFetch };
     Promise.all([
@@ -368,7 +369,7 @@ function ThemeDetails({
     return () => {
       current = false;
     };
-  }, [name, record, update, waiting, owner, demo]);
+  }, [name, record, update, waiting, mayOffer, demo]);
   const release = early ? waiting : choice?.release;
 
   useEffect(() => {

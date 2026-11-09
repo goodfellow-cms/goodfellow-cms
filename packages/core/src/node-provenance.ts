@@ -16,12 +16,19 @@ import { promisify } from "node:util";
 import { INSTALLED_PLUGINS_FILE, THEME_FILE } from "./content/paths.js";
 import type { FileChange } from "./content/store.js";
 import { type ThemeRecord, themeRecordSchema } from "./content/themes.js";
+import {
+  type EarlyInstall,
+  type EarlyInstallCheck,
+  type EarlyInstallProblem,
+  type EarlyProblem,
+  earlyInstallsIn,
+  type ProvenanceProblem,
+} from "./early-installs.js";
 import { commandToRun } from "./node-command.js";
 import { getPackageJson, oldEnough, type PackageFetch, packageMetadataUrl, RELEASE_AGE_DAYS } from "./npm-packages.js";
 import { parseInstalledPlugins } from "./plugin-packages.js";
 import {
   attestationsUrl,
-  type EarlyInstallRecord,
   type ProvenanceSource,
   type ProvenanceStatement,
   provenanceAttestation,
@@ -74,9 +81,6 @@ export interface ProvenanceOptions {
   verify?: BundleVerifier;
   now?: Date;
 }
-
-/** Why a release's provenance doesn't count. */
-export type ProvenanceProblem = "no-provenance" | "unverified" | "unavailable";
 
 /** A release's verified source and when it was published, or why it has none. */
 export type VerifiedRelease =
@@ -158,17 +162,6 @@ export async function verifiedSource(
   }
 }
 
-/** A plugin or theme an install record says was installed early. */
-export interface EarlyInstall {
-  kind: "plugin" | "theme";
-  name: string;
-  release: string;
-  early: EarlyInstallRecord;
-}
-
-/** Why an early install can't be used. */
-export type EarlyProblem = "not-installed" | "not-newer" | "other-source" | ProvenanceProblem;
-
 export type EarlyCheck =
   | { ok: true; published: string; young: boolean }
   | { ok: false; problem: EarlyProblem; message: string };
@@ -216,7 +209,7 @@ export async function checkEarlyInstall(
 /** Thrown when an early install can't be used, naming each. */
 export class EarlyInstallError extends Error {
   override name = "EarlyInstallError";
-  constructor(readonly problems: { install: EarlyInstall; problem: EarlyProblem; message: string }[]) {
+  constructor(readonly problems: EarlyInstallProblem[]) {
     super(
       `These were installed before they were ${RELEASE_AGE_DAYS} days old, which their provenance doesn't allow:\n${problems.map((found) => `  ${found.message}`).join("\n")}`,
     );
@@ -381,51 +374,20 @@ export async function checkEarlyTheme(
   return install;
 }
 
-function changeText(change: FileChange): string | undefined {
-  if ("delete" in change) return undefined;
-  return "bytes" in change ? new TextDecoder().decode(change.bytes) : change.content;
-}
-
 /**
- * The early installs a set of changes brings, with the release each updates
- * as the site has it now (`read` gives a file as it is), so a server can check
- * them before it writes them: in `plugins/installed/installed.json` and the
- * theme record, those that weren't there before.
+ * Checks early installs as a server takes them: each with both releases'
+ * verified provenance from npm's registry, Sigstore's signatures and, unless
+ * tests give their own, `fetch`. For `appApi({ provenance })`.
  */
-export async function earlyInstallsIn(
-  changes: readonly FileChange[],
-  read: (path: string) => Promise<string | undefined>,
-): Promise<{ install: EarlyInstall; installed: string }[]> {
-  const found: { install: EarlyInstall; installed: string }[] = [];
-  const plugins = changes.find((change) => change.path === INSTALLED_PLUGINS_FILE);
-  const pluginsText = plugins && changeText(plugins);
-  if (pluginsText !== undefined) {
-    const now = parseInstalledPlugins(pluginsText);
-    const before = parseInstalledPlugins(await read(INSTALLED_PLUGINS_FILE)).plugins;
-    for (const [name, plugin] of Object.entries(now.plugins)) {
-      const was = before[name];
-      if (!plugin.early || (was?.release === plugin.release && was.early)) continue;
-      found.push({
-        install: { kind: "plugin", name, release: plugin.release, early: plugin.early },
-        installed: was?.release ?? "",
-      });
+export function nodeProvenance(options: ProvenanceOptions = {}): EarlyInstallCheck {
+  return async (installs) => {
+    const problems: EarlyInstallProblem[] = [];
+    for (const { install, installed } of installs) {
+      const checked = await checkEarlyInstall(install, installed, options);
+      if (!checked.ok) problems.push({ install, problem: checked.problem, message: checked.message });
     }
-  }
-  const theme = changes.find((change) => change.path === THEME_FILE);
-  const themeText = theme && changeText(theme);
-  if (themeText !== undefined) {
-    const now = themeRecordSchema.safeParse(JSON.parse(themeText));
-    const beforeText = await read(THEME_FILE);
-    const was = beforeText === undefined ? undefined : themeRecordSchema.safeParse(JSON.parse(beforeText)).data;
-    const record = now.success ? now.data : undefined;
-    if (record?.early && !(was?.name === record.name && was.release === record.release && was.early)) {
-      found.push({
-        install: { kind: "theme", name: record.name, release: record.release, early: record.early },
-        installed: was?.name === record.name ? was.release : "",
-      });
-    }
-  }
-  return found;
+    return problems;
+  };
 }
 
 /**
@@ -436,11 +398,14 @@ export async function earlyChangeProblems(
   changes: readonly FileChange[],
   read: (path: string) => Promise<string | undefined>,
   options: ProvenanceOptions = {},
-): Promise<EarlyInstallError["problems"]> {
-  const problems: EarlyInstallError["problems"] = [];
-  for (const { install, installed } of await earlyInstallsIn(changes, read)) {
-    const checked = await checkEarlyInstall(install, installed, options);
-    if (!checked.ok) problems.push({ install, problem: checked.problem, message: checked.message });
-  }
-  return problems;
+): Promise<EarlyInstallProblem[]> {
+  return nodeProvenance(options)(await earlyInstallsIn(changes, read));
 }
+
+export {
+  type EarlyInstall,
+  type EarlyInstallProblem,
+  type EarlyProblem,
+  earlyInstallsIn,
+  type ProvenanceProblem,
+} from "./early-installs.js";

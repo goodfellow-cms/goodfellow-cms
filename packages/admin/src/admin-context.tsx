@@ -164,6 +164,11 @@ export interface Account {
    * `review` rather than being published, since its server runs that code.
    */
   codeReview?: boolean;
+  /**
+   * On a full-stack site, whether its server checks plugins and themes
+   * installed before they're old enough, so they may be offered early.
+   */
+  earlyInstalls?: boolean;
   /** On a full-stack site, for its owners: submits changes for a developer to review, as installing a plugin does. */
   review?(
     changes: FileChange[],

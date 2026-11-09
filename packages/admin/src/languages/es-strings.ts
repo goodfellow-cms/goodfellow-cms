@@ -1540,6 +1540,8 @@ export const strings: Strings = {
     "{version} se compiló desde el mismo sitio que {installed}, la versión instalada ({source}), con la misma configuración de publicación, así que se puede instalar ahora, sin esperar. La compilación del sitio lo comprueba antes de usarla.",
   "plugins.earlyNotice": "Se instala {version} antes de que tenga {days} días, porque se compiló donde {installed}.",
   "plugins.earlyRefused": "El sitio no aceptó {version} antes de que tenga {days} días: {reasons}",
+  "plugins.earlyUnavailable":
+    "El servidor del sitio no puede comprobar las versiones instaladas antes de que tengan {days} días, así que {version} se podrá instalar cuando tenga {days} días.",
   "plugins.incompatible": "La versión {version} no dice que funcione con Goodfellow {goodfellow}.",
   "plugins.tooNew":
     "Las versiones de este complemento son demasiado recientes para instalarlas. Se pueden instalar cuando tienen {days} días.",
