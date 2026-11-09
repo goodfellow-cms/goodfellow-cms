@@ -10,7 +10,7 @@ Most sites never need this page: [updates](/docs/updates) install Goodfellow's f
 
 ## What updates change
 
-An update, from the Updates screen, overnight or with `goodfellow update`, changes:
+An update, from the Updates screen, overnight, or with `goodfellow update`, changes:
 
 - every Goodfellow package in `package.json`, and the release of Puck it uses, with `package-lock.json`;
 - the `overrides` in `package.json` that new sites have, which move packages with security advisories to their fixed releases;
@@ -21,7 +21,7 @@ An update, from the Updates screen, overnight or with `goodfellow update`, chang
 It doesn't change:
 
 - **The site's GitHub workflows,** `.github/workflows/`, since the job that publishes the update can't change them, by GitHub's rules. Older sites keep the setup they were made with, which keeps working.
-- **Other setup files** that a release changed: `.gitlab-ci.yml`, `bitbucket-pipelines.yml`, `vercel.ts`, `.npmrc` and the rest, so a change someone made to them is never lost.
+- **Other setup files** that a release changed: `.gitlab-ci.yml`, `bitbucket-pipelines.yml`, `vercel.ts`, `.npmrc`, and the rest, so a change someone made to them is never lost.
 - **Files you've changed,** including the site's config, `goodfellow.config.tsx`, your own blocks, and registry blocks' files someone edited.
 - **Content,** which every release reads as it was saved (see [Content files from other releases](#content-files-from-other-releases)).
 - **Themes and plugins,** which change only when an owner chooses a newer version ([Themes](/docs/themes#updates), [Plugins](/docs/plugins)).
@@ -33,7 +33,7 @@ When a release brings something only newer setup files have, such as [rebuilding
 To give an older site the newest setup, a developer copies the newer files over the site's own:
 
 1. Make a site with the same choices in another folder, with the release the site now has, so the files match its packages: `npm create goodfellow@<release> new-copy -- --template starter --github your-name/your-site --host github-pages --no-install --no-git`, with the site's own template (`next` for a Next.js site), host and where it's stored ([Create a site](/docs/create-a-site#with-create-goodfellow)). This writes the setup files for hosts that have their own, such as Cloudflare Pages and Bitbucket, with the options filled in, which the starter in the repository doesn't have.
-2. Compare its setup files with the site's: `.github/workflows/` (`deploy.yml`, `scheduled.yml` and `plugin-task.yml`), `.gitlab-ci.yml`, `bitbucket-pipelines.yml`, `vercel.ts` or a Next.js site's `vercel.json`, and `.npmrc`. Keep anything the site's developers added on purpose, such as a different branch or build command, and take the rest.
+2. Compare its setup files with the site's: `.github/workflows/` (`deploy.yml`, `scheduled.yml`, and `plugin-task.yml`), `.gitlab-ci.yml`, `bitbucket-pipelines.yml`, `vercel.ts`, or a Next.js site's `vercel.json`, and `.npmrc`. Keep anything the site's developers added on purpose, such as a different branch or build command, and take the rest.
 3. Publish the change, which on GitHub needs a token or sign-in that can change workflows, and check the next build on the host.
 
 A site whose [content is kept in a repository of its own](/docs/content-repository) has setup files in both repositories, which create-goodfellow's `--content` option writes the same way. A site made for one host and moved to another needs the new host's files instead ([Put it online](/docs/put-it-online#3-choose-a-host)).
@@ -62,7 +62,7 @@ Themes and plugins say which releases of Goodfellow they work with. The Updates 
 
 Every Goodfellow package is released together, with the same version, and each release's changes are in the packages' changelogs:
 
-- [`@goodfellow-cms/core`](https://github.com/goodfellow-cms/goodfellow-cms/blob/master/packages/core/CHANGELOG.md): content files, checks, updates and most of what sites do;
+- [`@goodfellow-cms/core`](https://github.com/goodfellow-cms/goodfellow-cms/blob/master/packages/core/CHANGELOG.md): content files, checks, updates, and most of what sites do;
 - [`@goodfellow-cms/admin`](https://github.com/goodfellow-cms/goodfellow-cms/blob/master/packages/admin/CHANGELOG.md): the admin panel;
 - [`@goodfellow-cms/blocks`](https://github.com/goodfellow-cms/goodfellow-cms/blob/master/packages/blocks/CHANGELOG.md): the built-in blocks;
 - [`goodfellow`](https://github.com/goodfellow-cms/goodfellow-cms/blob/master/packages/cli/CHANGELOG.md) and [`@goodfellow-cms/next`](https://github.com/goodfellow-cms/goodfellow-cms/blob/master/packages/next/CHANGELOG.md): building sites, and Next.js sites.

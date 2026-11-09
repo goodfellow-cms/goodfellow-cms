@@ -26,7 +26,7 @@
                 "id": "Text-10",
                 "align": "left",
                 "className": "mt-6 max-w-2xl text-lg opacity-90",
-                "content": "<p>Goodfellow CMS is a drag-and-drop website builder for churches, clubs, small businesses and anyone else without a developer on hand, and for larger organizations whose marketing team runs the content while developers own the code. Its pages are files in your own GitHub, GitLab or Bitbucket repository, and free hosts put them online, so there's no server, database or monthly bill.</p>"
+                "content": "<p>Goodfellow CMS is a drag-and-drop website builder for churches, clubs, small businesses, and anyone else without a developer on hand, and for larger organizations whose marketing team runs the content while developers own the code. Its pages are files in your own GitHub, GitLab, or Bitbucket repository, and free hosts put them online, so there's no server, database, or monthly bill.</p>"
               }
             },
             {
@@ -170,7 +170,7 @@
                             "id": "Text-19",
                             "align": "left",
                             "className": "text-muted-foreground",
-                            "content": "<p>The site is static files on a free host. There's nothing to update, patch or back up besides the repository itself.</p>"
+                            "content": "<p>The site is static files on a free host. There's nothing to update, patch, or back up besides the repository itself.</p>"
                           }
                         }
                       ],
@@ -236,7 +236,7 @@
                             "id": "Text-25",
                             "align": "left",
                             "className": "text-muted-foreground",
-                            "content": "<p>Groups of similar pages, such as news, events or these docs, share one design. Their text can be stored as Markdown.</p>"
+                            "content": "<p>Groups of similar pages, such as news, events, or these docs, share one design. Their text can be stored as Markdown.</p>"
                           }
                         }
                       ],
@@ -406,7 +406,7 @@
     "root": {
       "props": {
         "className": "",
-        "description": "Goodfellow CMS is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab or Bitbucket repository.",
+        "description": "Goodfellow CMS is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab, or Bitbucket repository.",
         "image": "",
         "title": "Goodfellow CMS: websites anyone can edit"
       }

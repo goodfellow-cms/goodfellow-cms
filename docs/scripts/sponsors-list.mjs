@@ -182,7 +182,7 @@ export function withReadmeSponsors(readme, list) {
   return `${readme.slice(0, start + README_START.length)}\n${section ? `${section}\n` : ""}${readme.slice(end)}`;
 }
 
-/** `.github/sponsors.json`'s text: two spaces, a stable order and a newline at the end, so it only changes with the list. */
+/** `.github/sponsors.json`'s text: two spaces, a stable order, and a newline at the end, so it only changes with the list. */
 export function sponsorsFileText(list) {
   return `${JSON.stringify(list, null, 2)}\n`;
 }

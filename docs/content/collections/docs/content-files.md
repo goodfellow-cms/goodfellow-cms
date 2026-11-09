@@ -19,7 +19,7 @@ Everything the admin panel edits is a file in `content/` or `public/media/`, in 
 | `content/layout/header.json`, `footer.json` | The header and footer, as Puck data |
 | `content/synced-blocks/<name>.json` | A [synced block](/docs/synced-blocks): its title and its blocks, as Puck data; `<name>.<code>.json` is a language's own version |
 | `content/pages/about.json` | The page at `/about`, as Puck data; `index.json` is a folder's own page |
-| `content/collections/<id>/_collection.json` | A collection's settings, fields and page design |
+| `content/collections/<id>/_collection.json` | A collection's settings, fields, and page design |
 | `content/collections/<id>/<slug>.json` or `.md` | One item: its field values |
 | `content/styles/custom.css` | The custom CSS from Site Settings |
 | `content/styles/theme.json` | Which [theme](/docs/themes) is installed, and what it installed, so an update keeps what owners changed |
@@ -51,7 +51,7 @@ An item's JSON file holds `{ "version": 1, "fields": { … } }`. A choice field 
 - **`pages`:** page sections by address, each with the pages under it and their translations; `/` is every page.
 - **`collections`:** collections by their folder's name: their items, not their settings.
 - **`media`, `layout`, `menus`:** the media library, the header and footer with the synced blocks, and the menus.
-- **`languages`:** only pages, items, headers, footers and menus in these languages. Without it, every language.
+- **`languages`:** only pages, items, headers, footers, and menus in these languages. Without it, every language.
 
 ## Pages' settings
 
@@ -59,7 +59,7 @@ A page's `root.props` hold its settings: `title`, `description`, `image` (for li
 
 ## Synced blocks
 
-A [synced block](/docs/synced-blocks) is a file in `content/synced-blocks/`, named for how pages place it: lowercase letters, numbers and hyphens, such as `mass-times.json`. It holds a `title`, for editors, and `data`, Puck data whose `content` is its blocks. Pages, collections' page designs, the header and the footer place it with the `SyncedBlock` block, naming it as its `block` prop:
+A [synced block](/docs/synced-blocks) is a file in `content/synced-blocks/`, named for how pages place it: lowercase letters, numbers, and hyphens, such as `mass-times.json`. It holds a `title`, for editors, and `data`, Puck data whose `content` is its blocks. Pages, collections' page designs, the header, and the footer place it with the `SyncedBlock` block, naming it as its `block` prop:
 
 ```json
 { "type": "SyncedBlock", "props": { "id": "SyncedBlock-1", "block": "mass-times" } }
@@ -110,7 +110,7 @@ A collection with `"calendar": { "when": "when", "place": "place", "summary": "s
 }
 ```
 
-`start` and `end` are `YYYY-MM-DD` for an all-day event, whose `end` is its last day. `repeat.every` is `day`, `week`, `month` or `year`, with an optional `interval`; weekly repeats can name `days`, and monthly ones say `on` the start's `date` (the default), its `weekday` of the month (the second Tuesday) or the `last` such weekday. `until` and `skip` are dates.
+`start` and `end` are `YYYY-MM-DD` for an all-day event, whose `end` is its last day. `repeat.every` is `day`, `week`, `month`, or `year`, with an optional `interval`; weekly repeats can name `days`, and monthly ones say `on` the start's `date` (the default), its `weekday` of the month (the second Tuesday) or the `last` such weekday. `until` and `skip` are dates.
 
 Builds write each calendar collection as `/calendars/<id>.ics`, and each of its events as `/calendars/<id>/<slug>.ics`, and give a page whose Calendar block shows a month at a time a page for each month (see [Pages blocks add](#pages-blocks-add)).
 

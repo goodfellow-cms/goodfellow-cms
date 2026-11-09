@@ -15,7 +15,7 @@ On **Pages**, choose **Schedule** beside a page. In an item's editor, the times 
 - **Show from**: the page or item isn't on the site before this time. Leave it empty to show it as soon as it's published.
 - **Hide after**: it leaves the site at this time. Leave it empty to keep it.
 
-Then publish. Until it's shown, a page has no address on the site, and an item isn't in lists, calendars or search. Menus leave out links to it, and put them back once it's shown. Links to it elsewhere, such as in a page's text, lead to "Page not found" until then, so add them when it's shown, or schedule the page with the link for the same time.
+Then publish. Until it's shown, a page has no address on the site, and an item isn't in lists, calendars, or search. Menus leave out links to it, and put them back once it's shown. Links to it elsewhere, such as in a page's text, lead to "Page not found" until then, so add them when it's shown, or schedule the page with the link for the same time.
 
 The home page can't be scheduled, since the site always needs one.
 
@@ -49,4 +49,4 @@ What you schedule is published to the site's repository straight away, so anyone
 
 ## For developers
 
-Page and item files keep their schedule beside `version`, as `showFrom` and `hideAfter`, each a wall-clock time `YYYY-MM-DDTHH:MM` in the site's `timeZone` (see [Content files](/docs/content-files#scheduled-pages-and-items)). Builds leave out what isn't shown at the moment they run, with `goodfellow build`, `goodfellow dev` and Next.js alike, and `goodfellow build` prints the next scheduled change. `goodfellow due --since <time>` says whether one has come due since a time, which the hourly check runs (see [Commands](/docs/commands)).
+Page and item files keep their schedule beside `version`, as `showFrom` and `hideAfter`, each a wall-clock time `YYYY-MM-DDTHH:MM` in the site's `timeZone` (see [Content files](/docs/content-files#scheduled-pages-and-items)). Builds leave out what isn't shown at the moment they run, with `goodfellow build`, `goodfellow dev`, and Next.js alike, and `goodfellow build` prints the next scheduled change. `goodfellow due --since <time>` says whether one has come due since a time, which the hourly check runs (see [Commands](/docs/commands)).
