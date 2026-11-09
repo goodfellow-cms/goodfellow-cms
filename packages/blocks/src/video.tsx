@@ -149,7 +149,7 @@ const videoFields: Fields<VideoProps> = {
   className: classNameField,
 };
 
-/** A video: one uploaded to the media library, or from YouTube, Vimeo or another site's player. */
+/** A video: one uploaded to the media library, or from YouTube, Vimeo, or another site's player. */
 export const Video: ComponentConfig<VideoProps> = withParts(
   {
     label: "Video",

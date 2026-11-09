@@ -134,7 +134,7 @@ function loadCore(): Promise<HighlighterCore> {
 
 /**
  * Loads the highlighter the first time code needs it, with the themes a site's
- * code uses. Shiki, its grammars and themes are only loaded by builds and the
+ * code uses. Shiki, its grammars, and themes are only loaded by builds and the
  * editor, never by visitors, who get highlighted HTML.
  */
 export async function loadHighlighter(style: CodeStyle = codeStyle(undefined)): Promise<HighlighterCore> {

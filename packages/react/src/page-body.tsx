@@ -11,7 +11,7 @@ function Render({ site: _site, ...props }: ComponentProps<typeof PuckRender> & {
 }
 
 /**
- * Pages: `PageBody` is the site header, the page itself and the site footer;
- * `PageHeader`, `PageContent` and `PageFooter` are its parts.
+ * Pages: `PageBody` is the site header, the page itself, and the site footer;
+ * `PageHeader`, `PageContent`, and `PageFooter` are its parts.
  */
 export const { PageBody, PageHeader, PageContent, PageFooter } = createPageBody({ Render, SiteProvider });

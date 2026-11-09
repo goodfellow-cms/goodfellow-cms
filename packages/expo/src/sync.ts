@@ -126,7 +126,7 @@ function hashes(manifest: ApiManifest | undefined): Map<string, string> {
 
 /**
  * The pictures a file shows: every `/media/…` address of an image in it.
- * Videos, sound and other files are left to the site, which plays them as
+ * Videos, sound, and other files are left to the site, which plays them as
  * they're needed, since keeping them would fill the phone.
  */
 export function mediaAddresses(text: string): string[] {
@@ -285,7 +285,7 @@ async function readJson<T>(storage: ContentStorage, name: string): Promise<T | u
   }
 }
 
-/** A language's site, collections, header and footer from the app's copy, if it has them. */
+/** A language's site, collections, header, and footer from the app's copy, if it has them. */
 export async function readSiteFiles(
   storage: ContentStorage,
   manifest: ApiManifest,

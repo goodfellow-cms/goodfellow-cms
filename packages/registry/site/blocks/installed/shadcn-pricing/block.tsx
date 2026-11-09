@@ -34,7 +34,7 @@ const emptyPlan: Plan = {
   badge: "",
 };
 
-/** Plans side by side, with prices, what each includes and a button. */
+/** Plans side by side, with prices, what each includes, and a button. */
 const Pricing: ComponentConfig<PricingProps> = withParts(
   {
     label: "Pricing table",

@@ -17,14 +17,14 @@ export interface AiFieldHint {
 
 /** What a block's style field holds (`classNameField` in `@goodfellow-cms/react`). */
 const STYLE_HINT =
-  "Tailwind CSS classes for the block's look, such as text-center, text-lg, text-primary, bg-muted, p-6, mt-8 or rounded-lg, using the theme's colors; empty for the block's own look";
+  "Tailwind CSS classes for the block's look, such as text-center, text-lg, text-primary, bg-muted, p-6, mt-8, or rounded-lg, using the theme's colors; empty for the block's own look";
 
 /** What an event field's value is, for the `event` hint. How it repeats isn't asked for: it stays as editors set it. */
 const EVENT_HINT =
   "When it happens, in the site's time zone: start and end written as YYYY-MM-DDTHH:MM, or as YYYY-MM-DD for an all-day event, whose end is its last day. end may be empty, and is written the same way as start";
 
 export const RICH_TEXT_HINT =
-  "Formatted text as simple HTML: <p>, <h2>, <h3>, <strong>, <em>, <a href>, <ul>, <ol>, <li> and <blockquote> only.";
+  "Formatted text as simple HTML: <p>, <h2>, <h3>, <strong>, <em>, <a href>, <ul>, <ol>, <li>, and <blockquote> only.";
 
 // biome-ignore lint/suspicious/noExplicitAny: Puck fields hold any value
 type AnyField = Field<any>;

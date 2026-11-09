@@ -27,7 +27,7 @@ export function navGroups(collection: Collection, groupBy: string): Array<{ labe
   return [...groups, { label: "", entries: rest }].filter((group) => group.entries.length > 0);
 }
 
-/** A heading the On this page block lists: where it links, its words and its level (2 or 3). */
+/** A heading the On this page block lists: where it links, its words, and its level (2 or 3). */
 export interface ListedHeading {
   id: string;
   text: string;
