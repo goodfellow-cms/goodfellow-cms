@@ -266,8 +266,8 @@ describe("writeEditorFrames", () => {
       const page = await readFile(join(dir, "index.html"), "utf8");
       // Its policy, which the server sends as a header too, needs no hashes of anything Next.js renders.
       expect(page).toContain(`content="${editorPolicy()}"`);
-      expect(page).toContain('<script src="editor.js"></script>');
-      expect(page).not.toMatch(/<script>/);
+      // Its one script is the bundle, named by its address: nothing inline.
+      expect(page.match(/<script\b[^>]*>/gi)).toEqual(['<script src="editor.js">']);
       // The prelude first, which stops it anywhere but a sandboxed frame (minified, so it reads a little differently).
       expect(await readFile(join(dir, "editor.js"), "utf8")).toMatch(/^\(\(\)=>\{if\(self\.origin!==/);
     } finally {
