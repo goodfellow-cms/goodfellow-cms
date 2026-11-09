@@ -191,7 +191,7 @@ const newsletterFields: Fields<NewsletterProps> = {
 
 /**
  * A newsletter signup: an email box that posts straight to Mailchimp,
- * Buttondown, Kit or the site's form service, so it works without
+ * Buttondown, Kit, or the site's form service, so it works without
  * JavaScript and loads nothing from the service until someone signs up.
  */
 export const Newsletter: ComponentConfig<NewsletterProps> = withParts(

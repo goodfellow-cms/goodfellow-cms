@@ -257,7 +257,7 @@ function blocksData(data: Data, config: Config): StructuredData[] {
 
 /**
  * Gets a page ready to render: fills in an entry's values, and resolves the
- * page, header and footer, in the page's language (`contentForPage()`). With a
+ * page, header, and footer, in the page's language (`contentForPage()`). With a
  * `base`, rich text's links and images get it too. Takes the site as loaded.
  */
 export async function preparePage(

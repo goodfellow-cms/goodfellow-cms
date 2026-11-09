@@ -27,7 +27,7 @@ export interface EmbedProps {
 export const embedProblems: Record<EmbedPostProblem, string> = {
   "not-an-address": "Paste the post's address, or the embed code its site gives.",
   "unknown-site":
-    "This block shows posts from Bluesky, Mastodon, Instagram, X, Spotify and SoundCloud. For other sites' players, use the Video block.",
+    "This block shows posts from Bluesky, Mastodon, Instagram, X, Spotify, and SoundCloud. For other sites' players, use the Video block.",
   "short-link": "Short links can't be followed here. Open the link and paste the address it goes to.",
   "same-site": "A post on this site's own address, or on this computer, can't be shown: it could reach the editor.",
   handle:

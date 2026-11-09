@@ -546,7 +546,7 @@ describe("built-in blocks", () => {
     }
   });
 
-  it("renders a Markdown file's body: tables, heading ids and highlighted code, with HTML shown as text", async () => {
+  it("renders a Markdown file's body: tables, heading ids, and highlighted code, with HTML shown as text", async () => {
     const docs: Collection = {
       id: "docs",
       file: "content/collections/docs/_collection.json",

@@ -9,7 +9,7 @@ import { buildPluginFrame, loadSiteConfig } from "./plugins.js";
  * The editor's frames in `next dev`. They're sandboxed with `allow-scripts`
  * alone, so their origin is `null`, and Next.js refuses its development
  * files to every `null` origin, whose requests carry no address to check. So
- * `next dev` doesn't serve them: the site's config, Puck and every block are
+ * `next dev` doesn't serve them: the site's config, Puck, and every block are
  * bundled here as one classic script, as `goodfellow build` bundles them,
  * rebuilt as the site's code changes, and served by the local backend.
  */

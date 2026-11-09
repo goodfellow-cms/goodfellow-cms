@@ -109,7 +109,7 @@ async function main(page: Parameters<typeof renderPage>[1]): Promise<string> {
 }
 
 describe("collection fields in blocks", () => {
-  it("show yes or no, links to items, images, files and groups on an item's page", async () => {
+  it("show yes or no, links to items, images, files, and groups on an item's page", async () => {
     const html = await main({
       path: "/talks/advent",
       file: "content/collections/talks/advent.json",

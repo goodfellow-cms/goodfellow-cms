@@ -28,7 +28,7 @@ const columnClasses: Record<Columns, string> = {
   "4": "sm:grid-cols-2 lg:grid-cols-4",
 };
 
-/** A grid of cards, each with a picture, a heading, text and a link. */
+/** A grid of cards, each with a picture, a heading, text, and a link. */
 const Cards: ComponentConfig<CardsProps> = withParts(
   {
     label: "Cards",

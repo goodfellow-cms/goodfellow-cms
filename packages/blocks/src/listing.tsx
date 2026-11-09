@@ -43,7 +43,7 @@ export function pagesNotice(view: SiteContextValue["view"], shows: "page" | "mon
       : "only its first page, with no links to the rest";
   return view
     ? `A block higher on this page already has pages of its own, and a page can have only one, so this one shows ${rest}. Move it to a page of its own to give it pages.`
-    : `Items' pages, "Page not found" and the header and footer don't get pages of their own, so this shows ${rest}.`;
+    : `Items' pages, "Page not found", and the header and footer don't get pages of their own, so this shows ${rest}.`;
 }
 
 /** Whether a list would have pages of its own: later pages, or a page for each choice. */

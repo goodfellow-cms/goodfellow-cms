@@ -102,7 +102,7 @@ export interface ProviderSettings {
 }
 
 export type AiProblem =
-  /** The key is missing, wrong or not allowed to use the model. */
+  /** The key is missing, wrong, or not allowed to use the model. */
   | "key"
   /** Too many requests, or the account has run out of credit. */
   | "limit"
@@ -245,7 +245,7 @@ async function send(url: string, init: RequestInit, options: RunOptions): Promis
   }
 }
 
-/** Services with an OpenAI-compatible chat API: OpenAI itself, Gemini, Groq, Mistral, OpenRouter, OVHcloud and others. */
+/** Services with an OpenAI-compatible chat API: OpenAI itself, Gemini, Groq, Mistral, OpenRouter, OVHcloud, and others. */
 async function runOpenAiCompatible(
   settings: ProviderSettings,
   request: AiRequest,

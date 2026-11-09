@@ -154,7 +154,7 @@ export function createPageBody({ Render, SiteProvider }: Renderers) {
     );
   }
 
-  /** A page's visible content: the site header, the page itself and the site footer. */
+  /** A page's visible content: the site header, the page itself, and the site footer. */
   function PageBody({ site, pageConfig, layoutConfig, page, header, footer, structuredData }: PageBodyProps) {
     return (
       <>
