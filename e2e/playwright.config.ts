@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
-import { BROKER_ADDRESSES, builtSites, NEXT_SERVER } from "./scripts/site.mjs";
+import { BROKER_ADDRESSES, builtSites, COMPANY, NEXT_SERVER } from "./scripts/site.mjs";
 
 const PORT = 4400;
 
@@ -51,6 +51,16 @@ const SERVERS: { server: Server; usedBy?: RegExp }[] = [
       240_000,
     ),
     usedBy: /NEXT_SERVER/,
+  },
+  // The company example, built into a Cloudflare Worker with vinext and served in workerd with a local D1
+  // database, with its content repository on a fake GitHub.
+  {
+    server: server(
+      `node scripts/start-company-site.mjs ${COMPANY.port}`,
+      `http://localhost:${COMPANY.port}/sign-in/`,
+      300_000,
+    ),
+    usedBy: /\bCOMPANY\b/,
   },
   // The documentation site, built and served from a subfolder, with its search index.
   {

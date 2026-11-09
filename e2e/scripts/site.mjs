@@ -419,3 +419,69 @@ const searchPage = {
     root: { props: { className: "", description: "", image: "", title: "Search" } },
   },
 };
+
+/** The company example, a full-stack site on Cloudflare Workers, and the copy of it the tests build. */
+export const companyExample = join(here, "../../examples/company");
+export const companySite = join(here, "../.site-company");
+
+/** The company test site's address, its fake GitHub's, and the token its server publishes with. */
+export const COMPANY = { port: 4416, github: 4417, token: "company-token", repo: "company/site-content" };
+
+/** The accounts the company test site's database starts with, all with the same password. */
+export const COMPANY_PEOPLE = {
+  admin: { name: "Ada Admin", email: "ada@example.org", role: "admin" },
+  editor: { name: "Eli Editor", email: "eli@example.org", role: "editor" },
+};
+export const COMPANY_PASSWORD = "correct-horse-battery";
+
+/** The company example's content and media, as the contents of the fake content repository. */
+export function companyFiles() {
+  const files = {};
+  for (const dir of ["content", "public/media"]) {
+    for (const file of readdirSync(join(companyExample, dir), { recursive: true })) {
+      const path = join(companyExample, dir, file);
+      if (statSync(path).isFile()) files[`${dir}/${file.split("\\").join("/")}`] = readFileSync(path, "utf8");
+    }
+  }
+  return files;
+}
+
+/**
+ * Copies the company example to `companySite`, using the example's installed packages, with its content repository
+ * on the fake GitHub, and the settings and secrets its Worker reads in `.dev.vars`.
+ */
+export function createCompanySite() {
+  rmSync(companySite, { recursive: true, force: true });
+  mkdirSync(companySite, { recursive: true });
+  const leftOut = ["node_modules", ".next", "dist", ".vinext", ".wrangler", ".turbo", ".dev.vars", "next-env.d.ts"];
+  for (const entry of readdirSync(companyExample)) {
+    if (leftOut.includes(entry) || /^public$/.test(entry)) continue;
+    cpSync(join(companyExample, entry), join(companySite, entry), { recursive: true });
+  }
+  cpSync(join(companyExample, "public/media"), join(companySite, "public/media"), { recursive: true });
+  // At the same depth as the example, so pnpm's links into the workspace's store resolve the same way.
+  symlinkSync(join(companyExample, "node_modules"), join(companySite, "node_modules"), "junction");
+  const config = join(companySite, "goodfellow.config.tsx");
+  const backend = 'github({ repo: "your-name/your-site-content", contentOnly: true })';
+  const text = readFileSync(config, "utf8");
+  if (!text.includes(backend)) throw new Error("The company example's backend line has changed: update site.mjs.");
+  writeFileSync(
+    config,
+    text.replace(
+      backend,
+      `github({ repo: ${JSON.stringify(COMPANY.repo)}, contentOnly: true, apiUrl: "http://127.0.0.1:${COMPANY.github}" })`,
+    ),
+  );
+  writeFileSync(
+    join(companySite, ".dev.vars"),
+    [
+      "BETTER_AUTH_SECRET=company-test-secret-at-least-32-characters",
+      `GOODFELLOW_SITE_URL=http://localhost:${COMPANY.port}`,
+      `GOODFELLOW_GIT_TOKEN=${COMPANY.token}`,
+      "",
+    ].join("\n"),
+  );
+  // This repository ignores the whole copy, so Tailwind would scan the build's output too.
+  const css = join(companySite, "app/site.css");
+  writeFileSync(css, `${readFileSync(css, "utf8")}@source not "../dist";\n@source not "../.vinext";\n`);
+}
