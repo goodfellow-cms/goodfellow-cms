@@ -174,7 +174,7 @@
                             "id": "Text-feature-3",
                             "align": "left",
                             "className": "mt-2 text-muted-foreground",
-                            "content": "<p>Pages that look the same to everyone are served as files, so the server only signs people in and reads the database.</p>"
+                            "content": "<p>Pages that look the same to everyone are served as files. The server signs people in, reads the database, and publishes editors' changes.</p>"
                           }
                         }
                       ],
