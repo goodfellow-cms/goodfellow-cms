@@ -14,6 +14,16 @@ export default defineConfig([
     define: { __GOODFELLOW_VERSION__: JSON.stringify(version) },
   },
   {
+    // Full-stack sites' servers, on any runtime with Web Request and Response, Cloudflare Workers included: no Node.
+    entry: ["src/server.ts"],
+    format: "esm",
+    dts: true,
+    platform: "neutral",
+    clean: false,
+    tsconfig: "tsconfig.server.json",
+    deps: { neverBundle: [/^\.\/index\.js$/] },
+  },
+  {
     // Node only: reads and writes the site's files on disk, and (each on its own, since they run Pagefind,
     // axe-core and TypeScript) indexes built sites, checks their pages and makes blocks of shadcn components.
     entry: ["src/node.ts", "src/node-search.ts", "src/node-accessibility.ts", "src/node-shadcn.ts"],
@@ -24,6 +34,6 @@ export default defineConfig([
     clean: false,
     tsconfig: "tsconfig.node.json",
     // Shares the main entry rather than bundling a second copy, so `instanceof ConflictError` works across both.
-    deps: { neverBundle: [/^\.\/index\.js$/, /^\.\/wordpress\.js$/, /^\.\/content-api\.js$/] },
+    deps: { neverBundle: [/^\.\/index\.js$/, /^\.\/server\.js$/, /^\.\/wordpress\.js$/, /^\.\/content-api\.js$/] },
   },
 ]);

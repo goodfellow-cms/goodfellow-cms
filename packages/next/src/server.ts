@@ -1,6 +1,6 @@
 import { aiServer, type ServerKeys } from "@goodfellow-cms/ai";
 import { type GoodfellowConfig, ownersOnlyFields } from "@goodfellow-cms/core";
-import { type AppApiOptions, appApi } from "@goodfellow-cms/core/node";
+import { type AppApiOptions, appApi } from "@goodfellow-cms/core/server";
 
 /** The environment variable the server's token is read from, unless `goodfellowApi({ token })` gives one. */
 export const GIT_TOKEN_VARIABLE = "GOODFELLOW_GIT_TOKEN";
@@ -46,6 +46,14 @@ export interface GoodfellowApiOptions {
    * (`"publish"`).
    */
   codeChanges?: AppApiOptions["codeChanges"];
+  /**
+   * Checks plugins and themes owners install before they're three days old,
+   * where their provenance allows it: `nodeProvenance()` from
+   * `@goodfellow-cms/core/node` on servers that run Node, which checks it with
+   * npm's registry and Sigstore. Without it, the admin panel doesn't offer
+   * them, and they wait until they're old enough.
+   */
+  provenance?: AppApiOptions["provenance"];
 }
 
 /** The route parameters of a catch-all route named `[...path]`. */
@@ -91,6 +99,7 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
       ...(options.onError && { onError: options.onError }),
       ...(options.plugins && { plugins: options.plugins }),
       ...(options.codeChanges && { codeChanges: options.codeChanges }),
+      ...(options.provenance && { provenance: options.provenance }),
       ownersOnly: ownersOnlyFields(options.config.blocks ?? {}),
     });
     return api;

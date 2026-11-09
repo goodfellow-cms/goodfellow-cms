@@ -12,24 +12,9 @@ import { pathToFileURL } from "node:url";
 import { mediaStorageFileSchema } from "./content/media-storage.js";
 import { MEDIA_STORAGE_FILE } from "./content/paths.js";
 import { TASK_OUTPUT_LIMIT, type TaskAnswer } from "./plugin-tasks.js";
-import {
-  type GoodfellowPlugin,
-  isPluginOrigin,
-  type PluginBuildContext,
-  type PluginServerEditor,
-  type PluginTaskContext,
-} from "./plugins.js";
+import { type GoodfellowPlugin, isPluginOrigin, type PluginBuildContext, type PluginTaskContext } from "./plugins.js";
 
-/**
- * A plugin's server module's default export: answers a request to
- * `/__goodfellow/api/plugins/<id>/<path>` on a full-stack site, given the
- * path after the plugin's id and who's signed in, if anyone. It runs with
- * everything the server has: only a review backs what it declares.
- */
-export type PluginServer = (
-  request: Request,
-  context: { path: string; editor: PluginServerEditor | null },
-) => Response | Promise<Response>;
+export type { PluginServer } from "./server-app-api.js";
 
 /** Where a plugin's module is, from the site's root: a package's export, or a path such as `./plugins/hello/build.ts`. */
 export function resolvePluginModule(root: string, specifier: string): string {

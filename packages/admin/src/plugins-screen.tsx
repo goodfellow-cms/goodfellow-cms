@@ -70,6 +70,10 @@ function packageProblem(t: Translate, error: unknown): string {
 
 function installProblem(t: Translate, error: unknown, version?: string): string | undefined {
   // The site's server checked a release installed early, and its provenance didn't allow it.
+  // The site's server can't check releases installed early at all.
+  if (error instanceof AppServerError && error.code === "early-unavailable") {
+    return t("plugins.earlyUnavailable", { version: version ?? "", days: String(RELEASE_AGE_DAYS) });
+  }
   if (error instanceof AppServerError && error.code === "early-refused") {
     return t("plugins.earlyRefused", {
       version: version ?? "",
@@ -149,13 +153,14 @@ function useInstalledPlugins() {
  * checks out, read from its setup files.
  */
 function useLockfileSetup(): { writes?: boolean; early: boolean } {
-  const { versions, state, pluginInstalls } = useAdmin();
+  const { versions, state, pluginInstalls, account } = useAdmin();
   const revision = state.status === "ready" ? state.revision : undefined;
+  const serverChecks = account?.earlyInstalls === true;
   const [setup, setSetup] = useState<{ writes?: boolean; early: boolean }>({ early: false });
   useEffect(() => {
     // A developer reviews changes on full-stack sites, and builds them as they choose; the server checks
-    // plugins installed early itself.
-    if (pluginInstalls === "review") return setSetup({ writes: true, early: true });
+    // plugins installed early itself, where it can.
+    if (pluginInstalls === "review") return setSetup({ writes: true, early: serverChecks });
     if (!versions || !revision) return setSetup({ writes: false, early: false });
     let current = true;
     Promise.all(SETUP_FILES.map((path) => versions.readAt(path, revision).catch(() => undefined))).then(
@@ -164,7 +169,7 @@ function useLockfileSetup(): { writes?: boolean; early: boolean } {
     return () => {
       current = false;
     };
-  }, [versions, revision, pluginInstalls]);
+  }, [versions, revision, pluginInstalls, serverChecks]);
   return setup;
 }
 

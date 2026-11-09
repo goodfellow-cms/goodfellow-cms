@@ -770,6 +770,7 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
             plugins: new URL(`${server.replace(/\/+$/, "")}/plugins`, location.href).href,
             ...(session.role === "owner" && { review: appServer(server).review }),
             ...(session.codeReview && { codeReview: true }),
+            earlyInstalls: session.earlyInstalls === true,
             ...(session.signOut && {
               signOut: () => {
                 forgetAiKeys();
