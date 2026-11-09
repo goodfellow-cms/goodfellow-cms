@@ -76,7 +76,6 @@ import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import {
   blockPageRender,
   buildFileFolders,
-  builtPages,
   checkPages,
   exportedPages,
   exportTrailingSlash,
@@ -85,6 +84,7 @@ import {
   loadTaskConfig,
   NEXT_SITE_FILES,
   nextDistDir,
+  renderedPages,
   writeBuildRecordFile,
   writeCalendarFiles,
   writeContentApi,
@@ -144,7 +144,9 @@ if (command === "finish" && dir === "--server") {
   const plugins = await writePluginFiles("public");
   if (plugins.frames.length > 0)
     console.log(`Wrote the admin frames of ${plugins.frames.join(", ")}, in public/admin/plugins`);
-  const pages = await builtPages();
+  // Rendered from the content and the config, so the index needs nothing next build writes, and this step can run
+  // before the build as well as after it.
+  const pages = await renderedPages();
   const indexed = await writePagesSearchIndex(pages, "public/pagefind");
   console.log(
     indexed === undefined

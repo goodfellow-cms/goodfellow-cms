@@ -35,7 +35,13 @@ import {
   localRegistryDir,
 } from "@goodfellow-cms/core/node";
 import type { NextConfig } from "next";
-import { DIST_DIR_RECORD, IMAGE_SIZES_ENV, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
+import {
+  DIST_DIR_RECORD,
+  IMAGE_SIZES_ENV,
+  IMAGE_SIZES_MARK,
+  SITE_SERVING,
+  type SiteServing,
+} from "./image-sizes-mark.js";
 
 export interface GoodfellowNextOptions {
   /** The site's folder, holding `content/` and `public/media/`. Defaults to the folder Next.js runs in. */
@@ -259,7 +265,7 @@ function adminRedirects(root: string, basePath: string): Redirects {
 export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowNextOptions = {}) {
   const root = resolve(options.root ?? process.cwd());
   const basePath = nextBasePath(nextConfig.basePath ?? process.env.GOODFELLOW_BASE);
-  return async (phase: string): Promise<NextConfig> => {
+  const configFor = async (phase: string): Promise<NextConfig> => {
     // Content kept in a repository of its own has to be put in place before anything reads it.
     const problem = contentRepositoryProblem(root);
     if (problem) throw new Error(problem);
@@ -365,4 +371,7 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       },
     };
   };
+  // How the site is served, for `goodfellow-next finish`, which reads it from this file without building.
+  const serving: SiteServing = { basePath, trailingSlash: nextConfig.trailingSlash ?? true };
+  return Object.assign(configFor, { [SITE_SERVING]: serving });
 }

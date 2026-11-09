@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { vercelHeaders } from "@goodfellow-cms/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { redirectDestination, withGoodfellow } from "./config.js";
-import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
+import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK, SITE_SERVING } from "./image-sizes-mark.js";
 
 describe("withGoodfellow", () => {
   let root: string;
@@ -17,6 +17,14 @@ describe("withGoodfellow", () => {
   });
 
   afterAll(() => rm(root, { recursive: true, force: true }));
+
+  it("says how the site is served without being called, for goodfellow-next finish before a build", () => {
+    expect(withGoodfellow({}, { root })[SITE_SERVING]).toEqual({ basePath: "", trailingSlash: true });
+    expect(withGoodfellow({ basePath: "/parish/", trailingSlash: false }, { root })[SITE_SERVING]).toEqual({
+      basePath: "/parish",
+      trailingSlash: false,
+    });
+  });
 
   it("builds static files, keeping the site's own settings", async () => {
     const config = await withGoodfellow({ reactStrictMode: true }, { root })("phase-production-build");

@@ -34,7 +34,7 @@ The cost is a second repository to set up. Blocks and plugins are then added by 
    export default withGoodfellow({ agentRules: false }, { server: true });
    ```
 
-   The build script is then `next build && goodfellow-next finish --server`, which writes the [calendar files](/docs/calendars#adding-to-calendars-and-subscribing) of collections of events into `public/calendars/`, collections' [feeds](/docs/search-engines#feeds) into `public/feeds/`, the [content API](/docs/content-api) into `public/api/` and the [search](/docs/search) index into `public/pagefind/`, so they're served as static files, as the pages are. Next.js sends redirects itself.
+   The build script is then `next build && goodfellow-next finish --server`, which writes the [calendar files](/docs/calendars#adding-to-calendars-and-subscribing) of collections of events into `public/calendars/`, collections' [feeds](/docs/search-engines#feeds) into `public/feeds/`, the [content API](/docs/content-api) into `public/api/` and the [search](/docs/search) index into `public/pagefind/`, so they're served as static files, as the pages are. It reads the pages from the content and the site's config rather than from what `next build` wrote, so it can also run before the build. Next.js sends redirects itself.
 
    Both folders are written again by every build, so keep them out of the repository with these lines in `.gitignore`, which the Next.js starter's already has:
 
