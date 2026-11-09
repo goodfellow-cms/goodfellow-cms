@@ -481,6 +481,9 @@ export class GitHubBackend implements GitBackend {
     { message, expectedRevision }: WriteOptions,
     author: { name: string; email: string },
   ): Promise<{ revision: string }> {
+    // GitHub moves the branch to any commit that follows on from it, so a parent ahead of the branch, such as a
+    // commit waiting for review, would be published along with these changes.
+    if ((await this.head()) !== expectedRevision) throw new ConflictError();
     const existing = await this.tree(expectedRevision);
     const base = `/repos/${this.repo}`;
     const entries: Array<{ path: string; mode: "100644"; type: "blob"; content?: string; sha?: string | null }> = [];

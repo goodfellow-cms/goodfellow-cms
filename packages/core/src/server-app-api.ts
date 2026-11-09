@@ -355,6 +355,9 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       if (changes.some((change) => isInstalledPluginsPath(change.path))) return json(403, { error: "review-only" });
       // So is the code this server runs, unless the site lets owners publish it.
       if (codeReview && changes.some((change) => isCodePath(change.path))) return json(403, { error: "review-only" });
+      // Only on top of the live branch as it is: a commit ahead of it, such as one waiting for review, would be
+      // published with the save, unchecked, where the host takes any commit that follows on from the branch.
+      if (expectedRevision !== (await options.git.revision())) return json(409, { error: "conflict" });
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
       const refused = await refusedChanges(changes, editor, (path) => backend.read(path), options.provenance);
       if (refused) return refused;
