@@ -47,6 +47,7 @@ The cost is a second repository to set up. Blocks and plugins are then added by 
 3. Add the admin panel's API, at `app/api/goodfellow/[...path]/route.ts`:
 
    ```ts
+   import { nodeProvenance } from "@goodfellow-cms/core/node";
    import { goodfellowApi } from "@goodfellow-cms/next/server";
    import config from "@/goodfellow.config";
    import { auth } from "@/lib/auth";
@@ -69,8 +70,12 @@ The cost is a second repository to set up. Blocks and plugins are then added by 
      signIn: "/sign-in?next=/admin/",
      signOut: "/sign-out",
      ai: { anthropic: process.env.ANTHROPIC_API_KEY },
+     // Checks plugin and theme updates owners install before they're three days old.
+     provenance: nodeProvenance(),
    });
    ```
+
+   `provenance` checks, with npm's registry and Sigstore, that an update an owner installs early was built where the version installed was (see [Plugins](/docs/plugins#install-a-plugin-from-the-admin-panel)). It needs Node, so leave it out on servers that don't run Node, such as Cloudflare Workers: owners then install updates once they're three days old, and the admin panel doesn't offer them sooner.
 
 4. In `app/admin/page.tsx`, point the admin panel at it:
 

@@ -9,19 +9,22 @@
  */
 import type { AnyNode, Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
-import { extensionOf, fileName, mediaKind } from "./content/media-files.js";
-import { MEDIA_DIR } from "./content/paths.js";
-import type { FileChange } from "./content/store.js";
-import { isSafeFontFile } from "./custom-fonts.js";
+// From the main entry, which the server's and Node's builds share rather than bundling copies of.
 import {
   cleanedSvgAttribute,
   cssWithoutOutsideAddresses,
+  extensionOf,
+  type FileChange,
+  fileName,
+  isSafeFontFile,
   keepsSvgElement,
+  MEDIA_DIR,
+  mediaKind,
   SVG_NAMESPACE,
   XLINK_NAMESPACE,
   XML_NAMESPACE,
   XMLNS_NAMESPACE,
-} from "./svg-rules.js";
+} from "./index.js";
 
 /** Each prefix an element's attributes may use, and the namespace it must name. */
 const PREFIXES: Record<string, string> = { xml: XML_NAMESPACE, xmlns: XMLNS_NAMESPACE, xlink: XLINK_NAMESPACE };

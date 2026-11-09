@@ -35,6 +35,10 @@
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
     },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
     "./wordpress": {
       "types": "./dist/wordpress.d.ts",
       "import": "./dist/wordpress.js"
@@ -67,7 +71,7 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json && tsc -p tsconfig.node.json",
     "test": "vitest run"
   },
   "dependencies": {

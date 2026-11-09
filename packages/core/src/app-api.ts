@@ -54,6 +54,12 @@ export type AppSession =
       contentOnly?: boolean;
       /** Changes to the site's code, such as adding blocks, go to a developer for review (`AppApiOptions.codeChanges`). */
       codeReview?: boolean;
+      /**
+       * The server checks plugins and themes installed before they're old
+       * enough (`AppApiOptions.provenance`), so owners may install updates
+       * whose provenance allows it early.
+       */
+      earlyInstalls?: boolean;
     }
   | {
       signedIn: false;
