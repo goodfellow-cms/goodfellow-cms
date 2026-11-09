@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import {
@@ -57,7 +58,7 @@ import {
 } from "@goodfellow-cms/core/node";
 import type { PageRender } from "@goodfellow-cms/core/shadcn";
 import { bundleEditorFrames } from "./editor-frames.js";
-import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
+import { DIST_DIR_RECORD, IMAGE_SIZES_MARK, SITE_SERVING, type SiteServing } from "./image-sizes-mark.js";
 import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule } from "./plugins.js";
 
 export { EDITOR_FRAMES_PAGE, EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
@@ -137,7 +138,40 @@ export async function nextDistDir(root = process.cwd()): Promise<string> {
   return join(root, recorded.trim() || ".next");
 }
 
-/** The `basePath` the export was built with, which Next.js records in `.next/routes-manifest.json`. */
+const NEXT_CONFIG_FILES = ["next.config.ts", "next.config.mts", "next.config.mjs", "next.config.js"];
+
+/** What `siteServing()` read, by site, since loading `next.config.ts` bundles it. */
+const servings = new Map<string, Promise<SiteServing | undefined>>();
+
+/**
+ * How Next.js serves the site, as `withGoodfellow()` says in `next.config.ts`
+ * (`SITE_SERVING`), read without building, for `goodfellow-next finish`
+ * before a build that writes no `.next/`, such as vinext's; `undefined` where
+ * the config isn't `withGoodfellow()`'s or can't be loaded.
+ */
+export function siteServing(root = process.cwd()): Promise<SiteServing | undefined> {
+  const site = resolve(root);
+  let serving = servings.get(site);
+  if (!serving) {
+    serving = (async () => {
+      const file = NEXT_CONFIG_FILES.map((name) => join(site, name)).find((path) => existsSync(path));
+      if (!file) return undefined;
+      try {
+        const config = (await loadSiteModule(site, file)).default as { [SITE_SERVING]?: SiteServing } | undefined;
+        return config?.[SITE_SERVING];
+      } catch {
+        return undefined;
+      }
+    })();
+    servings.set(site, serving);
+  }
+  return serving;
+}
+
+/**
+ * The `basePath` the export was built with, which Next.js records in
+ * `.next/routes-manifest.json`, or, before a build, `next.config.ts`'s (`siteServing()`).
+ */
 async function exportBasePath(root: string): Promise<string> {
   try {
     const manifest = JSON.parse(await readFile(join(await nextDistDir(root), "routes-manifest.json"), "utf8")) as {
@@ -145,14 +179,15 @@ async function exportBasePath(root: string): Promise<string> {
     };
     return typeof manifest.basePath === "string" ? manifest.basePath : "";
   } catch {
-    return "";
+    return (await siteServing(root))?.basePath ?? "";
   }
 }
 
 /**
  * Whether the export's pages end their addresses with `/`, as Next.js's
  * `trailingSlash` says, which Next.js records in
- * `.next/required-server-files.json`. `true` where it can't be read, as
+ * `.next/required-server-files.json`, or, before a build, `next.config.ts`
+ * says (`siteServing()`). `true` where neither can be read, as
  * `withGoodfellow()` sets it.
  */
 export async function exportTrailingSlash(root = "."): Promise<boolean> {
@@ -162,7 +197,7 @@ export async function exportTrailingSlash(root = "."): Promise<boolean> {
     };
     return files.config?.trailingSlash !== false;
   } catch {
-    return true;
+    return (await siteServing(root))?.trailingSlash ?? true;
   }
 }
 
@@ -421,6 +456,8 @@ export async function writePageLanguages(outDir: string | undefined, root = proc
   const { settings } = await loadSiteContent(builtSiteSource(dir));
   if (!hasLanguages(settings)) return 0;
   const base = outDir ?? join(await nextDistDir(dir), "server/app");
+  // Before a build, or after one that writes no .next/, such as vinext's, there's nothing rendered to mark.
+  if (!existsSync(base)) return 0;
   const files = (await readdir(base, { recursive: true }))
     .map((file) => file.split("\\").join("/"))
     .filter((file) => file.endsWith(".html") && !/^(admin|_next|pagefind)\//.test(file));
@@ -479,6 +516,31 @@ export async function builtPages(root = process.cwd()): Promise<BuiltPage[]> {
     if (!(await exists(file))) continue;
     const url = route === "/" ? "/" : trailingSlash ? `${route}/` : route;
     pages.push({ url, html: await readFile(file, "utf8") });
+  }
+  return pages;
+}
+
+/**
+ * Every page of a full-stack site, rendered from its content and config in
+ * Node as `goodfellow build` renders them, at their addresses on the site,
+ * without its base path, as the Search block looks them up: each in its own
+ * language, which Pagefind reads from `<html lang>`. It needs nothing
+ * `next build` writes, so `goodfellow-next finish --server` indexes the
+ * pages before a build that writes no `.next/`, such as vinext's, and after
+ * one alike, since pages render the same HTML in Next.js.
+ */
+export async function renderedPages(root = process.cwd()): Promise<BuiltPage[]> {
+  const site = resolve(root);
+  const config = await loadSiteConfig(site);
+  const { createPageRenderer } = await import("@goodfellow-cms/react/server");
+  const render = createPageRenderer(config);
+  const content = shownContent(await loadSiteContent(builtSiteSource(site)));
+  const trailingSlash = await exportTrailingSlash(site);
+  const pages: BuiltPage[] = [];
+  // One at a time, so a large site's pages aren't all in memory while they render.
+  for (const page of sitePages(content, todayIn(content.settings.timeZone), config.blocks)) {
+    const url = page.path === "/" || !trailingSlash ? page.path : `${page.path}/`;
+    pages.push({ url, html: await render(content, page, { root: site }) });
   }
   return pages;
 }

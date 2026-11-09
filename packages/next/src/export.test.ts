@@ -12,6 +12,7 @@ import {
   fixSegmentFiles,
   guardExport,
   nextDistDir,
+  renderedPages,
   writeEditorFrames,
   writeExportHeaders,
   writeImageFiles,
@@ -246,6 +247,39 @@ describe("writePluginFiles", () => {
     await writeFile(join(out, "goodfellow.config.tsx"), "throw new Error('loaded');\n");
     expect(await writePluginFiles("out", out)).toEqual({ frames: [], steps: [] });
   });
+});
+
+describe("renderedPages", () => {
+  it("renders every page from the site's content and config, with no .next/, as next.config.ts serves them", async () => {
+    const site = await mkdtemp(join(import.meta.dirname, "../.rendered-site-"));
+    out = join(site, "public");
+    try {
+      await mkdir(join(site, "content/pages"), { recursive: true });
+      await writeFile(join(site, "package.json"), '{ "name": "rendered-site", "type": "module" }');
+      await writeFile(join(site, "content/site.json"), '{ "version": 1, "title": "St. Joseph" }\n');
+      const page = (title: string) =>
+        `${JSON.stringify({ version: 1, data: { root: { props: { title } }, content: [] } }, null, 2)}\n`;
+      await writeFile(join(site, "content/pages/index.json"), page("Welcome"));
+      await writeFile(join(site, "content/pages/about.json"), page("About us"));
+      await writeFile(
+        join(site, "goodfellow.config.tsx"),
+        'import { defineConfig } from "@goodfellow-cms/core";\nexport default defineConfig({ blocks: {} });\n',
+      );
+      // How withGoodfellow() marks its config, read without calling it.
+      await writeFile(
+        join(site, "next.config.mjs"),
+        'const config = async () => ({});\nconfig[Symbol.for("goodfellow.siteServing")] = { basePath: "", trailingSlash: false };\nexport default config;\n',
+      );
+      const pages = await renderedPages(site);
+      expect(pages.map((rendered) => rendered.url).sort()).toEqual(["/", "/about"]);
+      const about = pages.find((rendered) => rendered.url === "/about")?.html ?? "";
+      expect(about).toContain('<html lang="en"');
+      expect(about).toContain("<title>About us");
+      expect(about).toContain("data-pagefind-body");
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
 
 describe("writeEditorFrames", () => {
