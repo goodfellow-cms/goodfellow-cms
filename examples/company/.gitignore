@@ -16,8 +16,10 @@ public/admin/editor/frames/
 .env
 .env.*
 !.env.example
-# The Worker's build, wrangler's local database and state, and the secrets it reads in development.
+# The Worker's build, wrangler's local database and state, and the secrets it reads in development, for each
+# environment too (.dev.vars.staging).
 dist/
 .vinext/
 .wrangler/
-.dev.vars
+.dev.vars*
+!.dev.vars.example
