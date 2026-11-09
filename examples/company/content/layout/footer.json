@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-footer",
+          "background": "muted",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Flex",
+              "props": {
+                "id": "Flex-footer",
+                "align": "center",
+                "className": "",
+                "direction": "row",
+                "gap": "md",
+                "items": [
+                  {
+                    "type": "Text",
+                    "props": {
+                      "id": "Text-footer",
+                      "align": "left",
+                      "className": "text-sm text-muted-foreground",
+                      "content": "<p>© My site. Built with Goodfellow.</p>"
+                    }
+                  },
+                  {
+                    "type": "Menu",
+                    "props": {
+                      "id": "Menu-footer",
+                      "className": "text-sm",
+                      "menu": "footer",
+                      "orientation": "horizontal"
+                    }
+                  }
+                ],
+                "justify": "between",
+                "wrap": true
+              }
+            }
+          ],
+          "padding": "sm",
+          "width": "wide"
+        }
+      }
+    ],
+    "root": {
+      "props": {}
+    }
+  }
+}

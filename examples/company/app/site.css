@@ -1,0 +1,11 @@
+/* The site's styles, used by its pages but not the admin panel. */
+@import "tailwindcss";
+/* Animations for blocks installed from block registries, such as an FAQ's opening answers. */
+@import "tw-animate-css";
+@import "@goodfellow-cms/react/theme.css";
+@import "@goodfellow-cms/blocks/styles.css";
+/* Site-wide CSS written in the admin panel. */
+@import "../content/styles/custom.css";
+
+/* Lets Tailwind find class names typed into the editor. */
+@source "../content";

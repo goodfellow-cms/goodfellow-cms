@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-news-list",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-news",
+                "align": "left",
+                "className": "",
+                "level": "h1",
+                "text": "News"
+              }
+            },
+            {
+              "type": "CollectionList",
+              "props": {
+                "id": "CollectionList-news",
+                "className": "mt-8",
+                "collection": "news",
+                "columns": "3",
+                "dateField": "date",
+                "emptyText": "No news yet.",
+                "imageField": "image",
+                "layout": "cards",
+                "limit": 0,
+                "order": "default",
+                "show": "all",
+                "summaryField": "summary"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "The latest news.",
+        "image": "",
+        "title": "News"
+      }
+    }
+  }
+}

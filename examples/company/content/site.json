@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "description": "A website built with Goodfellow.",
+  "favicon": "/media/favicon.svg",
+  "language": "en",
+  "logo": {
+    "alt": "My site",
+    "src": "/media/logo.svg"
+  },
+  "theme": {
+    "colors": {
+      "border": "#e2e8f0",
+      "muted": "#f1f5f9",
+      "mutedForeground": "#5e6e84",
+      "primary": "#1e3a8a",
+      "primaryForeground": "#ffffff"
+    },
+    "fonts": {
+      "body": "Inter",
+      "bodyCategory": "sans-serif",
+      "heading": "Fraunces",
+      "headingCategory": "serif"
+    }
+  },
+  "title": "My site",
+  "titleTemplate": "%s | My site"
+}
