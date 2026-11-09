@@ -6,7 +6,7 @@
 import { entryTitle, pageTitle, type SiteContent } from "@goodfellow-cms/core";
 import { collectionHref, entryEditorHref, pageEditorHref, syncedBlockEditorHref } from "./router.js";
 
-/** Every shortcut: add to a draft, undo, redo, the Go to box and the list of shortcuts. */
+/** Every shortcut: add to a draft, undo, redo, the Go to box, and the list of shortcuts. */
 export type Shortcut = "save" | "undo" | "redo" | "goTo" | "help";
 
 /** The shortcuts the editor's frame passes on to the page. Puck undoes and redoes in the frame itself. */
@@ -87,7 +87,7 @@ export interface GoToPlace {
   href: string;
 }
 
-/** The places the Go to box lists: the screens given, then the site's pages, collections, items and synced blocks. */
+/** The places the Go to box lists: the screens given, then the site's pages, collections, items, and synced blocks. */
 export function goToPlaces(content: SiteContent, screens: readonly GoToPlace[]): GoToPlace[] {
   const pages = content.pages.map<GoToPlace>((page) => ({
     kind: "page",

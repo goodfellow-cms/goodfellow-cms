@@ -32,7 +32,7 @@ export const defaultStrings = {
   "signIn.token.createBroadHint":
     "Use this if the site belongs to someone else and the first link doesn't let you choose it. This kind of token can change everything your account can.",
   "signIn.token.apiTokenHint":
-    "Use this if you can't create a token for the site itself. Paste your Atlassian account's email address, a colon, then the token, such as name@example.org:ATATT3x…, and give the token permission to read and write repositories, pull requests and pipelines.",
+    "Use this if you can't create a token for the site itself. Paste your Atlassian account's email address, a colon, then the token, such as name@example.org:ATATT3x…, and give the token permission to read and write repositories, pull requests, and pipelines.",
   "signIn.token.chooseSite": "If {host} asks what the token can access, choose this site.",
   "signIn.token.step2": "Copy the token and paste it here:",
   "signIn.token.label": "Access token",
@@ -347,7 +347,7 @@ export const defaultStrings = {
   "deletePage.submit": "Delete page",
   "deletePage.message": 'Delete page "{title}"',
 
-  "address.invalid": "Use lowercase letters, numbers and hyphens, with / between parts, such as /about-us.",
+  "address.invalid": "Use lowercase letters, numbers, and hyphens, with / between parts, such as /about-us.",
   "address.reserved":
     "This address can't be used: the admin panel uses it, or it ends in /index, which is the page above it. Choose another.",
   "address.taken": "Another page already uses this address.",
@@ -364,7 +364,7 @@ export const defaultStrings = {
     "Every version that's been published, newest first. Choose one to see it, then restore it to put it back. Something that was moved to a new address starts a new history there.",
   "versions.notFound": "There's no history to show here. It may have been moved or deleted.",
   "versions.local":
-    "Version history is in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
+    "Version history is in the published site's admin panel, where you sign in with GitHub, GitLab, or Bitbucket.",
   "versions.demo": "Version history isn't kept in a demo.",
   "versions.loading": "Loading versions…",
   "versions.loadingVersion": "Loading this version…",
@@ -397,7 +397,7 @@ export const defaultStrings = {
 
   "collections.title": "Collections",
   "collections.intro":
-    "Collections are groups of similar items, such as videos, events or staff. Each collection has its own fields, and can give every item a page that shares one design.",
+    "Collections are groups of similar items, such as videos, events, or staff. Each collection has its own fields, and can give every item a page that shares one design.",
   "collections.new": "New collection",
   "collections.empty": "There are no collections yet.",
   "collections.column.name": "Name",
@@ -410,7 +410,7 @@ export const defaultStrings = {
   "newCollection.kindBlank": "A title and text",
   "newCollection.kindEvents": "Events",
   "newCollection.kindEventsHint":
-    "Each item has a date and time, which can repeat, a place and a summary. Calendar blocks show them, and visitors can add them to their own calendars.",
+    "Each item has a date and time, which can repeat, a place, and a summary. Calendar blocks show them, and visitors can add them to their own calendars.",
   "newCollection.eventsName": "Events",
   "newCollection.eventsEntryName": "Event",
   "newCollection.timeZone": "The site's time zone will be set to {zone}. You can change it in Site Settings.",
@@ -441,7 +441,7 @@ export const defaultStrings = {
   "newEntry.address": "Address",
   "newEntry.addressHint": "The last part of the page's address, as in {example}.",
   "newEntry.message": 'Add {entry} "{title}"',
-  "entryName.invalid": "Use lowercase letters, numbers and hyphens only, such as easter-vigil.",
+  "entryName.invalid": "Use lowercase letters, numbers, and hyphens only, such as easter-vigil.",
   "entryName.reserved":
     "This address can't be used: the admin panel uses it, or it ends in /index, which is the page above it. Choose another.",
   "entryName.taken": "Something else on the site already uses this address.",
@@ -740,7 +740,7 @@ export const defaultStrings = {
   "media.cropUnreadable": "This picture couldn't be read, so it can't be cropped here.",
   "media.cropSaved": "Saved {name}.",
   "media.error.type":
-    "{name} can't be uploaded. The site can use images (JPEG, PNG, GIF, WebP, AVIF and SVG), PDFs, office documents, MP3 audio, MP4 and WebM video, and captions for videos (WebVTT).",
+    "{name} can't be uploaded. The site can use images (JPEG, PNG, GIF, WebP, AVIF, and SVG), PDFs, office documents, MP3 audio, MP4 and WebM video, and captions for videos (WebVTT).",
   "media.error.size":
     "{name} is too large: files can be up to 25 MB. For long videos, upload them to YouTube or Vimeo and link to them instead.",
   "media.error.unreadable":
@@ -818,7 +818,7 @@ export const defaultStrings = {
   "style.default": "As the block has it",
   "style.custom": "Your own…",
   "style.customLength": "Your own size, such as 12px or 1.5rem",
-  "style.customLengthInvalid": "Write a number with px, rem, em or %, such as 12px.",
+  "style.customLengthInvalid": "Write a number with px, rem, em, or %, such as 12px.",
   "style.other": "Other CSS classes",
   "style.otherHint": "Tailwind classes, or your own from Custom CSS, separated by spaces.",
   "style.reset": "Back to the block's own look",
@@ -863,7 +863,7 @@ export const defaultStrings = {
   "ai.mode.fill": "Describe this {item}, or paste your notes, and AI will fill in its fields.",
   "ai.instruction": "What should it write?",
   "ai.placeholder.add":
-    "For example: a section about our Christmas Mass schedule, with a heading, a short welcome and a button to the contact page.",
+    "For example: a section about our Christmas Mass schedule, with a heading, a short welcome, and a button to the contact page.",
   "ai.placeholder.edit": "For example: make it shorter and friendlier, or translate it into Spanish.",
   "ai.placeholder.fill": "For example: Fr. Smith's homily from Sunday, about hope. Paste any notes here.",
   "ai.photos": "Find openly licensed photos where the media library has none that fit",
@@ -894,7 +894,7 @@ export const defaultStrings = {
   "ai.report.blocks": "Blocks put in: {count}.",
   "ai.report.skipped": "Left out, since they didn't fit this site: {count}. Ask again, or fill them in yourself.",
   "ai.check":
-    "AI can get things wrong, so read what it writes before publishing. It won't make up times, names or prices: it leaves [placeholders] for you to fill in.",
+    "AI can get things wrong, so read what it writes before publishing. It won't make up times, names, or prices: it leaves [placeholders] for you to fill in.",
   "ai.needsKey": "To use {service}, add an API key under the AI service settings below, or choose another service.",
   "ai.free.intro": "These cost nothing:",
   "ai.free.use": "Use this",
@@ -929,7 +929,7 @@ export const defaultStrings = {
   "ai.model.claude-opus-5-5": "Claude Opus 5.5 (best results)",
   "ai.model.claude-sonnet-5-5": "Claude Sonnet 5.5 (faster, costs less)",
   "ai.model.claude-haiku-4-5": "Claude Haiku 4.5 (fastest, costs least)",
-  "ai.manual.step1": "Copy this request into Claude.ai, ChatGPT or another chat app:",
+  "ai.manual.step1": "Copy this request into Claude.ai, ChatGPT, or another chat app:",
   "ai.manual.copy": "Copy the request",
   "ai.manual.copied": "Copied",
   "ai.manual.step2": "Then paste the chat app's whole answer here:",
@@ -1012,7 +1012,7 @@ export const defaultStrings = {
   "adminText.removeMessage": "Remove the admin panel in {language}",
   "adminText.add.title": "Add a language",
   "adminText.add.code": "Language code",
-  "adminText.add.codeHint": "Such as fr, de or pt-BR.",
+  "adminText.add.codeHint": "Such as fr, de, or pt-BR.",
   "adminText.add.name": "Its name, in that language",
   "adminText.add.nameHint": "Such as Français or Deutsch, as the language menu will show it.",
   "adminText.add.submit": "Add and translate",
@@ -1093,7 +1093,7 @@ export const defaultStrings = {
   "domain.signIn":
     "Editors sign in by going to {host} and coming back here. Add {address} to the redirect URIs of the application they sign in with on {host}, or signing in will stop working once the site moves.",
   "domain.local":
-    "Domains are connected in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
+    "Domains are connected in the published site's admin panel, where you sign in with GitHub, GitLab, or Bitbucket.",
   "domain.admin.title": "Admin address",
   "domain.admin.intro":
     "An address of its own for the admin panel, such as admin.example.org, keeps the site's pages from reaching what the admin panel keeps, such as editors' sign-in. Editors then sign in there. Blocks from registries other than Goodfellow's can be added only once the admin panel has one.",
@@ -1144,16 +1144,16 @@ export const defaultStrings = {
   "domain.loading": "Finding where the site is published…",
   "domain.elsewhere": "This site isn't published with {host} Pages, so its domain is connected where it is published.",
   "domain.elsewhere.cloudflare":
-    "On Cloudflare Pages: open the site's project, go to Custom domains and set up the domain. For a domain such as www.example.org, Cloudflare shows a CNAME record to add at your registrar. For example.org itself, the domain has to use Cloudflare's nameservers, which Cloudflare walks you through. Once the site works at its new address, put the address in General → Site address and publish.",
+    "On Cloudflare Pages: open the site's project, go to Custom domains, and set up the domain. For a domain such as www.example.org, Cloudflare shows a CNAME record to add at your registrar. For example.org itself, the domain has to use Cloudflare's nameservers, which Cloudflare walks you through. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.elsewhere.vercel":
     "On Vercel: open the site's project, go to Settings → Domains and add the domain. Vercel shows the records to add at your registrar. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.elsewhere.netlify":
-    "On Netlify: open the site, go to Domain management and add the domain. Netlify shows the records to add at your registrar, or offers to look after the domain's DNS itself. Once the site works at its new address, put the address in General → Site address and publish.",
+    "On Netlify: open the site, go to Domain management, and add the domain. Netlify shows the records to add at your registrar, or offers to look after the domain's DNS itself. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.elsewhere.other":
     "On any other host: connect the domain in the host's own settings, as it explains. Once the site works at its new address, put the address in General → Site address and publish.",
   "domain.field": "Domain",
   "domain.fieldHint":
-    "Such as example.org or www.example.org. Buy one first from a registrar, such as Cloudflare, Namecheap or Porkbun. For example.org, www.example.org works too.",
+    "Such as example.org or www.example.org. Buy one first from a registrar, such as Cloudflare, Namecheap, or Porkbun. For example.org, www.example.org works too.",
   "domain.invalid": "That isn't a domain. Type it like example.org.",
   "domain.warning":
     "Once it's connected, the site's current address sends visitors to the new one, which works only once the records are in place. Have your registrar's DNS settings open, and add the records straight away.",
@@ -1162,7 +1162,7 @@ export const defaultStrings = {
   "domain.message": "Use the domain {domain}",
   "domain.records.title": "1. Add these records at your registrar",
   "domain.records.hint":
-    "Your registrar is where you bought the domain. In its DNS settings, add each record below. Delete any other A, AAAA or CNAME records with the same names, such as a page the registrar shows on new domains.",
+    "Your registrar is where you bought the domain. In its DNS settings, add each record below. Delete any other A, AAAA, or CNAME records with the same names, such as a page the registrar shows on new domains.",
   "domain.records.type": "Type",
   "domain.records.name": "Name",
   "domain.records.value": "Value",
@@ -1218,14 +1218,14 @@ export const defaultStrings = {
   "settings.tab.security": "Security",
   "security.demo": "A demo has no sign-in to keep safe.",
   "security.local":
-    "The sign-in page is set in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
+    "The sign-in page is set in the published site's admin panel, where you sign in with GitHub, GitLab, or Bitbucket.",
   "security.contentOnly":
     "The sign-in page is set in the site's code, which is kept apart from its content, so a developer sets it there.",
   "security.broker.title": "Sign-in page",
   "security.broker.intro":
     "A sign-in page of its own, called a token broker, keeps editors' sign-in and AI keys at an address that holds nothing else, and shows the admin panel from there, so nothing on the site's pages can reach them. It asks the editor before publishing the site's code. It needs an address of its own, such as signin.example.org, that serves nothing else.",
   "security.exposed":
-    "Editors sign in at the site's own address, where its pages could reach their sign-in: code added on the Code tab, or by a block, could act as anyone signed in. A sign-in page of its own, below, keeps it out of their reach, and needs no domain on GitLab, Cloudflare Pages or Vercel. Where you have a domain and the host allows it, an admin address of its own, on the Domain screen, does too.",
+    "Editors sign in at the site's own address, where its pages could reach their sign-in: code added on the Code tab, or by a block, could act as anyone signed in. A sign-in page of its own, below, keeps it out of their reach, and needs no domain on GitLab, Cloudflare Pages, or Vercel. Where you have a domain and the host allows it, an admin address of its own, on the Domain screen, does too.",
   "security.broker.useTitle": "Sign in at a sign-in page that's online",
   "security.add.title": "Add a token broker",
   "security.add.intro":
@@ -1408,7 +1408,7 @@ export const defaultStrings = {
   "freeServices.setUpLabel": "Set up {service}",
   "freeServices.changeLabel": "Change {service}",
   "stats.intro":
-    "Count how many people visit the site's pages, and which pages, with Plausible, Umami or GoatCounter. They count without cookies, and keep the counts on their own sites, where you read them. Visits aren't counted while you try the site on your computer, or in the admin panel.",
+    "Count how many people visit the site's pages, and which pages, with Plausible, Umami, or GoatCounter. They count without cookies, and keep the counts on their own sites, where you read them. Visits aren't counted while you try the site on your computer, or in the admin panel.",
   "stats.state.title": "Counting visits",
   "stats.state.counting":
     "Visits to the site's pages are counted with {service}. Changes show on the site once it has been rebuilt.",
@@ -1473,23 +1473,23 @@ export const defaultStrings = {
   "comments.stop.message": "Stop using comments",
   "comments.disqus.title": "Use Disqus",
   "comments.disqus.intro":
-    "Disqus keeps comments on its own service, where you approve, hide and delete them. Its free plan shows ads with them.",
+    "Disqus keeps comments on its own service, where you approve, hide, and delete them. Its free plan shows ads with them.",
   "comments.disqus.create": "Make a site on Disqus",
   "comments.disqus.then":
     ", then paste its shortname, which Disqus shows in its settings, or the code it gives you to install it.",
   "comments.disqus.label": "Disqus's shortname, or its code",
   "comments.disqus.invalid":
-    "That isn't a shortname or Disqus's code. A shortname has only letters, numbers and hyphens, such as stjoseph.",
+    "That isn't a shortname or Disqus's code. A shortname has only letters, numbers, and hyphens, such as stjoseph.",
   "comments.disqus.button": "Use Disqus",
   "comments.disqus.message": "Use Disqus for comments",
   "comments.disqus.kept": "Comments are kept by Disqus, for its site",
-  "comments.disqus.moderateHint": "Approve, hide and delete comments, and block people, on Disqus.",
+  "comments.disqus.moderateHint": "Approve, hide, and delete comments, and block people, on Disqus.",
   "comments.disqus.moderate": "Moderate comments on Disqus",
   "comments.disqus.stopBody":
     "Pages stop showing comments once the site has been rebuilt. Everything visitors wrote stays on Disqus, so you can use it again later.",
   "comments.garrul.title": "Use Garrul",
   "comments.garrul.intro":
-    "Garrul keeps comments in a Cloudflare account of your own, on Cloudflare's free plan, with no ads. Visitors comment as guests or sign in with GitHub, Google, Facebook, X or Discord. It needs setting up on Cloudflare first, by someone used to running commands on a computer.",
+    "Garrul keeps comments in a Cloudflare account of your own, on Cloudflare's free plan, with no ads. Visitors comment as guests or sign in with GitHub, Google, Facebook, X, or Discord. It needs setting up on Cloudflare first, by someone used to running commands on a computer.",
   "comments.garrul.start": "Garrul's instructions",
   "comments.garrul.then": " say how to set it up. Then paste its address, or the code it gives you for a page.",
   "comments.garrul.label": "Garrul's address, or its code",
@@ -1501,7 +1501,7 @@ export const defaultStrings = {
   "comments.garrul.origins":
     "Garrul shows comments only at the addresses its settings allow, so its ALLOWED_ORIGINS must include the site's address.",
   "comments.garrul.moderateHint":
-    "Approve, hide and delete comments on Garrul's own pages, signed in with an email address its settings name as an admin.",
+    "Approve, hide, and delete comments on Garrul's own pages, signed in with an email address its settings name as an admin.",
   "comments.garrul.moderate": "Moderate comments on Garrul",
   "comments.garrul.stopBody":
     "Pages stop showing comments once the site has been rebuilt. Everything visitors wrote stays in Garrul, so you can use it again later.",
@@ -1544,7 +1544,7 @@ export const defaultStrings = {
     "That project is private, so visitors couldn't read its comments. Make it public on GitHub, then try again.",
   "comments.error.name-taken":
     "There's already a project with that name. Choose another name, or use it as a project you already have.",
-  "comments.error.name-invalid": "A project's name can have only letters, numbers, hyphens, underscores and dots.",
+  "comments.error.name-invalid": "A project's name can have only letters, numbers, hyphens, underscores, and dots.",
   "comments.error.no-discussions":
     "Discussions are off in that project, and this sign-in can't turn them on. Turn them on in the project's settings on GitHub, then try again.",
   "comments.error.no-category":
@@ -1556,7 +1556,7 @@ export const defaultStrings = {
   "plugins.notFound": "The site has no plugin screen at this address.",
   "plugins.failed": "{plugin}'s screen couldn't start. If it keeps happening, the plugin may need updating.",
   "themes.intro":
-    "A theme changes your site's look: its colors, fonts and the styles of its blocks, and sometimes its header and footer. Themes are only settings and styles, with no code, and you can change anything a theme sets afterwards in Colors & fonts and Custom CSS.",
+    "A theme changes your site's look: its colors, fonts, and the styles of its blocks, and sometimes its header and footer. Themes are only settings and styles, with no code, and you can change anything a theme sets afterwards in Colors & fonts and Custom CSS.",
   "themes.installed": "Installed theme",
   "themes.noneInstalled": "No theme is installed. Your site uses its own colors and fonts.",
   "themes.installedBadge": "Installed",
@@ -1591,7 +1591,7 @@ export const defaultStrings = {
   "themes.loads":
     "This theme asks visitors' browsers for these files from other sites, which can tell those sites who visits yours:",
   "themes.useLayout":
-    "Use the theme's header and footer in place of yours. Your menus, logo and contact details stay as they are.",
+    "Use the theme's header and footer in place of yours. Your menus, logo, and contact details stay as they are.",
   "themes.layoutUnknown":
     "The theme's header and footer use blocks a theme can't add, or that your site doesn't have ({blocks}), so they can't be used.",
   "themes.kept": "You changed these since the version before, so they stay as you set them: {list}.",
@@ -1608,7 +1608,7 @@ export const defaultStrings = {
   "themes.remove": "Remove",
   "themes.removeTitle": "Remove {title}?",
   "themes.removeBody":
-    "Colors, fonts and styles the theme set go back to Goodfellow's defaults, and its CSS is removed. Anything you changed yourself, and your header and footer, stay as they are.",
+    "Colors, fonts, and styles the theme set go back to Goodfellow's defaults, and its CSS is removed. Anything you changed yourself, and your header and footer, stay as they are.",
   "themes.removeReplaced": "Removing it also removes your changes to: {list}.",
   "themes.removeMessage": "Remove the {title} theme",
   "themes.removed": "{title} is removed.",
@@ -1785,9 +1785,9 @@ export const defaultStrings = {
     "Your theme, {title}, says it works with Goodfellow {range}. Goodfellow {version} may change how it looks, so check Themes for a newer version of it after updating.",
 
   "siteHistory.intro":
-    "Every publish that changed the site's pages, items, settings or media, newest first. Choose one to see how the site looked after it and what has changed since, then restore the whole site as it was.",
+    "Every publish that changed the site's pages, items, settings, or media, newest first. Choose one to see how the site looked after it and what has changed since, then restore the whole site as it was.",
   "siteHistory.local":
-    "Site history is in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
+    "Site history is in the published site's admin panel, where you sign in with GitHub, GitLab, or Bitbucket.",
   "siteHistory.demo": "Site history isn't kept in a demo.",
   "siteHistory.error": "The site's history couldn't be loaded. Check your connection and try again.",
   "siteHistory.current": "The site now",
@@ -1821,8 +1821,8 @@ export const defaultStrings = {
   "siteHistory.subject.theme": "Which theme is installed",
   "siteHistory.subject.code": "Code added to every page",
   "goTo.title": "Go to…",
-  "goTo.label": "Page, item or screen",
-  "goTo.placeholder": "Type a page, item or screen",
+  "goTo.label": "Page, item, or screen",
+  "goTo.placeholder": "Type a page, item, or screen",
   "goTo.empty": "Nothing matches.",
   "goTo.kind.screen": "Screen",
   "goTo.kind.settings": "Site Settings",
@@ -1834,13 +1834,13 @@ export const defaultStrings = {
   "shortcuts.save": "Add your changes to a draft, in an editor",
   "shortcuts.undo": "Undo",
   "shortcuts.redo": "Redo",
-  "shortcuts.goTo": "Go to a page, item or screen",
+  "shortcuts.goTo": "Go to a page, item, or screen",
   "shortcuts.help": "Show these shortcuts",
   "shortcuts.or": "or",
-  "shortcuts.typing": "Undo, Redo and ? work outside text boxes, which keep their own undo.",
+  "shortcuts.typing": "Undo, Redo, and ? work outside text boxes, which keep their own undo.",
   "siteHistory.download.title": "Download a copy",
   "siteHistory.download.intro":
-    "A zip file of the site's pages, items, settings and media library as they are here, with a list of the blocks and plugins it added, to keep somewhere safe. The site's code isn't in it.",
+    "A zip file of the site's pages, items, settings, and media library as they are here, with a list of the blocks and plugins it added, to keep somewhere safe. The site's code isn't in it.",
   "siteHistory.download.stored":
     "Media kept in a storage service isn't in the copy: it stays in the storage service, and the copy lists it.",
   "siteHistory.download.button": "Download a copy",
@@ -1849,10 +1849,10 @@ export const defaultStrings = {
 
   "import.title": "Import from WordPress",
   "import.intro":
-    "Bring a WordPress site's pages, posts, categories, tags, menus and media into this site. Pages keep their addresses, posts become a collection, and old addresses send visitors on to the new ones. You'll see what comes across before anything changes.",
+    "Bring a WordPress site's pages, posts, categories, tags, menus, and media into this site. Pages keep their addresses, posts become a collection, and old addresses send visitors on to the new ones. You'll see what comes across before anything changes.",
   "import.file": "WordPress export file",
   "import.fileHint":
-    "In WordPress, go to Tools → Export, choose All content and download the file. It brings the menus too.",
+    "In WordPress, go to Tools → Export, choose All content, and download the file. It brings the menus too.",
   "import.address": "Or the WordPress site's address",
   "import.addressHint": "Such as example.org. Only what visitors can see is read, and menus can't be.",
   "import.read": "Read the site",
@@ -1879,7 +1879,7 @@ export const defaultStrings = {
   "import.note.leftOut.trash": "Pages and posts in the trash aren't imported: {count}.",
   "import.note.leftOut.comments": "Comments aren't imported: {count}.",
   "import.note.leftOut.other": "WordPress content of the kind “{name}” isn't imported: {count}.",
-  "import.note.more": "{items} and {count} more",
+  "import.note.more": "{items}, and {count} more",
   "import.note.block": "The “{name}” block, from another plugin, was brought across as its text and pictures: {items}.",
   "import.note.dropped": "The “{name}” block shows something only WordPress has, so it was left out: {items}.",
   "import.note.shortcode": "The [{name}] shortcode only works in WordPress, so it was left out: {items}.",
@@ -1897,7 +1897,7 @@ export const defaultStrings = {
   "import.note.noMenus":
     "Menus can't be read from a site's address, so the main menu lists the top-level pages. Import an export file to bring the menus across.",
   "import.error.notExportFile":
-    "That file isn't a WordPress export file. In WordPress, go to Tools → Export, choose All content and download the file.",
+    "That file isn't a WordPress export file. In WordPress, go to Tools → Export, choose All content, and download the file.",
   "import.error.unreachable":
     "The WordPress site couldn't be read from {address}. Check the address. Some sites don't let other sites read them; then import an export file instead.",
   "import.error.notWordPress":
@@ -1959,7 +1959,7 @@ export const defaultStrings = {
 
   "export.title": "Export to WordPress",
   "export.intro":
-    "Download this site as a WordPress export file, to move it to WordPress or keep a copy. Pages keep their addresses and blocks become WordPress's, items of collections with pages become posts, and menus come too. In WordPress, go to Tools → Import → WordPress, choose the file and tick “Download and import file attachments”, which copies the media from this site.",
+    "Download this site as a WordPress export file, to move it to WordPress or keep a copy. Pages keep their addresses and blocks become WordPress's, items of collections with pages become posts, and menus come too. In WordPress, go to Tools → Import → WordPress, choose the file, and tick “Download and import file attachments”, which copies the media from this site.",
   "export.download": "Download the export file",
   "export.done": "Downloaded the export file.",
   "export.error": "The export file couldn't be made.",
@@ -1976,9 +1976,9 @@ export const defaultStrings = {
   "export.note.layout": "The header and footer aren't in the file. WordPress's theme shows its own, with the menus.",
   "markdownExport.title": "Export as Markdown",
   "markdownExport.intro":
-    "Download the site's pages and collection items as Markdown files, with the media library, to use with other website tools such as Hugo, Jekyll, Eleventy or Astro, notes apps such as Obsidian, or AI tools.",
+    "Download the site's pages and collection items as Markdown files, with the media library, to use with other website tools such as Hugo, Jekyll, Eleventy, or Astro, notes apps such as Obsidian, or AI tools.",
   "markdownExport.limits":
-    "Markdown keeps words, headings, lists, links, pictures and tables. The site's layout, colors and fonts, the header and footer, and blocks such as forms, calendars and lists of items aren't exported. To keep everything, use Download a copy on the Site history tab instead.",
+    "Markdown keeps words, headings, lists, links, pictures, and tables. The site's layout, colors, and fonts, the header and footer, and blocks such as forms, calendars, and lists of items aren't exported. To keep everything, use Download a copy on the Site history tab instead.",
   "markdownExport.stored":
     "Media kept in your storage service isn't in the download: pages link to it where it's kept.",
   "markdownExport.links": "Links between pages",
@@ -2003,7 +2003,7 @@ export const defaultStrings = {
   "markdownExport.note.layout": "The header and footer aren't in the files. The menus are, in menus.json.",
   "siteTransfer.export.title": "Export for another Goodfellow site",
   "siteTransfer.export.intro":
-    "Download this site's pages, collections, synced blocks, menus, settings and media as one zip file, exactly as they're kept, to import into another Goodfellow site with nothing lost. It's the same file Download a copy on Site history makes.",
+    "Download this site's pages, collections, synced blocks, menus, settings, and media as one zip file, exactly as they're kept, to import into another Goodfellow site with nothing lost. It's the same file Download a copy on Site history makes.",
   "siteTransfer.export.stored":
     "Media your storage service keeps isn't in the file. The other site's pages link to where it's kept.",
   "siteTransfer.export.button": "Download for another Goodfellow site",
@@ -2011,7 +2011,7 @@ export const defaultStrings = {
   "siteTransfer.export.error": "The file couldn't be made. Check your connection and try again.",
   "siteTransfer.import.title": "Import from another Goodfellow site",
   "siteTransfer.import.intro":
-    "Bring in a file made with Export for another Goodfellow site, or with Download a copy. Pages, collections and media come across exactly as they were.",
+    "Bring in a file made with Export for another Goodfellow site, or with Download a copy. Pages, collections, and media come across exactly as they were.",
   "siteTransfer.import.file": "File from the other site",
   "siteTransfer.import.fileHint": "A .zip file. You'll see what it brings in before anything is published.",
   "siteTransfer.import.reading": "Reading the file…",
@@ -2020,7 +2020,7 @@ export const defaultStrings = {
   "siteTransfer.import.mode.add": "Add to this site: keep this site's content, and bring in what it doesn't have",
   "siteTransfer.import.mode.replace": "Replace this site's content with the other site's",
   "siteTransfer.import.replaceWarning":
-    "Everything this site has that the other site doesn't is removed when you import: pages, collections, media and settings. Editors' limits, update settings, media storage and the Site address stay as they are. You can go back on Site history.",
+    "Everything this site has that the other site doesn't is removed when you import: pages, collections, media, and settings. Editors' limits, update settings, media storage, and the Site address stay as they are. You can go back on Site history.",
   "siteTransfer.import.also": "Also bring in",
   "siteTransfer.import.menus": "Menus (the other site's replace any with the same name)",
   "siteTransfer.import.settings":
@@ -2098,7 +2098,7 @@ export const defaultStrings = {
     "Your sign-in can't see the site's code, at {place}, where its updates are installed. Ask the site's developer to give you access to it. On GitHub, an access token needs to reach it too, or with Sign in with GitHub, Goodfellow's app needs to be installed there.",
   "updates.back.skip": "Don't install Goodfellow {version} again",
   "updates.local":
-    "Updates are shown in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
+    "Updates are shown in the published site's admin panel, where you sign in with GitHub, GitLab, or Bitbucket.",
   "updates.demo": "Updates aren't installed in a demo.",
   "updates.loading": "Checking for updates…",
   "updates.current": "This site uses Goodfellow {version}.",
@@ -2181,7 +2181,7 @@ export const defaultStrings = {
   "editors.roles":
     "Editors can change and publish everything in the admin panel, unless their limits below say otherwise. Owners can also invite and remove editors, limit what they can change, and connect a domain.",
   "editors.local":
-    "Editors are invited in the published site's admin panel, where you sign in with GitHub, GitLab or Bitbucket.",
+    "Editors are invited in the published site's admin panel, where you sign in with GitHub, GitLab, or Bitbucket.",
   "editors.demo": "Editors can't be invited in a demo.",
   "editors.loading": "Loading editors…",
   "editors.onlyOwners": "Only the site's owners can invite and remove editors.",
@@ -2258,9 +2258,9 @@ export const defaultStrings = {
   "general.urlHint": "The full public address, such as https://example.org. Used for search engines and link previews.",
   "general.externalLinksInNewTab": "Open links to other sites in a new tab",
   "general.externalLinksInNewTabHint":
-    "Applies to every link to another site: menus, buttons and text. Links to this site's own pages open in the same tab.",
+    "Applies to every link to another site: menus, buttons, and text. Links to this site's own pages open in the same tab.",
   "general.language": "Language code",
-  "general.languageHint": "Such as en, es or fr.",
+  "general.languageHint": "Such as en, es, or fr.",
   "languages.intro":
     "A site can be in several languages. Pages in the main language are at the site's address; each other language's pages are under its code, such as /es/about for Spanish. Translate a page from the Pages screen once its language is published.",
   "languages.main": "Main language",
@@ -2270,9 +2270,9 @@ export const defaultStrings = {
   "languages.new": "New language",
   "languages.add": "Add a language",
   "languages.remove": "Remove this language",
-  "languages.codeHint": "Such as es, fr or pt-BR. Its pages go under its code, so it can't change once published.",
+  "languages.codeHint": "Such as es, fr, or pt-BR. Its pages go under its code, so it can't change once published.",
   "languages.codeHintPublished": "Its pages are under {prefix}.",
-  "languages.codeInvalid": "Use a language code, such as es, fr or pt-BR.",
+  "languages.codeInvalid": "Use a language code, such as es, fr, or pt-BR.",
   "languages.codeTaken": "The site has this language already.",
   "languages.codeUsed": "The site has pages under {prefix} already. Move them first, or choose another code.",
   "languages.titleHint": "The site's title in this language. Left empty, it's the main language's.",
@@ -2294,7 +2294,7 @@ export const defaultStrings = {
   "general.socialImage": "Image when shared on social media",
   "general.aiTraining": "Let AI companies use the site's pages to train their models",
   "general.aiTrainingHint":
-    "Turned off, the site asks the crawlers AI companies train their models with, such as OpenAI's GPTBot, Anthropic's ClaudeBot and Google-Extended, to leave it alone. Search engines still list it, and assistants can still read a page someone asks them about. Well-behaved crawlers follow the request, but it isn't a lock: anyone can still read the site's pages.",
+    "Turned off, the site asks the crawlers AI companies train their models with, such as OpenAI's GPTBot, Anthropic's ClaudeBot, and Google-Extended, to leave it alone. Search engines still list it, and assistants can still read a page someone asks them about. Well-behaved crawlers follow the request, but it isn't a lock: anyone can still read the site's pages.",
   "general.contact": "Contact details",
   "general.contactHint": "Shown wherever a Contact details block is placed, such as the footer.",
   "general.address": "Address",
@@ -2317,7 +2317,7 @@ export const defaultStrings = {
   "consent.title": "Visitors' consent",
   "consent.ask": "Ask visitors before showing content from other sites",
   "consent.hint":
-    "Videos from YouTube and Vimeo, Google forms and maps, hCaptcha and the code under Code wait until visitors agree, with a notice at the bottom of the page that asks them. Their answer is kept in their browser. Links to #consent, such as in a menu, open the notice again.",
+    "Videos from YouTube and Vimeo, Google forms and maps, hCaptcha, and the code under Code wait until visitors agree, with a notice at the bottom of the page that asks them. Their answer is kept in their browser. Links to #consent, such as in a menu, open the notice again.",
   "consent.message": "What the notice says",
   "consent.accept": "Button that agrees",
   "consent.decline": "Button that doesn't",
@@ -2340,7 +2340,7 @@ export const defaultStrings = {
     "Make a form in Formspree and copy its address, such as https://formspree.io/f/xyzabcde. On Formspree's free plan, visitors see Formspree's own thank-you page.",
   "forms.address": "Address forms send answers to",
   "forms.addressHint":
-    "The service's address for forms, starting with https://. Forms send the thank-you page's address as _next, the subject as _subject, and a hidden _gotcha field that only robots fill in, as Formspree, FormSubmit and Formcarry expect.",
+    "The service's address for forms, starting with https://. Forms send the thank-you page's address as _next, the subject as _subject, and a hidden _gotcha field that only robots fill in, as Formspree, FormSubmit, and Formcarry expect.",
   "forms.error.key":
     "This isn't a Web3Forms access key. Copy it from Web3Forms' email: it looks like 0b5c4f7e-1a2b-4c3d-8e9f-0123456789ab.",
   "forms.error.formspree": "This isn't a Formspree form's address. It looks like https://formspree.io/f/xyzabcde.",
@@ -2362,9 +2362,9 @@ export const defaultStrings = {
   "font.add.title": "Add a font",
   "font.add.files": "Font files (WOFF2)",
   "font.add.filesHint":
-    "Choose all the font's files at once: one for each weight and style, such as Regular, Bold and Italic, or one variable font file. Up to 5 MB each.",
+    "Choose all the font's files at once: one for each weight and style, such as Regular, Bold, and Italic, or one variable font file. Up to 5 MB each.",
   "font.add.family": "Font's name",
-  "font.add.familyHint": "As the font menus show it, such as Brandon Grotesque. Letters, numbers and spaces.",
+  "font.add.familyHint": "As the font menus show it, such as Brandon Grotesque. Letters, numbers, and spaces.",
   "font.add.category": "Kind of font",
   "font.add.categoryHint": "Pages show a font of the same kind until this one loads.",
   "font.add.file": "File",
@@ -2392,7 +2392,7 @@ export const defaultStrings = {
   "font.add.notWoff2": "{name} isn't a WOFF2 font. The font's maker or shop usually offers WOFF2 files for websites.",
   "font.add.tooLarge": "{name} is larger than 5 MB.",
   "font.add.unreadable": "{name} couldn't be read as a font. It may be damaged.",
-  "font.add.familyInvalid": "Use letters, numbers and spaces, up to 60 characters.",
+  "font.add.familyInvalid": "Use letters, numbers, and spaces, up to 60 characters.",
   "font.add.familyTaken": "You already have a font named {family}. Remove it first, or choose another name.",
   "font.add.duplicate": "Two files have the same weight and style. Change one, or remove it.",
   "font.add.tooMany": "A font can have up to {count} files.",
@@ -2454,7 +2454,7 @@ export const defaultStrings = {
   "menus.empty": "There are no menus yet.",
   "menus.add": "Add menu",
   "menus.newName": "New menu name",
-  "menus.nameInvalid": "Use lowercase letters, numbers and hyphens, and a name no other menu uses.",
+  "menus.nameInvalid": "Use lowercase letters, numbers, and hyphens, and a name no other menu uses.",
   "menus.deleteMenu": "Delete menu",
   "menus.addLink": "Add link",
   "menus.addSublink": "Add link below this one",
@@ -2530,7 +2530,7 @@ export const defaultStrings = {
   "code.exposedFix":
     "A sign-in page or an admin address of its own, on the Security tab, keeps their sign-in out of its reach.",
   "code.head": "In the page head",
-  "code.headHint": "Script, style, link, meta and noscript tags, such as the ones Google Analytics gives you.",
+  "code.headHint": "Script, style, link, meta, and noscript tags, such as the ones Google Analytics gives you.",
   "code.purpose.head": "What the code in the page head is for",
   "code.purpose.body": "What the code at the end of the page is for",
   "code.purposeHint":

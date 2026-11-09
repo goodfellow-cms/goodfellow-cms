@@ -44,7 +44,7 @@ function difference(before: unknown, after: unknown, path: string): string | typ
 }
 
 /**
- * The path of the single plain value (text, number, true or false) that differs
+ * The path of the single plain value (text, number, true, or false) that differs
  * between two values, such as `settings.theme.colors.primary`. Undefined when
  * nothing differs, or more than that does: several fields, or items added or removed.
  */

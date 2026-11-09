@@ -548,7 +548,7 @@ export function AiPanel({ context, editor }: { context: AiContext; editor: AiEdi
         name: itemName,
         fields: (puckConfig.root?.fields ?? {}) as Fields,
         values: { ...(appState.data.root.props ?? {}) },
-        instruction: `Translate every value into ${named}. Keep addresses, image addresses, dates and times as they are.${
+        instruction: `Translate every value into ${named}. Keep addresses, image addresses, dates, and times as they are.${
           instruction.trim() ? `\n\n${instruction.trim()}` : ""
         }`,
       };

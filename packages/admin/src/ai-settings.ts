@@ -54,7 +54,7 @@ export interface AiSettingsState extends ProviderSettings {
   remember: boolean;
 }
 
-/** The editor's AI service, model and key, remembered between visits as they chose. */
+/** The editor's AI service, model, and key, remembered between visits as they chose. */
 export function useAiSettings(providers: ProviderId[]) {
   const [state, setState] = useState<AiSettingsState>(() => {
     const preferences = loadPreferences();

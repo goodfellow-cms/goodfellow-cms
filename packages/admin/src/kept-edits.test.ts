@@ -5,7 +5,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const data = { root: { props: { title: "About" } }, content: [] };
 
 describe("keptEditKey", () => {
-  it("tells apart sites, drafts and what's edited", () => {
+  it("tells apart sites, drafts, and what's edited", () => {
     const page = { kind: "page", path: "/about" };
     const keys = [
       keptEditKey("https://example.org/", page),
@@ -55,7 +55,7 @@ describe("readKeptEdit", () => {
 });
 
 describe("memoryEditKeeper", () => {
-  it("keeps, removes and forgets changes", async () => {
+  it("keeps, removes, and forgets changes", async () => {
     let now = Date.UTC(2026, 9, 30);
     const keeper = memoryEditKeeper(() => now);
     const edit = { data, published: "{}", savedAt: now };

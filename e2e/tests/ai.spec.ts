@@ -214,7 +214,7 @@ test("works with any chat app by copying the request and pasting the answer", as
   await panel.getByLabel("What should it write?").fill("A thank-you note to our volunteers");
   await panel.getByRole("button", { name: "Write it" }).click();
 
-  const request = panel.getByLabel("Copy this request into Claude.ai, ChatGPT or another chat app:");
+  const request = panel.getByLabel("Copy this request into Claude.ai, ChatGPT, or another chat app:");
   await expect(request).toHaveValue(/A thank-you note to our volunteers[\s\S]*JSON Schema/);
   await panel
     .getByLabel("Then paste the chat app's whole answer here:")

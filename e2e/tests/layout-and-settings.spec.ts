@@ -140,7 +140,7 @@ test("chooses fonts from a searchable list of Google Fonts", async ({ page }) =>
   expect(readSiteFile("content/site.json")).not.toContain('"heading"');
 });
 
-test("edits custom CSS like a code editor: it indents, closes braces and suggests properties", async ({ page }) => {
+test("edits custom CSS like a code editor: it indents, closes braces, and suggests properties", async ({ page }) => {
   await page.goto("/admin#/settings/css");
   const editor = page.locator(".gfa-code-editor .cm-content");
   await editor.click();
@@ -205,7 +205,7 @@ test("won't publish invalid settings", async ({ page }) => {
 });
 
 test("has nothing to publish until something changes, whatever the files' spelling", async ({ page }) => {
-  // Values the form tidies when it saves, as themes, imports and hand edits can leave them.
+  // Values the form tidies when it saves, as themes, imports, and hand edits can leave them.
   const settings = readJson("content/site.json");
   writeSiteFile(
     "content/site.json",

@@ -55,7 +55,7 @@ export function applyEditorChange(data: Data, change: EditorChange): Data {
   }
 }
 
-/** Data with the block whose id is `id` replaced by `blocks`, wherever it is: in the page, a slot or a drop zone. */
+/** Data with the block whose id is `id` replaced by `blocks`, wherever it is: in the page, a slot, or a drop zone. */
 export function withBlocksInPlace(data: Data, id: string, blocks: ComponentData[]): Data {
   const replace = (value: unknown): unknown => {
     if (Array.isArray(value)) {

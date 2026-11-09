@@ -164,7 +164,7 @@ test("uploads an image and shows it before the live site has it", async ({ page 
   await expect.poll(() => reloaded.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(2);
 });
 
-test("runs the site's blocks in a sandbox that can't reach the sign-in, storage, the network or WebRTC", async ({
+test("runs the site's blocks in a sandbox that can't reach the sign-in, storage, the network, or WebRTC", async ({
   page,
 }) => {
   await setup(page);

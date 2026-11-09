@@ -87,7 +87,7 @@ export function pagesToRender(content: SiteContent, changed: ReadonlySet<string>
     const first = pages.find((page) => page.entry?.collection === collection.id);
     if (first && !targets.some((target) => target.page === first)) targets.push({ page: first, file: collection.file });
   }
-  // A synced block on the first page that shows it, or that shows the design, header or footer placing it.
+  // A synced block on the first page that shows it, or that shows the design, header, or footer placing it.
   for (const block of content.syncedBlocks ?? []) {
     const file = [block.file, ...Object.values(block.languages ?? {}).map((own) => own.file)].find((path) =>
       changed.has(path),

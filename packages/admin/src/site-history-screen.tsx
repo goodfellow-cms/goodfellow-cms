@@ -208,7 +208,7 @@ function missingBlocks(content: SiteContent, configs: { page: Config; layout: Co
   return [...missing].sort();
 }
 
-/** A changed page, item or setting, in words. */
+/** A changed page, item, or setting, in words. */
 function changeLabel(t: Translate, change: SiteChange): string {
   const { subject } = change;
   switch (subject.kind) {

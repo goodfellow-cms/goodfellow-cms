@@ -2,7 +2,7 @@
  * The grid of cells a table's field is edited in (`tableField()` in
  * `@goodfellow-cms/react`), which Puck's editor shows in place of the field's
  * own render, since blocks can't bring their own editing code. Each cell is
- * a small box of formatted text: bold, italics, links and line breaks, with
+ * a small box of formatted text: bold, italics, links, and line breaks, with
  * what's pasted kept to those (`tableCellHtml()`).
  */
 import { escapeCellText, isSafeUrl, tableCellHtml } from "@goodfellow-cms/core";
@@ -72,7 +72,7 @@ function RichCell({
   );
 }
 
-/** Bold, italics and links for the cell last typed in. */
+/** Bold, italics, and links for the cell last typed in. */
 function CellToolbar({ cell, readOnly }: { cell: HTMLDivElement | undefined; readOnly?: boolean }) {
   const t = useStrings();
   const [linking, setLinking] = useState<{ range: Range | undefined; address: string }>();

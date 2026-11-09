@@ -23,7 +23,7 @@ function writePage(path: string, value: unknown) {
   writeSiteFile(path, json(value));
 }
 
-test("adds a language, translates a page and says when the translation is out of date", async ({ page }) => {
+test("adds a language, translates a page, and says when the translation is out of date", async ({ page }) => {
   await page.goto("/admin#/settings/languages");
   await page.getByRole("button", { name: "Add a language" }).click();
   const card = page.locator(".gfa-language-card");
