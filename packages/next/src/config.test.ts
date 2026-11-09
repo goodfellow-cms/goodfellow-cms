@@ -33,7 +33,12 @@ describe("withGoodfellow", () => {
       trailingSlash: true,
       reactStrictMode: true,
       images: { unoptimized: true },
-      env: { GOODFELLOW_BASE_PATH: "", GOODFELLOW_TRAILING_SLASH: "true" },
+      // A site without fonts of its own has no stand-ins.
+      env: {
+        GOODFELLOW_BASE_PATH: "",
+        GOODFELLOW_TRAILING_SLASH: "true",
+        GOODFELLOW_FONT_STAND_INS: '{"standIns":{"css":""}}',
+      },
       redirects: expect.any(Function),
     });
     // Pages' full addresses end as Next.js serves them.
@@ -48,7 +53,11 @@ describe("withGoodfellow", () => {
     expect(config).toEqual({
       trailingSlash: true,
       images: undefined,
-      env: { GOODFELLOW_BASE_PATH: "", GOODFELLOW_TRAILING_SLASH: "true" },
+      env: {
+        GOODFELLOW_BASE_PATH: "",
+        GOODFELLOW_TRAILING_SLASH: "true",
+        GOODFELLOW_FONT_STAND_INS: '{"standIns":{"css":""}}',
+      },
       outputFileTracingIncludes: { "/**": ["./content/**/*", "./public/media/**/*"] },
       redirects: expect.any(Function),
       headers: expect.any(Function),
@@ -81,16 +90,20 @@ describe("withGoodfellow", () => {
       });
       expect(existsSync(join(site, "public", fonts.stylesheet))).toBe(true);
       expect(existsSync(join(site, "public/fonts/google/s/lora/v1/a.woff2"))).toBe(true);
+      // The fonts' stand-ins, worked out with Fontaine as the build loads the config, so the server needn't.
+      const built = JSON.parse(config.env?.GOODFELLOW_FONT_STAND_INS ?? "{}");
+      expect(built).toMatchObject({ body: "Lora", standIns: { css: expect.stringContaining("@font-face") } });
+      expect(built.heading).toBeUndefined();
+      expect(built.standIns.body[0]).toMatch(/^Lora fallback \(/);
       // Starting the server copies nothing: the build wrote the fonts and where they are into its code.
       expect((await withGoodfellow({}, { root: site, server: true })("phase-production-server")).env).toEqual({
         GOODFELLOW_BASE_PATH: "",
         GOODFELLOW_TRAILING_SLASH: "true",
       });
-      // Static exports are left to `goodfellow-next finish`.
-      expect((await withGoodfellow({}, { root: site })("phase-production-build")).env).toEqual({
-        GOODFELLOW_BASE_PATH: "",
-        GOODFELLOW_TRAILING_SLASH: "true",
-      });
+      // Static exports' fonts are left to `goodfellow-next finish`; their stand-ins come from the build too.
+      const exported = (await withGoodfellow({}, { root: site })("phase-production-build")).env;
+      expect(exported).not.toHaveProperty("GOODFELLOW_FONTS");
+      expect(exported?.GOODFELLOW_FONT_STAND_INS).toBe(config.env?.GOODFELLOW_FONT_STAND_INS);
     } finally {
       vi.unstubAllGlobals();
       await rm(site, { recursive: true, force: true });
