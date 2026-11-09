@@ -40,7 +40,7 @@ It runs shadcn's CLI with `npx`, at the release it was tried with, so the comput
    - Yes-or-no props become yes or no.
    - Words and numbers become text and number fields, and a picture's address gets the media library's chooser.
    - Objects and lists of them become groups and lists of fields.
-   - `children` becomes the label of a button, a link or a label, and blocks inside anything else. It's left out where the component never shows it.
+   - `children` becomes the label of a button, a link, or a label, and blocks inside anything else. It's left out where the component never shows it.
    - `className` gets the block's classes.
    - Defaults come from the component's code: a `defaultProps` object, defaults in its parameters, and cva's `defaultVariants`.
    - Components that aren't page sections, such as a button, sit in a wrapper with the registry blocks' spacing.
@@ -50,8 +50,8 @@ It ends by listing what it did, then what's left. **It doesn't work yet** means 
 
 ## What it can't do on its own
 
-- **Words, links and pictures in the component's code** have nothing to make fields from. Change the component to take them as props, and give the block fields for them.
-- **Parts that only work together**, such as an accordion's, share React context, which islands don't (see [Interactive blocks](/docs/interactive-blocks)). So the block shows shadcn's example of them (`<item>-demo`), copied into the block's folder as one Client Component. Its words are in its code, so make fields of them by hand, as Goodfellow's FAQ block does. Accordions, collapsibles and tabs also leave closed parts out of the page unless their content has `forceMount`, so search engines don't see them, and the command says so.
+- **Words, links, and pictures in the component's code** have nothing to make fields from. Change the component to take them as props, and give the block fields for them.
+- **Parts that only work together**, such as an accordion's, share React context, which islands don't (see [Interactive blocks](/docs/interactive-blocks)). So the block shows shadcn's example of them (`<item>-demo`), copied into the block's folder as one Client Component. Its words are in its code, so make fields of them by hand, as Goodfellow's FAQ block does. Accordions, collapsibles, and tabs also leave closed parts out of the page unless their content has `forceMount`, so search engines don't see them, and the command says so.
 - **Props no field can hold**, such as an icon (`ReactNode`) or what happens on a click, are left out and listed. A component that needs one doesn't typecheck until it gets it.
 - **App UI**, such as sign-in forms and dashboards, gets a warning: a static site has nothing behind its forms.
 - **Other registries' licenses**: an item that names its own license, as many third-party registries' do, has it listed, to read before the block goes on a site.

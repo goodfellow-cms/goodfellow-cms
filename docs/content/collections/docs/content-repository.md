@@ -6,11 +6,11 @@ section: developers
 order: 7.5
 ---
 
-Most sites keep everything in one repository: the code, `content/` and `public/media/`. Anyone who can publish to it can change the code too, and so can the token that publishing uses, whether it's an editor's or a [full-stack site's server's](/docs/full-stack-nextjs). Code runs when the site is built, with whatever secrets the build has, such as a full-stack site's token and keys.
+Most sites keep everything in one repository: the code, `content/`, and `public/media/`. Anyone who can publish to it can change the code too, and so can the token that publishing uses, whether it's an editor's or a [full-stack site's server's](/docs/full-stack-nextjs). Code runs when the site is built, with whatever secrets the build has, such as a full-stack site's token and keys.
 
 A site can keep its content in a repository of its own instead. Editors' sign-in, publishing, the [Claude connector](/docs/claude-connector) and a full-stack site's server then reach only the content repository, so they can change the site's content but never its code.
 
-It works on GitHub, GitLab and Bitbucket. Sites on Bitbucket are built by Vercel, from either repository.
+It works on GitHub, GitLab, and Bitbucket. Sites on Bitbucket are built by Vercel, from either repository.
 
 It's for organizations with a developer, who looks after the code repository. It doesn't keep Goodfellow's own settings away from editors: Site Settings, custom CSS and code, and collections' settings stay with the content, since some saves change settings and content together, such as removing a collection's field from every item. On a full-stack site, the app's own roles do that.
 
@@ -22,7 +22,7 @@ It's for organizations with a developer, who looks after the code repository. It
 npm create goodfellow@latest my-site -- --github your-name/my-site --content your-name/my-site-content --host github-pages
 ```
 
-`--github`, `--gitlab` or `--bitbucket` is the code's repository, and `--content` the content's, on the same host. On Vercel, `--build content` or `--build code` says which repository Vercel builds the site from (see below).
+`--github`, `--gitlab`, or `--bitbucket` is the code's repository, and `--content` the content's, on the same host. On Vercel, `--build content` or `--build code` says which repository Vercel builds the site from (see below).
 
 The [setup page](/new-site) offers it too, under **Advanced settings**, in **Where to keep the content**: it creates both repositories, the content's named after the code's with `-content` after it, and connects them, as the steps below describe. On GitHub, for private repositories, it makes the deploy keys and adds their private halves as secrets; on GitLab, it adds each project to the other's job token allowlist, lets the code project's job token publish updates, and adds its nightly pipeline schedule. Where GitLab refuses any of those, it makes the rest, and lists what's left with links to where you add it, as described for GitLab Pages below. What only you can add is left: a `GOODFELLOW_BUILD_TOKEN` on GitHub, and on Vercel, its deploy hook and any tokens.
 
@@ -54,13 +54,13 @@ Whoever can push to the repository a host builds from controls the build: its se
 
 ### GitHub Pages
 
-- **The content repository's** `.github/workflows/deploy.yml` checks out the code, puts the content in it with `goodfellow content copy`, builds the site and publishes it with GitHub Pages, whenever the content changes, once a night, and when the code repository asks, and its `.github/workflows/scheduled.yml` starts that build when a [scheduled](/docs/scheduling) page or item comes due. Turn GitHub Pages on in its Settings → Pages, with "GitHub Actions" as the source.
+- **The content repository's** `.github/workflows/deploy.yml` checks out the code, puts the content in it with `goodfellow content copy`, builds the site, and publishes it with GitHub Pages, whenever the content changes, once a night, and when the code repository asks, and its `.github/workflows/scheduled.yml` starts that build when a [scheduled](/docs/scheduling) page or item comes due. Turn GitHub Pages on in its Settings → Pages, with "GitHub Actions" as the source.
 - **The code repository's** `.github/workflows/update.yml` installs Goodfellow's fixes each night, building the site with the content to check it still works, and then asks the content repository to build the site. It does that, and after each change to the code, if it has a `GOODFELLOW_BUILD_TOKEN` secret: a fine-grained token for the content repository only, with Actions read and write. Without it, changes to the code go live with the content repository's nightly build.
 - **Private repositories:** a workflow reads the other repository with a deploy key. Make a key pair (`ssh-keygen -t ed25519 -f key -N ""`), add `key.pub` to the repository being read under Settings → Deploy keys without write access, and `key` to the one reading it as a secret: `GOODFELLOW_CODE_KEY` in the content repository, `GOODFELLOW_CONTENT_KEY` in the code repository. Public repositories need neither.
 
 ### GitLab Pages
 
-- **The content project's** `.gitlab-ci.yml` clones the code, copies the content into it, builds the site and publishes it with GitLab Pages, whenever the content changes and when the code project's pipeline starts it.
+- **The content project's** `.gitlab-ci.yml` clones the code, copies the content into it, builds the site, and publishes it with GitLab Pages, whenever the content changes and when the code project's pipeline starts it.
 - **The code project's** `.gitlab-ci.yml` installs Goodfellow's fixes on scheduled pipelines and then starts the content project's pipeline, as it does after every change to the code. Set up a pipeline schedule to run each night under Build → Pipeline schedules, and turn on "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, which lets it publish updates.
 - **Job tokens:** each pipeline reads the other project with its job token, which that project has to allow, even where it's public: add each project to the other's job token allowlist, under Settings → CI/CD → Job token permissions.
 
@@ -73,7 +73,7 @@ Whoever can push to the repository a host builds from controls the build: its se
 
 ### Vercel
 
-- **Building from the code repository:** its `vercel.ts` clones the content repository when Vercel installs the site. If the content repository isn't public, add a token that can only read it as the Vercel project's `GOODFELLOW_CONTENT_TOKEN` environment variable. The content repository asks Vercel to rebuild the site whenever it changes, and each night (on GitLab, with a pipeline schedule), with the Vercel project's deploy hook (Settings → Git → Deploy Hooks), which can only start builds: add it there as `VERCEL_DEPLOY_HOOK`, a secret on GitHub or a masked variable on GitLab.
+- **Building from the code repository:** import the code repository in Vercel. Its `vercel.ts` clones the content repository when Vercel installs the site. If the content repository isn't public, add a token that can only read it as the Vercel project's `GOODFELLOW_CONTENT_TOKEN` environment variable. The content repository asks Vercel to rebuild the site whenever it changes, and each night (on GitLab, with a pipeline schedule), with the Vercel project's deploy hook (Settings → Git → Deploy Hooks), which can only start builds: add it there as `VERCEL_DEPLOY_HOOK`, a secret on GitHub or a masked variable on GitLab.
 - **Building from the content repository:** import the content repository in Vercel. Its `vercel.ts` clones the code into `site/` and builds it with the content, with a `GOODFELLOW_CODE_TOKEN` environment variable if the code repository isn't public. The code repository asks Vercel to rebuild the site whenever the code changes, with the deploy hook, as above.
 
 - **On Bitbucket:** the content repository's `bitbucket-pipelines.yml` asks Vercel to rebuild the site when a [scheduled](/docs/scheduling) page or item comes due (the `scheduled` pipeline, which the admin panel schedules for each such time), each night (the `rebuild` pipeline: add a schedule for it under **Pipelines → Schedules**), and, where Vercel builds from the code repository, whenever the content changes; where Vercel builds from the content repository, the code's `bitbucket-pipelines.yml` asks it to rebuild whenever the code changes. Each only calls the deploy hook, so it takes seconds of build minutes. Add the hook as the secured repository variable `VERCEL_DEPLOY_HOOK`, and turn Pipelines on, in each repository with a `bitbucket-pipelines.yml`. Goodfellow's fixes are installed in the code repository by its developer, with `goodfellow update`.

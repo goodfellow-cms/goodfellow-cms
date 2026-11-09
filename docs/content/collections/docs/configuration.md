@@ -31,7 +31,7 @@ export default defineConfig({
 | `backend` | Where the site is stored: `github({ … })`, `gitlab({ … })` or `bitbucket({ … })`. Builds include the admin panel at `/admin` only when this or `demo` is set. |
 | `base` | The address the site is served from, for hosts that use a subfolder, such as `/my-repo/`. Defaults to `/`. See [Commands](/docs/commands). |
 | `styles` | The site's stylesheet. Defaults to `src/styles.css`. |
-| `trailingSlash` | Whether pages' addresses end with a slash, as `https://example.org/about/`, in their canonical links, the sitemap, feeds, links between pages and wherever else the site gives a page's address. `true` where it's missing, as most hosts serve the folders builds write; `false` for a host that serves pages without one. `GOODFELLOW_TRAILING_SLASH` where the site is built overrides it, and Next.js sites use Next.js's own `trailingSlash`. See [Host anywhere](/docs/any-host#addresses-with-or-without-a-slash). |
+| `trailingSlash` | Whether pages' addresses end with a slash, as `https://example.org/about/`, in their canonical links, the sitemap, feeds, links between pages, and wherever else the site gives a page's address. `true` where it's missing, as most hosts serve the folders builds write; `false` for a host that serves pages without one. `GOODFELLOW_TRAILING_SLASH` where the site is built overrides it, and Next.js sites use Next.js's own `trailingSlash`. See [Host anywhere](/docs/any-host#addresses-with-or-without-a-slash). |
 | `preact` | `false` keeps the site's interactive blocks on React in `goodfellow build`, which otherwise uses Preact where every one says it works with it. See [Interactive blocks](/docs/interactive-blocks). |
 | `ai` | The AI assistant: `false` removes it, `{ providers: ["anthropic", "manual"] }` limits the services offered, and `{ stockPhotos: false }` stops it finding photos on Openverse. |
 | `registries` | Block registries the Blocks screen offers blocks from, besides Goodfellow's: `{ "@acme": "https://acme.example/r/{name}.json" }`. List only registries you trust; see [Block registries](/docs/block-registries). |
@@ -41,7 +41,7 @@ export default defineConfig({
 | `claude` | What Claude can do through the Claude connector: `{ publish: false }` stops it publishing, so it can only submit its changes for review. It takes effect once the site has been rebuilt. See [Work with Claude](/docs/claude#turning-off-publishing). |
 | `demo` | `true` makes the admin panel a [demo](/docs/demo-mode) anyone can try. |
 | `api` | `false` leaves the [content API](/docs/content-api), the site's content as JSON at `/api/`, out of builds. It's on by default. |
-| `plugins` | [Plugins](/docs/plugins), such as `[...installedPlugins, s3({ … })]`, where `installedPlugins` (from `./plugins/installed`) lists those installed from the admin panel, which add screens and code in the admin panel, steps in the build and routes on full-stack sites' servers, as well as blocks, which are added to `blocks`. Each gets only the permissions it declares, where Goodfellow can enforce them. |
+| `plugins` | [Plugins](/docs/plugins), such as `[...installedPlugins, s3({ … })]`, where `installedPlugins` (from `./plugins/installed`) lists those installed from the admin panel, which add screens and code in the admin panel, steps in the build, and routes on full-stack sites' servers, as well as blocks, which are added to `blocks`. Each gets only the permissions it declares, where Goodfellow can enforce them. |
 
 ## GitHub
 

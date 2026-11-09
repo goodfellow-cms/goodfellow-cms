@@ -55,7 +55,7 @@ export const CREATE_PATH = "/new-site/create/";
 
 export const PURPOSES: Record<Purpose, { label: string; description: string }> = {
   personal: { label: "Personal, or a hobby", description: "A site of your own, with nobody paid to make it." },
-  group: { label: "A church, charity, school or club", description: "A nonprofit group, run by volunteers." },
+  group: { label: "A church, charity, school, or club", description: "A nonprofit group, run by volunteers." },
   business: {
     label: "A business",
     description: "Or any site that sells things, advertises products or services for sale, or shows ads.",
@@ -119,7 +119,7 @@ export const SIGN_IN_PLACES: Record<SignInPlace, { label: string; description: s
   broker: {
     label: "At a sign-in page of its own",
     description:
-      "A token broker: a second repository, put online at an address that serves nothing else, where editors sign in. Nothing on the site can reach their sign-in or AI keys. No domain needed on GitLab, Cloudflare Pages or Vercel.",
+      "A token broker: a second repository, put online at an address that serves nothing else, where editors sign in. Nothing on the site can reach their sign-in or AI keys. No domain needed on GitLab, Cloudflare Pages, or Vercel.",
   },
 };
 
@@ -245,7 +245,7 @@ export function hostProblem(choices: Choices): string | undefined {
     return "Vercel's free plan counts a site as commercial if anyone is paid to make or update it. A site kept by volunteers is fine.";
   }
   if (choices.visibility === "private" && choices.host === "github-pages") {
-    return "GitHub Pages doesn't work with private repositories on GitHub's free plan, unless your account has GitHub Pro, Team or Enterprise. Publish the site with Cloudflare Pages instead, keep it on GitLab, or make the repository public.";
+    return "GitHub Pages doesn't work with private repositories on GitHub's free plan, unless your account has GitHub Pro, Team, or Enterprise. Publish the site with Cloudflare Pages instead, keep it on GitLab, or make the repository public.";
   }
   return undefined;
 }

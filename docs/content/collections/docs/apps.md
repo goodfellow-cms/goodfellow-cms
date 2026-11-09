@@ -11,7 +11,7 @@ order: 4.6
 - **Up to date and offline.** The app reads the site's manifest when it starts and whenever it comes back to the front, downloads only the files whose hash changed, and keeps them, with the pictures they show. Opened offline, it shows the copy it kept.
 - **Native blocks.** Every [built-in block](/docs/built-in-blocks) has a version for apps, `nativeBlocks` from `@goodfellow-cms/blocks/native`, by the same name, with the same settings.
 - **Links.** The site's own pages open in the app, and old addresses go where the site's [redirects](/docs/layout-and-settings#redirects) send them, as on the website; anything else opens in the phone's browser, and email addresses and phone numbers in its apps.
-- **Its theme.** Blocks use the site's colors, corners and fonts, in dark colors where the site has [dark mode](/docs/layout-and-settings) and the phone is set to dark.
+- **Its theme.** Blocks use the site's colors, corners, and fonts, in dark colors where the site has [dark mode](/docs/layout-and-settings) and the phone is set to dark.
 
 ## Making the app
 
@@ -63,7 +63,7 @@ export default function App() {
 
 `useSiteStatus()` says whether the copy is `ready`, or why it isn't up to date: `offline`, `no-api` (the site has no content API, as before it's rebuilt with this release, or where its config turns it off) or `newer-content`. That last one means the site's content files are a newer version than the app reads, after an update to Goodfellow: the app keeps showing the copy it has until it's updated to a release that reads them.
 
-Pictures are kept with the pages that show them. Videos, sound and other files are played and opened from the site, since keeping them would fill the phone.
+Pictures are kept with the pages that show them. Videos, sound, and other files are played and opened from the site, since keeping them would fill the phone.
 
 ## How blocks differ in apps
 
@@ -71,10 +71,10 @@ Most blocks look and work as they do on the website. A few can't:
 
 - **Search** finds pages and items by their titles and fields, which the app keeps; the website's search reads every page's text, which the app doesn't keep for every page.
 - **Form** sends the answers to the form service itself, as the website's form does, and then opens the thank-you page, or says what the form's "In the site's app" message says. A form with Web3Forms' hCaptcha opens on the website instead, since the captcha only works there.
-- **Video** plays uploads with the phone's own player, and YouTube's, Vimeo's and other sites' players in a frame of their own.
+- **Video** plays uploads with the phone's own player, and YouTube's, Vimeo's, and other sites' players in a frame of their own.
 - **Code** shows the colors the site's build gave it, and can be selected to copy.
 - **Menu** across the top is a button that opens the menu on a phone, and a row on a tablet.
-- Blocks' **Style** applies in apps too: their Tailwind classes become the phone's styles while the app runs, with [twrnc](https://github.com/jaredh159/tailwind-react-native-classnames), in the theme's colors, corners and fonts, and those for wider screens (`md:`) on tablets and dark ones (`dark:`) where the site shows dark. A block's text takes its text size and color, as on the website, where text inherits them; text a block shows at a size of its own, such as a card's title, takes the Style's size too. Classes phones have nothing like, such as grids, `hover:` and Custom CSS's classes of your own, are left out.
+- Blocks' **Style** applies in apps too: their Tailwind classes become the phone's styles while the app runs, with [twrnc](https://github.com/jaredh159/tailwind-react-native-classnames), in the theme's colors, corners, and fonts, and those for wider screens (`md:`) on tablets and dark ones (`dark:`) where the site shows dark. A block's text takes its text size and color, as on the website, where text inherits them; text a block shows at a size of its own, such as a card's title, takes the Style's size too. Classes phones have nothing like, such as grids, `hover:` and Custom CSS's classes of your own, are left out.
 - Theme parts' classes (`theme.parts`) don't apply in apps yet.
 
 ## Blocks of the site's own
@@ -99,9 +99,9 @@ function Notice({ id, title }: { id: string; title: string }) {
 const blocks = { ...nativeBlocks, Notice };
 ```
 
-`@goodfellow-cms/expo` has what blocks are made of: `SiteText`, `NativeLink`, `NativeImage` (from the app's copy, described from the media library where its `alt` is empty, unless it's `decorative`), `RichText`, `Blocks` (a slot's blocks), `Columns`, `Disclosure`, `SiteButton`, `MediaPlayer` and `WebFrame`, and `useNativeSite()` for the site's settings, menus, collections, the page's item and the theme.
+`@goodfellow-cms/expo` has what blocks are made of: `SiteText`, `NativeLink`, `NativeImage` (from the app's copy, described from the media library where its `alt` is empty, unless it's `decorative`), `RichText`, `Blocks` (a slot's blocks), `Columns`, `Disclosure`, `SiteButton`, `MediaPlayer`, and `WebFrame`, and `useNativeSite()` for the site's settings, menus, collections, the page's item, and the theme.
 
-Each block is drawn in a box with its Style (space, background, corners), and `SiteText` in it takes the Style's text alignment, size and color. A block whose Style belongs on one part of it, as a button's colors belong on the button, marks itself with `stylesItself()` and applies `useBlockStyle()`'s `view` and `text` there; `classStyle()` turns any classes into styles. The built-in blocks' own logic, such as which items a list shows, is shared with the website's and imports none of its code: see `packages/blocks/src/*-data.ts`.
+Each block is drawn in a box with its Style (space, background, corners), and `SiteText` in it takes the Style's text alignment, size, and color. A block whose Style belongs on one part of it, as a button's colors belong on the button, marks itself with `stylesItself()` and applies `useBlockStyle()`'s `view` and `text` there; `classStyle()` turns any classes into styles. The built-in blocks' own logic, such as which items a list shows, is shared with the website's and imports none of its code: see `packages/blocks/src/*-data.ts`.
 
 ### Blocks without a version for apps
 

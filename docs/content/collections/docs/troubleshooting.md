@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Troubleshooting
-description: What to do when something doesn't work as expected, by what you see, such as a published change that isn't on the site, a sign-in that doesn't work, a domain without HTTPS, a failed build or updates that stopped.
+description: What to do when something doesn't work as expected, by what you see, such as a published change that isn't on the site, a sign-in that doesn't work, a domain without HTTPS, a failed build, or updates that stopped.
 section: owners
 order: 7
 ---
@@ -27,10 +27,10 @@ The sign-in screen says what went wrong. What each message means:
 - **"Goodfellow isn't installed on this site":** the [sign-in service's](/docs/sign-in#signing-in-with-github) app needs installing on the repository once. An owner chooses **Install Goodfellow** on the sign-in screen; anyone else can sign in with a token meanwhile.
 - **"needs the site's address in Site settings"** or **"works only at the site's own address":** signing in with GitHub works only at the address in **Site Settings → General**. Sign in with a token, add or correct the address, and sign in at that address after the site has rebuilt.
 - **"works only on the published site":** signing in with GitHub doesn't work on your own computer. `goodfellow dev` and `next dev` need no sign-in.
-- **"That account isn't an owner of this site":** the Editors, Domain and Updates screens' owner sign-in needs one of the site's owners: Admin on GitHub and Bitbucket, Maintainer on GitLab ([Inviting and removing editors](/docs/sign-in#inviting-and-removing-editors)).
+- **"That account isn't an owner of this site":** the Editors, Domain, and Updates screens' owner sign-in needs one of the site's owners: Admin on GitHub and Bitbucket, Maintainer on GitLab ([Inviting and removing editors](/docs/sign-in#inviting-and-removing-editors)).
 - **"isn't available right now":** the sign-in service can't be reached, or has been used as much as it can be that day. Sign in with a token.
 - **"You were signed out because your sign-in expired":** sign in again; changes to pages you were editing are kept in the browser ([Unpublished changes](/docs/publishing#unpublished-changes)). Signing in with Bitbucket lasts two hours.
-- **"Couldn't reach…":** check the connection. A network that blocks GitHub, GitLab or Bitbucket blocks the admin panel too.
+- **"Couldn't reach…":** check the connection. A network that blocks GitHub, GitLab, or Bitbucket blocks the admin panel too.
 
 On a site with a [token broker](/docs/token-broker), editors sign in on the broker's page, and the admin panel says where if it's opened anywhere else.
 
@@ -53,7 +53,7 @@ Some blocks need something set up first, and say so in the editor, with a link t
 ## Fonts or pictures don't show
 
 - **A picture is missing:** its file may have been deleted or renamed. Publishing lists links to media that doesn't exist ([Site checks](/docs/publishing#site-checks)); choose the picture again. A picture just uploaded shows in the editor at once, and on the site once it has rebuilt.
-- **Pictures, videos or maps from other sites show a box asking first:** the site asks visitors before loading other sites' content ([Visitors' consent](/docs/layout-and-settings#visitors-consent)). They show once the visitor allows it.
+- **Pictures, videos, or maps from other sites show a box asking first:** the site asks visitors before loading other sites' content ([Visitors' consent](/docs/layout-and-settings#visitors-consent)). They show once the visitor allows it.
 - **The whole site looks unstyled:** usually the site's address or folder changed without a rebuild, as above. On a host other than the five Goodfellow sets up, check the [build's folder and addresses](/docs/any-host).
 - **Your own font doesn't show:** check its files are WOFF2 and are still in the media library's fonts folder, which publishing reports if not ([Your own fonts](/docs/layout-and-settings#your-own-fonts)). While a font loads, pages show one of the computer's fonts in its place.
 - **A Google font doesn't show:** builds copy Google's fonts into the site; if Google couldn't be reached during the build, pages load them from Google instead, which some networks block. The next rebuild copies them again.

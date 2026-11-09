@@ -6,7 +6,7 @@
 # it's using. See AGENTS.md's Tooling section.
 language: en-US
 tone_instructions: >-
-  Be brief. Put correctness, security and AGENTS.md rules first; mark style-only points as nitpicks.
+  Be brief. Put correctness, security, and AGENTS.md rules first; mark style-only points as nitpicks.
   The admin panel is for people who have never used git, so check its words for git jargon.
 early_access: false
 
