@@ -35,7 +35,7 @@ export const DARK_MODE_READY_ATTRIBUTE = "data-gf-ready";
  * `applyBasePath()` gives the base path, as `SiteLink` does in Next.js).
  * Inside it are the box, `[data-gf-search-results]` with a
  * `[data-gf-search-message]` and a `[data-gf-search-list]`, which carries
- * the classes of the results' links, titles and excerpts.
+ * the classes of the results' links, titles, and excerpts.
  */
 export const SEARCH_BOX_ATTRIBUTE = "data-gf-search-box";
 
@@ -44,7 +44,7 @@ export const SEARCH_BOX_ATTRIBUTE = "data-gf-search-box";
  * (`LIGHTBOX_ITEM_ATTRIBUTE`), which opens without JavaScript too, and the
  * Gallery draws a `<dialog>` (`LIGHTBOX_DIALOG_ATTRIBUTE`) holding the
  * picture shown (`data-gf-lightbox-image`), its caption
- * (`data-gf-lightbox-caption`), and Close, Previous and Next buttons
+ * (`data-gf-lightbox-caption`), and Close, Previous, and Next buttons
  * (`data-gf-lightbox-close`, `-previous`, `-next`).
  */
 export const LIGHTBOX_ATTRIBUTE = "data-gf-lightbox";
@@ -133,7 +133,7 @@ d.querySelectorAll("["+B+"] input").forEach(function(i){if(i.value)search(box(i)
 /**
  * The Gallery's lightbox: a picture's link opens it larger in the Gallery's
  * `<dialog>`, with its caption, where the arrow keys, the buttons and
- * swiping move between the Gallery's pictures, and Escape, Close or a click
+ * swiping move between the Gallery's pictures, and Escape, Close, or a click
  * outside the picture closes it, giving the keyboard's focus back to the
  * picture. A click with a key held, to open the picture's file elsewhere,
  * is left to the browser.

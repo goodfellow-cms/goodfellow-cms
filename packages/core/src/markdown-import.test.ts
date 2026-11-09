@@ -4,7 +4,7 @@ import { type ContentSource, loadSiteContent } from "./content/load.js";
 import type { FileChange } from "./content/store.js";
 import { MarkdownImportError, markdownFolders, planMarkdownImport, rewriteMarkdown } from "./markdown-import.js";
 
-/** A small site to import into, like the starter: a home page, an about page and a main menu. */
+/** A small site to import into, like the starter: a home page, an about page, and a main menu. */
 const STARTER: Record<string, string> = {
   "content/site.json": JSON.stringify({ version: 1, title: "My site", url: "https://new.example.org/" }),
   "content/menus.json": JSON.stringify({ version: 1, menus: { main: [{ label: "Home", href: "/" }], footer: [] } }),
@@ -127,7 +127,7 @@ describe("planMarkdownImport", () => {
     expect(plan.summary.pages).toEqual(["/docs/index-page"]);
   });
 
-  it("leaves the home page, pages the site has and drafts alone unless asked", async () => {
+  it("leaves the home page, pages the site has, and drafts alone unless asked", async () => {
     const { plan, files } = await importFolder();
     expect(files["content/pages/index.json"]).toBe(STARTER["content/pages/index.json"]);
     expect(files["content/pages/contact.json"]).toBe(STARTER["content/pages/contact.json"]);

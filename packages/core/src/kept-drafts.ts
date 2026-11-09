@@ -1,6 +1,6 @@
 /**
  * Drafts for backends without branches of their own, such as a full-stack
- * site's server, a demo or the development servers' local files: one draft,
+ * site's server, a demo, or the development servers' local files: one draft,
  * kept wherever `DraftKeeper` keeps it (in the admin panel, the browser's own
  * storage), over the live site's files. Other editors don't see it, and it
  * can't be submitted for review, but it publishes in one save like a draft on

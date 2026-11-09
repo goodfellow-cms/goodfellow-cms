@@ -140,7 +140,7 @@ function guardPosition(text: string, kind: PageFileKind): number | undefined {
   return root ? root.end : undefined;
 }
 
-/** The root element's start tag in an XML file, after its declaration, comments, doctype and processing instructions. */
+/** The root element's start tag in an XML file, after its declaration, comments, doctype, and processing instructions. */
 function rootElement(
   text: string,
 ): { start: number; end: number; tag: string; name: string; empty: boolean } | undefined {
@@ -550,7 +550,7 @@ const VERCEL_HEADERS_LINE = /^([ \t]*)headers: \[.*\],[ \t]*$/m;
 
 /**
  * A content repository's `vercel.ts` with its `headers` line set to `rules`,
- * as `planSite()`, `goodfellow admin` and `goodfellow broker` copy them from
+ * as `planSite()`, `goodfellow admin`, and `goodfellow broker` copy them from
  * the code's config (`vercelAdminHeaders()`), or `undefined` if it has no such
  * line, such as a `vercel.ts` that reads the config itself.
  */

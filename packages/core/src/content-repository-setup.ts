@@ -1,6 +1,6 @@
 /**
  * The setup files of a site whose content is kept in a repository of its own:
- * each repository's builds, nightly updates and rebuilds, for each host.
+ * each repository's builds, nightly updates, and rebuilds, for each host.
  * `planSite()` uses them for new sites, so `create-goodfellow` and the setup
  * page make the same ones.
  */
@@ -758,7 +758,7 @@ export function contentReadme(setup: SeparateSetup, name: string): string {
   const cli = setup.next ? "goodfellow-next" : "goodfellow";
   return `# ${name}: content
 
-This repository holds the content of a [Goodfellow](https://goodfellow-cms.github.io/goodfellow-cms/) site: its pages, collections, settings and media, which editors change in the site's admin panel. The site's code is in [${setup.code}](${repoUrl(setup, setup.code)}).
+This repository holds the content of a [Goodfellow](https://goodfellow-cms.github.io/goodfellow-cms/) site: its pages, collections, settings, and media, which editors change in the site's admin panel. The site's code is in [${setup.code}](${repoUrl(setup, setup.code)}).
 
 ${buildNote(setup)}
 

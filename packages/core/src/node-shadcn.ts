@@ -322,7 +322,7 @@ function fromPackages(symbol: Sync.Symbol): boolean {
   );
 }
 
-/** Where words are a component's children: buttons, links and labels, by the attributes React's types give them. */
+/** Where words are a component's children: buttons, links, and labels, by the attributes React's types give them. */
 const TEXT_ELEMENTS = new Set(["ButtonHTMLAttributes", "AnchorHTMLAttributes", "LabelHTMLAttributes"]);
 
 /** Reads components with one TypeScript project of the site, made again after files change. */
@@ -584,7 +584,7 @@ function codeNotes(ast: typeof Ast, file: string, sourceFile: Ast.SourceFile): S
       if (tag === "form" || (tag === "input" && /type=["']password["']/.test(text))) {
         notes.push({ kind: "app", text: `${file} has a <${tag}>, and a static site has nothing to send it to.` });
       }
-      // Radix leaves a closed accordion's, collapsible's or tab's content out of the page unless it's forced to stay, hidden.
+      // Radix leaves a closed accordion's, collapsible's, or tab's content out of the page unless it's forced to stay, hidden.
       if (DISCLOSED.test(tag) && !file.startsWith("components/ui/") && !/forceMount/.test(text)) {
         notes.push({
           kind: "hidden",

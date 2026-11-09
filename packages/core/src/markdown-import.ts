@@ -48,7 +48,7 @@ import { BlockWriter, IMPORT_BLOCKS, pageBlocks } from "./wordpress/page-blocks.
 /** How a folder's files are imported. */
 export type MarkdownFolderUse = "collection" | "pages";
 
-/** Words the import writes into content: collections' item names, fields' labels and the link back to a list. */
+/** Words the import writes into content: collections' item names, fields' labels, and the link back to a list. */
 export interface MarkdownImportNames {
   item: string;
   post: string;
@@ -284,7 +284,7 @@ function dateOf(value: unknown, file: string): string | undefined {
   return /(?:^|\/)(\d{4}-\d{2}-\d{2})-[^/]+$/.exec(file)?.[1];
 }
 
-/** A list of words from front matter: `tags: [a, b]`, `tags: "a, b"` or `category: a`. */
+/** A list of words from front matter: `tags: [a, b]`, `tags: "a, b"`, or `category: a`. */
 function listOf(...values: unknown[]): string[] {
   const out: string[] = [];
   for (const value of values) {

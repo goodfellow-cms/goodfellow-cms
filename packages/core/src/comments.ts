@@ -28,7 +28,7 @@ export interface DisqusPlace {
 
 /** Comments kept by Garrul, which the site's owner runs as a Cloudflare Worker of their own. */
 export interface GarrulPlace {
-  /** The Worker's origin, such as `https://comments.example.org`, which serves its script, API and admin pages. */
+  /** The Worker's origin, such as `https://comments.example.org`, which serves its script, API, and admin pages. */
   garrul: string;
 }
 
@@ -43,7 +43,7 @@ export function isGarrul(place: SiteCommentsPlace): place is GarrulPlace {
   return "garrul" in place;
 }
 
-/** A Disqus site's shortname: lowercase letters, numbers and hyphens. */
+/** A Disqus site's shortname: lowercase letters, numbers, and hyphens. */
 export const DISQUS_SHORTNAME = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
 /**
@@ -64,7 +64,7 @@ export function disqusEmbedUrl(shortname: string): string {
   return `https://${shortname}.disqus.com/embed.js`;
 }
 
-/** Where a Disqus site's moderators approve, hide and delete comments. */
+/** Where a Disqus site's moderators approve, hide, and delete comments. */
 export function disqusModerationUrl(shortname: string): string {
   return `https://${shortname}.disqus.com/admin/moderate/`;
 }
@@ -106,7 +106,7 @@ export function garrulEmbedUrl(origin: string): string {
   return `${origin}/embed.js`;
 }
 
-/** Where Garrul's moderators approve, hide and delete comments: its queue of those waiting. */
+/** Where Garrul's moderators approve, hide, and delete comments: its queue of those waiting. */
 export function garrulModerationUrl(origin: string): string {
   return `${origin}/admin/queue?status=pending`;
 }

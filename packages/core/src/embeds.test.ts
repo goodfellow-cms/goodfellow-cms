@@ -10,7 +10,7 @@ function postOf(input: string, own?: string[]) {
 }
 
 describe("embeddedPost", () => {
-  it("reads Bluesky posts by DID, from their address, embed code or embed page", () => {
+  it("reads Bluesky posts by DID, from their address, embed code, or embed page", () => {
     const embed = `https://embed.bsky.app/embed/${DID}/app.bsky.feed.post/3l6oveex3ii2l`;
     for (const input of [
       `https://bsky.app/profile/${DID}/post/3l6oveex3ii2l`,
@@ -78,7 +78,7 @@ describe("embeddedPost", () => {
     ).toBe(url);
   });
 
-  it("reads Spotify's tracks, albums, playlists and episodes, sized as Spotify's player is", () => {
+  it("reads Spotify's tracks, albums, playlists, and episodes, sized as Spotify's player is", () => {
     expect(postOf("https://open.spotify.com/intl-es/track/4uLU6hMCjMI75M1A2tKUQC?si=abc")).toEqual({
       site: "spotify",
       url: "https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC",

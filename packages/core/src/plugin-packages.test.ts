@@ -201,7 +201,7 @@ describe("installing a plugin", () => {
   };
   const guestbook = { name: "goodfellow-plugin-guestbook", release, manifest };
 
-  it("names its release in package.json, records what was approved and lists installed plugins in the config", () => {
+  it("names its release in package.json, records what was approved, and lists installed plugins in the config", () => {
     const plan = planPluginInstall(site, guestbook, { today: "2026-10-25" });
     const files = new Map(plan.changes.map((change) => [change.path, "content" in change ? change.content : ""]));
     expect(JSON.parse(files.get("package.json") ?? "").dependencies).toEqual({

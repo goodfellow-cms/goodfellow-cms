@@ -255,7 +255,7 @@ describe("planInstall", () => {
       path: "app/page.tsx",
     });
     expect(await problem(install(site, "@goodfellow/sneaky"))).toMatchObject({ code: "unsupported-file" });
-    // Editable, but no place for a block's files: the site's own code, as here, media, plugins or another block.
+    // Editable, but no place for a block's files: the site's own code, as here, media, plugins, or another block.
     expect(await problem(install(site, "@goodfellow/head-code"))).toEqual({
       code: "unsupported-file",
       path: "head.html",
@@ -328,7 +328,7 @@ describe("planRemove", () => {
 });
 
 describe("planUpdate", () => {
-  /** The registry with a new version of the FAQ block: its block changed, its list went and a new file came. */
+  /** The registry with a new version of the FAQ block: its block changed, its list went, and a new file came. */
   const updated: FetchJson = async (url) => {
     if (url !== "https://registry.example/r/shadcn-faq.json") return fetchJson(url);
     return {
@@ -349,7 +349,7 @@ describe("planUpdate", () => {
     return { site, record: faq.record };
   }
 
-  it("replaces, adds and removes the block's files to match the new version", async () => {
+  it("replaces, adds, and removes the block's files to match the new version", async () => {
     const { site, record } = await installed();
     const plan = await planUpdate({
       name: "shadcn-faq",

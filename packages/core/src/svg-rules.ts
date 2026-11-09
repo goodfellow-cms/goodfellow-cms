@@ -14,7 +14,7 @@ export const XMLNS_NAMESPACE = "http://www.w3.org/2000/xmlns/";
 /** Namespaces an SVG's attributes may be in, besides none. */
 export const SVG_ATTRIBUTE_NAMESPACES: ReadonlySet<string> = new Set([XLINK_NAMESPACE, XML_NAMESPACE, XMLNS_NAMESPACE]);
 
-/** The SVG elements uploads keep: drawing, text, links, styles and animation, but nothing that loads a page or runs code. */
+/** The SVG elements uploads keep: drawing, text, links, styles, and animation, but nothing that loads a page or runs code. */
 export const SVG_ELEMENTS: ReadonlySet<string> = new Set([
   "svg",
   "g",
@@ -81,7 +81,7 @@ export const SVG_ELEMENTS: ReadonlySet<string> = new Set([
 const SAFE_SVG_ADDRESS = /^(#|https?:|data:image\/(png|jpeg|gif|webp)[;,]|(?![a-z][a-z\d+.-]*:))/;
 
 /**
- * Addresses an SVG loads as it draws (images, filters' images, `use` and CSS's
+ * Addresses an SVG loads as it draws (images, filters' images, `use`, and CSS's
  * `url()`): within the file, the site's own, and pictures in the file, so an
  * SVG opened on its own never asks another site for anything. Browsers read
  * `\` as `/` in web addresses, so `/\host` is another site's, as `//host` is.

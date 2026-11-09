@@ -34,7 +34,7 @@ describe("broker addresses", () => {
     ).toBe("same-as-site");
   });
 
-  it("adds, changes and removes the config's line", () => {
+  it("adds, changes, and removes the config's line", () => {
     const config = "export default defineConfig({\n  blocks,\n});\n";
     const added = withBrokerConfig(config, { url: "https://broker.example.org" }) ?? "";
     expect(added).toBe(
@@ -81,7 +81,7 @@ describe("what the broker publishes without asking", () => {
     expect(brokerChangeCheck([{ path: "public/media/page.html", delete: true }], undefined).confirm).toEqual([]);
   });
 
-  it("publishes content and media, asks about code, custom code and the Site address, and never changes workflows", () => {
+  it("publishes content and media, asks about code, custom code, and the Site address, and never changes workflows", () => {
     const check = brokerChangeCheck(
       [
         { path: "content/pages/about.json", content: "{}" },
@@ -251,7 +251,7 @@ describe("the broker's backend in the admin panel", () => {
     };
   }
 
-  it("reads, publishes and keeps the classes of errors", async () => {
+  it("reads, publishes, and keeps the classes of errors", async () => {
     const { remote, files, close } = await connect();
     expect(remote.user).toEqual({ login: "maria" });
     const revision = await remote.revision();

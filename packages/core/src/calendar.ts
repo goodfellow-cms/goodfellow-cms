@@ -20,7 +20,7 @@ export type Weekday = (typeof WEEKDAYS)[number];
 
 /** How an event repeats. */
 export interface EventRepeat {
-  /** Every `interval` days, weeks, months or years. */
+  /** Every `interval` days, weeks, months, or years. */
   every: "day" | "week" | "month" | "year";
   /** Defaults to 1. */
   interval?: number;
@@ -215,18 +215,18 @@ export function eventValueProblem(value: unknown): string | undefined {
   }
   if (repeat === undefined) return undefined;
   if (!repeat || typeof repeat !== "object" || !["day", "week", "month", "year"].includes(repeat.every)) {
-    return "must repeat every day, week, month or year";
+    return "must repeat every day, week, month, or year";
   }
   if (repeat.interval !== undefined && (!Number.isInteger(repeat.interval) || repeat.interval < 1)) {
-    return "must repeat every 1 or more days, weeks, months or years";
+    return "must repeat every 1 or more days, weeks, months, or years";
   }
   if (repeat.days !== undefined) {
     if (!Array.isArray(repeat.days) || repeat.days.some((day) => !WEEKDAYS.includes(day))) {
-      return "must repeat on days of the week written as mo, tu, we, th, fr, sa or su";
+      return "must repeat on days of the week written as mo, tu, we, th, fr, sa, or su";
     }
   }
   if (repeat.on !== undefined && !["date", "weekday", "last"].includes(repeat.on)) {
-    return "must repeat monthly on its date, its weekday or the last such weekday";
+    return "must repeat monthly on its date, its weekday, or the last such weekday";
   }
   if (repeat.until !== undefined && (!DATE.test(repeat.until) || wallClock(repeat.until) === undefined)) {
     return "must stop repeating on a date written as YYYY-MM-DD";

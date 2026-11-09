@@ -9,7 +9,7 @@ export function normalizeBase(base: string | undefined): string {
 /**
  * Prefixes every root-relative URL in rendered HTML with the base path, so a
  * site served from a subfolder (such as GitHub Pages' `/repo/`) keeps working.
- * Covers links and images in blocks, rich text and CSS `url()`s in style attributes.
+ * Covers links and images in blocks, rich text, and CSS `url()`s in style attributes.
  * Protocol-relative (`//host`) and absolute URLs are left alone.
  */
 export function applyBasePath(html: string, base: string): string {

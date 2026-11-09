@@ -1,6 +1,6 @@
 /**
  * Plugins add to a site what blocks can't: code in the admin panel, screens
- * of their own, steps in the build and routes on full-stack sites' servers,
+ * of their own, steps in the build, and routes on full-stack sites' servers,
  * as well as blocks. A developer adds one in the site's config
  * (`plugins: [s3({ … })]`). Each part runs where Goodfellow can hold it to
  * the permissions the plugin declares:
@@ -14,7 +14,7 @@
  * - its server module answers requests on full-stack sites with everything
  *   the server has, which only a review can back.
  *
- * Its admin, build and server parts are named by module, never imported
+ * Its admin, build, and server parts are named by module, never imported
  * here, since the config is loaded in the browser too: each runtime loads
  * only its own part.
  */
@@ -135,7 +135,7 @@ export interface PluginPermissions {
   secrets?: string[];
   /**
    * Files and folders its build steps and tasks may read, from the site's
-   * root, besides the built site, their own package and `node_modules`, such
+   * root, besides the built site, their own package, and `node_modules`, such
    * as `content/`.
    */
   read?: string[];
@@ -144,14 +144,14 @@ export interface PluginPermissions {
 }
 
 export interface PluginScreen {
-  /** Its name in the screen's address, lowercase letters, digits and dashes. */
+  /** Its name in the screen's address, lowercase letters, digits, and dashes. */
   id: string;
   /** What Site Settings calls it. */
   title: string;
 }
 
 export interface PluginBuildStep {
-  /** Its name in the build's output, lowercase letters, digits and dashes. */
+  /** Its name in the build's output, lowercase letters, digits, and dashes. */
   id: string;
   /** The module whose default export is a `PluginBuildStepRun`, as for `admin`. */
   module: string;
@@ -174,7 +174,7 @@ export interface PluginBuildContext {
 export type PluginBuildStepRun = (context: PluginBuildContext) => void | Promise<void>;
 
 export interface PluginTask {
-  /** Its name in `api.task()`, lowercase letters, digits and dashes. */
+  /** Its name in `api.task()`, lowercase letters, digits, and dashes. */
   id: string;
   /** The module whose default export is a `PluginTaskRun`, as for `admin`. */
   module: string;
@@ -379,7 +379,7 @@ export interface PluginEditorSession {
   pages: PageLink[];
   /**
    * The admin panel shows the site's media in the frame's page itself, as in
-   * Puck's: `/media/…` addresses in images, links, posters and inline styles,
+   * Puck's: `/media/…` addresses in images, links, posters, and inline styles,
    * as drawn blocks have them, are shown from where each file is now (the
    * site's folder on a site in one, the browser's memory for an upload not
    * yet published, or the storage a plugin keeps media in), except in text
@@ -581,7 +581,7 @@ const SECRET = /^[A-Z_][A-Z0-9_]*$/;
  * credentials and settings (GitHub's, GitLab's `CI_*`, such as
  * `CI_REGISTRY_PASSWORD` and `CI_JOB_JWT`, Bitbucket's, such as
  * `BITBUCKET_STEP_OIDC_TOKEN`, the runners'), the hosts' that deploy sites
- * (Vercel's, Cloudflare's and Netlify's), Goodfellow's own git token, and
+ * (Vercel's, Cloudflare's, and Netlify's), Goodfellow's own git token, and
  * Node's and npm's, which change what runs.
  */
 const RESERVED_SECRETS =
@@ -668,7 +668,7 @@ export function pluginProblems(
       if (!ID.test(screen?.id ?? "") || screenIds.has(screen.id) || !screen.title?.trim()) {
         problem(
           "bad-screen",
-          `${name} has a screen without a title or an id of lowercase letters, digits and dashes of its own.`,
+          `${name} has a screen without a title or an id of lowercase letters, digits, and dashes of its own.`,
         );
       }
       screenIds.add(screen?.id);
@@ -711,7 +711,7 @@ export function pluginProblems(
       if (!ID.test(step?.id ?? "") || stepIds.has(step.id) || typeof step.module !== "string" || !step.module) {
         problem(
           "bad-step",
-          `${name} has a build step without a module or an id of lowercase letters, digits and dashes of its own.`,
+          `${name} has a build step without a module or an id of lowercase letters, digits, and dashes of its own.`,
         );
       }
       stepIds.add(step?.id);
@@ -721,7 +721,7 @@ export function pluginProblems(
       if (!ID.test(task?.id ?? "") || taskIds.has(task.id) || typeof task.module !== "string" || !task.module) {
         problem(
           "bad-task",
-          `${name} has a task without a module or an id of lowercase letters, digits and dashes of its own.`,
+          `${name} has a task without a module or an id of lowercase letters, digits, and dashes of its own.`,
         );
       }
       taskIds.add(task?.id);
@@ -799,7 +799,7 @@ export function describePlugin(plugin: GoodfellowPlugin): PluginDescription {
   };
 }
 
-/** Whether a plugin declared a file, itself or a folder it's in, for its screens to read and publish. */
+/** Whether a plugin declared a file, itself, or a folder it's in, for its screens to read and publish. */
 export function pluginMayUse(permissions: PluginPermissions, path: string): boolean {
   if (!isRelativePath(path) || path.endsWith("/") || !isPluginFile(path)) return false;
   return (permissions.files ?? []).some((declared) =>
@@ -837,7 +837,7 @@ export function pluginFrameUrl(editorUrl: string, id: string): string {
  * so the policy limits what it can send while it's there without sealing it.
  * An editor plugin's frame may also load the theme's Google Fonts, as the
  * editor's frames do, to show the site's blocks in them
- * (`PluginEditorStyles.fonts`), and show images, video and sound from
+ * (`PluginEditorStyles.fonts`), and show images, video, and sound from
  * `media`, the origins the site keeps media at outside the repository
  * (`mediaStorageOrigins()` in `@goodfellow-cms/core/node`), as its pages do.
  */
@@ -873,7 +873,7 @@ function escapeAttribute(text: string): string {
 
 /**
  * The page of a plugin's admin frame, as every build and development server
- * writes it: its policy first, then its stylesheets and its one classic
+ * writes it: its policy first, then its stylesheets, and its one classic
  * script, which starts with `EDITOR_PRELUDE`, so it runs only sandboxed.
  */
 export function pluginFramePage(options: {

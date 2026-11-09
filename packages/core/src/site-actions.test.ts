@@ -30,7 +30,7 @@ async function files(dir: string, keep: (name: string) => boolean): Promise<stri
 describe("the actions sites' workflows use", () => {
   it("are only GitHub's own, by their major version", async () => {
     const sources = [
-      // Every workflow core writes for new sites, content repositories, Cloudflare Pages and token brokers.
+      // Every workflow core writes for new sites, content repositories, Cloudflare Pages, and token brokers.
       ...(await files("packages/core/src", (name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))),
       // And the ones the starters and the example have.
       ...(await files("templates", (name) => name.endsWith(".yml"))),

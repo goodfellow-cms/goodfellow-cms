@@ -25,7 +25,7 @@ export default defineConfig([
   },
   {
     // Node only: reads and writes the site's files on disk, and (each on its own, since they run Pagefind,
-    // axe-core and TypeScript) indexes built sites, checks their pages and makes blocks of shadcn components.
+    // axe-core and TypeScript) indexes built sites, checks their pages, and makes blocks of shadcn components.
     entry: ["src/node.ts", "src/node-search.ts", "src/node-accessibility.ts", "src/node-shadcn.ts"],
     format: "esm",
     dts: true,

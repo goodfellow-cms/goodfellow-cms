@@ -1,7 +1,7 @@
 /**
  * Installing plugins from the admin panel: finding them on npm, reading what
  * each says it does from its `goodfellow-plugin.json`, and planning the
- * changes that install, update or remove one. An install adds the package to
+ * changes that install, update, or remove one. An install adds the package to
  * `package.json` at an exact release and records what the owner approved in
  * `plugins/installed/`, whose `index.ts` the config imports; the site's own
  * workflow then writes the lockfile, running none of the package's code, and
@@ -104,7 +104,7 @@ export function pluginManifest(plugin: GoodfellowPlugin): PluginManifest {
   };
 }
 
-/** What an installed plugin was approved to do: its name, release and manifest, as `plugins/installed/index.ts` passes them. */
+/** What an installed plugin was approved to do: its name, release, and manifest, as `plugins/installed/index.ts` passes them. */
 export interface ApprovedPlugin extends PluginManifest {
   name: string;
   release: string;
@@ -351,7 +351,7 @@ export function permissionChanges(from: PluginManifest, to: PluginManifest): Per
   return changes;
 }
 
-/** Why a plugin can't be installed, updated or removed from the admin panel. */
+/** Why a plugin can't be installed, updated, or removed from the admin panel. */
 export type PluginInstallProblem =
   /** The config lists plugins of its own, so a developer adds `installedPlugins` to them. */
   | { code: "config" }

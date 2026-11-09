@@ -289,7 +289,7 @@ function targetPath(item: RegistryItem, file: RegistryItem["files"][number], isB
 /**
  * Whether an item's file may go where it says: in its own block's folder or
  * the shared components, never into another block's, the installed blocks'
- * index, content, media or plugins, however its `target` spells it.
+ * index, content, media, or plugins, however its `target` spells it.
  */
 function mayHold(path: string, name: string): boolean {
   return [`${INSTALLED_BLOCKS_DIR}/${name}/`, `${COMPONENTS_DIR}/`, `${LIB_DIR}/`, `${HOOKS_DIR}/`].some((folder) =>
@@ -449,7 +449,7 @@ async function blockFiles(ref: string, options: Pick<InstallOptions, "registries
     queue.push(...item.registryDependencies);
   }
 
-  // Every site has React, Puck and Goodfellow's renderer too.
+  // Every site has React, Puck, and Goodfellow's renderer too.
   const allowed = new Set([
     ...(options.packages ?? REGISTRY_PACKAGES),
     "react",
@@ -560,7 +560,7 @@ function usesBlock(value: unknown, name: string): boolean {
   return Object.values(record).some((item) => usesBlock(item, name));
 }
 
-/** Every page, collection template, header and footer that uses a block. */
+/** Every page, collection template, header, and footer that uses a block. */
 export function blockUses(content: SiteContent, name: string): BlockUse[] {
   const uses: BlockUse[] = [];
   for (const page of content.pages) {

@@ -26,11 +26,11 @@ export interface BlockDescription {
   /** Puck's fields, as JSON: functions such as a custom field's `render` are left out. */
   fields: Record<string, unknown>;
   defaultProps?: Record<string, unknown>;
-  /** Only for collection templates, never pages, the header or the footer. */
+  /** Only for collection templates, never pages, the header, or the footer. */
   templateOnly?: boolean;
   /** The named parts it renders, such as `gf-card-title`, each with what owners call it, for themes' classes. */
   parts?: Record<string, string>;
-  /** Other words the editor's block list finds it by, besides its label, name and group. */
+  /** Other words the editor's block list finds it by, besides its label, name, and group. */
   keywords?: string[];
   /** What the editor's block list, and editor plugins', show beside its name (`block-icons.ts`). */
   icon?: BlockIcon;
