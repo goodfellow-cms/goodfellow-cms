@@ -118,6 +118,13 @@ const DOMAIN_CHANGES: Record<string, "connect" | "secure" | "disconnect"> = {
   "pages.disconnect": "disconnect",
 };
 
+/** A change's text, written as text or as bytes, which every backend publishes alike. */
+function changeText(change: FileChange | undefined): string | undefined {
+  if (!change) return undefined;
+  if ("content" in change) return change.content;
+  return "bytes" in change ? new TextDecoder("utf-8", { fatal: false }).decode(change.bytes) : undefined;
+}
+
 /**
  * What a publish does to the plugins installed from the admin panel, from
  * the record it writes and the one it replaces, read with `read`. Records
@@ -127,10 +134,10 @@ async function pluginQuestion(
   changes: readonly FileChange[],
   read: ((path: string) => Promise<string | undefined>) | undefined,
 ): Promise<BrokerQuestion | undefined> {
-  const change = changes.find((candidate) => candidate.path === INSTALLED_PLUGINS_FILE);
-  if (!change || !("content" in change)) return undefined;
+  const content = changeText(changes.find((candidate) => candidate.path === INSTALLED_PLUGINS_FILE));
+  if (content === undefined) return undefined;
   try {
-    const next = parseInstalledPlugins(change.content).plugins;
+    const next = parseInstalledPlugins(content).plugins;
     const before = parseInstalledPlugins(await read?.(INSTALLED_PLUGINS_FILE)).plugins;
     const installed = Object.entries(next)
       .filter(([name, plugin]) => JSON.stringify(before[name]) !== JSON.stringify(plugin))
@@ -144,10 +151,10 @@ async function pluginQuestion(
 
 /** The theme a set of changes installs early, if it does, which the broker asks about since it skips the wait. */
 function themeEarlyQuestion(changes: readonly FileChange[]): BrokerQuestion | undefined {
-  const change = changes.find((candidate) => candidate.path === THEME_FILE);
-  if (!change || !("content" in change)) return undefined;
+  const content = changeText(changes.find((candidate) => candidate.path === THEME_FILE));
+  if (content === undefined) return undefined;
   try {
-    const record = themeRecordSchema.safeParse(JSON.parse(change.content));
+    const record = themeRecordSchema.safeParse(JSON.parse(content));
     const early = record.success ? record.data.early : undefined;
     return record.success && early
       ? { kind: "theme-early", name: record.data.name, release: record.data.release, ...early }
@@ -232,7 +239,9 @@ export async function decide(
     return questionsFor(changes, siteUrl, readerOf(target));
   }
   if (path === "draft.publish") {
-    const changes = await (target as { changes(): Promise<FileChange[]> }).changes();
+    // The changes the admin panel asked to publish, where it gave them (`serveBackend()` has made them again), or the draft's.
+    const given = (args[1] as { changes?: FileChange[] } | undefined)?.changes;
+    const changes = given ?? (await (target as { changes(): Promise<FileChange[]> }).changes());
     return (await outsideTheirLimits(backend, changes)) ?? questionsFor(changes, siteUrl);
   }
   if (path === "updates.start") return { action: "ask", questions: [{ kind: "update", release: String(args[0]) }] };

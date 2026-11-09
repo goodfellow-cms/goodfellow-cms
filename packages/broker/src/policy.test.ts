@@ -80,6 +80,14 @@ describe("what the broker asks before making a call", () => {
       action: "ask",
       questions: [{ kind: "theme-early", name: "goodfellow-theme-harbor", release: "1.1.0", ...early }],
     });
+    // Written as bytes, which every backend publishes alike.
+    const [record] = changes;
+    if (!record) throw new Error("No record");
+    const bytes = [{ path: record.path, bytes: new TextEncoder().encode(record.content) }];
+    expect(await decide({ path: "write", args: [bytes], target: {} }, SITE)).toEqual({
+      action: "ask",
+      questions: [{ kind: "theme-early", name: "goodfellow-theme-harbor", release: "1.1.0", ...early }],
+    });
   });
 
   it("refuses workflows, even beside content", async () => {
@@ -123,11 +131,17 @@ describe("what the broker asks before making a call", () => {
     });
   });
 
-  it("checks a draft's changes when it's published", async () => {
+  it("checks a draft's changes when it's published, or the changes it's asked to publish", async () => {
     const draft = { changes: async () => [{ path: "package.json", content: "{}" }] };
     expect(await decide({ path: "draft.publish", args: ["Publish all"], target: draft }, SITE)).toEqual({
       action: "ask",
       questions: [{ kind: "code", paths: ["package.json"] }],
+    });
+    const given = { changes: [{ path: ".github/workflows/deploy.yml", content: "" }] };
+    expect(await decide({ path: "draft.publish", args: ["Publish all", given], target: draft }, SITE)).toEqual({
+      action: "refuse",
+      paths: [".github/workflows/deploy.yml"],
+      reason: "workflow",
     });
   });
 

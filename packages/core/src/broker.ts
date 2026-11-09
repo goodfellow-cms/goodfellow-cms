@@ -366,6 +366,57 @@ function received(value: unknown): unknown {
   return value;
 }
 
+/**
+ * A change as the admin panel sent it, made again as exactly one of
+ * `FileChange`'s kinds with a plain string path, so the broker's checks and
+ * the backend see the same change: backends look for `delete`, then `bytes`,
+ * then `content`, where the checks read `content` first, and a `String` object
+ * as a path passes every prefix test without equalling any. Throws
+ * `BrokerRefusedError` for anything else.
+ */
+export function rebuiltChange(value: unknown): FileChange {
+  const refuse = () => new BrokerRefusedError("not-here", "The broker can't read that change.");
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw refuse();
+  const change = value as Record<string, unknown>;
+  const { path } = change;
+  if (typeof path !== "string") throw refuse();
+  const kinds = ["content", "bytes", "delete"].filter((key) => Object.hasOwn(change, key));
+  if (kinds.length !== 1) throw refuse();
+  if (kinds[0] === "content" && typeof change.content === "string") return { path, content: change.content };
+  if (kinds[0] === "bytes" && change.bytes instanceof Uint8Array) return { path, bytes: new Uint8Array(change.bytes) };
+  if (kinds[0] === "delete" && change.delete === true) return { path, delete: true };
+  throw refuse();
+}
+
+/** A list of changes, each `rebuiltChange()`, with no path twice, since only one of them would be written. */
+export function rebuiltChanges(value: unknown): FileChange[] {
+  if (!Array.isArray(value)) throw new BrokerRefusedError("not-here", "The broker can't read those changes.");
+  const changes = value.map(rebuiltChange);
+  if (new Set(changes.map((change) => change.path)).size !== changes.length) {
+    throw new BrokerRefusedError("not-here", "The broker can't publish two changes to one file at once.");
+  }
+  return changes;
+}
+
+/** A call's arguments made again where they hold changes, so its check and the backend are handed the same ones. */
+function rebuiltArgs(name: string, args: unknown[]): unknown[] {
+  if (name === "write" || name === "draft.store.write") {
+    const options = (args[1] ?? {}) as Record<string, unknown>;
+    return [
+      rebuiltChanges(args[0]),
+      { message: String(options.message ?? ""), expectedRevision: String(options.expectedRevision ?? "") },
+    ];
+  }
+  if (name === "draft.publish") {
+    const given = (args[1] ?? {}) as Record<string, unknown>;
+    return [
+      String(args[0] ?? ""),
+      ...(given.changes === undefined ? [] : [{ changes: rebuiltChanges(given.changes) }]),
+    ];
+  }
+  return args;
+}
+
 export interface ServeOptions {
   /**
    * Asked before every call the admin panel makes, with its path in the
@@ -430,7 +481,7 @@ export function serveBackend(port: BrokerPort, backend: GitBackend, options: Ser
     const found = resolve(call.handle, call.path);
     if (!found) throw new BrokerRefusedError("not-here", "The broker doesn't offer that.");
     const { target, shape, method, name } = found;
-    const args = Array.isArray(call.args) ? call.args : [];
+    const args = rebuiltArgs(name, Array.isArray(call.args) ? call.args : []);
     const extra = options.extra?.[name];
     if (shape.sync?.[method]) {
       // A factory, such as `filesAt(revision)`, whose object's method is called at once.
