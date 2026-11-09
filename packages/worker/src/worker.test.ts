@@ -396,6 +396,19 @@ describe("owners' sign-ins", () => {
     expect(continued.headers.get("location")).toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize\?/);
   });
 
+  it("come back only to the browser that started them, so a state can't be handed to an owner", async () => {
+    // Someone confirms the page in their own browser, then sends an owner GitHub's link with the state they got.
+    const { fake, call, confirmed, newBrowser } = setup();
+    const started = await confirmed(await start(call));
+    const authorize = new URL(started.headers.get("location") ?? "");
+    const state = authorize.searchParams.get("state") ?? "";
+    const code = fake.authorize("olivia", authorize.searchParams.get("client_id") ?? "");
+    newBrowser();
+    const back = await call(`/github/callback?${new URLSearchParams({ code, state })}`);
+    expect(back.status).toBe(400);
+    expect(back.headers.get("location")).toBeNull();
+  });
+
   it("go straight to GitHub for an address the worker's own settings list", async () => {
     const { call } = setup({ env: { ALLOWED_ORIGINS: SITE } });
     expect((await start(call)).status).toBe(302);

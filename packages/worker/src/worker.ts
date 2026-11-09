@@ -207,6 +207,11 @@ interface StateData {
    * reaches a server's logs; older ones read it from the query.
    */
   fragment?: boolean;
+  /**
+   * The hash of `STATE_COOKIE` in the browser that started the sign-in, which the callback must come back to: a
+   * state someone else started can't be handed to another browser through GitHub's sign-in link.
+   */
+  browser: string;
 }
 
 interface SessionData {
@@ -344,6 +349,30 @@ const PAGE_HEADERS = {
 
 /** The cookie that shows an owner's sign-in was continued from the worker's own page, in the same browser. */
 const CONFIRM_COOKIE = "__Host-goodfellow_confirm";
+
+/**
+ * A random value kept in the browser that starts a sign-in, whose hash the sign-in's state carries, so only that
+ * browser can finish it. `Lax`, since GitHub sends the person back to the callback from its own pages.
+ */
+const STATE_COOKIE = "__Host-goodfellow_state";
+
+/**
+ * The browser's `STATE_COOKIE`, where it has one that looks right, so sign-ins started in two of its tabs both
+ * finish, or a new one, with the cookie to set, kept as long as the newest state.
+ */
+function stateCookie(request: Request): { value: string; header: string } {
+  const kept = cookie(request, STATE_COOKIE);
+  const value = kept && /^[\w-]{22,64}$/.test(kept) ? kept : base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
+  return {
+    value,
+    header: `${STATE_COOKIE}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${STATE_LIFETIME / 1000}`,
+  };
+}
+
+/** The hash of a `STATE_COOKIE` value, as a sign-in's state carries it. */
+async function browserHash(value: string): Promise<string> {
+  return base64UrlEncode(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))));
+}
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
@@ -947,7 +976,9 @@ export function createWorker(options: WorkerOptions = {}) {
             return confirmPage(url, repo ?? "", origin, fresh);
           }
         }
+        const browser = stateCookie(request);
         const state: StateData = {
+          browser: await browserHash(browser.value),
           purpose,
           ...(purpose !== "setup" && { repo }),
           return: back,
@@ -967,12 +998,18 @@ export function createWorker(options: WorkerOptions = {}) {
               redirect_uri: `${url.origin}/github/callback`,
               state: sealed,
             })}`;
-        return new Response(null, { status: 302, headers: { location, "cache-control": "no-store" } });
+        return new Response(null, {
+          status: 302,
+          headers: { location, "cache-control": "no-store", "set-cookie": browser.header },
+        });
       }
 
       if (path === "/github/callback" && request.method === "GET") {
         const state = await (await sealer()).open<StateData>("state", url.searchParams.get("state"));
         if (!state) return page("invalid");
+        // Only the browser that started this sign-in may finish it.
+        const browser = cookie(request, STATE_COOKIE);
+        if (!browser || !state.browser || (await browserHash(browser)) !== state.browser) return page("invalid");
         const code = url.searchParams.get("code");
         const app = appFor(state.purpose);
         if (!code && url.searchParams.get("installation_id")) {
