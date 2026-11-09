@@ -2,7 +2,7 @@
 
 A full-stack website built with [Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) and [Next.js](https://nextjs.org), for an organization whose editors sign in with the site's own accounts rather than GitHub's. Pages are files in a content repository of their own, edited in the admin panel at `/admin`; the site's server publishes them for the editors and keeps accounts in a database.
 
-It's being built in steps, and isn't released yet; the [full-stack Next.js](https://goodfellow-cms.github.io/goodfellow-cms/docs/full-stack-nextjs) docs page describes what it's built on. This step has the database and sign-in. Deploying it to Cloudflare, with a D1 database, comes next.
+It runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), built with [vinext](https://github.com/cloudflare/vinext), Cloudflare's build of Next.js, with a [D1](https://developers.cloudflare.com/d1/) database. It's being built in steps, and isn't released yet; the [full-stack Next.js](https://goodfellow-cms.github.io/goodfellow-cms/docs/full-stack-nextjs) docs page describes what it's built on.
 
 ## Working on the site
 
@@ -12,14 +12,45 @@ It's being built in steps, and isn't released yet; the [full-stack Next.js](http
 
 ```sh
 npm install
+cp .dev.vars.example .dev.vars   # then fill in BETTER_AUTH_SECRET
+npx wrangler d1 migrations apply goodfellow-company --local   # makes the database on this computer
 npm run dev          # site at http://localhost:4321, admin panel at http://localhost:4321/admin
-npm run build        # builds the site for its server
+npm run build        # builds the site into a Cloudflare Worker, in dist/
+npm run preview      # runs that Worker at http://localhost:4321, as Cloudflare will
 npm run migration -- add-jobs   # makes a migration, named by when it was made
 npm run migrations   # writes migrations/sqlite/ and migrations/postgres/ after a change to lib/db/migrations/
 npm test
 ```
 
-On your own computer, the admin panel saves straight to the files in `content/`, with no sign-in. Copy `.env.example` to `.env.local` for what the server reads.
+On your own computer, the admin panel saves straight to the files in `content/`, with no sign-in. `npm run dev` runs Next.js, with the database wrangler keeps in `.wrangler/` and what `.dev.vars` says; to use Postgres instead, set `DATABASE_URL` in `.env.local` (see `.env.example`).
+
+## Putting it online on Cloudflare
+
+Cloudflare's free plan allows a Worker of 3 MB, compressed, and this one is about 3.5 MB, so it needs [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/), $5 a month, which also allows far more of each request's CPU time. Every page is rendered while the site builds, so most visits cost almost nothing.
+
+1. **The content repository.** Make it as the [content repository](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
+2. **The database.** Sign in with `npx wrangler login`, run `npx wrangler d1 create goodfellow-company`, and put the `database_id` it gives in `wrangler.jsonc`.
+3. **The site's settings.** In `wrangler.jsonc`, set `GOODFELLOW_SITE_URL` to the site's address. Then set its secrets: `npx wrangler secret put BETTER_AUTH_SECRET` (at least 32 random characters, such as `openssl rand -base64 32` makes) and `npx wrangler secret put GOODFELLOW_GIT_TOKEN` (a fine-grained token that can publish to the content repository, and nothing else).
+4. **Putting it online.** `npm run build && npm run deploy` applies the database's migrations and uploads the Worker. To do it from GitHub instead, after every change, add the secrets `.github/workflows/deploy.yml` lists to the code repository.
+
+Publishing in the admin panel changes the content repository, so it's what has to ask for the site to be built again. Add this workflow to it as `.github/workflows/deploy-site.yml`, with a `GOODFELLOW_DEPLOY_TOKEN` secret: a fine-grained token for the code repository with only **Actions: Read and write**, which can start its workflows but never change its code.
+
+```yaml
+name: Put the site online
+on:
+  push:
+    branches: [main]
+permissions: {}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh workflow run deploy.yml --repo your-name/your-site
+        env:
+          GH_TOKEN: ${{ secrets.GOODFELLOW_DEPLOY_TOKEN }}
+```
+
+Add the site's domain to the Worker in Cloudflare's dashboard (Workers & Pages → goodfellow-company → Settings → Domains & Routes). Photos are resized with Cloudflare Images, whose free allowance is 5,000 different sizes a month; to turn it off, remove `images` from `vite.config.ts` and `wrangler.jsonc`.
 
 ## Changing the database
 
@@ -42,7 +73,10 @@ Every page is rendered once and served as it was, so a request costs the server 
 | File | What it does |
 |---|---|
 | `goodfellow.config.tsx` | The site's blocks, and the content repository its server publishes to |
-| `lib/env.ts` | The one place the site reads its bindings and secrets, so nothing else knows where it runs |
+| `wrangler.jsonc` | The Cloudflare Worker: its name, its D1 database bound as `DB`, and its settings |
+| `vite.config.ts` | How vinext builds the site into that Worker, rendering every page as it builds |
+| `.github/workflows/deploy.yml` | Builds the site with its content and puts it online, after every change |
+| `lib/env.ts` | The one place the site reads its bindings and secrets, so nothing else knows where it runs: the Worker's on Cloudflare, wrangler's in `npm run dev` |
 | `lib/db/dialect.ts` | The one place that knows the database: Cloudflare D1 where it's bound as `DB`, or Postgres at `DATABASE_URL` |
 | `lib/db/migrations/` | The database's tables, a migration a file, each written once with Kysely's schema builder; `npm run migrations` writes each database's SQL into `migrations/` |
 | `lib/auth.ts` | Sign-in with [Better Auth](https://www.better-auth.com): email addresses and passwords, no sign-up, and two roles, `admin` (the site's owners) and `editor` |

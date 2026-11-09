@@ -48,8 +48,8 @@
     "embla-carousel-react": "8.6.0",
     "lucide-react": "1.52.0",
     "radix-ui": "1.7.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "engines": {
     "node": "^22.23.4 || ^24.22.1 || >=26.12.1"

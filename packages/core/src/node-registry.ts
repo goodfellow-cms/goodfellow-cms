@@ -8,9 +8,11 @@ import { dirname, join } from "node:path";
  */
 export function localRegistryDir(root: string): string | undefined {
   const fromRoot = createRequire(join(root, "package.json"));
-  for (const require of [() => fromRoot, () => createRequire(fromRoot.resolve("@goodfellow-cms/admin/package.json"))]) {
+  // Not named `require`, which bundlers' CommonJS transforms take for Node's own and fail on (vinext's, in the
+  // company example).
+  for (const from of [() => fromRoot, () => createRequire(fromRoot.resolve("@goodfellow-cms/admin/package.json"))]) {
     try {
-      return join(dirname(require().resolve("@goodfellow-cms/registry/package.json")), "r");
+      return join(dirname(from().resolve("@goodfellow-cms/registry/package.json")), "r");
     } catch {
       // Not found from here.
     }

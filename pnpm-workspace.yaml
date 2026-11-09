@@ -35,3 +35,9 @@ peerDependencyRules:
     # @tiptap/html 3.31, which Puck renders rich text with, asks for happy-dom 20;
     # 3.32 and later accept 21 too.
     "@tiptap/html>happy-dom": "21"
+
+# Install scripts that never run: esbuild and workerd, which wrangler and the company example's Cloudflare build
+# use, bring their programs as packages for each platform, so neither needs its own.
+allowBuilds:
+  esbuild: false
+  workerd: false

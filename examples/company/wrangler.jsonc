@@ -1,0 +1,32 @@
+// The Worker that serves the site on Cloudflare: its pages, the admin panel, sign-in, and the admin panel's API.
+// `npm run build` writes it into dist/ with vinext, and `npm run deploy` puts it online.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "goodfellow-company",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // vinext's Worker, which runs the Next.js app.
+  "main": "vinext/server/fetch-handler",
+  "assets": {
+    "directory": "dist/client",
+    "html_handling": "none",
+    "not_found_handling": "none",
+    "binding": "ASSETS",
+    // Every page goes through the Worker, which serves the copy rendered when the site was built, so proxy.ts can
+    // send people who aren't signed in away from pages for members. Only the build's own files skip it.
+    "run_worker_first": ["/*", "!/_next/static/*", "!/*/_next/static/*"]
+  },
+  // Resizes the media library's photos for next/image (Cloudflare Images).
+  "images": { "binding": "IMAGES" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "goodfellow-company",
+      // What `npx wrangler d1 create goodfellow-company` says. On this computer, any name does.
+      "database_id": "your-database-id",
+      "migrations_dir": "migrations/sqlite"
+    }
+  ],
+  // The site's address, which sign-in trusts requests from. On this computer, .dev.vars says it's localhost.
+  "vars": { "GOODFELLOW_SITE_URL": "https://www.example.com" }
+}

@@ -24,6 +24,8 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       trustedOrigins: [siteEnv.GOODFELLOW_SITE_URL],
     }),
     emailAndPassword: { enabled: true, disableSignUp: true },
+    // The site's addresses end in a slash (`trailingSlash`), so its routes arrive as `/api/auth/get-session/`.
+    advanced: { skipTrailingSlashes: true },
     session: { cookieCache: { enabled: true, maxAge: SESSION_CACHE_SECONDS } },
     // `admin` people are the site's owners; everyone else an admin invites is an editor.
     plugins: [admin({ defaultRole: "editor", adminRoles: ["admin"] }), nextCookies()],
