@@ -10,42 +10,42 @@ The admin panel's **Blocks** screen adds more blocks to the editor, from Goodfel
 
 | Block | What it's for |
 |---|---|
-| Hero | A large heading at the top of a page, with text, buttons and a picture |
-| Cards | A grid of cards, each with a picture, a heading, text and a link |
+| Hero | A large heading at the top of a page, with text, buttons, and a picture |
+| Cards | A grid of cards, each with a picture, a heading, text, and a link |
 | Call to action | A highlighted box asking visitors to do something, with a button |
 | Testimonials | Quotes from people, with their names and photos |
 | Notice | A short message that stands out, such as a closure or a change of times |
-| Pricing table | Plans side by side, with prices, what each includes and a button |
+| Pricing table | Plans side by side, with prices, what each includes, and a button |
 | FAQ | Questions that open to show their answers |
 | Tabs | Content split into tabs, one shown at a time |
 | Image carousel | Pictures shown one at a time, with buttons to move between them |
-| Custom HTML | HTML written by hand, such as a widget's embed code. It's made safe (scripts, styles, frames and forms left out) unless you choose to use it exactly as written |
+| Custom HTML | HTML written by hand, such as a widget's embed code. It's made safe (scripts, styles, frames, and forms left out) unless you choose to use it exactly as written |
 | News feed | The latest items of another site's RSS or Atom feed, such as a diocese's news or a podcast's episodes: titles linking to them, with their dates |
 | Map | A Google map of an address or place, or of the embed code from Google Maps' **Share** button, or an OpenStreetMap map of its embed code, a link to a place on it or a latitude and longitude, such as `51.5055, -0.0754` (OpenStreetMap's maps can't look up addresses). No API key needed |
-| Social links | Links to the site's pages on Facebook, Instagram, YouTube and X, each shown as the network's mark |
+| Social links | Links to the site's pages on Facebook, Instagram, YouTube, and X, each shown as the network's mark |
 | Panel | A box with its title in a colored bar, other blocks inside it, and an optional button at its foot |
 | Slideshow with quick links | Full-width pictures that fade from one to the next, with a badge, such as a logo, and a column of quick links over them |
 | Content with section links | A page's blocks beside a list of the other pages in its part of the menu, the current one marked |
-| People | The people of an organization, such as its staff or council, each with a photo, their name, role and a few words |
+| People | The people of an organization, such as its staff or council, each with a photo, their name, role, and a few words |
 | Logos | A row of logos, such as sponsors or partners, each linking to its site |
 | Numbers | A few numbers worth knowing, such as families served or years open, each with what it counts |
 | Timeline | Moments in order down a line, such as an organization's history or the steps of a plan |
-| Countdown | The days, hours, minutes and seconds until a moment, in the site's time zone |
+| Countdown | The days, hours, minutes, and seconds until a moment, in the site's time zone |
 | Comments | Comments on the page, kept as discussions in a GitHub repository of their own (see [Comments](/docs/comments)) |
 
 Sites whose [content is kept apart from their code](/docs/content-repository) have no Blocks screen, since adding a block changes the code: their developer adds blocks. On a [full-stack Next.js site](/docs/full-stack-nextjs), whose server runs blocks' code, the Blocks screen submits the changes for review, for a developer to accept, rather than publishing them.
 
 ## Adding a block
 
-**Add** and **Remove** mark blocks to add or remove; **Publish** then makes every change in one save, and **Discard changes** forgets them. Publishing writes each added block's code into the site's repository, as a developer running `npx shadcn add` would: the block goes in `blocks/installed/`, and the shadcn components it uses in `components/ui/`. The editor offers it once the site has been rebuilt, a minute or two after publishing. Like the built-in blocks, these use the site's colors, fonts and corner rounding.
+**Add** and **Remove** mark blocks to add or remove; **Publish** then makes every change in one save, and **Discard changes** forgets them. Publishing writes each added block's code into the site's repository, as a developer running `npx shadcn add` would: the block goes in `blocks/installed/`, and the shadcn components it uses in `components/ui/`. The editor offers it once the site has been rebuilt, a minute or two after publishing. Like the built-in blocks, these use the site's colors, fonts, and corner rounding.
 
-FAQ, Tabs, Image carousel, Slideshow with quick links, Countdown and Comments are interactive. The FAQ's answers and the tabs' content are in the page even when hidden, so search engines and search boxes find them. The slideshow has a button to stop it, stops while the pointer or the keyboard is on it, and doesn't move by itself for visitors whose computer or phone asks for less motion.
+FAQ, Tabs, Image carousel, Slideshow with quick links, Countdown, and Comments are interactive. The FAQ's answers and the tabs' content are in the page even when hidden, so search engines and search boxes find them. The slideshow has a button to stop it, stops while the pointer or the keyboard is on it, and doesn't move by itself for visitors whose computer or phone asks for less motion.
 
 Countdown counts to a day and time in the site's time zone (Site Settings, under General). Without JavaScript, and to screen readers, it says when the moment is; once it has come, it shows what you chose to say then, and the site is built again that day so pages say it without JavaScript too.
 
 Comments keeps each page's comments as a discussion in a GitHub repository, through Giscus, where visitors sign in with GitHub to write one, or on Disqus or in Garrul, which you run on Cloudflare, where anyone can. On a site kept on GitHub, Site Settings' **Comments** sets Giscus up and moderates it; elsewhere it takes a few steps on GitHub first. Disqus and Garrul are set up there on any site. See [Comments](/docs/comments). All three are other sites' content, so they load only on the published site, never in the editor, and on a site that [asks visitors first](/docs/layout-and-settings#visitors-consent) they wait until visitors agree.
 
-News feed reads the feed when the site is built, not in the editor, which says where its items will come from, and asks for the site to be built again the next day, so a site [rebuilt overnight](/docs/updates#rebuilding-overnight) keeps it current. It shows only the items' titles, links and dates. If the feed can't be read, the page is built without it, showing the block's text for that. Like [another calendar](/docs/calendars#calendars-kept-elsewhere), its address must start with `https://`, and is never one on the computer building the site or a private network.
+News feed reads the feed when the site is built, not in the editor, which says where its items will come from, and asks for the site to be built again the next day, so a site [rebuilt overnight](/docs/updates#rebuilding-overnight) keeps it current. It shows only the items' titles, links, and dates. If the feed can't be read, the page is built without it, showing the block's text for that. Like [another calendar](/docs/calendars#calendars-kept-elsewhere), its address must start with `https://`, and is never one on the computer building the site or a private network.
 
 Content with section links finds the pages to list in a menu (`main` unless you name another): the submenu of the top-level link the page is under, or, on a page under one of those submenu's pages, such as one ministry under "Ministries", the pages beside it. On a collection's page design, **Show the links as if on this page** lists them as on another page, such as the list of news.
 
@@ -53,7 +53,7 @@ Custom HTML used exactly as written runs its scripts on the site. The editor onl
 
 ## Removing a block
 
-A block can't be removed while a page, a collection's page design, the header or the footer uses it; the Blocks screen lists where it's used. Removing deletes its files, except those someone has changed since it was added, or that another block still uses.
+A block can't be removed while a page, a collection's page design, the header, or the footer uses it; the Blocks screen lists where it's used. Removing deletes its files, except those someone has changed since it was added, or that another block still uses.
 
 ## Other registries
 

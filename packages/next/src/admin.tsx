@@ -12,6 +12,7 @@ import {
 } from "@goodfellow-cms/core";
 import { useEffect, useState } from "react";
 import "@goodfellow-cms/admin/styles.css";
+import { EDITOR_FRAMES_PAGE } from "./editor-frames-path.js";
 import themeCss from "./generated/theme-css.js";
 import { ADMIN_PAGE, EDITOR_PAGE } from "./site-files.js";
 
@@ -71,12 +72,16 @@ async function siteStylesheets(siteUrl: string): Promise<string[]> {
 const BASE_PATH = process.env.GOODFELLOW_BASE_PATH ?? "";
 
 /**
- * Where the editor's frames are: `app/admin/editor/`, or in `next dev` the
- * bundle the local backend serves, since Next.js refuses its development
- * files to sandboxed frames.
+ * Where the editor's frames are: `app/admin/editor/`; on a full-stack site
+ * (`server`), the bundle `goodfellow-next finish --server` writes into
+ * `public/`, whose Content Security Policy goes in a header, since its page
+ * runs no inline scripts to name; or in `next dev` the bundle the local
+ * backend serves, since Next.js refuses its development files to sandboxed frames.
  */
-const EDITOR_URL =
-  process.env.NODE_ENV === "development" ? `${BASE_PATH}${DEV_EDITOR_PREFIX}` : `${BASE_PATH}/admin/editor/`;
+function editorUrl(server: string | undefined): string {
+  if (process.env.NODE_ENV === "development") return `${BASE_PATH}${DEV_EDITOR_PREFIX}`;
+  return server ? `${BASE_PATH}/${EDITOR_FRAMES_PAGE}` : `${BASE_PATH}/admin/editor/`;
+}
 
 /**
  * In `next dev`, reloads the editor's frames once they're rebuilt, so they
@@ -88,7 +93,7 @@ function useEditorRebuilds() {
     let shown: number | undefined;
     const check = async () => {
       try {
-        const response = await fetch(`${EDITOR_URL}version.json`, { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}${DEV_EDITOR_PREFIX}version.json`, { cache: "no-store" });
         const { version } = (await response.json()) as { version: number };
         if (shown !== undefined && version !== shown) reloadFrames();
         shown = version;
@@ -184,7 +189,7 @@ function SiteAdmin({
       {policy}
       <Admin
         site={site}
-        frames={{ url: EDITOR_URL }}
+        frames={{ url: editorUrl(server) }}
         {...(setup.host && { host: setup.host })}
         {...(setup.store && { store: setup.store, registry: `${BASE_PATH}/__goodfellow/api/registry/{name}.json` })}
         {...(server && { server: `${BASE_PATH}${server}` })}

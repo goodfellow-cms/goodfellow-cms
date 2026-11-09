@@ -90,7 +90,7 @@ function packed(entry: AdminTextEntry): AdminTextEntry {
 }
 
 /**
- * Installing, updating or removing (`pack` undefined) a language's pack, with
+ * Installing, updating, or removing (`pack` undefined) a language's pack, with
  * no network access: the previous pack's strings that nobody has changed go,
  * the owner's own stay, and the pack's go in where the owner has none, or
  * over the owner's with `replaceOwn`. A file left with no strings is deleted.

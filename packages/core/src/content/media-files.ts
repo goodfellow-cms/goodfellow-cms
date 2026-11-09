@@ -3,7 +3,7 @@ import { slugify, uniqueName } from "./changes.js";
 
 export type MediaKind = "image" | "document" | "audio" | "video" | "font";
 
-/** The kinds of file that can be uploaded, by extension. Pages, scripts and other files that could run code aren't allowed. */
+/** The kinds of file that can be uploaded, by extension. Pages, scripts, and other files that could run code aren't allowed. */
 const KINDS: Record<string, MediaKind> = {
   jpg: "image",
   jpeg: "image",

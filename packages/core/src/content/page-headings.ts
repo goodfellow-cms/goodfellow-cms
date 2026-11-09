@@ -15,7 +15,7 @@ export interface PageHeading {
   level: number;
 }
 
-/** What a heading block says about itself: its text, level and the link name an editor gave it, if any. */
+/** What a heading block says about itself: its text, level, and the link name an editor gave it, if any. */
 export interface HeadingDetails {
   text: string;
   level: number;

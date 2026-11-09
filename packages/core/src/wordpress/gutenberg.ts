@@ -88,7 +88,7 @@ export function group(blocks: string[], row = false): string {
   return wpBlock("group", { layout }, `<div class="wp-block-group">${innerBlocks(blocks)}</div>`);
 }
 
-/** How a cover shows its picture: its overlay's strength, its least height and its focal point. */
+/** How a cover shows its picture: its overlay's strength, its least height, and its focal point. */
 export interface WpCoverLook {
   dimRatio: number;
   /** In pixels, or 0. */
@@ -343,7 +343,7 @@ function table(element: ChildNode, link: Link): string {
 
 /**
  * HTML, such as rich text or rendered Markdown, as WordPress's blocks:
- * paragraphs, headings, lists, quotes, code, tables, images and separators.
+ * paragraphs, headings, lists, quotes, code, tables, images, and separators.
  * `link` gives links' and images' addresses as they'll be on WordPress.
  */
 export function htmlBlocks(html: string, link: Link, media: Link = link): string[] {

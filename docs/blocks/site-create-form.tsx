@@ -160,7 +160,7 @@ function createMessage(error: unknown): string {
   if (error instanceof SetupError) {
     if (error.problem === "name-taken") return "There's already a repository with that name. Choose another name.";
     if (error.problem === "name-invalid") {
-      return "That name can't be used. Use letters, numbers, dashes, dots and underscores only.";
+      return "That name can't be used. Use letters, numbers, dashes, dots, and underscores only.";
     }
     if (error.problem === "not-installed") {
       return "Goodfellow isn't installed on that account yet. Install it there, then create the site.";
@@ -579,7 +579,7 @@ function CreateSite({
           )}
           <p className="text-sm text-muted-foreground" aria-live="polite">
             {!validName
-              ? "Use letters, numbers, dashes, dots and underscores only."
+              ? "Use letters, numbers, dashes, dots, and underscores only."
               : (available === false && !codeCreated) || (separate && contentAvailable === false)
                 ? separate
                   ? `There's already one called ${available === false && !codeCreated ? name : contentName(name)}.`

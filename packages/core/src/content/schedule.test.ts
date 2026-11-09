@@ -79,7 +79,7 @@ describe("pages and items that aren't published yet", () => {
     "content/collections/news/fair.json": { version: 1, notPublished: true, fields: { title: "The fair" } },
   };
 
-  it("are left out of the site, its menus and its schedule's changes until published", async () => {
+  it("are left out of the site, its menus, and its schedule's changes until published", async () => {
     const content = await loadSiteContent(memorySource(files));
     expect(content.pages.find((found) => found.path === "/picnic")?.content.notPublished).toBe(true);
     const shown = shownContent(content, new Date("2026-07-01T12:00:00Z"));

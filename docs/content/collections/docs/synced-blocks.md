@@ -6,7 +6,7 @@ section: editors
 order: 5.5
 ---
 
-A synced block is a block, or several, kept once and shown wherever it's placed: on pages, in a collection's page design, and in the header or footer. Change it, publish, and every page that shows it changes. They suit things several pages share, such as Mass times, a call to give or a newsletter signup.
+A synced block is a block, or several, kept once and shown wherever it's placed: on pages, in a collection's page design, and in the header or footer. Change it, publish, and every page that shows it changes. They suit things several pages share, such as Mass times, a call to give, or a newsletter signup.
 
 ## Make one
 
@@ -31,7 +31,7 @@ A synced block can't show another synced block, so the Synced block block isn't 
 
 ## Delete one
 
-**Delete** on the Synced blocks screen deletes a synced block nothing shows. While pages, page designs, the header or the footer show it, it lists them instead: take its Synced block out of each, or detach it there, first.
+**Delete** on the Synced blocks screen deletes a synced block nothing shows. While pages, page designs, the header, or the footer show it, it lists them instead: take its Synced block out of each, or detach it there, first.
 
 ## Several languages
 

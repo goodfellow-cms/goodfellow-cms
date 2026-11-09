@@ -56,7 +56,7 @@ export function sanitizeHtml(html: string): string {
 
 let cellFilter: InstanceType<typeof xss.FilterXSS> | undefined;
 
-/** The formatting a table's cell may have: bold, italics, links, code and line breaks. */
+/** The formatting a table's cell may have: bold, italics, links, code, and line breaks. */
 export const TABLE_CELL_TAGS = ["strong", "b", "em", "i", "u", "s", "code", "a", "br"] as const;
 
 /**

@@ -12,7 +12,7 @@ cd docs
 pnpm dev                     # site at http://localhost:4321, admin panel at /admin
 ```
 
-Each file starts with its front matter: `title`, a `description` shown under the title and in search results, its `section` (`start`, `editors`, `owners` or `developers`) and its `order` within the section. Links between pages are root-relative, such as `/docs/create-a-site`, and headings can be linked to as `/docs/create-a-site#try-it-on-your-computer`. A test checks that every link and heading link goes somewhere.
+Each file starts with its front matter: `title`, a `description` shown under the title and in search results, its `section` (`start`, `editors`, `owners`, or `developers`) and its `order` within the section. Links between pages are root-relative, such as `/docs/create-a-site`, and headings can be linked to as `/docs/create-a-site#try-it-on-your-computer`. A test checks that every link and heading link goes somewhere.
 
 Keep files in the form the admin panel writes them: after editing one by hand, `pnpm test` in `packages/cli` says if it isn't.
 
@@ -26,7 +26,7 @@ Both `pnpm dev` and `pnpm build` first run `scripts/starters.mjs`, which packs t
 
 `scripts/demo.mjs` builds [the demo](https://goodfellow-cms.github.io/goodfellow-cms/demo/admin/), which `docs.yml` publishes at `/demo/` beside the docs: the parish example as create-goodfellow makes it, with the recommended blocks and the Gutenberg plugin, in demo mode, from the packages on npm. Try it with `node scripts/demo.mjs /demo/ dist/demo` after `pnpm build`.
 
-`scripts/screenshots.mjs` takes the docs' screenshots (`/screenshots/*.png`, which pages show as Markdown images) after the demo is built: the setup page, the demo's Pages screen, editor and Publish button, and the sign-in screen of the same site stored on GitHub, which `demo.mjs` builds into the folder `GOODFELLOW_SIGN_IN_PREVIEW` names. It writes them into `dist/screenshots/` only, so they're never kept in the repository, and `pnpm dev` shows their descriptions in their place. Try it with `GOODFELLOW_SIGN_IN_PREVIEW=../.sign-in node scripts/demo.mjs /demo/ dist/demo`, then `node scripts/screenshots.mjs dist "" ../.sign-in`; it uses Chrome, or the browser `CHROME_PATH` names.
+`scripts/screenshots.mjs` takes the docs' screenshots (`/screenshots/*.png`, which pages show as Markdown images) after the demo is built: the setup page, the demo's Pages screen, editor, and Publish button, and the sign-in screen of the same site stored on GitHub, which `demo.mjs` builds into the folder `GOODFELLOW_SIGN_IN_PREVIEW` names. It writes them into `dist/screenshots/` only, so they're never kept in the repository, and `pnpm dev` shows their descriptions in their place. Try it with `GOODFELLOW_SIGN_IN_PREVIEW=../.sign-in node scripts/demo.mjs /demo/ dist/demo`, then `node scripts/screenshots.mjs dist "" ../.sign-in`; it uses Chrome, or the browser `CHROME_PATH` names.
 
 ## Online
 

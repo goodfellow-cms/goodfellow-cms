@@ -6,13 +6,13 @@ section: owners
 order: 4
 ---
 
-A new site is at its host's address, such as `https://your-name.github.io/your-site/`. To put it at a domain of your own, such as `example.org`, connect the domain in the admin panel. Buy the domain first from a registrar, such as Cloudflare, Namecheap or Porkbun, if you don't have one.
+A new site is at its host's address, such as `https://your-name.github.io/your-site/`. To put it at a domain of your own, such as `example.org`, connect the domain in the admin panel. Buy the domain first from a registrar, such as Cloudflare, Namecheap, or Porkbun, if you don't have one.
 
 ## Connect a domain
 
 1. In the admin panel, open **Site Settings → Domain**. Type the domain, such as `example.org` or `www.example.org`, and choose **Connect domain**.
 2. Goodfellow connects the domain on GitHub Pages or GitLab Pages, makes it the site's address in Site Settings and publishes that, and lists the records to add at your registrar.
-3. At your registrar, add each record, as below. Delete any other A, AAAA or CNAME records with the same names, such as the page some registrars show on new domains.
+3. At your registrar, add each record, as below. Delete any other A, AAAA, or CNAME records with the same names, such as the page some registrars show on new domains.
 4. The Domain screen checks every 30 seconds whether:
    1. the records are in place, as the rest of the world sees them;
    2. GitHub or GitLab has checked the domain and set up HTTPS for it;
@@ -36,7 +36,7 @@ The Domain screen lists the exact records for your site. They are:
 
 | Host | Domain such as `example.org` | Domain such as `www.example.org` |
 |---|---|---|
-| GitHub Pages | Four A records: 185.199.108.153, 185.199.109.153, 185.199.110.153 and 185.199.111.153. Four AAAA records are optional. | A CNAME record pointing to `your-name.github.io` |
+| GitHub Pages | Four A records: 185.199.108.153, 185.199.109.153, 185.199.110.153, and 185.199.111.153. Four AAAA records are optional. | A CNAME record pointing to `your-name.github.io` |
 | GitLab Pages | An A record: 35.185.44.232. An AAAA record is optional. Plus a TXT record that proves the domain is yours. | A CNAME record pointing to `your-group.gitlab.io`, plus the TXT record |
 
 Most registrars add the domain to a record's name themselves, so the screen shows what to type: `@` for the domain itself, `www` for `www.example.org`, and so on.
@@ -55,7 +55,7 @@ Never delete MX records, which deliver the domain's email.
 
 ## Sites on Cloudflare Pages
 
-A site published with Cloudflare Pages connects its domain in Cloudflare: open the site's Pages project, go to **Custom domains** and set up the domain.
+A site published with Cloudflare Pages connects its domain in Cloudflare: open the site's Pages project, go to **Custom domains**, and set up the domain.
 
 - **A subdomain**, such as `www.example.org`, can keep its DNS where it is: Cloudflare shows a CNAME record pointing at the project's `pages.dev` address, to add at your registrar.
 - **The domain itself**, such as `example.org`, has to use Cloudflare's nameservers. Cloudflare walks you through adding the domain to your account, copies its existing records, and shows the two nameservers to set at your registrar. Keep the MX records, which deliver the domain's email. To keep your DNS where it is instead, see [Keeping your DNS at your registrar](#keeping-your-dns-at-your-registrar).
@@ -67,7 +67,7 @@ Once the site opens at its new address, put the address in **Site Settings → G
 To keep the domain's DNS where it is, put the site at `www.example.org` and have something else send visitors from `example.org` to it. Whatever you choose must work over HTTPS: many people type or follow `https://example.org`, and some domains, such as `.dev` and `.app`, only open over HTTPS. A redirect that only works over plain HTTP gives those visitors a security warning instead of your site. Once it's set up, open `https://example.org` to check that it reaches the site.
 
 - **Your registrar's forwarding:** most registrars forward a domain for free, but many only over plain HTTP, and some only while the domain uses their own DNS. Porkbun says its forwarding works over HTTPS. Forward `example.org` to `https://www.example.org` as a permanent (301) redirect.
-- **A redirect service:** services such as [redirect.pizza](https://redirect.pizza/support/redirecting-non-www-to-www) (free for a few domains and a limit on visits each month), [ApexToWWW](https://www.apextowww.com/) and [ApexWise](https://apexwise.io/) give you an A record (and sometimes an AAAA record) for `example.org`, set up HTTPS and redirect to `www`. They see every visit that comes in through `example.org`, and the redirect stops working if the service shuts down, so read their terms first.
+- **A redirect service:** services such as [redirect.pizza](https://redirect.pizza/support/redirecting-non-www-to-www) (free for a few domains and a limit on visits each month), [ApexToWWW](https://www.apextowww.com/) and [ApexWise](https://apexwise.io/) give you an A record (and sometimes an AAAA record) for `example.org`, set up HTTPS, and redirect to `www`. They see every visit that comes in through `example.org`, and the redirect stops working if the service shuts down, so read their terms first.
 
 Either way, the Site address is `https://www.example.org`.
 
@@ -79,7 +79,7 @@ A site published with Vercel, as every site on Bitbucket is, connects its domain
 
 The admin panel can have an address of its own beside the site's, such as `admin.example.org` beside `example.org`. Browsers keep what one address stores away from the other, so scripts on the site's pages, such as code pasted into Site Settings or a block's, can't reach what the admin panel keeps there, such as an editor's sign-in. It also lets admins add blocks from [registries other than Goodfellow's](/docs/add-blocks#other-registries).
 
-It works on GitLab Pages, Cloudflare Pages, Netlify and Vercel, which serve a site at more than one address. GitHub Pages serves each site at one address (and its `www`), so it can't have one there.
+It works on GitLab Pages, Cloudflare Pages, Netlify, and Vercel, which serve a site at more than one address. GitHub Pages serves each site at one address (and its `www`), so it can't have one there.
 
 1. Connect the site's own domain first, as above.
 2. In **Site Settings → Domain**, under **Admin address**, type the address, such as `admin.example.org`, and choose **Give the admin panel this address**.
@@ -102,7 +102,7 @@ A few things to know:
 
 On a site whose content is in a repository of its own, the Domain screen connects the address but leaves the config to a developer, and shows what they run in the code's folder (`goodfellow-next` in place of `goodfellow` for a Next.js site):
 
-1. In **Site Settings → Domain**, type the address and choose **Give the admin panel this address**. On GitLab Pages, Goodfellow connects it there and lists its records, as above; on Cloudflare Pages, Netlify and Vercel, add it to the site yourself.
+1. In **Site Settings → Domain**, type the address and choose **Give the admin panel this address**. On GitLab Pages, Goodfellow connects it there and lists its records, as above; on Cloudflare Pages, Netlify, and Vercel, add it to the site yourself.
 2. A developer runs `npx goodfellow admin add admin.example.org` and publishes the code. Where Vercel builds the site from the content repository, it also writes the address's header rules, and the address its redirects are worked out from, into the content repository's `vercel.ts`, since Vercel reads that file before the code is cloned: publish that too. Where Vercel builds from the code repository, the content isn't there yet when Vercel reads `vercel.ts`, so only the scripts send pages opened at the wrong address.
 3. Once the site has rebuilt, the developer runs `npx goodfellow admin check`, which reads the site's home page at the admin address, as the Domain screen does from there, checks that it leaves the address before running anything (and is sandboxed on Cloudflare Pages and Vercel; on Netlify, the script alone), and marks the address checked in `goodfellow.config.tsx`, and in the content repository's `vercel.ts` where it changed it before. Once that's published and the site has rebuilt, the admin panel opens only at the admin address.
 
@@ -110,7 +110,7 @@ On a site whose content is in a repository of its own, the Domain screen connect
 
 ### Redirects on Cloudflare
 
-Cloudflare Pages can't send people from one address to another itself, but Cloudflare can, where the domain's DNS is on Cloudflare (not where you [keep it at your registrar](#keeping-your-dns-at-your-registrar)). They're optional, since every page's script does the same in the browser. In the Cloudflare dashboard, open the domain, go to **Rules → Redirect Rules**, and add a rule for each, choosing **Custom filter expression**, **Edit expression**, a **Dynamic** target, status code **307** and **Preserve query string**, with your own addresses in place of `example.org` and `admin.example.org`:
+Cloudflare Pages can't send people from one address to another itself, but Cloudflare can, where the domain's DNS is on Cloudflare (not where you [keep it at your registrar](#keeping-your-dns-at-your-registrar)). They're optional, since every page's script does the same in the browser. In the Cloudflare dashboard, open the domain, go to **Rules → Redirect Rules**, and add a rule for each, choosing **Custom filter expression**, **Edit expression**, a **Dynamic** target, status code **307**, and **Preserve query string**, with your own addresses in place of `example.org` and `admin.example.org`:
 
 1. **Site pages opened at the admin address,** sent to the Site address:
 

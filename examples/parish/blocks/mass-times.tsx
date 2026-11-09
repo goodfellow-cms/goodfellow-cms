@@ -13,7 +13,7 @@ export interface MassTimesProps {
   className: string;
 }
 
-/** A list of Mass (or confession) times, each with a day, a time and an optional note. */
+/** A list of Mass (or confession) times, each with a day, a time, and an optional note. */
 export const MassTimes: ComponentConfig<MassTimesProps> = {
   label: "Mass times",
   fields: {

@@ -39,7 +39,7 @@ function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** The values a select, radio or checkbox field offers. */
+/** The values a select, radio, or checkbox field offers. */
 function optionValues(field: FieldJson): unknown[] {
   return Array.isArray(field.options)
     ? field.options.filter(isObject).map((option) => (option as { value?: unknown }).value)

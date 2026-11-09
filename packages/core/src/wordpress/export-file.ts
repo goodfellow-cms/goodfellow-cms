@@ -1,6 +1,6 @@
 /**
  * Reads a WordPress export file (WXR, from Tools → Export): the site's pages,
- * posts, categories, tags, menus and media library.
+ * posts, categories, tags, menus, and media library.
  */
 import { hasBlocks, parseBlocks, type WordPressBlock } from "./blocks.js";
 import { attribute, child, childElements, childText, type Element, parseXml, plainText, textOf } from "./html.js";

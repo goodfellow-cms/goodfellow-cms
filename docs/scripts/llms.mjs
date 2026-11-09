@@ -83,4 +83,4 @@ writeFileSync(join(public_, "llms.txt"), index);
 const everything = [`# ${site.title}`, "", summary, "", about, "", ...pages.map((item) => page(item))].join("\n");
 writeFileSync(join(public_, "llms-full.txt"), everything);
 
-console.log(`Wrote llms.txt, llms-full.txt and ${pages.length} pages as Markdown for AI tools.`);
+console.log(`Wrote llms.txt, llms-full.txt, and ${pages.length} pages as Markdown for AI tools.`);

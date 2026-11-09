@@ -221,7 +221,7 @@
                             "id": "Text-anointing",
                             "align": "left",
                             "className": "mt-2 text-muted-foreground",
-                            "content": "<p>If someone is seriously ill, in hospital or about to have surgery, call the parish office, at any hour in an emergency.</p>"
+                            "content": "<p>If someone is seriously ill, in hospital, or about to have surgery, call the parish office, at any hour in an emergency.</p>"
                           }
                         }
                       ],
@@ -250,7 +250,7 @@
     "root": {
       "props": {
         "className": "",
-        "description": "How to arrange baptisms, weddings, First Communion and the other sacraments.",
+        "description": "How to arrange baptisms, weddings, First Communion, and the other sacraments.",
         "image": "",
         "title": "Sacraments"
       }

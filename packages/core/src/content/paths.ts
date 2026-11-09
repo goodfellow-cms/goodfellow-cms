@@ -53,10 +53,10 @@ export const HOOKS_DIR = "hooks";
  * links into it on a developer's computer, and copies of it in builds.
  */
 export const CONTENT_REPOSITORY_DIR = "content-repository";
-/** The file in each collection's folder that holds its fields, address pattern and template. */
+/** The file in each collection's folder that holds its fields, address pattern, and template. */
 export const COLLECTION_SETTINGS_FILE = "_collection.json";
 
-/** A URL path segment: lowercase letters, digits and single hyphens. */
+/** A URL path segment: lowercase letters, digits, and single hyphens. */
 const SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export class InvalidPathError extends Error {
@@ -72,7 +72,7 @@ export function pathSegments(path: string): string[] {
   for (const segment of segments) {
     if (!SEGMENT.test(segment)) {
       throw new InvalidPathError(
-        `"${segment}" can't be part of a page address. Use lowercase letters, numbers and hyphens only.`,
+        `"${segment}" can't be part of a page address. Use lowercase letters, numbers, and hyphens only.`,
       );
     }
   }
@@ -177,7 +177,7 @@ export function addressPatternProblem(pattern: string): string | undefined {
   const slugs = segments.filter((segment) => segment === SLUG_PLACEHOLDER).length;
   if (slugs !== 1) return `must contain ${SLUG_PLACEHOLDER} exactly once, such as /videos/${SLUG_PLACEHOLDER}.`;
   const bad = segments.find((segment) => segment !== SLUG_PLACEHOLDER && !SEGMENT.test(segment));
-  if (bad !== undefined) return `can't contain "${bad}". Use lowercase letters, numbers and hyphens only.`;
+  if (bad !== undefined) return `can't contain "${bad}". Use lowercase letters, numbers, and hyphens only.`;
   return undefined;
 }
 

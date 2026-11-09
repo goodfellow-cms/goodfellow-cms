@@ -74,7 +74,7 @@ export const adminTextFileSchema = z.object({
   strings: adminTextTableSchema,
   /** Puck's text, by its dictionary's keys. */
   puck: adminTextTableSchema,
-  /** Blocks' names, settings' labels and choices, by their English wording. */
+  /** Blocks' names, settings' labels, and choices, by their English wording. */
   labels: adminTextTableSchema,
   /** The language pack on npm the text came from, where it did (`planLanguagePack()`). */
   pack: z

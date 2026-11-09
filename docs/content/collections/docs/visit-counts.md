@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Visit counts
-description: Count your site's visits with Plausible, Umami or GoatCounter, which keep no cookies, set up in Site Settings, waiting for visitors' agreement where the site asks first.
+description: Count your site's visits with Plausible, Umami, or GoatCounter, which keep no cookies, set up in Site Settings, waiting for visitors' agreement where the site asks first.
 section: owners
 order: 1.6
 ---

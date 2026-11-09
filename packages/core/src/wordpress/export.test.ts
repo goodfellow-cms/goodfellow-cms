@@ -139,7 +139,7 @@ async function exported() {
 }
 
 describe("WordPress export files", () => {
-  it("writes pages, posts, menus and media that WordPress's importer reads", async () => {
+  it("writes pages, posts, menus, and media that WordPress's importer reads", async () => {
     const { result } = await exported();
     expect(result.summary).toEqual({ pages: 3, posts: 2, media: 2, menus: 1, categories: 1, tags: 1 });
     const site = readWordPressExport(result.xml);

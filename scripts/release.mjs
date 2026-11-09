@@ -578,7 +578,7 @@ try {
     await approve({ version: option("--version"), otp: option("--otp"), yes: flags.includes("--yes") });
   } else {
     throw new ReleaseError(
-      "Run `node scripts/release.mjs` with version, publish, wait, tag, staged or approve. See the top of the script.",
+      "Run `node scripts/release.mjs` with version, publish, wait, tag, staged, or approve. See the top of the script.",
     );
   }
 } catch (error) {

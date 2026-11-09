@@ -207,7 +207,7 @@ function subjectIn(content: SiteContent, path: string): SiteChangeSubject | unde
 }
 
 /**
- * What has changed since, as pages, items, settings and media rather than
+ * What has changed since, as pages, items, settings, and media rather than
  * files: each page and item from the site where it is, now or, for one removed
  * since, then. The site's own code (custom code's two files) is listed once.
  */

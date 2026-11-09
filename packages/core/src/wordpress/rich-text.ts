@@ -26,7 +26,7 @@ const MARKS: Record<string, string> = {
 
 const BLOCKS = new Set(["p", "ul", "ol", "blockquote"]);
 
-/** Inline content: text, marks and links, with whitespace as browsers show it. */
+/** Inline content: text, marks, and links, with whitespace as browsers show it. */
 function inline(nodes: ChildNode[], link: (address: string) => string): string {
   return nodes
     .map((node) => {
@@ -51,7 +51,7 @@ function trimmed(html: string): string {
   return html.replace(/\s*<br>\s*/g, "<br>").replace(/^(\s|<br>)+|(\s|<br>)+$/g, "");
 }
 
-/** Block content: paragraphs, lists and quotes, with text that isn't in one put in a paragraph. */
+/** Block content: paragraphs, lists, and quotes, with text that isn't in one put in a paragraph. */
 function blocks(nodes: ChildNode[], link: (address: string) => string): string {
   const out: string[] = [];
   let loose: ChildNode[] = [];
