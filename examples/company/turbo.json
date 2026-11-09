@@ -4,7 +4,17 @@
   "tasks": {
     "build": {
       // A full-stack build: Next.js's server build, and what `goodfellow-next finish --server` writes into public/.
-      "outputs": [".next/**", "!.next/cache/**", "public/api/**", "public/pagefind/**", "public/calendars/**"]
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "public/api/**",
+        "public/pagefind/**",
+        "public/calendars/**",
+        "public/feeds/**",
+        "public/fonts/google/**",
+        "public/admin/text/**",
+        "public/admin/plugins/**"
+      ]
     },
     "typecheck": {
       // `next build` rewrites the route types in .next/types that the typecheck reads.

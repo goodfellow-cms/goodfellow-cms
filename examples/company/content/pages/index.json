@@ -49,18 +49,6 @@
                       "size": "lg",
                       "variant": "secondary"
                     }
-                  },
-                  {
-                    "type": "Button",
-                    "props": {
-                      "id": "Button-secondary",
-                      "className": "",
-                      "href": "/about",
-                      "label": "Contact",
-                      "newTab": false,
-                      "size": "lg",
-                      "variant": "outline"
-                    }
                   }
                 ],
                 "justify": "start",
@@ -177,7 +165,7 @@
                             "align": "left",
                             "className": "",
                             "level": "h3",
-                            "text": "No hosting bills"
+                            "text": "Static where it can be"
                           }
                         },
                         {
@@ -186,7 +174,7 @@
                             "id": "Text-feature-3",
                             "align": "left",
                             "className": "mt-2 text-muted-foreground",
-                            "content": "<p>The whole site is static files, so free hosting is enough.</p>"
+                            "content": "<p>Pages that look the same to everyone are served as files, so the server only signs people in and reads the database.</p>"
                           }
                         }
                       ],

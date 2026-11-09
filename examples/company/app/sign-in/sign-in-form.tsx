@@ -9,8 +9,12 @@ import { authClient } from "@/lib/auth-client";
  */
 function nextPath(): string {
   const next = new URLSearchParams(location.search).get("next") ?? "/";
-  const target = new URL(next, location.origin);
-  return target.origin === location.origin ? `${target.pathname}${target.search}${target.hash}` : "/";
+  try {
+    const target = new URL(next, location.origin);
+    return target.origin === location.origin ? `${target.pathname}${target.search}${target.hash}` : "/";
+  } catch {
+    return "/";
+  }
 }
 
 export function SignInForm() {
@@ -22,13 +26,18 @@ export function SignInForm() {
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setProblem(undefined);
-    const { error } = await authClient.signIn.email({
-      email: String(form.get("email")),
-      password: String(form.get("password")),
-    });
-    setBusy(false);
-    if (error) return setProblem("That email address and password don't match an account here.");
-    location.assign(nextPath());
+    try {
+      const { error } = await authClient.signIn.email({
+        email: String(form.get("email")),
+        password: String(form.get("password")),
+      });
+      if (error) return setProblem("That email address and password don't match an account here.");
+      location.assign(nextPath());
+    } catch {
+      setProblem("Signing in didn't work. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

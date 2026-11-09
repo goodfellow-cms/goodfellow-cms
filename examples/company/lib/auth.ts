@@ -58,7 +58,9 @@ export async function authorize(request: Request): Promise<AppEditor | null | fa
 
 /** `authorize()` with a Better Auth of its own, as tests give it. */
 export async function authorizeWith(siteAuth: SiteAuth, request: Request): Promise<AppEditor | null | false> {
-  const session = await siteAuth.api.getSession({ headers: request.headers });
+  // Read from the database every time, never the session cookie's cached copy, so someone who's banned or loses
+  // their role can't publish for the rest of the cache's time.
+  const session = await siteAuth.api.getSession({ headers: request.headers, query: { disableCookieCache: true } });
   if (!session) return null;
   const { user } = session;
   if (user.banned || (user.role !== "admin" && user.role !== "editor")) return false;
