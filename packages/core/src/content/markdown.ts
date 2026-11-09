@@ -226,6 +226,12 @@ function markdownRenderer(options: MarkdownOptions) {
       html({ text }) {
         return escapeHtml(text);
       },
+      // Marked prints text that follows an inline <pre>, <code>, <kbd> or <script> as it is, taking it as raw HTML
+      // inside one. Those tags are escaped here, so their text is ordinary text, and is escaped too.
+      text(token) {
+        if ("tokens" in token && token.tokens) return false;
+        return "escaped" in token && token.escaped ? escapeHtml(token.text) : false;
+      },
       heading({ tokens, depth }) {
         const id = slug(plainText(tokens));
         return `<h${depth} id="${escapeHtml(id)}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
