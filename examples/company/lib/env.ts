@@ -33,7 +33,7 @@ let cached: Promise<SiteEnv> | undefined;
 /**
  * The site's bindings and variables: on Cloudflare, the Worker's (`cloudflare:workers`, its D1 binding and its
  * secrets); in `next dev`, the same from wrangler.jsonc and .dev.vars, with a D1 database kept on this computer in
- * .wrangler/, unless `DATABASE_URL` names one; anywhere else, `process.env`.
+ * .wrangler/, unless `DATABASE_URL` names a Postgres one; anywhere else, `process.env`.
  */
 export function env(): Promise<SiteEnv> {
   cached ??= (async () => {
@@ -47,10 +47,12 @@ export function env(): Promise<SiteEnv> {
       return workers.env;
     }
     // Left out of builds, where NODE_ENV is "production", so wrangler is never bundled.
-    if (process.env.NODE_ENV === "development" && !process.env.DATABASE_URL) {
+    if (process.env.NODE_ENV === "development") {
       const { getPlatformProxy } = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "wrangler");
       const { env: bindings } = await getPlatformProxy<SiteEnv>();
-      return { ...(process.env as SiteEnv), ...bindings };
+      // `DATABASE_URL` in .env.local chooses Postgres over the local D1 database, keeping .dev.vars' settings.
+      const { DB, ...settings } = bindings;
+      return { ...(process.env as SiteEnv), ...settings, ...(!process.env.DATABASE_URL && { DB }) };
     }
     return process.env as SiteEnv;
   })();
