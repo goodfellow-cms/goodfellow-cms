@@ -257,7 +257,8 @@ describe("writeEditorFrames", () => {
       await writeFile(join(site, "package.json"), '{ "name": "editor-site", "type": "module" }');
       await writeFile(
         join(site, "goodfellow.config.tsx"),
-        'import { defineConfig } from "@goodfellow-cms/core";\nexport default defineConfig({ blocks: {} });\n',
+        // A server's variable, which browser code built by Next.js reads as undefined, as the frames must.
+        'import { defineConfig } from "@goodfellow-cms/core";\nexport default defineConfig({ blocks: {}, ...(process.env.SERVER_ONLY ? { demo: true } : {}) });\n',
       );
       // No .next/: it runs before `next build` as well as after it.
       const dir = await writeEditorFrames("public", site);
@@ -269,7 +270,10 @@ describe("writeEditorFrames", () => {
       // Its one script is the bundle, named by its address: nothing inline.
       expect(page.match(/<script\b[^>]*>/gi)).toEqual(['<script src="editor.js">']);
       // The prelude first, which stops it anywhere but a sandboxed frame (minified, so it reads a little differently).
-      expect(await readFile(join(dir, "editor.js"), "utf8")).toMatch(/^\(\(\)=>\{if\(self\.origin!==/);
+      const code = await readFile(join(dir, "editor.js"), "utf8");
+      expect(code).toMatch(/^\(\(\)=>\{if\(self\.origin!==/);
+      // Browsers have no process: nothing in the bundle reads its environment.
+      expect(code).not.toContain("process.env");
     } finally {
       await rm(site, { recursive: true, force: true });
     }

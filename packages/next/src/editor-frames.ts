@@ -17,6 +17,29 @@ export function siteConfigFile(root: string): string {
 }
 
 /**
+ * What browser code sees of `process.env`, as Next.js gives it: `NODE_ENV`,
+ * the build's `NEXT_PUBLIC_*` variables, and `extra` (the values
+ * `withGoodfellow()` puts in the config's `env`). Everything else reads as
+ * `undefined`, as in a page Next.js built, so a config that reads a server's
+ * variable, such as a backend's address for tests, still loads.
+ */
+export function browserEnv(development: boolean, extra: Record<string, string> = {}): Record<string, string> {
+  const shown: Record<string, string> = { NODE_ENV: development ? "development" : "production" };
+  for (const [name, value] of Object.entries(process.env)) {
+    if (name.startsWith("NEXT_PUBLIC_") && value !== undefined) shown[name] = value;
+  }
+  return { ...shown, ...extra };
+}
+
+/** Rolldown's `define` for `browserEnv()`: each variable by name, then `process.env` itself for the rest. */
+function envDefines(env: Record<string, string>): Record<string, string> {
+  return {
+    ...Object.fromEntries(Object.entries(env).map(([name, value]) => [`process.env.${name}`, JSON.stringify(value)])),
+    "process.env": JSON.stringify(env),
+  };
+}
+
+/**
  * How the editor's frames are bundled: the site's config, Puck and every
  * block as one classic script, `editor.js`, with `EDITOR_PRELUDE` first, as
  * `goodfellow build` bundles them. The frames are sandboxed with
@@ -29,7 +52,11 @@ export function siteConfigFile(root: string): string {
 export function editorFramesOptions(
   root: string,
   outDir: string,
-  { development, stylesheets }: { development: boolean; stylesheets: Set<string> },
+  {
+    development,
+    stylesheets,
+    env = browserEnv(development),
+  }: { development: boolean; stylesheets: Set<string>; env?: Record<string, string> },
 ): BuildOptions {
   const configFile = siteConfigFile(root);
   return {
@@ -40,7 +67,7 @@ export function editorFramesOptions(
     tsconfig: existsSync(join(root, "tsconfig.json")) ? join(root, "tsconfig.json") : false,
     transform: {
       jsx: { runtime: "automatic" },
-      define: { "process.env.NODE_ENV": JSON.stringify(development ? "development" : "production") },
+      define: envDefines(env),
     },
     plugins: [
       {
@@ -91,10 +118,14 @@ export async function writeEditorFramesPage(outDir: string, stylesheets: Iterabl
 
 /**
  * Bundles a full-stack site's editor frames into `<outDir>/admin/editor/frames/`,
- * such as its `public/`, from the site's code alone, so it needs nothing
- * `next build` writes and runs before it or after it, on any host.
+ * such as its `public/`, from the site's code alone, with `env` as what
+ * `withGoodfellow()` gives browser code (`browserEnv()`).
  */
-export async function writeEditorFrames(outDir: string, root = process.cwd()): Promise<string> {
+export async function bundleEditorFrames(
+  outDir: string,
+  root: string,
+  env: Record<string, string> = {},
+): Promise<string> {
   const site = resolve(root);
   const dir = join(resolve(site, outDir), EDITOR_FRAMES_PATH);
   await rm(dir, { recursive: true, force: true });
@@ -102,7 +133,7 @@ export async function writeEditorFrames(outDir: string, root = process.cwd()): P
   const stylesheets = new Set<string>();
   // Loaded only here, so Next.js's own builds never load the bundler.
   const { build } = await import("rolldown");
-  await build(editorFramesOptions(site, dir, { development: false, stylesheets }));
+  await build(editorFramesOptions(site, dir, { development: false, stylesheets, env: browserEnv(false, env) }));
   await writeEditorFramesPage(dir, stylesheets);
   return dir;
 }
