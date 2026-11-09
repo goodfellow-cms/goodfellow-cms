@@ -23,7 +23,7 @@ describe("the Deploy to Cloudflare copy", () => {
     expect(wrangler.keep_vars).toBe(true);
   });
 
-  it("deploys with its name, an exact Wrangler and a lockfile from npm's registry", () => {
+  it("deploys with its name, an exact Wrangler, and a lockfile from npm's registry", () => {
     expect(pkg.scripts.deploy).toBe("node deploy.mjs");
     expect(read("deploy.mjs")).toContain("WORKER_NAME:");
     expect(pkg.devDependencies.wrangler).toMatch(/^\d+\.\d+\.\d+$/);

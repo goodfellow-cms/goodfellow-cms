@@ -138,7 +138,7 @@ export interface FakeTaskPayload {
   key: string;
 }
 
-/** A GitHub App, as the sign-in worker uses one: its JWTs, installations, OAuth sign-in and tokens. */
+/** A GitHub App, as the sign-in worker uses one: its JWTs, installations, OAuth sign-in, and tokens. */
 export interface FakeGitHubApp {
   id: string;
   slug: string;
@@ -824,7 +824,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     return sha;
   }
 
-  /** Git's data API on a repository: blobs, trees, commits and moving a branch, as REST commits need. */
+  /** Git's data API on a repository: blobs, trees, commits, and moving a branch, as REST commits need. */
   async function handleGitData(
     request: Request,
     rest: string,

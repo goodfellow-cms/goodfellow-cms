@@ -123,7 +123,7 @@ export function pageAddress(input: string): string {
     return normalizePagePath(input.trim().startsWith("/") ? input.trim() : `/${input.trim()}`);
   } catch {
     throw new ToolError(
-      `"${input}" can't be a page's address. Addresses are like /about or /news/open-day: lowercase letters, numbers and hyphens.`,
+      `"${input}" can't be a page's address. Addresses are like /about or /news/open-day: lowercase letters, numbers, and hyphens.`,
     );
   }
 }

@@ -82,7 +82,7 @@ export interface BuildOptions {
 /** The environment variable that has `goodfellow build` use React, as `--react` does: `GOODFELLOW_REACT=1`. */
 export const REACT_VARIABLE = "GOODFELLOW_REACT";
 
-/** Whether the environment says to use React (`GOODFELLOW_REACT` set to `1`, `true` or `yes`). */
+/** Whether the environment says to use React (`GOODFELLOW_REACT` set to `1`, `true`, or `yes`). */
 export function reactFromEnv(env: Record<string, string | undefined>): boolean {
   return /^(1|true|yes)$/i.test(env[REACT_VARIABLE]?.trim() ?? "");
 }
@@ -413,7 +413,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const robotsElsewhere = rootRobotsUrl(url);
 
     // Plugins' build steps, each in a process of its own held to what its plugin declared, once Goodfellow has
-    // written everything but the record, the search index and the guards, which then cover what the steps wrote.
+    // written everything but the record, the search index, and the guards, which then cover what the steps wrote.
     const pluginSteps = (
       await runPluginBuildSteps({
         root,
@@ -472,7 +472,7 @@ export function islandsSummary(islands: NonNullable<BuildResult["islands"]>): st
   if (islands.because === "variable") return "Client Components run with React, as GOODFELLOW_REACT says";
   if (islands.because === "config") return "Client Components run with React, as the config says (preact: false)";
   const shown = islands.needReact.slice(0, 3).join(", ");
-  const more = islands.needReact.length > 3 ? ` and ${islands.needReact.length - 3} more` : "";
+  const more = islands.needReact.length > 3 ? `, and ${islands.needReact.length - 3} more` : "";
   const verb = islands.needReact.length === 1 ? "doesn't" : "don't";
   return `Client Components run with React, since ${shown}${more} ${verb} say they work with Preact (export const worksWithPreact = true)`;
 }

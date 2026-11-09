@@ -6,7 +6,7 @@
  *    each to GitHub, and GitHub comes back with a code that gives the app's id,
  *    keys and secret, so nothing is copied by hand.
  * 3. Puts the apps' names and the setup page's address in wrangler.jsonc, sets
- *    the secrets through Wrangler's standard input, deploys again and checks
+ *    the secrets through Wrangler's standard input, deploys again, and checks
  *    the service answers.
  *
  * Run it again to change the setup page's address or replace the apps; it

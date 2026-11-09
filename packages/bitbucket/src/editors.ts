@@ -109,7 +109,7 @@ export function bitbucketEditors(
     }
   }
 
-  /** Someone in the workspace, by their name, nickname or email address. */
+  /** Someone in the workspace, by their name, nickname, or email address. */
   async function findMember(api: ApiOptions, who: string): Promise<Account | undefined> {
     if (who.includes("@")) {
       // Only workspace administrators can look people up by email address.

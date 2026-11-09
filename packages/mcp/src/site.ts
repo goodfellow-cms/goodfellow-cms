@@ -66,7 +66,7 @@ export interface OpenedSite {
   /** The live site's address, without a trailing slash. */
   url: string;
   description: SiteDescription;
-  /** Puck's config as far as the description tells: blocks for pages, the header and the footer. */
+  /** Puck's config as far as the description tells: blocks for pages, the header, and the footer. */
   pageConfig: Config;
   /** Every block, for collections' templates. */
   templateConfig: Config;
