@@ -19,6 +19,9 @@ overrides:
   # fixes GHSA-g3hv-75wg-m249, and both keep the functions they call.
   "glob@<14.0.2": "^14.0.2"
   "minimatch@<11.0.1": "^11.0.1"
+  # satori, which vinext's Open Graph images use in the company example, asks for fflate 0.7.3; 0.7.5 fixes
+  # GHSA-px8p-9vwx-vf98.
+  "fflate@<0.7.5": "^0.7.5"
 
 auditConfig:
   ignoreGhsas:
