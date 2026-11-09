@@ -15,7 +15,7 @@ describe("normalizeBase", () => {
 });
 
 describe("applyBasePath", () => {
-  it("prefixes root-relative links, images and srcsets", () => {
+  it("prefixes root-relative links, images, and srcsets", () => {
     const html =
       '<a href="/about">a</a><img src="/media/x.png" srcset="/media/x.png 1x, /media/x2.png 2x"/>' +
       '<link rel="stylesheet" href="/assets/s.css"/><video poster="/media/p.jpg"></video>';
@@ -50,7 +50,7 @@ describe("applyBasePath", () => {
     );
   });
 
-  it("leaves absolute, protocol-relative, fragment and text URLs alone", () => {
+  it("leaves absolute, protocol-relative, fragment, and text URLs alone", () => {
     const html =
       '<a href="https://example.org/x">a</a><a href="//cdn.example.org/x">b</a><a href="#top">c</a>' +
       '<meta property="og:url" content="/about"/><p>href="/not-an-attribute"</p>';

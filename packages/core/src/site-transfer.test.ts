@@ -140,7 +140,7 @@ describe("planSiteImport, adding", () => {
     expect(same.result.conflicts.map((conflict) => conflict.kind)).not.toContain("media");
   });
 
-  it("never brings in the Site address, editors' limits or update settings, and adds the export's languages", async () => {
+  it("never brings in the Site address, editors' limits, or update settings, and adds the export's languages", async () => {
     const { result, after } = await plan(SITE, EXPORT);
     expect(after["content/permissions.json"]).toBe(SITE["content/permissions.json"]);
     expect(after["content/updates.json"]).toBeUndefined();

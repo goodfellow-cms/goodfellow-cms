@@ -42,6 +42,8 @@ jobs:
         with:
           # The commit CI passed on, even if master has moved on since.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Its history, to find the commit that set the release's version, the only one that stages it.
+          fetch-depth: 0
       - id: commit
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       # A run started from the Actions tab releases master as it is now, so it waits for CI there too,

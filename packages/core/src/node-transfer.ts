@@ -64,7 +64,7 @@ async function exportedPaths(root: string): Promise<string[]> {
 }
 
 /**
- * Writes the site's content, media and records as a zip, with its manifest,
+ * Writes the site's content, media, and records as a zip, with its manifest,
  * for `importSite()` or the admin panel's import to bring into another site.
  * `file` defaults to one named after the site; it has to be new.
  */
@@ -227,7 +227,7 @@ export async function importSite(root: string, from: string, options: ImportSite
 
 function noteLine(note: SiteImportNote): string {
   const list = (items: string[]) =>
-    items.length > 5 ? `${items.slice(0, 5).join(", ")} and ${items.length - 5} more` : items.join(", ");
+    items.length > 5 ? `${items.slice(0, 5).join(", ")}, and ${items.length - 5} more` : items.join(", ");
   switch (note.kind) {
     case "missing-block":
       return `${note.name} isn't one of this site's blocks${note.installable ? " (add it from Goodfellow's registry on the Blocks screen)" : ""}. It's used on ${list(note.items)}.`;

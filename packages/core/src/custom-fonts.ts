@@ -14,14 +14,14 @@ import type { FileChange } from "./content/store.js";
 /** Where a site's own fonts are kept. */
 export const FONTS_MEDIA_DIR = `${MEDIA_DIR}/fonts`;
 
-/** A font file's address: in the fonts folder, named in lowercase letters, numbers and hyphens. */
+/** A font file's address: in the fonts folder, named in lowercase letters, numbers, and hyphens. */
 export const CUSTOM_FONT_ADDRESS = /^\/media\/fonts\/[a-z0-9][a-z0-9-]{0,99}\.woff2$/;
 
 /** How many fonts of its own a site can have, and how many files each. */
 export const MAX_CUSTOM_FONTS = 8;
 export const MAX_FONT_FILES = 18;
 
-/** The largest font file that can be added. Whole alphabets of Chinese, Japanese or Korean fit. */
+/** The largest font file that can be added. Whole alphabets of Chinese, Japanese, or Korean fit. */
 export const MAX_FONT_BYTES = 5 * 1024 * 1024;
 
 /** Weights by the words fonts' file names use for them. */

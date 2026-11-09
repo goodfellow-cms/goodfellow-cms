@@ -1,6 +1,6 @@
 /**
  * Imports a WordPress site into a site on disk, as `goodfellow import
- * wordpress`, `goodfellow-next import wordpress` and `create-goodfellow
+ * wordpress`, `goodfellow-next import wordpress`, and `create-goodfellow
  * --wordpress` do: from an export file or the site's address, with the media
  * its pages and posts use downloaded into `public/media/`. Also writes a site
  * on disk as a WordPress export file, as `goodfellow export wordpress` does,
@@ -198,7 +198,7 @@ function noteLine(note: WordPressImportNote): string {
     }
     case "converted": {
       const where =
-        note.items.slice(0, 3).join(", ") + (note.items.length > 3 ? ` and ${note.items.length - 3} more` : "");
+        note.items.slice(0, 3).join(", ") + (note.items.length > 3 ? `, and ${note.items.length - 3} more` : "");
       const what: Record<string, string> = {
         block: `The "${note.name}" block, from another plugin, was brought across as its text and pictures`,
         dropped: `The "${note.name}" block shows something only WordPress has, so it was left out`,
@@ -285,7 +285,7 @@ export async function exportWordPress(
 }
 
 const listed = (items: string[]) =>
-  items.slice(0, 3).join(", ") + (items.length > 3 ? ` and ${items.length - 3} more` : "");
+  items.slice(0, 3).join(", ") + (items.length > 3 ? `, and ${items.length - 3} more` : "");
 
 function exportNoteLine(note: WordPressExportNote): string {
   switch (note.kind) {

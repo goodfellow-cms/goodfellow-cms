@@ -153,7 +153,7 @@ export async function hostFonts(
  * The computer fonts each kind of font is stood in for by, the first one the
  * computer has used: Windows and macOS have the first, Android has Roboto,
  * and Linux usually Liberation's or Noto's. Liberation's fonts are made to the
- * same measurements as Arial, Times New Roman and Courier New, which Fontaine
+ * same measurements as Arial, Times New Roman, and Courier New, which Fontaine
  * has measurements for where it has none for them.
  */
 const SANS = [{ font: "Arial" }, { font: "Roboto" }, { font: "Liberation Sans", like: "Arial" }, { font: "Noto Sans" }];

@@ -7,10 +7,10 @@ export const DEV_EDITOR_PREFIX = "/__goodfellow/api/editor/";
 
 /**
  * The Content Security Policy of the page the editor's frames load, which
- * runs the site's config, Puck and every block, sandboxed without
+ * runs the site's config, Puck, and every block, sandboxed without
  * `allow-same-origin`: it runs only the site's own scripts (and the inline
  * ones whose hashes are given), and can fetch nothing, though it can still
- * show pictures, styles, fonts and players. A sandboxed page can always leave
+ * show pictures, styles, fonts, and players. A sandboxed page can always leave
  * for another address, so this limits what blocks' code can send, but can't
  * stop it: it's the sandbox that keeps editors' sign-in out of their reach.
  * `'self'` is the page's own address, even in the sandbox's opaque origin.

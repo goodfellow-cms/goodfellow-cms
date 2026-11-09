@@ -35,7 +35,7 @@ export const EARLY_CHECK =
 /**
  * A Node.js script, on one line with no single quotes, that prints the
  * release of `@goodfellow-cms/core` the site's `package.json` names, such as
- * `^0.9.0`, and exits with 1 for anything else: a URL, a git repository or an
+ * `^0.9.0`, and exits with 1 for anything else: a URL, a git repository, or an
  * alias there would have npm install whatever it names, where jobs run
  * Goodfellow's own commands from npm rather than the site's packages.
  */

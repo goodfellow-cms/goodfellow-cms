@@ -75,7 +75,7 @@ export interface AppApiOptions {
   plugins?: Record<string, PluginServer>;
   /**
    * What happens to owners' changes to the site's code (installed blocks,
-   * `components/`, `lib/` and `hooks/`), which this server runs with its token
+   * `components/`, `lib/`, and `hooks/`), which this server runs with its token
    * and keys: `"review"`, the default, submits them for a developer to review,
    * as plugins are; `"publish"` lets owners publish them.
    */
@@ -369,7 +369,7 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       return json(200, await backend.write(changes, { message, expectedRevision }));
     }
     if (post && endpoint === "review") {
-      // A draft with the changes, submitted for review: installing, updating or removing a plugin, or changing the
+      // A draft with the changes, submitted for review: installing, updating, or removing a plugin, or changing the
       // site's code, for a developer to accept, or changes outside someone's limits, for the site's reviewers.
       const body = await readBody(request);
       const { title, description } = body;

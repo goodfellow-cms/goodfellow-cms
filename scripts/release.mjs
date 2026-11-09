@@ -255,6 +255,17 @@ async function publish({ ci, dryRun, yes }) {
   }
 
   if (ci) {
+    // Every push to master starts a run once CI passes, and its packages are still at the release's version, so a
+    // later commit's run would stage them with code the release's tags and changelog don't describe. Only the
+    // commit that set the version stages it.
+    const release = releaseCommit(next);
+    if (release !== read("git", ["rev-parse", "HEAD"])) {
+      const set = read("git", ["log", "-1", '--format=%h ("%s")', release]);
+      report(
+        `${commit} is version ${next}, but ${next} was set in ${set}, so this run stages nothing: a release is staged only from the commit that set its version, so it holds what its tags and changelog describe. To stage what npm doesn't have at ${next} yet, re-run that commit's Release run (Re-run failed jobs).`,
+      );
+      return;
+    }
     // npm sets up trusted publishing in a package's settings, so the workflow can't stage a package's first version.
     const unknown = toPublish.filter((pkg) => !isOnNpm(pkg.name)).map((pkg) => pkg.name);
     if (unknown.length > 0) {

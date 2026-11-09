@@ -220,7 +220,7 @@ function comparator(text: string): Test[] | undefined {
 
 /**
  * Whether a release is in a range as npm writes them, such as `^0.4.0`,
- * `>=0.4.0 <1.0.0`, `0.4.x` or `^0.4.0 || ^0.5.0`. Ranges this can't read,
+ * `>=0.4.0 <1.0.0`, `0.4.x`, or `^0.4.0 || ^0.5.0`. Ranges this can't read,
  * and pre-releases, are never in range.
  */
 export function inRange(version: string, range: string): boolean {

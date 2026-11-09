@@ -42,7 +42,7 @@ export interface SignerIdentity {
   uri: string;
 }
 
-/** Checks a Sigstore bundle's signature, certificate and transparency log entries, throwing when it can't. */
+/** Checks a Sigstore bundle's signature, certificate, and transparency log entries, throwing when it can't. */
 export type BundleVerifier = (bundle: unknown, identity: SignerIdentity) => Promise<void>;
 
 /** Sigstore's own verification, with its public trust root, loaded only when it's used. */
@@ -376,7 +376,7 @@ export async function checkEarlyTheme(
 
 /**
  * Checks early installs as a server takes them: each with both releases'
- * verified provenance from npm's registry, Sigstore's signatures and, unless
+ * verified provenance from npm's registry, Sigstore's signatures, and, unless
  * tests give their own, `fetch`. For `appApi({ provenance })`.
  */
 export function nodeProvenance(options: ProvenanceOptions = {}): EarlyInstallCheck {

@@ -1,6 +1,6 @@
 /**
  * Moving content from one Goodfellow site to another: the zip **Download a
- * copy** makes (`content/`, `public/media/` and the records of installed
+ * copy** makes (`content/`, `public/media/`, and the records of installed
  * blocks and plugins) with `goodfellow-transfer.json` beside them, and the
  * plan that brings it into another site, adding to its content or replacing
  * it, with no disk or network access, so the admin panel and the command line
@@ -66,7 +66,7 @@ export interface TransferManifest {
   content: Partial<Record<ContentKind, number>>;
   /** When it was made. */
   made: string;
-  /** The blocks its pages, templates, headers, footers and synced blocks use. */
+  /** The blocks its pages, templates, headers, footers, and synced blocks use. */
   blocks: string[];
   /** Whether it holds the media library. */
   media: boolean;
@@ -141,7 +141,7 @@ export function parseTransferManifest(text: string | undefined): TransferManifes
   }
 }
 
-/** Whether an export's file is one an import reads: content, media, the records and the manifest, at safe paths. */
+/** Whether an export's file is one an import reads: content, media, the records, and the manifest, at safe paths. */
 export function isTransferPath(path: string): boolean {
   if (path.startsWith("/") || path.includes("\\") || path.includes("\0")) return false;
   if (path.split("/").some((segment) => segment === "" || segment === "." || segment === "..")) return false;
@@ -321,7 +321,7 @@ export class SiteImportError extends Error {
   }
 }
 
-/** Every Puck data a site has: pages, templates, headers, footers and synced blocks. */
+/** Every Puck data a site has: pages, templates, headers, footers, and synced blocks. */
 function puckDataOf(content: SiteContent): unknown[] {
   return [
     ...content.pages.map((page) => page.content.data),

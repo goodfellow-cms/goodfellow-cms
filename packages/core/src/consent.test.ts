@@ -308,7 +308,7 @@ describe("held-back head code", () => {
     expect(isHeldHeadElement(elements[2] as (typeof elements)[number])).toBe(true);
   });
 
-  it("holds back styles that load from other sites, a base and a refresh", () => {
+  it("holds back styles that load from other sites, a base, and a refresh", () => {
     const held = (html: string) => isHeldHeadElement(parseHeadCode(html)[0] as HeadElement, "https://example.org");
     expect(held("<style>@import url(https://tracker.example.com/a.css);</style>")).toBe(true);
     expect(held('<style>@import "//tracker.example.com/a.css";</style>')).toBe(true);
