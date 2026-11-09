@@ -56,9 +56,11 @@ import {
   writeSiteHeaders,
 } from "@goodfellow-cms/core/node";
 import type { PageRender } from "@goodfellow-cms/core/shadcn";
+import { bundleEditorFrames } from "./editor-frames.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule } from "./plugins.js";
 
+export { EDITOR_FRAMES_PAGE, EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
 export { NEXT_SITE_FILES } from "./site-files.js";
 
 /**
@@ -432,6 +434,20 @@ export async function writePageLanguages(outDir: string | undefined, root = proc
     changed++;
   }
   return changed;
+}
+
+/**
+ * Bundles a full-stack site's editor frames into `<outDir>/admin/editor/frames/`,
+ * such as its `public/`, from the site's code alone, as `next dev` bundles
+ * them, so it needs nothing `next build` writes, with what Next.js would give
+ * their code of `process.env`: the site's base path and how its addresses end.
+ */
+export async function writeEditorFrames(outDir: string, root = process.cwd()): Promise<string> {
+  const site = resolve(root);
+  return bundleEditorFrames(outDir, site, {
+    GOODFELLOW_BASE_PATH: await exportBasePath(site),
+    GOODFELLOW_TRAILING_SLASH: String(await exportTrailingSlash(site)),
+  });
 }
 
 /** A page `next build` rendered ahead: its address on the site, and its HTML. */
