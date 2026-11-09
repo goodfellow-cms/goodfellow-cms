@@ -131,7 +131,7 @@ function shownMenus(menus: Menus, hidden: ReadonlySet<string>): Menus {
  * The site as visitors see it at an instant: without the pages and entries
  * its schedules don't show then, and without menus' links to their addresses.
  * Media a plugin keeps outside the repository is shown from its storage's
- * address (`withStoredMedia()`). Builds, `goodfellow dev` and Next.js's
+ * address (`withStoredMedia()`). Builds, `goodfellow dev`, and Next.js's
  * routes use it; the admin panel edits the site as loaded.
  */
 export function shownContent(content: SiteContent, now: Date = new Date()): SiteContent {

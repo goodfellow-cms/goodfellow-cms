@@ -4,7 +4,7 @@
 # only that admin panel holds, on a branch of its own, which the admin panel
 # reads and deletes. Plugins' secrets, such as S3_ACCESS_KEY_ID, are the
 # repository's Actions secrets (Settings → Secrets and variables → Actions).
-# The site's code, its config and the packages it loads, runs in a job with
+# The site's code, its config, and the packages it loads, runs in a job with
 # none of them. The job with them runs Goodfellow's task runner, installed
 # from npm apart from the site's packages, which gives each task only the
 # secrets its plugin declared. Both can only read the repository, and the job

@@ -1,6 +1,6 @@
 /**
  * Synced blocks: blocks kept once, in `content/synced-blocks/<name>.json`,
- * which pages, collections' templates, headers and footers place with the
+ * which pages, collections' templates, headers, and footers place with the
  * SyncedBlock block (`SYNCED_BLOCK`), naming it by its `block` prop. Where
  * pages are built, each placement is put in place of the SyncedBlock block
  * with ids of its own (`expandSyncedBlocks()`), so changing the synced block
@@ -72,7 +72,7 @@ export type SyncedBlockUse =
   | { kind: "template"; collection: string; name: string; file: string }
   | { kind: "header" | "footer"; file: string; language?: string };
 
-/** Every page, template, header and footer that places a synced block. */
+/** Every page, template, header, and footer that places a synced block. */
 export function syncedBlockUses(content: SiteContent, name: string): SyncedBlockUse[] {
   const uses: SyncedBlockUse[] = [];
   const places = (data: unknown) => placedSyncedBlocks(data).includes(name);
@@ -152,7 +152,7 @@ function withPlacementIds(value: unknown, prefix: string): unknown {
  * Puck data with every SyncedBlock block replaced by the blocks it places, in
  * the language given, each with ids of its own. A synced block that isn't
  * there, or one placed inside a synced block, leaves nothing. Blocks are
- * found by their shape, in slots, drop zones and arrays alike, so no block's
+ * found by their shape, in slots, drop zones, and arrays alike, so no block's
  * fields are needed.
  */
 export function expandSyncedBlocks<T>(data: T, content: Pick<SiteContent, "syncedBlocks">, language?: string): T {

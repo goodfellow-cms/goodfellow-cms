@@ -395,7 +395,7 @@ type EntryCollection = Pick<Collection, "id" | "settings">;
 /**
  * Writes an entry's file: JSON, or in a collection of Markdown files, Markdown
  * whose body is the body field's value (Markdown already). `details` are when
- * it's on the site, its language and what it translates: pass the entry's own
+ * it's on the site, its language, and what it translates: pass the entry's own
  * (`entry.content`) to keep them, since leaving them out shows the entry
  * straight away, in the main language.
  */
@@ -432,7 +432,7 @@ export function newCollectionSettings({
   path?: string;
   /** Whether the site has the Entry field block, for the starting template. */
   withEntryFields: boolean;
-  /** What it starts as: a title and text, or events, with their dates and times, place and summary. */
+  /** What it starts as: a title and text, or events, with their dates and times, place, and summary. */
   kind?: "blank" | "events";
   /** The site's blocks, for the starting template. */
   blocks?: string[];
@@ -469,7 +469,7 @@ export function newCollectionSettings({
   };
 }
 
-/** A collection of events: when each happens, where, a summary, a picture and details, in calendars. */
+/** A collection of events: when each happens, where, a summary, a picture, and details, in calendars. */
 function eventsCollectionSettings({
   name,
   entryName,
@@ -540,7 +540,7 @@ export function addressPatternFor(prefix: string): string {
   return `${trimmed.startsWith("/") ? "" : "/"}${trimmed}/${SLUG_PLACEHOLDER}`;
 }
 
-/** A name for a collection's folder, a field or an entry that isn't taken yet: `talk`, then `talk-2`, `talk-3`… */
+/** A name for a collection's folder, a field, or an entry that isn't taken yet: `talk`, then `talk-2`, `talk-3`… */
 export function uniqueName(base: string, taken: Iterable<string>, fallback = "item"): string {
   const used = new Set(taken);
   const start = base || fallback;

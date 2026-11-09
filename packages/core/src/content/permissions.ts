@@ -50,13 +50,13 @@ export const editorLimitsSchema = z.object({
   pages: z.array(z.string().refine(isPageSection, "must be a page's address, such as /news")).optional(),
   /** Collections, by their folder's name, such as `news`: their items, not their settings. */
   collections: z.array(z.string().min(1)).optional(),
-  /** The media library: uploads, their credits and media kept by a plugin. */
+  /** The media library: uploads, their credits, and media kept by a plugin. */
   media: z.boolean().optional(),
   /** The header and footer, and synced blocks, which pages share as they do the header. */
   layout: z.boolean().optional(),
   /** The menus. */
   menus: z.boolean().optional(),
-  /** Only pages, items, headers, footers and menus in these languages, by code. Missing means every language. */
+  /** Only pages, items, headers, footers, and menus in these languages, by code. Missing means every language. */
   languages: z.array(z.string().min(1)).optional(),
 });
 
@@ -73,7 +73,7 @@ export type PermissionsFile = z.output<typeof permissionsFileSchema>;
 /** The permissions as the site has them loaded. */
 export type Permissions = Omit<PermissionsFile, "version">;
 
-/** Sign-in names compare without case, as GitHub's, GitLab's and Bitbucket's do. */
+/** Sign-in names compare without case, as GitHub's, GitLab's, and Bitbucket's do. */
 function sameLogin(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
@@ -178,7 +178,7 @@ function parsedJson(text: string | undefined): Record<string, unknown> | undefin
 }
 
 /**
- * The header's, footer's or a synced block's file's language, or `undefined`
+ * The header's, footer's, or a synced block's file's language, or `undefined`
  * for a file that isn't one. Synced blocks are site-wide like the header and
  * footer, so the same limit covers them.
  */
@@ -232,7 +232,7 @@ function changedEntry(
  * is checked as it was and as the change leaves it, so moving a page out of
  * someone's section, or translating it into a language that isn't theirs, is
  * outside too. Files that are none of the things limits name, such as Site
- * Settings, redirects or the permissions themselves, are always outside: a
+ * Settings, redirects, or the permissions themselves, are always outside: a
  * move that also points links on pages outside someone's sections at the new
  * address is outside as a whole, rather than half done.
  */

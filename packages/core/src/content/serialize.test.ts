@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { serializeContent } from "./serialize.js";
 
 describe("serializeContent", () => {
-  it("writes version, type and id first, then the rest alphabetically", () => {
+  it("writes version, type, and id first, then the rest alphabetically", () => {
     const text = serializeContent({ zeta: 1, data: { props: { title: "Hi", id: "a" }, type: "Heading" }, version: 1 });
     expect(text).toBe(
       `{

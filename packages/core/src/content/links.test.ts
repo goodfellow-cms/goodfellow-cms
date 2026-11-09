@@ -136,7 +136,7 @@ describe("links to the site's pages", () => {
     expect(pageLink("/about?x=1#staff")).toBe("/about/?x=1#staff");
     expect(pageLink("/about/", false)).toBe("/about");
     expect(pageLink("/")).toBe("/");
-    // Files, the admin panel, other sites and fragments stay as they are.
+    // Files, the admin panel, other sites, and fragments stay as they are.
     expect(pageLink("/media/bulletin.pdf")).toBe("/media/bulletin.pdf");
     expect(pageLink("/feeds/news.rss")).toBe("/feeds/news.rss");
     expect(pageLink("/admin")).toBe("/admin");

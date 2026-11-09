@@ -142,7 +142,7 @@ describe("a site's languages", () => {
     ).rejects.toThrow(/fr, which isn't one of the site's languages/);
   });
 
-  it("shows the site in a language: its settings, menus, header and items", async () => {
+  it("shows the site in a language: its settings, menus, header, and items", async () => {
     const content = await site();
     const spanish = contentInLanguage(content, "es");
     expect(spanish.settings).toMatchObject({

@@ -1,6 +1,6 @@
 # St. Joseph Parish (example)
 
-An example parish website built with [Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms). **St. Joseph Parish is made up**: its name, address, phone number, staff, history, Mass times and events are invented, and the pictures are simple drawings. Replace them all with your own before putting the site online.
+An example parish website built with [Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms). **St. Joseph Parish is made up**: its name, address, phone number, staff, history, Mass times, and events are invented, and the pictures are simple drawings. Replace them all with your own before putting the site online.
 
 Start a site from this example with `npm create goodfellow@latest my-parish -- --template parish`.
 
@@ -21,13 +21,13 @@ On your own computer, the admin panel saves straight to the files in `content/`.
 
 ## What's in it
 
-- **Pages:** home, Mass times, sacraments, events, news, bulletins, about us and contact, with a submenu under **Parish life**.
+- **Pages:** home, Mass times, sacraments, events, news, bulletins, about us, and contact, with a submenu under **Parish life**.
 - **Collections**, edited under **Collections** in the admin panel:
-  - **Events**, with a date, time and place. The home page shows the next three, and the events page splits upcoming and past events. Lists of upcoming events change by date, so the site is rebuilt overnight whenever they do.
+  - **Events**, with a date, time, and place. The home page shows the next three, and the events page splits upcoming and past events. Lists of upcoming events change by date, so the site is rebuilt overnight whenever they do.
   - **News** stories, newest first.
   - **Bulletins:** each one links to a PDF uploaded on the **Media** screen.
   - **Staff**, listed on the About us page. They have no pages of their own, and the **Order** field sets who comes first.
-- **Contact details** (address, phone and email) are set once in **Site settings → General**, and shown in the footer and on the contact page by the **Contact details** block.
+- **Contact details** (address, phone, and email) are set once in **Site settings → General**, and shown in the footer and on the contact page by the **Contact details** block.
 - **More blocks**, such as an FAQ and tabs, can be added on the admin panel's **Blocks** screen. See [Add blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/add-blocks).
 - **Plugins** installed from **Site Settings → Plugins** are listed in `plugins/installed/`. See [Plugins](https://goodfellow-cms.github.io/goodfellow-cms/docs/plugins).
 - **The parish's own blocks**, in `blocks/`, show how a developer adds blocks to a site. They're listed under **Parish** in the editor:
@@ -39,18 +39,18 @@ On your own computer, the admin panel saves straight to the files in `content/`.
 
 ## Making it yours
 
-1. In **Site settings**, change the parish's name, contact details, logo, colors and fonts.
+1. In **Site settings**, change the parish's name, contact details, logo, colors, and fonts.
 2. Edit the Mass times on the home page and the Mass times page.
-3. Replace the example events, news, staff and bulletins under **Collections**, and the pictures on the **Media** screen.
-4. Rewrite the about us, sacraments and contact pages, and remove the note at the bottom of the footer (in **Header & footer**).
+3. Replace the example events, news, staff, and bulletins under **Collections**, and the pictures on the **Media** screen.
+4. Rewrite the about us, sacraments, and contact pages, and remove the note at the bottom of the footer (in **Header & footer**).
 
 ## Putting the site online
 
 Setup takes four steps. It's done once, usually by whoever set up the site.
 
-### 1. Store the site on GitHub, GitLab or Bitbucket
+### 1. Store the site on GitHub, GitLab, or Bitbucket
 
-Create an empty repository on GitHub, GitLab or Bitbucket, without a README, and push this folder to it (a site on Bitbucket is put online by Vercel, and needs the `bitbucket-pipelines.yml` that `npm create goodfellow@latest -- --bitbucket your-workspace/your-site` gives it, with its own steps in its README):
+Create an empty repository on GitHub, GitLab, or Bitbucket, without a README, and push this folder to it (a site on Bitbucket is put online by Vercel, and needs the `bitbucket-pipelines.yml` that `npm create goodfellow@latest -- --bitbucket your-workspace/your-site` gives it, with its own steps in its README):
 
 ```sh
 git remote add origin https://github.com/your-name/your-site.git   # unless origin is already set
@@ -79,7 +79,7 @@ Also set the site's address under **Site settings → General → Site address**
 
 ### 3. Choose a host
 
-Each host's free plan has its own rules about business use. If the site is for a business, sells anything, shows ads, or is built or looked after by someone who's paid for it, check those rules first. As of October 2026, GitHub Pages and Vercel's free plan don't allow most of these, and GitLab Pages, Cloudflare Pages and Netlify have no rule against them that we know of. See [Hosts and business sites](https://goodfellow-cms.github.io/goodfellow-cms/docs/hosts) in Goodfellow's documentation.
+Each host's free plan has its own rules about business use. If the site is for a business, sells anything, shows ads, or is built or looked after by someone who's paid for it, check those rules first. As of October 2026, GitHub Pages and Vercel's free plan don't allow most of these, and GitLab Pages, Cloudflare Pages, and Netlify have no rule against them that we know of. See [Hosts and business sites](https://goodfellow-cms.github.io/goodfellow-cms/docs/hosts) in Goodfellow's documentation.
 
 **GitHub Pages** (free for public repositories; not for online businesses or shops)
 
@@ -104,7 +104,7 @@ Each host's free plan has its own rules about business use. If the site is for a
 2. In Netlify, choose **Import an existing project** and pick the repository. `netlify.toml` already has the right settings: Netlify builds and publishes the site, from `dist`, on every change, and sends its redirects itself.
 3. Under the site's **Project configuration → Build & deploy → Build hooks**, add a build hook for the main branch, and add it to the repository as the `NETLIFY_BUILD_HOOK` secret on GitHub, or masked variable on GitLab, for the nightly rebuild and scheduled changes. On GitLab, also turn on updates on the admin panel's **Updates** screen, which adds the nightly schedule.
 
-**Vercel** (works with GitHub, GitLab and Bitbucket; the free plan is for non-commercial sites only)
+**Vercel** (works with GitHub, GitLab, and Bitbucket; the free plan is for non-commercial sites only)
 
 1. Import the repository in Vercel. `vercel.ts` already has the right settings: it has Vercel send the site's redirects itself, and not build previews of drafts, which are kept on branches of their own.
 2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule.
@@ -134,7 +134,7 @@ Upload images and files, such as the weekly bulletin, on the admin panel's **Med
 
 ## Writing with AI
 
-The editor's **AI** panel can draft pages, rewrite blocks and fill in events and news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellow-cms.github.io/goodfellow-cms/docs/configuration).
+The editor's **AI** panel can draft pages, rewrite blocks, and fill in events and news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellow-cms.github.io/goodfellow-cms/docs/configuration).
 
 ## Publishing
 

@@ -1,6 +1,6 @@
 /**
  * Rich text as a simple structure an app can draw without an HTML renderer:
- * paragraphs, headings, quotes, lists, code, pictures, rules and tables, with
+ * paragraphs, headings, quotes, lists, code, pictures, rules, and tables, with
  * text marked bold, italic and so on, read from HTML with htmlparser2, so it
  * works without a DOM.
  */
@@ -27,7 +27,7 @@ export interface RichTextText {
   newTab?: true;
 }
 
-/** What a line of text holds: text, line breaks and pictures within it. */
+/** What a line of text holds: text, line breaks, and pictures within it. */
 export type RichTextInline = RichTextText | { type: "break" } | { type: "image"; src: string; alt: string };
 
 /** A part of rich text, one under another. */

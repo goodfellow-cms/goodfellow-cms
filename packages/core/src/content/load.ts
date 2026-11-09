@@ -139,7 +139,7 @@ export interface SyncedBlock {
 }
 
 export interface SiteCode {
-  /** HTML for the `<head>`: script, style, link, meta, base and noscript elements only (see `parseHeadCode`). */
+  /** HTML for the `<head>`: script, style, link, meta, base, and noscript elements only (see `parseHeadCode`). */
   head: string;
   /** HTML for the end of the `<body>`. */
   body: string;
@@ -409,7 +409,7 @@ async function loadSyncedBlocks(
         message:
           code !== undefined && rest.length === 0 && isAddressSegment(name)
             ? `is for ${code}, which isn't one of the site's languages.`
-            : "isn't named as a synced block: use lowercase letters, numbers and hyphens, such as mass-times.json.",
+            : "isn't named as a synced block: use lowercase letters, numbers, and hyphens, such as mass-times.json.",
       });
       continue;
     }
@@ -502,7 +502,7 @@ async function loadCollections(
     if (!isAddressSegment(id)) {
       problems.push({
         file,
-        message: `is in a folder named "${id}". Collection folders use lowercase letters, numbers and hyphens only.`,
+        message: `is in a folder named "${id}". Collection folders use lowercase letters, numbers, and hyphens only.`,
       });
       continue;
     }
@@ -548,7 +548,7 @@ async function loadCollections(
           if (!isAddressSegment(slug)) {
             problems.push({
               file,
-              message: `has a name that can't be used. Entry files are named with lowercase letters, numbers and hyphens only.`,
+              message: `has a name that can't be used. Entry files are named with lowercase letters, numbers, and hyphens only.`,
             });
             return undefined;
           }
