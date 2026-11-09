@@ -11,6 +11,7 @@ import {
   DARK_MODE_ATTRIBUTE,
   demoContent,
   describedForCopy,
+  type FontStandIns,
   feedLinks,
   findRedirect,
   fontPreloads,
@@ -35,6 +36,7 @@ import {
   sitemapPages,
   sitePages,
   storedMediaSizes,
+  type Theme,
   TRAILING_SLASH_VARIABLE,
   themeToCss,
   todayIn,
@@ -79,6 +81,7 @@ import {
   PageLanguage,
   SearchResultLinks,
 } from "./components.js";
+import type { BuiltFontStandIns } from "./font-stand-ins.js";
 import { IMAGE_SIZES_ENV } from "./image-sizes-mark.js";
 
 export interface GoodfellowPagesOptions {
@@ -119,6 +122,27 @@ function hostedFonts(source: string): HostedFonts | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The theme's font stand-ins: those `withGoodfellow()` worked out while the
+ * site built, which it puts in the env, where they're for the theme's fonts, so
+ * the server's code never includes Fontaine. `next dev` works them out as it
+ * renders, since the theme changes as it's edited; that code is left out of
+ * builds, where NODE_ENV is "production".
+ */
+async function themeStandIns(theme: Theme, root: string): Promise<FontStandIns> {
+  const value = process.env.GOODFELLOW_FONT_STAND_INS;
+  if (value) {
+    try {
+      const built = JSON.parse(value) as BuiltFontStandIns;
+      if (built.heading === theme.fonts.heading && built.body === theme.fonts.body) return built.standIns;
+    } catch {
+      // Not what withGoodfellow() writes: none.
+    }
+  }
+  if (process.env.NODE_ENV === "development") return fontStandIns(theme, { root });
+  return { css: "" };
 }
 
 /** The route parameters of an optional catch-all route named `[[...path]]`. */
@@ -296,7 +320,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
     // React adds these to the head once each, where a <link> would also be kept as it is.
     const [fontFiles, standIns] = await Promise.all([
       fontPreloads(content.settings.theme, readStylesheet),
-      fontStandIns(content.settings.theme, { root }),
+      themeStandIns(content.settings.theme, root),
     ]);
     // The site's own fonts, from its own files.
     for (const file of customFontPreloads(content.settings.theme)) {

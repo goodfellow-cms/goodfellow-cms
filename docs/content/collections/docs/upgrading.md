@@ -42,7 +42,7 @@ What each setup file does is described where it's used: [Keeping a site up to da
 
 ## Next.js sites
 
-A Next.js site's own routes are files in its `app/` folder, which the site's developers may change, so `goodfellow-next update` brings up to date only the ones a release changed and that are still exactly as an earlier release wrote them, such as `app/admin/page.tsx` and `app/admin/editor/page.tsx` for the editor's frames, and `vercel.json`. One someone changed is left alone, and the admin panel says how to update it where it needs to be: compare it with the same file in a new copy made with `--template next`, as in [Bringing setup files up to date](#bringing-setup-files-up-to-date). The [Next.js](/docs/nextjs) page says what each route is for. Keep `goodfellow-next finish` in the build script.
+A Next.js site's own routes are files in its `app/` folder, which the site's developers may change, so `goodfellow-next update` brings up to date only the ones a release changed and that are still exactly as an earlier release wrote them, such as `app/admin/page.tsx` and `app/admin/editor/page.tsx` for the editor's frames (which a full-stack site doesn't have, since `goodfellow-next finish --server` writes its frames as static files), and `vercel.json`. One someone changed is left alone, and the admin panel says how to update it where it needs to be: compare it with the same file in a new copy made with `--template next`, as in [Bringing setup files up to date](#bringing-setup-files-up-to-date). The [Next.js](/docs/nextjs) page says what each route is for. Keep `goodfellow-next finish` in the build script.
 
 ## Content files from other releases
 

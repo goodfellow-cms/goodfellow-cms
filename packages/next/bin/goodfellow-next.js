@@ -83,8 +83,8 @@ import {
   fixSegmentFiles,
   guardExport,
   loadTaskConfig,
-  NEXT_SITE_FILES,
   nextDistDir,
+  nextSiteFiles,
   renderedPages,
   writeBuildRecordFile,
   writeCalendarFiles,
@@ -100,6 +100,11 @@ import {
   writeRedirectFiles,
   writeTaskResult,
 } from "@goodfellow-cms/next/export";
+
+/** The site's `app/admin/page.tsx`, which says which of the starter's files updates keep up to date. */
+function adminPage() {
+  return existsSync("app/admin/page.tsx") ? readFileSync("app/admin/page.tsx", "utf8") : undefined;
+}
 
 const [command, dir = "out"] = process.argv.slice(2);
 const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
@@ -170,7 +175,7 @@ if (command === "update") {
     options: { to: { type: "string" }, publish: { type: "boolean" }, commit: { type: "boolean" } },
   });
   // The starter's admin pages, kept up to date where nobody has changed them, on sites with an admin panel.
-  const siteFiles = existsSync("app/admin/page.tsx") ? NEXT_SITE_FILES : [];
+  const siteFiles = nextSiteFiles(adminPage());
   const result = await update({ to: values.to, publish: values.publish, commit: values.commit, siteFiles });
   // For the admin panel, which reads it in the host's log.
   console.log(formatUpdateResult(result));
@@ -219,7 +224,7 @@ if (command === "nightly") {
     args: process.argv.slice(3),
     options: { mode: { type: "string" }, output: { type: "string" } },
   });
-  const siteFiles = existsSync("app/admin/page.tsx") ? NEXT_SITE_FILES : [];
+  const siteFiles = nextSiteFiles(adminPage());
   const result = await nightlyCheck({ siteFiles, ...(values.mode && { mode: values.mode }) });
   for (const line of await reportNightly(result, values.output ?? process.env.GITHUB_OUTPUT)) console.log(line);
   process.exit(0);

@@ -3,10 +3,10 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      // A full-stack build: Next.js's server build, and what `goodfellow-next finish --server` writes into public/.
+      // The Worker vinext builds, and what `goodfellow-next finish --server` writes into public/ before it.
       "outputs": [
-        ".next/**",
-        "!.next/cache/**",
+        "dist/**",
+        ".wrangler/deploy/**",
         "public/api/**",
         "public/pagefind/**",
         "public/calendars/**",
@@ -18,8 +18,8 @@
       ]
     },
     "typecheck": {
-      // `next build` rewrites the route types in .next/types that the typecheck reads.
-      "dependsOn": ["^build", "build"]
+      // `next typegen` writes the route types in .next/types that the typecheck reads.
+      "dependsOn": ["^build"]
     }
   }
 }

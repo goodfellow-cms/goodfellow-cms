@@ -19,8 +19,8 @@
     "@goodfellow-cms/gitlab": "workspace:*",
     "@goodfellow-cms/react": "workspace:*",
     "@puckeditor/core": "0.24.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "tailwindcss": "4.3.3"
   },
   "devDependencies": {

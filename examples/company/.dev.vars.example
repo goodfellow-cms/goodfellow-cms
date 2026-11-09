@@ -1,0 +1,10 @@
+# What the site reads besides wrangler.jsonc's vars, in `npm run dev` and `npm run preview`. Copy this file to
+# .dev.vars, which never leaves this computer. On Cloudflare, set the two secrets with `npx wrangler secret put <NAME>`,
+# and the site's address in wrangler.jsonc.
+
+# Signs sessions and their cookies: at least 32 random characters, such as `openssl rand -base64 32` makes.
+BETTER_AUTH_SECRET=
+# The site's address on this computer, which sign-in trusts requests from.
+GOODFELLOW_SITE_URL=http://localhost:4321
+# A fine-grained token that can publish to the content repository, and nothing else.
+GOODFELLOW_GIT_TOKEN=

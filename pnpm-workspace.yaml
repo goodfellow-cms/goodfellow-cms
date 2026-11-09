@@ -19,6 +19,9 @@ overrides:
   # fixes GHSA-g3hv-75wg-m249, and both keep the functions they call.
   "glob@<14.0.2": "^14.0.2"
   "minimatch@<11.0.1": "^11.0.1"
+  # satori, which vinext's Open Graph images use in the company example, asks for fflate 0.7.3; 0.7.5 fixes
+  # GHSA-px8p-9vwx-vf98.
+  "fflate@<0.7.5": "^0.7.5"
 
 auditConfig:
   ignoreGhsas:
@@ -35,3 +38,9 @@ peerDependencyRules:
     # @tiptap/html 3.31, which Puck renders rich text with, asks for happy-dom 20;
     # 3.32 and later accept 21 too.
     "@tiptap/html>happy-dom": "21"
+
+# Install scripts that never run: esbuild and workerd, which wrangler and the company example's Cloudflare build
+# use, bring their programs as packages for each platform, so neither needs its own.
+allowBuilds:
+  esbuild: false
+  workerd: false

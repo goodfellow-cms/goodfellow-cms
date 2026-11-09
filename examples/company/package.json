@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --port 4321",
-    "build": "next build && goodfellow-next finish --server",
-    "start": "next start",
+    "build": "goodfellow-next finish --server && vinext build",
+    "preview": "vite preview --port 4321",
+    "deploy": "wrangler d1 migrations apply goodfellow-company --remote && vinext-cloudflare deploy --skip-build",
     "migration": "node scripts/new-migration.ts",
     "migrations": "node scripts/emit-migrations.ts",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "next typegen && tsc -p tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "@goodfellow-cms/react": "workspace:*",
     "@neondatabase/serverless": "1.2.0",
     "@puckeditor/core": "0.24.0",
+    "@vinext/cloudflare": "1.3.3",
     "better-auth": "1.7.18",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
@@ -33,18 +35,25 @@
     "lucide-react": "1.52.0",
     "next": "16.4.3",
     "radix-ui": "1.7.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-server-dom-webpack": "19.3.1",
     "tailwind-merge": "3.7.0",
-    "tw-animate-css": "1.4.0"
+    "tw-animate-css": "1.4.0",
+    "vinext": "1.4.4"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "1.67.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^22.19.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "6.2.1",
+    "@vitejs/plugin-rsc": "0.5.39",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
-    "vitest": "5.0.3"
+    "vite": "8.3.4",
+    "vitest": "5.0.3",
+    "wrangler": "4.156.1"
   }
 }

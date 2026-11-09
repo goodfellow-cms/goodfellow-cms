@@ -28,6 +28,7 @@ import {
   builtSiteSource,
   contentRepositoryProblem,
   DEV_API_PREFIX,
+  fontStandIns,
   handleDevApi,
   hostFonts,
   isAllowedDevHost,
@@ -37,6 +38,7 @@ import {
 } from "@goodfellow-cms/core/node";
 import type { NextConfig } from "next";
 import { EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
+import type { BuiltFontStandIns } from "./font-stand-ins.js";
 import {
   DIST_DIR_RECORD,
   IMAGE_SIZES_ENV,
@@ -111,6 +113,16 @@ async function hostSiteFonts(root: string) {
   }
   return fonts;
 }
+/**
+ * The theme's font stand-ins, worked out with Fontaine where the build runs, in
+ * Node, for the pages' renderer, which reads them from the env.
+ */
+async function builtFontStandIns(root: string): Promise<BuiltFontStandIns> {
+  const { theme } = (await loadSiteContent(builtSiteSource(root))).settings;
+  const { heading, body } = theme.fonts;
+  return { ...(heading && { heading }), ...(body && { body }), standIns: await fontStandIns(theme, { root }) };
+}
+
 type Rewrite = Extract<Rewrites, unknown[]>[number];
 
 /** `PHASE_DEVELOPMENT_SERVER` from `next/constants`, which Node can't import by that name. */
@@ -309,6 +321,9 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
       const dates = join(root, nextConfig.distDir ?? ".next", BUILD_DATES_DIR);
       await rm(dates, { recursive: true, force: true });
       process.env[BUILD_DATES_ENV] = dates;
+      // Pages' renderer gets the theme's font stand-ins from the env, so the server's code never includes
+      // Fontaine's measurements, the largest thing it would bundle.
+      config.env = { ...config.env, GOODFELLOW_FONT_STAND_INS: JSON.stringify(await builtFontStandIns(root)) };
       // A static export whose images Next.js doesn't optimize lists the smaller copies `goodfellow-next finish`
       // writes, which the mark says to write.
       const mark = join(root, nextConfig.distDir ?? ".next", IMAGE_SIZES_MARK);
