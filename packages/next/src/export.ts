@@ -59,6 +59,8 @@ import type { PageRender } from "@goodfellow-cms/core/shadcn";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule } from "./plugins.js";
 
+export { writeEditorFrames } from "./editor-frames.js";
+export { EDITOR_FRAMES_PAGE, EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
 export { NEXT_SITE_FILES } from "./site-files.js";
 
 /**

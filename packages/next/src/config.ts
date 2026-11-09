@@ -11,6 +11,7 @@ import {
   CALENDARS_DIR,
   configAdmin,
   configBroker,
+  editorPolicy,
   FEEDS_DIR,
   loadSiteContent,
   normalizeBase,
@@ -35,6 +36,7 @@ import {
   localRegistryDir,
 } from "@goodfellow-cms/core/node";
 import type { NextConfig } from "next";
+import { EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_ENV, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
 
 export interface GoodfellowNextOptions {
@@ -73,6 +75,21 @@ function siteHeaders(root: string): Headers {
   const broker = brokerOrigin(file ? configBroker(readFileSync(file, "utf8")) : undefined);
   return vercelHeaders({ ...(admin && { admin }), ...(broker && { broker }) });
 }
+/**
+ * A full-stack site's editor frames' rules, after `siteHeaders()`, whose
+ * `Content-Security-Policy` for the frames they replace, since Next.js sends
+ * the last rule's value of a header: the frames' own policy (`editorPolicy()`),
+ * which their page in `public/` names no inline scripts for, and the frames' rule.
+ */
+function editorFramesHeaders(): Headers {
+  return [
+    {
+      source: `/${EDITOR_FRAMES_PATH}:path*`,
+      headers: [{ key: "Content-Security-Policy", value: `${editorPolicy()}; frame-ancestors 'self'` }],
+    },
+  ];
+}
+
 /**
  * A full-stack site's Google Fonts, copied into its `public/` folder
  * (`hostFonts()`), or `undefined` where it has none or Google can't be
@@ -317,7 +334,11 @@ export function withGoodfellow(nextConfig: NextConfig = {}, options: GoodfellowN
           "/**": [...(nextConfig.outputFileTracingIncludes?.["/**"] ?? []), "./content/**/*", "./public/media/**/*"],
         },
         redirects: async () => [...(await siteRedirects(root)), ...((await nextConfig.redirects?.()) ?? [])],
-        headers: async () => [...siteHeaders(root), ...((await nextConfig.headers?.()) ?? [])],
+        headers: async () => [
+          ...siteHeaders(root),
+          ...editorFramesHeaders(),
+          ...((await nextConfig.headers?.()) ?? []),
+        ],
       };
     }
     // In development, Next.js treats an unknown address in an exported site as an error rather than "not found".

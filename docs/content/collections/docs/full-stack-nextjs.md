@@ -34,13 +34,14 @@ The cost is a second repository to set up. Blocks and plugins are then added by 
    export default withGoodfellow({ agentRules: false }, { server: true });
    ```
 
-   The build script is then `next build && goodfellow-next finish --server`, which writes the [calendar files](/docs/calendars#adding-to-calendars-and-subscribing) of collections of events into `public/calendars/`, collections' [feeds](/docs/search-engines#feeds) into `public/feeds/`, the [content API](/docs/content-api) into `public/api/` and the [search](/docs/search) index into `public/pagefind/`, so they're served as static files, as the pages are. Next.js sends redirects itself.
+   The build script is then `next build && goodfellow-next finish --server`, which writes the [calendar files](/docs/calendars#adding-to-calendars-and-subscribing) of collections of events into `public/calendars/`, collections' [feeds](/docs/search-engines#feeds) into `public/feeds/`, the [content API](/docs/content-api) into `public/api/`, the [search](/docs/search) index into `public/pagefind/`, and the editor's frames into `public/admin/editor/frames/`, so they're served as static files, as the pages are. The editor's frames are bundled from the site's code, as `next dev` bundles them, and the server sends their Content Security Policy as a header. Next.js sends redirects itself.
 
-   Both folders are written again by every build, so keep them out of the repository with these lines in `.gitignore`, which the Next.js starter's already has:
+   These folders are written again by every build, so keep them out of the repository with these lines in `.gitignore`, which the Next.js starter's already has:
 
    ```text
    public/calendars/
    public/pagefind/
+   public/admin/editor/frames/
    ```
 
 3. Add the admin panel's API, at `app/api/goodfellow/[...path]/route.ts`:
