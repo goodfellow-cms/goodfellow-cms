@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { vercelHeaders } from "@goodfellow-cms/core";
+import { editorPolicy, vercelHeaders } from "@goodfellow-cms/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { redirectDestination, withGoodfellow } from "./config.js";
 import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK, SITE_SERVING } from "./image-sizes-mark.js";
@@ -54,8 +54,14 @@ describe("withGoodfellow", () => {
       headers: expect.any(Function),
     });
     expect(config).not.toHaveProperty("output");
-    // Its server sends the site's header rules.
-    expect(await (config as { headers: () => Promise<unknown> }).headers()).toEqual(vercelHeaders());
+    // Its server sends the site's header rules, then the editor frames' policy in place of their rule's.
+    expect(await (config as { headers: () => Promise<unknown> }).headers()).toEqual([
+      ...vercelHeaders(),
+      {
+        source: "/admin/editor/frames/:path*",
+        headers: [{ key: "Content-Security-Policy", value: `${editorPolicy()}; frame-ancestors 'self'` }],
+      },
+    ]);
   });
 
   it("copies a full-stack site's fonts into public/ before its pages are rendered, and tells the renderer", async () => {

@@ -77,6 +77,7 @@ import {
   blockPageRender,
   buildFileFolders,
   checkPages,
+  EDITOR_FRAMES_PATH,
   exportedPages,
   exportTrailingSlash,
   fixSegmentFiles,
@@ -88,6 +89,7 @@ import {
   writeBuildRecordFile,
   writeCalendarFiles,
   writeContentApi,
+  writeEditorFrames,
   writeEditorPolicy,
   writeExportHeaders,
   writeFeedFiles,
@@ -127,8 +129,14 @@ if (command === "finish" && dir === "--server") {
     process.exit(1);
   }
   for (const folder of await buildFileFolders()) await rm(`public/${folder}`, { recursive: true, force: true });
-  // The editor's frames' page, which next start serves as it was rendered.
-  await writeEditorPolicy(join(await nextDistDir(), "server/app"));
+  // The editor's frames, bundled from the site's code into public/, as `next dev` bundles them: their page runs no
+  // inline scripts, so the server sends its Content Security Policy as a header, and nothing here needs .next/,
+  // so this can run before the build as well as after it.
+  await writeEditorFrames("public");
+  console.log(`Wrote the editor's frames, in public/${EDITOR_FRAMES_PATH}`);
+  // Next.js's own page at app/admin/editor/, which the admin panel no longer frames, kept sealed where it was built.
+  const rendered = join(await nextDistDir(), "server/app");
+  if (existsSync(rendered)) await writeEditorPolicy(rendered);
   const calendars = await writeCalendarFiles("public");
   if (calendars > 0) console.log(`Wrote ${calendars} calendar files, in public/calendars`);
   const feeds = await writeFeedFiles("public");
