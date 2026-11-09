@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { type AddressInfo, connect } from "node:net";
-import { networkInterfaces } from "node:os";
+import { type NetworkInterfaceInfo, networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
   type AdminAddress,
@@ -146,7 +146,7 @@ const EXPOSED_MESSAGE =
 export async function answersNetwork(port: number): Promise<boolean> {
   const addresses = Object.values(networkInterfaces())
     .flat()
-    .filter((address) => address !== undefined && !address.internal)
+    .filter((address): address is NetworkInterfaceInfo => address !== undefined && !address.internal)
     // Link-local IPv6 addresses need the interface named to connect to, and IPv4's cover the same server.
     .filter((address) => address.family === "IPv4" || !address.address.toLowerCase().startsWith("fe80"))
     .map((address) => address.address);
