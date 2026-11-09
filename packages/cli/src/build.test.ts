@@ -209,7 +209,7 @@ describe("build", () => {
     try {
       const result = await build({ root: parish, outDir: parishOut, base: "/" });
       vi.useRealTimers();
-      // Ten pages and two in Spanish, plus five events, seven news stories and two bulletins, and the events and
+      // Ten pages and two in Spanish, plus five events, seven news stories, and two bulletins, and the events and
       // four stories in Spanish. Staff have no pages of their own. The calendar has a page for each month, from
       // last month to a year ahead, and the news a second page and one for each of its four topics.
       expect(result.pages).toHaveLength(26 + 9 + 14 + 5);
@@ -239,7 +239,7 @@ describe("build", () => {
       // The home page's news has a heading, and a link to the rest.
       expect(home).toMatch(/Parish news<\/h2><a href="\/news\/"[^>]*>All news/);
       const about = await readFile(join(parishOut, "about/index.html"), "utf8");
-      // The staff are shown with Collection loop: each one's photo, name and role.
+      // The staff are shown with Collection loop: each one's photo, name, and role.
       expect(about.indexOf("Fr. Thomas Reed")).toBeLessThan(about.indexOf("Maria Chen"));
       expect(about).toContain("Parish office manager");
       expect(about).not.toContain("{title}");
@@ -796,7 +796,7 @@ describe("islandsSummary and reactFromEnv", () => {
     expect(
       islandsSummary({ runtime: "react", because: "components", needReact: ["a.tsx", "b.tsx", "c.tsx", "d.tsx"] }),
     ).toBe(
-      "Client Components run with React, since a.tsx, b.tsx, c.tsx and 1 more don't say they work with Preact (export const worksWithPreact = true)",
+      "Client Components run with React, since a.tsx, b.tsx, c.tsx, and 1 more don't say they work with Preact (export const worksWithPreact = true)",
     );
   });
 

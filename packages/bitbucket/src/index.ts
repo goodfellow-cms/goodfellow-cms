@@ -171,7 +171,7 @@ export function bitbucket(options: BitbucketOptions): GitHost {
     const access = fragment.get("access_token");
     const error = fragment.get("error") ?? url.searchParams.get("error");
     if (!access && !error) return null;
-    // Take the token out of the address bar, history and bookmarks first, even where this tab
+    // Take the token out of the address bar, history, and bookmarks first, even where this tab
     // didn't start the sign-in, and go back to the screen sign-in started from.
     for (const key of ["error", "error_description"]) url.searchParams.delete(key);
     const saved = pending.load();

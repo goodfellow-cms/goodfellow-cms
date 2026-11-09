@@ -22,7 +22,7 @@ export { defaultStrings } from "./strings.js";
 
 /**
  * The labels Goodfellow's own blocks show, by their English: the built-in
- * blocks', their groups', the page settings' and Goodfellow's registry
+ * blocks', their groups', the page settings', and Goodfellow's registry
  * blocks'. A site's own blocks add theirs.
  */
 export const BUILT_IN_LABELS: readonly string[] = Object.keys(labels).sort();

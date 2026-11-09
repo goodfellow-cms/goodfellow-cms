@@ -1,5 +1,5 @@
 /**
- * The page, header, footer, template and item editors, in the admin panel's
+ * The page, header, footer, template, and item editors, in the admin panel's
  * page. Puck and the site's blocks run in a sandboxed frame (`frame/editor.tsx`);
  * this draws the editor's header around it, with Publish, which only this page
  * can do, and the AI assistant, which keeps editors' keys out of the frame.
@@ -53,7 +53,8 @@ export interface PuckEditorProps {
   /** Returns why `data` can't be published yet, as text to show, or `undefined` if it can. */
   validate?: (data: Data) => string | undefined;
   /** The changes that publish `data`, and the save's description. */
-  toChanges: (data: Data) => { changes: FileChange[]; message: string };
+  /** The files to publish; `draft` is true for Add to draft, false for Publish, which puts a new page on the site. */
+  toChanges: (data: Data, options: { draft: boolean }) => { changes: FileChange[]; message: string };
   actions?: ReactNode;
   /** Shown above the editor, such as help for the screen. */
   notice?: ReactNode;
@@ -105,14 +106,14 @@ function keptTime(savedAt: number): string {
 /** How long typing has to stop before what's edited is kept in the browser. */
 const KEEP_AFTER_MS = 1000;
 
-/** The widths the editor previews pages at: the editor's own, a tablet's and a phone's. */
+/** The widths the editor previews pages at: the editor's own, a tablet's, and a phone's. */
 const VIEWPORTS = [
   { width: null, label: "editor.viewport.full" },
   { width: 768, label: "editor.viewport.tablet" },
   { width: 360, label: "editor.viewport.phone" },
 ] as const;
 
-/** Puck in the site's frame, set up for one page, header, footer, template or item, with publishing. */
+/** Puck in the site's frame, set up for one page, header, footer, template, or item, with publishing. */
 export function PuckEditor({
   kind,
   path,
@@ -457,7 +458,7 @@ export function PuckEditor({
       return;
     }
     setStatus({ type: "publishing" });
-    const { changes, message } = toChanges(next);
+    const { changes, message } = toChanges(next, { draft: draft === true });
     // Where the changes were kept: adding to a draft opens the screen again for it.
     const keptAt = keptKey;
     const result = await publish(changes, message, { draft });

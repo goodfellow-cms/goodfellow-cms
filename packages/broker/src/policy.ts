@@ -22,7 +22,7 @@ export interface PluginQuestion extends InstalledPlugin {
 /** What the broker asks the editor before making a call the admin panel asked for. */
 export type BrokerQuestion =
   | { kind: BrokerConfirmKind; paths: string[] }
-  /** Installing, updating or removing plugins, whose code is included when the site builds. */
+  /** Installing, updating, or removing plugins, whose code is included when the site builds. */
   | { kind: "plugins"; installed: PluginQuestion[]; removed: string[] }
   /** Installing another release of Goodfellow, which changes the site's packages. */
   | { kind: "update"; release: string }
@@ -30,7 +30,7 @@ export type BrokerQuestion =
   | { kind: "editors"; who: string; role?: string }
   /** Taking someone's access away. */
   | { kind: "editors-remove"; who: string }
-  /** Connecting, securing or removing a domain on the site's host. */
+  /** Connecting, securing, or removing a domain on the site's host. */
   | { kind: "domain"; change: "connect" | "secure" | "disconnect"; domain: string }
   /** Running an installed plugin's task in the site's CI, with the secrets it declared. */
   | { kind: "task"; plugin: string; task: string }
@@ -58,7 +58,7 @@ const READS = ["revision", "read", "readBytes", "list", "readFiles", "fileSizes"
 
 /**
  * Calls the broker makes without asking: reads, and changes that publish
- * nothing, take nothing away and give no one more. Every other call is asked
+ * nothing, take nothing away, and give no one more. Every other call is asked
  * about or refused, so a method added to what the broker offers later is
  * refused until it's listed here or given a question.
  */

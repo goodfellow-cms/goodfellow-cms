@@ -1,7 +1,7 @@
 /**
  * Editor plugins in the admin panel: a plugin's page editor drawn in its own
  * frame in place of Puck's, for whoever chooses it, which is given what's
- * edited and hands it back. The editor's header, Publish and the AI assistant
+ * edited and hands it back. The editor's header, Publish, and the AI assistant
  * stay the admin panel's own (`PuckEditor`), which checks what comes back
  * with `checkEditedData()` before publishing.
  */

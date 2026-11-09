@@ -688,11 +688,11 @@ function replacementAccept(url: string): string {
   return extension === "jpg" ? ".jpg,.jpeg" : `.${extension}`;
 }
 
-/** Every uploaded image and file, with buttons to upload, replace and delete them. */
+/** Every uploaded image and file, with buttons to upload, replace, and delete them. */
 /** Cloudflare's terms for its CDN, which limit serving video on its free plans. */
 const CLOUDFLARE_TERMS = "https://www.cloudflare.com/service-specific-terms-application-services/";
 
-/** Whether a file is one a search finds: by its name, an image's description or its tags. */
+/** Whether a file is one a search finds: by its name, an image's description, or its tags. */
 function matchesMedia(
   content: { descriptions?: Record<string, { text: string }>; mediaTags?: Record<string, string[]> },
   url: string,

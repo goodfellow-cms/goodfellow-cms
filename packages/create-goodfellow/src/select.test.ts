@@ -108,7 +108,7 @@ describe("select", () => {
     expect(t.input.listenerCount("keypress")).toBe(0);
     const written = t.written();
     expect(written.startsWith("\x1b[?25l")).toBe(true);
-    // The menu is 7 rows: the question, three choices, two notes and the hint.
+    // The menu is 7 rows: the question, three choices, two notes, and the hint.
     expect(written.endsWith("\x1b[7A\r\x1b[JStart from: Parish example\n\x1b[?25h")).toBe(true);
     expect(written).toContain("› Parish example");
   });

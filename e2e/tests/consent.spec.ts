@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { site } from "../scripts/site.mjs";
 import { expect, readJson, readSiteFile, test, writeSiteFile } from "./helpers.js";
 
-// A site that asks visitors before loading other sites' content: the notice, a held-back YouTube player and the
+// A site that asks visitors before loading other sites' content: the notice, a held-back YouTube player, and the
 // site's own code, under `goodfellow dev`.
 test("asks visitors first, and loads other sites' content once they agree", async ({ page }) => {
   const settings = readJson("content/site.json");

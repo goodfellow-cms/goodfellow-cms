@@ -3,7 +3,7 @@
  * computer: the GitHub Apps' manifests, the page that sends them to GitHub,
  * turning GitHub's answer into the worker's secrets, and changing
  * `wrangler.jsonc`. GitHub's app manifest flow creates an app from a manifest
- * and gives back its id, keys and secret, so nothing is copied by hand.
+ * and gives back its id, keys, and secret, so nothing is copied by hand.
  */
 import type { Permissions } from "./github.js";
 import { PERMISSIONS } from "./worker.js";

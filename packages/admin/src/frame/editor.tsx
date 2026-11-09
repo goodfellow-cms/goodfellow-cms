@@ -1,5 +1,5 @@
 /**
- * Puck in the site's frame, for one page, header, footer, template or item.
+ * Puck in the site's frame, for one page, header, footer, template, or item.
  * Its own header isn't shown: the admin panel's page draws the title, Undo,
  * Redo and Publish outside the frame, and asks this one for what to show.
  */
@@ -102,7 +102,7 @@ function TextFieldWithMedia({
 
 /**
  * Wraps the editor's canvas the way the live site wraps it, so custom CSS
- * targeting `.gf-header`, `.gf-main` or `.gf-footer` previews correctly, in
+ * targeting `.gf-header`, `.gf-main`, or `.gf-footer` previews correctly, in
  * `.gf-canvas`, which the site's CSS is scoped to. Pages also show the site's
  * header and footer, read-only, for context.
  */
@@ -238,8 +238,8 @@ function Bridge({ channel, settings }: { channel: Channel; settings: ShownSettin
 const ENTRY_UI: Partial<UiState> = { leftSideBarVisible: false, rightSideBarWidth: 520 };
 const entryPlugins = [legacySideBarPlugin()];
 
-/** Puck, set up for one page, header, footer, template or item: site context, previews and the bridge. */
-/** Puck's permissions for something shown without editing: nothing can be changed, added, moved or removed. */
+/** Puck, set up for one page, header, footer, template, or item: site context, previews, and the bridge. */
+/** Puck's permissions for something shown without editing: nothing can be changed, added, moved, or removed. */
 const READ_ONLY = { drag: false, duplicate: false, delete: false, edit: false, insert: false };
 
 /** Puck's drag handle in each block's action bar, which it leaves off unless asked. */
@@ -254,7 +254,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
   const collection = open.collection
     ? loaded.collections.find((candidate) => candidate.id === open.collection)
     : undefined;
-  // The site as the page's language shows it: its settings, menus, header, footer and items.
+  // The site as the page's language shows it: its settings, menus, header, footer, and items.
   const language =
     open.language ?? (kind === "page" ? pathLanguage(loaded.settings, path) : mainLanguage(loaded.settings));
   const content = useMemo(() => contentInLanguage(loaded, language), [loaded, language]);

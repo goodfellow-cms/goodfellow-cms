@@ -85,7 +85,7 @@ function error(status: number, message: string): Response {
   return json({ type: "error", error: { message } }, status);
 }
 
-/** Bitbucket's filters (`q=`) as the backend writes them: one field, an operator and a quoted value. */
+/** Bitbucket's filters (`q=`) as the backend writes them: one field, an operator, and a quoted value. */
 function filterValue(query: string | null, field: string): { op: string; value: string } | undefined {
   if (!query) return undefined;
   const match = new RegExp(`${field.replace(/\./g, "\\.")}\\s*(~|=|IN)\\s*\\(?"((?:[^"\\\\]|\\\\.)*)"`).exec(query);
@@ -740,7 +740,7 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
       created.set(name, { repo: added, private: true, mainBranch: added.defaultBranch });
       return added;
     },
-    /** Pipelines started, schedules and repository variables, which tests can read and change. */
+    /** Pipelines started, schedules, and repository variables, which tests can read and change. */
     pipelines,
     schedules,
     variables,

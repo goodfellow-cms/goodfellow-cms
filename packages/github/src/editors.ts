@@ -30,7 +30,7 @@ interface Invitation {
   permissions: string;
 }
 
-/** GitHub account names: letters, digits and single hyphens, up to 39 characters. */
+/** GitHub account names: letters, digits, and single hyphens, up to 39 characters. */
 const USERNAME = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 
 const INVITATION = "invitation:";

@@ -137,7 +137,7 @@ describe("the admin panel in a site's own language", () => {
 });
 
 describe("withLabels", () => {
-  it("puts blocks' names, settings' labels, choices and groups in another language, leaving values alone", async () => {
+  it("puts blocks' names, settings' labels, choices, and groups in another language, leaving values alone", async () => {
     const config: Config = {
       categories: { layout: { title: "Layout", components: ["Box"] } },
       components: {

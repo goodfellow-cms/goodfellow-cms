@@ -35,7 +35,7 @@ describe("cropping", () => {
     expect(movedBox(box, 0.5, -0.9)).toEqual({ ...box, x: 0.6, y: 0 });
   });
 
-  it("keeps the box's shape, size and place inside the picture when it's resized", () => {
+  it("keeps the box's shape, size, and place inside the picture when it's resized", () => {
     const picture = { width: 400, height: 300 };
     const free = resizedBox({ x: 0.5, y: 0.5, width: 0.2, height: 0.2 }, 0.9, 0.001, picture, undefined);
     expect(free).toEqual({ x: 0.5, y: 0.5, width: 0.5, height: MIN_CROP });

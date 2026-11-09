@@ -68,7 +68,7 @@ test("restores an earlier version of a page on a GitLab site", async ({ page }) 
 const NEW_PAGE = "content/pages/new-page.json";
 const PLACEHOLDER = "public/media/placeholder.svg";
 
-/** A bulk change by someone else that went wrong: About rewritten, a page added and a picture deleted, in one publish. */
+/** A bulk change by someone else that went wrong: About rewritten, a page added, and a picture deleted, in one publish. */
 function bulkChange(repo: FakeRepo) {
   const about = files()[ABOUT] ?? "";
   repo.commit(

@@ -31,7 +31,7 @@ function splitKey(key: string): { table: AdminTextTable; key: string } | undefin
   return TABLES.includes(table) ? { table, key: key.slice(colon + 1) } : undefined;
 }
 
-/** Every label a block's fields show, as `withLabels()` puts them in another language: settings, choices and placeholders. */
+/** Every label a block's fields show, as `withLabels()` puts them in another language: settings, choices, and placeholders. */
 function fieldLabels(fields: Record<string, unknown>, found: Set<string>): void {
   for (const field of Object.values(fields)) {
     const described = (field ?? {}) as Record<string, unknown>;
@@ -183,7 +183,7 @@ export type SourceFilter = "all" | "missing" | "outdated" | "unusable" | "unrevi
 
 /**
  * The strings an editor of a language's file shows: those the filter keeps
- * whose English, key or text in the file holds every word searched for,
+ * whose English, key, or text in the file holds every word searched for,
  * ignoring case.
  */
 export function filterSources(

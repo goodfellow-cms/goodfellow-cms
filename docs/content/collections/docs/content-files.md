@@ -71,6 +71,8 @@ Where pages are built, the synced block's blocks go in its place, each with its 
 
 A page's or item's file can say when it's on the site, beside its `version`: `showFrom`, when it's first shown, and `hideAfter`, when it's hidden again, each a wall-clock time `YYYY-MM-DDTHH:MM` in the site's `timeZone` (UTC without one). Either can be left out, and `hideAfter` must come after `showFrom`. A Markdown item has them in its front matter. Builds leave out pages and items their schedule doesn't show at the time they run (see [Scheduled publishing](/docs/scheduling)).
 
+A page or item that isn't published yet has `"notPublished": true` beside its `version`, and builds leave it out whatever its schedule says. The admin panel writes it for new pages, duplicates, and translations, and takes it out when someone publishes them (see [Not published yet](/docs/edit-pages#not-published-yet)). It's spelled with a capital letter, so no collection's field can have its name in a Markdown item's front matter.
+
 ```json
 {
   "version": 1,

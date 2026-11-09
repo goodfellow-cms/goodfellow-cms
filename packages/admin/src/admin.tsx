@@ -556,7 +556,7 @@ function DarkModeSwitch() {
 }
 
 /**
- * The header's links, the site's address and the account, which narrow
+ * The header's links, the site's address, and the account, which narrow
  * windows show under a menu button: closed again by choosing a link, pressing
  * Escape or clicking elsewhere.
  */
@@ -770,6 +770,7 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
             plugins: new URL(`${server.replace(/\/+$/, "")}/plugins`, location.href).href,
             ...(session.role === "owner" && { review: appServer(server).review }),
             ...(session.codeReview && { codeReview: true }),
+            earlyInstalls: session.earlyInstalls === true,
             ...(session.signOut && {
               signOut: () => {
                 forgetAiKeys();

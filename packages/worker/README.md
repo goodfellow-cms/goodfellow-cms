@@ -11,7 +11,7 @@ See the documentation's [Sign-in service](https://goodfellow-cms.github.io/goodf
 ```sh
 pnpm install
 cd packages/worker
-pnpm run setup    # deploys it, creates the GitHub Apps, sets its secrets and deploys it again
+pnpm run setup    # deploys it, creates the GitHub Apps, sets its secrets, and deploys it again
 ```
 
 `scripts/setup.mjs` creates the apps with GitHub's app manifest flow, from a page it serves on 127.0.0.1, and gives their keys to Wrangler through its standard input, so they're never printed or written to disk. Its parts that don't touch the computer are in `src/setup.ts`.

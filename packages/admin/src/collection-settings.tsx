@@ -625,7 +625,7 @@ function addressClash(
   return undefined;
 }
 
-/** A collection's name, page addresses, order and fields. */
+/** A collection's name, page addresses, order, and fields. */
 export function CollectionSettingsScreen({ collection }: { collection: Collection }) {
   const t = useStrings();
   const { blocks, publish, reload } = useAdmin();

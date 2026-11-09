@@ -10,7 +10,7 @@ describe("what the broker asks before making a call", () => {
     expect(await decide(call, SITE)).toEqual({ action: "allow" });
   });
 
-  it("asks about code, custom code and the Site address, together", async () => {
+  it("asks about code, custom code, and the Site address, together", async () => {
     const changes = [
       { path: "blocks/installed/faq/block.tsx", content: "" },
       { path: "components/ui/accordion.tsx", content: "" },
@@ -145,7 +145,7 @@ describe("what the broker asks before making a call", () => {
     });
   });
 
-  it("asks before changing domains, taking access away, running tasks, setting up updates or throwing away a draft", async () => {
+  it("asks before changing domains, taking access away, running tasks, setting up updates, or throwing away a draft", async () => {
     const ask = async (path: string, args: unknown[], target: unknown = {}) =>
       ((await decide({ path, args, target }, SITE)) as { questions?: unknown[] }).questions;
     expect(await ask("pages.connect", ["example.org", {}])).toEqual([

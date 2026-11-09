@@ -78,7 +78,7 @@ Commands:
             always or off); on GitHub Actions it sets the step's build and update
             outputs to true or false
   import    import wordpress <file or address>  brings a WordPress site's pages, posts,
-                                   categories, tags, menus and media into this site,
+                                   categories, tags, menus, and media into this site,
                                    from its export file (Tools → Export) or its address
             import markdown <folder>  brings a folder of Markdown files into this site:
                                    the files at the top as pages, and each folder as a
@@ -89,7 +89,7 @@ Commands:
                                    --keep-fields (keeps other front matter as fields)
             import site <zip or folder>  brings another Goodfellow site's export (export
                                    site, or Download a copy) into this one: its pages,
-                                   items, synced blocks and media, keeping this site's
+                                   items, synced blocks, and media, keeping this site's
                                    version of what both have unless --take export; with
                                    --menus, --settings, --layout (header and footer) and
                                    --redirects, or --replace to make this site's content
@@ -98,7 +98,7 @@ Commands:
   export    export wordpress [file]  writes this site as a WordPress export file, which
                                    WordPress imports with Tools → Import → WordPress
             export markdown [folder] writes this site as a folder of Markdown files, for
-                                   Hugo, Jekyll, Eleventy, Astro and notes apps
+                                   Hugo, Jekyll, Eleventy, Astro, and notes apps
                                    (--scheduled also exports what isn't shown yet, as drafts;
                                    --links files links to the files rather than the addresses)
             export site [file]     writes this site's content and media as a zip, for
@@ -403,7 +403,7 @@ async function main(): Promise<void> {
       const [, action, argument] = positionals;
       const root = values.root ?? ".";
       if (!(action === "add" && argument) && action !== "check" && action !== "remove") {
-        console.error(`Say "admin add <address>", "admin check" or "admin remove".\n\n${HELP}`);
+        console.error(`Say "admin add <address>", "admin check", or "admin remove".\n\n${HELP}`);
         process.exitCode = 1;
         return;
       }
@@ -525,7 +525,7 @@ async function main(): Promise<void> {
       }
       if (kind !== "wordpress") {
         console.error(
-          `Say "export wordpress", "export markdown" or "export site", and the file or folder to write if you like.\n\n${HELP}`,
+          `Say "export wordpress", "export markdown", or "export site", and the file or folder to write if you like.\n\n${HELP}`,
         );
         process.exitCode = 1;
         return;

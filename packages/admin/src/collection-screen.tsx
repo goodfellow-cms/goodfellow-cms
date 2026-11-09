@@ -347,7 +347,7 @@ function DeleteEntryDialog({
 
 type DialogState = { type: "new" } | { type: "move"; entry: Entry } | { type: "delete"; entry: Entry } | null;
 
-/** A collection's items, with buttons to add, edit, rename and delete them. */
+/** A collection's items, with buttons to add, edit, rename, and delete them. */
 export function EntriesScreen({ collection }: { collection: Collection }) {
   const { content } = useSiteContent();
   const t = useStrings();
@@ -405,14 +405,16 @@ export function EntriesScreen({ collection }: { collection: Collection }) {
                     </a>
                     {item.path && (
                       <>
-                        <a
-                          className="gfa-button gfa-button-ghost"
-                          href={`${siteUrl.replace(/\/$/, "")}${item.path}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {t("pages.view")}
-                        </a>
+                        {!item.content.notPublished && (
+                          <a
+                            className="gfa-button gfa-button-ghost"
+                            href={`${siteUrl.replace(/\/$/, "")}${item.path}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {t("pages.view")}
+                          </a>
+                        )}
                         <Button variant="ghost" onClick={() => setDialog({ type: "move", entry: item })}>
                           {t("pages.move")}
                         </Button>

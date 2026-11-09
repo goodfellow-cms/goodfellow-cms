@@ -78,10 +78,26 @@ test("creates a page", async ({ page }) => {
   await page.getByRole("button", { name: "Create page" }).click();
 
   await expect(page).toHaveURL(/#\/pages\/edit\?path=%2Fmass-confession-times$/);
+  // It isn't on the site until someone publishes it.
+  expect(readJson("content/pages/mass-confession-times.json")).toEqual({
+    version: 1,
+    notPublished: true,
+    data: { root: { props: { title: "Mass & Confession Times" } }, content: [] },
+  });
+  await expect(page.getByText("Not on the site yet: Publish puts it there.")).toBeVisible();
+  expect((await page.request.get("/mass-confession-times")).status()).toBe(404);
+
+  await page.goto("/admin");
+  const row = page.getByRole("row", { name: /Mass & Confession Times/ });
+  await expect(row).toContainText("Not published yet");
+  await expect(row.getByRole("link", { name: "View" })).toHaveCount(0);
+  await row.getByRole("button", { name: "Publish" }).click();
+  await expect(row.getByRole("link", { name: "View" })).toBeVisible();
   expect(readJson("content/pages/mass-confession-times.json")).toEqual({
     version: 1,
     data: { root: { props: { title: "Mass & Confession Times" } }, content: [] },
   });
+  await expect.poll(async () => (await page.request.get("/mass-confession-times")).status()).toBe(200);
 });
 
 test("duplicates a page, so a similar one doesn't start from scratch", async ({ page }) => {
@@ -103,6 +119,7 @@ test("duplicates a page, so a similar one doesn't start from scratch", async ({ 
   // The same blocks and settings, with the new title.
   expect(readJson("content/pages/our-history.json")).toEqual({
     ...about,
+    notPublished: true,
     data: { ...about.data, root: { ...about.data.root, props: { ...about.data.root.props, title: "Our history" } } },
   });
 });
@@ -125,7 +142,7 @@ test("refuses addresses that can't be used", async ({ page }) => {
   await expect(page.getByText(/This address can't be used: the admin panel uses it/)).toBeVisible();
 
   await address.fill("/Not Valid");
-  await expect(page.getByText(/Use lowercase letters, numbers and hyphens/)).toBeVisible();
+  await expect(page.getByText(/Use lowercase letters, numbers, and hyphens/)).toBeVisible();
 });
 
 test("changes a page's address, updates links to it, and sends visitors on from the old one", async ({ page }) => {

@@ -3,7 +3,7 @@ import { fakeGitLab } from "@goodfellow-cms/gitlab/testing";
 import { expect, test } from "@playwright/test";
 import { files, GITHUB_SITE, GITLAB_SITE, routeToFake } from "./backends.js";
 
-test("an owner invites, changes and removes editors on a GitHub site with an owner token", async ({ page }) => {
+test("an owner invites, changes, and removes editors on a GitHub site with an owner token", async ({ page }) => {
   const fake = fakeGitHub({
     repo: "parish/site",
     files: files(),

@@ -41,6 +41,7 @@ import {
 import { CodeEditor } from "./code-editor.js";
 import { ConsentSection, cleanConsent } from "./consent-settings.js";
 import { FontPicker } from "./font-picker.js";
+import { FreeServices } from "./free-services.js";
 import { useHistory } from "./history.js";
 import { cleanLanguages, LanguagesTab, languagesProblem } from "./languages-tab.js";
 import { MediaField } from "./media-library.js";
@@ -339,6 +340,7 @@ function GeneralTab({
   });
   return (
     <div className="gfa-form">
+      <FreeServices settings={draft} />
       <TextField label={t("general.siteTitle")} {...text("title")} />
       <TextField label={t("general.description")} hint={t("general.descriptionHint")} {...text("description")} />
       <TextField
@@ -784,7 +786,7 @@ function CodeTab({
 }
 
 /**
- * Site settings, theme, menus, custom CSS and the site's own code, with a live
+ * Site settings, theme, menus, custom CSS, and the site's own code, with a live
  * preview of the home page (without the code, which never runs in the admin
  * panel). Publishing saves every changed file in one go.
  */

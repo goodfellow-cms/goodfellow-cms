@@ -63,7 +63,7 @@ test("imports another Goodfellow site's export, keeping this site's version unti
 
   expect(JSON.stringify(readJson("content/pages/visit.json"))).toContain("Find us on Main Street.");
   expect(existsSync(join(site as string, "public/media/brendan.svg"))).toBe(true);
-  // This site's home page, Site address and lack of editors' limits stay.
+  // This site's home page, Site address, and lack of editors' limits stay.
   expect(readFileSync(join(site as string, "content/pages/index.json"), "utf8")).toBe(before);
   expect(existsSync(join(site as string, "content/permissions.json"))).toBe(false);
   expect((readJson("content/site.json") as { url?: string }).url).not.toBe("https://stbrendan.example.org/");

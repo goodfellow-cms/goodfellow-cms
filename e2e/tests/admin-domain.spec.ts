@@ -3,7 +3,7 @@ import { ADMIN_ADDRESSES } from "../scripts/site.mjs";
 
 // A production build of the starter whose admin panel has an address of its own (`builtSites.admin`). Its test
 // pages, from e2e/fixtures/admin-domain, try every way a script could run before the guard each page starts with.
-// This runs in Chromium, Firefox and WebKit (playwright.config.ts), since each loads pages its own way.
+// This runs in Chromium, Firefox, and WebKit (playwright.config.ts), since each loads pages its own way.
 const { admin, site } = ADMIN_ADDRESSES;
 
 /** The marks the test pages' scripts left in this page's address's storage. */
@@ -22,7 +22,7 @@ async function marksAt(page: Page, origin: string): Promise<string[]> {
 }
 
 const PAGES = [
-  // Scripts in the head and body, async, deferred and module scripts, event handlers, frames and an SVG object.
+  // Scripts in the head and body, async, deferred, and module scripts, event handlers, frames, and an SVG object.
   { path: "/attack/scripts.html", ran: ["ran-inline", "ran-body-inline", "ran-framed", "ran-srcdoc"] },
   { path: "/attack/picture.svg", ran: ["ran-svg"] },
   // Browsers show XML with no stylesheet as it is; whether its script runs at the Site address doesn't matter.

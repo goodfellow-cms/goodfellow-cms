@@ -7,7 +7,7 @@ import { canvas, editor, expect, openPageEditor, readSiteFile, test, writeSiteFi
 
 const french = readFileSync(new URL("../fixtures/admin-text/fr.json", import.meta.url), "utf8");
 
-test("shows the admin panel, Puck and blocks' settings in the language chosen, and remembers it", async ({ page }) => {
+test("shows the admin panel, Puck, and blocks' settings in the language chosen, and remembers it", async ({ page }) => {
   await page.goto("/admin#/pages");
   await expect(page.getByRole("link", { name: "Pages", exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "Language of the admin panel" }).selectOption("es");
@@ -16,7 +16,7 @@ test("shows the admin panel, Puck and blocks' settings in the language chosen, a
   await expect(page.getByRole("heading", { name: "Páginas" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
 
-  // The editor: the admin panel's header, Puck's own text and the blocks' names and groups.
+  // The editor: the admin panel's header, Puck's own text, and the blocks' names and groups.
   await openPageEditor(page, "/about", "About us");
   await expect(page.locator(".gfa-editor-header").getByText("Publicar", { exact: true })).toBeVisible();
   await expect(editor(page).getByText("Esquema", { exact: true }).first()).toBeVisible();

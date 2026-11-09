@@ -34,7 +34,7 @@ interface ShortcutsValue {
 
 const ShortcutsContext = createContext<ShortcutsValue | null>(null);
 
-/** Lets the screen showing handle Ctrl+S, Ctrl+Z and Ctrl+Y (⌘ on a Mac) while it's open. */
+/** Lets the screen showing handle Ctrl+S, Ctrl+Z, and Ctrl+Y (⌘ on a Mac) while it's open. */
 export function useShortcutHandlers(handlers: ShortcutHandlers): void {
   const shortcuts = useContext(ShortcutsContext);
   const latest = useRef(handlers);
@@ -147,7 +147,7 @@ function useScreens(): GoToPlace[] {
   }, [t, owner, contentOnly, site.description.plugins]);
 }
 
-/** Ctrl+K: finds a page, item or screen by what's typed, and goes there. */
+/** Ctrl+K: finds a page, item, or screen by what's typed, and goes there. */
 function GoToDialog({ onClose }: { onClose: () => void }) {
   const t = useStrings();
   const { state } = useAdmin();
