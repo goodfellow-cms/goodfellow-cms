@@ -93,10 +93,17 @@ describe("markdownToHtml", () => {
         const html = markdownToHtml(markdown);
         expect(html, markdown).not.toMatch(/<(img|svg)\b/i);
         expect(html, markdown).toMatch(/&lt;(img|svg)/);
-        expect(markdownParts(markdown).map((part) => part.html).join(""), markdown).not.toMatch(/<(img|svg)\b/i);
+        expect(
+          markdownParts(markdown)
+            .map((part) => part.html)
+            .join(""),
+          markdown,
+        ).not.toMatch(/<(img|svg)\b/i);
       }
     }
-    expect(markdownToHtml("<kbd>Ctrl</kbd> & <kbd>C</kbd>")).toBe("<p>&lt;kbd&gt;Ctrl&lt;/kbd&gt; &amp; &lt;kbd&gt;C&lt;/kbd&gt;</p>\n");
+    expect(markdownToHtml("<kbd>Ctrl</kbd> & <kbd>C</kbd>")).toBe(
+      "<p>&lt;kbd&gt;Ctrl&lt;/kbd&gt; &amp; &lt;kbd&gt;C&lt;/kbd&gt;</p>\n",
+    );
   });
 
   it("highlights code with the function given, or shows it plainly", () => {

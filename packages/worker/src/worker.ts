@@ -362,7 +362,8 @@ const STATE_COOKIE = "__Host-goodfellow_state";
  */
 function stateCookie(request: Request): { value: string; header: string } {
   const kept = cookie(request, STATE_COOKIE);
-  const value = kept && /^[\w-]{22,64}$/.test(kept) ? kept : base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
+  const value =
+    kept && /^[\w-]{22,64}$/.test(kept) ? kept : base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
   return {
     value,
     header: `${STATE_COOKIE}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${STATE_LIFETIME / 1000}`,
