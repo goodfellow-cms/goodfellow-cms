@@ -65,7 +65,7 @@ const RAW_END: Record<string, RegExp> = { script: /<\/script\s*>/g, style: /<\/s
 
 /**
  * The HTML's tags and text, without its comments and what's in its scripts
- * and styles. Each comment, script and style ends at the first end after it
+ * and styles. Each comment, script, and style ends at the first end after it
  * (or the page's end, as in browsers), found by searching on from its start,
  * since a pattern that looks for the end from every start takes time that
  * grows with the square of the page's length when one never ends.

@@ -145,7 +145,7 @@
               "props": {
                 "id": "Notice-holidays",
                 "className": "mt-10",
-                "text": "<p>Times change for Christmas, Holy Week and Easter. The <a href=\"/bulletins\">bulletin</a> has each year's schedule a few weeks ahead.</p>",
+                "text": "<p>Times change for Christmas, Holy Week, and Easter. The <a href=\"/bulletins\">bulletin</a> has each year's schedule a few weeks ahead.</p>",
                 "title": "Christmas and Easter",
                 "tone": "highlight"
               }
@@ -159,7 +159,7 @@
     "root": {
       "props": {
         "className": "",
-        "description": "Weekend, weekday and holy day Masses, and times for confession.",
+        "description": "Weekend, weekday, and holy day Masses, and times for confession.",
         "image": "",
         "title": "Mass times"
       }

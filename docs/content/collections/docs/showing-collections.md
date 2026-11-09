@@ -1,7 +1,7 @@
 ---
 version: 1
 title: Showing collections
-description: Lists of a collection's items anywhere on the site, with tags, pages of their own and designs made in the editor.
+description: Lists of a collection's items anywhere on the site, with tags, pages of their own, and designs made in the editor.
 section: editors
 order: 3.2
 ---
@@ -10,7 +10,7 @@ Two blocks show a collection's items on other pages: **Collection list**, ready 
 
 ## Collection list
 
-Collection list shows items as a list or as cards, with each item's picture, date and summary, linking to its page if the collection gives items pages. Its settings choose:
+Collection list shows items as a list or as cards, with each item's picture, date, and summary, linking to its page if the collection gives items pages. Its settings choose:
 
 - **Heading**, and a **link beside the heading**, such as "See all" to the page with every item, for a home page section like "Parish news".
 - **Only items with** a choice, from a choice or tags field, such as news about music only, or a yes or no field that's on, such as featured stories only.
@@ -25,7 +25,7 @@ A list can go on several pages. Turn on **More on later pages**, and **How many*
 
 A choice or tags field can also give each of its choices a page: choose it in **A page for each choice of**. For a field named `topics`, a story tagged "Music" is listed at `/news/topics/music`, with its own later pages, and the list shows links to every topic, with **All** (or the label you give it) back to the full list. Each page's title says which page it is, such as "News: Music" or "News: Page 2".
 
-Only the first block on a page that adds pages gets them, calendars by the month included; others on the same page show their first page, without links to the rest, and the editor says so on each of them. Items' pages, "Page not found" and the header and footer get no pages of their own. A page that's already at one of these addresses keeps it. Pages a list adds have addresses of their own for search engines, and the site's own search lists only the first, so a story is found once.
+Only the first block on a page that adds pages gets them, calendars by the month included; others on the same page show their first page, without links to the rest, and the editor says so on each of them. Items' pages, "Page not found", and the header and footer get no pages of their own. A page that's already at one of these addresses keeps it. Pages a list adds have addresses of their own for search engines, and the site's own search lists only the first, so a story is found once.
 
 Visitors don't sort or filter lists themselves: each list's order and choices are the editor's, and the [Search](/docs/search) block finds the rest.
 

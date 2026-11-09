@@ -1,22 +1,22 @@
 ---
 version: 1
 title: Host anywhere
-description: Putting a site on any host, such as AWS, Google Cloud, DigitalOcean or a server of your own, with a build you set up yourself.
+description: Putting a site on any host, such as AWS, Google Cloud, DigitalOcean, or a server of your own, with a build you set up yourself.
 section: start
 order: 4.5
 ---
 
-A Goodfellow site is static files: pages, pictures, the admin panel and everything else are written by the build, and nothing runs on a server. So any host that serves files can serve one, such as Amazon S3 with CloudFront, Google Cloud Storage or Firebase Hosting, DigitalOcean's App Platform or Spaces, Azure Static Web Apps, Render, or a server of your own with nginx or Apache. [Put it online](/docs/put-it-online) gives the setup files for GitHub Pages, GitLab Pages, Cloudflare Pages, Netlify and Vercel; on any other host, you set up the build yourself, as this page describes. A [full-stack Next.js site](/docs/full-stack-nextjs) runs on any host that runs Node.js.
+A Goodfellow site is static files: pages, pictures, the admin panel, and everything else are written by the build, and nothing runs on a server. So any host that serves files can serve one, such as Amazon S3 with CloudFront, Google Cloud Storage or Firebase Hosting, DigitalOcean's App Platform or Spaces, Azure Static Web Apps, Render, or a server of your own with nginx or Apache. [Put it online](/docs/put-it-online) gives the setup files for GitHub Pages, GitLab Pages, Cloudflare Pages, Netlify, and Vercel; on any other host, you set up the build yourself, as this page describes. A [full-stack Next.js site](/docs/full-stack-nextjs) runs on any host that runs Node.js.
 
 ## Building the site
 
-Make the site as usual, choosing **Not decided yet** for the host, then delete the setup files of the hosts you don't use. The site is still stored on GitHub, GitLab or Bitbucket, where the admin panel publishes to, so your build starts from the repository's main branch:
+Make the site as usual, choosing **Not decided yet** for the host, then delete the setup files of the hosts you don't use. The site is still stored on GitHub, GitLab, or Bitbucket, where the admin panel publishes to, so your build starts from the repository's main branch:
 
 1. `npm ci`, to install exactly what `package-lock.json` names.
 2. `npm run build`, which writes the site into `dist/` (`out/` for the Next.js starter, whose build script runs `next build` and then `goodfellow-next finish out`).
 3. Copy that folder to the host, such as with `aws s3 sync dist/ s3://your-bucket --delete`.
 
-If the host serves the site from a subfolder, such as `https://example.org/parish/`, build it with `GOODFELLOW_BASE=/parish/` (see [Commands](/docs/commands#serving-from-a-subfolder)). Put the site's address in **Site Settings → General → Site address**, since search engines, feeds and link previews need full addresses.
+If the host serves the site from a subfolder, such as `https://example.org/parish/`, build it with `GOODFELLOW_BASE=/parish/` (see [Commands](/docs/commands#serving-from-a-subfolder)). Put the site's address in **Site Settings → General → Site address**, since search engines, feeds, and link previews need full addresses.
 
 Build again whenever the main branch changes, since every Publish in the admin panel is a change there. Most hosts and CI services can start a build on every push; the starters' GitHub workflow, `.github/workflows/deploy.yml`, is a good place to start from: keep its jobs and replace the one that publishes to GitHub Pages with your host's upload. That keeps what the rest of it does, below.
 
@@ -31,7 +31,7 @@ Build again whenever the main branch changes, since every Publish in the admin p
 
 ## Addresses with or without a slash
 
-Hosts differ in which address they serve a folder's page at: GitHub Pages, Cloudflare Pages and Netlify serve `/about/` and send `/about` there, while others, such as Vercel with `trailingSlash: false`, do the opposite, and some serve both. The site tells search engines each page's address, in its canonical link, sitemap, `hreflang` links, feeds, calendar files and structured data, so it should be the one the host serves without sending visitors on. Links from one page to another, in menus, buttons and text, end the same way, so following them doesn't go through a redirect either.
+Hosts differ in which address they serve a folder's page at: GitHub Pages, Cloudflare Pages, and Netlify serve `/about/` and send `/about` there, while others, such as Vercel with `trailingSlash: false`, do the opposite, and some serve both. The site tells search engines each page's address, in its canonical link, sitemap, `hreflang` links, feeds, calendar files, and structured data, so it should be the one the host serves without sending visitors on. Links from one page to another, in menus, buttons, and text, end the same way, so following them doesn't go through a redirect either.
 
 By default those addresses end with a slash (`https://example.org/about/`), as most hosts serve the folders the build writes. Where yours serves them without one, set it in `goodfellow.config.tsx`:
 

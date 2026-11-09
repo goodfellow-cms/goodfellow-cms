@@ -36,12 +36,12 @@ They run in the browser however the site is built. With `goodfellow build` and `
 
 - **Props** must be plain values: text, numbers, `true` and `false`, and lists and objects of these. A block can't pass a function such as an `onClick` handler, so handlers go inside the Client Component.
 - **Content** passed as `children` (or any prop holding JSX) is rendered by the block, and stays as it is in the browser. Client Components in it run on their own.
-- **`useSite()`** works in Client Components, so pages with them include the site's settings, menus and collections for the browser.
+- **`useSite()`** works in Client Components, so pages with them include the site's settings, menus, and collections for the browser.
 - **Other packages' Client Components** need re-exporting from a `"use client"` file of the site's: `"use client"; export { Carousel } from "some-carousel";`. Packages of blocks (packages that use `@goodfellow-cms/react`) don't.
 
 Each page with a Client Component loads React, so use HTML and CSS where they're enough: `<details>` for something that opens and closes, `:hover` and `:focus-within` for menus.
 
-The built-in blocks never need React: the Code block's copy button, the Dark mode switch and the Search box each work with a small script of their own. With `goodfellow build` a page has a script only when it has that block, so a page made of built-in blocks loads no React at all. Next.js loads React on every page for its own navigation, and has the scripts in its layout.
+The built-in blocks never need React: the Code block's copy button, the Dark mode switch, and the Search box each work with a small script of their own. With `goodfellow build` a page has a script only when it has that block, so a page made of built-in blocks loads no React at all. Next.js loads React on every page for its own navigation, and has the scripts in its layout.
 
 ## Preact instead of React
 
@@ -84,8 +84,8 @@ Client Components run with React, as GOODFELLOW_REACT says
 Islands have limits that Next.js doesn't:
 
 - **No shared context.** Each island is its own React app, so a Client Component that provides a context can't pass it to Client Components in the content it wraps. Components whose parts share a context, such as an accordion and its items, go together in one `"use client"` file.
-- **Content is fixed HTML.** A Client Component can show, hide or move its `children`, but can't look inside them with `React.Children` or `cloneElement`.
-- **Fewer kinds of props.** No dates, `Map`s, `Set`s or promises.
+- **Content is fixed HTML.** A Client Component can show, hide, or move its `children`, but can't look inside them with `React.Children` or `cloneElement`.
+- **Fewer kinds of props.** No dates, `Map`s, `Set`s, or promises.
 - **Every page is a full page load**, so React starts again on each page.
 
 If a site runs into these, build it with [Next.js](/docs/nextjs) instead.

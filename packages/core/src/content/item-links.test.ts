@@ -66,7 +66,7 @@ const site = (talk: Record<string, unknown>, files: Record<string, unknown> = {}
     }),
   );
 
-describe("collection fields: yes or no, links to items, images, files and groups", () => {
+describe("collection fields: yes or no, links to items, images, files, and groups", () => {
   it("are checked as a collection's settings", () => {
     expect(collectionFileSchema.safeParse(talks).success).toBe(true);
     const noCollection = {
@@ -192,7 +192,7 @@ describe("collection fields: yes or no, links to items, images, files and groups
     expect(changeItemLinks(content, "speakers", (slug) => slug)).toEqual({ content, files: [] });
   });
 
-  it("are checked with the site: links to items, images and files that aren't there", async () => {
+  it("are checked with the site: links to items, images, and files that aren't there", async () => {
     const content = await site({
       speakers: ["anna", "carla"],
       photos: ["/media/a.jpg", "/media/gone.jpg"],

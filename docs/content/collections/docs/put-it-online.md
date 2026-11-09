@@ -1,16 +1,16 @@
 ---
 version: 1
 title: Put it online
-description: Store the site on GitHub, GitLab or Bitbucket, choose a host, and set up sign-in for editors.
+description: Store the site on GitHub, GitLab, or Bitbucket, choose a host, and set up sign-in for editors.
 section: start
 order: 4
 ---
 
-Setup takes four steps, done once by whoever sets up the site. A site made with the [setup page](/new-site) has done the first three, unless it's on Cloudflare Pages, Netlify or Vercel, which you connect it to in step 3, so start at [step 4](#4-set-up-sign-in).
+Setup takes four steps, done once by whoever sets up the site. A site made with the [setup page](/new-site) has done the first three, so start at [step 4](#4-set-up-sign-in), unless it's on Cloudflare Pages, Netlify, or Vercel: connect it to its host in [step 3](#3-choose-a-host) first, or, for a site whose content is in a repository of its own, as [Content in a repository of its own](/docs/content-repository) says.
 
-## 1. Store the site on GitHub, GitLab or Bitbucket
+## 1. Store the site on GitHub, GitLab, or Bitbucket
 
-Create an empty repository on GitHub, GitLab or Bitbucket Cloud, without a README, and push the site's folder to it. If you're not sure which, we recommend GitLab, with GitLab Pages: see [Which to choose](/docs/hosts#which-to-choose). A site stored on Bitbucket is put online by Vercel, so make it with `npm create goodfellow@latest -- --bitbucket your-workspace/your-site`, which gives it the setup Bitbucket needs.
+Create an empty repository on GitHub, GitLab, or Bitbucket Cloud, without a README, and push the site's folder to it. If you're not sure which, we recommend GitLab, with GitLab Pages: see [Which to choose](/docs/hosts#which-to-choose). A site stored on Bitbucket is put online by Vercel, so make it with `npm create goodfellow@latest -- --bitbucket your-workspace/your-site`, which gives it the setup Bitbucket needs.
 
 ```sh
 git remote add origin https://github.com/your-name/your-site.git   # unless origin is already set
@@ -35,13 +35,13 @@ export default defineConfig({
 
 Builds include the admin panel at `/admin` only once a backend is set. If the live site is built from a branch other than the repository's default branch, add `branch: "name"`.
 
-Then set the site's address under **Site Settings → General → Site address**, including any subfolder, such as `https://your-name.github.io/your-site`. It's used for the sitemap, link previews, feeds and what search engines are told about the site (see [Search engines and feeds](/docs/search-engines)); a site in a subfolder needs [its sitemap named](/docs/search-engines#sites-in-a-subfolder) where search engines look.
+Then set the site's address under **Site Settings → General → Site address**, including any subfolder, such as `https://your-name.github.io/your-site`. It's used for the sitemap, link previews, feeds, and what search engines are told about the site (see [Search engines and feeds](/docs/search-engines)); a site in a subfolder needs [its sitemap named](/docs/search-engines#sites-in-a-subfolder) where search engines look.
 
 ## 3. Choose a host
 
-Each host's free plan has its own rules about business use; read [Hosts and business sites](/docs/hosts) first if the site is for a business, sells anything or shows ads.
+Each host's free plan has its own rules about business use; read [Hosts and business sites](/docs/hosts) first if the site is for a business, sells anything, or shows ads.
 
-These five have setup files ready. A site can be hosted anywhere else too, such as on AWS, Google Cloud, DigitalOcean or a server of your own, with a build you set up: see [Host anywhere](/docs/any-host).
+These five have setup files ready. A site can be hosted anywhere else too, such as on AWS, Google Cloud, DigitalOcean, or a server of your own, with a build you set up: see [Host anywhere](/docs/any-host).
 
 **GitHub Pages**, free for public repositories:
 
@@ -69,7 +69,7 @@ These five have setup files ready. A site can be hosted anywhere else too, such 
 
 A site whose content is kept in a [repository of its own](/docs/content-repository) can't be on Netlify yet.
 
-**Vercel**, which works with GitHub, GitLab and Bitbucket:
+**Vercel**, which works with GitHub, GitLab, and Bitbucket:
 
 1. Import the repository in Vercel. `vercel.ts` already has the right settings: it has Vercel send the site's redirects and [safer headers](/docs/security#for-developers) itself, and not build previews of [drafts](/docs/publishing#drafts) or plugins' [task](/docs/plugins#tasks) answers, which are kept on branches of their own. The Next.js starter has `vercel.json` instead, which only turns those previews off, since Next.js sends the rest itself; sites made from it before Goodfellow 0.9 get it with their next update.
 2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule. Sites stored on Bitbucket have this set up already (see below).

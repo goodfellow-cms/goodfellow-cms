@@ -35,11 +35,11 @@ The News page and its stories are an example of a collection: a group of similar
 
 Your own Next.js pages can go beside these, in `app/`, and import from the project root as `@/`, such as `@/lib/site`.
 
-More blocks, such as an FAQ, tabs and a pricing table, can be added on the admin panel's **Blocks** screen, which publishes their code into `blocks/installed/` and the shadcn components they use into `components/ui/`. See [Add blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/add-blocks).
+More blocks, such as an FAQ, tabs, and a pricing table, can be added on the admin panel's **Blocks** screen, which publishes their code into `blocks/installed/` and the shadcn components they use into `components/ui/`. See [Add blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/add-blocks).
 
 Plugins installed from **Site Settings → Plugins** are listed in `plugins/installed/`, which `goodfellow.config.tsx` imports; the site's build writes `package-lock.json` for them. See [Plugins](https://goodfellow-cms.github.io/goodfellow-cms/docs/plugins).
 
-Blocks are React components in `blocks/`, added to the editor in `goodfellow.config.tsx`. For links and images, use `SiteLink` and `SiteImage` from `@goodfellow-cms/react` rather than `<a>` and `<img>`, so they follow the site's address and use `next/link` and `next/image`. Read the site's settings, menus and collections with `useSite()`.
+Blocks are React components in `blocks/`, added to the editor in `goodfellow.config.tsx`. For links and images, use `SiteLink` and `SiteImage` from `@goodfellow-cms/react` rather than `<a>` and `<img>`, so they follow the site's address and use `next/link` and `next/image`. Read the site's settings, menus, and collections with `useSite()`.
 
 Interactive parts of a block go in a Client Component: a file starting with `"use client"`, which can use any React hooks and runs in the browser. Pass it plain values and content such as `children`, not functions. `useSite()` works there too.
 
@@ -49,9 +49,9 @@ Images are served as they are. To resize them and convert them to modern formats
 
 Setup takes four steps. It's done once, usually by whoever set up the site.
 
-### 1. Store the site on GitHub, GitLab or Bitbucket
+### 1. Store the site on GitHub, GitLab, or Bitbucket
 
-Create an empty repository on GitHub, GitLab or Bitbucket, without a README, and push this folder to it (a site on Bitbucket is put online by Vercel, and needs the `bitbucket-pipelines.yml` that `npm create goodfellow@latest -- --bitbucket your-workspace/your-site` gives it, with its own steps in its README):
+Create an empty repository on GitHub, GitLab, or Bitbucket, without a README, and push this folder to it (a site on Bitbucket is put online by Vercel, and needs the `bitbucket-pipelines.yml` that `npm create goodfellow@latest -- --bitbucket your-workspace/your-site` gives it, with its own steps in its README):
 
 ```sh
 git remote add origin https://github.com/your-name/your-site.git   # unless origin is already set
@@ -80,7 +80,7 @@ Also set the site's address under **Site settings → General → Site address**
 
 ### 3. Choose a host
 
-Each host's free plan has its own rules about business use. If the site is for a business, sells anything, shows ads, or is built or looked after by someone who's paid for it, check those rules first. As of October 2026, GitHub Pages and Vercel's free plan don't allow most of these, and GitLab Pages, Cloudflare Pages and Netlify have no rule against them that we know of. See [Hosts and business sites](https://goodfellow-cms.github.io/goodfellow-cms/docs/hosts) in Goodfellow's documentation.
+Each host's free plan has its own rules about business use. If the site is for a business, sells anything, shows ads, or is built or looked after by someone who's paid for it, check those rules first. As of October 2026, GitHub Pages and Vercel's free plan don't allow most of these, and GitLab Pages, Cloudflare Pages, and Netlify have no rule against them that we know of. See [Hosts and business sites](https://goodfellow-cms.github.io/goodfellow-cms/docs/hosts) in Goodfellow's documentation.
 
 **GitHub Pages** (free for public repositories; not for online businesses or shops)
 
@@ -105,7 +105,7 @@ Each host's free plan has its own rules about business use. If the site is for a
 2. In Netlify, choose **Import an existing project** and pick the repository. `netlify.toml` already has the right settings: Netlify builds and publishes the site, from `out`, on every change, and sends its redirects itself.
 3. Under the site's **Project configuration → Build & deploy → Build hooks**, add a build hook for the main branch, and add it to the repository as the `NETLIFY_BUILD_HOOK` secret on GitHub, or masked variable on GitLab, for the nightly rebuild and scheduled changes. On GitLab, also turn on updates on the admin panel's **Updates** screen, which adds the nightly schedule.
 
-**Vercel** (works with GitHub, GitLab and Bitbucket; the free plan is for non-commercial sites only)
+**Vercel** (works with GitHub, GitLab, and Bitbucket; the free plan is for non-commercial sites only)
 
 1. Import the repository in Vercel, which recognizes it as a Next.js site, and sends the site's redirects itself. Under the project's **Settings → Git → Ignored Build Step**, choose **Only build production**: drafts made in the admin panel are kept on branches of their own, which Vercel would otherwise build previews of.
 2. For nightly rebuilds, create a deploy hook under **Settings → Git → Deploy Hooks**, and call it from a scheduled GitHub Action or GitLab pipeline schedule.
@@ -135,7 +135,7 @@ Upload images and files on the admin panel's **Media** screen, or with the **Cho
 
 ## Writing with AI
 
-The editor's **AI** panel can draft pages, rewrite blocks and fill in news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellow-cms.github.io/goodfellow-cms/docs/configuration).
+The editor's **AI** panel can draft pages, rewrite blocks, and fill in news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellow-cms.github.io/goodfellow-cms/docs/configuration).
 
 ## Publishing
 

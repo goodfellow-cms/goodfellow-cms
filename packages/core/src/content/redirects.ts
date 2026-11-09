@@ -285,7 +285,7 @@ export function redirectFiles(
   content: Pick<SiteContent, "settings" | "redirects" | "redirectMessage"> & Partial<Pick<SiteContent, "pages">>,
   options: { taken?: Iterable<string>; base?: string } = {},
 ): RedirectFile[] {
-  // Pages, files and the first of two redirects win, whatever their capitals: `About/index.html` and
+  // Pages, files, and the first of two redirects win, whatever their capitals: `About/index.html` and
   // `about/index.html` are one file on some computers and hosts, as `Media/` is `media/`.
   const taken = new Set([...(options.taken ?? [])].map((path) => path.toLowerCase()));
   const redirects = content.redirects ?? [];

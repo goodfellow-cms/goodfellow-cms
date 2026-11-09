@@ -1,6 +1,6 @@
 /**
  * Turns WordPress content into parts Goodfellow can show: headings, text,
- * images, galleries, columns, buttons, videos, code and tables. Content saved
+ * images, galleries, columns, buttons, videos, code, and tables. Content saved
  * by the block editor is read block by block; classic content and the HTML
  * WordPress shows are read element by element, by WordPress's class names
  * where they say what a block was. `blocks.ts` and `markdown.ts` write the
@@ -63,7 +63,7 @@ export interface CoverLook {
 
 export type MediaWidth = "third" | "half" | "two-thirds";
 
-/** One part of a page or post. `text` holds paragraphs, lists and quotes as HTML elements. */
+/** One part of a page or post. `text` holds paragraphs, lists, and quotes as HTML elements. */
 export type Part =
   | { kind: "heading"; level: number; text: string }
   | { kind: "text"; nodes: ChildNode[] }
@@ -201,7 +201,7 @@ function replaceEnclosing(text: string, name: string, replace: (inner: string) =
 
 /**
  * Puts WordPress's own shortcodes in HTML: `[caption]`, `[gallery]`,
- * `[embed]`, `[video]` and `[audio]`, and addresses on lines of their own,
+ * `[embed]`, `[video]`, and `[audio]`, and addresses on lines of their own,
  * which WordPress shows as what they link to. Other shortcodes are left out,
  * keeping any text they wrap.
  */
@@ -747,7 +747,7 @@ function preText(nodes: ChildNode[]): string {
     .replace(/\s+$/, "");
 }
 
-/** A cover's look as WordPress shows it: its overlay's strength, its height and its picture's focal point. */
+/** A cover's look as WordPress shows it: its overlay's strength, its height, and its picture's focal point. */
 function coverLook(cover: Element, background: Element | undefined): CoverLook {
   const overlay = findElement(cover, (candidate) => hasClass(candidate, "wp-block-cover__background"));
   const dimClass = classes(overlay ?? cover).find((name) => /^has-background-dim(-\d+)?$/.test(name));
@@ -764,7 +764,7 @@ function coverLook(cover: Element, background: Element | undefined): CoverLook {
   };
 }
 
-/** Block elements, such as WordPress's columns, buttons and covers as it shows them, or ones whose content stands on its own. */
+/** Block elements, such as WordPress's columns, buttons, and covers as it shows them, or ones whose content stands on its own. */
 function blockElementParts(element: Element, context: ConvertContext): Part[] {
   if (hasClass(element, "wp-block-columns")) {
     const columns = childElements(element).filter((child) => hasClass(child, "wp-block-column"));

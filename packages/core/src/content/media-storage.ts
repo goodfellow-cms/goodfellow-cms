@@ -77,7 +77,7 @@ export function storedMediaSizes(storage: MediaStorage | undefined): Record<stri
 /**
  * A media address in text, on its own: not the end of another address such
  * as `https://example.org/media/a.jpg` or `//media/a.jpg`. It's found in
- * whole values, HTML's attributes, Markdown's links and CSS's `url()`s alike.
+ * whole values, HTML's attributes, Markdown's links, and CSS's `url()`s alike.
  */
 const ADDRESS = /(?<![\w.~%/:-])\/media\/[\w.~%/-]+/g;
 

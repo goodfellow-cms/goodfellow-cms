@@ -1,8 +1,8 @@
-import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve, sep } from "node:path";
-import { DEV_EDITOR_PREFIX, EDITOR_PRELUDE, editorPage, pluginId } from "@goodfellow-cms/core";
+import { DEV_EDITOR_PREFIX, pluginId } from "@goodfellow-cms/core";
+import { editorFramesOptions, siteConfigFile, writeEditorFramesPage } from "./editor-frames.js";
 import { buildPluginFrame, loadSiteConfig } from "./plugins.js";
 
 /**
@@ -18,9 +18,6 @@ export interface DevEditor {
   serve(req: IncomingMessage, res: ServerResponse): Promise<boolean>;
 }
 
-const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
-const ENTRY = "\0goodfellow:next-editor";
-const TAILWIND_BROWSER = "tailwind-browser.js";
 /** How long the editor's frames stay as built before the admin panel reloads them. */
 const REBUILT_DELAY = 300;
 
@@ -33,16 +30,11 @@ const TYPES: Record<string, string> = {
 };
 
 export async function startDevEditor(root: string): Promise<DevEditor> {
-  const configFile = CONFIG_FILES.map((name) => join(root, name)).find((file) => existsSync(file));
-  if (!configFile) throw new Error(`No goodfellow.config.tsx in ${root}.`);
+  siteConfigFile(root);
   const outDir = join(root, "node_modules/.goodfellow/next-editor");
   await mkdir(outDir, { recursive: true });
   // Loaded only here, so builds never load the bundler.
-  const [{ watch }, { default: tailwindBrowser }] = await Promise.all([
-    import("rolldown"),
-    import("./generated/tailwind-browser.js"),
-  ]);
-  await writeFile(join(outDir, TAILWIND_BROWSER), tailwindBrowser);
+  const { watch } = await import("rolldown");
 
   // Stylesheets the editor's modules import, put in one file beside the script.
   const stylesheets = new Set<string>();
@@ -56,9 +48,7 @@ export async function startDevEditor(root: string): Promise<DevEditor> {
   // reload once, after the last.
   let counting: ReturnType<typeof setTimeout> | undefined;
   const writePage = async () => {
-    const css = await Promise.all([...stylesheets].map((file) => readFile(file, "utf8")));
-    await writeFile(join(outDir, "editor.css"), css.join("\n"));
-    await writeFile(join(outDir, "index.html"), editorPage({ scripts: ["editor.js"], stylesheets: ["editor.css"] }));
+    await writeEditorFramesPage(outDir, stylesheets);
     counting = setTimeout(
       () => {
         version += 1;
@@ -68,52 +58,7 @@ export async function startDevEditor(root: string): Promise<DevEditor> {
     );
   };
 
-  const watcher = watch({
-    input: { editor: ENTRY },
-    cwd: root,
-    platform: "browser",
-    // The site's own paths, such as `@/components/ui/button`.
-    tsconfig: existsSync(join(root, "tsconfig.json")) ? join(root, "tsconfig.json") : false,
-    transform: {
-      jsx: { runtime: "automatic" },
-      define: { "process.env.NODE_ENV": JSON.stringify("development") },
-    },
-    plugins: [
-      {
-        name: "goodfellow:next-editor",
-        resolveId: (id) => (id === ENTRY ? id : undefined),
-        load(id) {
-          if (id === ENTRY) {
-            return [
-              `import config from ${JSON.stringify(configFile)};`,
-              `import { mountEditorFrame } from "@goodfellow-cms/admin/editor";`,
-              `import "@puckeditor/core/puck.css";`,
-              `import "@goodfellow-cms/admin/styles.css";`,
-              `mountEditorFrame(config, undefined, { tailwindBrowserUrl: ${JSON.stringify(TAILWIND_BROWSER)} });`,
-            ].join("\n");
-          }
-          if (id.endsWith(".css")) {
-            stylesheets.add(id);
-            return { code: "", moduleType: "js" };
-          }
-          return undefined;
-        },
-      },
-    ],
-    onLog(level, log, handler) {
-      // React libraries mark modules "use client", which only matters to server-component bundlers.
-      if (log.code === "MODULE_LEVEL_DIRECTIVE") return;
-      handler(level, log);
-    },
-    output: {
-      dir: outDir,
-      format: "iife",
-      codeSplitting: false,
-      entryFileNames: "editor.js",
-      banner: EDITOR_PRELUDE,
-      sourcemap: true,
-    },
-  });
+  const watcher = watch(editorFramesOptions(root, outDir, { development: true, stylesheets }));
   watcher.on("event", (event) => {
     if (event.code === "BUNDLE_START") {
       clearTimeout(counting);

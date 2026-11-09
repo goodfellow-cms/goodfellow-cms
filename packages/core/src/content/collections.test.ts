@@ -71,7 +71,7 @@ describe("collection files", () => {
     expect(result.error?.issues[0]?.message).toMatch(/title/);
   });
 
-  it("rejects repeated field names, choices without options and unknown sort fields", () => {
+  it("rejects repeated field names, choices without options, and unknown sort fields", () => {
     const result = collectionFileSchema.safeParse({
       ...valid,
       fields: [

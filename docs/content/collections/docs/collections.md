@@ -1,12 +1,12 @@
 ---
 version: 1
 title: Collections
-description: Groups of similar pages, such as news, events or staff, with their own fields and one shared design.
+description: Groups of similar pages, such as news, events, or staff, with their own fields and one shared design.
 section: editors
 order: 3
 ---
 
-A collection is a group of similar items, such as news stories, events, videos or staff. Each item is a set of fields, and every item's page shares one design, so adding an item is just filling in a form.
+A collection is a group of similar items, such as news stories, events, videos, or staff. Each item is a set of fields, and every item's page shares one design, so adding an item is just filling in a form.
 
 ## Create a collection
 
@@ -32,7 +32,7 @@ Under **Settings**, choose the collection's fields:
 | Link to items in a collection | One item of another collection, or several, such as a talk's speakers |
 | Several images | Images from the media library, in order, such as an event's photos |
 | File | A file from the media library, such as a PDF to download |
-| Repeating group | Rows of a few fields of their own, such as a day's schedule with each time, title and place |
+| Repeating group | Rows of a few fields of their own, such as a day's schedule with each time, title, and place |
 
 Every collection has a **Title** field. Fields can be required, have a hint for editors, and be reordered. Removing a field removes its values from every item in the same publish, and so does removing a choice or a tag.
 
@@ -44,7 +44,7 @@ Links follow the items they name: renaming an item changes every link to it in t
 
 ### Repeating groups
 
-A **Repeating group** has fields of its own, up to ten, each a short or long text, number, date, link, image or yes or no. Editors add, reorder and remove its rows on each item. On the page, the **Item field** block shows each row's values one after another; in braces, rows go in as words, values joined with " · " and rows with "; ".
+A **Repeating group** has fields of its own, up to ten, each a short or long text, number, date, link, image or yes or no. Editors add, reorder, and remove its rows on each item. On the page, the **Item field** block shows each row's values one after another; in braces, rows go in as words, values joined with " · " and rows with "; ".
 
 Settings also choose the order items are listed in, such as newest first, and whether items are events that calendars show.
 

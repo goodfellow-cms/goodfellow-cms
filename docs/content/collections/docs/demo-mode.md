@@ -12,7 +12,7 @@ To let anyone try the admin panel without signing in, for example from a product
 export default defineConfig({ blocks, demo: true });
 ```
 
-The site's `/admin` then opens straight away, with a banner saying it's a demo. Visitors can try everything editors can: pages, collections, the header and footer, the media library, site settings and the AI assistant (with their own key or a free service).
+The site's `/admin` then opens straight away, with a banner saying it's a demo. Visitors can try everything editors can: pages, collections, the header and footer, the media library, site settings, and the AI assistant (with their own key or a free service).
 
 - **Nothing is published.** Publish saves the changes, uploads included, in the visitor's own browser, so they're still there after reloading. **Start over** in the banner undoes them all.
 - **Changes show only in the admin panel.** Its editors and previews show what the visitor changed, but the site's pages are the files the last build made, so **View site** shows the site as it was built. The repository never changes either.
@@ -55,7 +55,7 @@ A demo is best kept as a site of its own, separate from any real site, so trying
 
 The demo is then at `https://your-name.github.io/goodfellow-demo/admin/`, and the site itself at `https://your-name.github.io/goodfellow-demo/`. It rebuilds every night, so its dates stay current.
 
-To change what the demo starts from, turn demo mode off on your computer, edit the content in the admin panel with `npm run dev`, turn it back on and push. To move it to a new release of Goodfellow, update its Goodfellow packages and push:
+To change what the demo starts from, turn demo mode off on your computer, edit the content in the admin panel with `npm run dev`, turn it back on, and push. To move it to a new release of Goodfellow, update its Goodfellow packages and push:
 
 ```sh
 npm install @goodfellow-cms/admin@latest @goodfellow-cms/blocks@latest @goodfellow-cms/core@latest @goodfellow-cms/github@latest @goodfellow-cms/gitlab@latest @goodfellow-cms/react@latest goodfellow@latest
