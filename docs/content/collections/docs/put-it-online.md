@@ -6,7 +6,7 @@ section: start
 order: 4
 ---
 
-Setup takes four steps, done once by whoever sets up the site. A site made with the [setup page](/new-site) has done the first three, unless it's on Cloudflare Pages, Netlify, or Vercel, which you connect it to in step 3, so start at [step 4](#4-set-up-sign-in).
+Setup takes four steps, done once by whoever sets up the site. A site made with the [setup page](/new-site) has done the first three, so start at [step 4](#4-set-up-sign-in), unless it's on Cloudflare Pages, Netlify, or Vercel: connect it to its host in [step 3](#3-choose-a-host) first.
 
 ## 1. Store the site on GitHub, GitLab, or Bitbucket
 
