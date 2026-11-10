@@ -62,6 +62,7 @@ function post(path: string, fields: Record<string, string>, cookie?: string) {
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded",
+      origin: WORKER,
       ...(cookie && { cookie: `__Host-goodfellow_setup=${cookie}` }),
     },
     body: new URLSearchParams(fields),
@@ -170,6 +171,34 @@ describe("the setup page", () => {
     });
     expect(await forged.text()).toContain("Start again");
     expect(secrets).toEqual({});
+  });
+
+  it("takes forms only from its own page, and always makes a new key", async () => {
+    const { fetch, secrets } = fakes();
+    const worker = createWorker({ fetch });
+    const fields = { token: TOKEN, addresses: "parish.example" };
+    const old = btoa("k".repeat(32));
+    for (const headers of [
+      { origin: "https://evil.example" },
+      { "sec-fetch-site": "cross-site", origin: WORKER },
+      {},
+    ]) {
+      const request = post("/setup/token", fields);
+      request.headers.delete("origin");
+      for (const [name, value] of Object.entries(headers)) request.headers.set(name, value);
+      const response = await worker.fetch(request, { WORKER_NAME: "sign-in", SESSION_KEY: old });
+      expect(await response.text()).toContain("Send the form from this page.");
+    }
+    expect(secrets).toEqual({});
+    const saved = await worker.fetch(post("/setup/token", fields), { WORKER_NAME: "sign-in", SESSION_KEY: old });
+    expect(secrets.SESSION_KEY).toBeTruthy();
+    expect(secrets.SESSION_KEY).not.toBe(old);
+    // The version with the old key waits for the new one, and offers to start again.
+    const cookie = cookieOf(saved);
+    const waiting = await worker.fetch(get("/setup", cookie), { WORKER_NAME: "sign-in", SESSION_KEY: old });
+    expect(await waiting.text()).toContain("Cloudflare is starting the service");
+    const again = await worker.fetch(get("/setup?again=1", cookie), { WORKER_NAME: "sign-in", SESSION_KEY: old });
+    expect(again.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
   it("changes the addresses of a set-up worker only with a token, and checks them", async () => {
