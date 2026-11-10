@@ -149,6 +149,32 @@ describe("aiServer", () => {
     expect(last?.body).toEqual(chat);
   });
 
+  it("keeps Claude to the models a key names, at Anthropic's own address", async () => {
+    const { fake, server } = siteServer({ anthropic: { key: "sk-ant-site", models: ["claude-haiku-4-5"] } });
+    const post = (model: string) =>
+      server.forward(
+        new Request(`${SERVER}/anthropic/v1/messages`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            model,
+            max_tokens: 1000,
+            messages: [{ role: "user", content: "Hello" }],
+            output_config: { format: { type: "json_schema", schema: { type: "object" } } },
+          }),
+        }),
+        "anthropic",
+        "v1/messages",
+      );
+    expect(server.services).toEqual(["anthropic"]);
+    expect((await post("claude-opus-5-5")).status).toBe(400);
+    expect(fake.requests).toHaveLength(0);
+    await post("claude-haiku-4-5");
+    expect(fake.requests).toHaveLength(1);
+    expect(fake.requests[0]?.url).toBe("https://api.anthropic.com/v1/messages");
+    expect(fake.requests[0]?.headers.get("x-api-key")).toBe("sk-ant-site");
+  });
+
   it("passes on the service's errors without its key", async () => {
     const server = aiServer(
       { openai: "sk-site-0123456789abcdef" },

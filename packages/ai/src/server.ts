@@ -2,11 +2,11 @@ import { trimChars } from "@goodfellow-cms/core";
 import { CLAUDE_MODELS, PROVIDERS, type ProviderId, redact } from "./providers.js";
 
 /**
- * A key for a service, or the key and the address of its API, as `custom`
- * needs, or for a service at another address, with the `models` editors may
- * ask for where it has others that cost more.
+ * A key for a service, or the key with the `models` editors may ask for where
+ * it has others that cost more, and the address of its API, as `custom` needs,
+ * or for a service at another address. Claude's address is always Anthropic's.
  */
-export type ServerKey = string | { key?: string; baseUrl: string; models?: string[] };
+export type ServerKey = string | { key?: string; baseUrl?: string; models?: string[] };
 
 /** The services whose requests a full-stack site's server sends on with its own keys, such as `{ anthropic: process.env.ANTHROPIC_API_KEY }`. */
 export type ServerKeys = Partial<Record<Exclude<ProviderId, "manual">, ServerKey | undefined>>;
@@ -47,9 +47,9 @@ function messagesOf(value: unknown, roles: string[]): { role: string; content: s
  * models, at most `MAX_TOKENS`, text messages, and its structured output, so
  * the site's key pays for nothing else, such as tools or a bigger answer.
  */
-function claudeBody(body: Json): Json | undefined {
+function claudeBody(body: Json, models: string[] | undefined): Json | undefined {
   const { model, max_tokens, system, messages, output_config, fallbacks, stream } = body;
-  if (!isText(model) || !CLAUDE_MODELS.includes(model)) return undefined;
+  if (!isText(model) || !CLAUDE_MODELS.includes(model) || (models && !models.includes(model))) return undefined;
   if (typeof max_tokens !== "number" || !Number.isInteger(max_tokens) || max_tokens < 1 || max_tokens > MAX_TOKENS)
     return undefined;
   const sent = messagesOf(messages, ["user", "assistant"]);
@@ -114,7 +114,7 @@ function problem(status: number, message: string): Response {
 export function aiServer(keys: ServerKeys, options: { fetch?: typeof fetch } = {}) {
   const send = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
   const configured = Object.entries(keys).flatMap(([service, value]) =>
-    value && (typeof value === "string" || value.baseUrl) ? [[service as ProviderId, value] as const] : [],
+    value && (typeof value === "string" || value.baseUrl || value.key) ? [[service as ProviderId, value] as const] : [],
   );
   const services = new Map<ProviderId, ServerKey>(configured);
 
@@ -127,7 +127,7 @@ export function aiServer(keys: ServerKeys, options: { fetch?: typeof fetch } = {
     const base =
       service === "anthropic"
         ? ANTHROPIC_API
-        : typeof value === "object"
+        : typeof value === "object" && value.baseUrl
           ? value.baseUrl
           : (PROVIDERS[service].baseUrl ?? "");
     if (!base) return problem(404, "This site has no address for that service.");
@@ -142,11 +142,12 @@ export function aiServer(keys: ServerKeys, options: { fetch?: typeof fetch } = {
       } catch {
         sent = undefined;
       }
+      const models = typeof value === "object" ? value.models : undefined;
       const rebuilt = !isObject(sent)
         ? undefined
         : service === "anthropic"
-          ? claudeBody(sent)
-          : chatBody(sent, typeof value === "object" ? value.models : undefined);
+          ? claudeBody(sent, models)
+          : chatBody(sent, models);
       if (!rebuilt) return problem(400, "The AI assistant doesn't ask for that.");
       body = JSON.stringify(rebuilt);
     }
