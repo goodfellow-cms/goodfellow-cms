@@ -103,7 +103,8 @@ export function setup(
     async fetch(request, workerEnv) {
       const headers = new Headers(request.headers);
       const own = headers.get("cookie") ?? "";
-      const kept = [...jar].filter(([name]) => !own.includes(`${name}=`)).map(([name, value]) => `${name}=${value}`);
+      const sent = new Set(own.split(";").map((cookie) => cookie.trim().split("=")[0]));
+      const kept = [...jar].filter(([name]) => !sent.has(name)).map(([name, value]) => `${name}=${value}`);
       if (kept.length > 0) headers.set("cookie", [own, ...kept].filter(Boolean).join("; "));
       const response = await inner.fetch(new Request(request, { headers }), workerEnv);
       for (const set of response.headers.getSetCookie()) {

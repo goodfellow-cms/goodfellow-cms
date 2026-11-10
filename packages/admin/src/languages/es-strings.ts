@@ -190,7 +190,7 @@ export const strings: Strings = {
   "draft.notEditable":
     "Este borrador cambia el código del sitio, que no se puede publicar desde un borrador. Un desarrollador puede ver esos cambios en el servicio que aloja el sitio.",
   "draft.unsafeMedia":
-    "Este borrador tiene un archivo en la biblioteca de medios que el sitio no puede usar con seguridad. Quítalo del borrador y vuelve a publicar.",
+    "Este borrador tiene un archivo en la biblioteca multimedia que el sitio no puede usar con seguridad. Quítalo del borrador y vuelve a publicar.",
   "draft.submitError": "No se pudo enviar el borrador a revisión. Comprueba tu conexión e inténtalo de nuevo.",
   "draft.discardError": "No se pudo descartar el borrador. Comprueba tu conexión e inténtalo de nuevo.",
   "draft.message": "Publicar el borrador {name}",
