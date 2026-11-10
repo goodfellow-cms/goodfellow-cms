@@ -14,6 +14,7 @@ It runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), bui
 npm install
 cp .dev.vars.example .dev.vars   # then fill in BETTER_AUTH_SECRET
 npx wrangler d1 migrations apply goodfellow-company --local   # makes the database on this computer
+npm run new-admin -- you@example.org "Your Name" --local       # an account to sign in with, on this computer
 npm run dev          # site at http://localhost:4321, admin panel at http://localhost:4321/admin
 npm run build        # builds the site into a Cloudflare Worker, in dist/
 npm run preview      # runs that Worker at http://localhost:4321, as Cloudflare will
@@ -31,8 +32,9 @@ It runs on Cloudflare's free plan. Every page is rendered while the site builds,
 
 1. **The content repository.** Make it as the [content repository](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
 2. **The database.** Sign in with `npx wrangler login`, run `npx wrangler d1 create goodfellow-company`, and put the `database_id` it gives in `wrangler.jsonc`.
-3. **The site's settings.** In `wrangler.jsonc`, set `GOODFELLOW_SITE_URL` to the site's address. Then set its secrets: `npx wrangler secret put BETTER_AUTH_SECRET` (at least 32 random characters, such as `openssl rand -base64 32` makes) and `npx wrangler secret put GOODFELLOW_GIT_TOKEN` (a fine-grained token that can publish to the content repository, and nothing else).
+3. **The site's settings.** In `wrangler.jsonc`, set `GOODFELLOW_SITE_URL` to the site's address. Then set its secrets: `npx wrangler secret put BETTER_AUTH_SECRET` (at least 32 random characters, such as `openssl rand -base64 32` makes; without it, the site signs nobody in) and `npx wrangler secret put GOODFELLOW_GIT_TOKEN` (a fine-grained token that can publish to the content repository, and nothing else).
 4. **Putting it online.** `npm run build && npm run deploy` applies the database's migrations and uploads the Worker. To do it from GitHub instead, after every change, add the secrets `.github/workflows/deploy.yml` lists to the code repository.
+5. **The first admin.** Once the migrations are applied, `npm run new-admin -- you@example.org "Your Name" --remote` makes an admin, one of the site's owners, in the D1 database. It asks for their password, which it never shows or keeps, and runs only in a terminal of your own, never in CI. Run it again for each admin.
 
 Publishing in the admin panel changes the content repository, so it's what has to ask for the site to be built again. Add this workflow to it as `.github/workflows/deploy-site.yml`, with a `GOODFELLOW_DEPLOY_TOKEN` secret: a fine-grained token for the code repository with only **Actions: Read and write**, which can start its workflows but never change its code.
 
@@ -63,7 +65,13 @@ Each migration is a file of its own in `lib/db/migrations/`, named by when it wa
 
 ## Running it somewhere else
 
-Only `lib/env.ts`, `lib/db/dialect.ts`, and the files Cloudflare reads (`wrangler.jsonc`, `vite.config.ts`, and the deploy workflow) know the site runs on Cloudflare. Everything else runs wherever Next.js does, with any Postgres database, such as Neon's: build it with `goodfellow-next finish --server && next build`, set `DATABASE_URL` and the variables in `.env.example`, and run `npm run migrate` before each deploy.
+Only `lib/env.ts`, `lib/db/dialect.ts`, and the files Cloudflare reads (`wrangler.jsonc`, `vite.config.ts`, and the deploy workflow) know the site runs on Cloudflare. Everything else runs wherever Next.js does, with any Postgres database, such as Neon's: build it with `goodfellow-next finish --server && next build`, set `DATABASE_URL` and the variables in `.env.example`, and run `npm run migrate` before each deploy. With `DATABASE_URL` set, `npm run new-admin -- you@example.org "Your Name"` makes an admin there.
+
+## Signing in
+
+Each address can try to sign in 10 times in 5 minutes (`SIGN_IN_LIMIT` in `lib/auth.ts`). Better Auth counts the tries in the database, so every copy of the Worker counts the same ones, by the visitor's address, which Cloudflare gives the Worker as `cf-connecting-ip`. Elsewhere, set `CLIENT_IP_HEADER` to the header your host sets to the visitor's address, never one visitors can send themselves; without it, Better Auth reads `x-forwarded-for`.
+
+Signing out (`app/sign-out/`) works only from the site's own pages, so a link on another site can't sign people out; an address typed in asks first.
 
 ## Rendering
 
@@ -71,7 +79,7 @@ Every page is rendered once and served as it was, so a request costs the server 
 
 - **Pages that look the same to everyone**, which is every page here, are static.
 - **What shows who's signed in** is filled in by the browser (`app/(site)/members/signed-in-as.tsx`), so the page around it stays static.
-- **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` sends everyone else to sign in before the page is served.
+- **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session (from its signed cookie for a few minutes at a time, then the database) and sends everyone else to sign in before the page is served.
 
 ## How it fits together
 
@@ -84,10 +92,11 @@ Every page is rendered once and served as it was, so a request costs the server 
 | `lib/env.ts` | The one place the site reads its bindings and secrets, so nothing else knows where it runs: the Worker's on Cloudflare, wrangler's in `npm run dev` |
 | `lib/db/dialect.ts` | The one place that knows the database: Cloudflare D1 where it's bound as `DB`, or Postgres at `DATABASE_URL`, through [node-postgres](https://node-postgres.com) |
 | `lib/db/migrations/` | The database's tables, a migration a file, each written once with Kysely's schema builder; `npm run migrations` writes each database's SQL into `migrations/` |
-| `lib/auth.ts` | Sign-in with [Better Auth](https://www.better-auth.com): email addresses and passwords, no sign-up, and two roles, `admin` (the site's owners) and `editor` |
+| `lib/auth.ts` | Sign-in with [Better Auth](https://www.better-auth.com): email addresses and passwords, no sign-up, a limit on tries, and two roles, `admin` (the site's owners) and `editor` |
+| `lib/db/new-admin.ts`, `scripts/new-admin.ts` | `npm run new-admin`, which makes an admin with Better Auth itself |
 | `app/api/auth/[...all]/route.ts` | Better Auth's routes |
 | `app/api/goodfellow/[...path]/route.ts` | The admin panel's API, which publishes to the content repository with `GOODFELLOW_GIT_TOKEN` |
-| `app/sign-in/`, `app/sign-out/` | Signing in and out |
+| `app/sign-in/`, `app/sign-out/`, `lib/sign-out.ts` | Signing in and out |
 | `app/(site)/members/` and `proxy.ts` | A page of the site's own, for people who are signed in |
 | `app/(site)/[[...path]]/page.tsx` | Every page in `content/` |
 | `app/admin/page.tsx` | The admin panel, which signs in with the site's own accounts |

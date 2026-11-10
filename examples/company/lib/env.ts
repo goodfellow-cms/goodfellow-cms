@@ -17,6 +17,12 @@ export interface SiteEnv {
   BETTER_AUTH_SECRET?: string;
   /** The site's address, such as https://www.example.com, which sign-in trusts requests from. */
   GOODFELLOW_SITE_URL?: string;
+  /**
+   * The request header that holds a visitor's address, which sign-in's rate limit counts attempts by. Only a header
+   * the host sets itself will do, since visitors can send any other: `cf-connecting-ip` on Cloudflare, which this
+   * file fills in. Elsewhere Better Auth reads `x-forwarded-for`.
+   */
+  CLIENT_IP_HEADER?: string;
   /** The token the server publishes to the content repository with. */
   GOODFELLOW_GIT_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
@@ -44,7 +50,7 @@ export function env(): Promise<SiteEnv> {
       )) as {
         env: SiteEnv;
       };
-      return workers.env;
+      return { CLIENT_IP_HEADER: "cf-connecting-ip", ...workers.env };
     }
     // Left out of builds, where NODE_ENV is "production", so wrangler is never bundled.
     if (process.env.NODE_ENV === "development") {

@@ -11,6 +11,7 @@
     "migration": "node scripts/new-migration.ts",
     "migrations": "node scripts/emit-migrations.ts",
     "migrate": "node scripts/migrate.ts",
+    "new-admin": "node scripts/new-admin.ts",
     "typecheck": "next typegen && tsc -p tsconfig.json",
     "test": "vitest run"
   },
