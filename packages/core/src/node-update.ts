@@ -449,7 +449,15 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   // isn't installed into every site that updates overnight. The day lets in the release's own packages,
   // published one after another.
   const before = to ? installedBefore(packument, to, now) : undefined;
-  const install = ["install", "--no-audit", "--no-fund", ...(before ? [`--before=${before}`] : [])];
+  // An automatic update runs no package's install script, whatever the site's `.npmrc` says, since what npm installed
+  // is checked only once it has.
+  const install = [
+    "install",
+    "--no-audit",
+    "--no-fund",
+    ...(before ? [`--before=${before}`] : []),
+    ...(target === "automatic" ? ["--ignore-scripts"] : []),
+  ];
   if ((await run("npm", install, root)).code !== 0) return failed({ step: "install" });
   // What npm installed may not be what its metadata said, such as a newer release a range takes, so an automatic
   // update checks every Goodfellow package the lockfile names before any of the site's code runs.

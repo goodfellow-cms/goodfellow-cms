@@ -391,6 +391,8 @@ describe("goodfellow update", () => {
       step: "provenance",
     });
     expect(asked).toContain("@goodfellow-cms/core@0.4.3");
+    // Installed without running any package's install script, though this site's `.npmrc` doesn't say so.
+    expect(ran).toContainEqual(expect.stringMatching(/^npm install .*--ignore-scripts$/));
     expect(lines.join("\n")).toContain("@goodfellow-cms/core 0.4.3 has no provenance.");
     expect(ran.some((line) => line.startsWith("npm run build"))).toBe(false);
     // Everything went back as it was.
