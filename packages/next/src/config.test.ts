@@ -6,7 +6,7 @@ import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import { editorPolicy, vercelHeaders } from "@goodfellow-cms/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { answersNetwork, networkAddresses, redirectDestination, withGoodfellow } from "./config.js";
+import { answersNetwork, exposureCheck, networkAddresses, redirectDestination, withGoodfellow } from "./config.js";
 import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK, SITE_SERVING } from "./image-sizes-mark.js";
 
 describe("withGoodfellow", () => {
@@ -314,23 +314,51 @@ describe("answersNetwork", () => {
     }
   });
 
+  const info = (address: string, family: "IPv4" | "IPv6", internal = false, scopeid?: number) => ({
+    address,
+    family,
+    internal,
+    netmask: "",
+    mac: "",
+    cidr: null,
+    ...(scopeid !== undefined && { scopeid }),
+  });
+  type Interfaces = Parameters<typeof networkAddresses>[0];
+
   it("tries every address another computer could use, link-local IPv6 ones with their interface", () => {
-    const info = (address: string, family: "IPv4" | "IPv6", internal = false, scopeid?: number) => ({
-      address,
-      family,
-      internal,
-      netmask: "",
-      mac: "",
-      cidr: null,
-      ...(scopeid !== undefined && { scopeid }),
-    });
     expect(
       networkAddresses({
         lo: [info("127.0.0.1", "IPv4", true), info("::1", "IPv6", true, 0)],
         eth0: [info("192.0.2.2", "IPv4"), info("2001:db8::2", "IPv6", false, 0), info("fe80::1", "IPv6", false, 2)],
-        wlan0: [info("FE80::2", "IPv6")],
+        wlan0: [info("FE80::2", "IPv6"), info("febf::3", "IPv6", false, 3), info("fec0::4", "IPv6", false, 3)],
         down: undefined,
-      } as Parameters<typeof networkAddresses>[0]),
-    ).toEqual(["192.0.2.2", "2001:db8::2", "fe80::1%2", "FE80::2%wlan0"]);
+      } as Interfaces),
+    ).toEqual(["192.0.2.2", "2001:db8::2", "fe80::1%2", "FE80::2%wlan0", "febf::3%3", "fec0::4"]);
+  });
+
+  it("asks again when this computer joins a network, until next dev answers other computers", async () => {
+    let interfaces = { lo: [info("127.0.0.1", "IPv4", true)] } as Interfaces;
+    const probed: string[][] = [];
+    let answers = false;
+    const exposed = exposureCheck(3000, {
+      interfaces: () => interfaces,
+      probe: async (_port, addresses = []) => {
+        probed.push(addresses);
+        return answers;
+      },
+    });
+    expect(await exposed()).toBe(false);
+    expect(await exposed()).toBe(false);
+    expect(probed).toEqual([[]]);
+    // Joining a network after the first request.
+    interfaces = { ...interfaces, eth0: [info("192.0.2.2", "IPv4")] } as Interfaces;
+    answers = true;
+    expect(await exposed()).toBe(true);
+    expect(probed).toEqual([[], ["192.0.2.2"]]);
+    // Once it does, it does until next dev starts again, whatever the network does.
+    interfaces = { lo: [info("127.0.0.1", "IPv4", true)] } as Interfaces;
+    answers = false;
+    expect(await exposed()).toBe(true);
+    expect(probed).toHaveLength(2);
   });
 });

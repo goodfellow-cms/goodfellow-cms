@@ -136,18 +136,21 @@ const SERVER_KEY = Symbol.for("goodfellow.next.devApi");
 const EXPOSED_MESSAGE =
   "next dev is answering other computers on the network, so the admin panel's local backend is turned off: anyone on the network could change the site's files through it. Run next dev -H 127.0.0.1, as the starters' dev script does.";
 
+/** Link-local IPv6 addresses, `fe80::/10`, which are connected to only through a named interface. */
+const LINK_LOCAL = /^fe[89ab]/i;
+
 /**
  * The addresses other computers could reach this one at, as `connect()` takes
  * them: every interface's but this computer's own, with link-local IPv6 ones
- * (`fe80::`) naming their interface, as they must to be connected to, by its
- * number, which every platform reads.
+ * (`fe80::/10`) naming their interface, as they must to be connected to, by
+ * its number, which every platform reads.
  */
 export function networkAddresses(interfaces: Record<string, NetworkInterfaceInfo[] | undefined>): string[] {
   return Object.entries(interfaces).flatMap(([name, infos]) =>
     (infos ?? [])
       .filter((info) => !info.internal)
       .map((info) =>
-        info.family === "IPv6" && info.address.toLowerCase().startsWith("fe80")
+        info.family === "IPv6" && LINK_LOCAL.test(info.address)
           ? `${info.address}%${info.scopeid ?? name}`
           : info.address,
       ),
@@ -161,8 +164,10 @@ export function networkAddresses(interfaces: Record<string, NetworkInterfaceInfo
  * tell another computer's requests from this one's: it's safe only while
  * Next.js answers this computer alone.
  */
-export async function answersNetwork(port: number): Promise<boolean> {
-  const addresses = networkAddresses(networkInterfaces());
+export async function answersNetwork(
+  port: number,
+  addresses = networkAddresses(networkInterfaces()),
+): Promise<boolean> {
   const answers = await Promise.all(
     addresses.map(
       (host) =>
@@ -179,6 +184,27 @@ export async function answersNetwork(port: number): Promise<boolean> {
     ),
   );
   return answers.some(Boolean);
+}
+
+/**
+ * Whether `next dev` answers other computers, asked again whenever this
+ * computer's network addresses change, such as when it joins a network after
+ * the first request, until the answer is yes, which holds until `next dev`
+ * starts again, since the addresses it listens on don't change.
+ */
+export function exposureCheck(
+  port: number,
+  { probe = answersNetwork, interfaces = networkInterfaces } = {},
+): () => Promise<boolean> {
+  let checked: { addresses: string; exposed: Promise<boolean> } | undefined;
+  return async () => {
+    const addresses = networkAddresses(interfaces());
+    const key = addresses.join(" ");
+    if (!checked || (checked.addresses !== key && !(await checked.exposed))) {
+      checked = { addresses: key, exposed: probe(port, addresses) };
+    }
+    return checked.exposed;
+  };
 }
 
 /**
@@ -205,14 +231,13 @@ function startDevApi(root: string): Promise<number> {
       plugins: async () => (await (await import("./plugins.js")).loadSiteConfig(root)).plugins ?? [],
       server: "next-dev" as const,
     };
-    // Asked once Next.js is answering, at the first request, which comes through it.
-    let exposed: Promise<boolean> | undefined;
+    // Asked once Next.js is answering, at the first request, which comes through it, and again after.
+    const exposed = exposureCheck(Number(process.env.PORT) || 3000);
+    let said = false;
     const server = createServer(async (req, res) => {
-      exposed ??= answersNetwork(Number(process.env.PORT) || 3000).then((answers) => {
-        if (answers) console.error(EXPOSED_MESSAGE);
-        return answers;
-      });
-      if (await exposed) {
+      if (await exposed()) {
+        if (!said) console.error(EXPOSED_MESSAGE);
+        said = true;
         res.writeHead(403, { "content-type": "application/json" }).end(JSON.stringify({ error: EXPOSED_MESSAGE }));
         return;
       }
