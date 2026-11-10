@@ -315,6 +315,32 @@ describe("goodfellow update", () => {
     });
     expect(ran).toEqual([]);
     expect(JSON.parse(await read("package.json")).dependencies["@goodfellow-cms/react"]).toBe("0.4.1");
+    // Goodfellow packages the site's own bring are checked too, such as the AI assistant's with the admin panel.
+    await site();
+    const asked: string[] = [];
+    const bringing = async (url: string) =>
+      url === "https://registry.npmjs.org/@goodfellow-cms/blocks/0.4.2"
+        ? { dependencies: { "@goodfellow-cms/ai": "0.4.2", react: "19.3.1" } }
+        : url === "https://registry.npmjs.org/@goodfellow-cms/ai/0.4.2"
+          ? { dependencies: { "@goodfellow-cms/core": "0.4.2" } }
+          : fetchJson(url);
+    const recording: ReleaseVerifier = async (name, version) => {
+      asked.push(name);
+      return name === "@goodfellow-cms/core"
+        ? { ok: false, problem: "unverified", message: `${name} ${version}'s provenance didn't verify.` }
+        : verifyRelease(name, version);
+    };
+    expect(await update({ ...options, fetchJson: bringing, to: "automatic", verifyRelease: recording })).toMatchObject({
+      state: "failed",
+      step: "provenance",
+    });
+    expect(asked.sort()).toEqual([
+      "@goodfellow-cms/ai",
+      "@goodfellow-cms/blocks",
+      "@goodfellow-cms/core",
+      "@goodfellow-cms/react",
+      "goodfellow",
+    ]);
     // Asked for by name, it installs without the check.
     expect(await update({ ...options, to: "0.4.2", verifyRelease: unsigned })).toMatchObject({ state: "updated" });
   });

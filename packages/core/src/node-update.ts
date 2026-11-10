@@ -129,6 +129,32 @@ function installedBefore(packument: unknown, version: string, now: Date): string
 export type ReleaseVerifier = (name: string, version: string) => Promise<VerifiedRelease>;
 
 /**
+ * The Goodfellow packages a release of `names` installs: those, and every
+ * Goodfellow package their releases at `version` depend on, however deep, as
+ * npm's metadata lists them, since all of them are released together.
+ */
+async function goodfellowPackagesAt(names: string[], version: string, fetchJson: FetchJson): Promise<string[]> {
+  const found = new Set(names);
+  const queue = [...names];
+  for (let name = queue.shift(); name; name = queue.shift()) {
+    const manifest = (await fetchJson(`${NPM_REGISTRY}/${name}/${version}`).catch(() => ({}))) as {
+      dependencies?: Record<string, unknown>;
+      optionalDependencies?: Record<string, unknown>;
+      peerDependencies?: Record<string, unknown>;
+    };
+    for (const group of [manifest.dependencies, manifest.optionalDependencies, manifest.peerDependencies]) {
+      for (const dependency of Object.keys(group ?? {})) {
+        if (isGoodfellowPackage(dependency) && !found.has(dependency)) {
+          found.add(dependency);
+          queue.push(dependency);
+        }
+      }
+    }
+  }
+  return [...found].sort();
+}
+
+/**
  * What's wrong with each Goodfellow package's release `version`, in words:
  * provenance that's missing, doesn't verify, or names anything but
  * Goodfellow's own release workflow.
@@ -295,9 +321,14 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   // An automatic update installs only what Goodfellow's own release workflow built, as each package's provenance
   // says, so a release published any other way, such as with a stolen npm token, never reaches sites by itself.
   if (target === "automatic") {
-    const names = [
-      ...new Set([...Object.keys(site.dependencies ?? {}), ...Object.keys(site.devDependencies ?? {})]),
-    ].filter(isGoodfellowPackage);
+    // The site's own Goodfellow packages, and the ones they bring, such as @goodfellow-cms/ai with the Next.js adapter.
+    const names = await goodfellowPackagesAt(
+      [...new Set([...Object.keys(site.dependencies ?? {}), ...Object.keys(site.devDependencies ?? {})])].filter(
+        isGoodfellowPackage,
+      ),
+      to,
+      fetchJson,
+    );
     const problems = await unverifiedReleases(
       names,
       to,
