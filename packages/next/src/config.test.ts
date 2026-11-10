@@ -6,7 +6,7 @@ import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import { editorPolicy, vercelHeaders } from "@goodfellow-cms/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { answersNetwork, redirectDestination, withGoodfellow } from "./config.js";
+import { answersNetwork, networkAddresses, redirectDestination, withGoodfellow } from "./config.js";
 import { IMAGE_SIZES_ENV, IMAGE_SIZES_MARK, SITE_SERVING } from "./image-sizes-mark.js";
 
 describe("withGoodfellow", () => {
@@ -312,5 +312,25 @@ describe("answersNetwork", () => {
     } finally {
       everywhere.close();
     }
+  });
+
+  it("tries every address another computer could use, link-local IPv6 ones with their interface", () => {
+    const info = (address: string, family: "IPv4" | "IPv6", internal = false, scopeid?: number) => ({
+      address,
+      family,
+      internal,
+      netmask: "",
+      mac: "",
+      cidr: null,
+      ...(scopeid !== undefined && { scopeid }),
+    });
+    expect(
+      networkAddresses({
+        lo: [info("127.0.0.1", "IPv4", true), info("::1", "IPv6", true, 0)],
+        eth0: [info("192.0.2.2", "IPv4"), info("2001:db8::2", "IPv6", false, 0), info("fe80::1", "IPv6", false, 2)],
+        wlan0: [info("FE80::2", "IPv6")],
+        down: undefined,
+      } as Parameters<typeof networkAddresses>[0]),
+    ).toEqual(["192.0.2.2", "2001:db8::2", "fe80::1%2", "FE80::2%wlan0"]);
   });
 });

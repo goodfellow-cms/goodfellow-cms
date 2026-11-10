@@ -137,6 +137,24 @@ const EXPOSED_MESSAGE =
   "next dev is answering other computers on the network, so the admin panel's local backend is turned off: anyone on the network could change the site's files through it. Run next dev -H 127.0.0.1, as the starters' dev script does.";
 
 /**
+ * The addresses other computers could reach this one at, as `connect()` takes
+ * them: every interface's but this computer's own, with link-local IPv6 ones
+ * (`fe80::`) naming their interface, as they must to be connected to, by its
+ * number, which every platform reads.
+ */
+export function networkAddresses(interfaces: Record<string, NetworkInterfaceInfo[] | undefined>): string[] {
+  return Object.entries(interfaces).flatMap(([name, infos]) =>
+    (infos ?? [])
+      .filter((info) => !info.internal)
+      .map((info) =>
+        info.family === "IPv6" && info.address.toLowerCase().startsWith("fe80")
+          ? `${info.address}%${info.scopeid ?? name}`
+          : info.address,
+      ),
+  );
+}
+
+/**
  * Whether Next.js's development server, at `port`, answers on this computer's
  * network addresses, as `next dev` does unless it's started with `-H`. Next.js
  * passes on every header a client sends as it is, so the local backend can't
@@ -144,12 +162,7 @@ const EXPOSED_MESSAGE =
  * Next.js answers this computer alone.
  */
 export async function answersNetwork(port: number): Promise<boolean> {
-  const addresses = Object.values(networkInterfaces())
-    .flat()
-    .filter((address): address is NetworkInterfaceInfo => address !== undefined && !address.internal)
-    // Link-local IPv6 addresses need the interface named to connect to, and IPv4's cover the same server.
-    .filter((address) => address.family === "IPv4" || !address.address.toLowerCase().startsWith("fe80"))
-    .map((address) => address.address);
+  const addresses = networkAddresses(networkInterfaces());
   const answers = await Promise.all(
     addresses.map(
       (host) =>
