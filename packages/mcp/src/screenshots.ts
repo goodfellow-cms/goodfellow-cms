@@ -155,9 +155,14 @@ export function browserEnvironment(env: NodeJS.ProcessEnv): Record<string, strin
   );
 }
 
-/** Whether a browser that didn't start said it couldn't make Chrome's sandbox, rather than only naming one. */
-export function sandboxFailed(message: string): boolean {
-  return /No usable sandbox|SUID sandbox|setuid sandbox|Failed to move to new namespace/i.test(message);
+/**
+ * Why a browser that didn't start couldn't make Chrome's sandbox, by what Chrome says rather than any message
+ * that names one: `root` where it won't run as root, `sandbox` where the computer wouldn't let it.
+ */
+export function sandboxFailed(message: string): "root" | "sandbox" | undefined {
+  if (/Running as root without --no-sandbox is not supported/i.test(message)) return "root";
+  if (/No usable sandbox|SUID sandbox|setuid sandbox|Failed to move to new namespace/i.test(message)) return "sandbox";
+  return undefined;
 }
 
 /**
@@ -184,7 +189,7 @@ export function localScreenshots(options: { executablePath?: string; sandbox?: b
             ];
       const found: typeof browsers = [];
       const closed: string[] = [];
-      let noSandbox = false;
+      let noSandbox: "root" | "sandbox" | undefined;
       // Each browser once, and the first one found again when it's the only one: a closed browser is tried twice.
       for (let attempt = 0; attempt < 2 && Date.now() < until; attempt++) {
         const candidates = attempt === 0 ? browsers : found.length > 1 ? found.slice(1) : found;
@@ -202,7 +207,7 @@ export function localScreenshots(options: { executablePath?: string; sandbox?: b
               timeout: Math.max(1_000, until - Date.now()),
             })
             .catch((error: Error) => {
-              if (sandboxFailed(error.message)) noSandbox = true;
+              noSandbox = sandboxFailed(error.message) ?? noSandbox;
               return undefined;
             });
           if (browser) {
@@ -225,6 +230,11 @@ export function localScreenshots(options: { executablePath?: string; sandbox?: b
       if (closed.length > 0) {
         throw new ToolError(
           `There's no picture: ${closed.join(" ")} Something on this computer may be stopping the browser running without a window, such as security software, or it may need restarting to finish an update.`,
+        );
+      }
+      if (noSandbox === "root") {
+        throw new ToolError(
+          "There's no picture: the browser won't start its sandbox, which keeps the pages it shows from reaching this computer, for a program running as the computer's administrator (root). Run the connector as an ordinary user instead.",
         );
       }
       if (noSandbox) {

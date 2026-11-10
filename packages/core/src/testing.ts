@@ -236,7 +236,8 @@ export class FakeRepo {
     target = this.defaultBranch,
     reviewers: readonly string[] = [],
   ): FakeReview {
-    const open = this.reviews.find((review) => review.branch === branch && review.state === "open");
+    // A fork's review from a branch of the same name is another repository's.
+    const open = this.reviews.find((review) => review.branch === branch && review.state === "open" && !review.fork);
     if (open) return open;
     const review: FakeReview = {
       number: this.reviews.length + 1,

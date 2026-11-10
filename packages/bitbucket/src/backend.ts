@@ -24,7 +24,11 @@ import {
   type TokenLink,
   type WriteOptions,
 } from "@goodfellow-cms/core";
-import { type ApiOptions, allPages, bitbucketJson, bitbucketRequest, type Paged, quoted } from "./api.js";
+import { type ApiOptions, allPages, bitbucketJson, bitbucketRequest, type Paged, pagesOf, quoted } from "./api.js";
+
+/** How many pages of pull requests (50 each) are read when looking for the site's own among forks'. */
+const REQUEST_PAGES = 40;
+
 import { bitbucketCodeUpdates } from "./code-updates.js";
 import { bitbucketEditors, bitbucketOwnerAccess, type Permission } from "./editors.js";
 import { bitbucketScheduledBuilds } from "./scheduled-builds.js";
@@ -205,13 +209,20 @@ export class BitbucketBackend implements GitBackend {
         q: `source.branch.name = ${quoted(branch)} AND state = "OPEN"`,
         pagelen: "50",
       });
-      // Every page, since forks' pull requests from a branch of the same name share them.
-      const open = await allPages<{
+      // Every page, since forks' pull requests from a branch of the same name share them: a list
+      // cut short could miss the site's own, so opening or closing one never goes on without it.
+      const { items, complete } = await pagesOf<{
         id: number;
         links: { html: { href: string } };
         source?: { repository?: { full_name?: string } };
-      }>(this.api, this.path(`/pullrequests?${query}`));
-      return open.filter(own);
+      }>(this.api, this.path(`/pullrequests?${query}`), REQUEST_PAGES);
+      if (!complete) {
+        throw new DraftError(
+          "no-reviews",
+          "Bitbucket lists too many pull requests from this draft's branch to find the site's own.",
+        );
+      }
+      return items.filter(own);
     };
     /** Reviewers as Bitbucket names them, by account id, from the workspace's members; people it doesn't have are left out. */
     const reviewerAccounts = async (nicknames: readonly string[]) => {
@@ -294,7 +305,7 @@ export class BitbucketBackend implements GitBackend {
           title: string;
           source: { branch: { name: string }; repository?: { full_name?: string } };
           links: { html: { href: string } };
-        }>(this.api, this.path(`/pullrequests?${query}`), 5);
+        }>(this.api, this.path(`/pullrequests?${query}`), REQUEST_PAGES);
         return open
           .filter((request) => own(request) && request.source.branch.name.startsWith(prefix))
           .map((request) => ({

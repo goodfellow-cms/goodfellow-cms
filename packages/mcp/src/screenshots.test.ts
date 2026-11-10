@@ -25,13 +25,18 @@ describe("sandboxFailed", () => {
   it("knows Chrome's sandbox failures, and not every message that names a sandbox", () => {
     expect(
       sandboxFailed("[0101/000000.000:FATAL:zygote_host_impl_linux.cc(127)] No usable sandbox! Update your kernel"),
-    ).toBe(true);
+    ).toBe("sandbox");
     expect(
       sandboxFailed(
         "Failed to move to new namespace: PID namespaces supported, but failed: errno = Operation not permitted",
       ),
-    ).toBe(true);
-    expect(sandboxFailed("browserType.launch: Executable doesn't exist at /opt/chrome --no-sandbox")).toBe(false);
+    ).toBe("sandbox");
+    expect(sandboxFailed("browserType.launch: Executable doesn't exist at /opt/chrome --no-sandbox")).toBeUndefined();
+    expect(
+      sandboxFailed(
+        "[1:1:FATAL:zygote_host_impl_linux.cc(128)] Running as root without --no-sandbox is not supported.",
+      ),
+    ).toBe("root");
   });
 });
 

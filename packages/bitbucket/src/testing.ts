@@ -430,7 +430,8 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
           reviewers?: Array<{ account_id?: string }>;
         };
         const open = target.reviews.find(
-          (review) => review.branch === body.source.branch.name && review.state === "open",
+          // Only the repository's own: a fork's pull request from a branch of the same name is another's.
+          (review) => review.branch === body.source.branch.name && review.state === "open" && !review.fork,
         );
         if (open) return error(400, "There are no changes to be pulled");
         const reviewers = (body.reviewers ?? []).map((reviewer) => {
