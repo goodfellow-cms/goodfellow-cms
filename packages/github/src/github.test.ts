@@ -858,6 +858,38 @@ describe("on a full-stack site's server", () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
+  it("refuses to save where the branch was reset to an older commit while it saved", async () => {
+    const fake = fakeGitHub({ repo: "parish/site", files: FILES });
+    const start = fake.repo.head();
+    fake.commit([{ path: "content/site.json", content: '{"version":1,"title":"Leaked"}' }], "Taken out again");
+    let reset = false;
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      const request = new Request(input, init);
+      // The reset lands just before the branch is moved, after the head was checked.
+      const moving =
+        (request.method === "PATCH" && new URL(request.url).pathname.endsWith("/git/refs/heads/main")) ||
+        (new URL(request.url).pathname.endsWith("/graphql") && (await request.clone().text()).includes("updateRefs("));
+      if (!reset && moving) {
+        reset = true;
+        fake.repo.branches.set("main", start);
+      }
+      return fake.fetch(request);
+    };
+    const git = github({ repo: "parish/site", fetch }).server?.({ token: "test-token" });
+    if (!git) throw new Error("github() has no server access");
+    const revision = await git.revision();
+    const backend = await git.at(revision, ALICE);
+    await expect(
+      backend.write([{ path: "content/pages/about.json", content: "{}" }], {
+        message: "Update",
+        expectedRevision: revision,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(reset).toBe(true);
+    expect(fake.repo.head()).toBe(start);
+    expect(fake.repo.files().get("content/site.json")).toBe(FILES["content/site.json"]);
+  });
+
   it("asks a token function for the token on each request", async () => {
     const fake = fakeGitHub({ repo: "parish/site", files: FILES });
     let asked = 0;

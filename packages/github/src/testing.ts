@@ -278,6 +278,9 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
+/** The GraphQL id of the repository a fake is made with. */
+const REPOSITORY_NODE_ID = "R_site";
+
 export function fakeGitHub(options: FakeGitHubOptions) {
   const repo = new FakeRepo(options.files);
   const tokens = options.tokens ?? { "test-token": { login: "editor", name: "Test Editor" } };
@@ -897,19 +900,82 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       if (principal.push === false) return json({ message: "Resource not accessible by integration" }, 403);
       const body = (await request.json()) as { sha: string; force?: boolean };
       const branch = decodeURIComponent(ref[1] ?? "");
-      const found = target.commitAt(body.sha);
-      if (!found || !target.branches.has(branch)) return json({ message: "Reference does not exist" }, 422);
-      if (!body.force && found.parent !== target.branches.get(branch)) {
-        return json({ message: "Update is not a fast forward" }, 422);
-      }
-      if (protectedHistory && found.parent !== target.branches.get(branch)) {
-        return json({ message: "Cannot force-push to this branch" }, 422);
-      }
-      target.branches.set(branch, body.sha);
-      if (branch === target.defaultBranch) deploy(body.sha);
+      const refused = refusedMove(target, branch, body.sha, { force: body.force, protectedHistory });
+      if (refused) return json({ message: refused }, 422);
+      moveBranch(target, branch, body.sha);
       return json({ object: { sha: body.sha } });
     }
     return undefined;
+  }
+
+  /** Why GitHub wouldn't move a branch to a commit: only fast forwards unless forced, and only from `before` where it's given. */
+  function refusedMove(
+    target: FakeRepo,
+    branch: string,
+    sha: string,
+    { force, before, protectedHistory }: { force?: boolean; before?: string; protectedHistory: boolean },
+  ): string | undefined {
+    const found = target.commitAt(sha);
+    if (!found || !target.branches.has(branch)) return "Reference does not exist";
+    if (before !== undefined && target.branches.get(branch) !== before) return "Reference is not at the expected value";
+    // As GitHub does, a fast forward is to any commit that follows on from the branch, however far ahead.
+    if (!force && !followsOn(target, sha, target.branches.get(branch) ?? "")) return "Update is not a fast forward";
+    if (protectedHistory && found.parent !== target.branches.get(branch)) return "Cannot force-push to this branch";
+    return undefined;
+  }
+
+  /** Whether `ancestor` is `sha` or a commit before it. */
+  function followsOn(target: FakeRepo, sha: string, ancestor: string): boolean {
+    for (let at: string | undefined = sha; at; at = target.commitAt(at)?.parent) if (at === ancestor) return true;
+    return false;
+  }
+
+  function moveBranch(target: FakeRepo, branch: string, sha: string): void {
+    target.branches.set(branch, sha);
+    if (branch === target.defaultBranch) deploy(sha);
+  }
+
+  /** GraphQL's `updateRefs`, which checks every update before making any. */
+  function updateRefs(
+    input: {
+      repositoryId?: string;
+      refUpdates?: Array<{ name: string; afterOid: string; beforeOid?: string; force?: boolean }>;
+    },
+    principal: Principal,
+  ): Response {
+    const site = [...created.values()].find((candidate) => `R_${candidate.id}` === input.repositoryId);
+    const fullName = site ? site.fullName : input.repositoryId === REPOSITORY_NODE_ID ? options.repo : undefined;
+    if (!fullName || !canSee(principal, fullName)) {
+      return json({
+        data: { updateRefs: null },
+        errors: [
+          { type: "NOT_FOUND", message: `Could not resolve to a node with the global id of '${input.repositoryId}'` },
+        ],
+      });
+    }
+    if (principal.push === false) {
+      return json({
+        data: { updateRefs: null },
+        errors: [{ type: "FORBIDDEN", message: "Resource not accessible by integration" }],
+      });
+    }
+    const target = site?.repo ?? repo;
+    const updates = (input.refUpdates ?? []).map((update) => ({
+      ...update,
+      branch: update.name.replace(/^refs\/heads\//, ""),
+    }));
+    for (const update of updates) {
+      const refused = update.name.startsWith("refs/heads/")
+        ? refusedMove(target, update.branch, update.afterOid, {
+            force: update.force,
+            before: update.beforeOid,
+            protectedHistory: (site?.rulesets.length ?? 0) > 0,
+          })
+        : "Only branches can be updated here";
+      if (refused) return json({ data: { updateRefs: null }, errors: [{ type: "UNPROCESSABLE", message: refused }] });
+    }
+    for (const update of updates) moveBranch(target, update.branch, update.afterOid);
+    return json({ data: { updateRefs: { clientMutationId: null } } });
   }
 
   function deploy(sha: string): void {
@@ -1198,7 +1264,11 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     if (path === "/graphql" && request.method === "POST") {
       const discussions = handleDiscussions(await request.clone().json(), user);
       if (discussions) return discussions;
-      const body = (await request.clone().json()) as { query: string; variables?: { owner?: string; name?: string } };
+      const body = (await request.clone().json()) as {
+        query: string;
+        variables?: { owner?: string; name?: string; input?: Parameters<typeof updateRefs>[0] };
+      };
+      if (body.query.includes("updateRefs(")) return updateRefs(body.variables?.input ?? {}, user);
       if (body.query.trimStart().startsWith("query")) {
         // Reading blobs by id, as `readFiles()` does.
         if (`${body.variables?.owner}/${body.variables?.name}` !== options.repo) {
@@ -1398,6 +1468,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     if (rest === "") {
       return json({
         id: 1,
+        node_id: REPOSITORY_NODE_ID,
         full_name: options.repo,
         private: options.private === true,
         visibility: options.private === true ? "private" : "public",

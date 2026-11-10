@@ -110,6 +110,11 @@ const COMMIT_MUTATION = `mutation ($input: CreateCommitOnBranchInput!) {
   createCommitOnBranch(input: $input) { commit { oid } }
 }`;
 
+/** Moves a branch only where it's still at the commit given as `beforeOid`, as REST's ref update can't. */
+const UPDATE_REFS_MUTATION = `mutation ($input: UpdateRefsInput!) {
+  updateRefs(input: $input) { clientMutationId }
+}`;
+
 export interface GitHubBackendOptions {
   api: ApiOptions;
   repo: string;
@@ -184,6 +189,7 @@ export class GitHubBackend implements GitBackend {
   private readonly author?: { name: string; email: string };
   private readonly owner: ReturnType<typeof githubOwnerAccess>;
   private pinned?: string;
+  private repositoryNode?: Promise<string>;
   private readonly trees = new Map<string, Promise<Map<string, string>>>();
   /** Each file's size in bytes at a commit, which GitHub lists with its tree. */
   private readonly treeSizes = new Map<string, Map<string, number>>();
@@ -345,6 +351,21 @@ export class GitHubBackend implements GitBackend {
     return this.pinned;
   }
 
+  /** The repository's GraphQL id, which ref updates name it by. Kept once it's read. */
+  private repositoryId(): Promise<string> {
+    if (!this.repositoryNode) {
+      const node = githubJson<{ node_id: string }>(this.api, `/repos/${this.repo}`).then(
+        (repository) => repository.node_id,
+      );
+      // Asked again next time where it couldn't be read.
+      node.catch(() => {
+        if (this.repositoryNode === node) this.repositoryNode = undefined;
+      });
+      this.repositoryNode = node;
+    }
+    return this.repositoryNode;
+  }
+
   /** The branch's latest commit, without moving the revision reads are pinned to. */
   private async head(): Promise<string> {
     const ref = await githubJson<{ object: { sha: string } }>(
@@ -485,9 +506,9 @@ export class GitHubBackend implements GitBackend {
   }
 
   /**
-   * Saves with Git's data API, naming the editor as the commit's author:
-   * GitHub refuses to move the branch unless the commit follows on from it, so
-   * nothing is overwritten.
+   * Saves with Git's data API, naming the editor as the commit's author, and
+   * moves the branch only from the commit the editor started from, so nothing
+   * is overwritten or brought back.
    */
   private async writeCommit(
     changes: FileChange[],
@@ -530,14 +551,28 @@ export class GitHubBackend implements GitBackend {
           author: { ...author, date: new Date().toISOString() },
         },
       });
-      const moved = await githubRequest(this.api, `${base}/git/refs/heads/${encodeURIComponent(this.branch)}`, {
-        method: "PATCH",
-        body: { sha: commit.sha, force: false },
-        allow: [422],
+      // Moved only from the commit the changes were made on, in the same request: a fast forward alone would also
+      // follow a branch reset to an older commit in the meantime, bringing back what the reset took out.
+      const moved = await githubJson<GraphQLResponse>(this.api, "/graphql", {
+        method: "POST",
+        body: {
+          query: UPDATE_REFS_MUTATION,
+          variables: {
+            input: {
+              repositoryId: await this.repositoryId(),
+              refUpdates: [
+                { name: `refs/heads/${this.branch}`, beforeOid: expectedRevision, afterOid: commit.sha, force: false },
+              ],
+            },
+          },
+        },
       });
-      if (moved.status === 422) {
+      if (moved.errors?.length) {
         // The branch has moved: someone else saved first.
         if ((await this.revision()) !== expectedRevision) throw new ConflictError();
+        if (moved.errors[0]?.type === "FORBIDDEN") {
+          throw new SignInError("cant-publish", "This sign-in can't publish to the site.");
+        }
         throw new GitApiError(422, "GitHub couldn't save the changes.");
       }
       this.pinned = commit.sha;
