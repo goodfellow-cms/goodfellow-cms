@@ -87,8 +87,8 @@ before="$(node -e 'console.log(new Date(Date.now() - 3 * 864e5).toISOString())')
   npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$before"
 # Or, where an owner installed a plugin's update early, which checks both releases' provenance first:
 #   npm exec --yes --package=@goodfellow-cms/core@<the site's release> -- goodfellow-early
-# Then make sure every package comes from npm's registry, as the lockfile job does:
-node -e 'const { packages = {} } = require("./package-lock.json"); const elsewhere = Object.entries(packages).filter(([, p]) => p.resolved && !p.resolved.startsWith("https://registry.npmjs.org/")).map(([path]) => path); if (elsewhere.length) { console.error("Not from npm:", elsewhere.join(", ")); process.exit(1); }'
+# Then make sure every package comes from npm's registry, in any lockfile format, as the lockfile job does:
+node -e 'const elsewhere = []; const walk = (value) => { if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) { if (key === "resolved" && typeof item === "string") { if (!item.startsWith("https://registry.npmjs.org/")) elsewhere.push(item); } else walk(item); } }; walk(require("./package-lock.json")); if (elsewhere.length) { console.error("Not from npm:", elsewhere.join(", ")); process.exit(1); }'
 ```
 
 ## For developers
