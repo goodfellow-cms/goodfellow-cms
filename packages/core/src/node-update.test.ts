@@ -113,7 +113,16 @@ describe("goodfellow update", () => {
   it("updates to the newest fixes, builds, and publishes", async () => {
     await site();
     const { ran, run } = commands();
-    const result = await update({ root, fetchJson, run, registry: REGISTRY, publish: true, log: () => {}, env: {} });
+    const result = await update({
+      root,
+      fetchJson,
+      run,
+      registry: REGISTRY,
+      blocks: true,
+      publish: true,
+      log: () => {},
+      env: {},
+    });
     expect(result).toEqual({ state: "updated", from: "0.4.1", to: "0.4.2", kept: [] });
     const pkg = JSON.parse(await read("package.json"));
     expect(pkg.dependencies).toEqual({
@@ -178,10 +187,18 @@ describe("goodfellow update", () => {
     expect(await readFile(output, "utf8")).toBe("commit=true\n");
   });
 
+  it("leaves registry blocks alone unless asked, since publishing an update never takes their code", async () => {
+    await site();
+    const { run } = commands();
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, commit: true, log: () => {}, env: {} });
+    expect(result).toMatchObject({ state: "updated", to: "0.4.2", kept: [] });
+    expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+  });
+
   it("leaves block files someone changed", async () => {
     await site("export default { mine: true };\n");
     const { run } = commands();
-    const result = await update({ root, fetchJson, run, registry: REGISTRY, log: () => {}, env: {} });
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, blocks: true, log: () => {}, env: {} });
     expect(result.kept).toEqual([BLOCK]);
     expect(await read(BLOCK)).toBe("export default { mine: true };\n");
   });
@@ -191,7 +208,16 @@ describe("goodfellow update", () => {
     const before = await read("package.json");
     const cause = { kind: "code" as const, file: BLOCK, message: "Unexpected token" };
     const { ran, run } = commands({ "npm run build": { code: 1, output: `${formatBuildCause(cause)}\n` } });
-    const result = await update({ root, fetchJson, run, registry: REGISTRY, publish: true, log: () => {}, env: {} });
+    const result = await update({
+      root,
+      fetchJson,
+      run,
+      registry: REGISTRY,
+      blocks: true,
+      publish: true,
+      log: () => {},
+      env: {},
+    });
     expect(result).toEqual({ state: "failed", from: "0.4.1", to: "0.4.2", step: "build", cause });
     expect(await read("package.json")).toBe(before);
     expect(await read(BLOCK)).toBe("export default { v: 1 };\n");

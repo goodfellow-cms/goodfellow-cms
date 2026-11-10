@@ -6,6 +6,9 @@
 "@goodfellow-cms/gitlab": patch
 "@goodfellow-cms/bitbucket": patch
 "create-goodfellow": patch
+"goodfellow": patch
+"@goodfellow-cms/admin": patch
+"@goodfellow-cms/next": patch
 "@goodfellow-cms/broker": patch
 ---
 
@@ -25,3 +28,4 @@ More fixes from November's security review:
 - The token broker publishes a draft with exactly the changes it checked, so nothing added to the draft in between goes live unchecked, and frames the admin panel at the screen an address names without what a sign-in brought back, such as the sign-in worker's grant or Bitbucket's token.
 - The Claude connector reads a site's description as builds read other sites' files: from public `https://` addresses only (or a folder's development server), no larger than 5 MB, and within 15 seconds.
 - A plugin installed from the admin panel runs its tasks only from its own package, so a task's description can't send its secrets to a file of the site's.
+- The nightly update no longer changes blocks from Goodfellow's registry, and its publishing job on GitHub refuses `blocks/installed/`, `components/`, `lib/`, and `hooks/`, since the job that made the update ran the site's packages, which could have written code there. The Blocks screen offers **Update** where a newer version of an added block is ready, and `goodfellow update --blocks` (or `goodfellow-next update --blocks`) updates them all. GitHub sites made by an earlier release keep their workflow's older check until it's copied from a new site's, since updates can't change workflows.

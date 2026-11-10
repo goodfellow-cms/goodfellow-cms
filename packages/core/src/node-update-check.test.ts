@@ -70,9 +70,16 @@ describe("publish-update's check", { timeout: PROCESS_TIMEOUT }, () => {
       }),
     );
     await write("content/updates.json", "{}\n");
+    expect(check()).toEqual({ passed: true, output: "" });
+  });
+
+  it("refuses registry blocks' code and the shared code they use, which owners update on the Blocks screen", async () => {
     await write("blocks/installed/panel/block.tsx", "export {};\n");
     await write("components/ui/button.tsx", "export {};\n");
-    expect(check()).toEqual({ passed: true, output: "" });
+    const { passed, output } = check();
+    expect(passed).toBe(false);
+    expect(output).toContain("blocks/installed/panel/block.tsx");
+    expect(output).toContain("components/ui/button.tsx");
   });
 
   it("refuses any other file, a link, and a package from anywhere else", async () => {

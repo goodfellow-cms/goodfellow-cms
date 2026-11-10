@@ -962,7 +962,7 @@ export {
   type StorageLike,
   type TokenLink,
 } from "./git.js";
-export { UPDATE_CHECK, UPDATE_FILES, UPDATE_FOLDERS, UPDATE_REGISTRY } from "./github-workflows.js";
+export { UPDATE_CHECK, UPDATE_FILES, UPDATE_REGISTRY } from "./github-workflows.js";
 export {
   AI_TRAINING_CRAWLERS,
   absoluteUrl,

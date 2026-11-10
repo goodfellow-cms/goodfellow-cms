@@ -98,6 +98,13 @@ export interface UpdateOptions {
   commit?: boolean;
   /** The branch to publish to. Defaults to CI's branch, or `main`. */
   branch?: string;
+  /**
+   * Also updates the blocks the site installed from Goodfellow's registry. Off unless asked, since
+   * the nightly update's publishing job takes only Goodfellow's packages and the site's files: the
+   * job that made the update ran the site's packages, which could have written any code. Owners
+   * update blocks on the Blocks screen, and developers with `--blocks`.
+   */
+  blocks?: boolean;
   /** Goodfellow's block registry, as `https://…/{name}.json`. Defaults to the release being installed. */
   registry?: string;
   /** Files of the site's own that releases change, such as `goodfellow-next`'s admin pages. */
@@ -265,8 +272,8 @@ async function fetchJsonFromNetwork(url: string): Promise<unknown> {
 
 /**
  * Updates a site to a newer Goodfellow release: its Goodfellow packages and the
- * Puck version they use, and blocks from Goodfellow's registry, whose files are
- * replaced only where nobody changed them. Then it installs the packages and
+ * Puck version they use, and, with `blocks`, blocks from Goodfellow's registry,
+ * whose files are replaced only where nobody changed them. Then it installs the packages and
  * builds the site. If either fails, every file goes back as it was. With
  * `publish`, a site that built is published as one commit.
  */
@@ -461,7 +468,7 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   let record = parseInstalledRecord(await read(INSTALLED_RECORD_FILE));
   const registries = { [GOODFELLOW_REGISTRY]: options.registry ?? goodfellowRegistryUrl(to) };
   const packages = [...REGISTRY_PACKAGES, ...Object.keys(site.dependencies ?? {})];
-  for (const [name, block] of Object.entries(record.blocks)) {
+  for (const [name, block] of options.blocks ? Object.entries(record.blocks) : []) {
     if (!block.source.startsWith(`${GOODFELLOW_REGISTRY}/`)) continue;
     try {
       const plan = await planUpdate({ name, record, registries, fetchJson, readFile: read, packages });
