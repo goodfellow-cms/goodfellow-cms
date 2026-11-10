@@ -91,6 +91,26 @@ describe("importing a WordPress site on disk", () => {
     expect(fromFile.skipped.every((file) => file.reason === "download")).toBe(true);
     expect(asked.filter((url) => url.startsWith("http://10.0.0.5"))).toEqual([]);
 
+    // Read from its address on the person's network, written without https://, its own media comes across.
+    await site();
+    const atHome = (async (url: string) => {
+      const answer = wordpress.handle(url.replace("https://10.0.0.5", SAMPLE_WORDPRESS_URL));
+      const body =
+        typeof answer.body === "string"
+          ? answer.body.replaceAll(SAMPLE_WORDPRESS_URL, "https://10.0.0.5")
+          : answer.body;
+      return {
+        ok: answer.status >= 200 && answer.status < 300,
+        status: answer.status,
+        headers: { get: (name: string) => answer.headers[name.toLowerCase()] ?? null },
+        json: async () => JSON.parse(body as string) as unknown,
+        body: new Response(typeof body === "string" ? body : body.slice()).body,
+      };
+    }) as unknown as typeof fetch;
+    const fromHome = await importWordPress(root, "10.0.0.5", { fetch: atHome });
+    expect(fromHome.copied.length).toBeGreaterThan(0);
+    expect(fromHome.skipped).toEqual([]);
+
     // Too large, however it says so: read no further than the upload limit.
     await site();
     const huge = (async (url: string) => {

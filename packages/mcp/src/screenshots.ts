@@ -155,6 +155,11 @@ export function browserEnvironment(env: NodeJS.ProcessEnv): Record<string, strin
   );
 }
 
+/** Whether a browser that didn't start said it couldn't make Chrome's sandbox, rather than only naming one. */
+export function sandboxFailed(message: string): boolean {
+  return /No usable sandbox|SUID sandbox|setuid sandbox|Failed to move to new namespace/i.test(message);
+}
+
 /**
  * Screenshots with this computer's Chrome or Edge, or `executablePath`, each
  * in Chrome's sandbox. `sandbox: false` is for containers that can't run
@@ -197,7 +202,7 @@ export function localScreenshots(options: { executablePath?: string; sandbox?: b
               timeout: Math.max(1_000, until - Date.now()),
             })
             .catch((error: Error) => {
-              if (/sandbox/i.test(error.message)) noSandbox = true;
+              if (sandboxFailed(error.message)) noSandbox = true;
               return undefined;
             });
           if (browser) {
@@ -224,7 +229,7 @@ export function localScreenshots(options: { executablePath?: string; sandbox?: b
       }
       if (noSandbox) {
         throw new ToolError(
-          "There's no picture: the browser couldn't start its sandbox, which keeps the pages it shows from reaching this computer.",
+          "There's no picture: the browser couldn't start its sandbox, which keeps the pages it shows from reaching this computer. Restarting the computer may help; otherwise, ask whoever looks after it whether something, such as security software or a container, stops programs making sandboxes.",
         );
       }
       throw new ToolError(

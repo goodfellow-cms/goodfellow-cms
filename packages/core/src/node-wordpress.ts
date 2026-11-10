@@ -44,6 +44,7 @@ import {
   type WordPressImport,
   type WordPressImportNote,
   type WordPressSite,
+  wordPressAddress,
   wordPressExport,
   wordPressExportName,
 } from "./wordpress.js";
@@ -157,7 +158,9 @@ export async function importWordPress(
   const fetcher = options.fetch ?? fetch;
   const site = await readWordPressSource(from, fetcher);
   // Read from its address, the site's own host is the one the person chose, which may be on their network.
-  const trusted = /^https?:\/\//i.test(from) ? new URL(from).hostname : undefined;
+  // Never the address the site gives itself, which the site, not the person, chose.
+  const address = site.source === "address" ? wordPressAddress(from) : undefined;
+  const trusted = address ? new URL(address).hostname : undefined;
   const source = fileSystemSource(root);
   const content = await loadSiteContent(source);
   const mediaFiles = await source.list(MEDIA_DIR);

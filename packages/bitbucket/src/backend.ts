@@ -201,11 +201,17 @@ export class BitbucketBackend implements GitBackend {
     const own = (request: { source?: { repository?: { full_name?: string } } }) =>
       request.source?.repository?.full_name?.toLowerCase() === this.repo.toLowerCase();
     const openRequests = async (branch: string) => {
-      const query = new URLSearchParams({ q: `source.branch.name = ${quoted(branch)} AND state = "OPEN"` });
-      const open = await bitbucketJson<
-        Paged<{ id: number; links: { html: { href: string } }; source?: { repository?: { full_name?: string } } }>
-      >(this.api, this.path(`/pullrequests?${query}`));
-      return open.values.filter(own);
+      const query = new URLSearchParams({
+        q: `source.branch.name = ${quoted(branch)} AND state = "OPEN"`,
+        pagelen: "50",
+      });
+      // Every page, since forks' pull requests from a branch of the same name share them.
+      const open = await allPages<{
+        id: number;
+        links: { html: { href: string } };
+        source?: { repository?: { full_name?: string } };
+      }>(this.api, this.path(`/pullrequests?${query}`));
+      return open.filter(own);
     };
     /** Reviewers as Bitbucket names them, by account id, from the workspace's members; people it doesn't have are left out. */
     const reviewerAccounts = async (nicknames: readonly string[]) => {
