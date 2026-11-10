@@ -137,7 +137,8 @@ async function goodfellowPackagesAt(names: string[], version: string, fetchJson:
   const found = new Set(names);
   const queue = [...names];
   for (let name = queue.shift(); name; name = queue.shift()) {
-    const manifest = (await fetchJson(`${NPM_REGISTRY}/${name}/${version}`).catch(() => ({}))) as {
+    // A release whose metadata can't be read throws, so the update stops rather than miss what it brings.
+    const manifest = (await fetchJson(`${NPM_REGISTRY}/${name}/${version}`)) as {
       dependencies?: Record<string, unknown>;
       optionalDependencies?: Record<string, unknown>;
       peerDependencies?: Record<string, unknown>;
@@ -170,6 +171,28 @@ async function unverifiedReleases(names: string[], version: string, verify: Rele
     }),
   );
   return problems.filter((problem): problem is string => problem !== undefined);
+}
+
+/**
+ * The Goodfellow packages `package-lock.json` installs, by name and version,
+ * wherever they are in its tree.
+ */
+async function lockedGoodfellowPackages(root: string): Promise<{ name: string; version: string }[]> {
+  const lock = JSON.parse(await readFile(join(root, "package-lock.json"), "utf8")) as {
+    packages?: Record<string, { version?: unknown; link?: unknown }>;
+  };
+  const locked = new Map<string, { name: string; version: string }>();
+  for (const [path, entry] of Object.entries(lock.packages ?? {})) {
+    const at = path.lastIndexOf("node_modules/");
+    if (at < 0) continue;
+    const name = path.slice(at + "node_modules/".length);
+    if (!isGoodfellowPackage(name)) continue;
+    // A link is a folder of the site's own, which npm installs nothing into.
+    if (entry.link === true) continue;
+    if (typeof entry.version !== "string") throw new Error(`${path} in package-lock.json has no version.`);
+    locked.set(`${name}@${entry.version}`, { name, version: entry.version });
+  }
+  return [...locked.values()];
 }
 
 /** Goodfellow's packages, which are all released together with the same version. */
@@ -320,19 +343,20 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   };
   // An automatic update installs only what Goodfellow's own release workflow built, as each package's provenance
   // says, so a release published any other way, such as with a stolen npm token, never reaches sites by itself.
+  const verify: ReleaseVerifier = options.verifyRelease ?? ((name, version) => verifiedSource(name, version));
   if (target === "automatic") {
     // The site's own Goodfellow packages, and the ones they bring, such as @goodfellow-cms/ai with the Next.js adapter.
-    const names = await goodfellowPackagesAt(
+    const problems = await goodfellowPackagesAt(
       [...new Set([...Object.keys(site.dependencies ?? {}), ...Object.keys(site.devDependencies ?? {})])].filter(
         isGoodfellowPackage,
       ),
       to,
       fetchJson,
-    );
-    const problems = await unverifiedReleases(
-      names,
-      to,
-      options.verifyRelease ?? ((name, version) => verifiedSource(name, version)),
+    ).then(
+      (names) => unverifiedReleases(names, to, verify),
+      (error: unknown) => [
+        `Goodfellow ${to}'s packages couldn't be read from npm: ${error instanceof Error ? error.message : String(error)}`,
+      ],
     );
     if (problems.length > 0) {
       for (const problem of problems) log(problem);
@@ -427,6 +451,21 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   const before = to ? installedBefore(packument, to, now) : undefined;
   const install = ["install", "--no-audit", "--no-fund", ...(before ? [`--before=${before}`] : [])];
   if ((await run("npm", install, root)).code !== 0) return failed({ step: "install" });
+  // What npm installed may not be what its metadata said, such as a newer release a range takes, so an automatic
+  // update checks every Goodfellow package the lockfile names before any of the site's code runs.
+  if (target === "automatic") {
+    const problems = await lockedGoodfellowPackages(root).then(
+      async (locked) =>
+        (await Promise.all(locked.map(({ name, version }) => unverifiedReleases([name], version, verify)))).flat(),
+      (error: unknown) => [
+        `The packages npm installed couldn't be read: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+    );
+    if (problems.length > 0) {
+      for (const problem of problems) log(problem);
+      return failed({ step: "provenance" });
+    }
+  }
   log("Building the site with the update…");
   const built = await run("npm", ["run", "build"], root);
   if (built.code !== 0) {
