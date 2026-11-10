@@ -361,4 +361,20 @@ describe("answersNetwork", () => {
     expect(await exposed()).toBe(true);
     expect(probed).toHaveLength(2);
   });
+
+  it("asks once when several requests come as the addresses change, keeping a yes", async () => {
+    let interfaces = { lo: [info("127.0.0.1", "IPv4", true)] } as Interfaces;
+    const answers = [false, true, false];
+    let probes = 0;
+    const exposed = exposureCheck(3000, {
+      interfaces: () => interfaces,
+      probe: async () => answers[probes++] ?? false,
+    });
+    expect(await exposed()).toBe(false);
+    interfaces = { ...interfaces, eth0: [info("192.0.2.2", "IPv4")] } as Interfaces;
+    // Together, as requests a page makes at once.
+    expect(await Promise.all([exposed(), exposed(), exposed()])).toEqual([true, true, true]);
+    expect(probes).toBe(2);
+    expect(await exposed()).toBe(true);
+  });
 });

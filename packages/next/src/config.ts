@@ -200,9 +200,13 @@ export function exposureCheck(
   return async () => {
     const addresses = networkAddresses(interfaces());
     const key = addresses.join(" ");
-    if (!checked || (checked.addresses !== key && !(await checked.exposed))) {
-      checked = { addresses: key, exposed: probe(port, addresses) };
+    while (checked && checked.addresses !== key) {
+      const previous = checked;
+      if (await previous.exposed) return true;
+      // One request asks for the new addresses: others that waited too take its answer, never one of their own.
+      if (checked === previous) checked = { addresses: key, exposed: probe(port, addresses) };
     }
+    checked ??= { addresses: key, exposed: probe(port, addresses) };
     return checked.exposed;
   };
 }
