@@ -81,11 +81,24 @@ export function apiAddress(site: string, file = MANIFEST_FILE): string {
   return new URL(`api/${file}`, site.endsWith("/") ? site : `${site}/`).href;
 }
 
+/**
+ * The manifest's base path, such as `/site/`, where it's one: slash-separated
+ * plain names between slashes. Anything else, such as `@other.example/`,
+ * which would put another host in the site's addresses, counts as none.
+ */
+export function basePath(base: unknown): string {
+  return typeof base === "string" &&
+    /^\/([A-Za-z0-9._~-]+\/)*$/.test(base) &&
+    !base.split("/").some((part) => part === "." || part === "..")
+    ? base
+    : "/";
+}
+
 /** A site address as the app opens it: a root-relative one (`/about`) at the site, with its base path. */
 export function siteAddress(site: string, manifest: Pick<ApiManifest, "base"> | undefined, href: string): string {
   if (!href.startsWith("/") || href.startsWith("//")) return href;
   const root = new URL(site.endsWith("/") ? site : `${site}/`);
-  const base = manifest?.base ?? "/";
+  const base = basePath(manifest?.base);
   // The Site address already includes the base path, such as https://name.github.io/site/.
   const origin = root.pathname.endsWith(base) ? root.href.slice(0, root.href.length - base.length) : root.origin;
   return `${origin}${base}${href.slice(1)}`;

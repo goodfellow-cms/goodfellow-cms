@@ -293,4 +293,11 @@ describe("the app's copy", () => {
     expect(siteAddress(SITE, { base: "/" }, "/media/a.jpg")).toBe("https://parish.example/media/a.jpg");
     expect(siteAddress(SITE, undefined, "https://other.example/")).toBe("https://other.example/");
   });
+
+  it("keeps a manifest's base path from putting another host in the site's addresses", () => {
+    for (const base of ["@other.example/", "/@other.example", "//other.example/", "/../", "/a b/", "site/"]) {
+      expect(new URL(siteAddress(SITE, { base }, "/about")).host, base).toBe("parish.example");
+      expect(siteAddress(SITE, { base }, "/about"), base).toBe("https://parish.example/about");
+    }
+  });
 });
