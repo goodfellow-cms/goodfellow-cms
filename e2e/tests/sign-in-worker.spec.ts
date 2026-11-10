@@ -75,7 +75,7 @@ async function setup(page: Page, options: { installed?: boolean } = {}) {
 
   // Goodfellow's sign-in worker, the same code Cloudflare runs. Browsers say which page is asking.
   await page.route(
-    (url) => url.href.startsWith(SIGN_IN) || isAuthorize(url) || installSlug(url) !== undefined,
+    (url) => url.origin === SIGN_IN || isAuthorize(url) || installSlug(url) !== undefined,
     async (route) => {
       const request = route.request();
       const body = request.postDataBuffer();
@@ -106,7 +106,7 @@ async function setup(page: Page, options: { installed?: boolean } = {}) {
       for (;;) {
         const next = response.status === 302 ? new URL(response.headers.get("location") ?? "") : undefined;
         if (!next) break;
-        if (next.href.startsWith(SIGN_IN)) {
+        if (next.origin === SIGN_IN) {
           response = keep(await worker.fetch(new Request(next, { headers: cookies ? { cookie: cookies } : {} })));
         } else if (isAuthorize(next)) response = authorize(next);
         else if (installSlug(next)) response = install(next, installSlug(next) ?? "");
