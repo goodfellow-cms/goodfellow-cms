@@ -113,6 +113,15 @@ function escapeHtml(text: string): string {
 }
 
 /**
+ * Escapes markup in text that may already hold character references, such
+ * as `&amp;`, which stay as they are, as marked leaves them in its text, so
+ * they show as the character they name.
+ */
+function escapeText(text: string): string {
+  return text.replace(/&(?!#?\w+;)|[<>"']/g, (character) => escapes[character] ?? character);
+}
+
+/**
  * Lowercase words joined by hyphens, as GitHub makes heading anchors:
  * "Writing blocks" → `writing-blocks`. Ids starting `gf-` are Goodfellow's
  * own, which its scripts look up (`gf-site`, `gf-consent`), so a heading's
@@ -226,11 +235,12 @@ function markdownRenderer(options: MarkdownOptions) {
       html({ text }) {
         return escapeHtml(text);
       },
-      // Marked prints text that follows an inline <pre>, <code>, <kbd> or <script> as it is, taking it as raw HTML
-      // inside one. Those tags are escaped here, so their text is ordinary text, and is escaped too.
+      // Marked prints text that follows an inline <pre>, <code>, <kbd>, or <script> as it is, taking it as raw HTML
+      // inside one. Those tags are escaped here, so their text is ordinary text, and is escaped too, keeping the
+      // character references marked leaves in it.
       text(token) {
         if ("tokens" in token && token.tokens) return false;
-        return "escaped" in token && token.escaped ? escapeHtml(token.text) : false;
+        return "escaped" in token && token.escaped ? escapeText(token.text) : false;
       },
       heading({ tokens, depth }) {
         const id = slug(plainText(tokens));

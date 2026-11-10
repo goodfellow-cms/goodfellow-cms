@@ -188,7 +188,7 @@ export const strings: Strings = {
     "Otra persona ha publicado cambios en algunas de las mismas páginas o ajustes desde que empezó este borrador, así que no se puede publicar tal como está. Descártalo y vuelve a hacer los cambios.",
   "draft.error": "No se pudo publicar el borrador. Comprueba tu conexión e inténtalo de nuevo.",
   "draft.notEditable":
-    "Este borrador cambia el código del sitio, que no se puede publicar desde un borrador. Un desarrollador puede ver esos cambios en el servicio que aloja el sitio.",
+    "Este borrador cambia archivos que el panel de administración no edita, como la configuración del sitio, y eso no se puede publicar desde un borrador. Un desarrollador puede ver esos cambios en el servicio que aloja el sitio.",
   "draft.unsafeMedia":
     "Este borrador tiene un archivo en la biblioteca multimedia que el sitio no puede usar con seguridad. Quítalo del borrador y vuelve a publicar.",
   "draft.submitError": "No se pudo enviar el borrador a revisión. Comprueba tu conexión e inténtalo de nuevo.",

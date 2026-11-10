@@ -82,7 +82,7 @@ describe("markdownToHtml", () => {
   });
 
   it("shows text after an inline tag that marked takes as raw HTML as text too", () => {
-    // Marked prints text after an inline <pre>, <code>, <kbd> or <script> as it is, which would run here.
+    // Marked prints text after an inline <pre>, <code>, <kbd>, or <script> as it is, which would run here.
     for (const tag of ["kbd", "code", "pre", "script"]) {
       for (const markdown of [
         `<${tag}> <img src=x onerror=alert(1)// </${tag}>`,
@@ -104,6 +104,11 @@ describe("markdownToHtml", () => {
     expect(markdownToHtml("<kbd>Ctrl</kbd> & <kbd>C</kbd>")).toBe(
       "<p>&lt;kbd&gt;Ctrl&lt;/kbd&gt; &amp; &lt;kbd&gt;C&lt;/kbd&gt;</p>\n",
     );
+    // Character references in that text name their character, as they do anywhere else, never escaped twice.
+    expect(markdownToHtml("A <kbd>Tom &amp; Jerry</kbd> and 1 &lt; 2")).toBe(
+      "<p>A &lt;kbd&gt;Tom &amp; Jerry&lt;/kbd&gt; and 1 &lt; 2</p>\n",
+    );
+    expect(markdownToHtml("<kbd> &amp;lt;script&amp;gt;")).not.toMatch(/<script/);
   });
 
   it("highlights code with the function given, or shows it plainly", () => {

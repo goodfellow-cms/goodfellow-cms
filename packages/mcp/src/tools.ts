@@ -1221,7 +1221,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       } catch (error) {
         if (error instanceof DraftError && error.problem === "not-editable") {
           throw new ToolError(
-            `This draft changes files outside the site's content and media, which can't be published from a draft: ${error.paths.join(", ")}. A developer can review them on the site's host.`,
+            `This draft changes files the admin panel never edits, which can't be published from a draft: ${error.paths.join(", ")}. A developer can review them on the site's host.`,
           );
         }
         if (error instanceof ConflictError) {

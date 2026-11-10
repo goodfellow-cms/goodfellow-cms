@@ -191,7 +191,7 @@ export const defaultStrings = {
     "Someone else has published changes to some of the same pages or settings since this draft started, so it can't be published as it is. Throw it away and make the changes again.",
   "draft.error": "The draft couldn't be published. Check your connection and try again.",
   "draft.notEditable":
-    "This draft changes the site's code, which can't be published from a draft. A developer can look at those changes on the site's host.",
+    "This draft changes files the admin panel doesn't edit, such as the site's configuration, which can't be published from a draft. A developer can look at those changes on the site's host.",
   "draft.unsafeMedia":
     "This draft has a file in the media library that the site can't use safely. Take it out of the draft, then publish again.",
   "draft.submitError": "The draft couldn't be submitted for review. Check your connection and try again.",
