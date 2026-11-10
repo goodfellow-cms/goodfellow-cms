@@ -98,6 +98,13 @@ describe("describedTask", () => {
     expect(
       describedTask(description({ permissions: { secrets: ["STORAGE_KEY", "S3_SECRET"] } }), request, record),
     ).toMatch(/more than its owner approved: secrets "S3_SECRET"/);
+    // Its task runs only from its package, never a file of the site's, which a plugin of the site's own may use.
+    expect(describedTask(description({}, { module: "./plugins/storage/sign.mjs" }), request, record)).toMatch(
+      /isn't in its own package/,
+    );
+    expect(
+      typeof describedTask(description({}, { module: "./plugins/storage/sign.mjs" }), request, NO_INSTALLED_PLUGINS),
+    ).toBe("object");
     expect(
       describedTask(description({}, { id: "delete" }), { plugin: "goodfellow-plugin-storage", task: "delete" }, record),
     ).toMatch(/the task "delete"/);
@@ -196,7 +203,7 @@ describe("plugins' tasks in two parts", { timeout: NODE_TIMEOUT }, () => {
     const sealed = await runDescribedTask({
       root,
       request: { id: "abcdef123456", ...request, input: "{}", key: publicKey },
-      description: description({}, { module: "./plugins/storage/sign.mjs" }),
+      description: description(),
       secrets: { STORAGE_KEY: "hush" },
       out: "goodfellow-task-result.json",
     });
