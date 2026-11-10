@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isCleanSvg, unsafeMediaChanges } from "./svg-check.js";
+import { cssWithoutOutsideAddresses } from "./svg-rules.js";
 
 const svg = (body: string, attributes = "") =>
   `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"${attributes}>${body}</svg>`;
@@ -28,6 +29,8 @@ describe("whether an SVG is clean", () => {
       '<use href="/\\tracker.example/a.svg#x"/>',
       '<rect fill="URL(https://tracker.example/b.svg#p)"/>',
       '<style>@import "https://tracker.example/c.css";</style>',
+      '<style>@im@import;port "https://tracker.example/c.css";</style>',
+      "<style>.a{background:url(https://tracker.example/e.png</style>",
       "<style>.a{background:\\75 rl(https://tracker.example/d.png)}</style>",
       '<animate attributeName="href" to="javascript:alert(1)"/>',
       "<!-- a comment -->",
@@ -59,4 +62,21 @@ describe("media changes a server refuses", () => {
       ]),
     ).toEqual(["public/media/page.html", "public/media/a.Svg"]);
   });
+});
+
+describe("cssWithoutOutsideAddresses", () => {
+  it("goes on until what it takes out can't join into more, and leaves out CSS it can't finish cleaning", () => {
+    expect(cssWithoutOutsideAddresses('@im@import "a.css";port "https://tracker.example/c.css";.a{fill:red}')).toBe(
+      ".a{fill:red}",
+    );
+    expect(cssWithoutOutsideAddresses("ur@import x;l(https://tracker.example/a.png)")).toBe("none");
+    expect(cssWithoutOutsideAddresses(".a{background:url(https://tracker.example/a.png")).toBe(undefined);
+    expect(cssWithoutOutsideAddresses(".a{fill:url(#g)}.b{background:url(https://tracker.example/b.png)}")).toBe(
+      ".a{fill:url(#g)}.b{background:none}",
+    );
+  });
+});
+
+it("leaves out CSS that would need cleaning again and again", () => {
+  expect(cssWithoutOutsideAddresses(`${"@im".repeat(8)}@import;${"port;".repeat(8)}.a{fill:red}`)).toBe(undefined);
 });
