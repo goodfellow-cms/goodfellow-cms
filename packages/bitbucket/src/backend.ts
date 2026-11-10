@@ -197,13 +197,15 @@ export class BitbucketBackend implements GitBackend {
       if (!response.ok) return undefined;
       return ((await response.json()) as { target: { hash: string } }).target.hash;
     };
+    // Pull requests from forks can use a draft's branch name too, so only the repository's own are drafts' reviews.
+    const own = (request: { source?: { repository?: { full_name?: string } } }) =>
+      request.source?.repository?.full_name?.toLowerCase() === this.repo.toLowerCase();
     const openRequests = async (branch: string) => {
       const query = new URLSearchParams({ q: `source.branch.name = ${quoted(branch)} AND state = "OPEN"` });
-      const open = await bitbucketJson<Paged<{ id: number; links: { html: { href: string } } }>>(
-        this.api,
-        this.path(`/pullrequests?${query}`),
-      );
-      return open.values;
+      const open = await bitbucketJson<
+        Paged<{ id: number; links: { html: { href: string } }; source?: { repository?: { full_name?: string } } }>
+      >(this.api, this.path(`/pullrequests?${query}`));
+      return open.values.filter(own);
     };
     /** Reviewers as Bitbucket names them, by account id, from the workspace's members; people it doesn't have are left out. */
     const reviewerAccounts = async (nicknames: readonly string[]) => {
@@ -284,11 +286,11 @@ export class BitbucketBackend implements GitBackend {
         });
         const open = await allPages<{
           title: string;
-          source: { branch: { name: string } };
+          source: { branch: { name: string }; repository?: { full_name?: string } };
           links: { html: { href: string } };
         }>(this.api, this.path(`/pullrequests?${query}`), 5);
         return open
-          .filter((request) => request.source.branch.name.startsWith(prefix))
+          .filter((request) => own(request) && request.source.branch.name.startsWith(prefix))
           .map((request) => ({
             branch: request.source.branch.name,
             url: request.links.html.href,

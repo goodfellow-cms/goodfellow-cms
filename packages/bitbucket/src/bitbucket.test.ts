@@ -444,8 +444,22 @@ describe("drafts", () => {
     expect(await drafts.reviews()).toEqual([
       { name: "20261014-abc123", url: "https://bitbucket.org/parish/site/pull-requests/1", title: "New About page" },
     ]);
+    // A pull request from a fork with the same branch name is someone else's: never listed, and never declined.
+    const forked = {
+      number: context.fake.repo.reviews.length + 1,
+      branch: "goodfellow-draft-20261014-abc123",
+      target: "main",
+      title: "From a fork",
+      description: "",
+      state: "open" as const,
+      reviewers: [],
+      fork: "someone/site",
+    };
+    context.fake.repo.reviews.push(forked);
+    expect(await drafts.reviews()).toHaveLength(1);
     await draft.discard();
     expect(context.fake.repo.reviews[0]?.state).toBe("closed");
+    expect(forked.state).toBe("open");
   });
 
   it("discards a draft, and refuses names it has already", async () => {

@@ -464,7 +464,8 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
         found.map((review) => ({
           id: review.number,
           title: review.title,
-          source: { branch: { name: review.branch } },
+          source: { branch: { name: review.branch }, repository: { full_name: review.fork ?? name } },
+          destination: { repository: { full_name: name } },
           links: { html: { href: `${web}/${name}/pull-requests/${review.number}` } },
         })),
       );

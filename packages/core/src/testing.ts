@@ -116,6 +116,8 @@ export interface FakeReview {
   state: "open" | "merged" | "closed";
   /** Who was asked to review it, by sign-in name. */
   reviewers: string[];
+  /** The repository it comes from, where that's a fork. */
+  fork?: string;
 }
 
 export class FakeRepo {
