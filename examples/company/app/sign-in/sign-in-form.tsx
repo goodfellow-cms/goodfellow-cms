@@ -31,6 +31,8 @@ export function SignInForm() {
         email: String(form.get("email")),
         password: String(form.get("password")),
       });
+      if (error?.status === 429)
+        return setProblem("That's too many tries for now. Wait a few minutes, then try again.");
       if (error) return setProblem("That email address and password don't match an account here.");
       location.assign(nextPath());
     } catch {

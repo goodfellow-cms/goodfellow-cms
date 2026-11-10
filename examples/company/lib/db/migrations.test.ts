@@ -7,17 +7,22 @@ import { getMigrations } from "better-auth/db/migration";
 import { Kysely } from "kysely";
 import pg from "pg";
 import { describe, expect, it } from "vitest";
-import { authOptions, authorizeWith } from "../auth.ts";
+import { authOptions, authorizeWith, SIGN_IN_LIMIT, signedInWith } from "../auth.ts";
 import type { SiteEnv } from "../env.ts";
+import { signOutRequest } from "../sign-out.ts";
 import { dialectFor } from "./dialect.ts";
 import { migratePostgres } from "./migrate.ts";
 import { migrationFiles, migrationNames } from "./migrations-sql.ts";
+import { addAdmin, d1AdminSql } from "./new-admin.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
+const SITE = "http://localhost:4321";
 const SITE_ENV: SiteEnv = {
   BETTER_AUTH_SECRET: "a-secret-for-tests-only-at-least-32-chars",
-  GOODFELLOW_SITE_URL: "http://localhost:4321",
+  GOODFELLOW_SITE_URL: SITE,
+  CLIENT_IP_HEADER: "cf-connecting-ip",
 };
+const PASSWORD = "correct horse battery staple";
 
 /** A database with every migration, and what closes it. */
 interface Migrated {
@@ -73,6 +78,44 @@ async function withDatabase(open: () => Promise<Migrated>, test: (database: Migr
   }
 }
 
+/** The `cookie` header a browser would send after an answer: each cookie's last value, without those it cleared. */
+function cookiesOf(response: Response): string {
+  const cookies = new Map<string, string>();
+  for (const cookie of response.headers.getSetCookie()) {
+    const [pair = ""] = cookie.split(";");
+    const name = pair.slice(0, pair.indexOf("="));
+    if (/;\s*Max-Age=0/i.test(cookie)) cookies.delete(name);
+    else cookies.set(name, pair);
+  }
+  return [...cookies.values()].join("; ");
+}
+
+/** The site's sign-in on `database`, with ways to add people and to sign them in. */
+async function site(database: Migrated["database"]) {
+  const auth = betterAuth(authOptions(database, SITE_ENV));
+  const context = await auth.$context;
+  /** Adds someone as an admin invites them, giving their id. */
+  const person = async (email: string, role: string) => {
+    const user = await context.internalAdapter.createUser(
+      { email, name: email.split("@")[0], emailVerified: true, role },
+      { method: "admin" },
+    );
+    await context.internalAdapter.linkAccount({
+      userId: user.id,
+      providerId: "credential",
+      accountId: user.id,
+      password: await context.password.hash(PASSWORD),
+    });
+    return user.id;
+  };
+  /** A request from someone who has just signed in. */
+  const signedIn = async (email: string) => {
+    const response = await auth.api.signInEmail({ body: { email, password: PASSWORD }, asResponse: true });
+    return new Request(`${SITE}/api/goodfellow/session/`, { headers: { cookie: cookiesOf(response) } });
+  };
+  return { auth, person, signedIn };
+}
+
 describe("the database's migrations", () => {
   it("match their SQL files, which `npm run migrations` writes", async () => {
     for (const type of ["sqlite", "postgres"] as const) {
@@ -112,35 +155,10 @@ describe.each(DATABASES)("the migrated database, on %s", (_, open) => {
 
   it("lets editors sign in, and tells Goodfellow who they are", () =>
     withDatabase(open, async (database) => {
-      const auth = betterAuth(authOptions(database, SITE_ENV));
-      const context = await auth.$context;
-      const person = async (email: string, role: string) => {
-        // As an admin invites them.
-        const user = await context.internalAdapter.createUser(
-          { email, name: email.split("@")[0], emailVerified: true, role },
-          { method: "admin" },
-        );
-        await context.internalAdapter.linkAccount({
-          userId: user.id,
-          providerId: "credential",
-          accountId: user.id,
-          password: await context.password.hash("correct horse battery staple"),
-        });
-      };
+      const { auth, person, signedIn } = await site(database);
       await person("olive@example.org", "admin");
       await person("eddie@example.org", "editor");
       await person("vic@example.org", "visitor");
-      const signedIn = async (email: string) => {
-        const response = await auth.api.signInEmail({
-          body: { email, password: "correct horse battery staple" },
-          asResponse: true,
-        });
-        const cookie = response.headers
-          .getSetCookie()
-          .map((value) => value.split(";")[0])
-          .join("; ");
-        return new Request("http://localhost:4321/api/goodfellow/session/", { headers: { cookie } });
-      };
       expect(await authorizeWith(auth, await signedIn("olive@example.org"))).toMatchObject({ role: "owner" });
       expect(await authorizeWith(auth, await signedIn("eddie@example.org"))).toEqual({
         login: "eddie@example.org",
@@ -150,8 +168,119 @@ describe.each(DATABASES)("the migrated database, on %s", (_, open) => {
       });
       // Signed in, but not someone who edits the site.
       expect(await authorizeWith(auth, await signedIn("vic@example.org"))).toBe(false);
-      expect(await authorizeWith(auth, new Request("http://localhost:4321/api/goodfellow/session/"))).toBeNull();
+      expect(await authorizeWith(auth, new Request(`${SITE}/api/goodfellow/session/`))).toBeNull();
     }));
+
+  it("limits how often one address can try to sign in, in every copy of the site", () =>
+    withDatabase(open, async (database) => {
+      const { person } = await site(database);
+      await person("olive@example.org", "admin");
+      // A copy of the site of its own, as each Worker is, sharing only the database.
+      const attempt = async (address: string) =>
+        (
+          await betterAuth(authOptions(database, SITE_ENV)).handler(
+            new Request(`${SITE}/api/auth/sign-in/email/`, {
+              method: "POST",
+              headers: { "content-type": "application/json", origin: SITE, "cf-connecting-ip": address },
+              body: JSON.stringify({ email: "olive@example.org", password: "a guess" }),
+            }),
+          )
+        ).status;
+      for (let tried = 0; tried < SIGN_IN_LIMIT.max; tried++) expect(await attempt("192.0.2.1")).toBe(401);
+      expect(await attempt("192.0.2.1")).toBe(429);
+      expect(await attempt("192.0.2.2")).toBe(401);
+    }));
+
+  it("lets nobody edit while an admin acts as someone else", () =>
+    withDatabase(open, async (database) => {
+      const { auth, person, signedIn } = await site(database);
+      await person("olive@example.org", "admin");
+      const eddie = await person("eddie@example.org", "editor");
+      const olive = await signedIn("olive@example.org");
+      const acting = await auth.api.impersonateUser({
+        body: { userId: eddie },
+        headers: olive.headers,
+        asResponse: true,
+      });
+      const request = new Request(`${SITE}/api/goodfellow/session/`, { headers: { cookie: cookiesOf(acting) } });
+      expect(await auth.api.getSession({ headers: request.headers })).toMatchObject({ user: { id: eddie } });
+      expect(await authorizeWith(auth, request)).toBe(false);
+    }));
+
+  it("lets only people whose session is checked see members' pages", () =>
+    withDatabase(open, async (database) => {
+      const { auth, person, signedIn } = await site(database);
+      await person("eddie@example.org", "editor");
+      expect((await signedInWith(auth, await signedIn("eddie@example.org"))).signedIn).toBe(true);
+      const madeUp = new Request(`${SITE}/members/`, {
+        headers: { cookie: "better-auth.session_token=made-up.c2lnbmF0dXJl" },
+      });
+      expect((await signedInWith(auth, madeUp)).signedIn).toBe(false);
+      expect((await signedInWith(auth, new Request(`${SITE}/members/`))).signedIn).toBe(false);
+    }));
+
+  it("signs out only for the site's own pages", () =>
+    withDatabase(open, async (database) => {
+      const { auth, person, signedIn } = await site(database);
+      await person("eddie@example.org", "editor");
+      const cookie = (await signedIn("eddie@example.org")).headers.get("cookie") ?? "";
+      const request = (method: string, from: string) =>
+        new Request(`${SITE}/sign-out/`, { method, headers: { cookie, "sec-fetch-site": from } });
+      const elsewhere = await signOutRequest(auth, request("GET", "cross-site"));
+      expect(elsewhere.status).toBe(200);
+      expect(await elsewhere.text()).toContain('<form method="post" action="/sign-out/">');
+      expect((await signOutRequest(auth, request("POST", "cross-site"))).status).toBe(403);
+      const session = () =>
+        auth.api.getSession({ headers: new Headers({ cookie }), query: { disableCookieCache: true } });
+      expect(await session()).not.toBeNull();
+      const signedOut = await signOutRequest(auth, request("POST", "same-origin"));
+      expect(signedOut.status).toBe(303);
+      expect(signedOut.headers.get("location")).toBe("/");
+      expect(await session()).toBeNull();
+    }));
+
+  it("makes an admin, who can then sign in as an owner", () =>
+    withDatabase(open, async (database) => {
+      const { auth, signedIn } = await site(database);
+      await addAdmin(database, { email: "Olive@example.org", name: " Olive Owner ", password: PASSWORD });
+      expect(await authorizeWith(auth, await signedIn("olive@example.org"))).toMatchObject({
+        name: "Olive Owner",
+        role: "owner",
+      });
+      await expect(
+        addAdmin(database, { email: "olive@example.org", name: "Again", password: PASSWORD }),
+      ).rejects.toThrow(/already has an account/);
+      await expect(addAdmin(database, { email: "x@example.org", name: "X", password: "short" })).rejects.toThrow(
+        /at least 12 characters/,
+      );
+    }));
+});
+
+describe("the site's sign-in", () => {
+  it("won't start without a secret of its own", async () => {
+    const { database, close } = await migratedSqlite();
+    try {
+      for (const secret of [undefined, "", "too short"]) {
+        expect(() => authOptions(database, { ...SITE_ENV, BETTER_AUTH_SECRET: secret })).toThrow(/BETTER_AUTH_SECRET/);
+      }
+    } finally {
+      await close();
+    }
+  });
+
+  it("makes an admin in D1 with the SQL wrangler runs", async () => {
+    const sql = await d1AdminSql({ email: "olive@example.org", name: "Olive Owner", password: PASSWORD });
+    // The password itself is never in it, only Better Auth's hash.
+    expect(sql).not.toContain(PASSWORD);
+    const { database, close } = await migratedSqlite();
+    try {
+      (database as DatabaseSync).exec(sql);
+      const { auth, signedIn } = await site(database);
+      expect(await authorizeWith(auth, await signedIn("olive@example.org"))).toMatchObject({ role: "owner" });
+    } finally {
+      await close();
+    }
+  });
 });
 
 describe("dialectFor", () => {
