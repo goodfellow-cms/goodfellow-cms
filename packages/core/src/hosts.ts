@@ -88,6 +88,8 @@ export interface RemoteTextOptions {
   fetch?: RemoteFetch;
   /** How long to wait for an answer, in milliseconds. */
   timeout?: number;
+  /** A host the person chose themselves, such as the site being imported, which may be on their network. */
+  trusted?: string;
 }
 
 const MAX_REDIRECTS = 5;
@@ -136,8 +138,6 @@ export async function readRemoteText(address: string, options: RemoteTextOptions
 
 export interface RemoteBytesOptions extends Omit<RemoteTextOptions, "accept"> {
   accept?: string;
-  /** A host the person chose themselves, such as the site being imported, which may be on their network. */
-  trusted?: string;
 }
 
 /** Another site's file as bytes, by `readRemoteText()`'s rules, apart from a host the person chose (`trusted`). */
@@ -159,7 +159,7 @@ export async function readRemoteBytes(address: string, options: RemoteBytesOptio
 /** The answer to `address`, following redirects that `remoteUrl()` allows, once it says it isn't too large. */
 async function remoteResponse(
   address: string,
-  options: RemoteTextOptions & { trusted?: string },
+  options: RemoteTextOptions,
 ): Promise<RemoteResponse> {
   const fetcher = options.fetch ?? (globalThis as unknown as { fetch: RemoteFetch }).fetch;
   const timeout = (globalThis as unknown as { AbortSignal: { timeout(ms: number): unknown } }).AbortSignal.timeout(
