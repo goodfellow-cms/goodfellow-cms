@@ -57,6 +57,7 @@ import {
   withSchedule,
   writeChanges,
 } from "@goodfellow-cms/core";
+import { unsafeMediaChanges } from "@goodfellow-cms/core/server";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ComponentConfig, Config, Content, Data, Fields } from "@puckeditor/core";
@@ -366,10 +367,9 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
    * (`content/permissions.json`), in words, or none where they have no limits.
    * Only the files the changes touch are read.
    */
-  async function outsideTheirLimits(site: OpenedSite, draft: Draft): Promise<string[]> {
+  async function outsideTheirLimits(site: OpenedSite, changes: FileChange[]): Promise<string[]> {
     const limits = limitsFor(await readPermissions(site.backend), site.backend.user.login);
     if (!limits) return [];
-    const changes = await draft.changes();
     return outsideLimits(await limitsContent(site.backend, changes), limits, changes).map((problem) =>
       problem.kind === "page" ? `the page ${problem.address}` : problem.path,
     );
@@ -1202,15 +1202,28 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
           `Publishing this draft would break the site: ${problems.blocking.slice(0, 10).map(formatSiteProblem).join(" ")} Fix it in the draft, then publish again.`,
         );
       }
-      const outside = await outsideTheirLimits(site, draft);
+      const changes = await draft.changes();
+      const outside = await outsideTheirLimits(site, changes);
       if (outside.length > 0) {
         throw new ToolError(
           `An owner has limited what you can change on this site, and this draft changes things outside it: ${outside.join(", ")}. Submit it for review instead (submit_for_review), and a reviewer publishes it.`,
         );
       }
+      // Files in a draft may never have been through save_media's checks, if someone saved them to its branch.
+      const unsafe = unsafeMediaChanges(changes);
+      if (unsafe.length > 0) {
+        throw new ToolError(
+          `This draft has files in the media library that the site can't use safely: ${unsafe.join(", ")}. Take them out of the draft, then publish again.`,
+        );
+      }
       try {
-        await draft.publish(message);
+        await draft.publish(message, { changes });
       } catch (error) {
+        if (error instanceof DraftError && error.problem === "not-editable") {
+          throw new ToolError(
+            `This draft changes files the admin panel never edits, which can't be published from a draft: ${error.paths.join(", ")}. A developer can review them on the site's host.`,
+          );
+        }
         if (error instanceof ConflictError) {
           throw new ToolError(
             "Someone published changes to the same pages since this draft started, so publishing it would undo theirs. The draft is still there: read the pages again from the live site, make the changes again in a new draft, then publish that.",

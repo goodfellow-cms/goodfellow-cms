@@ -314,6 +314,44 @@ describe("appApi", () => {
     expect(late.status).toBe(409);
   });
 
+  it("publishes only on top of the live branch, whatever revision the browser names", async () => {
+    // As GitHub does: a commit that follows on from the branch moves it, so a parent ahead of it, such as a commit
+    // waiting for review, would be published with the save.
+    const repo = new FakeRepo(FILES);
+    const server = fakeServerGit(repo);
+    const opened: string[] = [];
+    const api = appApi({
+      git: {
+        revision: server.git.revision,
+        at: async (revision, author) => {
+          opened.push(revision);
+          const backend = await server.git.at(revision, author);
+          return { ...backend, write: async () => ({ revision: "f".repeat(40) }) };
+        },
+      },
+      authorize: () => ALICE,
+      signIn: "/sign-in",
+      signOut: "/sign-out",
+      onError: () => {},
+    });
+    const ahead = "a".repeat(40);
+    const response = await api(
+      new Request("https://parish.example/api/goodfellow/write", {
+        method: "POST",
+        headers: { [APP_API_HEADER]: "1", "sec-fetch-site": "same-origin", "content-type": "application/json" },
+        body: JSON.stringify({
+          changes: [{ path: "content/pages/about.json", content: "{}" }],
+          message: "About",
+          expectedRevision: ahead,
+        }),
+      }),
+      "write",
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "conflict" });
+    expect(opened).not.toContain(ahead);
+  });
+
   it("lets only owners change settings, whatever the browser sends", async () => {
     const { call, post, signIn } = setup();
     const { revision } = (await (await call("revision")).json()) as { revision: string };

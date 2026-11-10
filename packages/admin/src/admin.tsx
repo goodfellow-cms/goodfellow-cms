@@ -5,6 +5,7 @@ import {
   COLLECTIONS_DIR,
   ContentError,
   type ContentStore,
+  DraftError,
   FOOTER_FILE,
   type GitHost,
   HEADER_FILE,
@@ -64,6 +65,7 @@ import { setDarkMode, useApplyThemeChoice, useDarkMode } from "./theme.js";
 import { ThemesScreen } from "./themes-screen.js";
 import { Button, Dialog, ErrorMessage } from "./ui.js";
 import { UpdatesScreen } from "./updates-screen.js";
+import { UploadError } from "./upload.js";
 import { AppLink } from "./use-link.js";
 import { VersionsScreen } from "./versions-screen.js";
 
@@ -355,7 +357,16 @@ function DraftBanner() {
       const result = await drafts.publishAll();
       if (result.ok) setNotice({ type: "published" });
       else if (result.reason !== "checks") {
-        const message = result.reason === "conflict" ? (kept ? "draft.conflictKept" : "draft.conflict") : "draft.error";
+        const message =
+          result.reason === "conflict"
+            ? kept
+              ? "draft.conflictKept"
+              : "draft.conflict"
+            : result.error instanceof DraftError && result.error.problem === "not-editable"
+              ? "draft.notEditable"
+              : result.error instanceof UploadError
+                ? "draft.unsafeMedia"
+                : "draft.error";
         setNotice({ type: "error", message, error: result.error });
       }
     });

@@ -875,12 +875,14 @@ export {
   registrarName,
 } from "./domains.js";
 export {
+  assertEditableDraft,
   branchDrafts,
   DRAFT_BRANCH_PREFIX,
   type Draft,
   DraftError,
   type DraftHost,
   type DraftProblem,
+  type DraftPublishOptions,
   type DraftReview,
   isDraftName,
   newDraftName,

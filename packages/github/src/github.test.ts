@@ -1,6 +1,7 @@
 import {
   CodeChangeError,
   ConflictError,
+  DraftError,
   type GitBackend,
   loadSiteContent,
   SignInError,
@@ -654,6 +655,43 @@ describe("drafts", () => {
     expect(fake.repo.branches.has("goodfellow-draft-20261014-abc123")).toBe(true);
   });
 
+  it("takes only commits' ids as revisions, which go into GitHub's addresses", async () => {
+    const { backend } = await signedIn();
+    const revision = await backend.revision();
+    for (const bad of ["../../../user", `${revision}?recursive=0`, "main", ""]) {
+      await expect(backend.readAt("content/site.json", bad)).rejects.toMatchObject({ status: 400 });
+      await expect(backend.changedPaths(bad, revision)).rejects.toMatchObject({ status: 400 });
+      await expect(backend.deployStatus(bad)).rejects.toMatchObject({ status: 400 });
+    }
+    expect(await backend.changedPaths(revision, revision)).toEqual([]);
+  });
+
+  it("publishes nothing from a draft that changes files outside the editable folders", async () => {
+    const { fake, draft } = await withDraft();
+    // Saved to the draft's branch some other way than through Goodfellow, by someone who can't publish.
+    fake.repo.commit([{ path: "package.json", content: '{"name":"evil"}' }], "Add a package", {
+      branch: "goodfellow-draft-20261014-abc123",
+    });
+    const refused = draft.publish("Publish all");
+    await expect(refused).rejects.toBeInstanceOf(DraftError);
+    await expect(refused).rejects.toMatchObject({ problem: "not-editable", paths: ["package.json"] });
+    expect(fake.repo.files().has("package.json")).toBe(false);
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(FILES["content/pages/about.json"]);
+    expect(fake.repo.branches.has("goodfellow-draft-20261014-abc123")).toBe(true);
+  });
+
+  it("publishes exactly the changes it's given, where they're the draft's files", async () => {
+    const { fake, draft } = await withDraft();
+    const changes = await draft.changes();
+    await expect(draft.publish("Publish all", { changes: changes.slice(1) })).rejects.toBeInstanceOf(ConflictError);
+    const checked = changes.map((change) =>
+      change.path === "content/pages/new.json" ? { path: change.path, content: about("Checked") } : change,
+    );
+    await draft.publish("Publish all", { changes: checked });
+    expect(fake.repo.files().get("content/pages/new.json")).toBe(about("Checked"));
+    expect(fake.repo.files().get("content/pages/about.json")).toBe(about("About us"));
+  });
+
   it("lists every draft and every one waiting for review, past the first page of pull requests", async () => {
     const { fake, drafts } = await withDraft();
     const names = Array.from({ length: 120 }, (_, n) => `20261020-x${String(n).padStart(5, "0")}`);
@@ -818,6 +856,38 @@ describe("on a full-stack site's server", () => {
     await expect(
       stale.write([{ path: "content/site.json", content: "{}" }], { message: "Late", expectedRevision: revision }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("refuses to save where the branch was reset to an older commit while it saved", async () => {
+    const fake = fakeGitHub({ repo: "parish/site", files: FILES });
+    const start = fake.repo.head();
+    fake.commit([{ path: "content/site.json", content: '{"version":1,"title":"Leaked"}' }], "Taken out again");
+    let reset = false;
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      const request = new Request(input, init);
+      // The reset lands just before the branch is moved, after the head was checked.
+      const moving =
+        (request.method === "PATCH" && new URL(request.url).pathname.endsWith("/git/refs/heads/main")) ||
+        (new URL(request.url).pathname.endsWith("/graphql") && (await request.clone().text()).includes("updateRefs("));
+      if (!reset && moving) {
+        reset = true;
+        fake.repo.branches.set("main", start);
+      }
+      return fake.fetch(request);
+    };
+    const git = github({ repo: "parish/site", fetch }).server?.({ token: "test-token" });
+    if (!git) throw new Error("github() has no server access");
+    const revision = await git.revision();
+    const backend = await git.at(revision, ALICE);
+    await expect(
+      backend.write([{ path: "content/pages/about.json", content: "{}" }], {
+        message: "Update",
+        expectedRevision: revision,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(reset).toBe(true);
+    expect(fake.repo.head()).toBe(start);
+    expect(fake.repo.files().get("content/site.json")).toBe(FILES["content/site.json"]);
   });
 
   it("asks a token function for the token on each request", async () => {

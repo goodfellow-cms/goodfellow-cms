@@ -463,6 +463,31 @@ describe("changing a site", () => {
     expect(result.text).toContain("would undo theirs");
   });
 
+  it("refuses to publish what someone saved to a draft without its checks", async () => {
+    const { call, fake } = await connect();
+    const { draft } = (await call("save_page", { address: "/about", blocks: [heading("Mine")] })).json();
+    const branch = `goodfellow-draft-${draft}`;
+    fake.repo.commit([{ path: "public/media/page.html", content: "<script></script>" }], "Add", { branch });
+    const media = await call("publish", { draft, message: "Mine" });
+    expect(media.isError).toBe(true);
+    expect(media.text).toContain("public/media/page.html");
+    fake.repo.commit(
+      [
+        { path: "public/media/page.html", delete: true },
+        { path: "package.json", content: "{}" },
+      ],
+      "Add",
+      {
+        branch,
+      },
+    );
+    const code = await call("publish", { draft, message: "Mine" });
+    expect(code.isError).toBe(true);
+    expect(code.text).toContain("package.json");
+    expect(fake.repo.files().has("package.json")).toBe(false);
+    expect((await call("get_page", { address: "/about" })).text).toContain("About us");
+  });
+
   it("only submits for review on sites whose config turns publishing off", async () => {
     const { call } = await connect({ description: describeSite({ blocks, claude: { publish: false } }) });
     expect((await call("get_site")).json().cantPublish).toContain("turned off publishing");

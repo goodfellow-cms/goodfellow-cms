@@ -94,7 +94,27 @@ export function setup(
     }
     return fake.fetch(input, init);
   };
-  const worker = createWorker({ fetch, now: () => clock });
+  const inner = createWorker({ fetch, now: () => clock });
+  // One browser, which keeps the cookie the worker ties sign-ins to, as browsers do, and sends it back with each
+  // request, beside any cookie a test sends itself. `newBrowser()` forgets it, as another browser would lack it.
+  const jar = new Map<string, string>();
+  const worker: typeof inner = {
+    ...inner,
+    async fetch(request, workerEnv) {
+      const headers = new Headers(request.headers);
+      const own = headers.get("cookie") ?? "";
+      const sent = new Set(own.split(";").map((cookie) => cookie.trim().split("=")[0]));
+      const kept = [...jar].filter(([name]) => !sent.has(name)).map(([name, value]) => `${name}=${value}`);
+      if (kept.length > 0) headers.set("cookie", [own, ...kept].filter(Boolean).join("; "));
+      const response = await inner.fetch(new Request(request, { headers }), workerEnv);
+      for (const set of response.headers.getSetCookie()) {
+        const [pair = ""] = set.split(";");
+        const [name = "", value = ""] = pair.split("=");
+        if (name === "__Host-goodfellow_state") jar.set(name, value);
+      }
+      return response;
+    },
+  };
   const env = { ...baseEnv, ...options.env };
   const call = (path: string, init: RequestInit & { origin?: string } = {}) =>
     worker.fetch(
@@ -166,5 +186,6 @@ export function setup(
     tick: (ms: number) => {
       clock += ms;
     },
+    newBrowser: () => jar.clear(),
   };
 }

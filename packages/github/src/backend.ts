@@ -110,6 +110,11 @@ const COMMIT_MUTATION = `mutation ($input: CreateCommitOnBranchInput!) {
   createCommitOnBranch(input: $input) { commit { oid } }
 }`;
 
+/** Moves a branch only where it's still at the commit given as `beforeOid`, as REST's ref update can't. */
+const UPDATE_REFS_MUTATION = `mutation ($input: UpdateRefsInput!) {
+  updateRefs(input: $input) { clientMutationId }
+}`;
+
 export interface GitHubBackendOptions {
   api: ApiOptions;
   repo: string;
@@ -147,6 +152,18 @@ function listFrom(tree: Map<string, string>, dir: string): string[] {
   return [...tree.keys()].filter((path) => path.startsWith(prefix)).sort();
 }
 
+const COMMIT_ID = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+
+/**
+ * A revision as it goes into GitHub's addresses: a commit's id, SHA-1 or
+ * SHA-256, since revisions can come from a browser, and anything else could
+ * reach another of GitHub's paths.
+ */
+function commitId(revision: string): string {
+  if (typeof revision !== "string" || !COMMIT_ID.test(revision)) throw new GitApiError(400, "That isn't a commit.");
+  return revision;
+}
+
 /**
  * The site's files on GitHub. Reads come from the commit `revision()` last
  * returned; saves are single commits made with GraphQL's `createCommitOnBranch`,
@@ -172,6 +189,7 @@ export class GitHubBackend implements GitBackend {
   private readonly author?: { name: string; email: string };
   private readonly owner: ReturnType<typeof githubOwnerAccess>;
   private pinned?: string;
+  private repositoryNode?: Promise<string>;
   private readonly trees = new Map<string, Promise<Map<string, string>>>();
   /** Each file's size in bytes at a commit, which GitHub lists with its tree. */
   private readonly treeSizes = new Map<string, Map<string, number>>();
@@ -242,7 +260,7 @@ export class GitHubBackend implements GitBackend {
       createBranch: async (branch, revision) => {
         const response = await githubRequest(this.api, `${base}/git/refs`, {
           method: "POST",
-          body: { ref: `refs/heads/${branch}`, sha: revision },
+          body: { ref: `refs/heads/${branch}`, sha: commitId(revision) },
           allow: [422],
         });
         if (response.status === 422) {
@@ -333,6 +351,21 @@ export class GitHubBackend implements GitBackend {
     return this.pinned;
   }
 
+  /** The repository's GraphQL id, which ref updates name it by. Kept once it's read. */
+  private repositoryId(): Promise<string> {
+    if (!this.repositoryNode) {
+      const node = githubJson<{ node_id: string }>(this.api, `/repos/${this.repo}`).then(
+        (repository) => repository.node_id,
+      );
+      // Asked again next time where it couldn't be read.
+      node.catch(() => {
+        if (this.repositoryNode === node) this.repositoryNode = undefined;
+      });
+      this.repositoryNode = node;
+    }
+    return this.repositoryNode;
+  }
+
   /** The branch's latest commit, without moving the revision reads are pinned to. */
   private async head(): Promise<string> {
     const ref = await githubJson<{ object: { sha: string } }>(
@@ -344,6 +377,7 @@ export class GitHubBackend implements GitBackend {
 
   /** Path → blob id for every file at a commit. Commits never change, so this is cached. */
   private tree(sha: string): Promise<Map<string, string>> {
+    commitId(sha);
     let tree = this.trees.get(sha);
     if (!tree) {
       tree = githubJson<TreeResponse>(this.api, `/repos/${this.repo}/git/trees/${sha}?recursive=1`).then((response) => {
@@ -472,15 +506,18 @@ export class GitHubBackend implements GitBackend {
   }
 
   /**
-   * Saves with Git's data API, naming the editor as the commit's author:
-   * GitHub refuses to move the branch unless the commit follows on from it, so
-   * nothing is overwritten.
+   * Saves with Git's data API, naming the editor as the commit's author, and
+   * moves the branch only from the commit the editor started from, so nothing
+   * is overwritten or brought back.
    */
   private async writeCommit(
     changes: FileChange[],
     { message, expectedRevision }: WriteOptions,
     author: { name: string; email: string },
   ): Promise<{ revision: string }> {
+    // GitHub moves the branch to any commit that follows on from it, so a parent ahead of the branch, such as a
+    // commit waiting for review, would be published along with these changes.
+    if ((await this.head()) !== expectedRevision) throw new ConflictError();
     const existing = await this.tree(expectedRevision);
     const base = `/repos/${this.repo}`;
     const entries: Array<{ path: string; mode: "100644"; type: "blob"; content?: string; sha?: string | null }> = [];
@@ -514,14 +551,28 @@ export class GitHubBackend implements GitBackend {
           author: { ...author, date: new Date().toISOString() },
         },
       });
-      const moved = await githubRequest(this.api, `${base}/git/refs/heads/${encodeURIComponent(this.branch)}`, {
-        method: "PATCH",
-        body: { sha: commit.sha, force: false },
-        allow: [422],
+      // Moved only from the commit the changes were made on, in the same request: a fast forward alone would also
+      // follow a branch reset to an older commit in the meantime, bringing back what the reset took out.
+      const moved = await githubJson<GraphQLResponse>(this.api, "/graphql", {
+        method: "POST",
+        body: {
+          query: UPDATE_REFS_MUTATION,
+          variables: {
+            input: {
+              repositoryId: await this.repositoryId(),
+              refUpdates: [
+                { name: `refs/heads/${this.branch}`, beforeOid: expectedRevision, afterOid: commit.sha, force: false },
+              ],
+            },
+          },
+        },
       });
-      if (moved.status === 422) {
+      if (moved.errors?.length) {
         // The branch has moved: someone else saved first.
         if ((await this.revision()) !== expectedRevision) throw new ConflictError();
+        if (moved.errors[0]?.type === "FORBIDDEN") {
+          throw new SignInError("cant-publish", "This sign-in can't publish to the site.");
+        }
         throw new GitApiError(422, "GitHub couldn't save the changes.");
       }
       this.pinned = commit.sha;
@@ -604,7 +655,7 @@ export class GitHubBackend implements GitBackend {
   async changedPaths(from: string, to: string): Promise<string[]> {
     const comparison = await githubJson<{ files?: Array<{ filename: string; previous_filename?: string }> }>(
       this.api,
-      `/repos/${this.repo}/compare/${from}...${to}`,
+      `/repos/${this.repo}/compare/${commitId(from)}...${commitId(to)}`,
     );
     const files = comparison.files ?? [];
     // GitHub lists at most 300 files: past that, some changes would be missing, which callers take as unchanged.
@@ -622,6 +673,7 @@ export class GitHubBackend implements GitBackend {
    * Cloudflare reported on the commit before.
    */
   async deployStatus(revision: string): Promise<DeployStatus> {
+    commitId(revision);
     try {
       const deployments = await githubJson<Array<{ id: number }>>(
         this.api,

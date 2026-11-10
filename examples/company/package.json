@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 4321",
+    "dev": "next dev --port 4321 -H 127.0.0.1",
     "build": "goodfellow-next finish --server && vinext build",
     "preview": "vite preview --port 4321",
     "deploy": "wrangler d1 migrations apply goodfellow-company --remote && vinext-cloudflare deploy --skip-build",

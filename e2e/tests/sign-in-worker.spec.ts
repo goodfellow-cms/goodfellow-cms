@@ -75,26 +75,40 @@ async function setup(page: Page, options: { installed?: boolean } = {}) {
 
   // Goodfellow's sign-in worker, the same code Cloudflare runs. Browsers say which page is asking.
   await page.route(
-    (url) => url.href.startsWith(SIGN_IN) || isAuthorize(url) || installSlug(url) !== undefined,
+    (url) => url.origin === SIGN_IN || isAuthorize(url) || installSlug(url) !== undefined,
     async (route) => {
       const request = route.request();
       const body = request.postDataBuffer();
       const url = new URL(request.url());
+      const headers = await request.allHeaders();
+      // The worker's cookies, as the browser would send them back to it on the redirects followed below.
+      let cookies = headers.cookie ?? "";
+      const keep = (answer: Response) => {
+        for (const set of answer.headers.getSetCookie()) {
+          const pair = set.split(";")[0] ?? "";
+          const name = pair.split("=")[0];
+          cookies = [...cookies.split("; ").filter((kept) => kept && !kept.startsWith(`${name}=`)), pair].join("; ");
+        }
+        return answer;
+      };
       let response = isAuthorize(url)
         ? authorize(url)
-        : await worker.fetch(
-            new Request(url, {
-              method: request.method(),
-              headers: await request.allHeaders(),
-              body: body && request.method() !== "GET" ? new Uint8Array(body) : undefined,
-            }),
+        : keep(
+            await worker.fetch(
+              new Request(url, {
+                method: request.method(),
+                headers,
+                body: body && request.method() !== "GET" ? new Uint8Array(body) : undefined,
+              }),
+            ),
           );
       // Playwright doesn't see where a redirect it answered goes, so the worker's and GitHub's are followed here.
       for (;;) {
         const next = response.status === 302 ? new URL(response.headers.get("location") ?? "") : undefined;
         if (!next) break;
-        if (next.href.startsWith(SIGN_IN)) response = await worker.fetch(new Request(next));
-        else if (isAuthorize(next)) response = authorize(next);
+        if (next.origin === SIGN_IN) {
+          response = keep(await worker.fetch(new Request(next, { headers: cookies ? { cookie: cookies } : {} })));
+        } else if (isAuthorize(next)) response = authorize(next);
         else if (installSlug(next)) response = install(next, installSlug(next) ?? "");
         else {
           // Back to the admin panel, which the browser loads as a page of its own.

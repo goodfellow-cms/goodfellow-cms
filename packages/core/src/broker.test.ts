@@ -321,4 +321,46 @@ describe("the broker's backend in the admin panel", () => {
     expect(asked).toEqual(["editors.invite", "drafts.open", "draft.publish"]);
     close();
   });
+
+  it("checks the changes it writes, made again as one kind each with a plain path", async () => {
+    const checked: unknown[] = [];
+    const { remote, files, close } = await connect({
+      check({ path, args }) {
+        if (path === "write" || path === "draft.publish") checked.push(path === "write" ? args[0] : args[1]);
+      },
+    });
+    const revision = await remote.revision();
+    const options = { message: "Add", expectedRevision: revision };
+    const write = (changes: unknown[]) => remote.write(changes as FileChange[], options);
+    const bytes = new TextEncoder().encode("<script>alert(1)</script>");
+    // Harmless text to the checks, different bytes to a backend, which looks for bytes first.
+    await expect(write([{ path: "public/media/a.svg", content: "<svg/>", bytes }])).rejects.toBeInstanceOf(
+      BrokerRefusedError,
+    );
+    // A path that passes every prefix test but equals no file's name.
+    await expect(write([{ path: new String("content/site.json"), content: "{}" }])).rejects.toBeInstanceOf(
+      BrokerRefusedError,
+    );
+    await expect(
+      write([
+        { path: "content/pages/a.json", content: "{}" },
+        { path: "content/pages/a.json", content: "[]" },
+      ]),
+    ).rejects.toBeInstanceOf(BrokerRefusedError);
+    await expect(write([{ path: "content/pages/a.json", delete: "yes" }])).rejects.toBeInstanceOf(BrokerRefusedError);
+    expect(checked).toEqual([]);
+    expect(files.has("content/pages/a.json")).toBe(false);
+
+    await write([{ path: "content/pages/a.json", content: "{}" }]);
+    expect(checked).toEqual([[{ path: "content/pages/a.json", content: "{}" }]]);
+    const draft = await remote.drafts?.open("20261024-abc123");
+    await expect(
+      draft?.publish("Publish all", {
+        changes: [{ path: "content/pages/x.json", content: "{}", delete: true }] as never,
+      }),
+    ).rejects.toBeInstanceOf(BrokerRefusedError);
+    await draft?.publish("Publish all", { changes: [{ path: "content/pages/x.json", content: "{}" }] });
+    expect(checked.at(-1)).toEqual({ changes: [{ path: "content/pages/x.json", content: "{}" }] });
+    close();
+  });
 });

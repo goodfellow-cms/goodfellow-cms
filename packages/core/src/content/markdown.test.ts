@@ -81,6 +81,36 @@ describe("markdownToHtml", () => {
     expect(html).toContain('<a href="mailto:a@example.org">mail</a>');
   });
 
+  it("shows text after an inline tag that marked takes as raw HTML as text too", () => {
+    // Marked prints text after an inline <pre>, <code>, <kbd>, or <script> as it is, which would run here.
+    for (const tag of ["kbd", "code", "pre", "script"]) {
+      for (const markdown of [
+        `<${tag}> <img src=x onerror=alert(1)// </${tag}>`,
+        `A <${tag}> <svg onload=alert(1)// b`,
+        `- <${tag}> <img src=x onerror=alert(1)//`,
+        `> **<${tag}> <img src=x onerror=alert(1)//**`,
+      ]) {
+        const html = markdownToHtml(markdown);
+        expect(html, markdown).not.toMatch(/<(img|svg)\b/i);
+        expect(html, markdown).toMatch(/&lt;(img|svg)/);
+        expect(
+          markdownParts(markdown)
+            .map((part) => part.html)
+            .join(""),
+          markdown,
+        ).not.toMatch(/<(img|svg)\b/i);
+      }
+    }
+    expect(markdownToHtml("<kbd>Ctrl</kbd> & <kbd>C</kbd>")).toBe(
+      "<p>&lt;kbd&gt;Ctrl&lt;/kbd&gt; &amp; &lt;kbd&gt;C&lt;/kbd&gt;</p>\n",
+    );
+    // Character references in that text name their character, as they do anywhere else, never escaped twice.
+    expect(markdownToHtml("A <kbd>Tom &amp; Jerry</kbd> and 1 &lt; 2")).toBe(
+      "<p>A &lt;kbd&gt;Tom &amp; Jerry&lt;/kbd&gt; and 1 &lt; 2</p>\n",
+    );
+    expect(markdownToHtml("<kbd> &amp;lt;script&amp;gt;")).not.toMatch(/<script/);
+  });
+
   it("highlights code with the function given, or shows it plainly", () => {
     const markdown = "```ts\nconst a = 1 < 2;\n```";
     expect(markdownToHtml(markdown)).toBe('<pre><code class="language-ts">const a = 1 &lt; 2;\n</code></pre>\n');

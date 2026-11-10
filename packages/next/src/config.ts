@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
+import { type AddressInfo, connect } from "node:net";
+import { type NetworkInterfaceInfo, networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
   type AdminAddress,
@@ -131,6 +132,85 @@ const PHASE_PRODUCTION_BUILD = "phase-production-build";
 
 const SERVER_KEY = Symbol.for("goodfellow.next.devApi");
 
+/** What to run instead, where `next dev` answers other computers. */
+const EXPOSED_MESSAGE =
+  "next dev is answering other computers on the network, so the admin panel's local backend is turned off: anyone on the network could change the site's files through it. Run next dev -H 127.0.0.1, as the starters' dev script does.";
+
+/** Link-local IPv6 addresses, `fe80::/10`, which are connected to only through a named interface. */
+const LINK_LOCAL = /^fe[89ab]/i;
+
+/**
+ * The addresses other computers could reach this one at, as `connect()` takes
+ * them: every interface's but this computer's own, with link-local IPv6 ones
+ * (`fe80::/10`) naming their interface, as they must to be connected to, by
+ * its number, which every platform reads.
+ */
+export function networkAddresses(interfaces: Record<string, NetworkInterfaceInfo[] | undefined>): string[] {
+  return Object.entries(interfaces).flatMap(([name, infos]) =>
+    (infos ?? [])
+      .filter((info) => !info.internal)
+      .map((info) =>
+        info.family === "IPv6" && LINK_LOCAL.test(info.address)
+          ? `${info.address}%${info.scopeid ?? name}`
+          : info.address,
+      ),
+  );
+}
+
+/**
+ * Whether Next.js's development server, at `port`, answers on this computer's
+ * network addresses, as `next dev` does unless it's started with `-H`. Next.js
+ * passes on every header a client sends as it is, so the local backend can't
+ * tell another computer's requests from this one's: it's safe only while
+ * Next.js answers this computer alone.
+ */
+export async function answersNetwork(
+  port: number,
+  addresses = networkAddresses(networkInterfaces()),
+): Promise<boolean> {
+  const answers = await Promise.all(
+    addresses.map(
+      (host) =>
+        new Promise<boolean>((resolveAnswer) => {
+          const socket = connect({ host, port, timeout: 1000 });
+          const done = (answered: boolean) => {
+            socket.destroy();
+            resolveAnswer(answered);
+          };
+          socket.once("connect", () => done(true));
+          socket.once("error", () => done(false));
+          socket.once("timeout", () => done(false));
+        }),
+    ),
+  );
+  return answers.some(Boolean);
+}
+
+/**
+ * Whether `next dev` answers other computers, asked again whenever this
+ * computer's network addresses change, such as when it joins a network after
+ * the first request, until the answer is yes, which holds until `next dev`
+ * starts again, since the addresses it listens on don't change.
+ */
+export function exposureCheck(
+  port: number,
+  { probe = answersNetwork, interfaces = networkInterfaces } = {},
+): () => Promise<boolean> {
+  let checked: { addresses: string; exposed: Promise<boolean> } | undefined;
+  return async () => {
+    const addresses = networkAddresses(interfaces());
+    const key = addresses.join(" ");
+    while (checked && checked.addresses !== key) {
+      const previous = checked;
+      if (await previous.exposed) return true;
+      // One request asks for the new addresses: others that waited too take its answer, never one of their own.
+      if (checked === previous) checked = { addresses: key, exposed: probe(port, addresses) };
+    }
+    checked ??= { addresses: key, exposed: probe(port, addresses) };
+    return checked.exposed;
+  };
+}
+
 /**
  * The admin panel's local backend, which reads and writes the site's files on
  * disk. It runs beside `next dev`, on this computer only, and Next.js passes
@@ -155,7 +235,16 @@ function startDevApi(root: string): Promise<number> {
       plugins: async () => (await (await import("./plugins.js")).loadSiteConfig(root)).plugins ?? [],
       server: "next-dev" as const,
     };
+    // Asked once Next.js is answering, at the first request, which comes through it, and again after.
+    const exposed = exposureCheck(Number(process.env.PORT) || 3000);
+    let said = false;
     const server = createServer(async (req, res) => {
+      if (await exposed()) {
+        if (!said) console.error(EXPOSED_MESSAGE);
+        said = true;
+        res.writeHead(403, { "content-type": "application/json" }).end(JSON.stringify({ error: EXPOSED_MESSAGE }));
+        return;
+      }
       // A website can point its own name at this computer, so nothing here, the frames' bundle of the site's
       // config included, answers a request for any other name. Next.js passes requests on with this server's
       // own name, and the one the browser asked for as `x-forwarded-host`, so both must be this computer's.
