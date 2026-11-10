@@ -6,6 +6,8 @@ import { findBuildCause } from "./build-problems.js";
 import { CONTENT_REPOSITORY_DIR, INSTALLED_RECORD_FILE, SITE_FILE, UPDATES_FILE } from "./content/paths.js";
 import type { FileChange } from "./content/store.js";
 import { commandToRun } from "./node-command.js";
+import { type VerifiedRelease, verifiedSource } from "./node-provenance.js";
+import { sameSource } from "./provenance.js";
 import {
   type FetchJson,
   GOODFELLOW_REGISTRY,
@@ -16,14 +18,17 @@ import {
   RegistryError,
 } from "./registry.js";
 import {
+  agedReleases,
   availableUpdates,
   chooseUpdate,
   compareReleases,
+  GOODFELLOW_RELEASE_SOURCE,
   NPM_REGISTRY,
   parseUpdateSettings,
   releaseVersion,
   releaseVersions,
   siteVersion,
+  UPDATE_AGE_DAYS,
   type UpdateResult,
   updateSettingsFile,
   VERSION_PACKAGE,
@@ -99,16 +104,46 @@ export interface UpdateOptions {
   siteFiles?: readonly SiteFile[];
   /** For tests. */
   fetchJson?: FetchJson;
+  /** Checks Goodfellow's releases' provenance before an automatic update. Defaults to `verifiedSource()`. */
+  verifyRelease?: ReleaseVerifier;
+  now?: Date;
   run?: RunCommand;
   log?: (line: string) => void;
   env?: NodeJS.ProcessEnv;
 }
 
-/** A day after npm says `version` was published, for `npm install --before`, or nothing where it doesn't say. */
-function installedBefore(packument: unknown, version: string): string | undefined {
+/**
+ * A day after npm says `version` was published, or now if that's sooner, for
+ * `npm install --before`, or nothing where npm doesn't say. A time still to
+ * come would hold nothing back.
+ */
+function installedBefore(packument: unknown, version: string, now: Date): string | undefined {
   const time = (packument as { time?: Record<string, unknown> } | undefined)?.time?.[version];
   const published = typeof time === "string" ? Date.parse(time) : Number.NaN;
-  return Number.isNaN(published) ? undefined : new Date(published + 24 * 60 * 60 * 1000).toISOString();
+  return Number.isNaN(published)
+    ? undefined
+    : new Date(Math.min(published + 24 * 60 * 60 * 1000, now.getTime())).toISOString();
+}
+
+/** Says where a release of a package was built, once its provenance is checked, as `verifiedSource()` does. */
+export type ReleaseVerifier = (name: string, version: string) => Promise<VerifiedRelease>;
+
+/**
+ * What's wrong with each Goodfellow package's release `version`, in words:
+ * provenance that's missing, doesn't verify, or names anything but
+ * Goodfellow's own release workflow.
+ */
+async function unverifiedReleases(names: string[], version: string, verify: ReleaseVerifier): Promise<string[]> {
+  const problems = await Promise.all(
+    names.map(async (name) => {
+      const release = await verify(name, version);
+      if (!release.ok) return release.message;
+      return sameSource(release.source, GOODFELLOW_RELEASE_SOURCE)
+        ? undefined
+        : `${name} ${version} was built by ${release.source.workflow} in ${release.source.repository}, not by Goodfellow's release workflow.`;
+    }),
+  );
+  return problems.filter((problem): problem is string => problem !== undefined);
 }
 
 /** Goodfellow's packages, which are all released together with the same version. */
@@ -168,9 +203,18 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     log(`Automatic updates are turned off in ${UPDATES_FILE}, so Goodfellow ${from} stays as it is.`);
     return { state: "up-to-date", from, paused: true };
   }
+  const now = options.now ?? new Date();
   const packument = await fetchJson(`${NPM_REGISTRY}/${VERSION_PACKAGE}`);
-  const versions = releaseVersions(packument);
+  // Automatic updates wait until a release is old enough, and never take one that's deprecated.
+  const versions = target === "automatic" ? agedReleases(packument, now) : releaseVersions(packument);
   const to = chooseUpdate(from, versions, target === "automatic" ? "fixes" : target, settings.skip);
+  const waiting =
+    target === "automatic" && !to ? chooseUpdate(from, releaseVersions(packument), "fixes", settings.skip) : undefined;
+  if (waiting) {
+    log(
+      `Goodfellow ${waiting} isn't installed automatically yet: automatic updates wait until a release is ${UPDATE_AGE_DAYS} days old, and never install one npm says is deprecated. Update with \`--to ${waiting}\` to install it now.`,
+    );
+  }
   // Fixes leave out newer releases, such as 0.8.0 for a site on 0.7.x, which are only installed when asked for.
   const newer =
     !to && (target === "fixes" || target === "automatic")
@@ -248,6 +292,26 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
+  // An automatic update installs only what Goodfellow's own release workflow built, as each package's provenance
+  // says, so a release published any other way, such as with a stolen npm token, never reaches sites by itself.
+  if (target === "automatic") {
+    const names = [
+      ...new Set([...Object.keys(site.dependencies ?? {}), ...Object.keys(site.devDependencies ?? {})]),
+    ].filter(isGoodfellowPackage);
+    const problems = await unverifiedReleases(
+      names,
+      to,
+      options.verifyRelease ?? ((name, version) => verifiedSource(name, version)),
+    );
+    if (problems.length > 0) {
+      for (const problem of problems) log(problem);
+      log(
+        `Goodfellow ${to} isn't installed automatically, since it can't be shown to come from Goodfellow's releases.`,
+      );
+      // Nothing has changed yet, so there's nothing to put back.
+      return { state: "failed", from, to, step: "provenance" };
+    }
+  }
   const manifest = (await fetchJson(`${NPM_REGISTRY}/${VERSION_PACKAGE}/${to}`).catch(() => ({}))) as {
     dependencies?: Record<string, string>;
     peerDependencies?: Record<string, string>;
@@ -329,7 +393,7 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   // Only what npm had a day after the release came out, so a package published (or taken over) since
   // isn't installed into every site that updates overnight. The day lets in the release's own packages,
   // published one after another.
-  const before = to ? installedBefore(packument, to) : undefined;
+  const before = to ? installedBefore(packument, to, now) : undefined;
   const install = ["install", "--no-audit", "--no-fund", ...(before ? [`--before=${before}`] : [])];
   if ((await run("npm", install, root)).code !== 0) return failed({ step: "install" });
   log("Building the site with the update…");

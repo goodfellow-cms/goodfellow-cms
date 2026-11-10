@@ -2078,6 +2078,8 @@ export const strings: Strings = {
   "updates.last.details": "Ver los detalles en {host}",
   "updates.failed.build":
     "El sitio no se generó con Goodfellow {version}; puede que quien se ocupe del código tenga que revisar los detalles.",
+  "updates.failed.provenance":
+    "No se pudo comprobar que Goodfellow {version} viene de las versiones del propio Goodfellow, así que no se instaló. Pide a quien se ocupe del código que revise los detalles.",
   "updates.failed.install": "No se pudieron instalar sus paquetes. La noche siguiente se intenta de nuevo.",
   "updates.failed.blocks": "No se pudo actualizar uno de los bloques del sitio.",
   "updates.failed.publish": "Alguien publicó al mismo tiempo. La noche siguiente se intenta de nuevo.",

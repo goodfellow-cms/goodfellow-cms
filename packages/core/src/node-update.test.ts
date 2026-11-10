@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { formatBuildCause } from "./build-problems.js";
 import { serializeContent } from "./content/serialize.js";
-import { type RunCommand, type SiteFile, update } from "./node-update.js";
+import { type ReleaseVerifier, type RunCommand, type SiteFile, update } from "./node-update.js";
 import { hashText } from "./registry.js";
-import { parseUpdateSettings, SITE_OVERRIDES, updateSettingsFile } from "./updates.js";
+import { GOODFELLOW_RELEASE_SOURCE, parseUpdateSettings, SITE_OVERRIDES, updateSettingsFile } from "./updates.js";
 
 const REGISTRY = "https://registry.example/{name}.json";
 const BLOCK = "blocks/installed/shadcn-faq/block.tsx";
@@ -74,6 +74,13 @@ const fetchJson = async (url: string): Promise<unknown> => {
   }
   throw new Error(`404 ${url}`);
 };
+
+/** Every release built by Goodfellow's own release workflow, as its provenance would say. */
+const verifyRelease: ReleaseVerifier = async () => ({
+  ok: true,
+  source: GOODFELLOW_RELEASE_SOURCE,
+  published: "2026-10-01T12:00:00.000Z",
+});
 
 /** Records the commands run, answering with what `results` says for each, or success. */
 function commands(results: Record<string, { code: number; output?: string }> = {}) {
@@ -220,14 +227,109 @@ describe("goodfellow update", () => {
     expect(await update({ ...options, to: "fixes" })).toMatchObject({ state: "updated", to: "0.4.2" });
   });
 
+  it("installs fixes automatically only once they're old enough, and not deprecated", async () => {
+    await site();
+    const now = new Date("2026-10-10T12:00:00.000Z");
+    const releasesWith =
+      (time: Record<string, string>, deprecated: string[] = []) =>
+      async (url: string) =>
+        url === "https://registry.npmjs.org/@goodfellow-cms/react"
+          ? {
+              versions: Object.fromEntries(
+                ["0.4.1", "0.4.2", "0.4.3"].map((version) => [
+                  version,
+                  deprecated.includes(version) ? { deprecated: "Taken back" } : {},
+                ]),
+              ),
+              time,
+            }
+          : fetchJson(url);
+    const { ran, run } = commands();
+    const lines: string[] = [];
+    const options = {
+      root,
+      run,
+      registry: REGISTRY,
+      log: (line: string) => lines.push(line),
+      env: {},
+      now,
+      verifyRelease,
+    };
+    // Published yesterday: it waits, and says how to install it now.
+    const fresh = releasesWith({ "0.4.2": "2026-10-09T12:00:00.000Z" });
+    expect(await update({ ...options, fetchJson: fresh, to: "automatic" })).toEqual({
+      state: "up-to-date",
+      from: "0.4.1",
+    });
+    expect(lines.join("\n")).toContain("isn't installed automatically yet");
+    expect(ran).toEqual([]);
+    // Asking for it installs it at once, holding back what npm got after now.
+    expect(await update({ ...options, fetchJson: fresh, to: "0.4.2" })).toMatchObject({
+      state: "updated",
+      to: "0.4.2",
+    });
+    expect(ran).toContain("npm install --no-audit --no-fund --before=2026-10-10T12:00:00.000Z");
+    // A deprecated release never installs by itself, however old.
+    const older = releasesWith({ "0.4.2": "2026-10-01T12:00:00.000Z", "0.4.3": "2026-10-02T12:00:00.000Z" }, ["0.4.3"]);
+    expect(await update({ ...options, fetchJson: older, to: "automatic" })).toEqual({
+      state: "up-to-date",
+      from: "0.4.2",
+    });
+    expect(
+      await update({ ...options, fetchJson: releasesWith({ "0.4.3": "2026-10-02T12:00:00.000Z" }), to: "automatic" }),
+    ).toMatchObject({
+      state: "updated",
+      to: "0.4.3",
+    });
+  });
+
+  it("installs automatically only releases Goodfellow's release workflow built, by their provenance", async () => {
+    await site();
+    const { ran, run } = commands();
+    const lines: string[] = [];
+    const options = { root, fetchJson, run, registry: REGISTRY, log: (line: string) => lines.push(line), env: {} };
+    const elsewhere: ReleaseVerifier = async (name) =>
+      name === "goodfellow"
+        ? {
+            ok: true,
+            source: { repository: "https://github.com/someone/fork", workflow: ".github/workflows/release.yml" },
+            published: "2026-10-01T12:00:00.000Z",
+          }
+        : verifyRelease(name, "0.4.2");
+    expect(await update({ ...options, to: "automatic", verifyRelease: elsewhere })).toEqual({
+      state: "failed",
+      from: "0.4.1",
+      to: "0.4.2",
+      step: "provenance",
+    });
+    expect(lines.join("\n")).toContain(
+      "goodfellow 0.4.2 was built by .github/workflows/release.yml in https://github.com/someone/fork",
+    );
+    const unsigned: ReleaseVerifier = async (name, version) => ({
+      ok: false,
+      problem: "no-provenance",
+      message: `${name} ${version} has no provenance.`,
+    });
+    expect(await update({ ...options, to: "automatic", verifyRelease: unsigned })).toMatchObject({
+      step: "provenance",
+    });
+    expect(ran).toEqual([]);
+    expect(JSON.parse(await read("package.json")).dependencies["@goodfellow-cms/react"]).toBe("0.4.1");
+    // Asked for by name, it installs without the check.
+    expect(await update({ ...options, to: "0.4.2", verifyRelease: unsigned })).toMatchObject({ state: "updated" });
+  });
+
   it("goes back to an older release, and skips the one it left until it's chosen again", async () => {
     await site();
     const withFix = async (url: string) =>
       url === "https://registry.npmjs.org/@goodfellow-cms/react"
-        ? { versions: { "0.4.1": {}, "0.4.2": {}, "0.4.3": {}, "0.5.0": {} } }
+        ? {
+            versions: { "0.4.1": {}, "0.4.2": {}, "0.4.3": {}, "0.5.0": {} },
+            time: { "0.4.2": "2026-10-01T12:00:00.000Z", "0.4.3": "2026-10-05T12:00:00.000Z" },
+          }
         : fetchJson(url);
     const { ran, run } = commands();
-    const options = { root, fetchJson: withFix, run, registry: REGISTRY, log: () => {}, env: {} };
+    const options = { root, fetchJson: withFix, run, registry: REGISTRY, log: () => {}, env: {}, verifyRelease };
     await update({ ...options, to: "0.4.2" });
     ran.length = 0;
 

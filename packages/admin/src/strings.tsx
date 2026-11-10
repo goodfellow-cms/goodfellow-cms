@@ -2173,6 +2173,8 @@ export const defaultStrings = {
   "updates.last.details": "See the details on {host}",
   "updates.failed.build":
     "The site didn't build with Goodfellow {version}; a developer may need to look at the details.",
+  "updates.failed.provenance":
+    "Goodfellow {version} couldn't be shown to come from Goodfellow's own releases, so it wasn't installed. Ask a developer to look at the details.",
   "updates.failed.install": "Its packages couldn't be installed. The next night tries again.",
   "updates.failed.blocks": "One of the site's blocks couldn't be updated.",
   "updates.failed.publish": "Someone published at the same time. The next night tries again.",

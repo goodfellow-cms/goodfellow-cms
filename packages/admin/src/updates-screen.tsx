@@ -49,6 +49,7 @@ const NIGHTLY_TEXT: Record<NightlyMode, StringKey> = {
 };
 
 const STEP_TEXT: Record<string, StringKey> = {
+  provenance: "updates.failed.provenance",
   build: "updates.failed.build",
   install: "updates.failed.install",
   blocks: "updates.failed.blocks",
