@@ -982,9 +982,11 @@ export {
 export {
   isLoopbackHost,
   isPrivateHost,
+  type RemoteBytesOptions,
   type RemoteFetch,
   RemoteFileError,
   type RemoteTextOptions,
+  readRemoteBytes,
   readRemoteText,
 } from "./hosts.js";
 export {

@@ -75,6 +75,35 @@ describe("importing a WordPress site on disk", () => {
     expect(formatWordPressImport(result)).toContain("1 media file couldn't be copied");
   });
 
+  it("downloads media only from public https:// addresses, or the host it read the site from, and none too large", async () => {
+    const write = await site();
+    // An export file naming a private network's address, which nobody chose to read from.
+    await write("wordpress.xml", sampleWordPressExport().replaceAll(SAMPLE_WORDPRESS_URL, "http://10.0.0.5"));
+    const asked: string[] = [];
+    const wordpress = fakeWordPress();
+    const counting = (async (url: string) => {
+      asked.push(url);
+      return wordpress.fetch(url);
+    }) as unknown as typeof fetch;
+    const fromFile = await importWordPress(root, join(root, "wordpress.xml"), { fetch: counting, dryRun: false });
+    expect(fromFile.copied).toEqual([]);
+    expect(fromFile.skipped.length).toBeGreaterThan(0);
+    expect(fromFile.skipped.every((file) => file.reason === "download")).toBe(true);
+    expect(asked.filter((url) => url.startsWith("http://10.0.0.5"))).toEqual([]);
+
+    // Too large, however it says so: read no further than the upload limit.
+    await site();
+    const huge = (async (url: string) => {
+      const answer = await wordpress.fetch(url);
+      return url.includes("/uploads/")
+        ? { ...answer, headers: { get: () => null }, body: new Response(new Uint8Array(26 * 1024 * 1024)).body }
+        : answer;
+    }) as unknown as typeof fetch;
+    const tooLarge = await importWordPress(root, "stbrendan.example.org", { fetch: huge });
+    expect(tooLarge.copied).toEqual([]);
+    expect(tooLarge.skipped.every((file) => file.reason === "size")).toBe(true);
+  });
+
   it("only plans the import for a dry run", async () => {
     await site();
     const result = await importWordPress(root, SAMPLE_WORDPRESS_URL, { fetch: fetcher(), dryRun: true });
