@@ -309,7 +309,8 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
       else await writeFile(file, text);
     }
     // Put the packages back as the lockfile says, for the build that follows.
-    await run("npm", ["ci", "--no-audit", "--no-fund"], root);
+    // Without scripts on an automatic run, as its install was.
+    await run("npm", ["ci", "--no-audit", "--no-fund", ...(target === "automatic" ? ["--ignore-scripts"] : [])], root);
   };
   const failed = async (result: Omit<UpdateResult, "state" | "from" | "to">): Promise<UpdateResult> => {
     await restore();

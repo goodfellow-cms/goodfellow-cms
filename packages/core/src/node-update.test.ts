@@ -393,6 +393,8 @@ describe("goodfellow update", () => {
     expect(asked).toContain("@goodfellow-cms/core@0.4.3");
     // Installed without running any package's install script, though this site's `.npmrc` doesn't say so.
     expect(ran).toContainEqual(expect.stringMatching(/^npm install .*--ignore-scripts$/));
+    // And put back the same way, once the check refused what it installed.
+    expect(ran).toContain("npm ci --no-audit --no-fund --ignore-scripts");
     expect(lines.join("\n")).toContain("@goodfellow-cms/core 0.4.3 has no provenance.");
     expect(ran.some((line) => line.startsWith("npm run build"))).toBe(false);
     // Everything went back as it was.
