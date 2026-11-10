@@ -59,6 +59,8 @@ export type AiTask =
       name: string;
       fields: Fields;
       values: Record<string, unknown>;
+      /** For a translation, the language to translate into, such as "Español (es)", which goes with the site's data. */
+      language?: string;
       instruction: string;
     };
 
@@ -218,7 +220,7 @@ ${task.instruction}`,
 
 Fill in the fields of an item of the kind named below. Keep the current value of any field the request doesn't give you anything for.
 
-${json({ item: task.name })}
+${json({ item: task.name, ...(task.language && { language: task.language }) })}
 
 The current values:
 ${json(task.values)}
