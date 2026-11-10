@@ -16,7 +16,7 @@ export const OPENVERSE_API = "https://api.openverse.org/v1";
 
 /**
  * Licenses that allow commercial use and changes, such as cropping: CC BY,
- * CC BY-SA, CC0 and the Public Domain Mark. Openverse's own codes.
+ * CC BY-SA, CC0, and the Public Domain Mark. Openverse's own codes.
  */
 export const STOCK_PHOTO_LICENSES = ["by", "by-sa", "cc0", "pdm"] as const;
 
@@ -163,7 +163,7 @@ function sourceName(source: string): string {
   return source.replace(/[_-]+/g, " ").replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
-/** A photo's credit, as the site shows it: its title, who made it, where it came from and its license. */
+/** A photo's credit, as the site shows it: its title, who made it, where it came from, and its license. */
 export function stockPhotoCredit(photo: StockPhoto): PhotoCredit {
   const license = [LICENSE_NAMES[photo.license] ?? photo.license.toUpperCase(), photo.licenseVersion]
     .filter(Boolean)

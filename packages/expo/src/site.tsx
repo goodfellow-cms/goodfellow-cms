@@ -75,7 +75,7 @@ export interface NativeSite {
   /** The home page of the language shown, which the site's name links to. */
   home: string;
   theme: NativeTheme;
-  /** Rich text of a block on the page, header or footer, as a simple structure, by the block's id and its prop. */
+  /** Rich text of a block on the page, header, or footer, as a simple structure, by the block's id and its prop. */
   richText(block: string, prop: string): RichTextBlock[] | undefined;
   /** Opens an address: the site's pages in the app, anything else in the phone's browser. */
   open(href: string): void;

@@ -34,11 +34,11 @@ New sites made with `create-goodfellow` start with the recommended blocks unless
 Adding a block copies its code into the site, as `npx shadcn add` would, in one publish:
 
 - the block's own files to `blocks/installed/<name>/`;
-- the shadcn components it uses to `components/ui/`, and any other shared code to `components/`, `lib/` or `hooks/`, unless the site already has them;
+- the shadcn components it uses to `components/ui/`, and any other shared code to `components/`, `lib/`, or `hooks/`, unless the site already has them;
 - a record of what was added, `blocks/installed/installed.json`, with a hash of every file written;
 - `blocks/installed/index.ts`, which the site's `goodfellow.config.tsx` imports and which lists every installed block.
 
-The editor offers the block once the site has been rebuilt with it, which the host does after the publish (and `goodfellow dev` or `next dev` do straight away). Removing a block is refused while any page, collection page design, header or footer uses it. Removing deletes the files it added, except those someone has changed since or that another installed block uses.
+The editor offers the block once the site has been rebuilt with it, which the host does after the publish (and `goodfellow dev` or `next dev` do straight away). Removing a block is refused while any page, collection page design, header, or footer uses it. Removing deletes the files it added, except those someone has changed since or that another installed block uses.
 
 The admin panel installs a release of this registry that matches its own: `https://cdn.jsdelivr.net/npm/@goodfellow-cms/registry@<version>/r/{name}.json`. In development, `goodfellow dev` and `next dev` serve the copy in the site's `node_modules`.
 
@@ -74,7 +74,7 @@ A block is a `registry:block` item with `meta.goodfellow`:
 }
 ```
 
-- **`name`** becomes the block's key in the site's content, so never change it once published. Use lowercase letters, numbers and dashes, and start names with your registry's own prefix so they don't clash with other registries' blocks.
+- **`name`** becomes the block's key in the site's content, so never change it once published. Use lowercase letters, numbers, and dashes, and start names with your registry's own prefix so they don't clash with other registries' blocks.
 - **`title`** and **`description`** are what admins see on the Blocks screen. Write them for people who aren't developers.
 - **`meta.goodfellow.category`** is the group the block is listed under, on the Blocks screen and in the editor. `recommended` marks blocks a new site should start with. `image` is a picture of the block, relative to the item's address. `version` is recorded in the site when the block is added.
 - **Files:** the item has exactly one `registry:block` file, whose default export is the block's Puck `ComponentConfig`. Every other file of the item goes into the block's folder too (`blocks/installed/<name>/`), so import them with relative paths (`./gallery-grid`). Items without `meta.goodfellow`, such as shared components, are dependencies: their files go to `components/ui/` (`registry:ui`), `components/` (`registry:component`), `lib/` (`registry:lib`) or `hooks/` (`registry:hook`), and blocks import them as `@/components/ui/dialog` and so on. A file's `target` can name another place within those folders. Other file types, and files elsewhere in the site, are refused.
@@ -83,7 +83,7 @@ A block is a `registry:block` item with `meta.goodfellow`:
 
 ### Packages
 
-The admin panel can't install npm packages, so every site includes the same set and blocks can use only those. Besides `react`, `@goodfellow-cms/core`, `@goodfellow-cms/react` and `@puckeditor/core`, which every site has, they are `class-variance-authority`, `clsx`, `cn`, `embla-carousel-react`, `lucide-react`, `radix-ui`, `tailwind-merge` and `tw-animate-css`. An item whose `dependencies` name anything else can't be added. To suggest a package for the list, open an issue.
+The admin panel can't install npm packages, so every site includes the same set and blocks can use only those. Besides `react`, `@goodfellow-cms/core`, `@goodfellow-cms/react`, and `@puckeditor/core`, which every site has, they are `class-variance-authority`, `clsx`, `cn`, `embla-carousel-react`, `lucide-react`, `radix-ui`, `tailwind-merge`, and `tw-animate-css`. An item whose `dependencies` name anything else can't be added. To suggest a package for the list, open an issue.
 
 ### Writing the blocks
 
@@ -96,7 +96,7 @@ Registry blocks follow the same rules as any Goodfellow block (see [AGENTS.md](h
 - Render links and images with `SiteLink` and `SiteImage` from `@goodfellow-cms/react`, and image fields with `mediaField()`. To style a link as a button, give `SiteLink` the classes from shadcn's `buttonVariants()`.
 - Labels and options are for non-technical people: "Space above and below", not "padding-y".
 - `render` uses no hooks besides `useSite()`. Interactive parts go in a file starting with `"use client"`, which gets plain values and content (`children`, rich text) only.
-- **One Client Component per interactive part.** Sites built with `goodfellow build` run each Client Component a block renders as its own small React app (an island), and islands don't share React context. Components whose parts talk to each other through context, as Radix's `Accordion`, `AccordionItem` and `AccordionContent` do, must all be put together inside one `"use client"` file, which the block renders with its content as props. See `site/blocks/installed/shadcn-faq/` here.
+- **One Client Component per interactive part.** Sites built with `goodfellow build` run each Client Component a block renders as its own small React app (an island), and islands don't share React context. Components whose parts talk to each other through context, as Radix's `Accordion`, `AccordionItem`, and `AccordionContent` do, must all be put together inside one `"use client"` file, which the block renders with its content as props. See `site/blocks/installed/shadcn-faq/` here.
 - **Keep content in the page.** Hidden content, such as closed answers or other tabs, should still be in the HTML (Radix's `forceMount`, hidden with CSS), so search engines and visitors without JavaScript see it.
 - Prefer HTML and CSS where they're enough: a `<details>` element rather than a Client Component, since a page with a Client Component loads React.
 - **Say when a Client Component works with Preact**, with `export const worksWithPreact = true` in its `"use client"` file, once you've tried it there. Sites whose Client Components all say so run them with Preact's `preact/compat` instead of React, about a tenth of its size; one that doesn't keeps a site on React. Every interactive block here says so, and Goodfellow's tests try each with Preact.

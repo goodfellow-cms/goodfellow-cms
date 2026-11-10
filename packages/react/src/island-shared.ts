@@ -23,7 +23,7 @@ export function slotId(islandId: string, n: number): string {
   return `${islandId}.${n}`;
 }
 
-/** Turns a `useId()` value into one that's safe in attributes and selectors: letters, digits, underscores and dashes only. */
+/** Turns a `useId()` value into one that's safe in attributes and selectors: letters, digits, underscores, and dashes only. */
 export function domId(id: string): string {
   return Array.from(id, (char) => (/[A-Za-z0-9_]/.test(char) ? char : `-${char.codePointAt(0)}-`)).join("");
 }

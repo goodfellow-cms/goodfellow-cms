@@ -351,7 +351,7 @@ describe("renderPage", () => {
     expect(html).toContain("<p>resolved text</p>");
   });
 
-  it("renders rich text without scripts, event handlers or javascript: links", async () => {
+  it("renders rich text without scripts, event handlers, or javascript: links", async () => {
     const body =
       '<p onclick="steal()">Hello <strong>world</strong><script>alert(1)</script></p>' +
       '<p><a href="javascript:alert(1)">bad</a> <a href="/about">good</a></p><img src=x onerror=alert(1)>';
