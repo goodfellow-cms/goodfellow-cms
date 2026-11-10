@@ -110,7 +110,7 @@ export function createConsent(useSite: () => SiteContextValue) {
  * in the page's language, which the consent script shows until they answer.
  * Where the site asks about more than one kind (`consentKinds()`), Choose
  * shows a choice for each. Hidden as rendered, so visitors without
- * JavaScript, the admin panel's previews and search engines never see it.
+ * JavaScript, the admin panel's previews, and search engines never see it.
  */
 export function ConsentNotice({ site }: { site: SiteContextValue }) {
   const consent = site.settings.consent;

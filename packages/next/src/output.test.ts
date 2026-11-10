@@ -16,7 +16,7 @@ const IMAGE_ONLY = new Set(["decoding", "data-nimg", "width", "height", "loading
 const CURRENT_PAGE = new Set(["data-current", "aria-current"]);
 
 /**
- * The part of a page Goodfellow renders (header, page and footer), comparable
+ * The part of a page Goodfellow renders (header, page, and footer), comparable
  * between renderers: attributes in order, without `next/image`'s extras, without
  * menus' marks for the current page, and without the trailing slash `next/link`
  * adds to page links (`trailingSlash`).

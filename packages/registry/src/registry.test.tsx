@@ -219,7 +219,7 @@ describe("the parish site's blocks", () => {
     });
   };
 
-  it("reads RSS and Atom feeds' titles, links and dates, and nothing else", async () => {
+  it("reads RSS and Atom feeds' titles, links, and dates, and nothing else", async () => {
     const { readFeedItems } = await import("../site/blocks/installed/feed-list/block.js");
     const rss = `<rss><channel><item><title><![CDATA[Fish &amp; chips]]></title><link>https://news.example/1</link>
       <pubDate>Tue, 01 Oct 2026 10:00:00 GMT</pubDate><description>Not shown</description></item>
@@ -311,7 +311,7 @@ describe("the parish site's blocks", () => {
   });
 });
 
-describe("people, numbers, timelines, countdowns and comments", () => {
+describe("people, numbers, timelines, countdowns, and comments", () => {
   const base = siteSettingsSchema.parse({
     version: 1,
     title: "St. Joseph",

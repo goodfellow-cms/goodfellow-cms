@@ -31,6 +31,49 @@ jobs:
           check-latest: true
       - run: pnpm audit
 
+  # The company example on Postgres, built with `next build` alone, as it would be on Vercel with Neon: a check that
+  # nothing outside lib/env.ts and lib/db/dialect.ts knows it's built for Cloudflare's Workers and D1 elsewhere.
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          check-latest: true
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=@goodfellow-cms/example-company^...
+      - name: Apply the migrations
+        working-directory: examples/company
+        run: npm run migrate
+      - name: Build with next build
+        working-directory: examples/company
+        run: pnpm exec goodfellow-next finish --server && pnpm exec next build
+      # The sign-in tests run on SQLite and, with DATABASE_URL, on Postgres.
+      - name: Run the unit tests
+        working-directory: examples/company
+        run: pnpm exec vitest run
+
   check:
     runs-on: ubuntu-latest
     # A run takes 20 to 35 minutes; one that hangs, such as on a server that never starts, stops well before GitHub's six hours.

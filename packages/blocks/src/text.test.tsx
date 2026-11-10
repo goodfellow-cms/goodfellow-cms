@@ -83,7 +83,7 @@ describe("WordPress's text blocks", () => {
     expect(open).toContain('<details open="" class="gf-details my-4">');
   });
 
-  it("draws a table with headings, a footer, a caption and stripes", async () => {
+  it("draws a table with headings, a footer, a caption, and stripes", async () => {
     const html = await render([
       {
         type: "Table",

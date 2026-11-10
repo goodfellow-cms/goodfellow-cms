@@ -70,7 +70,7 @@ describe("newsletterTarget", () => {
     });
   });
 
-  it("reads Buttondown's username, address and embed code", () => {
+  it("reads Buttondown's username, address, and embed code", () => {
     const action = "https://buttondown.com/api/emails/embed-subscribe/stjoseph";
     for (const form of [
       "stjoseph",
@@ -88,7 +88,7 @@ describe("newsletterTarget", () => {
     }
   });
 
-  it("reads Kit's form number, address and embed code", () => {
+  it("reads Kit's form number, address, and embed code", () => {
     for (const form of [
       "1234567",
       "https://app.kit.com/forms/1234567/subscriptions",
@@ -119,7 +119,7 @@ describe("newsletterTarget", () => {
     expect(target("mailchimp", "  ")).toEqual({ problem: "no-form" });
   });
 
-  it("uses the site's form service, with its key, honeypot and thank-you page", () => {
+  it("uses the site's form service, with its key, honeypot, and thank-you page", () => {
     expect(
       newsletterTarget(
         { service: "forms", form: "", heading: "Parish news" },
@@ -193,7 +193,7 @@ describe("Another service's signup form", () => {
   <input type="submit" value="Subscribe">
 </form></div>`;
 
-  it("reads where it sends, its email and first name boxes, hidden fields and the box only bots fill in", () => {
+  it("reads where it sends, its email and first name boxes, hidden fields, and the box only bots fill in", () => {
     expect(htmlSignupForm(LISTS)).toEqual({
       service: "other",
       action: "https://lists.example.org/subscribe?list=parish&src=site",

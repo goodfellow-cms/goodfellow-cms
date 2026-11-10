@@ -11,7 +11,7 @@ let started = false;
 /**
  * The editor's frames, for a Next.js site's `app/admin/editor/page.tsx`,
  * which must be a Client Component (`"use client"`) that imports the site's
- * config: Puck, the config and every block, sandboxed away from the admin
+ * config: Puck, the config, and every block, sandboxed away from the admin
  * panel's page, which signs in and publishes.
  */
 export function GoodfellowEditor({ config }: { config: GoodfellowConfig }) {

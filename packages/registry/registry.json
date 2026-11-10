@@ -7,7 +7,7 @@
       "name": "shadcn-hero",
       "type": "registry:block",
       "title": "Hero",
-      "description": "A large heading at the top of a page, with text, buttons and a picture.",
+      "description": "A large heading at the top of a page, with text, buttons, and a picture.",
       "registryDependencies": ["@goodfellow/button"],
       "files": [{ "path": "site/blocks/installed/shadcn-hero/block.tsx", "type": "registry:block" }],
       "meta": { "goodfellow": { "category": "Page sections", "recommended": true } }
@@ -16,7 +16,7 @@
       "name": "shadcn-cards",
       "type": "registry:block",
       "title": "Cards",
-      "description": "A grid of cards, each with a picture, a heading, text and a link.",
+      "description": "A grid of cards, each with a picture, a heading, text, and a link.",
       "registryDependencies": ["@goodfellow/card", "@goodfellow/button"],
       "files": [{ "path": "site/blocks/installed/shadcn-cards/block.tsx", "type": "registry:block" }],
       "meta": { "goodfellow": { "category": "Page sections", "recommended": true } }
@@ -43,7 +43,7 @@
       "name": "shadcn-pricing",
       "type": "registry:block",
       "title": "Pricing table",
-      "description": "Plans side by side, with prices, what each includes and a button.",
+      "description": "Plans side by side, with prices, what each includes, and a button.",
       "registryDependencies": ["@goodfellow/card", "@goodfellow/badge", "@goodfellow/button"],
       "dependencies": ["lucide-react"],
       "files": [{ "path": "site/blocks/installed/shadcn-pricing/block.tsx", "type": "registry:block" }],
@@ -114,7 +114,7 @@
       "name": "people",
       "type": "registry:block",
       "title": "People",
-      "description": "The people of an organization, such as its staff or council, each with a photo, their name, role and a few words.",
+      "description": "The people of an organization, such as its staff or council, each with a photo, their name, role, and a few words.",
       "files": [{ "path": "site/blocks/installed/people/block.tsx", "type": "registry:block" }],
       "meta": { "goodfellow": { "category": "Page sections" } }
     },
@@ -146,7 +146,7 @@
       "name": "countdown",
       "type": "registry:block",
       "title": "Countdown",
-      "description": "The days, hours, minutes and seconds until a moment, in the site's time zone.",
+      "description": "The days, hours, minutes, and seconds until a moment, in the site's time zone.",
       "files": [
         { "path": "site/blocks/installed/countdown/block.tsx", "type": "registry:block" },
         { "path": "site/blocks/installed/countdown/countdown-clock.tsx", "type": "registry:component" }

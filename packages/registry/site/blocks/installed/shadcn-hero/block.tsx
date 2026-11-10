@@ -17,7 +17,7 @@ export interface HeroProps {
   className: string;
 }
 
-/** A large heading at the top of a page, with text, up to two buttons and a picture. */
+/** A large heading at the top of a page, with text, up to two buttons, and a picture. */
 const Hero: ComponentConfig<HeroProps> = withParts(
   {
     label: "Hero",

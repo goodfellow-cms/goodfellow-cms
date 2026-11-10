@@ -122,7 +122,7 @@ describe("Calendar", () => {
     ]);
   });
 
-  it("lists upcoming events by day, with repeats, skipped dates and links", async () => {
+  it("lists upcoming events by day, with repeats, skipped dates, and links", async () => {
     const html = await render([calendar({ limit: 4 })]);
     const days = [...html.matchAll(/<time dateTime="([^"]+)">/g)].map((match) => match[1]);
     expect(days).toEqual(["2026-10-11", "2026-10-16", "2026-10-25", "2026-11-01"]);

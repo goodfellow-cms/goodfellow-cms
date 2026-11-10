@@ -1,5 +1,6 @@
-// Writes each migration's SQL into migrations/sqlite/ (which D1 applies) and migrations/postgres/ (which Neon
-// does), from lib/db/migrations/. Run `npm run migrations` after adding or changing one; a test checks they match.
+// Writes each migration's SQL into migrations/sqlite/ (which D1 applies) and migrations/postgres/ (which
+// `npm run migrate` applies to Postgres), from lib/db/migrations/. Run `npm run migrations` after adding or changing
+// one; a test checks they match.
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type DatabaseType, migrationFiles } from "../lib/db/migrations-sql.ts";

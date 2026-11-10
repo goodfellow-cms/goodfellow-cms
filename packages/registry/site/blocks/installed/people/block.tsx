@@ -37,7 +37,7 @@ const photoClasses: Record<PeopleProps["photos"], string> = {
   square: "rounded-lg",
 };
 
-/** The people of an organization, such as its staff or council: each with a photo, their name, role and a few words. */
+/** The people of an organization, such as its staff or council: each with a photo, their name, role, and a few words. */
 const People: ComponentConfig<PeopleProps> = withParts(
   {
     label: "People",

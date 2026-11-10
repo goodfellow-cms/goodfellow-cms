@@ -92,7 +92,7 @@ function CountdownView({
 }
 
 /**
- * The days, hours, minutes and seconds until a moment, such as a festival or
+ * The days, hours, minutes, and seconds until a moment, such as a festival or
  * an appeal's end, in the site's time zone. Without JavaScript it shows when
  * the moment is, and once it has come, what's chosen to say then.
  */

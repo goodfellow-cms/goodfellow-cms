@@ -28,7 +28,7 @@ export const DarkModeSwitch: ComponentConfig<DarkModeSwitchProps> = withParts(
         label: "Show as",
         options: options({
           switch: "A switch between light and dark",
-          menu: "A menu: light, dark or like the visitor's computer",
+          menu: "A menu: light, dark, or like the visitor's computer",
         }),
       },
       labels: { type: "radio", label: "Words beside the switch", options: options({ show: "Show", hide: "Hide" }) },

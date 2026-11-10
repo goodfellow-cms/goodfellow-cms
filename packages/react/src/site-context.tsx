@@ -11,7 +11,7 @@ export function SiteProvider({ value, children }: { value: SiteContextValue; chi
   return <SiteContext.Provider value={value}>{children}</SiteContext.Provider>;
 }
 
-/** Site settings, menus, collections and the current page. Must be used inside a Goodfellow page. */
+/** Site settings, menus, collections, and the current page. Must be used inside a Goodfellow page. */
 export function useSite(): SiteContextValue {
   const value = useContext(SiteContext);
   if (!value) {

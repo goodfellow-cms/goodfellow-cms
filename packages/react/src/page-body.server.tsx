@@ -61,6 +61,6 @@ function Render({
 
 /**
  * Pages rendered as Server Components: `PageBody` is the site header, the page
- * itself and the site footer; `PageHeader`, `PageContent` and `PageFooter` are its parts.
+ * itself and the site footer; `PageHeader`, `PageContent`, and `PageFooter` are its parts.
  */
 export const { PageBody, PageHeader, PageContent, PageFooter } = createPageBody({ Render, SiteProvider });

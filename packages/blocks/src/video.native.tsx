@@ -5,7 +5,7 @@ import { playerAddress, type VideoProps } from "./video-data.js";
 
 const SHAPES = { auto: 16 / 9, wide: 16 / 9, landscape: 4 / 3, square: 1, tall: 9 / 16 } as const;
 
-/** An uploaded video with the phone's player, or YouTube's, Vimeo's or another site's player. */
+/** An uploaded video with the phone's player, or YouTube's, Vimeo's, or another site's player. */
 export function Video(props: VideoProps) {
   const site = useNativeSite();
   const { source, shape, caption, title } = props;

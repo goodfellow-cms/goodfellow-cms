@@ -19,10 +19,11 @@ npm run build        # builds the site into a Cloudflare Worker, in dist/
 npm run preview      # runs that Worker at http://localhost:4321, as Cloudflare will
 npm run migration -- add-jobs   # makes a migration, named by when it was made
 npm run migrations   # writes migrations/sqlite/ and migrations/postgres/ after a change to lib/db/migrations/
+npm run migrate      # applies migrations/postgres/ to the Postgres database at DATABASE_URL
 npm test
 ```
 
-On your own computer, the admin panel saves straight to the files in `content/`, with no sign-in. `npm run dev` runs Next.js, with the database wrangler keeps in `.wrangler/` and what `.dev.vars` says; to use Postgres instead, set `DATABASE_URL` in `.env.local` (see `.env.example`).
+On your own computer, the admin panel saves straight to the files in `content/`, with no sign-in. `npm run dev` runs Next.js, with the database wrangler keeps in `.wrangler/` and what `.dev.vars` says; to use Postgres instead, set `DATABASE_URL` in `.env.local` (see `.env.example`) and run `npm run migrate` with it set.
 
 ## Putting it online on Cloudflare
 
@@ -54,11 +55,15 @@ Add the site's domain to the Worker in Cloudflare's dashboard (Workers & Pages â
 
 ## Changing the database
 
-Each migration is a file of its own in `lib/db/migrations/`, named by when it was made, such as `20261109033700_auth.ts`. Nothing lists them: they're found by their names. So when several people each add tables on their own branches, their changes never touch the same file, and none of them conflicts with another's. D1, and the Postgres migrator, apply each migration that hasn't run yet, whatever order the branches merge in.
+Each migration is a file of its own in `lib/db/migrations/`, named by when it was made, such as `20261109033700_auth.ts`. Nothing lists them: they're found by their names. So when several people each add tables on their own branches, their changes never touch the same file, and none of them conflicts with another's. D1, and `npm run migrate` on Postgres, apply each migration that hasn't run yet, whatever order the branches merge in.
 
 1. `npm run migration -- add-jobs` makes `lib/db/migrations/<when>_add-jobs.ts`. Write its tables with Kysely's schema builder, using `typesFor()` for dates and yes-or-no columns, so the same file works for SQLite and Postgres.
 2. `npm run migrations` writes its SQL into `migrations/sqlite/` and `migrations/postgres/`, which a test checks are up to date.
 3. Never change a migration once it's merged: add another.
+
+## Running it somewhere else
+
+Only `lib/env.ts`, `lib/db/dialect.ts`, and the files Cloudflare reads (`wrangler.jsonc`, `vite.config.ts`, and the deploy workflow) know the site runs on Cloudflare. Everything else runs wherever Next.js does, with any Postgres database, such as Neon's: build it with `goodfellow-next finish --server && next build`, set `DATABASE_URL` and the variables in `.env.example`, and run `npm run migrate` before each deploy.
 
 ## Rendering
 
@@ -77,7 +82,7 @@ Every page is rendered once and served as it was, so a request costs the server 
 | `vite.config.ts` | How vinext builds the site into that Worker, rendering every page as it builds |
 | `.github/workflows/deploy.yml` | Builds the site with its content and puts it online, after every change |
 | `lib/env.ts` | The one place the site reads its bindings and secrets, so nothing else knows where it runs: the Worker's on Cloudflare, wrangler's in `npm run dev` |
-| `lib/db/dialect.ts` | The one place that knows the database: Cloudflare D1 where it's bound as `DB`, or Postgres at `DATABASE_URL` |
+| `lib/db/dialect.ts` | The one place that knows the database: Cloudflare D1 where it's bound as `DB`, or Postgres at `DATABASE_URL`, through [node-postgres](https://node-postgres.com) |
 | `lib/db/migrations/` | The database's tables, a migration a file, each written once with Kysely's schema builder; `npm run migrations` writes each database's SQL into `migrations/` |
 | `lib/auth.ts` | Sign-in with [Better Auth](https://www.better-auth.com): email addresses and passwords, no sign-up, and two roles, `admin` (the site's owners) and `editor` |
 | `app/api/auth/[...all]/route.ts` | Better Auth's routes |

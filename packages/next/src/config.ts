@@ -254,7 +254,7 @@ function redirectSource(path: string): string {
 
 /**
  * A redirect's target as Next.js's destination: Next.js reads `:name`, `*`,
- * `+`, `(`, `)`, `{` and `}` in its path and hash as a pattern, which would
+ * `+`, `(`, `)`, `{`, and `}` in its path and hash as a pattern, which would
  * fail the build (`/a/:b` names a value the source doesn't have), so they're
  * percent-encoded there, which browsers and servers read as the same address.
  * Next.js escapes its query values itself.
