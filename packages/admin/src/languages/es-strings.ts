@@ -2020,7 +2020,7 @@ export const strings: Strings = {
   "updates.enable": "Activar las actualizaciones automáticas",
   "updates.fixes.title": "Correcciones",
   "updates.fixes.ready":
-    "Las correcciones hasta Goodfellow {version} están listas. Se instalan solas esta noche, o puedes instalarlas ahora.",
+    "Las correcciones hasta Goodfellow {version} están listas. Las correcciones automáticas las instalan cuando tienen dos días, o puedes instalarlas ahora.",
   "updates.fixes.readyPaused":
     "Las correcciones hasta Goodfellow {version} están listas. Las correcciones automáticas están desactivadas, así que solo se instalan si las instalas ahora.",
   "updates.fixes.now": "Instalar las correcciones ahora",

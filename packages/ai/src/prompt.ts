@@ -92,7 +92,7 @@ Rules:
  * since every one of them is written by the site's editors.
  */
 function siteContext(site: SiteSummary): string {
-  const contact = Object.entries(site.contact ?? {}).filter(([, value]) => value?.trim());
+  const contact = Object.entries(site.contact ?? {}).filter(([, value]) => typeof value === "string" && value.trim());
   const details = {
     title: site.title,
     ...(site.description && { description: site.description }),

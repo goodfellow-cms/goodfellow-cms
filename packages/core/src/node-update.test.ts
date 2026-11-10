@@ -14,6 +14,9 @@ const BLOCK = "blocks/installed/shadcn-faq/block.tsx";
 let root: string;
 afterEach(() => rm(root, { recursive: true, force: true }));
 
+/** The site's lockfile, naming its Goodfellow packages. */
+const LOCK = `${JSON.stringify({ packages: { "": { name: "parish" }, "node_modules/@goodfellow-cms/react": { version: "0.4.1" } } })}\n`;
+
 async function site(blockText = "export default { v: 1 };\n") {
   root = await mkdtemp(join(tmpdir(), "goodfellow-update-"));
   const write = async (path: string, text: string) => {
@@ -32,7 +35,7 @@ async function site(blockText = "export default { v: 1 };\n") {
       devDependencies: { goodfellow: "0.4.1" },
     }),
   );
-  await write("package-lock.json", "{}\n");
+  await write("package-lock.json", LOCK);
   await write(BLOCK, blockText);
   await write(
     "blocks/installed/installed.json",
@@ -277,6 +280,8 @@ describe("goodfellow update", () => {
       state: "up-to-date",
       from: "0.4.2",
     });
+    // Nor is it offered as one that's only waiting.
+    expect(lines.join("\n")).not.toContain("--to 0.4.3");
     expect(
       await update({ ...options, fetchJson: releasesWith({ "0.4.3": "2026-10-02T12:00:00.000Z" }), to: "automatic" }),
     ).toMatchObject({
@@ -399,7 +404,17 @@ describe("goodfellow update", () => {
     expect(ran.some((line) => line.startsWith("npm run build"))).toBe(false);
     // Everything went back as it was.
     expect(JSON.parse(await read("package.json")).dependencies["@goodfellow-cms/react"]).toBe("0.4.1");
-    expect(await read("package-lock.json")).toBe("{}\n");
+    expect(await read("package-lock.json")).toBe(LOCK);
+    // A lockfile naming no Goodfellow package isn't one it can check, so it stops.
+    const unreadable: RunCommand = async (command, args, cwd) => {
+      if (args[0] === "install") await writeFile(join(root, "package-lock.json"), "{}\n");
+      return recorded(command, args, cwd);
+    };
+    expect(await update({ ...options, run: unreadable, to: "automatic", verifyRelease: recording })).toMatchObject({
+      state: "failed",
+      step: "provenance",
+    });
+    expect(lines.join("\n")).toContain("names no Goodfellow packages");
     // The release it asked for everywhere, and it goes ahead.
     installed = "0.4.2";
     expect(await update({ ...options, to: "automatic", verifyRelease: recording })).toMatchObject({

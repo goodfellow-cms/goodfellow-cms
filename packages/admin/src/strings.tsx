@@ -2116,7 +2116,7 @@ export const defaultStrings = {
   "updates.enable": "Turn on automatic updates",
   "updates.fixes.title": "Fixes",
   "updates.fixes.ready":
-    "Fixes up to Goodfellow {version} are ready. They install on their own tonight, or you can install them now.",
+    "Fixes up to Goodfellow {version} are ready. Automatic fixes install them once they're two days old, or you can install them now.",
   "updates.fixes.readyPaused":
     "Fixes up to Goodfellow {version} are ready. Automatic fixes are turned off, so they're only installed if you install them now.",
   "updates.fixes.now": "Install fixes now",

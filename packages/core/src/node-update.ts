@@ -192,6 +192,8 @@ async function lockedGoodfellowPackages(root: string): Promise<{ name: string; v
     if (typeof entry.version !== "string") throw new Error(`${path} in package-lock.json has no version.`);
     locked.set(`${name}@${entry.version}`, { name, version: entry.version });
   }
+  // A site always has some, so none means the lockfile isn't one this can read.
+  if (locked.size === 0) throw new Error("package-lock.json names no Goodfellow packages.");
   return [...locked.values()];
 }
 
@@ -258,7 +260,10 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   const versions = target === "automatic" ? agedReleases(packument, now) : releaseVersions(packument);
   const to = chooseUpdate(from, versions, target === "automatic" ? "fixes" : target, settings.skip);
   const waiting =
-    target === "automatic" && !to ? chooseUpdate(from, releaseVersions(packument), "fixes", settings.skip) : undefined;
+    // Only a release too young to install yet: one npm says is deprecated never is.
+    target === "automatic" && !to
+      ? chooseUpdate(from, agedReleases(packument, now, 0), "fixes", settings.skip)
+      : undefined;
   if (waiting) {
     log(
       `Goodfellow ${waiting} isn't installed automatically yet: automatic updates wait until a release is ${UPDATE_AGE_DAYS} days old, and never install one npm says is deprecated. Update with \`--to ${waiting}\` to install it now.`,
