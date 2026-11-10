@@ -157,10 +157,7 @@ export async function readRemoteBytes(address: string, options: RemoteBytesOptio
 }
 
 /** The answer to `address`, following redirects that `remoteUrl()` allows, once it says it isn't too large. */
-async function remoteResponse(
-  address: string,
-  options: RemoteTextOptions,
-): Promise<RemoteResponse> {
+async function remoteResponse(address: string, options: RemoteTextOptions): Promise<RemoteResponse> {
   const fetcher = options.fetch ?? (globalThis as unknown as { fetch: RemoteFetch }).fetch;
   const timeout = (globalThis as unknown as { AbortSignal: { timeout(ms: number): unknown } }).AbortSignal.timeout(
     options.timeout ?? 20_000,
