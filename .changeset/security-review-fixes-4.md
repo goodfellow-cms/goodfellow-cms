@@ -6,6 +6,7 @@
 "@goodfellow-cms/gitlab": patch
 "@goodfellow-cms/bitbucket": patch
 "create-goodfellow": patch
+"@goodfellow-cms/broker": patch
 ---
 
 More fixes from November's security review:
@@ -21,3 +22,4 @@ More fixes from November's security review:
 - A full-stack site's AI proxy (`aiServer()`) sends on only the fields the AI assistant sends: Claude's own models, answers no longer than the assistant asks for, text messages and structured answers, and only its beta, so an editor can't spend the site's key on tools, files, or other models. `models` on a service's key limits the models editors may ask for.
 - GitLab and Bitbucket sites list and close only their own repository's merge and pull requests as drafts' reviews, never one from a fork that uses a draft's branch name.
 - The sign-in worker that `create-goodfellow` carries, which owners deploy, takes its setup page's forms only from that page, and always writes a new session key while it's being set up.
+- The token broker publishes a draft with exactly the changes it checked, so nothing added to the draft in between goes live unchecked, and frames the admin panel at the screen an address names without what a sign-in brought back, such as the sign-in worker's grant or Bitbucket's token.
