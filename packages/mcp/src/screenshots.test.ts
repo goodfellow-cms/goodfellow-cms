@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { browserSaid } from "./screenshots.js";
+import { browserEnvironment, browserSaid } from "./screenshots.js";
 
 describe("screenshots", () => {
   it("passes on what the browser said when it closed, without Playwright's own lines", () => {
@@ -18,5 +18,24 @@ describe("screenshots", () => {
       "[4120:1027/093001.101:ERROR:gpu_process_host.cc(991)] GPU process exited unexpectedly / [4120:1027/093001.205:FATAL:gpu_data_manager_impl_private.cc(415)] GPU process isn't usable. Goodbye.",
     );
     expect(browserSaid("page.goto: net::ERR_ABORTED")).toBe("");
+  });
+});
+
+describe("browserEnvironment", () => {
+  it("leaves the connector's sign-ins and other credentials out of the browser's environment", () => {
+    expect(
+      browserEnvironment({
+        PATH: "/usr/bin",
+        HOME: "/home/olive",
+        DISPLAY: ":0",
+        GOODFELLOW_GITHUB_TOKEN: "ghp_x",
+        GOODFELLOW_SITE: "https://parish.example",
+        GITLAB_TOKEN: "x",
+        AWS_SECRET_ACCESS_KEY: "x",
+        ANTHROPIC_API_KEY: "x",
+        NPM_AUTH: "x",
+        EMPTY: undefined,
+      }),
+    ).toEqual({ PATH: "/usr/bin", HOME: "/home/olive", DISPLAY: ":0" });
   });
 });

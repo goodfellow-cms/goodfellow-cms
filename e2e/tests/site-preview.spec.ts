@@ -69,6 +69,8 @@ test("shows a draft's page, from the files it's handed, without signing in", asy
 test("takes screenshots of a draft with the computer's own browser, as the connector on a computer does", async () => {
   const screenshots = localScreenshots({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ?? chromium.executablePath(),
+    // CI's container can't run Chrome's sandbox.
+    sandbox: false,
   });
   const png = await screenshots.take({
     url: `${built}/admin/#/preview`,
@@ -85,6 +87,8 @@ test("takes screenshots of a draft with the computer's own browser, as the conne
 test("takes screenshots of images in the media library, shrunk to the width asked for", async () => {
   const screenshots = localScreenshots({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ?? chromium.executablePath(),
+    // CI's container can't run Chrome's sandbox.
+    sandbox: false,
   });
   const png = await screenshots.take({ url: `${built}/media/placeholder.svg`, width: 390, image: true });
   expect([...png.slice(1, 4)]).toEqual([0x50, 0x4e, 0x47]);
