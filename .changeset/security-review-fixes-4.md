@@ -5,6 +5,7 @@
 "@goodfellow-cms/ai": patch
 "@goodfellow-cms/gitlab": patch
 "@goodfellow-cms/bitbucket": patch
+"create-goodfellow": patch
 ---
 
 More fixes from November's security review:
@@ -19,4 +20,4 @@ More fixes from November's security review:
 - Rich text can't take an id Goodfellow's own scripts look up by spelling it with character references, such as `&#103;f-consent`.
 - A full-stack site's AI proxy (`aiServer()`) sends on only the fields the AI assistant sends: Claude's own models, answers no longer than the assistant asks for, text messages and structured answers, and only its beta, so an editor can't spend the site's key on tools, files, or other models. `models` on a service's key limits the models editors may ask for.
 - GitLab and Bitbucket sites list and close only their own repository's merge and pull requests as drafts' reviews, never one from a fork that uses a draft's branch name.
-- The sign-in worker's setup page takes forms only from its own page, and always writes a new session key while it's being set up.
+- The sign-in worker that `create-goodfellow` carries, which owners deploy, takes its setup page's forms only from that page, and always writes a new session key while it's being set up.
