@@ -65,7 +65,7 @@ jobs:
             exit 0
           fi
           if [ "$EVENT_ACTION" = "labeled" ]; then
-            permission=$(gh api "repos/$GH_REPO/collaborators/$ACTOR/permission" --jq .permission)
+            permission=$(gh api "repos/$GH_REPO/collaborators/$ACTOR/permission" --jq .permission) || permission=none
             case "$permission" in admin | maintain | write) ;; *)
               echo "::notice::$ACTOR can't push here, so their label doesn't start a review."
               echo "run=false" >> "$GITHUB_OUTPUT"

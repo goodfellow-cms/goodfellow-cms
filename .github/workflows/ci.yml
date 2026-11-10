@@ -118,7 +118,7 @@ jobs:
   # Claude's review, once everything else has passed, so it never reads code that's about to change to fix CI. It
   # reviews a pull request once by itself; see claude-review.yml for asking again, and the labels that change it.
   claude-review:
-    needs: [audit, check]
+    needs: [audit, check, postgres]
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
