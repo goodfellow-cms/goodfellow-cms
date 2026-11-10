@@ -173,15 +173,23 @@ async function unverifiedReleases(names: string[], version: string, verify: Rele
   return problems.filter((problem): problem is string => problem !== undefined);
 }
 
+/** A Goodfellow package as `package-lock.json` installs it: the file it came from, and its `integrity`. */
+interface LockedPackage {
+  name: string;
+  version: string;
+  resolved: unknown;
+  integrity: unknown;
+}
+
 /**
  * The Goodfellow packages `package-lock.json` installs, by name and version,
  * wherever they are in its tree.
  */
-async function lockedGoodfellowPackages(root: string): Promise<{ name: string; version: string }[]> {
+async function lockedGoodfellowPackages(root: string): Promise<LockedPackage[]> {
   const lock = JSON.parse(await readFile(join(root, "package-lock.json"), "utf8")) as {
-    packages?: Record<string, { version?: unknown; link?: unknown }>;
+    packages?: Record<string, { version?: unknown; link?: unknown; resolved?: unknown; integrity?: unknown }>;
   };
-  const locked = new Map<string, { name: string; version: string }>();
+  const locked = new Map<string, LockedPackage>();
   for (const [path, entry] of Object.entries(lock.packages ?? {})) {
     const at = path.lastIndexOf("node_modules/");
     if (at < 0) continue;
@@ -190,11 +198,39 @@ async function lockedGoodfellowPackages(root: string): Promise<{ name: string; v
     // A link is a folder of the site's own, which npm installs nothing into.
     if (entry.link === true) continue;
     if (typeof entry.version !== "string") throw new Error(`${path} in package-lock.json has no version.`);
-    locked.set(`${name}@${entry.version}`, { name, version: entry.version });
+    const { version, resolved, integrity } = entry;
+    locked.set(`${name}@${version} ${String(integrity)}`, { name, version, resolved, integrity });
   }
   // A site always has some, so none means the lockfile isn't one this can read.
   if (locked.size === 0) throw new Error("package-lock.json names no Goodfellow packages.");
   return [...locked.values()];
+}
+
+/**
+ * What's wrong with each Goodfellow package npm installed, in words: one that
+ * didn't come from npm's registry, whose provenance doesn't verify as
+ * `unverifiedReleases()` checks it, or whose file isn't the one that
+ * provenance is about (its `integrity`).
+ */
+async function unverifiedInstalls(locked: LockedPackage[], verify: ReleaseVerifier): Promise<string[]> {
+  const problems = await Promise.all(
+    locked.map(async ({ name, version, resolved, integrity }) => {
+      if (typeof resolved !== "string" || !resolved.startsWith(`${NPM_REGISTRY}/`)) {
+        return [`${name} ${version} wasn't installed from npm's registry.`];
+      }
+      const release = await verify(name, version);
+      if (!release.ok) return [release.message];
+      if (!sameSource(release.source, GOODFELLOW_RELEASE_SOURCE)) {
+        return [
+          `${name} ${version} was built by ${release.source.workflow} in ${release.source.repository}, not by Goodfellow's release workflow.`,
+        ];
+      }
+      return typeof integrity === "string" && integrity === release.integrity
+        ? []
+        : [`${name} ${version} as npm installed it isn't the file its provenance is about.`];
+    }),
+  );
+  return problems.flat();
 }
 
 /** Goodfellow's packages, which are all released together with the same version. */
@@ -469,8 +505,7 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
   // update checks every Goodfellow package the lockfile names before any of the site's code runs.
   if (target === "automatic") {
     const problems = await lockedGoodfellowPackages(root).then(
-      async (locked) =>
-        (await Promise.all(locked.map(({ name, version }) => unverifiedReleases([name], version, verify)))).flat(),
+      (locked) => unverifiedInstalls(locked, verify),
       (error: unknown) => [
         `The packages npm installed couldn't be read: ${error instanceof Error ? error.message : String(error)}`,
       ],

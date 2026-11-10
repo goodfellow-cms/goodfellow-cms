@@ -37,7 +37,11 @@ const earlyUpdate = (early = { from: "1.0.0", ...source }): EarlyInstall => ({
 describe("verifiedSource", () => {
   it("gives where a release was built once its signature checks out", async () => {
     const options = npm([{ version: "1.0.0", provenance: true, repository: REPO }]);
-    expect(await verifiedSource(NAME, "1.0.0", options)).toMatchObject({ ok: true, source });
+    expect(await verifiedSource(NAME, "1.0.0", options)).toMatchObject({
+      ok: true,
+      source,
+      integrity: expect.any(String),
+    });
   });
 
   it("refuses a release without provenance, and one whose signature doesn't check out", async () => {

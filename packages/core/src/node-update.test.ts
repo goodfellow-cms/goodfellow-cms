@@ -14,8 +14,15 @@ const BLOCK = "blocks/installed/shadcn-faq/block.tsx";
 let root: string;
 afterEach(() => rm(root, { recursive: true, force: true }));
 
+/** How the tests' lockfiles name a Goodfellow package's release, with the file its provenance is about. */
+const locked = (name: string, version: string) => ({
+  version,
+  resolved: `https://registry.npmjs.org/${name}/-/${name.split("/").pop()}-${version}.tgz`,
+  integrity: `sha512-${name}@${version}`,
+});
+
 /** The site's lockfile, naming its Goodfellow packages. */
-const LOCK = `${JSON.stringify({ packages: { "": { name: "parish" }, "node_modules/@goodfellow-cms/react": { version: "0.4.1" } } })}\n`;
+const LOCK = `${JSON.stringify({ packages: { "": { name: "parish" }, "node_modules/@goodfellow-cms/react": locked("@goodfellow-cms/react", "0.4.1") } })}\n`;
 
 async function site(blockText = "export default { v: 1 };\n") {
   root = await mkdtemp(join(tmpdir(), "goodfellow-update-"));
@@ -81,10 +88,11 @@ const fetchJson = async (url: string): Promise<unknown> => {
 };
 
 /** Every release built by Goodfellow's own release workflow, as its provenance would say. */
-const verifyRelease: ReleaseVerifier = async () => ({
+const verifyRelease: ReleaseVerifier = async (name, version) => ({
   ok: true,
   source: GOODFELLOW_RELEASE_SOURCE,
   published: "2026-10-01T12:00:00.000Z",
+  integrity: `sha512-${name}@${version}`,
 });
 
 /** Records the commands run, answering with what `results` says for each, or success. */
@@ -366,12 +374,18 @@ describe("goodfellow update", () => {
 
   it("checks the provenance of every Goodfellow package npm installed, before the build", async () => {
     await site();
+    let tampered = false;
+    let elsewhere = false;
     const lock = (version: string) =>
       JSON.stringify({
         packages: {
           "": { name: "parish" },
-          "node_modules/@goodfellow-cms/react": { version: "0.4.2" },
-          "node_modules/@goodfellow-cms/blocks/node_modules/@goodfellow-cms/core": { version },
+          "node_modules/@goodfellow-cms/react": locked("@goodfellow-cms/react", "0.4.2"),
+          "node_modules/@goodfellow-cms/blocks/node_modules/@goodfellow-cms/core": {
+            ...locked("@goodfellow-cms/core", version),
+            ...(tampered && { integrity: "sha512-elsewhere" }),
+            ...(elsewhere && { resolved: "https://evil.example/core.tgz" }),
+          },
           "node_modules/react": { version: "19.3.1" },
         },
       });
@@ -415,6 +429,20 @@ describe("goodfellow update", () => {
       step: "provenance",
     });
     expect(lines.join("\n")).toContain("names no Goodfellow packages");
+    // A file other than the one its provenance is about, or one from anywhere but npm's registry, stops it too.
+    installed = "0.4.2";
+    tampered = true;
+    expect(await update({ ...options, to: "automatic", verifyRelease: recording })).toMatchObject({
+      step: "provenance",
+    });
+    expect(lines.join("\n")).toContain("isn't the file its provenance is about");
+    tampered = false;
+    elsewhere = true;
+    expect(await update({ ...options, to: "automatic", verifyRelease: recording })).toMatchObject({
+      step: "provenance",
+    });
+    expect(lines.join("\n")).toContain("wasn't installed from npm's registry");
+    elsewhere = false;
     // The release it asked for everywhere, and it goes ahead.
     installed = "0.4.2";
     expect(await update({ ...options, to: "automatic", verifyRelease: recording })).toMatchObject({
