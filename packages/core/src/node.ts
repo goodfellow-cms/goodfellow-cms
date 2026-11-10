@@ -127,7 +127,14 @@ export {
   importSite,
   SiteTransferError,
 } from "./node-transfer.js";
-export { type RunCommand, type SiteFile, siteFileChanges, type UpdateOptions, update } from "./node-update.js";
+export {
+  type ReleaseVerifier,
+  type RunCommand,
+  type SiteFile,
+  siteFileChanges,
+  type UpdateOptions,
+  update,
+} from "./node-update.js";
 export {
   type ExportMarkdownResult,
   type ExportWordPressResult,

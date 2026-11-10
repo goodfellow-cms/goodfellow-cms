@@ -269,9 +269,10 @@ test("translates a page in another language, blocks and settings, keeping its la
 
   await expect(canvas(page).getByRole("heading", { name: "Quiénes somos" })).toBeVisible();
   const prompt = JSON.stringify(fake.requests[0]?.body.messages);
-  expect(prompt).toContain("into Español (es)");
+  // The language to translate into, with the site's data.
+  expect(prompt).toMatch(/\\+"language\\+": \\+"Español \(es\)/);
   // The page's language, not the site's main one.
-  expect(prompt).toMatch(/language code is \\+"es/);
+  expect(prompt).toMatch(/\\+"language\\+": \\+"es\\+"/);
   await publishInEditor(page);
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   expect(readJson("content/pages/es/about.json")).toMatchObject({

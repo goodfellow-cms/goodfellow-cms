@@ -12,6 +12,7 @@ import { type UpdateSettings, updateSettingsSchema } from "./content/schemas.js"
 import { serializeContent } from "./content/serialize.js";
 import type { FileVersion, HistoryOptions } from "./git.js";
 import { CURRENT_VERSION } from "./migrations/index.js";
+import type { ProvenanceSource } from "./provenance.js";
 
 /** npm's registry, which answers browsers too. */
 export const NPM_REGISTRY = "https://registry.npmjs.org";
@@ -66,6 +67,39 @@ export function withSiteOverrides(overrides: unknown): {
 export const VERSION_PACKAGE = "@goodfellow-cms/react";
 
 type Parts = [number, number, number];
+
+/**
+ * How many days old a Goodfellow release must be before automatic updates
+ * install it, so a release published by mistake, or by someone with a stolen
+ * npm token, can be found and deprecated before sites install it by
+ * themselves. Updates someone asks for install a release at once.
+ */
+export const UPDATE_AGE_DAYS = 2;
+
+/** Where Goodfellow's packages are built, which automatic updates check each release's provenance against. */
+export const GOODFELLOW_RELEASE_SOURCE: ProvenanceSource = {
+  repository: "https://github.com/goodfellow-cms/goodfellow-cms",
+  workflow: ".github/workflows/release.yml",
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The releases automatic updates may install, oldest first: those npm's
+ * metadata says were published at least `days` before `now`, and doesn't say
+ * are deprecated. Releases without a publish time are left out.
+ */
+export function agedReleases(metadata: unknown, now: Date, days = UPDATE_AGE_DAYS): string[] {
+  const { time = {}, versions = {} } = (metadata ?? {}) as {
+    time?: Record<string, unknown>;
+    versions?: Record<string, { deprecated?: unknown } | undefined>;
+  };
+  const cutoff = now.getTime() - days * DAY_MS;
+  return releaseVersions(metadata).filter((version) => {
+    const published = typeof time[version] === "string" ? Date.parse(time[version] as string) : Number.NaN;
+    return !Number.isNaN(published) && published <= cutoff && !versions[version]?.deprecated;
+  });
+}
 
 /** A release's version, such as `0.4.2`, from a version or a range such as `^0.4.2`; pre-releases don't count. */
 function parse(version: string): Parts | undefined {
@@ -280,7 +314,7 @@ export interface UpdateResult {
   from: string;
   to?: string;
   /** For a failed update, the step that failed. */
-  step?: "install" | "build" | "blocks" | "publish";
+  step?: "provenance" | "install" | "build" | "blocks" | "publish";
   /** What the build said, when building the site with the update failed. */
   cause?: BuildCause;
   /** Installed blocks' files and site files someone changed, which the update left as they were. */
