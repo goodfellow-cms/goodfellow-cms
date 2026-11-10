@@ -4,15 +4,25 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { formatBuildCause } from "./build-problems.js";
 import { serializeContent } from "./content/serialize.js";
-import { type RunCommand, type SiteFile, update } from "./node-update.js";
+import { type ReleaseVerifier, type RunCommand, type SiteFile, update } from "./node-update.js";
 import { hashText } from "./registry.js";
-import { parseUpdateSettings, SITE_OVERRIDES, updateSettingsFile } from "./updates.js";
+import { GOODFELLOW_RELEASE_SOURCE, parseUpdateSettings, SITE_OVERRIDES, updateSettingsFile } from "./updates.js";
 
 const REGISTRY = "https://registry.example/{name}.json";
 const BLOCK = "blocks/installed/shadcn-faq/block.tsx";
 
 let root: string;
 afterEach(() => rm(root, { recursive: true, force: true }));
+
+/** How the tests' lockfiles name a Goodfellow package's release, with the file its provenance is about. */
+const locked = (name: string, version: string) => ({
+  version,
+  resolved: `https://registry.npmjs.org/${name}/-/${name.split("/").pop()}-${version}.tgz`,
+  integrity: `sha512-${name}@${version}`,
+});
+
+/** The site's lockfile, naming its Goodfellow packages. */
+const LOCK = `${JSON.stringify({ packages: { "": { name: "parish" }, "node_modules/@goodfellow-cms/react": locked("@goodfellow-cms/react", "0.4.1") } })}\n`;
 
 async function site(blockText = "export default { v: 1 };\n") {
   root = await mkdtemp(join(tmpdir(), "goodfellow-update-"));
@@ -32,7 +42,7 @@ async function site(blockText = "export default { v: 1 };\n") {
       devDependencies: { goodfellow: "0.4.1" },
     }),
   );
-  await write("package-lock.json", "{}\n");
+  await write("package-lock.json", LOCK);
   await write(BLOCK, blockText);
   await write(
     "blocks/installed/installed.json",
@@ -63,6 +73,8 @@ const fetchJson = async (url: string): Promise<unknown> => {
   if (url.startsWith("https://registry.npmjs.org/@goodfellow-cms/react/")) {
     return { dependencies: { "@puckeditor/core": "0.23.1" } };
   }
+  // Every other Goodfellow package's release, with no Goodfellow packages of its own.
+  if (/^https:\/\/registry\.npmjs\.org\/(@goodfellow-cms\/[a-z-]+|goodfellow)\/\d/.test(url)) return {};
   if (url === "https://registry.example/shadcn-faq.json") {
     return {
       name: "shadcn-faq",
@@ -74,6 +86,14 @@ const fetchJson = async (url: string): Promise<unknown> => {
   }
   throw new Error(`404 ${url}`);
 };
+
+/** Every release built by Goodfellow's own release workflow, as its provenance would say. */
+const verifyRelease: ReleaseVerifier = async (name, version) => ({
+  ok: true,
+  source: GOODFELLOW_RELEASE_SOURCE,
+  published: "2026-10-01T12:00:00.000Z",
+  integrity: `sha512-${name}@${version}`,
+});
 
 /** Records the commands run, answering with what `results` says for each, or success. */
 function commands(results: Record<string, { code: number; output?: string }> = {}) {
@@ -220,14 +240,228 @@ describe("goodfellow update", () => {
     expect(await update({ ...options, to: "fixes" })).toMatchObject({ state: "updated", to: "0.4.2" });
   });
 
+  it("installs fixes automatically only once they're old enough, and not deprecated", async () => {
+    await site();
+    const now = new Date("2026-10-10T12:00:00.000Z");
+    const releasesWith =
+      (time: Record<string, string>, deprecated: string[] = []) =>
+      async (url: string) =>
+        url === "https://registry.npmjs.org/@goodfellow-cms/react"
+          ? {
+              versions: Object.fromEntries(
+                ["0.4.1", "0.4.2", "0.4.3"].map((version) => [
+                  version,
+                  deprecated.includes(version) ? { deprecated: "Taken back" } : {},
+                ]),
+              ),
+              time,
+            }
+          : fetchJson(url);
+    const { ran, run } = commands();
+    const lines: string[] = [];
+    const options = {
+      root,
+      run,
+      registry: REGISTRY,
+      log: (line: string) => lines.push(line),
+      env: {},
+      now,
+      verifyRelease,
+    };
+    // Published yesterday: it waits, and says how to install it now.
+    const fresh = releasesWith({ "0.4.2": "2026-10-09T12:00:00.000Z" });
+    expect(await update({ ...options, fetchJson: fresh, to: "automatic" })).toEqual({
+      state: "up-to-date",
+      from: "0.4.1",
+    });
+    expect(lines.join("\n")).toContain("isn't installed automatically yet");
+    expect(ran).toEqual([]);
+    // Asking for it installs it at once, holding back what npm got after now.
+    expect(await update({ ...options, fetchJson: fresh, to: "0.4.2" })).toMatchObject({
+      state: "updated",
+      to: "0.4.2",
+    });
+    expect(ran).toContain("npm install --no-audit --no-fund --before=2026-10-10T12:00:00.000Z");
+    // A deprecated release never installs by itself, however old.
+    const older = releasesWith({ "0.4.2": "2026-10-01T12:00:00.000Z", "0.4.3": "2026-10-02T12:00:00.000Z" }, ["0.4.3"]);
+    expect(await update({ ...options, fetchJson: older, to: "automatic" })).toEqual({
+      state: "up-to-date",
+      from: "0.4.2",
+    });
+    // Nor is it offered as one that's only waiting.
+    expect(lines.join("\n")).not.toContain("--to 0.4.3");
+    expect(
+      await update({ ...options, fetchJson: releasesWith({ "0.4.3": "2026-10-02T12:00:00.000Z" }), to: "automatic" }),
+    ).toMatchObject({
+      state: "updated",
+      to: "0.4.3",
+    });
+  });
+
+  it("installs automatically only releases Goodfellow's release workflow built, by their provenance", async () => {
+    await site();
+    const { ran, run } = commands();
+    const lines: string[] = [];
+    const options = { root, fetchJson, run, registry: REGISTRY, log: (line: string) => lines.push(line), env: {} };
+    const elsewhere: ReleaseVerifier = async (name) =>
+      name === "goodfellow"
+        ? {
+            ok: true,
+            source: { repository: "https://github.com/someone/fork", workflow: ".github/workflows/release.yml" },
+            published: "2026-10-01T12:00:00.000Z",
+          }
+        : verifyRelease(name, "0.4.2");
+    expect(await update({ ...options, to: "automatic", verifyRelease: elsewhere })).toEqual({
+      state: "failed",
+      from: "0.4.1",
+      to: "0.4.2",
+      step: "provenance",
+    });
+    expect(lines.join("\n")).toContain(
+      "goodfellow 0.4.2 was built by .github/workflows/release.yml in https://github.com/someone/fork",
+    );
+    const unsigned: ReleaseVerifier = async (name, version) => ({
+      ok: false,
+      problem: "no-provenance",
+      message: `${name} ${version} has no provenance.`,
+    });
+    expect(await update({ ...options, to: "automatic", verifyRelease: unsigned })).toMatchObject({
+      step: "provenance",
+    });
+    expect(ran).toEqual([]);
+    expect(JSON.parse(await read("package.json")).dependencies["@goodfellow-cms/react"]).toBe("0.4.1");
+    // Goodfellow packages the site's own bring are checked too, such as the AI assistant's with the admin panel.
+    await site();
+    const asked: string[] = [];
+    const bringing = async (url: string) =>
+      url === "https://registry.npmjs.org/@goodfellow-cms/blocks/0.4.2"
+        ? { dependencies: { "@goodfellow-cms/ai": "0.4.2", react: "19.3.1" } }
+        : url === "https://registry.npmjs.org/@goodfellow-cms/ai/0.4.2"
+          ? { dependencies: { "@goodfellow-cms/core": "0.4.2" } }
+          : fetchJson(url);
+    const recording: ReleaseVerifier = async (name, version) => {
+      asked.push(name);
+      return name === "@goodfellow-cms/core"
+        ? { ok: false, problem: "unverified", message: `${name} ${version}'s provenance didn't verify.` }
+        : verifyRelease(name, version);
+    };
+    expect(await update({ ...options, fetchJson: bringing, to: "automatic", verifyRelease: recording })).toMatchObject({
+      state: "failed",
+      step: "provenance",
+    });
+    expect(asked.sort()).toEqual([
+      "@goodfellow-cms/ai",
+      "@goodfellow-cms/blocks",
+      "@goodfellow-cms/core",
+      "@goodfellow-cms/react",
+      "goodfellow",
+    ]);
+    // Where npm can't say what a release brings, it stops rather than check less.
+    lines.length = 0;
+    const unreadable = async (url: string) =>
+      url === "https://registry.npmjs.org/@goodfellow-cms/blocks/0.4.2"
+        ? Promise.reject(new Error("503"))
+        : fetchJson(url);
+    expect(await update({ ...options, fetchJson: unreadable, to: "automatic", verifyRelease })).toMatchObject({
+      state: "failed",
+      step: "provenance",
+    });
+    expect(lines.join("\n")).toContain("couldn't be read from npm: 503");
+    expect(ran).toEqual([]);
+    // Asked for by name, it installs without the check.
+    expect(await update({ ...options, to: "0.4.2", verifyRelease: unsigned })).toMatchObject({ state: "updated" });
+  });
+
+  it("checks the provenance of every Goodfellow package npm installed, before the build", async () => {
+    await site();
+    let tampered = false;
+    let elsewhere = false;
+    const lock = (version: string) =>
+      JSON.stringify({
+        packages: {
+          "": { name: "parish" },
+          "node_modules/@goodfellow-cms/react": locked("@goodfellow-cms/react", "0.4.2"),
+          "node_modules/@goodfellow-cms/blocks/node_modules/@goodfellow-cms/core": {
+            ...locked("@goodfellow-cms/core", version),
+            ...(tampered && { integrity: "sha512-elsewhere" }),
+            ...(elsewhere && { resolved: "https://evil.example/core.tgz" }),
+          },
+          "node_modules/react": { version: "19.3.1" },
+        },
+      });
+    // npm writes the lockfile as it installs, here with a newer core than the release a range took.
+    const { ran, run: recorded } = commands();
+    let installed = "0.4.3";
+    const run: RunCommand = async (command, args, cwd) => {
+      if (args[0] === "install") await writeFile(join(root, "package-lock.json"), lock(installed));
+      return recorded(command, args, cwd);
+    };
+    const asked: string[] = [];
+    const recording: ReleaseVerifier = async (name, version) => {
+      asked.push(`${name}@${version}`);
+      return version === "0.4.3"
+        ? { ok: false, problem: "no-provenance", message: `${name} ${version} has no provenance.` }
+        : verifyRelease(name, version);
+    };
+    const lines: string[] = [];
+    const options = { root, fetchJson, run, registry: REGISTRY, log: (line: string) => lines.push(line), env: {} };
+    expect(await update({ ...options, to: "automatic", verifyRelease: recording })).toMatchObject({
+      state: "failed",
+      step: "provenance",
+    });
+    expect(asked).toContain("@goodfellow-cms/core@0.4.3");
+    // Installed without running any package's install script, though this site's `.npmrc` doesn't say so.
+    expect(ran).toContainEqual(expect.stringMatching(/^npm install .*--ignore-scripts$/));
+    // And put back the same way, once the check refused what it installed.
+    expect(ran).toContain("npm ci --no-audit --no-fund --ignore-scripts");
+    expect(lines.join("\n")).toContain("@goodfellow-cms/core 0.4.3 has no provenance.");
+    expect(ran.some((line) => line.startsWith("npm run build"))).toBe(false);
+    // Everything went back as it was.
+    expect(JSON.parse(await read("package.json")).dependencies["@goodfellow-cms/react"]).toBe("0.4.1");
+    expect(await read("package-lock.json")).toBe(LOCK);
+    // A lockfile naming no Goodfellow package isn't one it can check, so it stops.
+    const unreadable: RunCommand = async (command, args, cwd) => {
+      if (args[0] === "install") await writeFile(join(root, "package-lock.json"), "{}\n");
+      return recorded(command, args, cwd);
+    };
+    expect(await update({ ...options, run: unreadable, to: "automatic", verifyRelease: recording })).toMatchObject({
+      state: "failed",
+      step: "provenance",
+    });
+    expect(lines.join("\n")).toContain("names no Goodfellow packages");
+    // A file other than the one its provenance is about, or one from anywhere but npm's registry, stops it too.
+    installed = "0.4.2";
+    tampered = true;
+    expect(await update({ ...options, to: "automatic", verifyRelease: recording })).toMatchObject({
+      step: "provenance",
+    });
+    expect(lines.join("\n")).toContain("isn't the file its provenance is about");
+    tampered = false;
+    elsewhere = true;
+    expect(await update({ ...options, to: "automatic", verifyRelease: recording })).toMatchObject({
+      step: "provenance",
+    });
+    expect(lines.join("\n")).toContain("wasn't installed from npm's registry");
+    elsewhere = false;
+    // The release it asked for everywhere, and it goes ahead.
+    installed = "0.4.2";
+    expect(await update({ ...options, to: "automatic", verifyRelease: recording })).toMatchObject({
+      state: "updated",
+      to: "0.4.2",
+    });
+  });
+
   it("goes back to an older release, and skips the one it left until it's chosen again", async () => {
     await site();
     const withFix = async (url: string) =>
       url === "https://registry.npmjs.org/@goodfellow-cms/react"
-        ? { versions: { "0.4.1": {}, "0.4.2": {}, "0.4.3": {}, "0.5.0": {} } }
+        ? {
+            versions: { "0.4.1": {}, "0.4.2": {}, "0.4.3": {}, "0.5.0": {} },
+            time: { "0.4.2": "2026-10-01T12:00:00.000Z", "0.4.3": "2026-10-05T12:00:00.000Z" },
+          }
         : fetchJson(url);
     const { ran, run } = commands();
-    const options = { root, fetchJson: withFix, run, registry: REGISTRY, log: () => {}, env: {} };
+    const options = { root, fetchJson: withFix, run, registry: REGISTRY, log: () => {}, env: {}, verifyRelease };
     await update({ ...options, to: "0.4.2" });
     ran.length = 0;
 

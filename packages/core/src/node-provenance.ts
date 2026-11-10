@@ -84,7 +84,13 @@ export interface ProvenanceOptions {
 
 /** A release's verified source and when it was published, or why it has none. */
 export type VerifiedRelease =
-  | { ok: true; source: ProvenanceSource; published: string }
+  | {
+      ok: true;
+      source: ProvenanceSource;
+      published: string;
+      /** The file's `integrity` the provenance was checked against, as npm's lockfiles name it. */
+      integrity?: string;
+    }
   | { ok: false; problem: ProvenanceProblem; published?: string; message: string };
 
 function hexOf(integrity: string): string | undefined {
@@ -151,6 +157,7 @@ export async function verifiedSource(
     return {
       ok: true,
       published,
+      integrity,
       source: { repository: found.statement.repository, workflow: found.statement.workflow },
     };
   } catch (error) {

@@ -1450,6 +1450,7 @@ export {
 export { trimChars } from "./trim.js";
 export {
   type AvailableUpdates,
+  agedReleases,
   availableUpdates,
   type CodeRepository,
   chooseUpdate,
@@ -1457,6 +1458,7 @@ export {
   DEFAULT_UPDATE_SETTINGS,
   findUpdateResult,
   formatUpdateResult,
+  GOODFELLOW_RELEASE_SOURCE,
   inRange,
   NIGHTLY_MODES,
   NIGHTLY_VARIABLE,
@@ -1470,6 +1472,7 @@ export {
   SITE_OVERRIDES,
   type SiteUpdates,
   siteVersion,
+  UPDATE_AGE_DAYS,
   UPDATE_RESULT_MARKER,
   type UpdateResult,
   type UpdateRun,

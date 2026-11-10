@@ -2020,7 +2020,7 @@ export const strings: Strings = {
   "updates.enable": "Activar las actualizaciones automáticas",
   "updates.fixes.title": "Correcciones",
   "updates.fixes.ready":
-    "Las correcciones hasta Goodfellow {version} están listas. Se instalan solas esta noche, o puedes instalarlas ahora.",
+    "Las correcciones hasta Goodfellow {version} están listas. Las correcciones automáticas las instalan cuando tienen dos días, o puedes instalarlas ahora.",
   "updates.fixes.readyPaused":
     "Las correcciones hasta Goodfellow {version} están listas. Las correcciones automáticas están desactivadas, así que solo se instalan si las instalas ahora.",
   "updates.fixes.now": "Instalar las correcciones ahora",
@@ -2078,6 +2078,8 @@ export const strings: Strings = {
   "updates.last.details": "Ver los detalles en {host}",
   "updates.failed.build":
     "El sitio no se generó con Goodfellow {version}; puede que quien se ocupe del código tenga que revisar los detalles.",
+  "updates.failed.provenance":
+    "No se pudo comprobar que Goodfellow {version} viene de las versiones del propio Goodfellow, así que no se instaló. Pide a quien se ocupe del código que revise los detalles.",
   "updates.failed.install": "No se pudieron instalar sus paquetes. La noche siguiente se intenta de nuevo.",
   "updates.failed.blocks": "No se pudo actualizar uno de los bloques del sitio.",
   "updates.failed.publish": "Alguien publicó al mismo tiempo. La noche siguiente se intenta de nuevo.",

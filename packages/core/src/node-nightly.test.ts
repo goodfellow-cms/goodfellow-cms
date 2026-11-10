@@ -36,9 +36,13 @@ function live(record: BuildRecord | undefined): typeof fetch {
     record ? new Response(serializeBuildRecord(record)) : new Response("Not found", { status: 404 })) as typeof fetch;
 }
 
+/** npm's metadata for releases published long before `now`. */
 const releases =
   (...versions: string[]) =>
-  async () => ({ versions: Object.fromEntries(versions.map((version) => [version, {}])) });
+  async () => ({
+    versions: Object.fromEntries(versions.map((version) => [version, {}])),
+    time: Object.fromEntries(versions.map((version) => [version, "2026-10-01T12:00:00Z"])),
+  });
 
 const now = new Date("2026-11-02T04:17:00Z");
 
@@ -70,6 +74,16 @@ describe("nightlyCheck", { timeout: GIT_TIMEOUT }, () => {
       update: true,
       reasons: ["update"],
       release: "1.2.4",
+    });
+
+    // A fix published yesterday waits until it's old enough, as automatic updates do.
+    const fresh = async () => ({
+      ...(await releases("1.2.3", "1.2.4")()),
+      time: { "1.2.3": "2026-10-01T12:00:00Z", "1.2.4": "2026-11-01T12:00:00Z" },
+    });
+    expect(await nightlyCheck({ root: dir, now, env: {}, fetch: live(built), fetchJson: fresh })).toMatchObject({
+      build: false,
+      update: false,
     });
 
     // The site's setting: every night, or never.

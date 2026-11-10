@@ -16,13 +16,13 @@ import { type SiteFile, siteFileChanges } from "./node-update.js";
 import type { FetchJson } from "./registry.js";
 import { siteCopyFrom } from "./site-copy.js";
 import {
+  agedReleases,
   chooseUpdate,
   NIGHTLY_VARIABLE,
   type NightlyMode,
   NPM_REGISTRY,
   nightlyMode,
   parseUpdateSettings,
-  releaseVersions,
   siteVersion,
   VERSION_PACKAGE,
 } from "./updates.js";
@@ -119,13 +119,15 @@ async function availableUpdate(
   root: string,
   siteFiles: readonly SiteFile[],
   fetchJson: FetchJson,
+  now: Date,
 ): Promise<string | true | undefined> {
   const from = siteVersion((await readText(join(root, "package.json"))) ?? "");
   if (!from) return undefined;
   try {
     const settings = parseUpdateSettings(await readText(join(root, UPDATES_FILE)));
     if (!settings.automatic) return undefined;
-    const versions = releaseVersions(await fetchJson(`${NPM_REGISTRY}/${VERSION_PACKAGE}`));
+    // The releases `goodfellow update --to automatic` takes: those old enough, and not deprecated.
+    const versions = agedReleases(await fetchJson(`${NPM_REGISTRY}/${VERSION_PACKAGE}`), now);
     const release = chooseUpdate(from, versions, "fixes", settings.skip);
     if (release) return release;
     const { changes } = await siteFileChanges(siteFiles, from, (path) => readText(join(root, path)));
@@ -145,7 +147,7 @@ export async function nightlyCheck(options: NightlyOptions = {}): Promise<Nightl
   const now = options.now ?? new Date();
   const [live, update] = await Promise.all([
     liveRecord(siteCopyFrom(env).url ?? (await siteUrl(root)), options.fetch ?? fetch),
-    availableUpdate(root, options.siteFiles ?? [], options.fetchJson ?? fetchJsonFromNetwork),
+    availableUpdate(root, options.siteFiles ?? [], options.fetchJson ?? fetchJsonFromNetwork, now),
   ]);
   const reasons: NightlyReason[] = [];
   if (mode === "always") reasons.push("always");
