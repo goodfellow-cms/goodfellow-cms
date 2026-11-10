@@ -74,7 +74,11 @@ describe("aiServer", () => {
         new Request(`${SERVER}/${service}/${path}`, {
           method: "POST",
           headers: { "content-type": "application/json", ...headers },
-          body: JSON.stringify({ model: "gpt-5", messages: [] }),
+          body: JSON.stringify({
+            model: "gpt-5",
+            messages: [{ role: "user", content: "Hello" }],
+            response_format: { type: "json_object" },
+          }),
         }),
         service,
         path,
@@ -87,6 +91,62 @@ describe("aiServer", () => {
     await post("openai", "chat/completions", { cookie: "session=secret", authorization: "Bearer editor" });
     expect(fake.requests[0]?.headers.get("cookie")).toBeNull();
     expect(fake.requests[0]?.headers.get("authorization")).toBe("Bearer sk-site");
+  });
+
+  it("sends on only the fields the assistant uses, at most its tokens, with its models", async () => {
+    const { fake, server } = siteServer({
+      anthropic: "sk-ant-site",
+      custom: { key: "sk-site", baseUrl: "https://ai.example/v1", models: ["small"] },
+    });
+    const post = (service: string, path: string, body: unknown, headers: Record<string, string> = {}) =>
+      server.forward(
+        new Request(`${SERVER}/${service}/${path}?beta=true&other=1`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: JSON.stringify(body),
+        }),
+        service,
+        path,
+      );
+    const claude = {
+      model: "claude-haiku-4-5",
+      max_tokens: 1000,
+      system: "Be brief.",
+      messages: [{ role: "user", content: "Hello" }],
+      output_config: { format: { type: "json_schema", schema: { type: "object" } } },
+      stream: true,
+    };
+    // Anything else Claude can do on the site's key is refused, as are other models and bigger answers.
+    for (const body of [
+      { ...claude, tools: [{ type: "web_search_20260209", name: "web_search" }] },
+      { ...claude, max_tokens: 200000 },
+      { ...claude, model: "claude-opus-4-1" },
+      { ...claude, messages: [{ role: "user", content: [{ type: "document", source: { type: "url" } }] }] },
+    ]) {
+      // Unknown fields are left out, the rest are checked.
+      const response = await post("anthropic", "v1/messages", body);
+      if ("tools" in body) expect(response.status).not.toBe(400);
+      else expect(response.status).toBe(400);
+    }
+    expect(fake.requests).toHaveLength(1);
+    const sent = fake.requests[0];
+    expect(sent?.body).not.toHaveProperty("tools");
+    expect(sent?.url).toBe("https://api.anthropic.com/v1/messages?beta=true");
+
+    await post("anthropic", "v1/messages", claude, { "anthropic-beta": "server-side-fallback-2026-07-01,files-api" });
+    expect(fake.requests[1]?.headers.get("anthropic-beta")).toBe("server-side-fallback-2026-07-01");
+
+    const chat = {
+      model: "small",
+      messages: [{ role: "user", content: "Hi" }],
+      response_format: { type: "json_object" },
+    };
+    expect((await post("custom", "chat/completions", { ...chat, model: "large" })).status).toBe(400);
+    expect((await post("custom", "chat/completions", "not an object")).status).toBe(400);
+    await post("custom", "chat/completions", { ...chat, max_tokens: 1, tools: [] });
+    const last = fake.requests.at(-1);
+    expect(last?.url).toBe("https://ai.example/v1/chat/completions");
+    expect(last?.body).toEqual(chat);
   });
 
   it("passes on the service's errors without its key", async () => {

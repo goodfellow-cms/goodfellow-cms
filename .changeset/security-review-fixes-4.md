@@ -2,6 +2,7 @@
 "@goodfellow-cms/core": patch
 "@goodfellow-cms/mcp": patch
 "@goodfellow-cms/expo": patch
+"@goodfellow-cms/ai": patch
 ---
 
 More fixes from November's security review:
@@ -14,3 +15,4 @@ More fixes from November's security review:
 - Expo apps open redirects to other sites only over the web, and take the site's base path only where it's a path.
 - Cleaning an SVG's CSS goes on until taking out an `@import` or `url()` can't join what's around it into another, and leaves the CSS out whole where something would still load from elsewhere, as an unfinished `url(` would.
 - Rich text can't take an id Goodfellow's own scripts look up by spelling it with character references, such as `&#103;f-consent`.
+- A full-stack site's AI proxy (`aiServer()`) sends on only the fields the AI assistant sends: Claude's own models, answers no longer than the assistant asks for, text messages and structured answers, and only its beta, so an editor can't spend the site's key on tools, files, or other models. `models` on a service's key limits the models editors may ask for.

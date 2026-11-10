@@ -110,7 +110,7 @@ Signing in and out stay the app's own: the admin panel sends people to `signIn`,
 
 ## AI keys on the server
 
-With `ai`, the AI assistant asks those services through the server, which adds its own key, so editors don't need keys of their own and never see the site's. Give a key for any of the [AI assistant's](/docs/ai-assistant) services, or a key and an address, such as `custom: { key, baseUrl: "https://ai.example/v1" }`. Editors see them as provided by the site. They can still use other services with keys of their own, unless the config's `ai.providers` leaves those out.
+With `ai`, the AI assistant asks those services through the server, which adds its own key, so editors don't need keys of their own and never see the site's. Give a key for any of the [AI assistant's](/docs/ai-assistant) services, or a key and an address, such as `custom: { key, baseUrl: "https://ai.example/v1" }`, with `models` listing the only models editors may ask for where the service has others that cost more. The server sends on only what the assistant asks for: Claude's answers in its own models and up to the assistant's length, never tools, files, or other services' features the site would pay for. Editors see them as provided by the site. They can still use other services with keys of their own, unless the config's `ai.providers` leaves those out.
 
 The server sends on only the requests the assistant makes, and only for people `authorize` lets in.
 
