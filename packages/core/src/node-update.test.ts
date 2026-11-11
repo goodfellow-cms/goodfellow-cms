@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -237,6 +237,20 @@ describe("goodfellow update", () => {
     const result = await update({ root, fetchJson, run, registry: REGISTRY, blocks: true, log: () => {}, env: {} });
     expect(result).toMatchObject({ state: "failed", step: "blocks" });
     expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+  });
+
+  it("never takes a block's file it can't read for a missing one", async () => {
+    await site();
+    // There, but not a file that can be read, as for one the update may not read.
+    await rm(join(root, BLOCK));
+    await mkdir(join(root, BLOCK));
+    const before = await read("package.json");
+    const { run } = commands();
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, blocks: true, log: () => {}, env: {} });
+    expect(result).toMatchObject({ state: "failed", step: "blocks" });
+    // Neither written over nor deleted when the update is undone.
+    expect((await stat(join(root, BLOCK))).isDirectory()).toBe(true);
+    expect(await read("package.json")).toBe(before);
   });
 
   it("leaves block files someone changed", async () => {
@@ -625,6 +639,16 @@ describe("goodfellow update", () => {
       expect(ran.some((line) => line.endsWith("commit --message Update the site's files for Goodfellow 0.4.1"))).toBe(
         true,
       );
+    });
+
+    it("puts back what it wrote where one of them can't be read", async () => {
+      await site();
+      const before = await read("package.json");
+      await mkdir(join(root, "app/admin/page.tsx"), { recursive: true });
+      await expect(update({ ...options(), siteFiles: files })).rejects.toThrow(/EISDIR/);
+      expect(await read("package.json")).toBe(before);
+      expect((await stat(join(root, "app/admin/page.tsx"))).isDirectory()).toBe(true);
+      expect(await read("app/admin/editor/page.tsx").catch(() => undefined)).toBeUndefined();
     });
 
     it("leaves files someone changed, and says so", async () => {
