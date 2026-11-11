@@ -749,7 +749,7 @@ npx ${cli} content link
 
 \`${CONTENT_REPOSITORY_DIR}/\` is a repository of its own, where content changes are committed. This one ignores it, and \`content/\` and \`public/media/\`, which link to it. Adding and removing blocks, which changes code, is done here, in the admin panel of \`npm run dev\`.
 
-${buildNote(setup)} Each setup file says what it needs where a repository isn't public. See [Content in a repository of its own](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-repository).
+${buildNote(setup)} Each setup file says what it needs where a repository isn't public. See [Content in a repository of its own](https://goodfellowcms.com/docs/content-repository).
 `;
 }
 
@@ -758,7 +758,7 @@ export function contentReadme(setup: SeparateSetup, name: string): string {
   const cli = setup.next ? "goodfellow-next" : "goodfellow";
   return `# ${name}: content
 
-This repository holds the content of a [Goodfellow](https://goodfellow-cms.github.io/goodfellow-cms/) site: its pages, collections, settings, and media, which editors change in the site's admin panel. The site's code is in [${setup.code}](${repoUrl(setup, setup.code)}).
+This repository holds the content of a [Goodfellow](https://goodfellowcms.com/) site: its pages, collections, settings, and media, which editors change in the site's admin panel. The site's code is in [${setup.code}](${repoUrl(setup, setup.code)}).
 
 ${buildNote(setup)}
 

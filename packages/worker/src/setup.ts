@@ -50,7 +50,7 @@ export function appManifest(options: ManifestOptions) {
   const worker = options.worker.replace(/\/$/, "");
   return {
     name: options.name,
-    url: options.homepage ?? "https://goodfellow-cms.github.io/goodfellow-cms/",
+    url: options.homepage ?? "https://goodfellowcms.com/",
     description: DESCRIPTIONS[options.kind],
     // The worker needs no events, but GitHub wants an address for them.
     hook_attributes: { url: worker, active: false },
