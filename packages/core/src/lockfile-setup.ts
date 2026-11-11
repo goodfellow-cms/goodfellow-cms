@@ -155,25 +155,25 @@ export const GITLAB_LOCKFILE_VARIABLES = `variables:
 `;
 
 /**
- * The GitLab script, before `npm ci`: writes the lockfile and publishes it
- * with the job's token, which needs "Allow Git push requests to the
- * repository", as updates do; where it can't, the job carries on with the
- * lockfile it wrote. `skipPipeline` publishes it without starting a pipeline,
- * for jobs that build the site with it themselves.
+ * The GitLab script of the prepare job (`gitlabPrepareJob()`), before `npm
+ * ci`: writes the lockfile and commits it, for the publish job to check and
+ * publish, since this job reads the site's packages. With `build`, the pages
+ * job's, which writes it where the publish job couldn't publish it, and
+ * builds the site with it all the same, as sites' builds did before; only
+ * where the job builds (`reused` is `false`), so a lockfile it can't write
+ * never keeps it from publishing the live site's files again.
  */
-export function gitlabLockfileScript({ skipPipeline }: { skipPipeline: boolean }): string {
+export function gitlabLockfileScript({ build = false }: { build?: boolean } = {}): string {
   return `    # When package.json names packages package-lock.json doesn't have, such as a plugin installed from the
     # admin panel: writes package-lock.json, installing nothing and running none of the packages' code, with
-    # releases at least ${RELEASE_AGE_DAYS} days old for what it adds, and publishes it.
+    # releases at least ${RELEASE_AGE_DAYS} days old for what it adds, ${build ? "where the publish job couldn't publish it, to build the site with" : "for the publish job to publish"}.
     - |
-      if ! node -e "$LOCKFILE_CHECK"; then
+      if ${build ? '[ "$reused" = false ] && ' : ""}! node -e "$LOCKFILE_CHECK"; then
         # A plugin installed before it was ${RELEASE_AGE_DAYS} days old is checked against its provenance first,
         # and the job fails if it doesn't check out.
         if node -e "$EARLY_CHECK"; then ${LOCKFILE_COMMAND}; else ${EARLY_COMMAND}; fi
         node -e "$LOCKFILE_REGISTRY_CHECK"
-        git remote set-url origin "https://gitlab-ci-token:\${CI_JOB_TOKEN}@\${CI_SERVER_FQDN:-$CI_SERVER_HOST}/\${CI_PROJECT_PATH}.git"
         git ${COMMIT_AS} commit -m "${COMMIT_MESSAGE}" package-lock.json
-        git push${skipPipeline ? " -o ci.skip" : ""} origin "HEAD:$CI_COMMIT_BRANCH" || echo "package-lock.json wasn't published: turn on \\"Allow Git push requests to the repository\\" under Settings → CI/CD → Job token permissions."
       fi
 `;
 }

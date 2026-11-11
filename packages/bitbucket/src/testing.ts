@@ -257,14 +257,18 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
   }
 
   /** Adds a finished run of the update pipeline, as a schedule would have started it, with what it logged. */
-  function addUpdateRun(log: string, state: FakePipeline["state"] = "COMPLETED"): FakePipeline {
+  function addUpdateRun(
+    log: string,
+    state: FakePipeline["state"] = "COMPLETED",
+    result: FakePipeline["result"] = "SUCCESSFUL",
+  ): FakePipeline {
     const pipeline: FakePipeline = {
       uuid: nextId(),
       buildNumber: pipelines.length + 1,
       pattern: BITBUCKET_PIPELINE_NAMES.update,
       variables: {},
       state,
-      ...(state === "COMPLETED" && { result: "SUCCESSFUL" as const }),
+      ...(state === "COMPLETED" && { result }),
       createdOn: new Date(Date.UTC(2026, 0, 6, 9, pipelines.length)).toISOString(),
       log,
     };

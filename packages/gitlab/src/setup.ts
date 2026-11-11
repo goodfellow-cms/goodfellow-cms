@@ -13,11 +13,12 @@ import {
   SignInError,
   type StorageLike,
   type UnmadeConnection,
+  UpdatesError,
 } from "@goodfellow-cms/core";
 import { type ApiOptions, gitlabJson, gitlabRequest } from "./api.js";
 import type { BrowserLocation } from "./index.js";
 import { codeChallenge, type OAuthTokens, randomString, redirectUri, type TokenResponse, toTokens } from "./oauth.js";
-import { NIGHTLY } from "./updates.js";
+import { addPublishingKey, NIGHTLY } from "./updates.js";
 
 export interface GitLabSetupOptions {
   /** For self-managed GitLab. Defaults to `https://gitlab.com`. */
@@ -112,7 +113,7 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
       try {
         await request();
       } catch (error) {
-        if (!(error instanceof GitApiError)) throw error;
+        if (!(error instanceof GitApiError || error instanceof UpdatesError)) throw error;
         left.push({ ...unmade, reason: error.message });
       }
     }
@@ -120,8 +121,7 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
     /**
      * Lets each project's pipelines reach the other, as their setup files say:
      * a job token is refused by a project whose job token allowlist doesn't
-     * name its project, even a public one. Also lets the code project's job
-     * token publish updates. Runs before the project's files are written,
+     * name its project, even a public one. Runs before the project's files are written,
      * since their first pipeline reads the other project. Each is tried on its
      * own, so one GitLab refuses doesn't keep the others from being made.
      */
@@ -152,26 +152,20 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
           left,
         );
       }
-      if (link.links.updates) {
-        const repo = link[link.links.updates];
-        await attempt(
-          { kind: "push", repo, reason: "" },
-          () =>
-            gitlabRequest(api, projectPath(repo), {
-              method: "PUT",
-              body: { ci_push_repository_for_job_token_allowed: true },
-            }),
-          left,
-        );
-      }
     }
 
     /**
-     * Runs the pipelines that need it each night. After the project's files
-     * are written, since a schedule names the main branch, which an empty
-     * project doesn't have yet.
+     * Lets the code project's publish job publish updates, and runs the
+     * pipelines that need it each night. After the project's files are
+     * written, since both name the main branch, which an empty project
+     * doesn't have yet.
      */
     async function scheduleNightly(link: RepositoryLink, left: UnmadeConnection[]): Promise<void> {
+      if (link.links.updates) {
+        // The deploy key the code project's publish job publishes updates with.
+        const repo = link[link.links.updates];
+        await attempt({ kind: "push", repo, reason: "" }, () => addPublishingKey(api, repo, MAIN), left);
+      }
       for (const which of link.links.nightly) {
         const repo = link[which];
         await attempt(

@@ -108,6 +108,12 @@ export interface FakeCreatedProject {
   jobTokenAllowlist: number[];
   /** Whether its pipelines' job tokens may push to it. */
   jobTokenPush: boolean;
+  /** Its deploy keys, and whether its main branch lets each push. */
+  deployKeys: Array<{ id: number; title: string; key: string; can_push: boolean; mayPush: boolean }>;
+  /** Its CI/CD variables, by name and environment scope (`GOODFELLOW_DEPLOY_KEY goodfellow-publish`). */
+  variables: Map<string, { value: string; masked: boolean; protected: boolean; environment_scope: string }>;
+  /** Whether its main branch is protected. */
+  protectedMain: boolean;
   schedules: Array<{ description: string; ref: string; cron: string; active: boolean }>;
   /** Domains of its own its Pages were given. */
   pagesDomains: string[];
@@ -155,9 +161,9 @@ export function fakeGitLab(options: FakeGitLabOptions) {
   }
   const invitations = new Map<string, number>();
   /** Protected branches and who may push to them: GitLab protects the default branch for Maintainers. */
-  const protectedBranches = new Map<string, { push: number; merge: number; forcePush: boolean }>([
-    [repo.defaultBranch, { push: 40, merge: 40, forcePush: false }],
-  ]);
+  const protectedBranches = new Map<string, { push: number; merge: number; forcePush: boolean; deployKeys?: number[] }>(
+    [[repo.defaultBranch, { push: 40, merge: 40, forcePush: false }]],
+  );
   /** Each change to a protected branch, in order: `DELETE main`, `POST main`, `PATCH main`. */
   const protectionChanges: string[] = [];
 
@@ -231,20 +237,28 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         return json({ invite_email: email });
       }
     }
+    // The free plan's one level of each, with ids as GitLab gives them, and the deploy keys that may push.
+    const shownProtection = (
+      name: string,
+      branch: { push: number; merge: number; forcePush: boolean; deployKeys?: number[] },
+    ) => ({
+      name,
+      push_access_levels: [
+        { id: 1, access_level: branch.push, deploy_key_id: null },
+        ...(branch.deployKeys ?? []).map((key) => ({ id: 100 + key, access_level: 40, deploy_key_id: key })),
+      ],
+      merge_access_levels: [{ id: 2, access_level: branch.merge }],
+      allow_force_push: branch.forcePush,
+    });
+    if (rest === "/protected_branches" && request.method === "GET") {
+      return json([...protectedBranches].map(([name, branch]) => shownProtection(name, branch)));
+    }
     const protection = rest.match(/^\/protected_branches\/([^/]+)$/);
     if (protection) {
       const name = decodeURIComponent(protection[1] ?? "");
       const found = protectedBranches.get(name);
       if (!found) return json({ message: "404 Not found" }, 404);
-      if (request.method === "GET") {
-        // The free plan's one level of each, with ids as GitLab gives them.
-        return json({
-          name,
-          push_access_levels: [{ id: 1, access_level: found.push }],
-          merge_access_levels: [{ id: 2, access_level: found.merge }],
-          allow_force_push: found.forcePush,
-        });
-      }
+      if (request.method === "GET") return json(shownProtection(name, found));
       if (request.method === "DELETE") {
         if (accessLevel < 40) return forbidden();
         protectedBranches.delete(name);
@@ -253,7 +267,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
       }
       if (request.method === "PATCH" && !options.noProtectionChanges) {
         if (accessLevel < 40) return forbidden();
-        type Level = { id?: number; access_level?: number; _destroy?: boolean };
+        type Level = { id?: number; access_level?: number; deploy_key_id?: number; _destroy?: boolean };
         const body = (await request.json()) as {
           allowed_to_push?: Level[];
           allowed_to_merge?: Level[];
@@ -269,9 +283,24 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         const push = levelFrom(body.allowed_to_push, 1, found.push);
         const merge = levelFrom(body.allowed_to_merge, 2, found.merge);
         if (push === undefined || merge === undefined) return json({ message: "Only one access level allowed" }, 422);
-        protectedBranches.set(name, { push, merge, forcePush: body.allow_force_push ?? found.forcePush });
+        const destroyed = (body.allowed_to_push ?? []).flatMap((level) => (level._destroy ? [level.id] : []));
+        const deployKeys = [
+          ...(found.deployKeys ?? []).filter((key) => !destroyed.includes(100 + key)),
+          ...(body.allowed_to_push ?? []).flatMap((level) =>
+            level.deploy_key_id !== undefined && updateSettings.deployKeys.some((key) => key.id === level.deploy_key_id)
+              ? [level.deploy_key_id]
+              : [],
+          ),
+        ];
+        const changed = {
+          push,
+          merge,
+          forcePush: body.allow_force_push ?? found.forcePush,
+          ...(deployKeys.length > 0 && { deployKeys }),
+        };
+        protectedBranches.set(name, changed);
         protectionChanges.push(`PATCH ${name}`);
-        return json({ name });
+        return json(shownProtection(name, changed));
       }
     }
     if (rest === "/protected_branches" && request.method === "POST") {
@@ -281,13 +310,21 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         push_access_level?: number;
         merge_access_level?: number;
         allow_force_push?: boolean;
+        allowed_to_push?: Array<{ deploy_key_id?: number }>;
       };
       if (protectedBranches.has(body.name)) return json({ message: "Protected branch already exists" }, 409);
       protectionChanges.push(`POST ${body.name}`);
+      // Deploy keys the project has, as GitLab 18.10 and later allow on the free plan.
+      const deployKeys = (body.allowed_to_push ?? []).flatMap((level) =>
+        level.deploy_key_id !== undefined && updateSettings.deployKeys.some((key) => key.id === level.deploy_key_id)
+          ? [level.deploy_key_id]
+          : [],
+      );
       protectedBranches.set(body.name, {
         push: body.push_access_level ?? 40,
         merge: body.merge_access_level ?? 40,
         forcePush: body.allow_force_push ?? false,
+        ...(deployKeys.length > 0 && { deployKeys }),
       });
       return json({ name: body.name }, 201);
     }
@@ -300,13 +337,23 @@ export function fakeGitLab(options: FakeGitLabOptions) {
   const updateSettings = {
     jobTokenPush: false,
     schedules: [] as FakeSchedule[],
+    /** Its deploy keys, with the public half given. */
+    deployKeys: [] as Array<{ id: number; title: string; key: string; can_push: boolean }>,
+    /** Its CI/CD variables, by name and environment scope (`GOODFELLOW_DEPLOY_KEY goodfellow-publish`). */
+    variables: new Map<
+      string,
+      { key: string; value: string; masked: boolean; protected: boolean; raw: boolean; environment_scope: string }
+    >(),
   };
+  let deployKeyIds = 0;
   let scheduleIds = 0;
   /** Pipelines the update ran in: scheduled, or started through the API, with the pages job's log. */
   const updateRuns: Array<{
     id: number;
     source: string;
     status: string;
+    /** The publish job's status, where the pipeline has one. */
+    publish?: string;
     variables?: Array<{ key: string; value: string }>;
     trace: string;
   }> = [];
@@ -314,6 +361,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
   function addUpdateRun(run: {
     source?: string;
     status?: string;
+    publish?: string;
     trace?: string;
     variables?: Array<{ key: string; value: string }>;
   }) {
@@ -477,6 +525,9 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         repo: new FakeRepo({}),
         jobTokenAllowlist: [],
         jobTokenPush: false,
+        deployKeys: [],
+        variables: new Map(),
+        protectedMain: true,
         schedules: [],
         pagesDomains: [],
       };
@@ -516,6 +567,61 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         project.jobTokenAllowlist.push(body.target_project_id);
       }
       return json({ source_project_id: project.id, target_project_id: body.target_project_id }, 201);
+    }
+    if (rest === "/deploy_keys" && request.method === "GET") return json(project.deployKeys);
+    if (rest === "/deploy_keys" && request.method === "POST") {
+      if (options.refuseConnections?.includes("push")) return json({ message: "403 Forbidden" }, 403);
+      const body = (await request.json()) as { title: string; key: string; can_push?: boolean };
+      const added = {
+        id: 500 + project.deployKeys.length,
+        title: body.title,
+        key: body.key,
+        can_push: !!body.can_push,
+      };
+      project.deployKeys.push({ ...added, mayPush: false });
+      return json(added, 201);
+    }
+    const createdKey = rest.match(/^\/deploy_keys\/(\d+)$/);
+    if (createdKey && request.method === "DELETE") {
+      project.deployKeys = project.deployKeys.filter((candidate) => candidate.id !== Number(createdKey[1]));
+      return new Response(null, { status: 204 });
+    }
+    const levels = () => ({
+      name: "main",
+      push_access_levels: [
+        { id: 1, access_level: 40, deploy_key_id: null },
+        ...project.deployKeys.flatMap((candidate) =>
+          candidate.mayPush ? [{ id: 100 + candidate.id, access_level: 40, deploy_key_id: candidate.id }] : [],
+        ),
+      ],
+    });
+    if (rest === "/protected_branches/main" && request.method === "GET") {
+      return project.protectedMain ? json(levels()) : json({ message: "404 Not found" }, 404);
+    }
+    if (rest === "/protected_branches" && request.method === "POST") {
+      project.protectedMain = true;
+      return json(levels(), 201);
+    }
+    if (rest === "/protected_branches/main" && request.method === "PATCH") {
+      const body = (await request.json()) as { allowed_to_push?: Array<{ deploy_key_id?: number }> };
+      for (const level of body.allowed_to_push ?? []) {
+        const found = project.deployKeys.find((candidate) => candidate.id === level.deploy_key_id);
+        if (found) found.mayPush = true;
+      }
+      return json(levels());
+    }
+    if (rest.startsWith("/variables/") && request.method === "PUT")
+      return json({ message: "404 Variable Not Found" }, 404);
+    if (rest === "/variables" && request.method === "POST") {
+      const body = (await request.json()) as {
+        key: string;
+        value: string;
+        masked: boolean;
+        protected: boolean;
+        environment_scope: string;
+      };
+      project.variables.set(`${body.key} ${body.environment_scope}`, body);
+      return json(body, 201);
     }
     if (rest === "/pages/domains" && request.method === "POST") {
       const body = (await request.json()) as { domain: string };
@@ -1033,6 +1139,66 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         return new Response(null, { status: 204 });
       }
     }
+    if (rest === "/deploy_keys" || rest.startsWith("/deploy_keys/")) {
+      if (accessLevel < 40) return json({ message: "403 Forbidden" }, 403);
+      if (rest === "/deploy_keys" && request.method === "GET") return json(updateSettings.deployKeys);
+      if (rest === "/deploy_keys" && request.method === "POST") {
+        const body = (await request.json()) as { title: string; key: string; can_push?: boolean };
+        if (!body.key.startsWith("ssh-ed25519 ")) return json({ message: { key: ["is invalid"] } }, 400);
+        const added = { id: ++deployKeyIds, title: body.title, key: body.key, can_push: body.can_push ?? false };
+        updateSettings.deployKeys.push(added);
+        return json(added, 201);
+      }
+      const id = Number(rest.slice("/deploy_keys/".length));
+      if (request.method === "DELETE") {
+        if (!updateSettings.deployKeys.some((key) => key.id === id)) return json({ message: "404 Not found" }, 404);
+        updateSettings.deployKeys = updateSettings.deployKeys.filter((key) => key.id !== id);
+        for (const branch of protectedBranches.values()) {
+          branch.deployKeys = branch.deployKeys?.filter((key) => key !== id);
+        }
+        return new Response(null, { status: 204 });
+      }
+    }
+    if (rest === "/variables" || rest.startsWith("/variables/")) {
+      if (accessLevel < 40) return json({ message: "403 Forbidden" }, 403);
+      type Variable = {
+        key: string;
+        value: string;
+        masked?: boolean;
+        protected?: boolean;
+        raw?: boolean;
+        environment_scope?: string;
+      };
+      const named = rest.slice("/variables/".length);
+      const scope = url.searchParams.get("filter[environment_scope]") ?? "*";
+      const stored = (body: Variable) => ({
+        key: body.key,
+        value: body.value,
+        masked: body.masked ?? false,
+        protected: body.protected ?? false,
+        raw: body.raw ?? false,
+        environment_scope: body.environment_scope ?? "*",
+      });
+      if (rest === "/variables" && request.method === "POST") {
+        const body = (await request.json()) as Variable;
+        const id = `${body.key} ${body.environment_scope ?? "*"}`;
+        if (updateSettings.variables.has(id)) return json({ message: { key: ["has already been taken"] } }, 400);
+        if (body.masked && !/^[A-Za-z0-9+/=@:.~_-]{8,}$/.test(body.value)) {
+          return json({ message: { value: ["is invalid"] } }, 400);
+        }
+        updateSettings.variables.set(id, stored(body));
+        return json(stored(body), 201);
+      }
+      const found = updateSettings.variables.get(`${named} ${scope}`);
+      if (named && !found) return json({ message: "404 Variable Not Found" }, 404);
+      if (found && request.method === "GET") return json({ ...found, value: found.masked ? undefined : found.value });
+      if (found && request.method === "PUT") {
+        const body = (await request.json()) as Partial<Variable>;
+        const changed = stored({ ...found, ...body, key: named, value: body.value ?? found.value });
+        updateSettings.variables.set(`${named} ${changed.environment_scope}`, changed);
+        return json(changed);
+      }
+    }
     if (rest === "" && request.method === "PUT") {
       if (accessLevel < 40) return json({ message: "403 Forbidden" }, 403);
       const body = (await request.json()) as { ci_push_repository_for_job_token_allowed?: boolean };
@@ -1059,7 +1225,10 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     if (updateJobs) {
       const run = updateRuns.find((candidate) => candidate.id === Number(updateJobs[1]));
       return run
-        ? json([{ id: run.id, name: options.updateJob ?? "pages", status: run.status }])
+        ? json([
+            { id: run.id, name: options.updateJob ?? "pages", status: run.status },
+            ...(run.publish ? [{ id: run.id + 100000, name: "publish", status: run.publish }] : []),
+          ])
         : json({ message: "404 Not Found" }, 404);
     }
     const updateTrace = rest.match(/^\/jobs\/(\d{4,})\/trace$/);

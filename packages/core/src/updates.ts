@@ -327,6 +327,80 @@ export interface UpdateResult {
   rollback?: boolean;
 }
 
+/**
+ * A setup file's lines without comments, which run nothing: whole comment lines, and from a `#` after a space to
+ * the end of a line, outside quotes, as both YAML and the shell read them. Setup files are read to tell what a
+ * site's builds do, so commented-out commands mustn't count. Everything here reads a line in one pass, with no
+ * regex, since the files may be anyone's.
+ */
+export function setupLines(text: string): string[] {
+  return text
+    .split("\n")
+    .filter((line) => !isCommentLine(line))
+    .map(withoutTrailingComment);
+}
+
+/** A line that is only a comment, or a list item that is (`- # …`). Read without a regex, as files may be anyone's. */
+function isCommentLine(line: string): boolean {
+  const text = line.trimStart();
+  return text.startsWith("#") || (text.startsWith("-") && text.slice(1).trimStart().startsWith("#"));
+}
+
+/**
+ * A line up to a `#` after a space or tab that isn't in quotes. A quote opens only where a word starts (after a
+ * space, tab, `:`, `=` or `(`, or at the start), so an apostrophe within a word doesn't; in double quotes, a
+ * backslash keeps the next character.
+ */
+function withoutTrailingComment(line: string): string {
+  let quote: string | undefined;
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index];
+    const before = index === 0 ? " " : (line[index - 1] ?? " ");
+    if (quote) {
+      if (quote === '"' && char === "\\") index++;
+      else if (char === quote) quote = undefined;
+    } else if ((char === '"' || char === "'") && " \t:=(".includes(before)) {
+      quote = char;
+    } else if (char === "#" && index > 0 && (before === " " || before === "\t")) {
+      return line.slice(0, index - 1);
+    }
+  }
+  return line;
+}
+
+/**
+ * Whether a line is the YAML key `key` opening a mapping: `key:`, quoted or not, with nothing after it but an
+ * anchor or a tag (`update: &update`).
+ */
+function opensSection(line: string, key: string): boolean {
+  const text = line.trim();
+  for (const name of [key, `"${key}"`, `'${key}'`]) {
+    if (!text.startsWith(`${name}:`)) continue;
+    const rest = text.slice(name.length + 1).trim();
+    if (rest === "") return true;
+    // Only node properties, such as an anchor and a tag, each one word.
+    return rest
+      .replaceAll("\t", " ")
+      .split(" ")
+      .filter((word) => word !== "")
+      .every((word) => word.length > 1 && (word.startsWith("&") || word.startsWith("!")));
+  }
+  return false;
+}
+
+/**
+ * The lines of a setup file's section named `key` (such as a workflow's job or a pipeline), at whatever indent,
+ * down to the next line indented no further, without comments (`setupLines()`). Empty where there's none.
+ */
+export function setupSection(text: string, key: string): string {
+  const lines = setupLines(text);
+  const start = lines.findIndex((line) => opensSection(line, key));
+  if (start < 0) return "";
+  const indent = (lines[start] ?? "").search(/\S/);
+  const end = lines.findIndex((line, index) => index > start && line.trim() !== "" && line.search(/\S/) <= indent);
+  return lines.slice(start, end < 0 ? undefined : end).join("\n");
+}
+
 /** Starts the line `goodfellow update` prints about what it did. */
 export const UPDATE_RESULT_MARKER = "goodfellow-update ";
 
@@ -436,7 +510,9 @@ export type UpdatesProblem =
   /** The sign-in, or the owner token, can't run it or change the host's settings. */
   | "not-allowed"
   /** The site's build setup has no update job. */
-  | "missing";
+  | "missing"
+  /** The host didn't let the key the update job publishes with publish to the main branch. */
+  | "publishing";
 
 export class UpdatesError extends Error {
   override name = "UpdatesError";

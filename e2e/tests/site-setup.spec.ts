@@ -266,7 +266,7 @@ test("creates a site's code and content projects on GitLab, letting each pipelin
   expect(content.pagesAccessLevel).toBe("public");
   expect(code.jobTokenAllowlist).toEqual([content.id]);
   expect(content.jobTokenAllowlist).toEqual([code.id]);
-  expect(code.jobTokenPush).toBe(true);
+  expect(code.deployKeys).toEqual([expect.objectContaining({ title: "Goodfellow publishing", mayPush: true })]);
   expect(code.schedules).toHaveLength(1);
   expect(text(code.repo.files().get("goodfellow.config.tsx"))).toContain(
     'backend: gitlab({ project: "st-joseph/website-content", contentOnly: true, code: "st-joseph/website" }),',
@@ -306,7 +306,7 @@ test("says what's left to connect on GitLab, where it refuses a step, and where 
   await expect(left).toContainText("st-joseph/website's nightly schedule: GitLab answered 400");
   // Everything else was connected all the same.
   const code = gitlab.created.get("st-joseph/website");
-  expect(code?.jobTokenPush).toBe(true);
+  expect(code?.deployKeys).toHaveLength(1);
   expect(code?.jobTokenAllowlist).toHaveLength(1);
 });
 

@@ -95,6 +95,23 @@ describe("GitLab editors", () => {
     expect(fake.protectionChanges).toHaveLength(2);
   });
 
+  it("keeps the nightly update's key when it protects the branch again, and says when GitLab drops it", async () => {
+    const { fake, editors } = await signIn("maintainer", { noProtectionChanges: true });
+    fake.updateSettings.deployKeys.push({
+      id: 7,
+      title: "Goodfellow updates",
+      key: "ssh-ed25519 AAAA",
+      can_push: true,
+    });
+    fake.protectedBranches.set("main", { push: 40, merge: 40, forcePush: false, deployKeys: [7] });
+    await editors.letEditorsPublish?.();
+    expect(fake.protectedBranches.get("main")).toEqual({ push: 30, merge: 30, forcePush: false, deployKeys: [7] });
+
+    // A key GitLab won't let push to the branch any more, such as one removed meanwhile.
+    fake.protectedBranches.set("main", { push: 40, merge: 40, forcePush: false, deployKeys: [8] });
+    await expect(editors.letEditorsPublish?.()).rejects.toThrow(/Turn on updates again/);
+  });
+
   it("says Developers can't change who edits the site", async () => {
     const { editors } = await signIn("developer");
     const list = await editors.list();

@@ -82,10 +82,10 @@ describe("planSite", () => {
       host: "netlify",
     });
     const pipeline = parse(siteFileText(gitlab.get(".gitlab-ci.yml") ?? ""));
-    expect(pipeline.update.script[2]).toContain(
+    expect(pipeline.publish.script[0]).toContain(
       'curl --fail --silent --show-error --request POST "$NETLIFY_BUILD_HOOK"',
     );
-    expect(pipeline.update.script[0]).toContain("npx goodfellow-next nightly");
+    expect(pipeline.prepare.script[1]).toContain("npx goodfellow-next nightly");
     const nextToml = siteFileText(gitlab.get("netlify.toml") ?? "");
     expect(nextToml).toContain('publish = "out"');
     expect(nextToml).toContain('NETLIFY_NEXT_PLUGIN_SKIP = "true"');
@@ -221,27 +221,35 @@ describe("planSite", () => {
     expect([...gitlab.keys()].filter((path) => /workflows|gitlab|vercel/.test(path))).toEqual([".gitlab-ci.yml"]);
     const pipeline = parse(siteFileText(gitlab.get(".gitlab-ci.yml") ?? ""));
     // Not "pages", which GitLab would take for a GitLab Pages job.
-    expect(Object.keys(pipeline)).toEqual(["variables", "lockfile", "update", "plugin-task-describe", "plugin-task"]);
-    // The lockfile is written when package.json changes, and Cloudflare builds the push that publishes it.
-    expect(pipeline.lockfile.rules).toEqual([
-      { if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"', changes: ["package.json"] },
-    ]);
-    expect(pipeline.lockfile.script[0]).toContain('git push origin "HEAD:$CI_COMMIT_BRANCH"');
-    // Scheduled changes and Rebuild now only rebuild; the nightly schedule checks first.
-    expect(pipeline.update.script[0]).toContain(
+    expect(Object.keys(pipeline)).toEqual(["variables", "prepare", "publish", "plugin-task-describe", "plugin-task"]);
+    // The prepare job writes the lockfile and makes the update, committing only; the publish job publishes them.
+    expect(pipeline.prepare.script[0]).toContain('if ! node -e "$LOCKFILE_CHECK"');
+    expect(JSON.stringify(pipeline.prepare)).not.toContain("git push");
+    expect(pipeline.publish.environment.name).toBe("goodfellow-publish");
+    expect(pipeline.publish.script[0]).toContain('git push "git@');
+    // A push only writes the lockfile, which Cloudflare builds itself; scheduled changes and Rebuild now only
+    // rebuild; the nightly schedule checks first.
+    expect(pipeline.prepare.script[1]).toContain('elif [ "$CI_PIPELINE_SOURCE" = "push" ]');
+    expect(pipeline.prepare.script[1]).toContain(
       'elif [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ] && [ -z "$GOODFELLOW_REBUILD" ]',
     );
-    expect(pipeline.update.script[0]).toContain("npx goodfellow nightly --output nightly.env");
-    expect(pipeline.update.script[1]).toContain('if [ "$update" = true ]');
-    expect(pipeline.update.script[2]).toContain('if [ "$build" = false ] && [ "$update" = false ]');
-    expect(pipeline.update.script[2]).toContain(
+    expect(pipeline.prepare.script[1]).toContain("npx goodfellow nightly --output nightly.env");
+    expect(pipeline.prepare.script[2]).toContain('if [ "$update" = true ]');
+    // Where there was nothing to publish, the publish job asks Cloudflare to rebuild, if the site needs it.
+    expect(pipeline.publish.script[0]).toContain(
       'curl --fail --silent --show-error --request POST "$CLOUDFLARE_DEPLOY_HOOK"',
     );
-    expect(pipeline.update.rules).toEqual([
-      {
-        if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE || $GOODFELLOW_REBUILD)',
-      },
-    ]);
+    const rules = [
+      { if: "$GOODFELLOW_TASK_PLUGIN", when: "never" },
+      { if: "$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH", when: "never" },
+      { if: "$GOODFELLOW_UPDATE" },
+      { if: "$GOODFELLOW_REBUILD" },
+      { if: "$GOODFELLOW_SCHEDULED_CHANGE" },
+      { if: '$CI_PIPELINE_SOURCE == "schedule" && $GOODFELLOW_SCHEDULED_CHANGE == null' },
+      { if: '$CI_PIPELINE_SOURCE == "push"', changes: ["package.json"] },
+    ];
+    expect(pipeline.prepare.rules).toEqual(rules);
+    expect(pipeline.publish.rules).toEqual(rules);
   });
 
   it("gives a site on Bitbucket Pipelines for its updates, scheduled changes, and plugins' tasks, with Vercel building it", async () => {
