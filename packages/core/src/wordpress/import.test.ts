@@ -129,6 +129,20 @@ describe("planning an import", () => {
     expect(staff).toContain('"src":"/media/choir.jpg"');
   });
 
+  it("never takes an attachment's address that isn't a web address, copied or not", async () => {
+    const xml = sampleWordPressExport().replace(
+      `${SAMPLE_WORDPRESS_URL}/wp-content/uploads/2026/05/choir.jpg]]></wp:attachment_url>`,
+      "javascript:/wp-content/uploads/2026/05/choir.jpg]]></wp:attachment_url>",
+    );
+    expect(xml).toContain("javascript:");
+    const content = await loadSiteContent(source(STARTER));
+    for (const copied of [undefined, new Set<string>()]) {
+      const plan = planWordPressImport(readWordPressExport(xml), content, copied ? { copied } : {});
+      expect(JSON.stringify(plan.changes)).not.toContain("javascript:");
+      expect(plan.media.map((copy) => copy.url).join(" ")).not.toContain("javascript:");
+    }
+  });
+
   it("keeps the media library's alt text as images' descriptions", async () => {
     const { files } = await importSample();
     const descriptions = json(files["content/media.json"]).descriptions;

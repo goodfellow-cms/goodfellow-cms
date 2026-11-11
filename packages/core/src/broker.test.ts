@@ -128,6 +128,7 @@ describe("what the broker publishes without asking", () => {
 
 /** A backend that keeps files in memory, with drafts and editors, as the broker's own would be. */
 function memoryBackend() {
+  const published: unknown[][] = [];
   const files = new Map<string, string>([["content/site.json", '{"version":1}']]);
   let revision = "a".repeat(40);
   const invited: string[] = [];
@@ -213,7 +214,8 @@ function memoryBackend() {
           async changes() {
             return [{ path: "content/pages/x.json", content: "{}" }];
           },
-          async publish() {
+          async publish(...args: unknown[]) {
+            published.push(args);
             return { revision };
           },
           async submitForReview() {
@@ -232,7 +234,7 @@ function memoryBackend() {
       return "secret";
     },
   };
-  return { backend: backend as unknown as GitBackend, files, invited };
+  return { backend: backend as unknown as GitBackend, files, invited, published };
 }
 
 describe("the broker's backend in the admin panel", () => {
@@ -324,7 +326,7 @@ describe("the broker's backend in the admin panel", () => {
 
   it("checks the changes it writes, made again as one kind each with a plain path", async () => {
     const checked: unknown[] = [];
-    const { remote, files, close } = await connect({
+    const { remote, files, published, close } = await connect({
       check({ path, args }) {
         if (path === "write" || path === "draft.publish") checked.push(path === "write" ? args[0] : args[1]);
       },
@@ -361,6 +363,10 @@ describe("the broker's backend in the admin panel", () => {
     ).rejects.toBeInstanceOf(BrokerRefusedError);
     await draft?.publish("Publish all", { changes: [{ path: "content/pages/x.json", content: "{}" }] });
     expect(checked.at(-1)).toEqual({ changes: [{ path: "content/pages/x.json", content: "{}" }] });
+    // Without them, it publishes the draft's changes as it checked them, so nothing added since goes live unchecked.
+    await draft?.publish("Publish all");
+    expect(checked.at(-1)).toEqual({ changes: [{ path: "content/pages/x.json", content: "{}" }] });
+    expect(published.at(-1)).toEqual(["Publish all", { changes: [{ path: "content/pages/x.json", content: "{}" }] }]);
     close();
   });
 });

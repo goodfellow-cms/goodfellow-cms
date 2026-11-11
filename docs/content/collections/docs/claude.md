@@ -91,7 +91,7 @@ A site's owner can stop Claude publishing, so that every change it makes is chec
 claude: { publish: false },
 ```
 
-Once the site has been rebuilt with it, which publishing anything does, Claude can only submit its drafts for review. Claude can't change `goodfellow.config.tsx` itself: it only changes the site's content.
+Once the site has been rebuilt with it, which publishing anything does, Claude can only submit its drafts for review. Claude can't change `goodfellow.config.tsx` itself: it only changes the site's content. The connector reads the setting from the site's address in Site settings, so it holds Claude back, not editors: anyone who can change Site settings can publish without Claude anyway.
 
 ## Screenshots
 

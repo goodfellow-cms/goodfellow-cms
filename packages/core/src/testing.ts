@@ -116,6 +116,8 @@ export interface FakeReview {
   state: "open" | "merged" | "closed";
   /** Who was asked to review it, by sign-in name. */
   reviewers: string[];
+  /** The repository it comes from, where that's a fork. */
+  fork?: string;
 }
 
 export class FakeRepo {
@@ -234,7 +236,8 @@ export class FakeRepo {
     target = this.defaultBranch,
     reviewers: readonly string[] = [],
   ): FakeReview {
-    const open = this.reviews.find((review) => review.branch === branch && review.state === "open");
+    // A fork's review from a branch of the same name is another repository's.
+    const open = this.reviews.find((review) => review.branch === branch && review.state === "open" && !review.fork);
     if (open) return open;
     const review: FakeReview = {
       number: this.reviews.length + 1,

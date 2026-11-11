@@ -365,7 +365,11 @@ export function useNativeSiteValue(
       if (isPageAddress(href)) {
         // An old address goes where the site's redirects send it, as on the website.
         const redirected = manifest && redirectFor(manifest, href);
-        if (redirected && !redirected.startsWith("/")) return void Linking.openURL(redirected);
+        // Another site's address only over the web, as the site's own redirects take.
+        if (redirected && !redirected.startsWith("/")) {
+          if (/^https?:/i.test(redirected)) Linking.openURL(redirected);
+          return;
+        }
         return root.navigate(redirected ?? href);
       }
       const url = href.startsWith("/") ? siteAddress(root.site, manifest, href) : href;

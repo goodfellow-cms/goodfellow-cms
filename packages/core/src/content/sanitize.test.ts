@@ -22,6 +22,9 @@ describe("sanitizeHtml", () => {
     expect(sanitizeHtml('<h2 id="hours">Hours</h2><div id="gf-consent">Fake</div>')).toBe(
       '<h2 id="hours">Hours</h2><div>Fake</div>',
     );
+    expect(sanitizeHtml('<div id="&#103;f-consent">Fake</div><p id="&#x67&#x46;-notice">Fake</p>')).toBe(
+      "<div>Fake</div><p>Fake</p>",
+    );
   });
 });
 

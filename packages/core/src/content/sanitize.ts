@@ -32,7 +32,8 @@ function createFilter() {
     css: false,
     // Ids Goodfellow's own scripts look up (`gf-consent`) stay Goodfellow's, so text can't stand in for them.
     onTagAttr(_tag, name, value) {
-      return name === "id" && /^\s*gf-/i.test(value) ? "" : undefined;
+      // As browsers read it, with character references (`&#103;f-`) spelled out.
+      return name === "id" && /^\s*gf-/i.test(xss.friendlyAttrValue(value)) ? "" : undefined;
     },
     safeAttrValue(tag, name, value, cssFilter) {
       const safe = xss.safeAttrValue(tag, name, value, cssFilter);

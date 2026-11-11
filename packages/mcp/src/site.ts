@@ -8,6 +8,8 @@ import {
   type GitBackend,
   GOODFELLOW_VERSION,
   parseSiteDescription,
+  type RemoteFetch,
+  readRemoteText,
   SITE_DESCRIPTION_PATH,
   type SiteDescription,
   type SiteSettings,
@@ -81,12 +83,30 @@ const VERSION_PROBLEMS = {
     `The site was built with Goodfellow ${site}, which is newer than this connector (${GOODFELLOW_VERSION}). Update the connector to change it; reading it still works.`,
 };
 
-/** The site's description, from its address, or `undefined` where it can't be read there. */
-async function readDescription(context: ConnectorContext, url: string): Promise<SiteDescription | undefined> {
-  const response = await (context.fetch ?? fetch)(`${url}/${SITE_DESCRIPTION_PATH}`, {
-    headers: { accept: "application/json" },
+/** The most of a site's description read, far more than a site with hundreds of blocks describes. */
+const MAX_DESCRIPTION_BYTES = 5 * 1024 * 1024;
+
+/**
+ * The site's description, from its address, or `undefined` where it can't be
+ * read there. The Site address is content, so it's read as other sites' files
+ * are (`readRemoteText()`): from the web only, but for the development server
+ * a folder on this computer is served from (`served`), and no more than
+ * `MAX_DESCRIPTION_BYTES`.
+ */
+async function readDescription(
+  context: ConnectorContext,
+  url: string,
+  served: string | undefined,
+): Promise<SiteDescription | undefined> {
+  const text = await readRemoteText(`${url}/${SITE_DESCRIPTION_PATH}`, {
+    what: "site description",
+    accept: "application/json",
+    limit: MAX_DESCRIPTION_BYTES,
+    timeout: 15_000,
+    ...(context.fetch && { fetch: context.fetch as unknown as RemoteFetch }),
+    ...(served && { trusted: new URL(served).hostname }),
   }).catch(() => undefined);
-  const result = response?.ok ? parseSiteDescription(await response.text()) : { ok: false as const };
+  const result = text === undefined ? { ok: false as const } : parseSiteDescription(text);
   return result.ok ? result.description : undefined;
 }
 
@@ -126,7 +146,7 @@ export async function openSite(
   let url = candidates[0] ?? "";
   let description: SiteDescription | undefined;
   for (const candidate of candidates) {
-    description = await readDescription(context, candidate);
+    description = await readDescription(context, candidate, served);
     url = candidate;
     if (description) break;
   }

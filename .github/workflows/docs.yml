@@ -30,6 +30,8 @@ on:
   schedule:
     - cron: "23 7 * * *"
 
+# Each job asks for what it needs: the build, which runs the workspace's dependencies, can only read, and only
+# the jobs that run none of them can publish, to Cloudflare Pages and to GitHub Pages at the old address.
 permissions: {}
 
 concurrency:

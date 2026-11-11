@@ -29,7 +29,10 @@ export interface GrantStore {
    * same refresh token can be tried again.
    */
   unrotate(id: string, generation: number): Promise<void>;
-  /** Ends a connection. */
+  /**
+   * Ends a connection, keeping its id until it would have lapsed, so the code
+   * that made it can't make it again.
+   */
   revoke(id: string): Promise<void>;
   /** Whether a connection hasn't ended or lapsed, which every request with its access tokens checks. */
   active(id: string, now: number): Promise<boolean>;
@@ -78,11 +81,17 @@ export function d1Grants(db: D1Like): GrantStore {
         .bind(generation, id, generation + 1)
         .run();
     },
+    // Generation 0 is an ended connection, which no refresh token names.
     async revoke(id) {
-      await db.prepare("DELETE FROM grants WHERE id = ?").bind(id).run();
+      await db.prepare("UPDATE grants SET generation = 0, rotated_at = 0 WHERE id = ?").bind(id).run();
     },
     async active(id, now) {
-      return (await db.prepare("SELECT 1 FROM grants WHERE id = ? AND expires_at > ?").bind(id, now).first()) !== null;
+      return (
+        (await db
+          .prepare("SELECT 1 FROM grants WHERE id = ? AND generation > 0 AND expires_at > ?")
+          .bind(id, now)
+          .first()) !== null
+      );
     },
   };
 }
@@ -114,11 +123,12 @@ export function memoryGrants(): GrantStore & {
       if (row && row.generation === generation + 1) rows.set(id, { ...row, generation, rotated: 0 });
     },
     async revoke(id) {
-      rows.delete(id);
+      const row = rows.get(id);
+      if (row) rows.set(id, { ...row, generation: 0, rotated: 0 });
     },
     async active(id, now) {
       const row = rows.get(id);
-      return row !== undefined && row.expires > now;
+      return row !== undefined && row.generation > 0 && row.expires > now;
     },
   };
 }
