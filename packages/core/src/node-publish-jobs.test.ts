@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { bitbucketPipelines } from "./bitbucket-setup.js";
 import { cloudflareSetupFiles } from "./cloudflare-setup.js";
 import { gitlabPagesPipelineJobs, PUBLISH_PATCH } from "./gitlab-publish.js";
 
@@ -118,5 +119,69 @@ describe("the GitLab publish job's script", { timeout: PROCESS_TIMEOUT }, () => 
       { NODE_OPTIONS: "--require ./missing.cjs", GIT_DIR: "/nowhere" },
     );
     expect(result.stdout).toContain("not published: goodfellow.config.tsx");
+  });
+});
+
+describe("Bitbucket's publish step", { timeout: PROCESS_TIMEOUT }, () => {
+  let dir: string;
+  let origin: string;
+  let base: string;
+  const git = (cwd: string, ...args: string[]) => {
+    const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+    if (result.status !== 0) throw new Error(result.stderr);
+    return result.stdout.trim();
+  };
+
+  beforeEach(async () => {
+    origin = await mkdtemp(join(tmpdir(), "goodfellow-bitbucket-origin-"));
+    dir = await mkdtemp(join(tmpdir(), "goodfellow-bitbucket-"));
+    git(origin, "init", "-q", "--bare", "-b", "main");
+    git(dir, "init", "-q", "-b", "main");
+    git(dir, "config", "user.name", "Test");
+    git(dir, "config", "user.email", "test@example.org");
+    await writeFile(join(dir, "package.json"), '{ "name": "site" }\n');
+    await writeFile(join(dir, "goodfellow.config.tsx"), "export default {};\n");
+    git(dir, "add", ".");
+    git(dir, "commit", "-q", "-m", "Start");
+    git(dir, "remote", "add", "origin", origin);
+    git(dir, "push", "-q", "origin", "main");
+    base = git(dir, "rev-parse", "HEAD");
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+    await rm(origin, { recursive: true, force: true });
+  });
+
+  /** Commits `files` as the step before would, and runs the update pipeline's publish step at the start. */
+  async function publish(files: Record<string, string>, decision = "false") {
+    for (const [path, text] of Object.entries(files)) await writeFile(join(dir, path), text);
+    git(dir, "add", ".");
+    git(dir, "commit", "-q", "-m", "Update");
+    const patch = git(dir, "format-patch", "--binary", "--stdout", `${base}..HEAD`);
+    git(dir, "checkout", "-q", base);
+    await writeFile(join(dir, PUBLISH_PATCH), `${patch}\n`);
+    await writeFile(join(dir, "goodfellow-build.txt"), decision);
+    const pipeline = parse(bitbucketPipelines("goodfellow")) as {
+      pipelines: { custom: { update: Array<{ step?: { script: string[] } }> } };
+    };
+    const script = pipeline.pipelines.custom.update[2]?.step?.script.join("\n") ?? "";
+    return spawnSync("bash", ["-e", "-c", script], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, BITBUCKET_COMMIT: base, BITBUCKET_BRANCH: "main", VERCEL_DEPLOY_HOOK: "" },
+    });
+  }
+
+  it("publishes an update that changes only what an update does", async () => {
+    const result = await publish({ "package.json": '{ "name": "site", "version": "2" }\n' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(git(origin, "show", "main:package.json")).toContain('"version": "2"');
+  });
+
+  it("publishes nothing else the step before committed", async () => {
+    const result = await publish({ "package.json": "{}\n", "goodfellow.config.tsx": "x" });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain("not published: goodfellow.config.tsx");
+    expect(git(origin, "rev-parse", "main")).toBe(base);
   });
 });

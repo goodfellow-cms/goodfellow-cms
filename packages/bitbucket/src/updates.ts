@@ -114,7 +114,7 @@ export function bitbucketUpdates(
   return {
     async setup() {
       const setup = await readSetup();
-      if (!setup?.includes("update --publish")) return "missing";
+      if (!/update --(publish|commit)/.test(setup ?? "")) return "missing";
       try {
         const [settings, found] = await Promise.all([
           bitbucketJson<{ enabled?: boolean }>(api(), config),
