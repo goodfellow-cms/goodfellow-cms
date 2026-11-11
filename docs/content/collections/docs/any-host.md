@@ -50,7 +50,7 @@ The starters' setup files do three more things, which your build can do with the
 
 - **Rebuild overnight**, so pages that show what's coming up stay current: run `npx goodfellow nightly` each night, and build when it says so (see [Rebuilding overnight](/docs/updates#rebuilding-overnight)), or simply build every night.
 - **Publish scheduled pages on time:** run `npx goodfellow due` every hour, and build when it says something came due (see [Scheduling](/docs/scheduling)). Without it, scheduled changes go live with the next build.
-- **Install fixes:** `npx goodfellow update --publish` installs Goodfellow's fixes, if the site still builds with them, and publishes them (see [Keeping a site up to date](/docs/updates)). The admin panel's Updates screen follows the starters' GitHub workflow and GitLab pipeline, so on a setup of your own it only explains.
+- **Install fixes:** `npx goodfellow update --to automatic --publish` installs Goodfellow's fixes once they're two days old and their packages' provenance checks out, as the starters' nightly runs do, if the site still builds with them, and publishes them (without `--to automatic`, it installs the newest fix at once, without those checks) (see [Keeping a site up to date](/docs/updates)). The admin panel's Updates screen follows the starters' GitHub workflow and GitLab pipeline, so on a setup of your own it only explains.
 
 Next.js sites use `goodfellow-next` in place of `goodfellow`.
 

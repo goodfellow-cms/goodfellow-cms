@@ -124,7 +124,7 @@ export function createSelfSetup(options: SelfSetupOptions) {
     htmlPage(
       "Set up the sign-in service",
       `<p role="status">Saved. Cloudflare is starting the service with its new settings, which takes a few seconds; this page goes on by itself.</p>
-<p><a href="/setup">Go on now</a></p>`,
+<p><a href="/setup">Go on now</a> or <a href="/setup?again=1">start again</a></p>`,
       { ...headers, refresh: `${seconds}; url=/setup` },
     );
   /** The apps made so far: those the worker's settings have, and those this setup saved, which they may not show yet. */
@@ -187,12 +187,15 @@ export function createSelfSetup(options: SelfSetupOptions) {
   }
 
   async function sealState(key: string, state: SetupState): Promise<string> {
-    return (await createSealer(key, options.now)).seal(SETUP_KIND, state, SETUP_LIFETIME);
+    // Named by its key, so a version still running with the key before can tell it's waiting for the next.
+    return `${await keyId(key)}.${await (await createSealer(key, options.now)).seal(SETUP_KIND, state, SETUP_LIFETIME)}`;
   }
 
-  async function openState(request: Request, env: WorkerEnv): Promise<SetupState | undefined> {
-    const sealed = cookie(request, SETUP_COOKIE);
-    if (!sealed || !env.SESSION_KEY) return undefined;
+  /** The setup's state, or `waiting` where it's sealed with a key this version doesn't have yet. */
+  async function openState(request: Request, env: WorkerEnv): Promise<SetupState | "waiting" | undefined> {
+    const [id, sealed, ...rest] = (cookie(request, SETUP_COOKIE) ?? "").split(".");
+    if (!id || !sealed || rest.length > 0) return undefined;
+    if (!env.SESSION_KEY || id !== (await keyId(env.SESSION_KEY))) return "waiting";
     try {
       return await (await createSealer(env.SESSION_KEY, options.now)).open<SetupState>(SETUP_KIND, sealed);
     } catch {
@@ -200,7 +203,11 @@ export function createSelfSetup(options: SelfSetupOptions) {
     }
   }
 
-  async function form(request: Request): Promise<URLSearchParams> {
+  async function form(request: Request, url: URL): Promise<URLSearchParams> {
+    // Only this page's own forms: another site's page could send a form here too, and browsers say where it came from.
+    const site = request.headers.get("sec-fetch-site");
+    const origin = request.headers.get("origin");
+    if (site ? site !== "same-origin" : origin !== url.origin) throw new SetupProblem("Send the form from this page.");
     const type = request.headers.get("content-type") ?? "";
     if (!type.startsWith("application/x-www-form-urlencoded")) throw new SetupProblem("Send the form from this page.");
     return new URLSearchParams(await request.text());
@@ -293,16 +300,21 @@ ${problem ? `<p class="problem" role="alert">${escapeHtml(problem)}</p>` : ""}
     try {
       if (path === "/setup" && request.method === "GET") {
         if (isConfigured(env)) return configuredPage();
+        if (url.searchParams.has("again")) {
+          const response = firstPage();
+          response.headers.append("set-cookie", clearCookie());
+          return response;
+        }
         const state = await openState(request, env);
-        if (state) return appPage(url, state, madeApps(env, state), addressesOf(env));
         // A cookie this version can't open yet: Cloudflare is still starting the version with the new key.
-        if (cookie(request, SETUP_COOKIE) && !env.SESSION_KEY) return waitingPage();
+        if (state === "waiting") return waitingPage();
+        if (state) return appPage(url, state, madeApps(env, state), addressesOf(env));
         return firstPage();
       }
 
       if (path === "/setup/token" && request.method === "POST") {
         if (isConfigured(env)) return configuredPage();
-        const fields = await form(request);
+        const fields = await form(request, url);
         const values = Object.fromEntries(fields);
         const token = (fields.get("token") ?? "").trim();
         const organization = (fields.get("organization") ?? "").trim() || undefined;
@@ -313,15 +325,9 @@ ${problem ? `<p class="problem" role="alert">${escapeHtml(problem)}</p>` : ""}
           }
           const addresses = parseAddresses(fields.get("addresses") ?? "");
           const account = await findWorker(env, token);
-          const key = env.SESSION_KEY ?? newSessionKey();
-          await writeSecrets(
-            env,
-            { token, account },
-            {
-              ...(!env.SESSION_KEY && { SESSION_KEY: key }),
-              ALLOWED_ORIGINS: addresses.join(","),
-            },
-          );
+          // Always a new key: one already there may have been made by anyone, or kept from before.
+          const key = newSessionKey();
+          await writeSecrets(env, { token, account }, { SESSION_KEY: key, ALLOWED_ORIGINS: addresses.join(",") });
           const state: SetupState = {
             token,
             account,
@@ -332,7 +338,7 @@ ${problem ? `<p class="problem" role="alert">${escapeHtml(problem)}</p>` : ""}
           };
           const sealed = await sealState(key, state);
           // The new key is in the version Cloudflare is starting, so wait for it before going on.
-          return waitingPage({ "set-cookie": setCookie(sealed) }, env.SESSION_KEY ? 0 : RELOAD_SECONDS);
+          return waitingPage({ "set-cookie": setCookie(sealed) });
         } catch (error) {
           if (error instanceof SetupProblem) return firstPage(error.message, { ...values, token: "" });
           throw error;
@@ -342,7 +348,7 @@ ${problem ? `<p class="problem" role="alert">${escapeHtml(problem)}</p>` : ""}
       if (path === "/setup/github/callback" && request.method === "GET") {
         if (isConfigured(env)) return configuredPage();
         const state = await openState(request, env);
-        if (!state)
+        if (typeof state !== "object")
           return firstPage("This setup took longer than half an hour, or started in another browser. Start again.");
         const [kind, nonce] = (url.searchParams.get("state") ?? "").split(".");
         const code = url.searchParams.get("code") ?? "";
@@ -373,7 +379,7 @@ ${problem ? `<p class="problem" role="alert">${escapeHtml(problem)}</p>` : ""}
 
       if (path === "/setup/addresses" && request.method === "POST") {
         if (!isConfigured(env)) return firstPage();
-        const fields = await form(request);
+        const fields = await form(request, url);
         try {
           const token = (fields.get("token") ?? "").trim();
           if (!token) throw new SetupProblem("Paste the Cloudflare API token.");
@@ -408,6 +414,12 @@ ${problem ? `<p class="problem" role="alert">${escapeHtml(problem)}</p>` : ""}
   }
 
   return { handle };
+}
+
+/** A short name for a key, which says nothing of it. */
+async function keyId(key: string): Promise<string> {
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)));
+  return base64UrlEncode(hash.subarray(0, 9));
 }
 
 function setCookie(sealed: string): string {

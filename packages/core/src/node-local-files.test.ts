@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -73,6 +73,47 @@ describe("localFileStore", () => {
     expect(await readFile(join(root, "components/ui/accordion.tsx"), "utf8")).toBe("accordion\n");
     await writeFile(join(root, "components/ui/accordion.tsx"), "changed\n");
     expect(await store.revision()).not.toBe(revision);
+  });
+
+  it("never follows a link inside the editable folders to anywhere outside them", async () => {
+    const elsewhere = await mkdtemp(join(tmpdir(), "goodfellow-elsewhere-"));
+    try {
+      await writeFile(join(elsewhere, "secret.txt"), "the computer's own");
+      await mkdir(join(root, "content/pages"), { recursive: true });
+      await symlink(elsewhere, join(root, "content/pages/linked"), "dir");
+      await symlink(join(elsewhere, "secret.txt"), join(root, "content/pages/secret.json"));
+      await symlink(join(elsewhere, "missing.txt"), join(root, "content/pages/missing.json"));
+      await expect(store.read("content/pages/linked/secret.txt")).rejects.toBeInstanceOf(InvalidPathError);
+      await expect(store.read("content/pages/secret.json")).rejects.toBeInstanceOf(InvalidPathError);
+      await expect(store.readBytes("content/pages/secret.json")).rejects.toBeInstanceOf(InvalidPathError);
+      const start = await store.revision();
+      for (const path of ["content/pages/linked/new.json", "content/pages/secret.json", "content/pages/missing.json"]) {
+        await expect(
+          store.write([{ path, content: "{}" }], { message: "Out", expectedRevision: start }),
+        ).rejects.toBeInstanceOf(InvalidPathError);
+      }
+      expect(await readFile(join(elsewhere, "secret.txt"), "utf8")).toBe("the computer's own");
+      await expect(readFile(join(elsewhere, "new.json"))).rejects.toThrow();
+      await expect(readFile(join(elsewhere, "missing.txt"))).rejects.toThrow();
+    } finally {
+      await rm(elsewhere, { recursive: true, force: true });
+    }
+  });
+
+  it("reads and writes through an editable folder that is itself a link, as a content repository's is", async () => {
+    const repository = await mkdtemp(join(tmpdir(), "goodfellow-content-"));
+    try {
+      await symlink(repository, join(root, "content"), "dir");
+      const { revision } = await store.write([{ path: "content/pages/index.json", content: "{}" }], {
+        message: "Add",
+        expectedRevision: await store.revision(),
+      });
+      expect(revision).toBe(await store.revision());
+      expect(await store.read("content/pages/index.json")).toBe("{}");
+      expect(await readFile(join(repository, "pages/index.json"), "utf8")).toBe("{}");
+    } finally {
+      await rm(repository, { recursive: true, force: true });
+    }
   });
 
   it("only touches content, media, and installed blocks' code", async () => {

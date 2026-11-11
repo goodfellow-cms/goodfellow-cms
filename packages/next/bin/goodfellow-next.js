@@ -173,11 +173,22 @@ if (command === "finish" && dir === "--server") {
 if (command === "update") {
   const { values } = parseArgs({
     args: process.argv.slice(3),
-    options: { to: { type: "string" }, publish: { type: "boolean" }, commit: { type: "boolean" } },
+    options: {
+      to: { type: "string" },
+      publish: { type: "boolean" },
+      commit: { type: "boolean" },
+      blocks: { type: "boolean" },
+    },
   });
   // The starter's admin pages, kept up to date where nobody has changed them, on sites with an admin panel.
   const siteFiles = nextSiteFiles(adminPage());
-  const result = await update({ to: values.to, publish: values.publish, commit: values.commit, siteFiles });
+  const result = await update({
+    to: values.to,
+    publish: values.publish,
+    commit: values.commit,
+    blocks: values.blocks,
+    siteFiles,
+  });
   // For the admin panel, which reads it in the host's log.
   console.log(formatUpdateResult(result));
   process.exit(result.state === "failed" ? 1 : 0);
@@ -456,7 +467,7 @@ if (command !== "finish" && command !== "index") {
       "Usage: goodfellow-next finish [folder]",
       "       goodfellow-next finish --server",
       "       goodfellow-next index [folder]",
-      "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish | --commit]",
+      "       goodfellow-next update [--to fixes|automatic|latest|<release>] [--publish | --commit] [--blocks]",
       "       goodfellow-next due [--since <time>] [--output <file>]",
       "       goodfellow-next nightly [--mode changed|always|off] [--output <file>]",
       "       goodfellow-next content link|copy [folder]",
@@ -482,9 +493,9 @@ if (command !== "finish" && command !== "index") {
       "        and feeds into public/calendars and public/feeds and indexes and checks the pages",
       "        next build rendered, with the index in public/pagefind, instead.",
       "index   Only indexes the exported site for its search block.",
-      "update  Updates Goodfellow, and blocks from its registry, if the site still builds.",
-      "        --publish pushes it to the main branch; --commit only commits it, for a job",
-      "        that runs none of the site's code to publish.",
+      "update  Updates Goodfellow, if the site still builds. --blocks updates blocks from its",
+      "        registry too; --publish pushes it to the main branch; --commit only commits it,",
+      "        for a job that runs none of the site's code to publish.",
       "due     Says whether a scheduled change has come due since --since (default: the last",
       "        hour), so the site needs building again, and sets the step's due output on",
       "        GitHub Actions, or adds it to --output.",
