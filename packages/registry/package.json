@@ -11,7 +11,7 @@
     "shadcn-registry",
     "blocks"
   ],
-  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/block-registries",
+  "homepage": "https://goodfellowcms.com/docs/block-registries",
   "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
   "funding": {
     "type": "github",

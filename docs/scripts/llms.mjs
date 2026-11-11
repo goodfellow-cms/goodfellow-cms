@@ -2,10 +2,8 @@
 // Markdown at its address with `.md` after it (`/docs/media.md`), `llms.txt`
 // listing them by section with their descriptions, and `llms-full.txt` with
 // every page in one file. Addresses on the site are written out in full, since
-// tools read the files without the site around them.
-//
-// The domain's own `llms.txt`, at https://goodfellow-cms.github.io/llms.txt,
-// is in the goodfellow-cms.github.io repository and points here.
+// tools read the files without the site around them. The site is at its
+// domain's root, so `llms.txt` is the domain's own.
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -10,7 +10,7 @@
     "static-site-generator",
     "cli"
   ],
-  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/commands",
+  "homepage": "https://goodfellowcms.com/docs/commands",
   "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
   "funding": {
     "type": "github",

@@ -2,7 +2,7 @@
 
 A full-stack website built with [Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) and [Next.js](https://nextjs.org), for an organization whose editors sign in with the site's own accounts rather than GitHub's. Pages are files in a content repository of their own, edited in the admin panel at `/admin`; the site's server publishes them for the editors and keeps accounts in a database.
 
-It runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), built with [vinext](https://github.com/cloudflare/vinext), Cloudflare's build of Next.js, with a [D1](https://developers.cloudflare.com/d1/) database. It's being built in steps, and isn't released yet; the [full-stack Next.js](https://goodfellow-cms.github.io/goodfellow-cms/docs/full-stack-nextjs) docs page describes what it's built on.
+It runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), built with [vinext](https://github.com/cloudflare/vinext), Cloudflare's build of Next.js, with a [D1](https://developers.cloudflare.com/d1/) database. It's being built in steps, and isn't released yet; the [full-stack Next.js](https://goodfellowcms.com/docs/full-stack-nextjs) docs page describes what it's built on.
 
 ## Working on the site
 
@@ -30,7 +30,7 @@ On your own computer, the admin panel saves straight to the files in `content/`,
 
 It runs on Cloudflare's free plan. Every page is rendered while the site builds, so most visits cost almost nothing.
 
-1. **The content repository.** Make it as the [content repository](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
+1. **The content repository.** Make it as the [content repository](https://goodfellowcms.com/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
 2. **The database.** Sign in with `npx wrangler login`, run `npx wrangler d1 create goodfellow-company`, and put the `database_id` it gives in `wrangler.jsonc`.
 3. **The site's settings.** In `wrangler.jsonc`, set `GOODFELLOW_SITE_URL` to the site's address. Then set its secrets: `npx wrangler secret put BETTER_AUTH_SECRET` (at least 32 random characters, such as `openssl rand -base64 32` makes; without it, the site signs nobody in) and `npx wrangler secret put GOODFELLOW_GIT_TOKEN` (a fine-grained token that can publish to the content repository, and nothing else).
 4. **Putting it online.** `npm run build && npm run deploy` applies the database's migrations and uploads the Worker. To do it from GitHub instead, after every change, add the secrets `.github/workflows/deploy.yml` lists to the code repository.
