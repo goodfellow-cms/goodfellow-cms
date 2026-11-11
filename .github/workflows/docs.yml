@@ -112,54 +112,6 @@ jobs:
           path: docs/dist/
           retention-days: 1
           if-no-files-found: error
-      # The old address's pages: one at each address the docs have, sending people to the same page at the new one
-      # (with a canonical link, which search engines take as a permanent move), and a 404.html for any other.
-      - name: Write the old address's pages
-        env:
-          OLD_BASE: /goodfellow-cms
-        run: |
-          node --input-type=module <<'SCRIPT'
-          import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
-          import { dirname, join, relative } from "node:path";
-          const from = "docs/dist";
-          const to = join(process.env.RUNNER_TEMP, "old-address");
-          const site = process.env.DOCS_URL;
-          const escape = (text) => text.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
-          const page = (target, script) => `<!doctype html>
-          <html lang="en">
-          <head>
-          <meta charset="utf-8">
-          <title>Goodfellow CMS has moved</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          ${target ? `<link rel="canonical" href="${escape(target)}">\n<meta http-equiv="refresh" content="0; url=${escape(target)}">` : ""}
-          <script>${script}</script>
-          </head>
-          <body>
-          <p>Goodfellow CMS has moved to <a href="${escape(target ?? site)}">${escape(target ?? site)}</a>.</p>
-          </body>
-          </html>
-          `;
-          const files = (dir) =>
-            readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
-              entry.isDirectory() ? files(join(dir, entry.name)) : [join(dir, entry.name)],
-            );
-          for (const file of files(from).filter((file) => file.endsWith(".html"))) {
-            const path = relative(from, file).split("\\").join("/");
-            const address = `/${path.replace(/(^|\/)index\.html$/, "$1")}`;
-            const target = `${site}${address}`;
-            mkdirSync(dirname(join(to, path)), { recursive: true });
-            writeFileSync(join(to, path), page(target, `location.replace(${JSON.stringify(target)} + location.search + location.hash);`));
-          }
-          // Any other address: the same path at the new address, without the old one's folder.
-          const old = JSON.stringify(process.env.OLD_BASE);
-          writeFileSync(
-            join(to, "404.html"),
-            page(undefined, `var path = location.pathname.indexOf(${old}) === 0 ? location.pathname.slice(${old}.length) : location.pathname; location.replace(${JSON.stringify(site)} + (path || "/") + location.search + location.hash);`),
-          );
-          SCRIPT
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: ${{ runner.temp }}/old-address
 
   deploy:
     # Uploads what the build job built to Cloudflare Pages, running none of its code.
@@ -212,5 +164,37 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Two pages: the old address's home page, and the 404.html GitHub Pages serves for every other address under
+      # it. Both send people to the same page at the new address, keeping the query and anchor, or to its home page
+      # without JavaScript. Nothing of the build's is needed, and nothing runs but the shell.
+      - name: Write the old address's pages
+        env:
+          OLD_BASE: /goodfellow-cms
+        run: |
+          mkdir -p "$RUNNER_TEMP/old-address"
+          page() {
+            cat <<HTML
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <title>Goodfellow CMS has moved</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          $1<script>var old = "$OLD_BASE"; var path = location.pathname; if (path === old || path.indexOf(old + "/") === 0) path = path.slice(old.length); location.replace("$DOCS_URL" + (path || "/") + location.search + location.hash);</script>
+          <meta http-equiv="refresh" content="0; url=$DOCS_URL/">
+          </head>
+          <body>
+          <p>Goodfellow CMS has moved to <a href="$DOCS_URL/">$DOCS_URL</a>.</p>
+          </body>
+          </html>
+          HTML
+          }
+          # The home page's canonical link tells search engines it moved for good.
+          page "<link rel=\"canonical\" href=\"$DOCS_URL/\">
+          " > "$RUNNER_TEMP/old-address/index.html"
+          page "" > "$RUNNER_TEMP/old-address/404.html"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/old-address
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

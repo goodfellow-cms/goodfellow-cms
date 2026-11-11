@@ -30,6 +30,6 @@ Both `pnpm dev` and `pnpm build` first run `scripts/starters.mjs`, which packs t
 
 ## Online
 
-The site is at <https://goodfellowcms.com/>, published with Cloudflare Pages by `.github/workflows/docs.yml`, which keeps its old address, <https://goodfellow-cms.github.io/goodfellow-cms/>, on GitHub Pages as pages that send people to the same page there. It describes the latest release: the release workflow deploys it after publishing a new version to npm, from that version's commit, so changes to these pages go online with the next release. To publish a fix sooner, run **Deploy docs** in the repository's Actions tab with `master` as the version. See [RELEASING.md](../RELEASING.md).
+The site is at <https://goodfellowcms.com/>, published with Cloudflare Pages by `.github/workflows/docs.yml`, which keeps its old address, <https://goodfellow-cms.github.io/goodfellow-cms/>, on GitHub Pages as two pages, a home page and a 404 page, that send people to the same page there. It describes the latest release: the release workflow deploys it after publishing a new version to npm, from that version's commit, so changes to these pages go online with the next release. To publish a fix sooner, run **Deploy docs** in the repository's Actions tab with `master` as the version. See [RELEASING.md](../RELEASING.md).
 
 It has no admin panel online, since the backends can't yet edit a site in a subfolder of a repository; edit it on your computer as above.
