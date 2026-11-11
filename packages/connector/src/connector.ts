@@ -95,6 +95,8 @@ interface PickerData {
 }
 
 interface CodeData {
+  /** The connection's id, made with the code, so a code spelled another way is still the same one. */
+  id?: string;
   clientId: string;
   redirectUri: string;
   challenge: string;
@@ -414,6 +416,7 @@ export function createConnector(options: ConnectorOptions = {}) {
       const code = await (await sealer()).seal(
         "code",
         {
+          id: base64UrlEncode(crypto.getRandomValues(new Uint8Array(32))),
           clientId: data.clientId,
           redirectUri: data.redirectUri,
           challenge: data.challenge,
@@ -477,7 +480,8 @@ export function createConnector(options: ConnectorOptions = {}) {
         if ((await challengeFor(body.get("code_verifier") ?? "")) !== data.challenge) {
           throw new OAuthError("invalid_grant", "The code verifier doesn't match.");
         }
-        const grant = await sha256(body.get("code") ?? "");
+        // Codes sealed before codes had ids are named by their text.
+        const grant = typeof data.id === "string" && data.id ? data.id : await sha256(body.get("code") ?? "");
         if (!(await grants.create(grant, now() + REFRESH_LIFETIME, now()))) {
           // A code used twice: whoever has the first tokens loses them too, as OAuth asks.
           await grants.revoke(grant);

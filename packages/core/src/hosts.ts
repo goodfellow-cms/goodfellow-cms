@@ -88,20 +88,27 @@ export interface RemoteTextOptions {
   fetch?: RemoteFetch;
   /** How long to wait for an answer, in milliseconds. */
   timeout?: number;
+  /** A host the person chose themselves, such as the site being imported, which may be on their network. */
+  trusted?: string;
 }
 
 const MAX_REDIRECTS = 5;
 
-/** An address another site's file may be read from: `https://`, on a host that isn't this computer or a private network's. */
-function remoteUrl(address: string, what: string): URL {
+/**
+ * An address another site's file may be read from: `https://`, on a host
+ * that isn't this computer or a private network's, unless it's `trusted`, a
+ * host the person chose themselves, which may be either, over `http://` too.
+ */
+function remoteUrl(address: string, what: string, trusted?: string): URL {
   let url: URL;
   try {
     url = new URL(address);
   } catch {
     throw new RemoteFileError(`The ${what}'s address isn't a web address.`);
   }
-  if (url.protocol !== "https:") throw new RemoteFileError(`The ${what}'s address must start with https://.`);
   if (url.username || url.password) throw new RemoteFileError(`The ${what}'s address can't hold a password.`);
+  if (trusted !== undefined && url.hostname === trusted && /^https?:$/.test(url.protocol)) return url;
+  if (url.protocol !== "https:") throw new RemoteFileError(`The ${what}'s address must start with https://.`);
   if (isPrivateHost(url.hostname)) {
     throw new RemoteFileError(
       `The ${what}'s address is on this computer or a private network, which builds never read.`,
@@ -117,11 +124,45 @@ function remoteUrl(address: string, what: string): URL {
  * no more than `limit` bytes.
  */
 export async function readRemoteText(address: string, options: RemoteTextOptions): Promise<string> {
+  const response = await remoteResponse(address, options);
+  const { TextDecoder: Decoder } = globalThis as unknown as {
+    TextDecoder: new () => { decode(bytes: Uint8Array, options?: { stream: boolean }): string };
+  };
+  const decoder = new Decoder();
+  let text = "";
+  await readLimited(response, options, (bytes) => {
+    text += decoder.decode(bytes, { stream: true });
+  });
+  return text + decoder.decode(new Uint8Array());
+}
+
+export interface RemoteBytesOptions extends Omit<RemoteTextOptions, "accept"> {
+  accept?: string;
+}
+
+/** Another site's file as bytes, by `readRemoteText()`'s rules, apart from a host the person chose (`trusted`). */
+export async function readRemoteBytes(address: string, options: RemoteBytesOptions): Promise<Uint8Array> {
+  const response = await remoteResponse(address, { ...options, accept: options.accept ?? "*/*" });
+  const parts: Uint8Array[] = [];
+  await readLimited(response, options, (bytes) => {
+    parts.push(bytes);
+  });
+  const result = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0));
+  let offset = 0;
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.byteLength;
+  }
+  return result;
+}
+
+/** The answer to `address`, following redirects that `remoteUrl()` allows, once it says it isn't too large. */
+async function remoteResponse(address: string, options: RemoteTextOptions): Promise<RemoteResponse> {
   const fetcher = options.fetch ?? (globalThis as unknown as { fetch: RemoteFetch }).fetch;
   const timeout = (globalThis as unknown as { AbortSignal: { timeout(ms: number): unknown } }).AbortSignal.timeout(
     options.timeout ?? 20_000,
   );
-  let url = remoteUrl(address, options.what);
+  let url = remoteUrl(address, options.what, options.trusted);
   for (let redirects = 0; ; redirects++) {
     const response = await fetcher(url.href, {
       headers: { accept: options.accept },
@@ -132,35 +173,37 @@ export async function readRemoteText(address: string, options: RemoteTextOptions
     if (location) {
       await response.body?.getReader().cancel();
       if (redirects >= MAX_REDIRECTS) throw new RemoteFileError(`The ${options.what}'s address redirects too often.`);
-      url = remoteUrl(new URL(location, url).href, options.what);
+      url = remoteUrl(new URL(location, url).href, options.what, options.trusted);
       continue;
     }
     if (!response.ok) throw new RemoteFileError(`The ${options.what}'s address answered ${response.status}.`);
     const length = Number(response.headers.get("content-length"));
-    if (length > options.limit) throw new RemoteFileError(`The ${options.what} is too large to read.`);
-    return readLimited(response, options);
+    if (length > options.limit) {
+      await response.body?.getReader().cancel();
+      throw new RemoteFileError(`The ${options.what} is too large to read.`);
+    }
+    return response;
   }
 }
 
-async function readLimited(response: RemoteResponse, options: RemoteTextOptions): Promise<string> {
-  const { TextDecoder: Decoder } = globalThis as unknown as {
-    TextDecoder: new () => { decode(bytes: Uint8Array, options?: { stream: boolean }): string };
-  };
-  const decoder = new Decoder();
+/** Reads an answer's body a piece at a time, stopping once it's more than `limit` bytes. */
+async function readLimited(
+  response: RemoteResponse,
+  options: { what: string; limit: number },
+  take: (bytes: Uint8Array) => void,
+): Promise<void> {
   const reader = response.body?.getReader();
-  if (!reader) return "";
+  if (!reader) return;
   let read = 0;
-  let text = "";
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) return;
     if (!value) continue;
     read += value.byteLength;
     if (read > options.limit) {
       await reader.cancel();
       throw new RemoteFileError(`The ${options.what} is too large to read.`);
     }
-    text += decoder.decode(value, { stream: true });
+    take(value);
   }
-  return text + decoder.decode(new Uint8Array());
 }
