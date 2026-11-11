@@ -97,6 +97,47 @@ export async function retireResetLinks(
 
 type AuthContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
 
+/** The start of the id of the row that says an account's links are being written or used (`lockLinks()`). */
+export const LINK_LOCK = "link-lock:";
+
+/** How long a lock on an account's links lasts at most, in seconds, should what holds it never let it go. */
+export const LINK_LOCK_SECONDS = 30;
+
+/** What `lockLinks()` needs of Better Auth's database adapter. */
+type LockAdapter = Pick<AuthContext["adapter"], "create" | "findOne" | "deleteMany">;
+
+/**
+ * Takes the account's lock on its links, a row only one request can write (`claimRow()`), so sending a link and using
+ * one never overlap: Better Auth finds a link's row by its token and then consumes it by its id, and on D1 nothing
+ * holds those two together. Whether this request took it; a lock past its time is taken back first.
+ */
+export async function lockLinks(adapter: LockAdapter, userId: string): Promise<boolean> {
+  const id = `${LINK_LOCK}${userId}`;
+  await adapter.deleteMany({
+    model: "verification",
+    where: [
+      { field: "id", value: id },
+      { field: "expiresAt", operator: "lt", value: new Date() },
+    ],
+  });
+  return claimRow(adapter, {
+    id,
+    identifier: id,
+    value: userId,
+    expiresAt: new Date(Date.now() + LINK_LOCK_SECONDS * 1000),
+  });
+}
+
+/** Lets the account's links go (`lockLinks()`). */
+export async function unlockLinks(adapter: Pick<LockAdapter, "deleteMany">, userId: string): Promise<void> {
+  await adapter.deleteMany({ model: "verification", where: [{ field: "id", value: `${LINK_LOCK}${userId}` }] });
+}
+
+/** Thrown where an account's links are being sent or used at the moment, for the person to try again. */
+export class LinksBusy extends Error {
+  override name = "LinksBusy";
+}
+
 /** What `claimRow()` needs of Better Auth's database adapter. */
 type RowAdapter = Pick<AuthContext["adapter"], "create" | "findOne">;
 
@@ -145,6 +186,19 @@ async function takeResetSlot(adapter: RowAdapter, userId: string): Promise<boole
  */
 function resetLinks(siteEnv: SiteEnv) {
   let context: AuthContext | undefined;
+  // Whose account's lock each link in use holds, by its token, for the after hook to let it go.
+  const holding = new Map<string, string>();
+  type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
+  const tokenOf = (ctx: HookContext) => {
+    const token = ctx.body?.token || ctx.query?.token;
+    return typeof token === "string" ? token : "";
+  };
+  const findLink = async (ctx: HookContext) => {
+    const token = tokenOf(ctx);
+    const link = token ? await ctx.context.internalAdapter.findVerificationValue(`${RESET_IDENTIFIER}${token}`) : null;
+    return link && link.expiresAt >= new Date() ? link : null;
+  };
+
   return {
     plugin: {
       id: "site-reset-links",
@@ -154,16 +208,22 @@ function resetLinks(siteEnv: SiteEnv) {
       hooks: {
         before: [
           {
-            // Before a link is used, the account's other links go, invitations included: using one deletes its row
-            // (Better Auth changes the password only once that's done), so of two used at the same moment, each
-            // deletes the other's first, and at most one goes through.
+            // Using a link holds the account's lock until the request ends (the after hook, which Better Auth runs
+            // for its own errors too), and the account's other links go first, invitations included, so nothing
+            // sends or uses another link meanwhile. The token is where Better Auth reads it: the body, else the query.
+            // An expired or unknown one is left for Better Auth to refuse, taking nothing.
             matcher: (ctx) => ctx.path === "/reset-password",
             handler: createAuthMiddleware(async (ctx) => {
-              const token = typeof ctx.body?.token === "string" ? ctx.body.token : "";
-              const verification = token
-                ? await ctx.context.internalAdapter.findVerificationValue(`${RESET_IDENTIFIER}${token}`)
-                : null;
-              if (verification) await retireResetLinks(ctx.context.adapter, verification.value, verification.id);
+              const link = await findLink(ctx);
+              if (!link) return;
+              if (!(await lockLinks(ctx.context.adapter, link.value))) {
+                throw APIError.from("CONFLICT", {
+                  message: "This account's password is being changed at the moment. Try again in a moment.",
+                  code: "LINKS_BUSY",
+                });
+              }
+              holding.set(tokenOf(ctx), link.value);
+              await retireResetLinks(ctx.context.adapter, link.value, link.id);
             }),
           },
           {
@@ -201,10 +261,26 @@ function resetLinks(siteEnv: SiteEnv) {
             }),
           },
         ],
+        after: [
+          {
+            matcher: (ctx) => ctx.path === "/reset-password",
+            handler: createAuthMiddleware(async (ctx) => {
+              const token = tokenOf(ctx);
+              const userId = holding.get(token);
+              if (!userId) return;
+              holding.delete(token);
+              await unlockLinks(ctx.context.adapter, userId);
+            }),
+          },
+        ],
       },
     } satisfies BetterAuthPlugin,
+    // A password chosen from a link: the account's other links go, and its address is shown to be its person's, since
+    // the link reached it, which is what joining is (lib/editors.ts). Both while the lock is held.
     async onPasswordReset({ user }: { user: { id: string } }) {
-      if (context) await retireResetLinks(context.adapter, user.id);
+      if (!context) return;
+      await retireResetLinks(context.adapter, user.id);
+      await context.internalAdapter.updateUser(user.id, { emailVerified: true });
     },
   };
 }

@@ -45,6 +45,8 @@ export function ResetPasswordForm() {
     setProblem(undefined);
     try {
       const { error } = await authClient.resetPassword({ newPassword: password, token: token ?? "" });
+      if (error?.status === 409)
+        return setProblem("Your password is being changed at the moment. Try again in a moment.");
       if (error) return setProblem("This link has already been used or has run out. Ask for a new one below.");
       setDone("changed");
     } catch {

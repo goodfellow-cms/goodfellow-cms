@@ -2,7 +2,15 @@
 // them. Everything here goes through Better Auth's admin plugin, which checks the caller is an admin, and through
 // `authorizeWith()`, which also refuses banned admins and admins acting as someone else.
 import { generateRandomString } from "better-auth/crypto";
-import { authorizeWith, claimRow, RESET_IDENTIFIER, retireResetLinks, type SiteAuth } from "./auth.ts";
+import {
+  authorizeWith,
+  claimRow,
+  lockLinks,
+  RESET_IDENTIFIER,
+  retireResetLinks,
+  type SiteAuth,
+  unlockLinks,
+} from "./auth.ts";
 import { canSendEmail, type Email, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
@@ -128,8 +136,9 @@ async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: stri
   const token = generateRandomString(32);
   const context = await siteAuth.$context;
   const { adapter, internalAdapter } = context;
-  // One row for the person's invitation, rewritten for each new link, so of links sent at the same moment exactly
-  // the last one works; reset links aside, which the person can't have until they've joined (lib/auth.ts).
+  // One row for the person's invitation, rewritten for each new link, written while the account's lock is held, so a
+  // link is never sent while one is being used (lib/auth.ts); reset links aside, which the person can't have until
+  // they've joined.
   const id = `${INVITATION_ROW}${userId}`;
   const row = {
     identifier: `${RESET_IDENTIFIER}${token}`,
@@ -142,12 +151,17 @@ async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: stri
       where: [{ field: "id", value: id }],
       update: { ...row, updatedAt: new Date() },
     });
-  if (!(await rewrite()) && !(await claimRow(adapter, { id, ...row }))) await rewrite();
-  await retireResetLinks(adapter, userId, id);
-  // Taken back if the person has joined meanwhile, since accepting retires links again once it's marked them joined.
-  if ((await internalAdapter.findUserById(userId))?.emailVerified) {
-    await adapter.deleteMany({ model: "verification", where: [{ field: "id", value: id }] });
-    throw new EditorsError(409, "They've already joined.");
+  if (!(await lockLinks(adapter, userId))) {
+    throw new EditorsError(409, "This person's link is being sent or used at the moment. Try again in a moment.");
+  }
+  try {
+    if ((await internalAdapter.findUserById(userId))?.emailVerified) {
+      throw new EditorsError(409, "They've already joined.");
+    }
+    if (!(await rewrite()) && !(await claimRow(adapter, { id, ...row }))) await rewrite();
+    await retireResetLinks(adapter, userId, id);
+  } finally {
+    await unlockLinks(adapter, userId);
   }
   const link = new URL("/accept-invite/", siteEnv.GOODFELLOW_SITE_URL);
   link.searchParams.set("token", token);
@@ -288,9 +302,8 @@ export async function acceptInvitation(siteAuth: SiteAuth, request: Request, bod
       );
     }
     if (status === 400) throw expired;
+    if (status === 409) throw new EditorsError(409, "Your password is being set at the moment. Try again in a moment.");
     throw error;
   }
-  await context.internalAdapter.updateUser(verification.value, { emailVerified: true });
-  // Again, now they're marked joined: a link made while the password was being set goes too (`invitationLink()`).
-  await retireResetLinks(context.adapter, verification.value);
+  // Marking them joined, and retiring their other links, happened as the password was set (`onPasswordReset`).
 }
