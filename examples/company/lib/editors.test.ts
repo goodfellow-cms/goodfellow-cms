@@ -286,7 +286,7 @@ describe("the editors API", () => {
     }
   });
 
-  it("leaves at most one link working when links are sent again at once, or while one is being used", async () => {
+  it("leaves exactly one link working when links are sent again at once, and none once one is used", async () => {
     const { auth, asking, olive, close } = await site();
     try {
       const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
@@ -301,7 +301,24 @@ describe("the editors API", () => {
         const context = await auth.$context;
         return Boolean(await context.internalAdapter.findVerificationValue(`reset-password:${token(link)}`));
       };
+      // A barrier: no resend rewrites the invitation until all three are about to, then each retires the others.
+      const context = await auth.$context;
+      const update = context.adapter.update.bind(context.adapter);
+      let arrived = 0;
+      let release: () => void = () => undefined;
+      const together = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      context.adapter.update = (async (data: Parameters<typeof update>[0]) => {
+        if (data.model === "verification" && arrived < 3) {
+          if (++arrived === 3) release();
+          await together;
+        }
+        return update(data);
+      }) as typeof context.adapter.update;
       const again = await Promise.all([1, 2, 3].map(() => inviteAgain(auth, SITE_ENV, asking(olive), eddieId)));
+      context.adapter.update = update;
+      expect(arrived).toBe(3);
       const links = [invited.link, ...again.map((sent) => (sent.sent ? "" : sent.link))];
       // Exactly one: the last written.
       expect((await Promise.all(links.map(works))).filter(Boolean)).toHaveLength(1);
@@ -524,6 +541,63 @@ describe("forgetting a password", () => {
       expect([answer.status, await answer.text()]).toEqual([unknown.status, await unknown.text()]);
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(resend.sent.filter((sent) => sent.body.text.includes("/reset-password/"))).toHaveLength(0);
+    } finally {
+      close();
+    }
+  });
+
+  it("lets exactly as many go ahead as there are free slots, when every request reaches the same slot together", async () => {
+    const resend = fakeResend();
+    vi.stubGlobal("fetch", resend.fetcher);
+    const { auth, context, person, close } = await site(EMAIL_ENV);
+    try {
+      const adaId = await person("ada@example.org", "editor");
+      const requests = 8;
+      // A barrier: no request writes the first slot until every one is about to, so they all compete for it, then
+      // for each slot after it.
+      const original = context.adapter.create.bind(context.adapter);
+      let arrived = 0;
+      let release: () => void = () => undefined;
+      const together = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      context.adapter.create = (async (data: Parameters<typeof original>[0]) => {
+        if (String((data.data as { id?: unknown }).id).startsWith("reset-sent:1:")) {
+          if (++arrived === requests) release();
+          await together;
+        }
+        return original(data);
+      }) as typeof context.adapter.create;
+      const answers = await Promise.all(
+        Array.from({ length: requests }, (_, index) =>
+          auth.handler(
+            new Request(`${SITE}/api/auth/request-password-reset/`, {
+              method: "POST",
+              headers: { "content-type": "application/json", "cf-connecting-ip": `192.0.2.${index + 10}` },
+              body: JSON.stringify({ email: "ada@example.org" }),
+            }),
+          ),
+        ),
+      );
+      expect(arrived).toBe(requests);
+      expect(new Set(answers.map((answer) => answer.status))).toEqual(new Set([200]));
+      const slots = await context.adapter.count({
+        model: "verification",
+        where: [{ field: "identifier", value: `reset-sent:${adaId}` }],
+      });
+      expect(slots).toBe(RESET_ACCOUNT_LIMIT.max);
+      await vi.waitFor(() => expect(resend.sent).toHaveLength(RESET_ACCOUNT_LIMIT.max));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      // The rest were limited: no more emails, and no more reset links.
+      expect(resend.sent).toHaveLength(RESET_ACCOUNT_LIMIT.max);
+      const links = await context.adapter.count({
+        model: "verification",
+        where: [
+          { field: "value", value: adaId },
+          { field: "identifier", operator: "starts_with", value: "reset-password:" },
+        ],
+      });
+      expect(links).toBe(RESET_ACCOUNT_LIMIT.max);
     } finally {
       close();
     }
