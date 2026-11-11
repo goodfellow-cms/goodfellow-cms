@@ -16,7 +16,8 @@ const docsDir = join(root, "content/collections/docs");
 
 const site = JSON.parse(readFileSync(join(root, "content/site.json"), "utf8"));
 const collection = JSON.parse(readFileSync(join(docsDir, "_collection.json"), "utf8"));
-const base = site.url.replace(/\/$/, "");
+// The address the build gives the site (`GOODFELLOW_SITE_URL`, as the docs workflow sets it), else Site settings'.
+const base = (process.env.GOODFELLOW_SITE_URL || site.url).replace(/\/$/, "");
 const sections = collection.fields.find((field) => field.name === "section").options;
 
 /** A root-relative address as a full one, and others as they are. */

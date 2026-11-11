@@ -84,6 +84,14 @@ jobs:
         working-directory: docs
         env:
           GOODFELLOW_STARTER_LOCKFILES: "1"
+      # What AI tools read (llms.txt, llms-full.txt, and each page's Markdown), into public/ for the build to copy.
+      # The docs' own build script runs it too, but this calls goodfellow build directly, for its base and address.
+      # Releases from before it don't have it.
+      - if: hashFiles('docs/scripts/llms.mjs') != ''
+        run: node scripts/llms.mjs
+        working-directory: docs
+        env:
+          GOODFELLOW_SITE_URL: ${{ env.DOCS_URL }}
       - run: pnpm --filter @goodfellow-cms/docs exec goodfellow build --base /
         env:
           GOODFELLOW_SITE_URL: ${{ env.DOCS_URL }}
