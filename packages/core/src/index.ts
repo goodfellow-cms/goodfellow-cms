@@ -652,7 +652,14 @@ export {
   storedRedirects,
 } from "./content/redirects.js";
 export { type RenderedPage, renderedProblems } from "./content/rendered-checks.js";
-export { escapeCellText, sanitizeHtml, TABLE_CELL_TAGS, tableCellHtml } from "./content/sanitize.js";
+export {
+  cleanRichText,
+  escapeCellText,
+  RICH_TEXT_TAGS,
+  sanitizeHtml,
+  TABLE_CELL_TAGS,
+  tableCellHtml,
+} from "./content/sanitize.js";
 export {
   dueChanges,
   type FileDetails,

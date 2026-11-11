@@ -14,7 +14,13 @@ import {
   type Schedule,
   type SiteContent,
 } from "@goodfellow-cms/core";
-import { applyEntry, type SiteContextValue, SiteProvider, siteMetadata } from "@goodfellow-cms/react";
+import {
+  applyEntry,
+  richTextTransforms,
+  type SiteContextValue,
+  SiteProvider,
+  siteMetadata,
+} from "@goodfellow-cms/react";
 import {
   AutoField,
   type Config,
@@ -472,7 +478,7 @@ function EntryPreview({ collection, entry, content, templateConfig, layoutConfig
         site={site}
         className={typeof className === "string" ? className : undefined}
       >
-        <Render config={templateConfig} data={resolved} metadata={metadata} />
+        <Render config={templateConfig} data={resolved} metadata={metadata} fieldTransforms={richTextTransforms} />
       </SiteFrame>
     </SiteProvider>
   );

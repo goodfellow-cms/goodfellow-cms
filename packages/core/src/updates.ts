@@ -21,8 +21,9 @@ export const NPM_REGISTRY = "https://registry.npmjs.org";
  * npm overrides every site's `package.json` has, by the package whose own
  * dependency they replace, as Goodfellow's workspace has them
  * (`pnpm-workspace.yaml`): releases that fix security advisories, for
- * packages Goodfellow's dependencies ask for older ones of. Puck 0.23 renders
- * rich text on the server with `@tiptap/html`, which asks for happy-dom 20;
+ * packages Goodfellow's dependencies ask for older ones of. Puck 0.23 depends on
+ * `@tiptap/html`, for rendering rich text, which asks for happy-dom 20 (Goodfellow
+ * renders rich text itself, but sites still install it);
  * 21.0.4 and later fix GHSA-834v-8h66-3h79 and GHSA-c8p4-j97h-3vg8. Puck 0.24
  * asks for 21 itself, but a site going back to a release with Puck 0.23 is
  * installed with this release's overrides, so it keeps this one. Sigstore, which
