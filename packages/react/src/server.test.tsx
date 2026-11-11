@@ -113,6 +113,14 @@ describe("renderPage", () => {
     expect(html).not.toContain("<header");
   });
 
+  it("leaves a page out of the site's search where its settings say so", async () => {
+    const heading = [{ type: "Heading", props: { id: "h", text: "Staff only" } }];
+    const left = await renderPage(makeContent(), makePage(heading, { title: "Staff", noSearch: true }));
+    expect(left).toContain('<main class="gf-main"><div><h1>Staff only</h1></div></main>');
+    const found = await renderPage(makeContent(), makePage(heading, { title: "Staff", noSearch: false }));
+    expect(found).toContain('<main class="gf-main" data-pagefind-body="">');
+  });
+
   it("writes a long page whole, with what a block waited for in its place, never moved to the end", async () => {
     // A component that loads a moment later, as Puck's rich text does.
     const Late = lazy(async () => {

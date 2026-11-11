@@ -19,6 +19,7 @@ type Root = Data["root"] & { props?: Record<string, unknown>; readOnly?: Record<
 /** What each setting is where a page leaves it out, which the editor shows as chosen. */
 const SHOWN_DEFAULTS: Readonly<Record<string, unknown>> = {
   noIndex: false,
+  noSearch: false,
   noFollow: false,
   noSnippet: false,
   card: "auto",

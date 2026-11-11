@@ -133,13 +133,17 @@ export function createPageBody({ Render, SiteProvider }: Renderers) {
   /** A page's own content, without the site's header and footer. */
   function PageContent({ site, pageConfig, page, structuredData }: PageContentProps) {
     const metadata = siteMetadata(site);
-    const rootClassName = (page.root.props as Record<string, unknown> | undefined)?.className;
+    const rootProps = page.root.props as Record<string, unknown> | undefined;
+    const rootClassName = rootProps?.className;
+    // Left out of the site's search: "Page not found", pages blocks add, and pages whose settings say so (`noSearch`),
+    // which an item's page takes from its collection's template.
+    const searched = site.path !== "/404" && !isAddedPage(site) && rootProps?.noSearch !== true;
     return (
       <SiteProvider value={site}>
-        {/* Search indexes only pages' own content, not their header and footer, "Page not found" or pages blocks add, such as a list's second page. */}
+        {/* Search indexes only pages' own content, not their header and footer. */}
         <main
           className={cx("gf-main", typeof rootClassName === "string" && rootClassName)}
-          data-pagefind-body={site.path === "/404" || isAddedPage(site) ? undefined : ""}
+          data-pagefind-body={searched ? "" : undefined}
         >
           <Render config={pageConfig} data={page} metadata={metadata} site={site} />
           {site.credits && site.credits.length > 0 && (

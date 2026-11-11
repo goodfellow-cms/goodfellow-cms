@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { shownSettings } from "./page-settings.js";
 
 const page = (props: Record<string, unknown>): Data => ({ root: { props }, content: [] });
-const DEFAULTS = { noIndex: false, noFollow: false, noSnippet: false, card: "auto" };
+const DEFAULTS = { noIndex: false, noSearch: false, noFollow: false, noSnippet: false, card: "auto" };
 
 describe("shownSettings", () => {
   it("shows a page in search results where it hasn't chosen, and leaves that out of its file", () => {
