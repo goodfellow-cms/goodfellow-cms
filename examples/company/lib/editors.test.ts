@@ -603,6 +603,112 @@ describe("forgetting a password", () => {
     }
   });
 
+  it("lets at most one of an account's links set its password, when they're used at the same moment", async () => {
+    const { auth, context, person, signIn, close } = await site();
+    try {
+      const adaId = await person("ada@example.org", "editor");
+      const link = async () => {
+        const token = `a-link-${Math.random().toString(36).slice(2)}`;
+        await context.internalAdapter.createVerificationValue({
+          value: adaId,
+          identifier: `reset-password:${token}`,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        });
+        return token;
+      };
+      const use = (token: string, newPassword: string) =>
+        auth.api.resetPassword({ body: { token, newPassword } }).then(
+          () => true,
+          () => false,
+        );
+      // A barrier as each use retires the account's other links, so both requests do that at the same moment.
+      const deleteMany = context.adapter.deleteMany.bind(context.adapter);
+      let arrived = 0;
+      let release: () => void = () => undefined;
+      const together = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      context.adapter.deleteMany = (async (data: Parameters<typeof deleteMany>[0]) => {
+        if (data.model === "verification" && data.where.some((where) => where.operator === "ne")) {
+          if (++arrived === 2) release();
+          await together;
+        }
+        return deleteMany(data);
+      }) as typeof deleteMany;
+      const used = await Promise.all([
+        use(await link(), "the owner's new password"),
+        use(await link(), "a stranger's password"),
+      ]);
+      context.adapter.deleteMany = deleteMany;
+      // Each took the other away first, so neither went through, and the password is the one before.
+      expect(used.filter(Boolean)).toHaveLength(0);
+      expect(arrived).toBe(2);
+      expect(await signIn("ada@example.org")).toBeDefined();
+      expect(await signIn("ada@example.org", "a stranger's password")).toBeUndefined();
+
+      // One after the other: the first is the password, and the second no longer works.
+      const [first, second] = [await link(), await link()];
+      expect(await use(first, "the owner's new password")).toBe(true);
+      expect(await use(second, "a stranger's password")).toBe(false);
+      expect(await signIn("ada@example.org", "the owner's new password")).toBeDefined();
+      expect(await signIn("ada@example.org", "a stranger's password")).toBeUndefined();
+    } finally {
+      close();
+    }
+  });
+
+  it("lets a link sent again set the password, never the one it replaced, while that one is being used", async () => {
+    const { auth, asking, olive, context, signIn, close } = await site();
+    try {
+      const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
+      if (invited.sent) throw new Error("It said it sent an email.");
+      const eddieId = (await context.internalAdapter.findUserByEmail("eddie@example.org"))?.user.id ?? "";
+      const first = new URL(invited.link).searchParams.get("token") ?? "";
+      // The first link is held just before it's used (as its new password is hashed), while a new one is sent and
+      // used.
+      const hash = context.password.hash;
+      let reached: () => void = () => undefined;
+      const atUse = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      context.password.hash = async (password: string) => {
+        if (password === "a stranger's password") {
+          reached();
+          await held;
+        }
+        return hash(password);
+      };
+      const accepting = acceptInvitation(auth, asking(undefined), {
+        token: first,
+        password: "a stranger's password",
+      }).then(
+        () => true,
+        () => false,
+      );
+      await atUse;
+      const again = await inviteAgain(auth, SITE_ENV, asking(olive), eddieId);
+      if (again.sent) throw new Error("It said it sent an email.");
+      await acceptInvitation(auth, asking(undefined), {
+        token: new URL(again.link).searchParams.get("token"),
+        password: "eddie's own password",
+      });
+      release();
+      expect(await accepting).toBe(false);
+      expect(await signIn("eddie@example.org", "eddie's own password")).toBeDefined();
+      expect(await signIn("eddie@example.org", "a stranger's password")).toBeUndefined();
+    } finally {
+      close();
+    }
+  });
+
   it("says, for every address alike, when the site can't send the email", async () => {
     const { auth, person, close } = await site();
     try {

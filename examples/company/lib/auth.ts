@@ -138,8 +138,10 @@ async function takeResetSlot(adapter: RowAdapter, userId: string): Promise<boole
 
 /**
  * The site's own rules for password reset links: an account is sent at most `RESET_ACCOUNT_LIMIT`'s emails, and
- * none before its person has joined, with the same answer as any other, and choosing a password from any link makes the account's other links stop working, so a
- * link that went astray can't be used after the one that arrived. Where the site can't send email, asking answers `RESET_UNAVAILABLE` for every address alike.
+ * none before its person has joined, with the same answer as any other; and using any link makes the account's other
+ * links stop working, both as it's used and once the password is chosen, so a link that went astray can't be used
+ * with or after the one that arrived. Where the site can't send email, asking answers `RESET_UNAVAILABLE` for every
+ * address alike.
  */
 function resetLinks(siteEnv: SiteEnv) {
   let context: AuthContext | undefined;
@@ -151,6 +153,19 @@ function resetLinks(siteEnv: SiteEnv) {
       },
       hooks: {
         before: [
+          {
+            // Before a link is used, the account's other links go, invitations included: using one deletes its row
+            // (Better Auth changes the password only once that's done), so of two used at the same moment, each
+            // deletes the other's first, and at most one goes through.
+            matcher: (ctx) => ctx.path === "/reset-password",
+            handler: createAuthMiddleware(async (ctx) => {
+              const token = typeof ctx.body?.token === "string" ? ctx.body.token : "";
+              const verification = token
+                ? await ctx.context.internalAdapter.findVerificationValue(`${RESET_IDENTIFIER}${token}`)
+                : null;
+              if (verification) await retireResetLinks(ctx.context.adapter, verification.value, verification.id);
+            }),
+          },
           {
             matcher: (ctx) => ctx.path === "/request-password-reset",
             handler: createAuthMiddleware(async (ctx) => {
