@@ -581,11 +581,25 @@ const SECRET = /^[A-Z_][A-Z0-9_]*$/;
  * credentials and settings (GitHub's, GitLab's `CI_*`, such as
  * `CI_REGISTRY_PASSWORD` and `CI_JOB_JWT`, Bitbucket's, such as
  * `BITBUCKET_STEP_OIDC_TOKEN`, the runners'), the hosts' that deploy sites
- * (Vercel's, Cloudflare's, and Netlify's), Goodfellow's own git token, and
- * Node's and npm's, which change what runs.
+ * (Vercel's, Cloudflare's, and Netlify's), Goodfellow's own (`GOODFELLOW_*`,
+ * such as its git token), and Node's and npm's, which change what runs.
  */
 const RESERVED_SECRETS =
-  /^(GH_TOKEN|GITHUB_.*|ACTIONS_.*|RUNNER_.*|CI|CI_.*|GITLAB_.*|BITBUCKET_.*|VERCEL|VERCEL_.*|CF_.*|CLOUDFLARE_.*|NETLIFY|NETLIFY_.*|GOODFELLOW_GIT_TOKEN|NODE_.*|NPM_.*)$/;
+  /^(GH_TOKEN|GITHUB_.*|ACTIONS_.*|RUNNER_.*|CI|CI_.*|GITLAB_.*|BITBUCKET_.*|VERCEL|VERCEL_.*|CF_.*|CLOUDFLARE_.*|NETLIFY|NETLIFY_.*|GOODFELLOW_.*|NODE_.*|NPM_.*)$/;
+
+/**
+ * Whether a build step or task may read a path: one in the site, never a
+ * pattern Node's permission model would widen (`*`), git's folder, which
+ * holds the history and any credentials checkouts keep, or files of secrets
+ * (`.env`, `.env.local`, `.dev.vars`).
+ */
+export function isPluginReadPath(path: string): boolean {
+  return (
+    isRelativePath(path) &&
+    !path.includes("*") &&
+    path.split("/").every((part) => !part.startsWith(".git") && !part.startsWith(".env") && part !== ".dev.vars")
+  );
+}
 
 /** Whether an origin is one a plugin may declare in `connect`. */
 export function isPluginOrigin(origin: string): boolean {
@@ -655,8 +669,11 @@ export function pluginProblems(
       }
     }
     for (const path of permissions.read ?? []) {
-      if (!isRelativePath(path) || path.split("/")[0] === ".git") {
-        problem("bad-read", `${name} asks to read "${path}", which isn't a path in the site.`);
+      if (!isPluginReadPath(path)) {
+        problem(
+          "bad-read",
+          `${name} asks to read "${path}", which isn't a path in the site it may read: never a pattern, .git, or files of secrets.`,
+        );
       }
     }
     for (const path of permissions.write ?? []) {

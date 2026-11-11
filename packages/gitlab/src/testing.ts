@@ -762,6 +762,9 @@ export function fakeGitLab(options: FakeGitLabOptions) {
           iid: review.number,
           title: review.title,
           source_branch: review.branch,
+          // The site's project is 1, and a fork's another.
+          source_project_id: review.fork ? 2 : 1,
+          target_project_id: 1,
           web_url: `${webUrl}/${options.project}/-/merge_requests/${review.number}`,
         })),
       );

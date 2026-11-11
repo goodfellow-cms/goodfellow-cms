@@ -123,6 +123,8 @@ export interface AvailableBlock {
   recommended: boolean;
   /** The picture's full address, if the registry has one. */
   image?: string;
+  /** The release of the registry it's from, where the registry says, to tell an installed block's update. */
+  version?: string;
 }
 
 const installedBlockSchema = z.object({
@@ -253,6 +255,7 @@ export async function availableBlocks(registries: RegistrySources, fetchJson: Fe
               category: meta.category,
               recommended: meta.recommended ?? false,
               ...(meta.image && { image: new URL(meta.image, fill(template, item.name)).href }),
+              ...(meta.version && { version: meta.version }),
             },
           ];
         });
@@ -616,7 +619,8 @@ export async function planRemove({ name, record, readFile, content }: RemoveOpti
 }
 
 /** One block to add, by its registry reference, or to remove, by its name. */
-export type BlockChange = { add: string } | { remove: string };
+/** A block to add by its reference, or to remove or update by its installed name. */
+export type BlockChange = { add: string } | { remove: string } | { update: string };
 
 export interface BlockChangesOptions extends Omit<InstallOptions, "ref"> {
   changes: readonly BlockChange[];
@@ -624,10 +628,10 @@ export interface BlockChangesOptions extends Omit<InstallOptions, "ref"> {
 }
 
 /**
- * Works out the files for several blocks added and removed at once, so they can
- * be published together: each is planned with `planInstall()` or `planRemove()`
- * as if the ones before it had been published, and the result is every file's
- * final state.
+ * Works out the files for several blocks added, removed, and updated at once,
+ * so they can be published together: each is planned with `planInstall()`,
+ * `planRemove()`, or `planUpdate()` as if the ones before it had been
+ * published, and the result is every file's final state.
  */
 export async function planBlockChanges(options: BlockChangesOptions): Promise<Plan> {
   const { readFile, content } = options;
@@ -643,7 +647,9 @@ export async function planBlockChanges(options: BlockChangesOptions): Promise<Pl
     const plan =
       "add" in change
         ? await planInstall({ ...options, ref: change.add, readFile: readPending, record })
-        : await planRemove({ name: change.remove, record, readFile: readPending, content });
+        : "update" in change
+          ? await planUpdate({ ...options, name: change.update, readFile: readPending, record })
+          : await planRemove({ name: change.remove, record, readFile: readPending, content });
     for (const file of plan.changes) {
       if ("bytes" in file) throw new Error(`Blocks are text, but ${file.path} isn't.`);
       pending.set(file.path, "delete" in file ? null : file.content);

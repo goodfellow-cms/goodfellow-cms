@@ -10,8 +10,9 @@ overrides:
   # the connector never runs (Workers use Browser Rendering's browsers) and
   # which brings in extract-zip and basic-ftp, both with security advisories.
   "@cloudflare/puppeteer>@puppeteer/browsers": "-"
-  # Expo's code signing asks for node-forge 1.4.0; 1.4.1 fixes GHSA-86w9-cpqp-85rv.
-  "@expo/code-signing-certificates>node-forge": "^1.4.1"
+  # Expo's CLI and its code signing ask for node-forge 1.4.0 and up; 1.4.3 fixes GHSA-86w9-cpqp-85rv,
+  # GHSA-6cv4-p8m7-4r25, GHSA-j8rw-jp99-435v, GHSA-6889-vf6x-f3g5, and the TLS advisories with them.
+  "node-forge@<1.4.3": "^1.4.3"
   # Express, which the MCP SDK uses, asks for qs 6.16.0; 6.16.1 fixes GHSA-6pq8-jhm2-2vcw.
   "express>qs": "^6.16.1"
   # Sigstore's packages (cacache and @tufjs/models) and Expo's tools ask for glob 13

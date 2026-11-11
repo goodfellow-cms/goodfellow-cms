@@ -605,6 +605,33 @@ describe("finding sites", () => {
     expect(asked()).toBe(once);
   });
 
+  it("reads a description only from the web, and no more of it than any site's", async () => {
+    const at = async (url: string, fetch: (input: RequestInfo | URL) => Promise<Response>) => {
+      const files = starterFiles();
+      const settings = JSON.parse(files["content/site.json"] ?? "{}");
+      files["content/site.json"] = `${JSON.stringify({ ...settings, url }, null, 2)}\n`;
+      const fake = fakeGitHub({ repo: "parish/site", files });
+      const host = github({
+        repo: "parish/site",
+        signIn: false,
+        fetch: fake.fetch,
+        storage: { local: memoryStorage(), session: memoryStorage() },
+      });
+      const backend = host.signInWithToken("test-token", false);
+      const call = await serve({ sites: async () => [{ id: "github:parish/site" }], backend: () => backend, fetch });
+      return call("get_site");
+    };
+    // The Site address is content, so it can't point the connector at this computer's network.
+    const inside = await at("https://192.168.1.2", describedAt("https://192.168.1.2"));
+    expect(inside.isError).toBe(true);
+    expect(inside.text).toContain("couldn't read what blocks the site has");
+    const large = await at("https://parish.example", async () =>
+      Response.json(description, { headers: { "content-length": String(6 * 1024 * 1024) } }),
+    );
+    expect(large.isError).toBe(true);
+    expect((await at("https://parish.example", describedAt("https://parish.example"))).isError).toBe(false);
+  });
+
   it("works on several sites, each named in every call", async () => {
     const hosts = Object.fromEntries(
       ["parish/site", "parish/school"].map((repo) => {

@@ -55,6 +55,10 @@ Custom HTML used exactly as written runs its scripts on the site. The editor onl
 
 A block can't be removed while a page, a collection's page design, the header, or the footer uses it; the Blocks screen lists where it's used. Removing deletes its files, except those someone has changed since it was added, or that another block still uses.
 
+## Updating blocks
+
+Updates to Goodfellow never change blocks' code, since the job that publishes them runs none of it and can't tell a block's new version from code a package wrote. When a newer version of an added block is ready, the Blocks screen offers **Update** beside it, which publishes with the other changes marked. Files someone changed since the block was added stay as they are. A developer can update every block from Goodfellow's registry with `npx goodfellow update --blocks` (`npx goodfellow-next update --blocks` on a Next.js site).
+
 ## Other registries
 
 Developers can publish registries of Goodfellow blocks built with other component libraries; see [Block registries](/docs/block-registries). For a shadcn component no registry has as a block, a developer can make one with `goodfellow blocks add` (see [Any shadcn component as a block](/docs/shadcn-components)), and the Blocks screen then lists and removes it like the others. A site offers blocks from the registries its developer lists only where the admin panel has [an address of its own](/docs/custom-domains#an-admin-address) or a [token broker](/docs/token-broker), because a block's code runs in the admin panel, which at the site's own address shares it with scripts on the site's pages. Elsewhere the Blocks screen offers only Goodfellow's registry. On a developer's computer, in `goodfellow dev` or `next dev`, where the admin panel holds no tokens, it offers them all, and adding a block there writes its code into the site's files, to commit like any other change.
