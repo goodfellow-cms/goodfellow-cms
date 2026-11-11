@@ -12,6 +12,7 @@ import type { Collection } from "./collections.js";
 import { dateField, entryDetails } from "./entry-details.js";
 import { contentInLanguage, settingsPrefix, siteLanguages } from "./languages.js";
 import type { SiteContent } from "./load.js";
+import { isMembersCollection } from "./visibility.js";
 
 /** Where builds put feeds. */
 export const FEEDS_DIR = "feeds";
@@ -31,6 +32,7 @@ export function feedCollections(content: Pick<SiteContent, "collections" | "sett
   if (!content.settings.url) return [];
   return content.collections.filter(
     (collection) =>
+      !isMembersCollection(collection) &&
       collection.settings.path !== undefined &&
       !collection.settings.calendar &&
       dateField(collection) !== undefined &&

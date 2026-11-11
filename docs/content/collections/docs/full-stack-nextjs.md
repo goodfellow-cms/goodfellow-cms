@@ -108,6 +108,14 @@ Owners can also [limit what each person changes](/docs/sign-in#limiting-what-edi
 
 Signing in and out stay the app's own: the admin panel sends people to `signIn`, and its Sign out button goes to `signOut`, if there is one.
 
+## Pages for members
+
+On a full-stack site, a page's settings have **Who can see this page**: **Everyone**, or **Only signed-in members**, which `visibility: "members"` stores. A collection's settings can keep every item's page to members too. Other sites aren't offered it, since only a server can keep a page to anyone, and `goodfellow build` and `goodfellow-next finish` warn when a static site has pages marked for members, which they publish to everyone.
+
+Goodfellow doesn't decide who's a member or what everyone else sees: your app does. Where your page route or `proxy.ts` decides what to send, `isMembersOnly(page, content.collections)` from `@goodfellow-cms/core` says whether a page is for members, whether by its own setting, its collection's template, or its collection.
+
+What builds publish beside the pages leaves members' pages and collections out, since anyone can read them: the site's search, feeds, calendar files, and the content API. Members' calendars offer no calendar files to download or subscribe to. Two things stay your app's to keep private: the content repository, which holds every page, so make it private; and anything a public page shows of members' items, such as a list of their titles.
+
 ## AI keys on the server
 
 With `ai`, the AI assistant asks those services through the server, which adds its own key, so editors don't need keys of their own and never see the site's. Give a key for any of the [AI assistant's](/docs/ai-assistant) services, or a key and an address, such as `custom: { key, baseUrl: "https://ai.example/v1" }`. Editors see them as provided by the site. They can still use other services with keys of their own, unless the config's `ai.providers` leaves those out.

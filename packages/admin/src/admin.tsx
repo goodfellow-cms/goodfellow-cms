@@ -779,6 +779,7 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
               ai: { server: new URL(`${server.replace(/\/+$/, "")}/ai`, location.href).href, services: session.ai },
             }),
             plugins: new URL(`${server.replace(/\/+$/, "")}/plugins`, location.href).href,
+            members: true,
             ...(session.role === "owner" && { review: appServer(server).review }),
             ...(session.codeReview && { codeReview: true }),
             earlyInstalls: session.earlyInstalls === true,

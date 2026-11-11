@@ -531,6 +531,8 @@ export const defaultStrings = {
   "collectionSettings.pathHint": "{slug} stands for each item's own address, as in /videos/{slug}.",
   "collectionSettings.pathWarning":
     "Changing this changes the address of every item's page, and links to them on this site change with it. Links to the old addresses on other websites will stop working.",
+  "collectionSettings.membersOnly":
+    "Only signed-in members can see items' pages. They're left out of the site's search, feeds, and calendars too.",
   "collectionSettings.sortField": "Order items by",
   "collectionSettings.sortOrder": "Direction",
   "collectionSettings.ascending": "A to Z, oldest or smallest first",

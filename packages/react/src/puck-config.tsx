@@ -88,6 +88,14 @@ const pageRootFields: Fields = {
       { label: "Hide from search results", value: true },
     ],
   },
+  visibility: {
+    type: "radio",
+    label: "Who can see this page",
+    options: [
+      { label: "Everyone", value: "everyone" },
+      { label: "Only signed-in members", value: "members" },
+    ],
+  },
   noSearch: {
     type: "radio",
     label: "The site's search",

@@ -119,6 +119,9 @@ describe("renderPage", () => {
     expect(left).toContain('<main class="gf-main"><div><h1>Staff only</h1></div></main>');
     const found = await renderPage(makeContent(), makePage(heading, { title: "Staff", noSearch: false }));
     expect(found).toContain('<main class="gf-main" data-pagefind-body="">');
+    // Members' pages too, whose words anyone could read in the index.
+    const members = await renderPage(makeContent(), makePage(heading, { title: "Staff", visibility: "members" }));
+    expect(members).toContain('<main class="gf-main"><div><h1>Staff only</h1></div></main>');
   });
 
   it("writes a long page whole, with what a block waited for in its place, never moved to the end", async () => {

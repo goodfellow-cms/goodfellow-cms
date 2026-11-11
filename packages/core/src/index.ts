@@ -810,6 +810,15 @@ export {
   withThemeCss,
 } from "./content/themes.js";
 export {
+  isMembersCollection,
+  isMembersOnly,
+  membersPages,
+  VISIBILITIES,
+  VISIBILITY_PROP,
+  type Visibility,
+  withoutMembersContent,
+} from "./content/visibility.js";
+export {
   CONTENT_BUILDS,
   type ContentBuild,
   cloudflareContentBuild,

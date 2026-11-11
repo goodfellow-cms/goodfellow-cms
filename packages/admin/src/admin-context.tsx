@@ -160,6 +160,11 @@ export interface Account {
   /** On a full-stack site, where its server answers for plugins, such as `https://example.org/api/goodfellow/plugins`. */
   plugins?: string;
   /**
+   * Whether the site has a server of its own, a full-stack site, which can
+   * keep pages to its members: the editor offers "Who can see this page".
+   */
+  members?: boolean;
+  /**
    * On a full-stack site, changes to its code, such as adding blocks, go to
    * `review` rather than being published, since its server runs that code.
    */

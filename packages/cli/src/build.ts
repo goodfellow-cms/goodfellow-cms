@@ -16,6 +16,7 @@ import {
   IMAGE_WIDTHS,
   loadSiteContent,
   MEDIA_DIR,
+  membersPages,
   normalizeBase,
   pageOutputFile,
   type Redirect,
@@ -120,6 +121,8 @@ export interface BuildResult {
   robotsElsewhere?: string;
   /** The sitemap's address, for a site with its address set. */
   sitemap?: string;
+  /** The addresses of pages marked for members only, which a static site publishes to everyone. */
+  membersPages?: string[];
   /** The smaller copies of the media library's photos the build wrote, for pages' `srcset`. */
   images?: ImageSizesResult;
   /** The plugins' build steps that ran, as `plugin: step`. */
@@ -440,6 +443,8 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     // checks check the site as it's written, so links to pages that aren't shown yet aren't errors.
     const problems = [...checkSite(loaded, { media, blocks: config.blocks, today }), ...(await checkBuiltPages(built))];
     const [nextChange] = upcomingChanges(loaded, now);
+    // A static site has no server to keep pages to members, so it says which it publishes to everyone.
+    const forMembers = membersPages(content, pages).map((page) => page.path);
     return {
       outDir,
       pages: written,
@@ -458,6 +463,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
       ...(adminText && { adminText }),
       ...(robotsElsewhere && { robotsElsewhere }),
       ...(url && { sitemap: absoluteUrl(url, "/sitemap.xml") }),
+      ...(forMembers.length > 0 && { membersPages: forMembers }),
     };
   } finally {
     await stopPreact?.();

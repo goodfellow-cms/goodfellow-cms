@@ -78,7 +78,7 @@ Apps can read the files from anywhere. A page on another site can read them in v
 
 ## Turning it off
 
-The content API shows nothing the pages don't, so it's on by default. For a site that doesn't want its content read as data, set `api: false` in `goodfellow.config.tsx`, and builds leave it out:
+The content API shows nothing the pages don't, so it's on by default. It leaves out pages and collections a [full-stack site](/docs/full-stack-nextjs#pages-for-members) keeps to its members. For a site that doesn't want its content read as data, set `api: false` in `goodfellow.config.tsx`, and builds leave it out:
 
 ```tsx
 export default defineConfig({

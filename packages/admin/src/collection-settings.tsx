@@ -61,6 +61,8 @@ interface Draft {
   sortOrder: "asc" | "desc";
   /** The formatted-text field that is the body of entries' Markdown files, or "" for JSON files. */
   markdownBody: string;
+  /** Whether items' pages are for the site's members only, which only a full-stack site offers. */
+  membersOnly: boolean;
   /** For a calendar, the date and time field of its events, and the fields shown beside them, or "" for none. */
   calendarWhen: string;
   calendarPlace: string;
@@ -80,6 +82,7 @@ function toDraft(settings: CollectionFile): Draft {
     sortField: settings.sort?.field ?? TITLE_FIELD,
     sortOrder: settings.sort?.order ?? "asc",
     markdownBody: settings.markdown?.body ?? "",
+    membersOnly: settings.visibility === "members",
     calendarWhen: settings.calendar?.when ?? "",
     calendarPlace: settings.calendar?.place ?? "",
     calendarSummary: settings.calendar?.summary ?? "",
@@ -153,7 +156,14 @@ function fromDraft(settings: CollectionFile, draft: Draft): CollectionFile {
   }));
   const sortField = fields.some((field) => field.name === draft.sortField) ? draft.sortField : TITLE_FIELD;
   const isDefaultSort = sortField === TITLE_FIELD && draft.sortOrder === "asc";
-  const { path: _path, sort: _sort, markdown: _markdown, calendar: _calendar, ...rest } = settings;
+  const {
+    path: _path,
+    sort: _sort,
+    markdown: _markdown,
+    calendar: _calendar,
+    visibility: _visibility,
+    ...rest
+  } = settings;
   const body = fields.find((field) => field.name === draft.markdownBody && field.type === "richtext");
   // A calendar's fields that were removed, or whose type no longer fits, are left out.
   const fieldOf = (name: string, types: FieldType[]) =>
@@ -170,6 +180,7 @@ function fromDraft(settings: CollectionFile, draft: Draft): CollectionFile {
     ...(!isDefaultSort && { sort: { field: sortField, order: draft.sortOrder } }),
     ...(body && { markdown: { body: body.name } }),
     ...(when && { calendar: { when, ...(place && { place }), ...(summary && { summary }) } }),
+    ...(draft.membersOnly && { visibility: "members" as const }),
   };
 }
 
@@ -628,7 +639,7 @@ function addressClash(
 /** A collection's name, page addresses, order, and fields. */
 export function CollectionSettingsScreen({ collection }: { collection: Collection }) {
   const t = useStrings();
-  const { blocks, publish, reload } = useAdmin();
+  const { blocks, publish, reload, account } = useAdmin();
   const { content } = useSiteContent();
   const [draft, setDraft] = useState(() => toDraft(collection.settings));
   const [showErrors, setShowErrors] = useState(false);
@@ -778,6 +789,17 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
               />
               {collection.settings.path !== undefined && draft.path.trim() !== collection.settings.path && (
                 <p className="gfa-hint">{t("collectionSettings.pathWarning")}</p>
+              )}
+              {/* Only a site with a server of its own can keep pages to members; elsewhere a choice already made shows. */}
+              {(account?.members || draft.membersOnly) && (
+                <label className="gfa-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={draft.membersOnly}
+                    onChange={(event) => setDraft({ ...draft, membersOnly: event.target.checked })}
+                  />
+                  {t("collectionSettings.membersOnly")}
+                </label>
               )}
             </>
           )}

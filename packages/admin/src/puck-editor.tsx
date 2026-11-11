@@ -128,7 +128,7 @@ export function PuckEditor({
   language,
 }: PuckEditorProps) {
   const t = useStrings();
-  const { site, siteUrl, publish, reload, drafts } = useAdmin();
+  const { site, siteUrl, publish, reload, drafts, account } = useAdmin();
   const editable = useMayChange(
     kind === "page"
       ? { kind, path }
@@ -163,6 +163,8 @@ export function PuckEditor({
   const widthsKey = kind === "entry" ? ENTRY_WIDTHS_KEY : WIDTHS_KEY;
   // Settings only owners may change, such as Custom HTML used as written, which full-stack sites' servers refuse from editors.
   const owner = useCanChangeSettings();
+  // Only a full-stack site's server can keep pages to members, so only there are editors offered it.
+  const members = account?.members === true;
   // Where changes are kept in this browser as they're made, until they're published: the screen opens again for
   // another draft, so this stays the same while it's open.
   const keptKey = keptEditKey(
@@ -218,8 +220,9 @@ export function PuckEditor({
       ...(language && { language }),
       ...(readOnly && { readOnly }),
       ...(!owner && { ownersOnlyLocked: true }),
+      ...(members && { members: true }),
     }),
-    [kind, path, title, data, collection, entry, language, readOnly, owner],
+    [kind, path, title, data, collection, entry, language, readOnly, owner, members],
   );
   const onConnect = useCallback(
     async (client: FrameClient) => {

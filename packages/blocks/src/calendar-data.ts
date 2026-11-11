@@ -14,6 +14,7 @@ import {
   formatTime,
   isAllDay,
   isEventLike,
+  isMembersCollection,
   markdownText,
   monthOf,
   occurrences,
@@ -98,7 +99,8 @@ export function collectionItems(collection: Collection | undefined, from: string
         ...(place && { place }),
         ...(summary && { summary }),
         event,
-        file: eventFilePath(collection.id, entry.slug),
+        // Members' calendars have no files, which anyone could download.
+        ...(!isMembersCollection(collection) && { file: eventFilePath(collection.id, entry.slug) }),
       }),
     );
   });
@@ -236,6 +238,6 @@ export function entryCalendarItem(collection: Collection, entry: Entry): Calenda
     ...(place && { place }),
     ...(summary && { summary }),
     event,
-    file: eventFilePath(collection.id, entry.slug),
+    ...(!isMembersCollection(collection) && { file: eventFilePath(collection.id, entry.slug) }),
   };
 }
