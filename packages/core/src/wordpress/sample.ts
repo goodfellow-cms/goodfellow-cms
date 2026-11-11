@@ -536,6 +536,8 @@ export function fakeWordPress(options: FakeWordPressOptions = {}) {
           JSON.parse(typeof answer.body === "string" ? answer.body : new TextDecoder().decode(answer.body)) as unknown,
         arrayBuffer: async () =>
           (typeof answer.body === "string" ? new TextEncoder().encode(answer.body) : answer.body).slice().buffer,
+        // Read a piece at a time, as `readRemoteBytes()` reads media.
+        body: new Response(typeof answer.body === "string" ? answer.body : answer.body.slice()).body,
       };
     },
   };

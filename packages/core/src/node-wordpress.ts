@@ -17,6 +17,9 @@ import {
   loadSiteContent,
   MAX_UPLOAD_BYTES,
   MEDIA_DIR,
+  type RemoteFetch,
+  RemoteFileError,
+  readRemoteBytes,
   withoutImageDetails,
 } from "./index.js";
 import { fileSystemSource } from "./node-fs-source.js";
@@ -41,6 +44,7 @@ import {
   type WordPressImport,
   type WordPressImportNote,
   type WordPressSite,
+  wordPressAddress,
   wordPressExport,
   wordPressExportName,
 } from "./wordpress.js";
@@ -114,16 +118,28 @@ function turned(segment: Uint8Array): boolean {
   return (exifOrientation(segment) ?? 1) > 1;
 }
 
-async function download(url: string, fetcher: Fetch): Promise<{ bytes: Uint8Array } | { reason: MediaSkipReason }> {
-  let response: Response;
+/**
+ * A media file, by `readRemoteBytes()`'s rules: from `https://` addresses
+ * that aren't this computer's or a private network's, or else from `trusted`,
+ * the WordPress site's own host where it was read from its address, which the
+ * person named themselves, and never more than the upload limit.
+ */
+async function download(
+  url: string,
+  fetcher: Fetch,
+  trusted: string | undefined,
+): Promise<{ bytes: Uint8Array } | { reason: MediaSkipReason }> {
+  let bytes: Uint8Array;
   try {
-    response = await fetcher(url);
-  } catch {
-    return { reason: "download" };
+    bytes = await readRemoteBytes(url, {
+      what: "media file",
+      limit: MAX_UPLOAD_BYTES,
+      fetch: fetcher as unknown as RemoteFetch,
+      ...(trusted !== undefined && { trusted }),
+    });
+  } catch (error) {
+    return { reason: error instanceof RemoteFileError && /too large/.test(error.message) ? "size" : "download" };
   }
-  if (!response.ok) return { reason: "download" };
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.length > MAX_UPLOAD_BYTES) return { reason: "size" };
   const extension = extensionOf(url);
   if (["jpg", "jpeg"].includes(extension)) return { bytes: withoutJpegDetails(bytes) };
   return { bytes: ["png", "webp"].includes(extension) ? withoutImageDetails(bytes) : bytes };
@@ -141,6 +157,10 @@ export async function importWordPress(
 ): Promise<ImportWordPressResult> {
   const fetcher = options.fetch ?? fetch;
   const site = await readWordPressSource(from, fetcher);
+  // Read from its address, the site's own host is the one the person chose, which may be on their network.
+  // Never the address the site gives itself, which the site, not the person, chose.
+  const address = site.source === "address" ? wordPressAddress(from) : undefined;
+  const trusted = address ? new URL(address).hostname : undefined;
   const source = fileSystemSource(root);
   const content = await loadSiteContent(source);
   const mediaFiles = await source.list(MEDIA_DIR);
@@ -157,7 +177,7 @@ export async function importWordPress(
   await Promise.all(
     Array.from({ length: DOWNLOADS }, async () => {
       for (let copy = queue.shift(); copy; copy = queue.shift()) {
-        const result = await download(copy.url, fetcher);
+        const result = await download(copy.url, fetcher, trusted);
         if ("bytes" in result) {
           files.set(copy.url, result.bytes);
           options.log?.(`Copied ${copy.path}`);

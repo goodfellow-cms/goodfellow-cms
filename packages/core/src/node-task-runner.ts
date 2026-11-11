@@ -147,7 +147,12 @@ export function describedTask(
   if (pluginId(plugin.name) !== request.plugin || task?.id !== request.task) {
     return "The task's description is of another task than the one asked for.";
   }
-  if (!isPluginsOwnModule(plugin.name, task.module)) {
+  // A plugin installed from npm runs only its package's own code, never a file of the site's, which the
+  // site's packages could have named to have its secrets.
+  if (
+    !isPluginsOwnModule(plugin.name, task.module) ||
+    (record.plugins[plugin.name] !== undefined && task.module.startsWith("./"))
+  ) {
     return `${plugin.title}'s task "${task.id}" isn't in its own package.`;
   }
   const problem = pluginProblems([plugin])[0];
