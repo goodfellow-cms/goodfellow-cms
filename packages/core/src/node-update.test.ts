@@ -195,6 +195,28 @@ describe("goodfellow update", () => {
     expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
   });
 
+  it("updates registry blocks with --blocks on a site Goodfellow is up to date on, as the nightly update leaves it", async () => {
+    await site();
+    const nightly = commands();
+    await update({ root, fetchJson, run: nightly.run, registry: REGISTRY, commit: true, log: () => {}, env: {} });
+    expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+
+    const { ran, run } = commands();
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, blocks: true, log: () => {}, env: {} });
+    expect(result).toEqual({ state: "up-to-date", from: "0.4.2" });
+    expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+    expect(ran).toContain("npm run build");
+    // Nothing more to do the next time.
+    const again = commands();
+    expect(
+      await update({ root, fetchJson, run: again.run, registry: REGISTRY, blocks: true, log: () => {}, env: {} }),
+    ).toEqual({
+      state: "up-to-date",
+      from: "0.4.2",
+    });
+    expect(again.ran).not.toContain("npm run build");
+  });
+
   it("leaves block files someone changed", async () => {
     await site("export default { mine: true };\n");
     const { run } = commands();
