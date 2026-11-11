@@ -8,7 +8,7 @@ import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { dialectFor } from "./db/dialect.ts";
-import { canSendEmail, passwordResetEmail, sendEmail } from "./email.ts";
+import { canSendEmail, EmailRefused, passwordResetEmail, sendEmail } from "./email.ts";
 import { env, inBackground, type SiteEnv } from "./env.ts";
 
 /** How long a signed-in session is checked from its signed cookie alone, without reading the database. */
@@ -39,9 +39,11 @@ export const MIN_PASSWORD_LENGTH = 12;
  * Sends someone who forgot their password a link to choose a new one, at the site's own address, never the
  * request's. Better Auth asks for it for any address, and answers the same whether or not it has an account, so this
  * never fails where the visitor could see it: the email goes after the answer, and a failure is logged without it.
+ * One the email service refused gives back the slot it took (`releaseSlot`), so an outage doesn't use up the account's
+ * emails; one that may have gone, such as a request that timed out, keeps it.
  */
-function sendReset(siteEnv: SiteEnv) {
-  return async ({ user, token }: { user: { email: string; name: string }; token: string }) => {
+function sendReset(siteEnv: SiteEnv, releaseSlot: (userId: string) => Promise<void>) {
+  return async ({ user, token }: { user: { id: string; email: string; name: string }; token: string }) => {
     const siteUrl = siteEnv.GOODFELLOW_SITE_URL;
     if (!siteUrl) return console.error("Set GOODFELLOW_SITE_URL so password reset emails can link to the site.");
     const link = new URL("/reset-password/", siteUrl);
@@ -54,9 +56,12 @@ function sendReset(siteEnv: SiteEnv) {
       minutes: RESET_MINUTES,
     });
     inBackground(
-      sendEmail(siteEnv, email).catch((error: unknown) =>
-        console.error(`A password reset email wasn't sent: ${error instanceof Error ? error.name : "error"}.`),
-      ),
+      sendEmail(siteEnv, email).catch(async (error: unknown) => {
+        console.error(`A password reset email wasn't sent: ${error instanceof Error ? error.name : "error"}.`);
+        if (error instanceof EmailRefused) {
+          await releaseSlot(user.id).catch(() => console.error("A password reset email's slot wasn't given back."));
+        }
+      }),
     );
   };
 }
@@ -193,6 +198,20 @@ async function takeResetSlot(adapter: RowAdapter, userId: string): Promise<boole
 }
 
 /**
+ * Gives back one of the account's slots (`takeResetSlot()`), its newest, for an email that wasn't sent. Any of its
+ * slots does, since each only counts one email.
+ */
+async function releaseResetSlot(adapter: Pick<AuthContext["adapter"], "findMany" | "deleteMany">, userId: string) {
+  const [newest] = await adapter.findMany<{ id: string }>({
+    model: "verification",
+    where: [{ field: "identifier", value: `${RESET_SENT_IDENTIFIER}${userId}` }],
+    sortBy: { field: "createdAt", direction: "desc" },
+    limit: 1,
+  });
+  if (newest) await adapter.deleteMany({ model: "verification", where: [{ field: "id", value: newest.id }] });
+}
+
+/**
  * The site's own rules for password reset links: an account is sent at most `RESET_ACCOUNT_LIMIT`'s emails, and
  * none before its person has joined, with the same answer as any other; and using any link makes the account's other
  * links stop working, both as it's used and once the password is chosen, so a link that went astray can't be used
@@ -238,6 +257,13 @@ function resetLinks(siteEnv: SiteEnv) {
                   message: "This account's password is being changed at the moment. Try again in a moment.",
                   code: "LINKS_BUSY",
                 });
+              }
+              // The link may have been replaced while the lock was taken: then it's left for Better Auth to refuse,
+              // and the one that replaced it is kept.
+              const current = await findLink(ctx);
+              if (current?.id !== link.id) {
+                await unlockLinks(ctx.context.adapter, link.value, holder);
+                return;
               }
               holding.set(ctx.context, { userId: link.value, holder });
               await retireResetLinks(ctx.context.adapter, link.value, link.id);
@@ -291,6 +317,9 @@ function resetLinks(siteEnv: SiteEnv) {
         ],
       },
     } satisfies BetterAuthPlugin,
+    async releaseSlot(userId: string) {
+      if (context) await releaseResetSlot(context.adapter, userId);
+    },
     // A password chosen from a link: the account's other links go, and its address is shown to be its person's, since
     // the link reached it, which is what joining is (lib/editors.ts). Both while the lock is held.
     async onPasswordReset({ user }: { user: { id: string } }) {
@@ -340,7 +369,7 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       disableSignUp: true,
       minPasswordLength: MIN_PASSWORD_LENGTH,
       // Invitations use the same links (lib/editors.ts), with a longer life of their own.
-      sendResetPassword: sendReset(siteEnv),
+      sendResetPassword: sendReset(siteEnv, resets.releaseSlot),
       resetPasswordTokenExpiresIn: RESET_MINUTES * 60,
       revokeSessionsOnPasswordReset: true,
       onPasswordReset: resets.onPasswordReset,

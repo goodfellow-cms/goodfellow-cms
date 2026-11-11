@@ -16,6 +16,14 @@ export class EmailNotSetUp extends Error {
   override name = "EmailNotSetUp";
 }
 
+/**
+ * Thrown where the email service answered that it didn't send the message, so it surely wasn't sent; a request that
+ * timed out or never reached it throws something else, since the message may have gone.
+ */
+export class EmailRefused extends Error {
+  override name = "EmailRefused";
+}
+
 /** How long Resend has to answer, in milliseconds. */
 const SEND_TIMEOUT = 10_000;
 
@@ -26,7 +34,8 @@ export function canSendEmail(siteEnv: SiteEnv): boolean {
 
 /**
  * Sends a message from `EMAIL_FROM` with `RESEND_API_KEY`, which should be a key that can only send, from the site's
- * own domain. Throws `EmailNotSetUp` without them, and an error naming only Resend's answer's status otherwise.
+ * own domain. Throws `EmailNotSetUp` without them, and `EmailRefused`, naming only Resend's answer's status, where it
+ * refuses.
  */
 export async function sendEmail(siteEnv: SiteEnv, email: Email, fetcher: typeof fetch = fetch): Promise<void> {
   if (!canSendEmail(siteEnv)) {
@@ -44,7 +53,7 @@ export async function sendEmail(siteEnv: SiteEnv, email: Email, fetcher: typeof 
     }),
     signal: AbortSignal.timeout(SEND_TIMEOUT),
   });
-  if (!response.ok) throw new Error(`Resend didn't send the email: it answered ${response.status}.`);
+  if (!response.ok) throw new EmailRefused(`Resend didn't send the email: it answered ${response.status}.`);
 }
 
 /** Text as HTML shows it, with nothing in it read as markup. */

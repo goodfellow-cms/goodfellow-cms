@@ -501,6 +501,57 @@ describe("the editors API", () => {
     }
   });
 
+  it("keeps a link sent while another is looked up, rather than retiring it for the one it replaced", async () => {
+    const { auth, asking, olive, context, signIn, close } = await site();
+    const create = context.adapter.create;
+    try {
+      const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
+      if (invited.sent) throw new Error("It said it sent an email.");
+      const eddieId = (await context.internalAdapter.findUserByEmail("eddie@example.org"))?.user.id ?? "";
+      const token = (link: string) => new URL(link).searchParams.get("token");
+      // The old link is looked up, and stops just before it takes the account's lock.
+      let reached: () => void = () => undefined;
+      const atLock = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let paused = false;
+      context.adapter.create = (async (data: { data: { id?: unknown } }) => {
+        if (!paused && String(data.data.id).startsWith(LINK_LOCK)) {
+          paused = true;
+          reached();
+          await held;
+        }
+        return create(data as never);
+      }) as typeof create;
+      const accepting = acceptInvitation(auth, asking(undefined), {
+        token: token(invited.link),
+        password: "the password from the old link",
+      });
+      await atLock;
+      // Meanwhile a new link replaces it.
+      const again = await inviteAgain(auth, SITE_ENV, asking(olive), eddieId);
+      if (again.sent) throw new Error("It said it sent an email.");
+      release();
+      await expect(accepting).rejects.toMatchObject({ status: 400 });
+      context.adapter.create = create;
+      // The new link still works, and the lock was let go.
+      await acceptInvitation(auth, asking(undefined), { token: token(again.link), password: PASSWORD });
+      expect(await signIn("eddie@example.org")).toBeDefined();
+      expect(await signIn("eddie@example.org", "the password from the old link")).toBeUndefined();
+    } finally {
+      context.adapter.create = create;
+      close();
+    }
+  });
+
   it("lists, and changes, everyone however many there are", async () => {
     const { auth, asking, olive, context, close } = await site();
     try {
@@ -635,6 +686,49 @@ describe("forgetting a password", () => {
       expect(resend.sent).toHaveLength(RESET_ACCOUNT_LIMIT.max);
     } finally {
       close();
+    }
+  });
+
+  it("gives back an email's slot where the service refused it, and keeps it where it may have gone", async () => {
+    for (const failure of ["refused", "timed out"] as const) {
+      let calls = 0;
+      vi.stubGlobal("fetch", (async () => {
+        calls++;
+        if (calls > RESET_ACCOUNT_LIMIT.max) return new Response("{}", { status: 200 });
+        if (failure === "refused") return new Response("{}", { status: 503 });
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      }) as typeof fetch);
+      const { auth, context, person, close } = await site(EMAIL_ENV);
+      try {
+        await person("eddie@example.org", "editor");
+        const slots = async () =>
+          (
+            await context.adapter.findMany({
+              model: "verification",
+              where: [{ field: "identifier", operator: "starts_with", value: "reset-sent:" }],
+            })
+          ).length;
+        const ask = (ip: string) =>
+          auth.handler(
+            new Request(`${SITE}/api/auth/request-password-reset/`, {
+              method: "POST",
+              headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+              body: JSON.stringify({ email: "eddie@example.org" }),
+            }),
+          );
+        for (let index = 0; index < RESET_ACCOUNT_LIMIT.max; index++) {
+          await ask(`192.0.2.${index + 1}`);
+          await vi.waitFor(() => expect(calls).toBe(index + 1));
+          await vi.waitFor(async () => expect(await slots()).toBe(failure === "refused" ? 0 : index + 1));
+        }
+        // Once the service works again: a refused email's slot is free, one that may have gone still counts.
+        await ask("192.0.2.50");
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(calls).toBe(failure === "refused" ? RESET_ACCOUNT_LIMIT.max + 1 : RESET_ACCOUNT_LIMIT.max);
+      } finally {
+        close();
+        vi.unstubAllGlobals();
+      }
     }
   });
 
