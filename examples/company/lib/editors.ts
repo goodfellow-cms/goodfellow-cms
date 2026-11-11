@@ -123,13 +123,20 @@ async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: stri
     throw new EditorsError(500, "Set GOODFELLOW_SITE_URL, the site's address, so invitations can link to it.");
   }
   const token = generateRandomString(32);
+  const identifier = `${RESET_IDENTIFIER}${token}`;
   const context = await siteAuth.$context;
-  await retireResetLinks(context.adapter, userId);
+  // Made first, then the rest retired, so of two links made at once, at most the last stays; and taken back if the
+  // person has joined meanwhile, since accepting retires links only once it's marked them joined.
   await context.internalAdapter.createVerificationValue({
     value: userId,
-    identifier: `${RESET_IDENTIFIER}${token}`,
+    identifier,
     expiresAt: new Date(Date.now() + INVITATION_HOURS * 60 * 60 * 1000),
   });
+  await retireResetLinks(context.adapter, userId, identifier);
+  if ((await context.internalAdapter.findUserById(userId))?.emailVerified) {
+    await context.internalAdapter.deleteVerificationByIdentifier(identifier);
+    throw new EditorsError(409, "They've already joined.");
+  }
   const link = new URL("/accept-invite/", siteEnv.GOODFELLOW_SITE_URL);
   link.searchParams.set("token", token);
   return link.href;
@@ -274,4 +281,6 @@ export async function acceptInvitation(siteAuth: SiteAuth, request: Request, bod
     throw error;
   }
   await context.internalAdapter.updateUser(verification.value, { emailVerified: true });
+  // Again, now they're marked joined: a link made while the password was being set goes too (`invitationLink()`).
+  await retireResetLinks(context.adapter, verification.value);
 }

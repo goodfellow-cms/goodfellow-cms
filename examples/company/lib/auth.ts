@@ -3,6 +3,7 @@
 import type { AppEditor } from "@goodfellow-cms/core";
 import { type BetterAuthOptions, type BetterAuthPlugin, betterAuth, type Where } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
+import { generateRandomString } from "better-auth/crypto";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
@@ -69,18 +70,28 @@ export function canSendResets(siteEnv: SiteEnv): boolean {
 export const RESET_IDENTIFIER = "reset-password:";
 
 /**
- * Makes every link that would let someone choose a password for this account stop working: invitations and password
- * resets alike, since they're the same kind of link. Other verifications are kept.
+ * The start of the identifier of a mark that an account was sent a reset email, kept for `RESET_ACCOUNT_LIMIT`'s
+ * window, apart from the links themselves, so retiring links doesn't reset the count.
+ */
+export const RESET_SENT_IDENTIFIER = "reset-sent:";
+
+/**
+ * Makes every link that would let someone choose a password for this account stop working, but `keep`, the
+ * identifier of one just made: invitations and password resets alike, since they're the same kind of link. Other
+ * verifications are kept.
  */
 export async function retireResetLinks(
   adapter: { deleteMany: (data: { model: string; where: Where[] }) => Promise<number> },
   userId: string,
+  keep?: string,
 ): Promise<void> {
   await adapter.deleteMany({
     model: "verification",
     where: [
       { field: "value", value: userId },
       { field: "identifier", operator: "starts_with", value: RESET_IDENTIFIER },
+      // The link just made, which replaces the rest.
+      ...(keep ? [{ field: "identifier", operator: "ne", value: keep } satisfies Where] : []),
     ],
   });
 }
@@ -90,8 +101,7 @@ type AuthContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
 /**
  * The site's own rules for password reset links: an account is sent at most `RESET_ACCOUNT_LIMIT`'s emails, with the
  * same answer as any other, and choosing a password from any link makes the account's other links stop working, so a
- * link that went astray can't be used after the one that arrived. Invitations count as sent links too. Where the
- * site can't send email, asking answers `RESET_UNAVAILABLE` for every address alike.
+ * link that went astray can't be used after the one that arrived. Where the site can't send email, asking answers `RESET_UNAVAILABLE` for every address alike.
  */
 function resetLinks(siteEnv: SiteEnv) {
   let context: AuthContext | undefined;
@@ -112,22 +122,38 @@ function resetLinks(siteEnv: SiteEnv) {
                   code: "RESET_UNAVAILABLE",
                 });
               }
+              const { adapter, internalAdapter } = ctx.context;
+              const now = Date.now();
+              // Marks past their hour go.
+              await adapter.deleteMany({
+                model: "verification",
+                where: [
+                  { field: "identifier", operator: "starts_with", value: RESET_SENT_IDENTIFIER },
+                  { field: "expiresAt", operator: "lt", value: new Date(now) },
+                ],
+              });
               const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
-              const user = email ? await ctx.context.internalAdapter.findUserByEmail(email) : null;
-              // Counted for every address, so how long the answer takes says nothing about which have accounts.
-              const sent = await ctx.context.adapter.count({
+              const user = email ? await internalAdapter.findUserByEmail(email) : null;
+              // Marked first and counted after, so of requests at the same moment, only those within the limit by
+              // the order their marks were written can go ahead. Done for every address, so how long the answer
+              // takes says little about which have accounts.
+              const mark = `${RESET_SENT_IDENTIFIER}${generateRandomString(32)}`;
+              await internalAdapter.createVerificationValue({
+                identifier: mark,
+                value: user?.user.id ?? "",
+                expiresAt: new Date(now + RESET_ACCOUNT_LIMIT.window * 1000),
+              });
+              const sent = await adapter.count({
                 model: "verification",
                 where: [
                   { field: "value", value: user?.user.id ?? "" },
-                  { field: "identifier", operator: "starts_with", value: RESET_IDENTIFIER },
-                  {
-                    field: "createdAt",
-                    operator: "gte",
-                    value: new Date(Date.now() - RESET_ACCOUNT_LIMIT.window * 1000),
-                  },
+                  { field: "identifier", operator: "starts_with", value: RESET_SENT_IDENTIFIER },
                 ],
               });
-              if (user && sent >= RESET_ACCOUNT_LIMIT.max) {
+              const limited = sent > RESET_ACCOUNT_LIMIT.max;
+              // A request that sends nothing leaves no mark, so asking too often doesn't keep the limit going.
+              if (!user || limited) await internalAdapter.deleteVerificationByIdentifier(mark);
+              if (user && limited) {
                 // Better Auth's own answer, so a visitor can't tell the account was limited, or exists.
                 return ctx.json({
                   status: true,

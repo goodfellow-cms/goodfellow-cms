@@ -286,6 +286,41 @@ describe("the editors API", () => {
     }
   });
 
+  it("leaves at most one link working when links are sent again at once, or while one is being used", async () => {
+    const { auth, asking, olive, close } = await site();
+    try {
+      const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
+      if (invited.sent) throw new Error("It said it sent an email.");
+      const eddieId = (await (await auth.$context).internalAdapter.findUserByEmail("eddie@example.org"))?.user.id ?? "";
+      const token = (link: string) => new URL(link).searchParams.get("token");
+      const works = async (link: string) => {
+        const context = await auth.$context;
+        return Boolean(await context.internalAdapter.findVerificationValue(`reset-password:${token(link)}`));
+      };
+      const again = await Promise.all([1, 2, 3].map(() => inviteAgain(auth, SITE_ENV, asking(olive), eddieId)));
+      const links = [invited.link, ...again.map((sent) => (sent.sent ? "" : sent.link))];
+      expect((await Promise.all(links.map(works))).filter(Boolean).length).toBeLessThanOrEqual(1);
+
+      // Sent again while the person chooses a password with the link they have.
+      const fresh = await inviteAgain(auth, SITE_ENV, asking(olive), eddieId);
+      if (fresh.sent) throw new Error("It said it sent an email.");
+      const [accepted, during] = await Promise.allSettled([
+        acceptInvitation(auth, asking(undefined), { token: token(fresh.link), password: PASSWORD }),
+        inviteAgain(auth, SITE_ENV, asking(olive), eddieId),
+      ]);
+      const made = during.status === "fulfilled" && !during.value.sent ? [during.value.link] : [];
+      const working = await Promise.all([...links, fresh.link, ...made].map(works));
+      // Once they've chosen a password no link works; where the new link came first, only it does.
+      expect(working.filter(Boolean).length).toBe(accepted.status === "fulfilled" ? 0 : made.length);
+    } finally {
+      close();
+    }
+  });
+
   it("lists, and changes, everyone however many there are", async () => {
     const { auth, asking, olive, context, close } = await site();
     try {
@@ -300,9 +335,11 @@ describe("the editors API", () => {
       const listed = await listEditors(auth, asking(olive, "GET"));
       expect(listed).toHaveLength(521);
       expect(new Set(listed.map((editor) => editor.id)).size).toBe(521);
-      const last = ids.at(-1) ?? "";
+      // People the first page, read by id, leaves out.
+      const sorted = [...ids].sort();
+      const last = sorted.at(-1) ?? "";
       await setRole(auth, asking(olive, "PATCH"), last, "admin");
-      expect(await inviteAgain(auth, SITE_ENV, asking(olive), ids[0] ?? "")).toMatchObject({ sent: false });
+      expect(await inviteAgain(auth, SITE_ENV, asking(olive), sorted.at(-2) ?? "")).toMatchObject({ sent: false });
       await removeEditor(auth, asking(olive, "DELETE"), last);
       await expect(setRole(auth, asking(olive, "PATCH"), last, "editor")).rejects.toMatchObject({ status: 404 });
     } finally {
@@ -416,6 +453,45 @@ describe("forgetting a password", () => {
       await vi.waitFor(() => expect(resend.sent).toHaveLength(RESET_ACCOUNT_LIMIT.max));
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(resend.sent).toHaveLength(RESET_ACCOUNT_LIMIT.max);
+    } finally {
+      close();
+    }
+  });
+
+  it("keeps counting an account's emails after a link is used, and when people ask at the same moment", async () => {
+    const resend = fakeResend();
+    vi.stubGlobal("fetch", resend.fetcher);
+    const { auth, person, close } = await site(EMAIL_ENV);
+    try {
+      await person("eddie@example.org", "editor");
+      await person("ada@example.org", "editor");
+      let ip = 0;
+      const ask = (email: string) =>
+        auth.handler(
+          new Request(`${SITE}/api/auth/request-password-reset/`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "cf-connecting-ip": `198.51.100.${++ip}` },
+            body: JSON.stringify({ email }),
+          }),
+        );
+      const sentTo = (to: string) => resend.sent.filter((sent) => sent.body.to.includes(to));
+      for (let index = 0; index < RESET_ACCOUNT_LIMIT.max; index++) await ask("eddie@example.org");
+      await vi.waitFor(() => expect(sentTo("eddie@example.org")).toHaveLength(RESET_ACCOUNT_LIMIT.max));
+      const [first] = sentTo("eddie@example.org");
+      if (!first) throw new Error("Nothing was sent.");
+      // Using a link retires the account's links, but not the count of what it was sent.
+      await auth.api.resetPassword({
+        body: { token: linkIn(first).searchParams.get("token") ?? "", newPassword: "a brand new password" },
+      });
+      await ask("eddie@example.org");
+
+      // Many at once, each from a different network address.
+      const answers = await Promise.all(Array.from({ length: 8 }, () => ask("ada@example.org")));
+      expect(new Set(answers.map((answer) => answer.status))).toEqual(new Set([200]));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(sentTo("eddie@example.org")).toHaveLength(RESET_ACCOUNT_LIMIT.max);
+      expect(sentTo("ada@example.org").length).toBeGreaterThan(0);
+      expect(sentTo("ada@example.org").length).toBeLessThanOrEqual(RESET_ACCOUNT_LIMIT.max);
     } finally {
       close();
     }
