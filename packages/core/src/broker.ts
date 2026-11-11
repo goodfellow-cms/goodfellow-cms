@@ -482,6 +482,11 @@ export function serveBackend(port: BrokerPort, backend: GitBackend, options: Ser
     if (!found) throw new BrokerRefusedError("not-here", "The broker doesn't offer that.");
     const { target, shape, method, name } = found;
     const args = rebuiltArgs(name, Array.isArray(call.args) ? call.args : []);
+    // A draft's publish names the changes it was checked with, so what someone adds to the draft meanwhile isn't
+    // published unchecked, and fails where the draft changed (`publishedChanges()`).
+    if (name === "draft.publish" && args.length < 2 && typeof target.changes === "function") {
+      args.push({ changes: rebuiltChanges(await (target.changes as () => Promise<unknown>).call(target)) });
+    }
     const extra = options.extra?.[name];
     if (shape.sync?.[method]) {
       // A factory, such as `filesAt(revision)`, whose object's method is called at once.

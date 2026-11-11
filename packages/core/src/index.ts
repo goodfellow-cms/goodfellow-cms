@@ -962,7 +962,7 @@ export {
   type StorageLike,
   type TokenLink,
 } from "./git.js";
-export { UPDATE_CHECK, UPDATE_FILES, UPDATE_FOLDERS, UPDATE_REGISTRY } from "./github-workflows.js";
+export { UPDATE_CHECK, UPDATE_FILES, UPDATE_REGISTRY } from "./github-workflows.js";
 export {
   BUILD_DECISION,
   DEPLOY_KEY_TITLE,
@@ -1005,9 +1005,11 @@ export {
 export {
   isLoopbackHost,
   isPrivateHost,
+  type RemoteBytesOptions,
   type RemoteFetch,
   RemoteFileError,
   type RemoteTextOptions,
+  readRemoteBytes,
   readRemoteText,
 } from "./hosts.js";
 export {

@@ -12,9 +12,10 @@ export const PUBLISH_UPDATE_JOB = "publish-update";
 /**
  * The files an update may change (`update()`: `package.json` and its lockfile,
  * the releases it skips, and the site files releases bring, such as the
- * Next.js starter's admin pages), and the folders registry blocks' updates
- * write into. `publish-update` publishes nothing else, since the job that made
- * the update ran the site's code, which could have changed any file.
+ * Next.js starter's admin pages). `publish-update` publishes nothing else, since
+ * the job that made the update ran the site's code, which could have changed any
+ * file; registry blocks' code is never among them, so owners update blocks on
+ * the Blocks screen.
  */
 export const UPDATE_FILES: readonly string[] = [
   "package.json",
@@ -24,15 +25,14 @@ export const UPDATE_FILES: readonly string[] = [
   "app/admin/page.tsx",
   "app/admin/editor/page.tsx",
 ];
-export const UPDATE_FOLDERS: readonly string[] = ["blocks/installed/", "components/", "lib/", "hooks/"];
 
 /** Where an update's packages may come from. */
 export const UPDATE_REGISTRY = "https://registry.npmjs.org/";
 
 /**
  * A Node.js script, on one line with no single quotes, that exits with 1 when
- * the commits since `BASE` change anything but `UPDATE_FILES` and
- * `UPDATE_FOLDERS`' files, as plain files, or have `package-lock.json` take a
+ * the commits since `BASE` change anything but `UPDATE_FILES`, as plain
+ * files, or have `package-lock.json` take a
  * package from anywhere but npm's registry: run by `publish-update` before it
  * publishes, reading only git, never the site's packages.
  */
@@ -40,14 +40,12 @@ export const UPDATE_CHECK = [
   'const { execFileSync } = require("child_process");',
   'const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 1 << 28 });',
   `const files = ${JSON.stringify(UPDATE_FILES)};`,
-  `const folders = ${JSON.stringify(UPDATE_FOLDERS)};`,
   "const refused = [];",
   'const raw = git("diff", "--no-renames", "--raw", "-z", process.env.BASE, "HEAD").split("\\0");',
   "for (let i = 0; i + 1 < raw.length; i += 2) {",
   'const mode = raw[i].split(" ")[1]; const path = raw[i + 1];',
   'const plain = ["000000", "100644", "100755"].includes(mode);',
-  "const named = files.includes(path) || folders.some((folder) => path.startsWith(folder));",
-  "if (!plain || !named) refused.push(path); }",
+  "if (!plain || !files.includes(path)) refused.push(path); }",
   'const found = (value, into) => { if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) { if (key === "resolved") into.add(String(item)); else found(item, into); } return into; };',
   'const lock = (rev) => { try { return JSON.parse(git("show", rev + ":package-lock.json")); } catch { return undefined; } };',
   "const before = found(lock(process.env.BASE), new Set());",

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { bitbucketPipelines } from "./bitbucket-setup.js";
-import { CORE_RELEASE } from "./lockfile-setup.js";
+import { CORE_RELEASE, LOCKFILE_REGISTRY_CHECK } from "./lockfile-setup.js";
 import { GITLAB_TASK_RULE, githubTaskWorkflow, gitlabTaskJob, TASK_CORE_RELEASE } from "./task-setup.js";
 
 const ROOT = join(import.meta.dirname, "../../..");
@@ -73,6 +73,17 @@ describe("the starters' task setup", () => {
     expect(JSON.stringify(describe.script)).toContain("npx goodfellow task --describe");
     expect(JSON.stringify(task.script)).not.toContain("npx");
     expect(JSON.stringify(task.script)).toContain("goodfellow-task.js");
+  });
+});
+
+describe("Bitbucket's lockfile step", () => {
+  it("publishes package-lock.json only once every new package comes from npm's registry", () => {
+    const step = parse(bitbucketPipelines("goodfellow")).pipelines.branches.main[0].step;
+    const script = step.script.join("\n") as string;
+    const check = script.indexOf(LOCKFILE_REGISTRY_CHECK);
+    expect(check).toBeGreaterThan(0);
+    expect(check).toBeLessThan(script.indexOf("git push"));
+    expect(script.slice(check + LOCKFILE_REGISTRY_CHECK.length)).toMatch(/^' \|\| exit 1/);
   });
 });
 

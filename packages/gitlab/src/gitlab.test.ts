@@ -734,9 +734,23 @@ describe("drafts", () => {
         title: "New About page",
       },
     ]);
+    // A merge request from a fork with the same branch name is someone else's: never listed, and never closed.
+    const forked = {
+      number: fake.repo.reviews.length + 1,
+      branch: "goodfellow-draft-20261014-abc123",
+      target: "main",
+      title: "From a fork",
+      description: "",
+      state: "open" as const,
+      reviewers: [],
+      fork: "someone/site",
+    };
+    fake.repo.reviews.push(forked);
+    expect(await drafts.reviews()).toHaveLength(1);
     // GitLab keeps a merge request open when its branch goes, so publishing closes it.
     await draft.publish("Update About");
     expect(fake.repo.reviews[0]?.state).toBe("closed");
+    expect(forked.state).toBe("open");
     expect(await drafts.reviews()).toEqual([]);
   });
 

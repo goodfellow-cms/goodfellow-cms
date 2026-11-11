@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, join, sep } from "node:path";
 import { ConflictError, type ContentStore, EDITABLE_FOLDERS, type FileChange, isEditablePath } from "./index.js";
 import { fileSystemSource } from "./node-fs-source.js";
 
@@ -13,6 +13,33 @@ function assertEditable(path: string): void {
     throw new InvalidPathError(
       `${path} can't be edited from the admin panel. Only files in content/ and public/media/ can.`,
     );
+  }
+}
+
+/**
+ * Refuses a path that leads, through a link inside its editable folder, to
+ * anywhere outside that folder, such as `content/pages/x` linked to a file of
+ * the computer's own. The folders themselves may be links, as a content
+ * repository's are (`goodfellow content link`): it's what's under them that's
+ * held to them.
+ */
+async function assertInsideFolder(root: string, path: string): Promise<void> {
+  const folder = EDITABLE_FOLDERS.find((candidate) => path.startsWith(`${candidate}/`));
+  const base = folder && (await realpath(join(root, folder)).catch(() => undefined));
+  // Without the folder there's nothing in it to be a link.
+  if (!base) return;
+  const outside = () => new InvalidPathError(`${path} leads outside ${folder}/, so it can't be read or changed here.`);
+  const file = join(root, path);
+  // A link to nothing would be written through to wherever it names.
+  const link = await lstat(file).catch(() => undefined);
+  if (link?.isSymbolicLink() && !(await realpath(file).catch(() => undefined))) throw outside();
+  for (let at = file; ; at = dirname(at)) {
+    const real = await realpath(at).catch(() => undefined);
+    if (real) {
+      if (real !== base && !real.startsWith(base + sep)) throw outside();
+      return;
+    }
+    if (dirname(at) === at) return;
   }
 }
 
@@ -62,6 +89,7 @@ export function localFileStore(root: string): ContentStore {
 
   async function applyChanges(changes: FileChange[], expectedRevision: string): Promise<{ revision: string }> {
     for (const change of changes) assertEditable(change.path);
+    for (const change of changes) await assertInsideFolder(root, change.path);
     if ((await revision()) !== expectedRevision) throw new ConflictError();
 
     for (const change of changes) {
@@ -79,10 +107,12 @@ export function localFileStore(root: string): ContentStore {
   return {
     read: async (path) => {
       assertEditable(path);
+      await assertInsideFolder(root, path);
       return source.read(path);
     },
     readBytes: async (path) => {
       assertEditable(path);
+      await assertInsideFolder(root, path);
       try {
         return new Uint8Array(await readFile(join(root, path)));
       } catch {

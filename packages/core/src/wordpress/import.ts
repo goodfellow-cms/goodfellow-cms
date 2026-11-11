@@ -539,7 +539,9 @@ export function planWordPressImport(
   const attachments = new Map<string, WordPressMedia>();
   for (const media of source.media) {
     try {
-      attachments.set(mediaKey(new URL(media.url)), media);
+      // Only web addresses: an attachment's is what content links to where it isn't copied.
+      const url = new URL(media.url);
+      if (/^https?:$/.test(url.protocol)) attachments.set(mediaKey(url), media);
     } catch {
       // A file without a usable address can't be copied.
     }

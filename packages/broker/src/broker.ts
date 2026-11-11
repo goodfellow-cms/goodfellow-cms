@@ -22,6 +22,7 @@ import {
   serveBackend,
 } from "@goodfellow-cms/core";
 import { type BrokerQuestion, decide } from "./policy.js";
+import { adminRoute } from "./route.js";
 import { type StringKey, t } from "./strings.js";
 
 /**
@@ -177,7 +178,8 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
   const host = (make as (options: Record<string, unknown>) => GitHost)(source.options);
   // An address the editor opened, such as a link to a page in the admin panel, or the screen they were on.
   const keepRoute = () => {
-    if (location.hash) sessionStorage.setItem(ROUTE_KEY, location.hash);
+    const route = adminRoute(location.hash);
+    if (route) sessionStorage.setItem(ROUTE_KEY, route);
   };
   keepRoute();
   window.addEventListener("hashchange", keepRoute);
@@ -317,7 +319,7 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
     const frame = element("iframe", {
       class: "broker-frame",
       title: t("adminFrame"),
-      src: `${where.url}${route.startsWith("#") ? route : ""}`,
+      src: `${where.url}${adminRoute(route) ?? ""}`,
       // The admin panel runs at its own address, without leaving the broker or reaching the page it's in.
       sandbox:
         "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals",
@@ -399,7 +401,8 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
 
   async function answerService(port: MessagePort, request: BrokerServiceRequest | undefined) {
     if (request?.type === "route" && typeof request.hash === "string") {
-      sessionStorage.setItem(ROUTE_KEY, request.hash);
+      const route = adminRoute(request.hash);
+      if (route) sessionStorage.setItem(ROUTE_KEY, route);
       return;
     }
     if (request?.type !== "ai") return;

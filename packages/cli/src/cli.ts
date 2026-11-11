@@ -68,7 +68,7 @@ Commands:
   build     Build the static site into dist/
   preview   Serve the built site the way a static host would
   index     Index a built site's pages for its search block (build does this itself)
-  update    Update Goodfellow, and blocks from its registry, if the site still builds
+  update    Update Goodfellow, if the site still builds (with --blocks, its registry's blocks too)
   due       Say whether a scheduled change has come due since --since (default: the
             last hour), so the site needs building again; on GitHub Actions it also
             sets the step's due output to true or false, or adds it to --output
@@ -157,6 +157,7 @@ Options:
   --publish       For update: publish the update to the site's main branch once it builds
   --commit        For update: commit the update once it builds, without publishing it,
                   for a job that runs none of the site's code to publish
+  --blocks        For update: update blocks from Goodfellow's registry too
   --host <host>   For broker add: where the sign-in page is put online
   --domain <name> For broker add: the sign-in page's own domain, such as signin.example.org
   --since <time>  For due: when the last check started, such as 2026-11-29T09:17:00Z
@@ -193,6 +194,7 @@ async function main(): Promise<void> {
       to: { type: "string" },
       publish: { type: "boolean" },
       commit: { type: "boolean" },
+      blocks: { type: "boolean" },
       since: { type: "string" },
       mode: { type: "string" },
       output: { type: "string" },
@@ -316,7 +318,13 @@ async function main(): Promise<void> {
       return;
     }
     case "update": {
-      const result = await update({ root: values.root, to: values.to, publish: values.publish, commit: values.commit });
+      const result = await update({
+        root: values.root,
+        to: values.to,
+        publish: values.publish,
+        commit: values.commit,
+        blocks: values.blocks,
+      });
       // For the admin panel, which reads it in the host's log.
       console.log(formatUpdateResult(result));
       if (result.state === "failed") process.exitCode = 1;

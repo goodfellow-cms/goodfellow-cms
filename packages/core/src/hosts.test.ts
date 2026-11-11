@@ -86,6 +86,19 @@ describe("readRemoteText", () => {
     await expect(readRemoteText("https://example.org/", options(looping))).rejects.toThrow(/too often/);
   });
 
+  it("reads the one host the person chose over http:// and on their network, and no other", async () => {
+    const trusted = (fetch: RemoteFetch) => ({ ...options(fetch), trusted: "10.0.0.5" });
+    const fetch: RemoteFetch = async (url) =>
+      url.endsWith("/away") ? answer(302, "", { location: "http://10.0.0.6/" }) : answer(200, "x");
+    expect(await readRemoteText("http://10.0.0.5/feed", trusted(fetch))).toBe("x");
+    expect(await readRemoteText("https://10.0.0.5/feed", trusted(fetch))).toBe("x");
+    await expect(readRemoteText("http://10.0.0.6/", trusted(fetch))).rejects.toThrow(/https:\/\//);
+    await expect(readRemoteText("https://10.0.0.6/", trusted(fetch))).rejects.toThrow(/private network/);
+    await expect(readRemoteText("http://www.10.0.0.5.example/", trusted(fetch))).rejects.toThrow(/https:\/\//);
+    await expect(readRemoteText("http://10.0.0.5/away", trusted(fetch))).rejects.toThrow(/https:\/\//);
+    await expect(readRemoteText("ftp://10.0.0.5/", trusted(fetch))).rejects.toThrow(/https:\/\//);
+  });
+
   it("stops reading past its limit", async () => {
     const fetch: RemoteFetch = async () => answer(200, "x".repeat(11));
     await expect(readRemoteText("https://example.org/", options(fetch))).rejects.toThrow(/too large/);
