@@ -376,7 +376,13 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     const kept: string[] = [];
     let record: ReturnType<typeof parseInstalledRecord>;
     try {
-      record = parseInstalledRecord(await read(INSTALLED_RECORD_FILE));
+      // Only a site without the record has no blocks: one that's there but can't be read isn't taken as empty,
+      // which would skip every block.
+      const text = await readFile(join(root, INSTALLED_RECORD_FILE), "utf8").catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
+      });
+      record = parseInstalledRecord(text);
     } catch {
       // What was written before is put back, as for any other failure.
       log(`${INSTALLED_RECORD_FILE} can't be read, so the blocks weren't updated.`);

@@ -228,6 +228,17 @@ describe("goodfellow update", () => {
     expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
   });
 
+  it("doesn't take a blocks record it can't read for an empty one", async () => {
+    await site();
+    // There, but not a file that can be read.
+    await rm(join(root, "blocks/installed/installed.json"));
+    await mkdir(join(root, "blocks/installed/installed.json"));
+    const { run } = commands();
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, blocks: true, log: () => {}, env: {} });
+    expect(result).toMatchObject({ state: "failed", step: "blocks" });
+    expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+  });
+
   it("leaves block files someone changed", async () => {
     await site("export default { mine: true };\n");
     const { run } = commands();
