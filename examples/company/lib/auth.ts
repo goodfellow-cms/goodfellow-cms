@@ -102,8 +102,8 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       ...(siteEnv.CLIENT_IP_HEADER && { ipAddress: { ipAddressHeaders: [siteEnv.CLIENT_IP_HEADER] } }),
     },
     session: { cookieCache: { enabled: true, maxAge: SESSION_CACHE_SECONDS } },
-    // `admin` people are the site's owners; everyone else an admin invites is an editor.
-    // The site's two roles, so the admin plugin refuses any other: admins, who may do everything, and editors.
+    // The site's two roles, so the admin plugin refuses any other: `admin`, the site's owners, and `editor`, which
+    // everyone else an admin invites is.
     plugins: [
       admin({ defaultRole: "editor", adminRoles: ["admin"], roles: { admin: adminAc, editor: userAc } }),
       nextCookies(),
