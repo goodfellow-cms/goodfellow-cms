@@ -33,6 +33,14 @@ export interface GoodfellowApiOptions {
   /** Told about failures editors only hear about as "something went wrong". Defaults to `console.error`. */
   onError?: (error: unknown) => void;
   /**
+   * Called after each publish from the admin panel, before the editor hears
+   * it worked, with the files it changed (`paths`), who published them
+   * (`editor`) and the new `revision`: for instance to refresh the pages
+   * they're on, or to tell another system. A failure goes to `onError`, since
+   * the publish has already happened. The site still rebuilds as usual.
+   */
+  onPublish?: AppApiOptions["onPublish"];
+  /**
    * The server modules of the config's plugins, by plugin name, imported in
    * the route's file, such as `{ "goodfellow-plugin-s3": s3Server }` from
    * `import s3Server from "goodfellow-plugin-s3/server"`. Each answers
@@ -97,6 +105,7 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
       ...(options.signOut && { signOut: options.signOut }),
       ...(ai && ai.services.length > 0 && { ai }),
       ...(options.onError && { onError: options.onError }),
+      ...(options.onPublish && { onPublish: options.onPublish }),
       ...(options.plugins && { plugins: options.plugins }),
       ...(options.codeChanges && { codeChanges: options.codeChanges }),
       ...(options.provenance && { provenance: options.provenance }),

@@ -120,6 +120,23 @@ The server sends on only the requests the assistant makes, and only for people `
 
 Owners can choose plugins on the admin panel's Plugins screen too, but on a full-stack site installing, updating, or removing one is submitted for review, as a pull request or merge request for a developer to accept, since the site's builds and server hold its secrets. Changes to `plugins/installed/` are refused from the admin panel otherwise. Once you've accepted one, add its server module to the API route if it has one.
 
+## After each publish
+
+`onPublish` is called after each publish from the admin panel, before the editor hears it worked. It's given the files the publish changed (`paths`, such as `content/pages/about.json`), who published them (`editor`, as `authorize` gave them), and the new `revision`:
+
+```ts
+export const { GET, POST } = goodfellowApi({
+  config,
+  authorize,
+  signIn: "/sign-in",
+  onPublish: async ({ paths, editor }) => {
+    await notifyTeam(`${editor.name} published ${paths.join(", ")}`);
+  },
+});
+```
+
+Use it to tell another system, or to refresh pages your app caches itself. The site still rebuilds as usual, which is when visitors see the change. The publish has already happened when it's called, so if it fails, the failure goes to `onError` and the editor still sees "Published."
+
 ## Safety
 
 - The API answers people who aren't signed in only with where to sign in. Every request must come from the site's own pages: it carries a header that browsers don't send to another site without asking it first, and requests that say they come from another site are refused.
