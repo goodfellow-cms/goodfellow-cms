@@ -239,6 +239,25 @@ describe("goodfellow update", () => {
     expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
   });
 
+  it("leaves the site's packages alone where the blocks' record can't be read before anything changes", async () => {
+    await site();
+    await writeFile(join(root, "blocks/installed/installed.json"), "{ not json\n");
+    const { ran, run } = commands();
+    // Goodfellow is up to date, so nothing is written before the blocks.
+    const result = await update({
+      root,
+      fetchJson,
+      run,
+      to: "0.4.1",
+      registry: REGISTRY,
+      blocks: true,
+      log: () => {},
+      env: {},
+    });
+    expect(result).toMatchObject({ state: "failed", step: "blocks" });
+    expect(ran.filter((line) => line.startsWith("npm"))).toEqual([]);
+  });
+
   it("never takes a block's file it can't read for a missing one", async () => {
     await site();
     // There, but not a file that can be read, as for one the update may not read.
@@ -649,6 +668,20 @@ describe("goodfellow update", () => {
       expect(await read("package.json")).toBe(before);
       expect((await stat(join(root, "app/admin/page.tsx"))).isDirectory()).toBe(true);
       expect(await read("app/admin/editor/page.tsx").catch(() => undefined)).toBeUndefined();
+    });
+
+    it("reports both errors where putting the site back fails too", async () => {
+      await site();
+      await mkdir(join(root, "app/admin/page.tsx"), { recursive: true });
+      const run: RunCommand = async (command, args) => {
+        if (command === "npm" && args[0] === "ci") throw new Error("npm couldn't be started");
+        return { code: 0, output: "abc123\n" };
+      };
+      const failure = await update({ ...options(), run, siteFiles: files }).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AggregateError);
+      const { errors } = failure as AggregateError;
+      expect(String(errors[0])).toMatch(/EISDIR/);
+      expect(String(errors[1])).toMatch(/npm couldn't be started/);
     });
 
     it("leaves files someone changed, and says so", async () => {

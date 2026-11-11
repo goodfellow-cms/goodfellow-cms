@@ -286,7 +286,14 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     return await updateSite(options, undo);
   } catch (error) {
     // Anything else that goes wrong once files are written, such as a file that can't be read, puts them back too.
-    if (undo.written()) await undo.restore();
+    if (undo.written()) {
+      try {
+        await undo.restore();
+      } catch (rollbackError) {
+        // Both, so a rollback that didn't finish isn't hidden behind the error that started it, or the other way round.
+        throw new AggregateError([error, rollbackError], "The update failed, and putting the site back failed too.");
+      }
+    }
     throw error;
   }
 }
@@ -375,7 +382,12 @@ async function updateSite(
       await writeFile(file, change.content);
     }
   };
+  // Whether packages were installed, which putting the site back undoes.
+  let installed = false;
   const restore = async () => {
+    // Nothing written and nothing installed, such as where the blocks' record can't be read first: nothing to undo,
+    // and reinstalling could only leave the site's packages worse off.
+    if (originals.size === 0 && !installed) return;
     for (const [path, text] of originals) {
       const file = join(root, path);
       if (text === undefined) await rm(file, { force: true });
@@ -385,7 +397,7 @@ async function updateSite(
     // Without scripts on an automatic run, as its install was.
     await run("npm", ["ci", "--no-audit", "--no-fund", ...(target === "automatic" ? ["--ignore-scripts"] : [])], root);
   };
-  undo.written = () => originals.size > 0;
+  undo.written = () => originals.size > 0 || installed;
   undo.restore = restore;
   const failed = async (result: Omit<UpdateResult, "state" | "from" | "to">): Promise<UpdateResult> => {
     await restore();
@@ -574,6 +586,7 @@ async function updateSite(
     ...(before ? [`--before=${before}`] : []),
     ...(target === "automatic" ? ["--ignore-scripts"] : []),
   ];
+  installed = true;
   if ((await run("npm", install, root)).code !== 0) return failed({ step: "install" });
   // What npm installed may not be what its metadata said, such as a newer release a range takes, so an automatic
   // update checks every Goodfellow package the lockfile names before any of the site's code runs.
