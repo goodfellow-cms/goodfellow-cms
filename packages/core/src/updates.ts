@@ -335,8 +335,22 @@ export interface UpdateResult {
 export function setupLines(text: string): string[] {
   return text
     .split("\n")
-    .filter((line) => !/^\s*(?:-\s*)?#/.test(line))
-    .map((line) => line.replace(/\s#.*$/, ""));
+    .filter((line) => !isCommentLine(line))
+    .map(withoutTrailingComment);
+}
+
+/** A line that is only a comment, or a list item that is (`- # …`). Read without a regex, as files may be anyone's. */
+function isCommentLine(line: string): boolean {
+  const text = line.trimStart();
+  return text.startsWith("#") || (text.startsWith("-") && text.slice(1).trimStart().startsWith("#"));
+}
+
+/** A line up to a `#` after a space or tab, in one pass. */
+function withoutTrailingComment(line: string): string {
+  for (let index = 1; index < line.length; index++) {
+    if (line[index] === "#" && (line[index - 1] === " " || line[index - 1] === "\t")) return line.slice(0, index - 1);
+  }
+  return line;
 }
 
 /**

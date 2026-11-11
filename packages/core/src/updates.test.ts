@@ -139,6 +139,12 @@ describe("setupSection", () => {
     expect(setupSection(workflow, "deploy")).toBe("");
   });
 
+  it("reads a long run of tabs and hashes quickly", () => {
+    const started = Date.now();
+    expect(setupLines(`x${"\t#".repeat(100_000)}`)).toEqual(["x"]);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
   it("leaves out comments after a command", () => {
     expect(setupLines("      - echo nothing # git am goodfellow-publish.patch\n      - run: x")).toEqual([
       "      - echo nothing",
