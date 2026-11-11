@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { authOptions, authorizeWith, RESET_ACCOUNT_LIMIT } from "./auth.ts";
+import { authOptions, authorizeWith, LINK_LOCK, lockLinks, RESET_ACCOUNT_LIMIT, unlockLinks } from "./auth.ts";
 import {
   acceptInvitation,
   EditorsError,
@@ -369,6 +369,73 @@ describe("the editors API", () => {
       // Joined, so no link can be sent any more.
       await expect(inviteAgain(auth, SITE_ENV, asking(olive), eddieId)).rejects.toMatchObject({ status: 409 });
     } finally {
+      close();
+    }
+  });
+
+  it("never lets a link used past its lock's time take a link sent since, or another request's lock", async () => {
+    const { auth, asking, olive, context, signIn, close } = await site();
+    type Adapter = typeof context.adapter;
+    const { transaction, consumeOne } = context.adapter;
+    try {
+      const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
+      if (invited.sent) throw new Error("It said it sent an email.");
+      const eddieId = (await context.internalAdapter.findUserByEmail("eddie@example.org"))?.user.id ?? "";
+      const token = (link: string) => new URL(link).searchParams.get("token");
+      const lockId = `${LINK_LOCK}${eddieId}`;
+      const lock = () =>
+        context.adapter.findOne<{ value: string }>({
+          model: "verification",
+          where: [{ field: "id", value: lockId }],
+        });
+      // As D1 has it, with nothing holding Better Auth's find and its consume together.
+      context.adapter.transaction = (async (run: (adapter: Adapter) => Promise<unknown>) =>
+        run(context.adapter)) as Adapter["transaction"];
+      // The invitation is used, and stops just before Better Auth consumes its row, past its lock's time.
+      let reached: () => void = () => undefined;
+      const atConsume = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      context.adapter.consumeOne = (async (data: Parameters<Adapter["consumeOne"]>[0]) => {
+        context.adapter.consumeOne = consumeOne;
+        await context.adapter.update({
+          model: "verification",
+          where: [{ field: "id", value: lockId }],
+          update: { expiresAt: new Date(Date.now() - 1000) },
+        });
+        reached();
+        await held;
+        return consumeOne(data);
+      }) as Adapter["consumeOne"];
+      const accepting = acceptInvitation(auth, asking(undefined), {
+        token: token(invited.link),
+        password: "the password from the old link",
+      });
+      await atConsume;
+      // Meanwhile a new link is sent, and someone else takes the account's lock.
+      const again = await inviteAgain(auth, SITE_ENV, asking(olive), eddieId);
+      if (again.sent) throw new Error("It said it sent an email.");
+      const holder = await lockLinks(context.adapter, eddieId);
+      expect(holder).toBeTruthy();
+      release();
+      await expect(accepting).rejects.toMatchObject({ status: 400 });
+      // The old link set nothing, the new one still works, and the lock is still the other request's.
+      expect(await signIn("eddie@example.org", "the password from the old link")).toBeUndefined();
+      expect(await lock()).toMatchObject({ value: holder });
+      await unlockLinks(context.adapter, eddieId, holder ?? "");
+      await acceptInvitation(auth, asking(undefined), { token: token(again.link), password: PASSWORD });
+      expect(await signIn("eddie@example.org")).toBeDefined();
+    } finally {
+      context.adapter.transaction = transaction;
+      context.adapter.consumeOne = consumeOne;
       close();
     }
   });

@@ -3,6 +3,7 @@
 import type { AppEditor } from "@goodfellow-cms/core";
 import { type BetterAuthOptions, type BetterAuthPlugin, betterAuth, type Where } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
+import { generateRandomString } from "better-auth/crypto";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
@@ -109,9 +110,11 @@ type LockAdapter = Pick<AuthContext["adapter"], "create" | "findOne" | "deleteMa
 /**
  * Takes the account's lock on its links, a row only one request can write (`claimRow()`), so sending a link and using
  * one never overlap: Better Auth finds a link's row by its token and then consumes it by its id, and on D1 nothing
- * holds those two together. Whether this request took it; a lock past its time is taken back first.
+ * holds those two together. Gives what holds it, which only this request knows, for `unlockLinks()`, or `null` where
+ * another request holds it. A lock past its time is taken back first, so a request that runs on past it can't count
+ * on it: each link is a row of its own, never rewritten, for that reason.
  */
-export async function lockLinks(adapter: LockAdapter, userId: string): Promise<boolean> {
+export async function lockLinks(adapter: LockAdapter, userId: string): Promise<string | null> {
   const id = `${LINK_LOCK}${userId}`;
   await adapter.deleteMany({
     model: "verification",
@@ -120,17 +123,29 @@ export async function lockLinks(adapter: LockAdapter, userId: string): Promise<b
       { field: "expiresAt", operator: "lt", value: new Date() },
     ],
   });
-  return claimRow(adapter, {
+  const holder = generateRandomString(32);
+  const taken = await claimRow(adapter, {
     id,
     identifier: id,
-    value: userId,
+    value: holder,
     expiresAt: new Date(Date.now() + LINK_LOCK_SECONDS * 1000),
   });
+  return taken ? holder : null;
 }
 
-/** Lets the account's links go (`lockLinks()`). */
-export async function unlockLinks(adapter: Pick<LockAdapter, "deleteMany">, userId: string): Promise<void> {
-  await adapter.deleteMany({ model: "verification", where: [{ field: "id", value: `${LINK_LOCK}${userId}` }] });
+/** Lets the account's links go (`lockLinks()`), where `holder` still holds them, never a lock someone took since. */
+export async function unlockLinks(
+  adapter: Pick<LockAdapter, "deleteMany">,
+  userId: string,
+  holder: string,
+): Promise<void> {
+  await adapter.deleteMany({
+    model: "verification",
+    where: [
+      { field: "id", value: `${LINK_LOCK}${userId}` },
+      { field: "value", value: holder },
+    ],
+  });
 }
 
 /** Thrown where an account's links are being sent or used at the moment, for the person to try again. */
@@ -186,8 +201,9 @@ async function takeResetSlot(adapter: RowAdapter, userId: string): Promise<boole
  */
 function resetLinks(siteEnv: SiteEnv) {
   let context: AuthContext | undefined;
-  // Whose account's lock each link in use holds, by its token, for the after hook to let it go.
-  const holding = new Map<string, string>();
+  // The lock each request using a link holds, for its after hook to let go: by the request's own context, which Better
+  // Auth makes for each request and gives its before and after hooks alike, so no other request's can be let go.
+  const holding = new WeakMap<object, { userId: string; holder: string }>();
   type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
   const tokenOf = (ctx: HookContext) => {
     const token = ctx.body?.token || ctx.query?.token;
@@ -216,13 +232,14 @@ function resetLinks(siteEnv: SiteEnv) {
             handler: createAuthMiddleware(async (ctx) => {
               const link = await findLink(ctx);
               if (!link) return;
-              if (!(await lockLinks(ctx.context.adapter, link.value))) {
+              const holder = await lockLinks(ctx.context.adapter, link.value);
+              if (!holder) {
                 throw APIError.from("CONFLICT", {
                   message: "This account's password is being changed at the moment. Try again in a moment.",
                   code: "LINKS_BUSY",
                 });
               }
-              holding.set(tokenOf(ctx), link.value);
+              holding.set(ctx.context, { userId: link.value, holder });
               await retireResetLinks(ctx.context.adapter, link.value, link.id);
             }),
           },
@@ -265,11 +282,10 @@ function resetLinks(siteEnv: SiteEnv) {
           {
             matcher: (ctx) => ctx.path === "/reset-password",
             handler: createAuthMiddleware(async (ctx) => {
-              const token = tokenOf(ctx);
-              const userId = holding.get(token);
-              if (!userId) return;
-              holding.delete(token);
-              await unlockLinks(ctx.context.adapter, userId);
+              const held = holding.get(ctx.context);
+              if (!held) return;
+              holding.delete(ctx.context);
+              await unlockLinks(ctx.context.adapter, held.userId, held.holder);
             }),
           },
         ],
