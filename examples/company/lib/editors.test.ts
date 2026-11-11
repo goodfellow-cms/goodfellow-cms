@@ -440,6 +440,67 @@ describe("the editors API", () => {
     }
   });
 
+  it("never lets a link used again, once it's been used, let go of the lock its first use holds", async () => {
+    const { auth, asking, olive, context, signIn, close } = await site();
+    type Adapter = typeof context.adapter;
+    const { transaction, consumeOne } = context.adapter;
+    try {
+      const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
+      if (invited.sent) throw new Error("It said it sent an email.");
+      const eddieId = (await context.internalAdapter.findUserByEmail("eddie@example.org"))?.user.id ?? "";
+      const token = new URL(invited.link).searchParams.get("token") ?? "";
+      context.adapter.transaction = (async (run: (adapter: Adapter) => Promise<unknown>) =>
+        run(context.adapter)) as Adapter["transaction"];
+      // The invitation is used, and stops once Better Auth has consumed its row, before the person is marked joined.
+      let reached: () => void = () => undefined;
+      const consumed = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      context.adapter.consumeOne = (async (data: Parameters<Adapter["consumeOne"]>[0]) => {
+        context.adapter.consumeOne = consumeOne;
+        const row = await consumeOne(data);
+        reached();
+        await held;
+        return row;
+      }) as Adapter["consumeOne"];
+      const accepting = acceptInvitation(auth, asking(undefined), { token, password: PASSWORD });
+      await consumed;
+      // The same link again, in the body and in the query: refused, and the first use keeps the lock.
+      await expect(
+        auth.api.resetPassword({ body: { token, newPassword: "the password from the replay" } }),
+      ).rejects.toThrow();
+      await expect(
+        auth.api.resetPassword({ body: { newPassword: "the password from the replay" }, query: { token } }),
+      ).rejects.toThrow();
+      expect(
+        await context.adapter.findOne({
+          model: "verification",
+          where: [{ field: "id", value: `${LINK_LOCK}${eddieId}` }],
+        }),
+      ).toBeTruthy();
+      await expect(inviteAgain(auth, SITE_ENV, asking(olive), eddieId)).rejects.toMatchObject({ status: 409 });
+      release();
+      await accepting;
+      expect(await signIn("eddie@example.org")).toBeDefined();
+      expect(await signIn("eddie@example.org", "the password from the replay")).toBeUndefined();
+      // Joined, so no new link can be sent, and the first use let its lock go.
+      await expect(inviteAgain(auth, SITE_ENV, asking(olive), eddieId)).rejects.toMatchObject({ status: 409 });
+      expect(await lockLinks(context.adapter, eddieId)).toBeTruthy();
+    } finally {
+      context.adapter.transaction = transaction;
+      context.adapter.consumeOne = consumeOne;
+      close();
+    }
+  });
+
   it("lists, and changes, everyone however many there are", async () => {
     const { auth, asking, olive, context, close } = await site();
     try {
