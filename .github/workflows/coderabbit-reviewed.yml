@@ -33,14 +33,16 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: coderabbit-reviewed
-  cancel-in-progress: false
-
 jobs:
   status:
     # Every check run on the repository starts this workflow; only CodeRabbit's matter.
     if: github.event_name != 'check_run' || github.event.check_run.app.slug == 'coderabbitai'
+    # On the job, not the workflow: a workflow's group is joined before its jobs' conditions are read, so every other
+    # app's check run would join it with a run that does nothing, and could replace a waiting one that would have.
+    # A skipped job never joins its group.
+    concurrency:
+      group: coderabbit-reviewed
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       checks: read
