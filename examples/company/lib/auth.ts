@@ -1,12 +1,13 @@
 // The site's own sign-in: Better Auth, with email addresses and passwords, and two roles. Better Auth is given the
 // database's dialect (lib/db/dialect.ts), never a driver, so this file is the same on every host.
 import type { AppEditor } from "@goodfellow-cms/core";
-import { type BetterAuthOptions, betterAuth } from "better-auth";
+import { type BetterAuthOptions, type BetterAuthPlugin, betterAuth, type Where } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { dialectFor } from "./db/dialect.ts";
-import { passwordResetEmail, sendEmail } from "./email.ts";
+import { canSendEmail, passwordResetEmail, sendEmail } from "./email.ts";
 import { env, inBackground, type SiteEnv } from "./env.ts";
 
 /** How long a signed-in session is checked from its signed cookie alone, without reading the database. */
@@ -18,8 +19,14 @@ export const MIN_SECRET_LENGTH = 32;
 /** How many times one address may try to sign in, and in how many seconds. */
 export const SIGN_IN_LIMIT = { window: 5 * 60, max: 10 };
 
-/** How many times one address may ask for a password reset email, and in how many seconds. */
+/** How many times one network address may ask for a password reset email, and in how many seconds. */
 export const RESET_LIMIT = { window: 60 * 60, max: 5 };
+
+/**
+ * How many password reset emails one account may be sent, and in how many seconds, whoever asks: the network
+ * address's limit can't stop people at several addresses filling someone's inbox.
+ */
+export const RESET_ACCOUNT_LIMIT = { window: 60 * 60, max: 3 };
 
 /** How long a password reset's link works, in minutes. */
 export const RESET_MINUTES = 30;
@@ -53,6 +60,97 @@ function sendReset(siteEnv: SiteEnv) {
   };
 }
 
+/** Whether the site can send password reset emails at all: without them, asking for one says so rather than wait. */
+export function canSendResets(siteEnv: SiteEnv): boolean {
+  return canSendEmail(siteEnv) && Boolean(siteEnv.GOODFELLOW_SITE_URL);
+}
+
+/** The start of the identifier of Better Auth's password reset links, which invitations use too (lib/editors.ts). */
+export const RESET_IDENTIFIER = "reset-password:";
+
+/**
+ * Makes every link that would let someone choose a password for this account stop working: invitations and password
+ * resets alike, since they're the same kind of link. Other verifications are kept.
+ */
+export async function retireResetLinks(
+  adapter: { deleteMany: (data: { model: string; where: Where[] }) => Promise<number> },
+  userId: string,
+): Promise<void> {
+  await adapter.deleteMany({
+    model: "verification",
+    where: [
+      { field: "value", value: userId },
+      { field: "identifier", operator: "starts_with", value: RESET_IDENTIFIER },
+    ],
+  });
+}
+
+type AuthContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
+
+/**
+ * The site's own rules for password reset links: an account is sent at most `RESET_ACCOUNT_LIMIT`'s emails, with the
+ * same answer as any other, and choosing a password from any link makes the account's other links stop working, so a
+ * link that went astray can't be used after the one that arrived. Invitations count as sent links too. Where the
+ * site can't send email, asking answers `RESET_UNAVAILABLE` for every address alike.
+ */
+function resetLinks(siteEnv: SiteEnv) {
+  let context: AuthContext | undefined;
+  return {
+    plugin: {
+      id: "site-reset-links",
+      init(authContext) {
+        context = authContext;
+      },
+      hooks: {
+        before: [
+          {
+            matcher: (ctx) => ctx.path === "/request-password-reset",
+            handler: createAuthMiddleware(async (ctx) => {
+              if (!canSendResets(siteEnv)) {
+                throw APIError.from("SERVICE_UNAVAILABLE", {
+                  message: "This site can't send password reset emails.",
+                  code: "RESET_UNAVAILABLE",
+                });
+              }
+              const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+              const user = email ? await ctx.context.internalAdapter.findUserByEmail(email) : null;
+              // Counted for every address, so how long the answer takes says nothing about which have accounts.
+              const sent = await ctx.context.adapter.count({
+                model: "verification",
+                where: [
+                  { field: "value", value: user?.user.id ?? "" },
+                  { field: "identifier", operator: "starts_with", value: RESET_IDENTIFIER },
+                  {
+                    field: "createdAt",
+                    operator: "gte",
+                    value: new Date(Date.now() - RESET_ACCOUNT_LIMIT.window * 1000),
+                  },
+                ],
+              });
+              if (user && sent >= RESET_ACCOUNT_LIMIT.max) {
+                // Better Auth's own answer, so a visitor can't tell the account was limited, or exists.
+                return ctx.json({
+                  status: true,
+                  message: "If this email exists in our system, check your email for the reset link",
+                });
+              }
+            }),
+          },
+        ],
+      },
+    } satisfies BetterAuthPlugin,
+    async onPasswordReset({ user }: { user: { id: string } }) {
+      if (context) await retireResetLinks(context.adapter, user.id);
+    },
+  };
+}
+
+/**
+ * The paths of Better Auth's admin plugin, which only the server uses (lib/editors.ts, through `api`), never a
+ * browser: those routes don't refuse an admin changing their own role, which could leave the site without one.
+ */
+const ADMIN_PATHS = Object.values(admin().endpoints).map((endpoint) => endpoint.path);
+
 /**
  * `BETTER_AUTH_SECRET`, which signs sessions. Without one, Better Auth falls back to a secret anyone can read in its
  * code, which would let anyone sign a session for this site, so the site refuses to sign anyone in.
@@ -73,6 +171,7 @@ export function sessionSecret(siteEnv: SiteEnv): string {
  * middleware reads without the database, so most requests read none.
  */
 export function authOptions(database: BetterAuthOptions["database"], siteEnv: SiteEnv) {
+  const resets = resetLinks(siteEnv);
   return {
     database,
     secret: sessionSecret(siteEnv),
@@ -88,7 +187,10 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       sendResetPassword: sendReset(siteEnv),
       resetPasswordTokenExpiresIn: RESET_MINUTES * 60,
       revokeSessionsOnPasswordReset: true,
+      onPasswordReset: resets.onPasswordReset,
     },
+    // The server calls these through `api`, which `disabledPaths` doesn't hold; browsers get "Not Found".
+    disabledPaths: ADMIN_PATHS,
     // Always on: Better Auth turns it on by itself only where NODE_ENV is "production", which Workers don't set. Kept
     // in the database, so every copy of the Worker counts the same attempts.
     rateLimit: {
@@ -106,6 +208,7 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
     // everyone else an admin invites is.
     plugins: [
       admin({ defaultRole: "editor", adminRoles: ["admin"], roles: { admin: adminAc, editor: userAc } }),
+      resets.plugin,
       nextCookies(),
     ],
   } satisfies BetterAuthOptions;

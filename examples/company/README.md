@@ -75,11 +75,11 @@ Signing out (`app/sign-out/`) works only from the site's own pages, so a link on
 
 ## Editors
 
-Admins invite people from **Editors** (`/admin/editors/`): its name, email address, and whether they can edit pages or everything. The site makes their account with a password nobody knows and emails them a link to choose their own, which works once, for 48 hours (`INVITATION_HOURS` in `lib/editors.ts`). Until they've chosen one, the page lists them as invited and can send the link again. Admins change what others can do and remove them there, but never themselves, so the site always keeps an admin.
+Admins invite people from **Editors** (`/admin/editors/`): its name, email address, and whether they can edit pages or everything. The site makes their account with a password nobody knows and emails them a link to choose their own, which works once, for 48 hours (`INVITATION_HOURS` in `lib/editors.ts`). Until they've chosen one, the page lists them as invited and can send the link again, which makes the one before stop working. Admins change what others can do and remove them there, but never themselves, so the site always keeps an admin.
 
 Email goes through [Resend](https://resend.com) (`lib/email.ts`), since Workers can't send it any other way. Make a key that can only send, from a domain you've verified there, and set it as the `RESEND_API_KEY` secret, and add `EMAIL_FROM` (such as `Example Co <hello@example.org>`) to `wrangler.jsonc`'s `vars`. Without them, the editors page shows each invitation's link for you to send yourself.
 
-**Forgot your password?** on the sign-in page emails a link to choose a new one, which works once, for 30 minutes, and signs the account out everywhere once it's used. It says the same whether or not the address has an account, and each address can ask 5 times an hour. Passwords are at least 12 characters.
+**Forgot your password?** on the sign-in page emails a link to choose a new one, which works once, for 30 minutes, and signs the account out everywhere once it's used. It says the same whether or not the address has an account. Each computer's network address can ask 5 times an hour, and each account is sent at most 3 links an hour, however many computers ask (`RESET_LIMIT` and `RESET_ACCOUNT_LIMIT` in `lib/auth.ts`). Choosing a password from any link makes the account's other links stop working. Without email set up, the page says the site can't send the link. Passwords are at least 12 characters.
 
 ## Rendering
 

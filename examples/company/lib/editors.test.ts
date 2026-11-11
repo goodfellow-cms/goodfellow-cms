@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { authOptions, authorizeWith } from "./auth.ts";
+import { authOptions, authorizeWith, RESET_ACCOUNT_LIMIT } from "./auth.ts";
 import {
   acceptInvitation,
   EditorsError,
@@ -206,8 +206,13 @@ describe("the editors API", () => {
       if (!eddie) throw new Error("Eddie isn't listed.");
       expect(eddie.role).toBe("admin");
       const again = await inviteAgain(auth, SITE_ENV, asking(olive), eddie.id);
-      expect(again).toMatchObject({ sent: false });
-      expect(again.sent === false && again.link).not.toBe(invited.link);
+      if (again.sent) throw new Error("It said it sent an email.");
+      expect(again.link).not.toBe(invited.link);
+      const accept = (link: string, password = PASSWORD) =>
+        acceptInvitation(auth, asking(undefined), { token: new URL(link).searchParams.get("token"), password });
+      // The first link, which might have gone astray, stops working once there's a new one.
+      await expect(accept(invited.link)).rejects.toThrow(/already been used or has run out/);
+      await accept(again.link);
     } finally {
       close();
     }
@@ -238,6 +243,88 @@ describe("the editors API", () => {
       await expect(inviteEditor(auth, SITE_ENV, asking(olive, "POST", "cross-site"), invitation)).rejects.toMatchObject(
         { status: 403 },
       );
+    } finally {
+      close();
+    }
+  });
+
+  it("makes the person's other links stop working once they choose a password", async () => {
+    const { auth, asking, olive, close } = await site();
+    try {
+      const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
+      if (invited.sent) throw new Error("It said it sent an email.");
+      // A reset link for the same account, as Better Auth makes one.
+      const context = await auth.$context;
+      const eddie = await context.internalAdapter.findUserByEmail("eddie@example.org");
+      await context.internalAdapter.createVerificationValue({
+        value: eddie?.user.id ?? "",
+        identifier: "reset-password:a-reset-link-that-went-astray",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      // Someone else's verifications stay.
+      await context.internalAdapter.createVerificationValue({
+        value: "someone else",
+        identifier: "reset-password:someone-elses-link",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      await acceptInvitation(auth, asking(undefined), {
+        token: new URL(invited.link).searchParams.get("token"),
+        password: PASSWORD,
+      });
+      await expect(
+        auth.api.resetPassword({
+          body: { token: "a-reset-link-that-went-astray", newPassword: "a brand new password" },
+        }),
+      ).rejects.toThrow();
+      expect(await context.internalAdapter.findVerificationValue("reset-password:someone-elses-link")).toBeTruthy();
+    } finally {
+      close();
+    }
+  });
+
+  it("lists, and changes, everyone however many there are", async () => {
+    const { auth, asking, olive, context, close } = await site();
+    try {
+      const ids: string[] = [];
+      for (let index = 0; index < 520; index++) {
+        const user = await context.internalAdapter.createUser(
+          { email: `person-${index}@example.org`, name: `Person ${index}`, emailVerified: false, role: "editor" },
+          { method: "admin" },
+        );
+        ids.push(user.id);
+      }
+      const listed = await listEditors(auth, asking(olive, "GET"));
+      expect(listed).toHaveLength(521);
+      expect(new Set(listed.map((editor) => editor.id)).size).toBe(521);
+      const last = ids.at(-1) ?? "";
+      await setRole(auth, asking(olive, "PATCH"), last, "admin");
+      expect(await inviteAgain(auth, SITE_ENV, asking(olive), ids[0] ?? "")).toMatchObject({ sent: false });
+      await removeEditor(auth, asking(olive, "DELETE"), last);
+      await expect(setRole(auth, asking(olive, "PATCH"), last, "editor")).rejects.toMatchObject({ status: 404 });
+    } finally {
+      close();
+    }
+  });
+
+  it("keeps Better Auth's admin routes from browsers, so an admin can't demote themselves there", async () => {
+    const { auth, olive, oliveId, close } = await site();
+    try {
+      for (const path of ["admin/set-role", "admin/set-role/", "admin/remove-user", "admin/list-users"]) {
+        const response = await auth.handler(
+          new Request(`${SITE}/api/auth/${path}`, {
+            method: path.endsWith("list-users") ? "GET" : "POST",
+            headers: { cookie: olive ?? "", origin: SITE, "content-type": "application/json" },
+            ...(!path.endsWith("list-users") && { body: JSON.stringify({ userId: oliveId, role: "editor" }) }),
+          }),
+        );
+        expect(response.status, path).toBe(404);
+      }
+      const context = await auth.$context;
+      expect(await context.internalAdapter.findUserById(oliveId)).toMatchObject({ role: "admin" });
     } finally {
       close();
     }
@@ -297,6 +384,60 @@ describe("forgetting a password", () => {
       await auth.api.resetPassword({ body: { token, newPassword: "a brand new password" } });
       expect(await signIn("eddie@example.org", "a brand new password")).toBeDefined();
       await expect(auth.api.resetPassword({ body: { token, newPassword: "yet another password" } })).rejects.toThrow();
+    } finally {
+      close();
+    }
+  });
+
+  it("sends one account only so many links, whoever asks, with the same answer as ever", async () => {
+    const resend = fakeResend();
+    vi.stubGlobal("fetch", resend.fetcher);
+    const { auth, person, close } = await site(EMAIL_ENV);
+    try {
+      await person("eddie@example.org", "editor");
+      const ask = (email: string, ip: string) =>
+        auth.handler(
+          new Request(`${SITE}/api/auth/request-password-reset/`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+            body: JSON.stringify({ email }),
+          }),
+        );
+      const answers = [];
+      for (let index = 0; index < RESET_ACCOUNT_LIMIT.max + 2; index++) {
+        // A different network address each time, which the address's own limit doesn't catch.
+        const answer = await ask("eddie@example.org", `192.0.2.${index + 1}`);
+        answers.push([answer.status, await answer.text()]);
+      }
+      const unknown = await ask("nobody@example.org", "192.0.2.100");
+      expect(new Set(answers.map((answer) => JSON.stringify(answer)))).toEqual(
+        new Set([JSON.stringify([unknown.status, await unknown.text()])]),
+      );
+      await vi.waitFor(() => expect(resend.sent).toHaveLength(RESET_ACCOUNT_LIMIT.max));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(resend.sent).toHaveLength(RESET_ACCOUNT_LIMIT.max);
+    } finally {
+      close();
+    }
+  });
+
+  it("says, for every address alike, when the site can't send the email", async () => {
+    const { auth, person, close } = await site();
+    try {
+      await person("eddie@example.org", "editor");
+      const ask = async (email: string) => {
+        const answer = await auth.handler(
+          new Request(`${SITE}/api/auth/request-password-reset/`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.1" },
+            body: JSON.stringify({ email }),
+          }),
+        );
+        return [answer.status, await answer.text()];
+      };
+      const known = await ask("eddie@example.org");
+      expect(known[0]).toBe(503);
+      expect(await ask("nobody@example.org")).toEqual(known);
     } finally {
       close();
     }

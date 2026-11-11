@@ -21,6 +21,10 @@ export function ResetPasswordForm() {
     try {
       const { error } = await authClient.requestPasswordReset({ email });
       if (error?.status === 429) return setProblem("That's too many tries for now. Wait a while, then try again.");
+      // The site has no email set up (lib/auth.ts), which says nothing about the address.
+      if (error?.status === 503) {
+        return setProblem("This site can't send password reset emails yet. Ask one of its admins for help.");
+      }
       if (error) return setProblem("That didn't work. Try again in a moment.");
       // The same whether or not the address has an account here, so nobody can find out which do.
       setDone("sent");

@@ -155,16 +155,19 @@ test("tells the admin panel where to sign in, and refuses requests from other si
   expect(crossSite.status()).toBe(403);
 });
 
-/** The link in the newest message the fake Resend was sent for `to`. */
-async function emailedLink(to: string): Promise<string> {
+/** The link to `path` in the newest message the fake Resend was sent for `to` with one, waiting for it to arrive. */
+async function emailedLink(to: string, path: string): Promise<string> {
   let found: string | undefined;
   await expect(async () => {
     const sent = (await (await fetch(`http://127.0.0.1:${COMPANY.resend}/__sent`)).json()) as Array<{
       to: string[];
       text: string;
     }>;
-    const message = sent.filter((email) => email.to.includes(to)).at(-1);
-    found = message?.text.match(/https?:\/\/\S+/)?.[0];
+    found = sent
+      .filter((email) => email.to.includes(to))
+      .map((email) => email.text.match(/https?:\/\/\S+/)?.[0])
+      .filter((link) => link !== undefined && new URL(link).pathname === path)
+      .at(-1);
     expect(found).toBeDefined();
   }).toPass();
   return found ?? "";
@@ -181,7 +184,7 @@ test("lets admins invite editors, who choose a password, and lets anyone choose 
   await expect(page.getByRole("status")).toHaveText(new RegExp(`We've emailed ${email}`));
   await expect(page.getByRole("cell", { name: "Ivy Invited (invited)" })).toBeVisible();
 
-  const invitation = await emailedLink(email);
+  const invitation = await emailedLink(email, "/accept-invite/");
   expect(invitation).toMatch(new RegExp(`^${SITE}/accept-invite/\\?token=`));
   await page.goto(`${SITE}/sign-out/`);
   await page.getByRole("button", { name: "Sign out" }).click();
@@ -203,7 +206,7 @@ test("lets admins invite editors, who choose a password, and lets anyone choose 
   await page.getByLabel("Email address").fill(email);
   await page.getByRole("button", { name: "Send me a link" }).click();
   await expect(page.getByText("If that address has an account here")).toBeVisible();
-  const reset = await emailedLink(email);
+  const reset = await emailedLink(email, "/reset-password/");
   expect(reset).toMatch(new RegExp(`^${SITE}/reset-password/\\?token=`));
   await page.goto(reset);
   await page.getByLabel("New password").fill("ivy's second password");
