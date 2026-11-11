@@ -444,8 +444,70 @@ describe("drafts", () => {
     expect(await drafts.reviews()).toEqual([
       { name: "20261014-abc123", url: "https://bitbucket.org/parish/site/pull-requests/1", title: "New About page" },
     ]);
+    // A pull request from a fork with the same branch name is someone else's: never listed, and never declined.
+    const forked = {
+      number: context.fake.repo.reviews.length + 1,
+      branch: "goodfellow-draft-20261014-abc123",
+      target: "main",
+      title: "From a fork",
+      description: "",
+      state: "open" as const,
+      reviewers: [],
+      fork: "someone/site",
+    };
+    context.fake.repo.reviews.push(forked);
+    expect(await drafts.reviews()).toHaveLength(1);
     await draft.discard();
     expect(context.fake.repo.reviews[0]?.state).toBe("closed");
+    expect(forked.state).toBe("open");
+  });
+
+  it("finds the site's own pull request past forks' pages, and never acts on a list cut short", async () => {
+    const context = await signedIn();
+    const drafts = context.backend.drafts;
+    if (!drafts) throw new Error("No drafts");
+    const branch = "goodfellow-draft-20261014-abc123";
+    const forks = (count: number) =>
+      Array.from({ length: count }, () => ({
+        number: context.fake.repo.reviews.length + 1,
+        branch,
+        target: "main",
+        title: "From a fork",
+        description: "",
+        state: "open" as const,
+        reviewers: [],
+        fork: "someone/site",
+      }));
+    // Forks' pull requests fill the first pages; the site's own comes after them.
+    for (const fork of forks(120))
+      context.fake.repo.reviews.push({ ...fork, number: context.fake.repo.reviews.length + 1 });
+    const draft = await drafts.create("20261014-abc123");
+    await draft.store.write([{ path: "content/pages/about.json", content: about("About us") }], {
+      message: "Draft changes",
+      expectedRevision: await draft.store.revision(),
+    });
+    const { url } = await draft.submitForReview({ title: "New About page" });
+    expect(await draft.submitForReview({ title: "Again" })).toEqual({ url });
+    await draft.discard();
+    const own = context.fake.repo.reviews.find((review) => !review.fork);
+    expect(own).toMatchObject({ title: "New About page", state: "closed" });
+    expect(context.fake.repo.reviews.filter((review) => review.fork && review.state === "open")).toHaveLength(120);
+
+    // Past every page it reads, it says so rather than answer without the site's own.
+    const again = await drafts.create("20261014-abc124");
+    await again.store.write([{ path: "content/pages/about.json", content: about("About us") }], {
+      message: "Draft changes",
+      expectedRevision: await again.store.revision(),
+    });
+    await again.submitForReview({ title: "Second" });
+    for (const fork of forks(2001)) {
+      context.fake.repo.reviews.push({
+        ...fork,
+        branch: "goodfellow-draft-20261014-abc124",
+        number: context.fake.repo.reviews.length + 1,
+      });
+    }
+    await expect(again.submitForReview({ title: "Second" })).rejects.toMatchObject({ problem: "no-reviews" });
   });
 
   it("discards a draft, and refuses names it has already", async () => {

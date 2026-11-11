@@ -98,6 +98,13 @@ export interface UpdateOptions {
   commit?: boolean;
   /** The branch to publish to. Defaults to CI's branch, or `main`. */
   branch?: string;
+  /**
+   * Also updates the blocks the site installed from Goodfellow's registry. Off unless asked, since
+   * the nightly update's publishing job takes only Goodfellow's packages and the site's files: the
+   * job that made the update ran the site's packages, which could have written any code. Owners
+   * update blocks on the Blocks screen, and developers with `--blocks`.
+   */
+  blocks?: boolean;
   /** Goodfellow's block registry, as `https://…/{name}.json`. Defaults to the release being installed. */
   registry?: string;
   /** Files of the site's own that releases change, such as `goodfellow-next`'s admin pages. */
@@ -265,19 +272,49 @@ async function fetchJsonFromNetwork(url: string): Promise<unknown> {
 
 /**
  * Updates a site to a newer Goodfellow release: its Goodfellow packages and the
- * Puck version they use, and blocks from Goodfellow's registry, whose files are
- * replaced only where nobody changed them. Then it installs the packages and
+ * Puck version they use, and, with `blocks`, blocks from Goodfellow's registry,
+ * whose files are replaced only where nobody changed them. Then it installs the packages and
  * builds the site. If either fails, every file goes back as it was. With
  * `publish`, a site that built is published as one commit.
  */
 export async function update(options: UpdateOptions = {}): Promise<UpdateResult> {
+  const undo: { written: () => boolean; restore: () => Promise<void> } = {
+    written: () => false,
+    restore: async () => {},
+  };
+  try {
+    return await updateSite(options, undo);
+  } catch (error) {
+    // Anything else that goes wrong once files are written, such as a file that can't be read, puts them back too.
+    if (undo.written()) {
+      try {
+        await undo.restore();
+      } catch (rollbackError) {
+        // Both, so a rollback that didn't finish isn't hidden behind the error that started it, or the other way round.
+        throw new AggregateError([error, rollbackError], "The update failed, and putting the site back failed too.");
+      }
+    }
+    throw error;
+  }
+}
+
+async function updateSite(
+  options: UpdateOptions,
+  undo: { written: () => boolean; restore: () => Promise<void> },
+): Promise<UpdateResult> {
   const root = resolve(options.root ?? ".");
   const fetchJson = options.fetchJson ?? fetchJsonFromNetwork;
   const run = options.run ?? runCommand;
   const log = options.log ?? ((line: string) => console.log(line));
   const env = options.env ?? process.env;
 
-  const read = (path: string) => readFile(join(root, path), "utf8").catch(() => undefined);
+  // Only a file that isn't there is missing: one that can't be read stops the update, rather than being taken as
+  // missing and written over, or deleted when the update is undone.
+  const read = (path: string) =>
+    readFile(join(root, path), "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
   const packageText = await readFile(join(root, "package.json"), "utf8");
   const from = siteVersion(packageText);
   if (!from) {
@@ -315,7 +352,7 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     : `Goodfellow ${from} is up to date.`;
   const siteFiles = options.siteFiles ?? [];
   const current = to ? undefined : await siteFileChanges(siteFiles, from, read);
-  if (!to && current?.changes.length === 0) {
+  if (!to && current?.changes.length === 0 && !options.blocks) {
     log(upToDate);
     if (current.kept.length > 0) log(keptMessage(current.kept));
     return { state: "up-to-date", from, ...(current.kept.length > 0 && { kept: current.kept }) };
@@ -335,6 +372,8 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     if (!originals.has(path)) originals.set(path, await read(path));
   };
   const apply = async (change: FileChange) => {
+    // Writing what a file already holds changes nothing, so it's left out of what the run changed.
+    if ("content" in change && (await read(change.path)) === change.content) return;
     await remember(change.path);
     const file = join(root, change.path);
     if ("delete" in change) await rm(file, { force: true });
@@ -343,7 +382,12 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
       await writeFile(file, change.content);
     }
   };
+  // Whether packages were installed, which putting the site back undoes.
+  let installed = false;
   const restore = async () => {
+    // Nothing written and nothing installed, such as where the blocks' record can't be read first: nothing to undo,
+    // and reinstalling could only leave the site's packages worse off.
+    if (originals.size === 0 && !installed) return;
     for (const [path, text] of originals) {
       const file = join(root, path);
       if (text === undefined) await rm(file, { force: true });
@@ -353,16 +397,74 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     // Without scripts on an automatic run, as its install was.
     await run("npm", ["ci", "--no-audit", "--no-fund", ...(target === "automatic" ? ["--ignore-scripts"] : [])], root);
   };
+  undo.written = () => originals.size > 0 || installed;
+  undo.restore = restore;
   const failed = async (result: Omit<UpdateResult, "state" | "from" | "to">): Promise<UpdateResult> => {
     await restore();
     log(`The update to ${to ?? from} didn't work, so nothing changed.`);
     return { state: "failed", from, ...(to && { to }), ...(rollback && { rollback }), ...result };
   };
 
-  // Goodfellow is up to date, but files of the site's own aren't yet: they're all this run changes.
+  /**
+   * Blocks from Goodfellow's registry, from `release`'s registry, written where nobody changed them; the files
+   * someone did change, or a failure.
+   */
+  async function updateBlocks(release: string): Promise<{ kept: string[] } | { failed: UpdateResult }> {
+    const kept: string[] = [];
+    let record: ReturnType<typeof parseInstalledRecord>;
+    try {
+      // Only a site without the record has no blocks: one that's there but can't be read isn't taken as empty,
+      // which would skip every block.
+      record = parseInstalledRecord(await read(INSTALLED_RECORD_FILE));
+    } catch {
+      // What was written before is put back, as for any other failure.
+      log(`${INSTALLED_RECORD_FILE} can't be read, so the blocks weren't updated.`);
+      return { failed: await failed({ step: "blocks" }) };
+    }
+    const registries = { [GOODFELLOW_REGISTRY]: options.registry ?? goodfellowRegistryUrl(release) };
+    const dependencies = (JSON.parse(packageText) as { dependencies?: Record<string, string> }).dependencies;
+    const packages = [...REGISTRY_PACKAGES, ...Object.keys(dependencies ?? {})];
+    for (const [name, block] of Object.entries(record.blocks)) {
+      if (!block.source.startsWith(`${GOODFELLOW_REGISTRY}/`)) continue;
+      try {
+        const plan = await planUpdate({ name, record, registries, fetchJson, readFile: read, packages });
+        for (const change of plan.changes) await apply(change);
+        record = plan.record;
+        kept.push(...plan.kept);
+      } catch (error) {
+        if (!(error instanceof RegistryError)) {
+          // Such as a block's file that can't be read, which is never taken as missing and written over.
+          log(`The block ${name} couldn't be updated: ${error instanceof Error ? error.message : String(error)}`);
+          return { failed: await failed({ step: "blocks" }) };
+        }
+        // A block newer than the release the site goes back to stays as it is.
+        if (rollback && error.problem.code === "unreachable") {
+          log(`The block ${name} isn't in Goodfellow ${release}'s blocks, so it stays as it is.`);
+          continue;
+        }
+        log(`The block ${name} couldn't be updated: ${error.problem.code}.`);
+        return { failed: await failed({ step: "blocks" }) };
+      }
+    }
+    return { kept };
+  }
+
+  // Goodfellow is up to date, but files of the site's own, or with `blocks` its registry blocks, may not be yet:
+  // they're all this run changes.
   if (!to && current) {
     for (const change of current.changes) await apply(change);
+    const kept = [...current.kept];
+    if (options.blocks) {
+      const blocks = await updateBlocks(from);
+      if ("failed" in blocks) return blocks.failed;
+      kept.push(...blocks.kept);
+    }
     const files = current.changes.map((change) => change.path);
+    if (originals.size === 0) {
+      log(upToDate);
+      if (kept.length > 0) log(keptMessage(kept));
+      return { state: "up-to-date", from, ...(kept.length > 0 && { kept }) };
+    }
     log("Building the site with them…");
     const built = await run("npm", ["run", "build"], root);
     if (built.code !== 0) {
@@ -372,9 +474,9 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     if ((options.publish || options.commit) && !(await publish(`Update the site's files for Goodfellow ${from}`))) {
       return failed({ step: "publish", files });
     }
-    log(`Brought these files up to date for Goodfellow ${from}:\n  ${files.join("\n  ")}`);
-    if (current.kept.length > 0) log(keptMessage(current.kept));
-    return { state: "up-to-date", from, files, ...(current.kept.length > 0 && { kept: current.kept }) };
+    log(`Brought these files up to date for Goodfellow ${from}:\n  ${[...originals.keys()].join("\n  ")}`);
+    if (kept.length > 0) log(keptMessage(kept));
+    return { state: "up-to-date", from, ...(files.length > 0 && { files }), ...(kept.length > 0 && { kept }) };
   }
   if (!to) return { state: "up-to-date", from };
 
@@ -456,28 +558,12 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     } else await apply({ path: UPDATES_FILE, content: settingsFile });
   }
 
-  // Blocks from Goodfellow's registry, from the release being installed.
+  // With `blocks`, blocks from Goodfellow's registry, from the release being installed.
   const kept: string[] = [];
-  let record = parseInstalledRecord(await read(INSTALLED_RECORD_FILE));
-  const registries = { [GOODFELLOW_REGISTRY]: options.registry ?? goodfellowRegistryUrl(to) };
-  const packages = [...REGISTRY_PACKAGES, ...Object.keys(site.dependencies ?? {})];
-  for (const [name, block] of Object.entries(record.blocks)) {
-    if (!block.source.startsWith(`${GOODFELLOW_REGISTRY}/`)) continue;
-    try {
-      const plan = await planUpdate({ name, record, registries, fetchJson, readFile: read, packages });
-      for (const change of plan.changes) await apply(change);
-      record = plan.record;
-      kept.push(...plan.kept);
-    } catch (error) {
-      if (!(error instanceof RegistryError)) throw error;
-      // A block newer than the release the site goes back to stays as it is.
-      if (rollback && error.problem.code === "unreachable") {
-        log(`The block ${name} isn't in Goodfellow ${to}'s blocks, so it stays as it is.`);
-        continue;
-      }
-      log(`The block ${name} couldn't be updated: ${error.problem.code}.`);
-      return failed({ step: "blocks" });
-    }
+  if (options.blocks) {
+    const blocks = await updateBlocks(to);
+    if ("failed" in blocks) return blocks.failed;
+    kept.push(...blocks.kept);
   }
 
   // Files of the site's own, as the release being installed writes them.
@@ -500,6 +586,7 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     ...(before ? [`--before=${before}`] : []),
     ...(target === "automatic" ? ["--ignore-scripts"] : []),
   ];
+  installed = true;
   if ((await run("npm", install, root)).code !== 0) return failed({ step: "install" });
   // What npm installed may not be what its metadata said, such as a newer release a range takes, so an automatic
   // update checks every Goodfellow package the lockfile names before any of the site's code runs.

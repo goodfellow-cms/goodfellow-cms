@@ -462,6 +462,35 @@ describe("planBlockChanges", () => {
     expect(nothing.changes.filter((change) => "delete" in change)).toEqual([]);
     expect(nothing.record.blocks).toEqual({});
   });
+
+  it("updates an installed block with the others, as planUpdate() would", async () => {
+    const site = siteFiles();
+    const faq = await install(site, "@goodfellow/shadcn-faq");
+    site.apply(faq.changes);
+    const newer: FetchJson = async (url) =>
+      url === "https://registry.example/r/shadcn-faq.json"
+        ? {
+            ...(items[url] as object),
+            files: [
+              { path: "blocks/shadcn-faq/block.tsx", type: "registry:block", content: "export default { v: 2 };\n" },
+            ],
+            meta: { goodfellow: { category: "Sections", version: "1.1.0" } },
+          }
+        : fetchJson(url);
+    const updated = await planBlockChanges({
+      changes: [{ update: "shadcn-faq" }, { add: "@goodfellow/shadcn-tabs" }],
+      registries,
+      fetchJson: newer,
+      readFile: site.readFile,
+      record: faq.record,
+      blocks: ["Heading"],
+      content: content(),
+    });
+    site.apply(updated.changes);
+    expect(site.files.get("blocks/installed/shadcn-faq/block.tsx")).toBe("export default { v: 2 };\n");
+    expect(updated.record.blocks["shadcn-faq"]?.version).toBe("1.1.0");
+    expect(Object.keys(updated.record.blocks).sort()).toEqual(["shadcn-faq", "shadcn-tabs"]);
+  });
 });
 
 describe("installedIndex", () => {
