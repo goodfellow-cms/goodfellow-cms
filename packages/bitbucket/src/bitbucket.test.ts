@@ -649,10 +649,24 @@ describe("updates and scheduled changes", () => {
     fake.commit("bitbucket-pipelines.yml", "pipelines: {}\n");
     await backend.revision();
     expect(await backend.updates?.setup()).toBe("missing");
-    // An update committed that no step after it publishes is thrown away.
+    // An update committed that no step after it publishes is thrown away, even where the lockfile's step publishes.
     fake.commit(
       "bitbucket-pipelines.yml",
-      "pipelines:\n  custom:\n    update:\n      - step:\n          script: [npx goodfellow update --commit]\n",
+      [
+        "pipelines:",
+        "  branches:",
+        "    main:",
+        "      - step:",
+        "          script: [git am goodfellow-publish.patch]",
+        "  custom:",
+        "    update:",
+        "      - step:",
+        "          script: [npx goodfellow update --commit]",
+        "    scheduled:",
+        "      - step:",
+        "          script: [git am goodfellow-publish.patch]",
+        "",
+      ].join("\n"),
     );
     await backend.revision();
     expect(await backend.updates?.setup()).toBe("missing");
