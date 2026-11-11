@@ -28,7 +28,7 @@ On your own computer, the admin panel saves straight to the files in `content/`,
 
 ## Putting it online on Cloudflare
 
-It runs on Cloudflare's free plan. Every page is rendered while the site builds, so most visits cost almost nothing.
+A publish shows as soon as its pages are visited again, without building the site: a page renders from the content repository the first time it's visited after a publish, and Workers Cache keeps it for every visit after, which costs almost nothing. That first render reads every content file, which can take more than the free plan's 10 ms of CPU time on a large site, so plan on Workers Paid ($5 a month) unless your pages render within it.
 
 1. **The content repository.** Make it as the [content repository](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
 2. **The database.** Sign in with `npx wrangler login`, run `npx wrangler d1 create goodfellow-company`, and put the `database_id` it gives in `wrangler.jsonc`.
@@ -36,7 +36,7 @@ It runs on Cloudflare's free plan. Every page is rendered while the site builds,
 4. **Putting it online.** `npm run build && npm run deploy` applies the database's migrations and uploads the Worker. To do it from GitHub instead, after every change, add the secrets `.github/workflows/deploy.yml` lists to the code repository.
 5. **The first admin.** Once the migrations are applied, `npm run new-admin -- you@example.org "Your Name" --remote` makes an admin, one of the site's owners, in the D1 database. It asks for their password, which it never shows or keeps, and runs only in a terminal of your own, never in CI. Run it again for each admin.
 
-Publishing in the admin panel changes the content repository, so it's what has to ask for the site to be built again. Add this workflow to it as `.github/workflows/deploy-site.yml`, with a `GOODFELLOW_DEPLOY_TOKEN` secret: a fine-grained token for the code repository with only **Actions: Read and write**, which can start its workflows but never change its code.
+Pages show a publish without a build, but new photos and other files reach the site's own files only when it's built again, so the content repository still asks for a build after each publish. Add this workflow to it as `.github/workflows/deploy-site.yml`, with a `GOODFELLOW_DEPLOY_TOKEN` secret: a fine-grained token for the code repository with only **Actions: Read and write**, which can start its workflows but never change its code.
 
 ```yaml
 name: Put the site online
@@ -75,9 +75,9 @@ Signing out (`app/sign-out/`) works only from the site's own pages, so a link on
 
 ## Rendering
 
-Every page is rendered once and served as it was, so a request costs the server almost nothing:
+Every page is rendered once for each publish and served as it was, so a request costs the server almost nothing:
 
-- **Pages that look the same to everyone**, which is every page here, are static.
+- **Pages that look the same to everyone**, which is every page here, render from the content repository as it is now (`repositorySource()` in `lib/site.ts`, with `GOODFELLOW_GIT_TOKEN`) the first time they're visited, and Workers Cache keeps them (vinext's `workersCacheCdnAdapter()` in `vite.config.ts`). Each publish asks for every page to render again (`revalidatePath()` in `app/api/goodfellow/[...path]/route.ts`), since a change to the header, menus, or a collection can reach any page. In `npm run dev`, pages read the files on this computer.
 - **What shows who's signed in** is filled in by the browser (`app/(site)/members/signed-in-as.tsx`), so the page around it stays static.
 - **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session (from its signed cookie for a few minutes at a time, then the database) and sends everyone else to sign in before the page is served.
 
@@ -87,7 +87,7 @@ Every page is rendered once and served as it was, so a request costs the server 
 |---|---|
 | `goodfellow.config.tsx` | The site's blocks, and the content repository its server publishes to |
 | `wrangler.jsonc` | The Cloudflare Worker: its name, its D1 database bound as `DB`, and its settings |
-| `vite.config.ts` | How vinext builds the site into that Worker, rendering every page as it builds |
+| `vite.config.ts` | How vinext builds the site into that Worker, keeping pages in Workers Cache |
 | `.github/workflows/deploy.yml` | Builds the site with its content and puts it online, after every change |
 | `lib/env.ts` | The one place the site reads its bindings and secrets, so nothing else knows where it runs: the Worker's on Cloudflare, wrangler's in `npm run dev` |
 | `lib/db/dialect.ts` | The one place that knows the database: Cloudflare D1 where it's bound as `DB`, or Postgres at `DATABASE_URL`, through [node-postgres](https://node-postgres.com) |

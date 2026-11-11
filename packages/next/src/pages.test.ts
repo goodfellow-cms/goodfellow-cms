@@ -50,6 +50,11 @@ describe("goodfellowPages with a source", () => {
     expect((await live.generateMetadata(params)).title).toEqual({ absolute: "Welcome to our new website | After" });
     expect(await live.generateStaticParams()).toContainEqual({ path: ["news", "welcome"] });
   });
+
+  it("reads the site's own files where the source gives nothing, as in next dev", async () => {
+    const local = goodfellowPages({ blocks: {} }, { root, source: () => undefined });
+    expect((await local.loadSite()).settings.title).toBe("My site");
+  });
 });
 
 describe("demoContent", () => {

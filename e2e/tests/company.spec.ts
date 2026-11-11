@@ -92,6 +92,8 @@ test("signs out only when the site's own pages ask", async ({ request }) => {
 });
 
 test("publishes to the content repository through the Worker, naming the editor as the author", async ({ page }) => {
+  // The page as visitors see it before, which Workers Cache keeps.
+  expect(await (await page.request.get(`${SITE}/about/`)).text()).not.toContain("About our company");
   await signIn(page, "editor");
   await expect(page.locator(".gfa-account")).toContainText(COMPANY_PEOPLE.editor.name);
   await page.getByRole("link", { name: "About us", exact: true }).click();
@@ -109,6 +111,8 @@ test("publishes to the content repository through the Worker, naming the editor 
   expect(Buffer.from(about.content, "base64").toString("utf8")).toContain("About our company");
   // The token the Worker publishes with never reaches the browser.
   expect(await page.content()).not.toContain(COMPANY.token);
+  // Visitors see it without the site being built again: the publish asked for its pages to render again.
+  expect(await (await page.request.get(`${SITE}/about/`)).text()).toContain("About our company");
 });
 
 test("leaves Site Settings to the site's admins, whatever an editor's browser sends", async ({ page }) => {

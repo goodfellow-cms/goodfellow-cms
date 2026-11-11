@@ -101,9 +101,10 @@ export interface GoodfellowPagesOptions {
    * repository's newest revision. A full-stack site then shows a publish once
    * the pages it changed render again (`revalidatePath()`, from
    * `goodfellowApi({ onPublish })`), without a rebuild. Site settings are read
-   * as builds read them (`builtSource()`). Static sites leave it out.
+   * as builds read them (`builtSource()`). Where it gives nothing, as a site's
+   * might in `next dev`, pages read `root`'s files. Static sites leave it out.
    */
-  source?: () => ContentSource | Promise<ContentSource>;
+  source?: () => ContentSource | undefined | Promise<ContentSource | undefined>;
 }
 
 // In `next build`, which renders pages in several processes, each writes the dates what its pages show by today's
@@ -180,15 +181,18 @@ export const loadSite = cache(
 
 /** The site as `source` gives it, read as builds read it, once a request, as visitors see it now. */
 const loadSourceSite = cache(
-  async (source: () => ContentSource | Promise<ContentSource>): Promise<SiteContent> =>
-    shownContent(
+  async (
+    source: () => ContentSource | undefined | Promise<ContentSource | undefined>,
+    root: string | undefined,
+  ): Promise<SiteContent> => {
+    const files = await source();
+    if (!files) return loadSite(root);
+    return shownContent(
       await loadSiteContent(
-        builtSource(await source(), {
-          ...process.env,
-          [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH,
-        }),
+        builtSource(files, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
       ),
-    ),
+    );
+  },
 );
 
 function pathOf(segments: string[] | undefined): string {
@@ -326,7 +330,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   const root = options.root ?? process.cwd();
   // The same arguments as the layout's `loadSite()`, so a request reads the site once.
   const source = options.source;
-  const site = () => (source ? loadSourceSite(source) : loadSite(options.root));
+  const site = () => (source ? loadSourceSite(source, options.root) : loadSite(options.root));
   const basePath = () => options.basePath ?? configuredBasePath();
 
   // Stored media's sizes are by its public address, which the site shows it from.
