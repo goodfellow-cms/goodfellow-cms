@@ -328,12 +328,23 @@ export interface UpdateResult {
 }
 
 /**
+ * A setup file's lines without comments, which run nothing: whole comment lines, and from a `#` after a space to
+ * the end of a line, as both YAML and the shell read them. Setup files are read to tell what a site's builds do,
+ * so commented-out commands mustn't count; a `#` within quotes is cut too, which can only make a command uncounted.
+ */
+export function setupLines(text: string): string[] {
+  return text
+    .split("\n")
+    .filter((line) => !/^\s*(?:-\s*)?#/.test(line))
+    .map((line) => line.replace(/\s#.*$/, ""));
+}
+
+/**
  * The lines of a setup file's section named `key` (such as a workflow's job or a pipeline), at whatever indent,
- * down to the next line indented no further, without comment lines, which run nothing. Empty where there's none.
- * Setup files are read to tell what a site's builds do, so commented-out commands mustn't count.
+ * down to the next line indented no further, without comments (`setupLines()`). Empty where there's none.
  */
 export function setupSection(text: string, key: string): string {
-  const lines = text.split("\n").filter((line) => !/^\s*(?:-\s*)?#/.test(line));
+  const lines = setupLines(text);
   const start = lines.findIndex((line) => line.trim() === `${key}:`);
   if (start < 0) return "";
   const indent = (lines[start] ?? "").search(/\S/);

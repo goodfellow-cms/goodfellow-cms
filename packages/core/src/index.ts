@@ -1497,6 +1497,7 @@ export {
   releaseVersions,
   SITE_OVERRIDES,
   type SiteUpdates,
+  setupLines,
   setupSection,
   siteVersion,
   UPDATE_AGE_DAYS,

@@ -9,6 +9,7 @@ import {
   parseUpdateSettings,
   releaseVersions,
   SITE_OVERRIDES,
+  setupLines,
   setupSection,
   siteVersion,
   updateSettingsFile,
@@ -136,5 +137,12 @@ describe("setupSection", () => {
     expect(setupSection(workflow, "update")).toContain("update --commit");
     expect(setupSection(workflow, "update")).not.toContain("publish-update");
     expect(setupSection(workflow, "deploy")).toBe("");
+  });
+
+  it("leaves out comments after a command", () => {
+    expect(setupLines("      - echo nothing # git am goodfellow-publish.patch\n      - run: x")).toEqual([
+      "      - echo nothing",
+      "      - run: x",
+    ]);
   });
 });

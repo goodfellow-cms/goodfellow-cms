@@ -682,7 +682,7 @@ describe("updates and scheduled changes", () => {
         "      - step:",
         "          script:",
         "            # - git am goodfellow-publish.patch",
-        "            - echo nothing",
+        "            - echo nothing # git am goodfellow-publish.patch",
         "",
       ].join("\n"),
     );
