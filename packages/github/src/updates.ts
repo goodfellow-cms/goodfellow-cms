@@ -61,7 +61,10 @@ export function githubUpdates(
   return {
     async setup() {
       const text = await files.read(workflowFile);
-      return text && /update --(publish|commit)\b/.test(text) ? "ready" : "missing";
+      if (!text) return "missing";
+      // With --commit, the update job's commit is thrown away unless the job after it publishes it.
+      if (/update --publish\b/.test(text)) return "ready";
+      return /update --commit\b/.test(text) && new RegExp(`^  ${PUBLISH_JOB}:`, "m").test(text) ? "ready" : "missing";
     },
 
     async lastRun(): Promise<UpdateRun | undefined> {

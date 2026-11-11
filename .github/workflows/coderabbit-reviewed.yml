@@ -8,6 +8,8 @@
 # GitHub starts no workflow when a thread is resolved, so a schedule checks open pull requests every ten minutes,
 # and it can be run by hand (Actions → CodeRabbit reviewed → Run workflow). It sets a status only when it changes.
 #
+# Where open pull requests share a head commit, its status says what the one furthest from passing needs.
+#
 # It passes without a review for drafts (CodeRabbit reviews them once they're ready), Dependabot's pull requests,
 # and pull requests labelled no-coderabbit, such as ones over CodeRabbit's file limit. It isn't a required check.
 #
@@ -52,14 +54,20 @@ jobs:
           CHECK_SHA: ${{ github.event.check_run.head_sha }}
         run: |
           set -euo pipefail
+          shopt -s inherit_errexit
           context="CodeRabbit reviewed"
 
-          report() { # sha state description url
+          report() { # sha state description url started
             local description="${3:0:140}" current
-            # The schedule checks every open pull request, so a status is set only when it changes.
+            # The schedule checks every open pull request, so a status is set only when it changes, and never over
+            # one another run set after this one started reading, which read the pull request more recently.
             current=$(gh api "repos/$REPO/commits/$1/statuses?per_page=100" |
-              jq -r --arg context "$context" '[.[] | select(.context == $context)][0] // {} | "\(.state) \(.description)"')
-            if [ "$current" = "$2 $description" ]; then echo "$1: still $2 ($description)"; return; fi
+              jq -r --arg context "$context" '[.[] | select(.context == $context)][0] // {}
+                | "\(.created_at)\t\(.state) \(.description) \(.target_url)"')
+            if [ "${current%%$'\t'*}" != null ] && [[ "${current%%$'\t'*}" > "$5" ]]; then
+              echo "$1: set since this run read it"; return
+            fi
+            if [ "${current#*$'\t'}" = "$2 $description $4" ]; then echo "$1: still $2 ($description)"; return; fi
             gh api --method POST "repos/$REPO/statuses/$1" \
               -f state="$2" -f context="$context" -f description="$description" -f target_url="$4" >/dev/null
             echo "$1: $2 ($description)"
@@ -81,65 +89,89 @@ jobs:
                 | select(.author.login == "coderabbitai" or .author.login == "coderabbitai[bot]") | .url'
           }
 
-          check() { # pull request number
-            local pr head url
-            pr=$(gh api "repos/$REPO/pulls/$1")
+          evaluate() { # pull request (JSON): its state, description, and address, a line each
+            local pr="$1" number head url
+            number=$(jq -r .number <<<"$pr")
             head=$(jq -r .head.sha <<<"$pr")
             url=$(jq -r .html_url <<<"$pr")
-            # A check run for a commit the pull request has moved on from says nothing about it.
-            if [ -n "$CHECK_SHA" ] && [ "$CHECK_SHA" != "$head" ]; then return; fi
             if jq -e '.labels | any(.name == "no-coderabbit")' <<<"$pr" >/dev/null; then
-              report "$head" success "Not reviewed by CodeRabbit: labelled no-coderabbit" "$url"; return
+              printf '%s\n' success "Not reviewed by CodeRabbit: labelled no-coderabbit" "$url"; return
             fi
             if jq -e .draft <<<"$pr" >/dev/null; then
-              report "$head" success "A draft: CodeRabbit reviews it once it's ready" "$url"; return
+              printf '%s\n' success "A draft: CodeRabbit reviews it once it's ready" "$url"; return
             fi
             if [ "$(jq -r .user.login <<<"$pr")" = "dependabot[bot]" ]; then
-              report "$head" success "Dependabot's: not reviewed by CodeRabbit" "$url"; return
+              printf '%s\n' success "Dependabot's: not reviewed by CodeRabbit" "$url"; return
             fi
             local run status conclusion title link
             run=$(gh api "repos/$REPO/commits/$head/check-runs?check_name=CodeRabbit&filter=latest" \
               --jq '[.check_runs[] | select(.app.slug == "coderabbitai")] | sort_by(.started_at) | last // empty')
             if [ -z "$run" ]; then
-              report "$head" pending "Waiting for CodeRabbit" "$url"; return
+              printf '%s\n' pending "Waiting for CodeRabbit" "$url"; return
             fi
             status=$(jq -r .status <<<"$run")
             conclusion=$(jq -r '.conclusion // ""' <<<"$run")
             title=$(jq -r '.output.title // ""' <<<"$run")
             link=$(jq -r .html_url <<<"$run")
             if [ "$status" != completed ]; then
-              report "$head" pending "CodeRabbit is reviewing this commit" "$link"
+              printf '%s\n' pending "CodeRabbit is reviewing this commit" "$link"
             elif [ "$conclusion" = success ]; then
               local threads count
-              threads=$(open_threads "$1")
+              threads=$(open_threads "$number")
               count=$(grep -c . <<<"$threads" || true)
               if [ "$count" -eq 0 ]; then
-                report "$head" success "CodeRabbit reviewed this commit, and its comments are resolved" "$link"
+                printf '%s\n' success "CodeRabbit reviewed this commit, and its comments are resolved" "$link"
               elif [ "$count" -eq 1 ]; then
-                report "$head" failure "1 of CodeRabbit's comments is open: fix it or reply, then resolve it" \
+                printf '%s\n' failure "1 of CodeRabbit's comments is open: fix it or reply, then resolve it" \
                   "$(head -n 1 <<<"$threads")"
               else
-                report "$head" failure "$count of CodeRabbit's comments are open: fix each or reply, then resolve it" \
+                printf '%s\n' failure "$count of CodeRabbit's comments are open: fix each or reply, then resolve it" \
                   "$(head -n 1 <<<"$threads")"
               fi
             elif [ "$conclusion" = skipped ]; then
               # Such as a pull request over CodeRabbit's file limit, which asking again won't change.
-              report "$head" failure "Not reviewed: ${title:-skipped}. Label it no-coderabbit if it can't be" "$link"
+              printf '%s\n' failure "Not reviewed: ${title:-skipped}. Label it no-coderabbit if it can't be" "$link"
             else
-              report "$head" failure "Not reviewed: ${title:-$conclusion}. Comment @coderabbitai review" "$link"
+              printf '%s\n' failure "Not reviewed: ${title:-$conclusion}. Comment @coderabbitai review" "$link"
             fi
           }
 
+          refresh() { # commit, then pull request numbers known to have it as their head
+            # A status belongs to a commit, so where several open pull requests have the same head, it says what
+            # the one furthest from passing needs, naming it.
+            local sha="$1" started numbers number pr found=0 rank best=0 state description url first evaluated
+            local -a result
+            shift
+            started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            numbers=$(gh api "repos/$REPO/commits/$sha/pulls" |
+              jq -r --arg sha "$sha" '.[] | select(.state == "open" and .head.sha == $sha) | .number')
+            for number in $(printf '%s\n' "$@" $numbers | sort -nu); do
+              pr=$(gh api "repos/$REPO/pulls/$number")
+              # A pull request that has moved on from this commit is reported on its new head.
+              if [ "$(jq -r .head.sha <<<"$pr")" != "$sha" ] || [ "$(jq -r .state <<<"$pr")" != open ]; then continue; fi
+              found=$((found + 1))
+              evaluated=$(evaluate "$pr")
+              mapfile -t result <<<"$evaluated"
+              case "${result[0]}" in failure) rank=3 ;; pending) rank=2 ;; *) rank=1 ;; esac
+              if [ "$rank" -gt "$best" ]; then
+                best=$rank state="${result[0]}" description="${result[1]}" url="${result[2]}" first="$number"
+              fi
+            done
+            if [ "$found" -eq 0 ]; then return; fi
+            if [ "$found" -gt 1 ]; then description="#$first: $description"; fi
+            report "$sha" "$state" "$description" "$url" "$started"
+          }
+
           if [ "$EVENT" = pull_request_target ]; then
-            check "$PR_NUMBER"
+            refresh "$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha)" "$PR_NUMBER"
           elif [ "$EVENT" != check_run ]; then
-            # The schedule, or a run by hand: every open pull request.
-            for number in $(gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" --jq '.[].number'); do
-              check "$number"
+            # The schedule, or a run by hand: every open pull request, by its head. Listed before the loop, so a
+            # failure to list them fails the run.
+            heads=$(gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" --jq '.[] | "\(.head.sha) \(.number)"')
+            for sha in $(cut -d ' ' -f 1 <<<"$heads" | sort -u); do
+              refresh "$sha" $(awk -v sha="$sha" '$1 == sha { print $2 }' <<<"$heads")
             done
           else
             # Every open pull request whose head this commit is.
-            for number in $(gh api "repos/$REPO/commits/$CHECK_SHA/pulls" --jq '.[] | select(.state == "open") | .number'); do
-              check "$number"
-            done
+            refresh "$CHECK_SHA"
           fi

@@ -520,6 +520,10 @@ describe("updates", () => {
       variable?.value,
     );
     expect(fake.updateSettings.schedules).toHaveLength(1);
+
+    // A protection made again without the key, which then can't publish to the main branch.
+    fake.protectedBranches.set("main", { push: 30, merge: 30, forcePush: false });
+    expect(await updates.setup()).toBe("needs-setup");
   });
 
   it("keeps the publishing key where letting editors publish changes the main branch's protection", async () => {

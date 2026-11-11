@@ -227,11 +227,17 @@ export function gitlabUpdates(
         );
         if (!scheduled) return "needs-setup";
         if (keyed) {
-          const [keys, variable] = await Promise.all([
+          const [keys, variable, protection] = await Promise.all([
             publishingKeys(api, base),
             gitlabRequest(api, variablePath(base), { allow: [404] }),
+            gitlabRequest(api, `${base}/protected_branches/${encodeURIComponent(branch)}`, { allow: [404] }),
           ]);
-          return keys.some((key) => key.can_push) && variable.ok ? "ready" : "needs-setup";
+          const pushing = keys.filter((key) => key.can_push);
+          // Where the branch is protected, a key may push to it only where the protection names it, which making
+          // the protection again (as letting editors publish does on older GitLab) can leave out.
+          const levels = protection.ok ? (((await protection.json()) as ProtectedBranch).push_access_levels ?? []) : [];
+          const named = !protection.ok || pushing.some((key) => levels.some((level) => level.deploy_key_id === key.id));
+          return pushing.length > 0 && named && variable.ok ? "ready" : "needs-setup";
         }
         const settings = await gitlabJson<{ ci_push_repository_for_job_token_allowed?: boolean }>(api, base);
         return settings.ci_push_repository_for_job_token_allowed ? "ready" : "needs-setup";

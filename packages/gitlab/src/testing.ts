@@ -304,13 +304,21 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         push_access_level?: number;
         merge_access_level?: number;
         allow_force_push?: boolean;
+        allowed_to_push?: Array<{ deploy_key_id?: number }>;
       };
       if (protectedBranches.has(body.name)) return json({ message: "Protected branch already exists" }, 409);
       protectionChanges.push(`POST ${body.name}`);
+      // Deploy keys the project has, as GitLab 18.10 and later allow on the free plan.
+      const deployKeys = (body.allowed_to_push ?? []).flatMap((level) =>
+        level.deploy_key_id !== undefined && updateSettings.deployKeys.some((key) => key.id === level.deploy_key_id)
+          ? [level.deploy_key_id]
+          : [],
+      );
       protectedBranches.set(body.name, {
         push: body.push_access_level ?? 40,
         merge: body.merge_access_level ?? 40,
         forcePush: body.allow_force_push ?? false,
+        ...(deployKeys.length > 0 && { deployKeys }),
       });
       return json({ name: body.name }, 201);
     }

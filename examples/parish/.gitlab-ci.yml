@@ -146,11 +146,16 @@ pages:
         echo "A newer version has been published, which its own pipeline builds."
         build=false
       fi
+      reused=false
+      if [ "$build" = false ] && curl --fail --silent --show-error --location --header "JOB-TOKEN: $CI_JOB_TOKEN" --output live.zip "$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/$CI_DEFAULT_BRANCH/download?job=pages" && unzip -q -o live.zip; then
+        echo "Publishing the live site's files again, since they're still current."
+        reused=true
+      fi
     # When package.json names packages package-lock.json doesn't have, such as a plugin installed from the
     # admin panel: writes package-lock.json, installing nothing and running none of the packages' code, with
     # releases at least 3 days old for what it adds, where the publish job couldn't publish it, to build the site with.
     - |
-      if ! node -e "$LOCKFILE_CHECK"; then
+      if [ "$reused" = false ] && ! node -e "$LOCKFILE_CHECK"; then
         # A plugin installed before it was 3 days old is checked against its provenance first,
         # and the job fails if it doesn't check out.
         if node -e "$EARLY_CHECK"; then npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"; else core=$(node -e 'const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);') || exit 1; npm exec --yes --package="@goodfellow-cms/core@$core" -- goodfellow-early; fi
@@ -158,9 +163,7 @@ pages:
         git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names" package-lock.json
       fi
     - |
-      if [ "$build" = false ] && curl --fail --silent --show-error --location --header "JOB-TOKEN: $CI_JOB_TOKEN" --output live.zip "$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/$CI_DEFAULT_BRANCH/download?job=pages" && unzip -q -o live.zip; then
-        echo "Publishing the live site's files again, since they're still current."
-      else
+      if [ "$reused" = false ]; then
         npm ci --cache .npm --prefer-offline
         # Pages may serve the site from a subfolder, such as https://group.gitlab.io/site/.
         export GOODFELLOW_BASE="$(node -e 'console.log(new URL(process.env.CI_PAGES_URL).pathname)')"

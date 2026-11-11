@@ -173,10 +173,16 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
         (["push_access_levels", "merge_access_levels"] as const).every((kind) =>
           (protection[kind] ?? []).some((level) => level.access_level !== null && level.access_level <= DEVELOPER),
         );
-      const protect = (level: number) =>
+      const protect = (level: number, keys: number[] = []) =>
         gitlabRequest(api, `${base}/protected_branches`, {
           method: "POST",
-          body: { name: branch, push_access_level: level, merge_access_level: level, allow_force_push: false },
+          body: {
+            name: branch,
+            push_access_level: level,
+            merge_access_level: level,
+            allow_force_push: false,
+            ...(keys.length > 0 && { allowed_to_push: keys.map((id) => ({ deploy_key_id: id })) }),
+          },
         });
       const current = await read();
       if (!current) {
@@ -202,19 +208,28 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
         allow: [400, 404, 405, 422],
       }).catch(notAllowed);
       if (patched.ok && developersMay(await read())) return;
-      // Older GitLab: the protection is removed and made again, then checked.
+      // Older GitLab: the protection is removed and made again, with the deploy keys that could push, then checked.
+      const keys = (current.push_access_levels ?? []).flatMap((level) =>
+        level.deploy_key_id ? [level.deploy_key_id] : [],
+      );
       await gitlabRequest(api, protectedPath, { method: "DELETE", allow: [404] }).catch(notAllowed);
       try {
-        await protect(DEVELOPER);
+        await protect(DEVELOPER, keys);
       } catch (error) {
         // Put the protection back as it was, rather than leave the branch unprotected.
-        await protect(MAINTAINER).catch(() => undefined);
+        await protect(MAINTAINER, keys).catch(() => undefined);
         notAllowed(error);
       }
       const after = await read();
       if (!after || !developersMay(after)) {
-        if (!after) await protect(MAINTAINER).catch(() => undefined);
+        if (!after) await protect(MAINTAINER, keys).catch(() => undefined);
         throw new Error("GitLab didn't keep the main branch's new protection. Try again.");
+      }
+      const kept = new Set((after.push_access_levels ?? []).map((level) => level.deploy_key_id));
+      if (keys.some((key) => !kept.has(key))) {
+        throw new Error(
+          "GitLab protected the main branch again without the key nightly updates publish with. Turn on updates again on the Updates screen.",
+        );
       }
     },
   };

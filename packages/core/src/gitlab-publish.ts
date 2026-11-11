@@ -181,10 +181,13 @@ export function gitlabPagesJob({ build, output, cachePaths }: PagesJobOptions): 
     - |
       build="$(cat ${BUILD_DECISION} 2>/dev/null || echo true)"
       ${GITLAB_BRANCH_MOVED}
-${gitlabLockfileScript({ build: true })}    - |
+      reused=false
       if [ "$build" = false ] && curl --fail --silent --show-error --location --header "JOB-TOKEN: $CI_JOB_TOKEN" --output live.zip "$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/$CI_DEFAULT_BRANCH/download?job=pages" && unzip -q -o live.zip; then
         echo "Publishing the live site's files again, since they're still current."
-      else
+        reused=true
+      fi
+${gitlabLockfileScript({ build: true })}    - |
+      if [ "$reused" = false ]; then
         npm ci --cache .npm --prefer-offline
         # Pages may serve the site from a subfolder, such as https://group.gitlab.io/site/.
         export GOODFELLOW_BASE="$(node -e 'console.log(new URL(process.env.CI_PAGES_URL).pathname)')"

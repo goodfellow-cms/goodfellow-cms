@@ -6,6 +6,7 @@ import {
   NIGHTLY_VARIABLE,
   type NightlyBuilds,
   type NightlyMode,
+  PUBLISH_PATCH,
   SignInError,
   type SiteUpdates,
   type UpdateRun,
@@ -19,6 +20,15 @@ interface Variable {
   uuid: string;
   key: string;
   value?: string;
+}
+
+/**
+ * Whether the pipeline publishes the updates it makes: itself, with `--publish`, or, with `--commit`, through a
+ * step after it that applies the commit (`PUBLISH_PATCH`), since the update's commit is otherwise thrown away.
+ */
+function publishesUpdates(setup: string): boolean {
+  if (/update --publish\b/.test(setup)) return true;
+  return /update --commit\b/.test(setup) && setup.includes(`am ${PUBLISH_PATCH}`);
 }
 
 function notAllowed(error: unknown): never {
@@ -114,7 +124,7 @@ export function bitbucketUpdates(
   return {
     async setup() {
       const setup = await readSetup();
-      if (!/update --(publish|commit)/.test(setup ?? "")) return "missing";
+      if (!publishesUpdates(setup ?? "")) return "missing";
       try {
         const [settings, found] = await Promise.all([
           bitbucketJson<{ enabled?: boolean }>(api(), config),
@@ -178,6 +188,13 @@ export function bitbucketUpdates(
         const result = findUpdateResult(log);
         // A pipeline started for something else, such as a rebuild, which didn't update.
         if (!result) continue;
+        if (result.state === "updated") {
+          // The first step only made the update; the step after it publishes it, so the pipeline's result says
+          // whether it was.
+          const outcome = pipeline.state?.result?.name;
+          if (!outcome) return { state: "unknown", ...run };
+          if (outcome !== "SUCCESSFUL") return { state: "failed", ...run };
+        }
         return { state: result.state, result, ...run };
       }
       return undefined;
