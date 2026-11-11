@@ -387,6 +387,8 @@ describe("connecting with GitHub", () => {
       client_id: clientId,
     });
     expect(refresh.status).toBe(400);
+    // Nor a third time, once the connection has ended.
+    expect((await exchange(clientId, code, verifier)).status).toBe(400);
   });
 
   it("refreshes once with each refresh token", async () => {
@@ -711,7 +713,8 @@ describe("connecting with GitLab", () => {
       client_id: clientId,
     });
     expect(retried.status).toBe(400);
-    expect(grants.rows.size).toBe(0);
+    // The connection has ended: its id is kept only so it can't be made again.
+    expect([...grants.rows.values()].map((row) => row.generation)).toEqual([0]);
   });
 });
 
@@ -828,7 +831,8 @@ describe("connecting with Bitbucket", () => {
       client_id: clientId,
     });
     expect(retried.status).toBe(400);
-    expect(grants.rows.size).toBe(0);
+    // The connection has ended: its id is kept only so it can't be made again.
+    expect([...grants.rows.values()].map((row) => row.generation)).toEqual([0]);
   });
 
   it("says when the account can't publish to any repository", async () => {
@@ -855,6 +859,12 @@ describe("undoing a rotation", () => {
     expect(grants.rows.get("a")?.generation).toBe(2);
     await grants.revoke("a");
     await grants.unrotate("a", 1);
+    expect(grants.rows.get("a")?.generation).toBe(0);
+    expect(await grants.active("a", 3)).toBe(false);
+    expect(await grants.rotate("a", 1, 10_000, 3)).toBe(false);
+    // An ended connection's id is kept until it would have lapsed, so it can't be made again.
+    expect(await grants.create("a", 10_000, 3)).toBe(false);
+    expect(await grants.create("b", 20_000, 10_001)).toBe(true);
     expect(grants.rows.has("a")).toBe(false);
   });
 });

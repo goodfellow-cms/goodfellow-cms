@@ -3,6 +3,7 @@ import {
   availableBlocks,
   type BlockUse,
   blockUses,
+  compareReleases,
   type FetchJson,
   INSTALLED_RECORD_FILE,
   type InstalledRecord,
@@ -48,8 +49,14 @@ type Notice =
   | { type: "submitted"; url: string }
   | { type: "failed"; message: string; error?: unknown };
 
-/** A block to add or remove when the changes are published. */
-type Pending = { kind: "add"; block: AvailableBlock } | { kind: "remove"; name: string; title: string };
+/** A block to add, remove, or update when the changes are published. */
+type Pending =
+  | { kind: "add"; block: AvailableBlock }
+  | { kind: "remove"; name: string; title: string }
+  | { kind: "update"; name: string; title: string; version: string };
+
+/** A pending change's key, unique among them. */
+const pendingKey = (item: Pending) => (item.kind === "add" ? `add:${item.block.ref}` : `${item.kind}:${item.name}`);
 
 /** Says why a block that's in use can't be removed yet. */
 function InUseDialog({ name, title, onClose }: { name: string; title: string; onClose: () => void }) {
@@ -119,16 +126,18 @@ function BlockCard({
 function publishMessage(t: Translate, pending: Pending[]): string {
   const [only] = pending;
   if (pending.length === 1 && only) {
-    return only.kind === "add"
-      ? t("blocks.addMessage", { name: only.block.title })
-      : t("blocks.removeMessage", { name: only.title });
+    if (only.kind === "add") return t("blocks.addMessage", { name: only.block.title });
+    if (only.kind === "update") return t("blocks.updateMessage", { name: only.title, version: only.version });
+    return t("blocks.removeMessage", { name: only.title });
   }
   const added = pending.flatMap((change) => (change.kind === "add" ? [change.block.title] : []));
   const removed = pending.flatMap((change) => (change.kind === "remove" ? [change.title] : []));
+  const updated = pending.flatMap((change) => (change.kind === "update" ? [change.title] : []));
   return t("blocks.changeMessage", {
     changes: [
       ...(added.length > 0 ? [t("blocks.addPart", { names: added.join(", ") })] : []),
       ...(removed.length > 0 ? [t("blocks.removePart", { names: removed.join(", ") })] : []),
+      ...(updated.length > 0 ? [t("blocks.updatePart", { names: updated.join(", ") })] : []),
     ].join("; "),
   });
 }
@@ -180,6 +189,12 @@ export function BlocksScreen() {
   const isPendingAdd = (block: AvailableBlock) =>
     pending.some((change) => change.kind === "add" && change.block.ref === block.ref);
   const isPendingRemove = (name: string) => pending.some((change) => change.kind === "remove" && change.name === name);
+  const isPendingUpdate = (name: string) => pending.some((change) => change.kind === "update" && change.name === name);
+  /** The newer release of an installed block the registry offers, where it offers one. */
+  const newerVersion = (source: string, version: string | undefined) => {
+    const offered = available?.find((block) => block.ref === source)?.version;
+    return offered && (!version || compareReleases(offered, version) > 0) ? offered : undefined;
+  };
   const change = (next: Pending[]) => {
     setNotice(undefined);
     setPending(next);
@@ -207,7 +222,13 @@ export function BlocksScreen() {
     };
     try {
       const plan = await planBlockChanges({
-        changes: pending.map((item) => (item.kind === "add" ? { add: item.block.ref } : { remove: item.name })),
+        changes: pending.map((item) =>
+          item.kind === "add"
+            ? { add: item.block.ref }
+            : item.kind === "update"
+              ? { update: item.name }
+              : { remove: item.name },
+        ),
         registries,
         fetchJson,
         readFile,
@@ -279,10 +300,12 @@ export function BlocksScreen() {
             <strong>{t("blocks.pendingTitle")}</strong>
             <ul>
               {pending.map((item) => (
-                <li key={item.kind === "add" ? `add:${item.block.ref}` : `remove:${item.name}`}>
+                <li key={pendingKey(item)}>
                   {item.kind === "add"
                     ? t("blocks.pendingAdd", { name: item.block.title })
-                    : t("blocks.pendingRemove", { name: item.title })}
+                    : item.kind === "update"
+                      ? t("blocks.pendingUpdate", { name: item.title, version: item.version })
+                      : t("blocks.pendingRemove", { name: item.title })}
                 </li>
               ))}
             </ul>
@@ -314,39 +337,67 @@ export function BlocksScreen() {
       {notice?.type === "failed" && <ErrorMessage message={notice.message} error={notice.error} />}
 
       <h2 className="gfa-section-title">{t("blocks.installed")}</h2>
+      {installed.some(([, block]) => newerVersion(block.source, block.version)) && (
+        <p className="gfa-hint">{t("blocks.updatesHint")}</p>
+      )}
       {installed.length === 0 ? (
         <p className="gfa-hint">{record ? t("blocks.noneInstalled") : t("loading")}</p>
       ) : (
         <ul className="gfa-block-list">
-          {installed.map(([name, block]) => (
-            <li key={name} className="gfa-block-row">
-              <span>
-                <strong>{block.title}</strong> <span className="gfa-hint">{block.category}</span>
-              </span>
-              {isPendingRemove(name) ? (
-                <span className="gfa-block-pending">
-                  <span className="gfa-block-added">{t("blocks.willRemove")}</span>
+          {installed.map(([name, block]) => {
+            const newer = newerVersion(block.source, block.version);
+            return (
+              <li key={name} className="gfa-block-row">
+                <span>
+                  <strong>{block.title}</strong> <span className="gfa-hint">{block.category}</span>
+                </span>
+                {isPendingUpdate(name) ? (
+                  <span className="gfa-block-pending">
+                    <span className="gfa-block-added">{t("blocks.willUpdate", { version: newer ?? "" })}</span>
+                    <Button
+                      variant="ghost"
+                      disabled={publishing}
+                      aria-label={t("blocks.undoUpdateLabel", { name: block.title })}
+                      onClick={() => change(pending.filter((item) => !(item.kind === "update" && item.name === name)))}
+                    >
+                      {t("blocks.undo")}
+                    </Button>
+                  </span>
+                ) : newer && !isPendingRemove(name) ? (
                   <Button
                     variant="ghost"
-                    disabled={publishing}
-                    aria-label={t("blocks.undoRemoveLabel", { name: block.title })}
-                    onClick={() => change(pending.filter((item) => !(item.kind === "remove" && item.name === name)))}
+                    disabled={locked}
+                    aria-label={t("blocks.updateLabel", { name: block.title, version: newer })}
+                    onClick={() => change([...pending, { kind: "update", name, title: block.title, version: newer }])}
                   >
-                    {t("blocks.undo")}
+                    {t("blocks.update")}
                   </Button>
-                </span>
-              ) : (
-                <Button
-                  variant="ghost"
-                  disabled={locked}
-                  aria-label={t("blocks.removeLabel", { name: block.title })}
-                  onClick={() => onRemove(name, block.title)}
-                >
-                  {t("blocks.remove")}
-                </Button>
-              )}
-            </li>
-          ))}
+                ) : null}
+                {isPendingUpdate(name) ? null : isPendingRemove(name) ? (
+                  <span className="gfa-block-pending">
+                    <span className="gfa-block-added">{t("blocks.willRemove")}</span>
+                    <Button
+                      variant="ghost"
+                      disabled={publishing}
+                      aria-label={t("blocks.undoRemoveLabel", { name: block.title })}
+                      onClick={() => change(pending.filter((item) => !(item.kind === "remove" && item.name === name)))}
+                    >
+                      {t("blocks.undo")}
+                    </Button>
+                  </span>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    disabled={locked}
+                    aria-label={t("blocks.removeLabel", { name: block.title })}
+                    onClick={() => onRemove(name, block.title)}
+                  >
+                    {t("blocks.remove")}
+                  </Button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 

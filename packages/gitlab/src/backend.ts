@@ -184,11 +184,15 @@ export class GitLabBackend implements GitBackend {
   /** Drafts on branches of the project, with merge requests for review. */
   private draftHost(): DraftHost {
     const project = `/projects/${this.project}`;
-    const openRequests = (branch: string) =>
-      gitlabJson<Array<{ iid: number; web_url: string }>>(
-        this.api,
-        `${project}/merge_requests?${new URLSearchParams({ source_branch: branch, state: "opened" })}`,
-      );
+    // Merge requests from forks can use a draft's branch name too, so only the project's own are drafts' reviews.
+    const own = (request: { source_project_id?: number; target_project_id?: number }) =>
+      request.source_project_id !== undefined && request.source_project_id === request.target_project_id;
+    const openRequests = async (branch: string) =>
+      (
+        await gitlabJson<
+          Array<{ iid: number; web_url: string; source_project_id?: number; target_project_id?: number }>
+        >(this.api, `${project}/merge_requests?${new URLSearchParams({ source_branch: branch, state: "opened" })}`)
+      ).filter(own);
     /**
      * Asks people to review a merge request, by their usernames. GitLab's free
      * plan takes one reviewer, so where it refuses them all, the first is asked.
@@ -261,11 +265,15 @@ export class GitLabBackend implements GitBackend {
         return { url: review.web_url };
       },
       listReviews: async (prefix) => {
-        const requests = await this.everyPage<{ source_branch: string; web_url: string; title: string }>(
-          `${project}/merge_requests?state=opened`,
-        );
+        const requests = await this.everyPage<{
+          source_branch: string;
+          web_url: string;
+          title: string;
+          source_project_id?: number;
+          target_project_id?: number;
+        }>(`${project}/merge_requests?state=opened`);
         return requests
-          .filter((request) => request.source_branch.startsWith(prefix))
+          .filter((request) => own(request) && request.source_branch.startsWith(prefix))
           .map((request) => ({ branch: request.source_branch, url: request.web_url, title: request.title }));
       },
       // GitLab keeps a merge request open when its branch is deleted, so it's closed first.

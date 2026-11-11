@@ -106,11 +106,22 @@ function loadsInCss(value: string): boolean {
  */
 export function cssWithoutOutsideAddresses(css: string): string | undefined {
   if (css.includes("\\") || /image-set\s*\(/i.test(css)) return undefined;
-  return css
-    .replace(/@import[^;]*;?/gi, "")
-    .replace(/url\s*\(\s*(['"]?)(.*?)\1\s*\)/gi, (whole, _quote: string, address: string) =>
-      LOADED_SVG_ADDRESS.test(normalizedSvgValue(address)) ? whole : "none",
-    );
+  const kept = /url\s*\(\s*(['"]?)(.*?)\1\s*\)/gi;
+  // Taking one out can join what's around it into another (`@im@import;port`), so it goes on until nothing changes,
+  // a few times at most: CSS that needs more is left out whole rather than read again and again.
+  let cleaned = css;
+  for (let previous = "", passes = 0; previous !== cleaned; passes++) {
+    if (passes === 5) return undefined;
+    previous = cleaned;
+    cleaned = cleaned
+      .replace(/@import[^;]*;?/gi, "")
+      .replace(kept, (whole, _quote: string, address: string) =>
+        LOADED_SVG_ADDRESS.test(normalizedSvgValue(address)) ? whole : "none",
+      );
+  }
+  // What's left loads only the file's own and the site's, or the CSS is left out whole, as a `url(` with no end would be.
+  const rest = cleaned.replace(kept, "");
+  return /@import|url\s*\(/i.test(rest) ? undefined : cleaned;
 }
 
 function isLink(name: string): boolean {
