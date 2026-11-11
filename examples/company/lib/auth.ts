@@ -3,7 +3,6 @@
 import type { AppEditor } from "@goodfellow-cms/core";
 import { type BetterAuthOptions, type BetterAuthPlugin, betterAuth, type Where } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { generateRandomString } from "better-auth/crypto";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
@@ -70,14 +69,14 @@ export function canSendResets(siteEnv: SiteEnv): boolean {
 export const RESET_IDENTIFIER = "reset-password:";
 
 /**
- * The start of the identifier of a mark that an account was sent a reset email, kept for `RESET_ACCOUNT_LIMIT`'s
- * window, apart from the links themselves, so retiring links doesn't reset the count.
+ * The start of the identifier, and id, of a slot an account's reset email took (`takeResetSlot()`), kept for
+ * `RESET_ACCOUNT_LIMIT`'s window apart from the links themselves, so retiring links doesn't free it.
  */
 export const RESET_SENT_IDENTIFIER = "reset-sent:";
 
 /**
- * Makes every link that would let someone choose a password for this account stop working, but `keep`, the
- * identifier of one just made: invitations and password resets alike, since they're the same kind of link. Other
+ * Makes every link that would let someone choose a password for this account stop working, but `keep`, the id of
+ * the row of one just made: invitations and password resets alike, since they're the same kind of link. Other
  * verifications are kept.
  */
 export async function retireResetLinks(
@@ -90,17 +89,56 @@ export async function retireResetLinks(
     where: [
       { field: "value", value: userId },
       { field: "identifier", operator: "starts_with", value: RESET_IDENTIFIER },
-      // The link just made, which replaces the rest.
-      ...(keep ? [{ field: "identifier", operator: "ne", value: keep } satisfies Where] : []),
+      // The link just made, by its row's id, which replaces the rest.
+      ...(keep ? [{ field: "id", operator: "ne", value: keep } satisfies Where] : []),
     ],
   });
 }
 
 type AuthContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
 
+/** What `claimRow()` needs of Better Auth's database adapter. */
+type RowAdapter = Pick<AuthContext["adapter"], "create" | "findOne">;
+
 /**
- * The site's own rules for password reset links: an account is sent at most `RESET_ACCOUNT_LIMIT`'s emails, with the
- * same answer as any other, and choosing a password from any link makes the account's other links stop working, so a
+ * Writes a verification row with an id of its own choosing, which only one request can do, since the id is the
+ * table's primary key: whether this one did. Any other failure is thrown.
+ */
+export async function claimRow(
+  adapter: RowAdapter,
+  row: { id: string; identifier: string; value: string; expiresAt: Date },
+): Promise<boolean> {
+  const now = new Date();
+  try {
+    await adapter.create({
+      model: "verification",
+      data: { ...row, createdAt: now, updatedAt: now },
+      forceAllowId: true,
+    });
+    return true;
+  } catch (error) {
+    if (await adapter.findOne({ model: "verification", where: [{ field: "id", value: row.id }] })) return false;
+    throw error;
+  }
+}
+
+/**
+ * Takes one of the account's `RESET_ACCOUNT_LIMIT.max` slots for a reset email, each a row whose id says which slot
+ * it is, kept for the limit's window: whether one was free. Two requests can't take the same slot, so of requests at
+ * the same moment exactly as many go ahead as there were free slots.
+ */
+async function takeResetSlot(adapter: RowAdapter, userId: string): Promise<boolean> {
+  const expiresAt = new Date(Date.now() + RESET_ACCOUNT_LIMIT.window * 1000);
+  for (let slot = 1; slot <= RESET_ACCOUNT_LIMIT.max; slot++) {
+    const row = { id: `${RESET_SENT_IDENTIFIER}${slot}:${userId}`, identifier: `${RESET_SENT_IDENTIFIER}${userId}` };
+    if (await claimRow(adapter, { ...row, value: userId, expiresAt })) return true;
+  }
+  return false;
+}
+
+/**
+ * The site's own rules for password reset links: an account is sent at most `RESET_ACCOUNT_LIMIT`'s emails, and
+ * none before its person has joined, with the same answer as any other, and choosing a password from any link makes the account's other links stop working, so a
  * link that went astray can't be used after the one that arrived. Where the site can't send email, asking answers `RESET_UNAVAILABLE` for every address alike.
  */
 function resetLinks(siteEnv: SiteEnv) {
@@ -124,7 +162,7 @@ function resetLinks(siteEnv: SiteEnv) {
               }
               const { adapter, internalAdapter } = ctx.context;
               const now = Date.now();
-              // Marks past their hour go.
+              // Slots past their hour go, so they can be taken again.
               await adapter.deleteMany({
                 model: "verification",
                 where: [
@@ -134,26 +172,11 @@ function resetLinks(siteEnv: SiteEnv) {
               });
               const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
               const user = email ? await internalAdapter.findUserByEmail(email) : null;
-              // Marked first and counted after, so of requests at the same moment, only those within the limit by
-              // the order their marks were written can go ahead. Done for every address, so how long the answer
-              // takes says little about which have accounts.
-              const mark = `${RESET_SENT_IDENTIFIER}${generateRandomString(32)}`;
-              await internalAdapter.createVerificationValue({
-                identifier: mark,
-                value: user?.user.id ?? "",
-                expiresAt: new Date(now + RESET_ACCOUNT_LIMIT.window * 1000),
-              });
-              const sent = await adapter.count({
-                model: "verification",
-                where: [
-                  { field: "value", value: user?.user.id ?? "" },
-                  { field: "identifier", operator: "starts_with", value: RESET_SENT_IDENTIFIER },
-                ],
-              });
-              const limited = sent > RESET_ACCOUNT_LIMIT.max;
-              // A request that sends nothing leaves no mark, so asking too often doesn't keep the limit going.
-              if (!user || limited) await internalAdapter.deleteVerificationByIdentifier(mark);
-              if (user && limited) {
+              // Someone who hasn't joined chooses a password with their invitation, never a reset email, so an
+              // account never has both kinds of link at once. The rest take a slot (`takeResetSlot()`). The answer
+              // is the same either way; how long it takes differs by a query or two, as Better Auth's own does.
+              const limited = !user?.user.emailVerified || !(await takeResetSlot(adapter, user.user.id));
+              if (limited) {
                 // Better Auth's own answer, so a visitor can't tell the account was limited, or exists.
                 return ctx.json({
                   status: true,

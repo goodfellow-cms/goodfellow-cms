@@ -2,7 +2,7 @@
 // them. Everything here goes through Better Auth's admin plugin, which checks the caller is an admin, and through
 // `authorizeWith()`, which also refuses banned admins and admins acting as someone else.
 import { generateRandomString } from "better-auth/crypto";
-import { authorizeWith, RESET_IDENTIFIER, retireResetLinks, type SiteAuth } from "./auth.ts";
+import { authorizeWith, claimRow, RESET_IDENTIFIER, retireResetLinks, type SiteAuth } from "./auth.ts";
 import { canSendEmail, type Email, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
@@ -22,6 +22,9 @@ export interface SiteEditor {
 
 /** How long an invitation's link works, in hours: long enough to see the email, short enough not to linger. */
 export const INVITATION_HOURS = 48;
+
+/** The start of the id of the row holding someone's invitation link, one for each person. */
+const INVITATION_ROW = "invitation:";
 
 /** How many people are read from the database at a time. */
 const PAGE_SIZE = 200;
@@ -123,18 +126,27 @@ async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: stri
     throw new EditorsError(500, "Set GOODFELLOW_SITE_URL, the site's address, so invitations can link to it.");
   }
   const token = generateRandomString(32);
-  const identifier = `${RESET_IDENTIFIER}${token}`;
   const context = await siteAuth.$context;
-  // Made first, then the rest retired, so of two links made at once, at most the last stays; and taken back if the
-  // person has joined meanwhile, since accepting retires links only once it's marked them joined.
-  await context.internalAdapter.createVerificationValue({
+  const { adapter, internalAdapter } = context;
+  // One row for the person's invitation, rewritten for each new link, so of links sent at the same moment exactly
+  // the last one works; reset links aside, which the person can't have until they've joined (lib/auth.ts).
+  const id = `${INVITATION_ROW}${userId}`;
+  const row = {
+    identifier: `${RESET_IDENTIFIER}${token}`,
     value: userId,
-    identifier,
     expiresAt: new Date(Date.now() + INVITATION_HOURS * 60 * 60 * 1000),
-  });
-  await retireResetLinks(context.adapter, userId, identifier);
-  if ((await context.internalAdapter.findUserById(userId))?.emailVerified) {
-    await context.internalAdapter.deleteVerificationByIdentifier(identifier);
+  };
+  const rewrite = () =>
+    adapter.update({
+      model: "verification",
+      where: [{ field: "id", value: id }],
+      update: { ...row, updatedAt: new Date() },
+    });
+  if (!(await rewrite()) && !(await claimRow(adapter, { id, ...row }))) await rewrite();
+  await retireResetLinks(adapter, userId, id);
+  // Taken back if the person has joined meanwhile, since accepting retires links again once it's marked them joined.
+  if ((await internalAdapter.findUserById(userId))?.emailVerified) {
+    await adapter.deleteMany({ model: "verification", where: [{ field: "id", value: id }] });
     throw new EditorsError(409, "They've already joined.");
   }
   const link = new URL("/accept-invite/", siteEnv.GOODFELLOW_SITE_URL);

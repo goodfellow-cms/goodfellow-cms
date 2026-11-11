@@ -303,7 +303,8 @@ describe("the editors API", () => {
       };
       const again = await Promise.all([1, 2, 3].map(() => inviteAgain(auth, SITE_ENV, asking(olive), eddieId)));
       const links = [invited.link, ...again.map((sent) => (sent.sent ? "" : sent.link))];
-      expect((await Promise.all(links.map(works))).filter(Boolean).length).toBeLessThanOrEqual(1);
+      // Exactly one: the last written.
+      expect((await Promise.all(links.map(works))).filter(Boolean)).toHaveLength(1);
 
       // Sent again while the person chooses a password with the link they have.
       const fresh = await inviteAgain(auth, SITE_ENV, asking(olive), eddieId);
@@ -490,8 +491,39 @@ describe("forgetting a password", () => {
       expect(new Set(answers.map((answer) => answer.status))).toEqual(new Set([200]));
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(sentTo("eddie@example.org")).toHaveLength(RESET_ACCOUNT_LIMIT.max);
-      expect(sentTo("ada@example.org").length).toBeGreaterThan(0);
-      expect(sentTo("ada@example.org").length).toBeLessThanOrEqual(RESET_ACCOUNT_LIMIT.max);
+      // As many as the account had free, whatever order the requests ran in.
+      expect(sentTo("ada@example.org")).toHaveLength(RESET_ACCOUNT_LIMIT.max);
+    } finally {
+      close();
+    }
+  });
+
+  it("sends someone who hasn't joined no reset link, so their invitation is the only link they have", async () => {
+    const resend = fakeResend();
+    vi.stubGlobal("fetch", resend.fetcher);
+    const { auth, asking, olive, close } = await site(EMAIL_ENV);
+    try {
+      const invited = await inviteEditor(
+        auth,
+        EMAIL_ENV,
+        asking(olive),
+        { email: "eddie@example.org", name: "Eddie", role: "admin" },
+        resend.fetcher,
+      );
+      expect(invited).toEqual({ sent: true });
+      const ask = (email: string) =>
+        auth.handler(
+          new Request(`${SITE}/api/auth/request-password-reset/`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.9" },
+            body: JSON.stringify({ email }),
+          }),
+        );
+      const answer = await ask("eddie@example.org");
+      const unknown = await ask("nobody@example.org");
+      expect([answer.status, await answer.text()]).toEqual([unknown.status, await unknown.text()]);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(resend.sent.filter((sent) => sent.body.text.includes("/reset-password/"))).toHaveLength(0);
     } finally {
       close();
     }
