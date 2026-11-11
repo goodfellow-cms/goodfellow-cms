@@ -2,6 +2,7 @@ import type { Config, Metadata } from "@puckeditor/core";
 import { Render as PuckRender } from "@puckeditor/core/rsc";
 import type { ComponentProps } from "react";
 import { createPageBody } from "./page-body-shared.js";
+import { richTextTransforms } from "./rich-text.js";
 import { SiteProvider, setSite } from "./site-context.server.js";
 import type { SiteContextValue } from "./site-types.js";
 
@@ -54,7 +55,12 @@ function Render({
 }: ComponentProps<typeof PuckRender> & { site: SiteContextValue }) {
   return (
     <div>
-      <PuckRender {...props} config={withSite(config, site)} metadata={hiddenFromSlots(metadata)} />
+      <PuckRender
+        {...props}
+        config={withSite(config, site)}
+        metadata={hiddenFromSlots(metadata)}
+        fieldTransforms={richTextTransforms}
+      />
     </div>
   );
 }

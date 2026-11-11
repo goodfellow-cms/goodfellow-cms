@@ -71,6 +71,7 @@ export {
   withParts,
   withStructuredData,
 } from "./puck-config.js";
+export { RichTextHtml, richTextTransforms } from "./rich-text.js";
 export { CurrentPathProvider, useCurrentPath } from "./site-context.js";
 export { type SiteContextValue, SiteProvider, useSite } from "./site-context.server.js";
 export type { AdminLinkProps, AdminPlace, SiteComponents, SiteImageProps, SiteLinkProps } from "./site-types.js";

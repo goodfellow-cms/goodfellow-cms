@@ -13,7 +13,7 @@ import { markdownToHtml } from "../content/markdown.js";
 import type { PageHeading } from "../content/page-headings.js";
 import { type PageLink, pageLinks } from "../content/page-links.js";
 import { redirectFrom, redirectProblems, redirectTarget } from "../content/redirects.js";
-import { sanitizeHtml, tableCellHtml } from "../content/sanitize.js";
+import { cleanRichText, tableCellHtml } from "../content/sanitize.js";
 import { isAddedPage, type PageView } from "../content/site-pages.js";
 import { setLinkTargets } from "../external-links.js";
 import type { PageHead } from "../head.js";
@@ -271,7 +271,8 @@ class DataReader {
 
   private value(value: unknown, field: Fields[string], owner: string, path: string): unknown {
     if (field?.type === "richtext" && typeof value === "string") {
-      const html = sanitizeHtml(value);
+      // As pages show it (`RichTextHtml` in @goodfellow-cms/react).
+      const html = cleanRichText(value);
       const nodes = richTextNodes(html);
       this.keep(owner, path, nodes);
       return html;
@@ -334,7 +335,7 @@ function collectionsFile(content: SiteContent, language: string): ApiCollections
               if (typeof value !== "string" || !(isMarkdown || definition?.type === "richtext")) return [name, value];
               const html = isMarkdown
                 ? markdownToHtml(value, { externalLinks: links })
-                : sanitizeHtml(setLinkTargets(value, links));
+                : cleanRichText(setLinkTargets(value, links));
               const nodes = richTextNodes(html);
               if (nodes.length > 0) richText[name] = nodes;
               return [name, html];

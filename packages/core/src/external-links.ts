@@ -54,9 +54,9 @@ export interface LinkTargetOptions {
 /**
  * Says where each link in rendered HTML, such as rich text, opens: links to
  * other sites in a new tab if `newTab` is set, and every other link in the same
- * tab. Puck's rich text would otherwise open every link in a new tab, marked
- * `nofollow`, including links to the site's own pages. Links that already say
- * where they open are left as they are.
+ * tab, so nothing that shows the HTML later, such as another renderer of rich
+ * text, gives them a target of its own. Links that already say where they open
+ * are left as they are.
  */
 export function setLinkTargets(html: string, { newTab, siteUrl }: LinkTargetOptions): string {
   return html.replace(/<a\s[^<>]*>/gi, (tag) => {
