@@ -33,8 +33,9 @@ It runs on Cloudflare's free plan. Every page is rendered while the site builds,
 1. **The content repository.** Make it as the [content repository](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
 2. **The database.** Sign in with `npx wrangler login`, run `npx wrangler d1 create goodfellow-company`, and put the `database_id` it gives in `wrangler.jsonc`.
 3. **The site's settings.** In `wrangler.jsonc`, set `GOODFELLOW_SITE_URL` to the site's address. Then set its secrets: `npx wrangler secret put BETTER_AUTH_SECRET` (at least 32 random characters, such as `openssl rand -base64 32` makes; without it, the site signs nobody in) and `npx wrangler secret put GOODFELLOW_GIT_TOKEN` (a fine-grained token that can publish to the content repository, and nothing else).
-4. **Putting it online.** `npm run build && npm run deploy` applies the database's migrations and uploads the Worker. To do it from GitHub instead, after every change, add the secrets `.github/workflows/deploy.yml` lists to the code repository.
-5. **The first admin.** Once the migrations are applied, `npm run new-admin -- you@example.org "Your Name" --remote` makes an admin, one of the site's owners, in the D1 database. It asks for their password, which it never shows or keeps, and runs only in a terminal of your own, never in CI. Run it again for each admin.
+4. **Email.** Choose a service for invitations and password resets, and give the code repository its settings, as [Email](#email) says. The site works without it: the editors page then shows each invitation's link for you to send yourself.
+5. **Putting it online.** Add the secrets `.github/workflows/deploy.yml` lists to the code repository and run its **Deploy** workflow (Actions → Deploy → Run workflow), which runs again after every change to the code. From your own computer, `npm run build && npm run deploy` does the same, except that it doesn't change the Worker's email settings.
+6. **The first admin.** Once the migrations are applied, `npm run new-admin -- you@example.org "Your Name" --remote` makes an admin, one of the site's owners, in the D1 database. It asks for their password, which it never shows or keeps, and runs only in a terminal of your own, never in CI. Run it again for each admin.
 
 Publishing in the admin panel changes the content repository, so it's what has to ask for the site to be built again. Add this workflow to it as `.github/workflows/deploy-site.yml`, with a `GOODFELLOW_DEPLOY_TOKEN` secret: a fine-grained token for the code repository with only **Actions: Read and write**, which can start its workflows but never change its code.
 
@@ -77,9 +78,29 @@ Signing out (`app/sign-out/`) works only from the site's own pages, so a link on
 
 Admins invite people from **Editors** (`/admin/editors/`): its name, email address, and whether they can edit pages or everything. The site makes their account with a password nobody knows and emails them a link to choose their own, which works once, for 48 hours (`INVITATION_HOURS` in `lib/editors.ts`). Until they've chosen one, the page lists them as invited and can send the link again, which makes the one before stop working: of links sent at the same moment, exactly the last one works. Admins change what others can do and remove them there, but never themselves, so the site always keeps an admin.
 
-Email goes through [Resend](https://resend.com) (`lib/email.ts`), since Workers can't send it any other way. Make a key that can only send, from a domain you've verified there, and set it as the `RESEND_API_KEY` secret, and add `EMAIL_FROM` (such as `Example Co <hello@example.org>`) to `wrangler.jsonc`'s `vars`. Without them, the editors page shows each invitation's link for you to send yourself.
+Invitations and password resets are sent by email: see [Email](#email). Without it, the editors page shows each invitation's link for you to send yourself.
 
 **Forgot your password?** on the sign-in page emails a link to choose a new one, which works once, for 30 minutes, and signs the account out everywhere once it's used. It says the same whether or not the address has an account. Each computer's network address can ask 5 times an hour, and each account is sent at most 3 links an hour, however many computers ask, even after one is used (`RESET_LIMIT` and `RESET_ACCOUNT_LIMIT` in `lib/auth.ts`). So someone asking for another person's address over and over can hold up that person's own link for up to an hour, which is the price of not letting them fill the inbox. Using any link makes the account's other links stop working, even when two are used at the same moment. Someone who hasn't joined yet gets no reset email, since their invitation is how they choose a password: an admin sends it again. Without email set up, the page says the site can't send the link. Passwords are at least 12 characters.
+
+## Email
+
+The site sends email through the service its settings name, with [Upyo](https://upyo.org) (`lib/email.ts`), which speaks to each one's HTTP API, since Workers can't send email any other way. Nothing in the code names a service, so the site's owners can move to another one without a developer, from the code repository's settings on GitHub. Changing them takes the repository's **Admin** role, so give it to the owners who look after the site:
+
+1. **Make a key at the service** that can only send, from a domain you've verified there, so a key that leaks can't do more.
+2. **Change the settings**, in the code repository's **Settings → Secrets and variables → Actions**. On the **Variables** tab, set `EMAIL_PROVIDER` to the service, `EMAIL_FROM` to who the emails are from (such as `Example Co <hello@example.org>`, on the domain you verified), and any of the others the service needs, from the table below; delete any the new service doesn't use. On the **Secrets** tab, set `EMAIL_API_KEY` to the key.
+3. **Run the Deploy workflow** (**Actions → Deploy → Run workflow**). It gives the Worker the new settings, and the site sends with them from then on.
+
+| `EMAIL_PROVIDER` | `EMAIL_API_KEY` | Also set |
+|---|---|---|
+| `resend` | An API key with **Sending access** | |
+| `mailgun` | A sending key | `EMAIL_DOMAIN`, where Mailgun's domain isn't `EMAIL_FROM`'s; `EMAIL_REGION` `eu` for its European region |
+| `sendgrid` | An API key with **Mail Send** only | |
+| `ses` | An IAM user's secret access key, allowed only `ses:SendEmail` | `EMAIL_KEY_ID`, its access key id; `EMAIL_REGION`, such as `us-east-1` |
+| `plunk` | A secret API key | |
+
+Running Deploy is safe at any time: it builds the site from the code repository as it is. Changing a setting takes this one run, and nothing else; a setting you delete is taken from the Worker too. Each service's link tracking is off, since tracking would send every link in a message, each of which lets someone into an account, through the service's servers first. If a message can't be sent, the editors page says so, and the server's log names only the kind of failure.
+
+To use a service Upyo supports that isn't in the table, add it to `transportFor()` in `lib/email.ts`, with its package. In `npm run dev`, put the same settings in `.dev.vars`.
 
 ## Rendering
 

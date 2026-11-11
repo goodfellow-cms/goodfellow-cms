@@ -158,10 +158,10 @@ async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: stri
 export type Invited = { sent: true } | { sent: false; link: string };
 
 /** Sends the person their link, or hands it to the admin where the site can't send email. */
-async function deliver(siteEnv: SiteEnv, email: Email, link: string, fetcher?: typeof fetch): Promise<Invited> {
+async function deliver(siteEnv: SiteEnv, email: Email, link: string): Promise<Invited> {
   if (!canSendEmail(siteEnv)) return { sent: false, link };
   try {
-    await sendEmail(siteEnv, email, fetcher);
+    await sendEmail(siteEnv, email);
   } catch {
     throw new EditorsError(
       502,
@@ -180,7 +180,6 @@ export async function inviteEditor(
   siteEnv: SiteEnv,
   request: Request,
   invitation: Invitation,
-  fetcher?: typeof fetch,
 ): Promise<Invited> {
   const admin = await adminAsking(siteAuth, request);
   const context = await siteAuth.$context;
@@ -205,7 +204,7 @@ export async function inviteEditor(
     link,
     hours: INVITATION_HOURS,
   });
-  return deliver(siteEnv, email, link, fetcher);
+  return deliver(siteEnv, email, link);
 }
 
 /** Sends someone who hasn't joined yet a new link, for an invitation that ran out or went astray. */
@@ -214,7 +213,6 @@ export async function inviteAgain(
   siteEnv: SiteEnv,
   request: Request,
   userId: string,
-  fetcher?: typeof fetch,
 ): Promise<Invited> {
   const admin = await adminAsking(siteAuth, request);
   const editor = await editorById(siteAuth, userId);
@@ -228,7 +226,7 @@ export async function inviteAgain(
     link,
     hours: INVITATION_HOURS,
   });
-  return deliver(siteEnv, email, link, fetcher);
+  return deliver(siteEnv, email, link);
 }
 
 /** Refuses a change that would leave the asking admin, or the site, without an admin. */

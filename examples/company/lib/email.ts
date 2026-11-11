@@ -1,6 +1,8 @@
-// The one place the site sends email: invitations and password resets, through Resend's HTTP API, since Workers can't
-// open SMTP connections. Another service goes here and nowhere else. Messages carry links that let someone into an
+// The one place the site sends email: invitations and password resets, through Upyo, which speaks to each email
+// service's HTTP API, since Workers can't open SMTP connections. Which service is a setting (`EMAIL_PROVIDER`), so the
+// site's owners can change it without its developers (README.md). Messages carry links that let someone into an
 // account, so nothing here logs a message or puts one in an error.
+import { createMessage, type Receipt, type Transport } from "@upyo/core";
 import type { SiteEnv } from "./env.ts";
 
 /** One message, as plain text and as HTML. */
@@ -16,35 +18,119 @@ export class EmailNotSetUp extends Error {
   override name = "EmailNotSetUp";
 }
 
-/** How long Resend has to answer, in milliseconds. */
+/** The services `EMAIL_PROVIDER` can name, each through its HTTP API. */
+export const EMAIL_PROVIDERS = ["resend", "mailgun", "sendgrid", "ses", "plunk"] as const;
+
+export type EmailProvider = (typeof EMAIL_PROVIDERS)[number];
+
+/** How long a service has to answer, in milliseconds. */
 const SEND_TIMEOUT = 10_000;
 
-/** Whether the site can send email: a Resend key, and an address to send from. */
+/** The service the settings name, or nothing for a name the site doesn't know. */
+export function emailProvider(siteEnv: SiteEnv): EmailProvider | undefined {
+  const named = siteEnv.EMAIL_PROVIDER?.trim().toLowerCase();
+  return EMAIL_PROVIDERS.find((provider) => provider === named);
+}
+
+/** What's missing for the site to send email, by setting name: nothing where it can. */
+export function missingEmailSettings(siteEnv: SiteEnv): string[] {
+  const provider = emailProvider(siteEnv);
+  const missing = [
+    ...(provider ? [] : ["EMAIL_PROVIDER"]),
+    ...(siteEnv.EMAIL_FROM ? [] : ["EMAIL_FROM"]),
+    ...(siteEnv.EMAIL_API_KEY ? [] : ["EMAIL_API_KEY"]),
+  ];
+  // SES signs requests with a key pair, and needs to know which of its regions the site sends from.
+  if (provider === "ses") {
+    if (!siteEnv.EMAIL_KEY_ID) missing.push("EMAIL_KEY_ID");
+    if (!siteEnv.EMAIL_REGION) missing.push("EMAIL_REGION");
+  }
+  return missing;
+}
+
+/** Whether the site can send email: a service it knows, its key, and an address to send from. */
 export function canSendEmail(siteEnv: SiteEnv): boolean {
-  return Boolean(siteEnv.RESEND_API_KEY && siteEnv.EMAIL_FROM);
+  return missingEmailSettings(siteEnv).length === 0;
+}
+
+/** The domain an address is at. */
+function domainOf(address: string): string {
+  return address.replace(/>\s*$/, "").split("@").pop()?.trim() ?? "";
 }
 
 /**
- * Sends a message from `EMAIL_FROM` with `RESEND_API_KEY`, which should be a key that can only send, from the site's
- * own domain. Throws `EmailNotSetUp` without them, and an error naming only Resend's answer's status otherwise.
+ * The service's transport, from the settings. Tracking is off where a service has it, since it would send every link
+ * in a message, each of which lets someone into an account, through the service's own servers first. Each package is
+ * loaded only when it's the one named.
  */
-export async function sendEmail(siteEnv: SiteEnv, email: Email, fetcher: typeof fetch = fetch): Promise<void> {
-  if (!canSendEmail(siteEnv)) {
-    throw new EmailNotSetUp("Set RESEND_API_KEY and EMAIL_FROM to send email.");
+async function transportFor(siteEnv: SiteEnv, provider: EmailProvider): Promise<Transport> {
+  const apiKey = siteEnv.EMAIL_API_KEY ?? "";
+  const common = {
+    timeout: SEND_TIMEOUT,
+    retries: 1,
+    ...(siteEnv.EMAIL_API_URL && { baseUrl: siteEnv.EMAIL_API_URL }),
+  };
+  switch (provider) {
+    case "resend": {
+      const { ResendTransport } = await import("@upyo/resend");
+      return new ResendTransport({ apiKey, ...common });
+    }
+    case "mailgun": {
+      const { MailgunTransport } = await import("@upyo/mailgun");
+      return new MailgunTransport({
+        apiKey,
+        domain: siteEnv.EMAIL_DOMAIN || domainOf(siteEnv.EMAIL_FROM ?? ""),
+        region: siteEnv.EMAIL_REGION?.trim().toLowerCase() === "eu" ? "eu" : "us",
+        tracking: false,
+        clickTracking: false,
+        openTracking: false,
+        ...common,
+      });
+    }
+    case "sendgrid": {
+      const { SendGridTransport } = await import("@upyo/sendgrid");
+      return new SendGridTransport({ apiKey, clickTracking: false, openTracking: false, ...common });
+    }
+    case "ses": {
+      const { SesTransport } = await import("@upyo/ses");
+      return new SesTransport({
+        authentication: { type: "credentials", accessKeyId: siteEnv.EMAIL_KEY_ID ?? "", secretAccessKey: apiKey },
+        region: siteEnv.EMAIL_REGION ?? "",
+        ...common,
+      });
+    }
+    case "plunk": {
+      const { PlunkTransport } = await import("@upyo/plunk");
+      return new PlunkTransport({ apiKey, ...common });
+    }
   }
-  const response = await fetcher(`${siteEnv.RESEND_API_URL ?? "https://api.resend.com"}/emails`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${siteEnv.RESEND_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      from: siteEnv.EMAIL_FROM,
-      to: [email.to],
-      subject: email.subject,
-      text: email.text,
-      html: email.html,
-    }),
-    signal: AbortSignal.timeout(SEND_TIMEOUT),
+}
+
+/** What went wrong, in words that say nothing of the message or the service's own answer. */
+function failure(receipt: Extract<Receipt, { successful: false }>): string {
+  const category = receipt.errors?.[0]?.category;
+  return category ? `the service answered with an error (${category})` : "the service didn't say why";
+}
+
+/**
+ * Sends a message from `EMAIL_FROM` through the service `EMAIL_PROVIDER` names, with `EMAIL_API_KEY`, which should be
+ * a key that can only send, from the site's own domain. Throws `EmailNotSetUp` naming the settings that are missing,
+ * and an error naming only the kind of failure otherwise. `transport` is for tests.
+ */
+export async function sendEmail(siteEnv: SiteEnv, email: Email, transport?: Transport): Promise<void> {
+  const missing = missingEmailSettings(siteEnv);
+  const provider = emailProvider(siteEnv);
+  if (!transport && (missing.length > 0 || !provider)) {
+    throw new EmailNotSetUp(`Set ${missing.join(", ")} to send email.`);
+  }
+  const message = createMessage({
+    from: siteEnv.EMAIL_FROM ?? "",
+    to: email.to,
+    subject: email.subject,
+    content: { text: email.text, html: email.html },
   });
-  if (!response.ok) throw new Error(`Resend didn't send the email: it answered ${response.status}.`);
+  const receipt = await (transport ?? (await transportFor(siteEnv, provider as EmailProvider))).send(message);
+  if (!receipt.successful) throw new Error(`The email wasn't sent: ${failure(receipt)}.`);
 }
 
 /** Text as HTML shows it, with nothing in it read as markup. */
