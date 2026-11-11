@@ -135,7 +135,44 @@ export const { GET, POST } = goodfellowApi({
 });
 ```
 
-Use it to tell another system, or to refresh pages your app caches itself. The site still rebuilds as usual, which is when visitors see the change. The publish has already happened when it's called, so if it fails, the failure goes to `onError` and the editor still sees "Published."
+Use it to tell another system, or to refresh pages your app caches itself. The site still rebuilds as usual, which is when visitors see the change, unless its pages render from the repository (below). The publish has already happened when it's called, so if it fails, the failure goes to `onError` and the editor still sees "Published."
+
+## Publishing without a rebuild
+
+A full-stack site can render its pages from the repository as it is now, rather than from the files it was built with, so a publish shows without building the site again. Give `goodfellowPages()` a `source`, such as `repositorySource()` from `@goodfellow-cms/core`, which asks the host for the live branch's newest revision each time and reads each revision's content once, and keep rendered pages in your host's cache until a publish says they changed:
+
+```ts
+// lib/site.ts
+import { repositorySource } from "@goodfellow-cms/core";
+import { goodfellowPages } from "@goodfellow-cms/next";
+import config from "@/goodfellow.config";
+
+let live: ReturnType<typeof repositorySource> | undefined;
+
+export const site = goodfellowPages(config, {
+  source: () => {
+    const token = process.env.GOODFELLOW_GIT_TOKEN;
+    if (process.env.NODE_ENV === "development" || !token || !config.backend?.server) return undefined;
+    live ??= repositorySource(config.backend.server({ token }));
+    return live();
+  },
+});
+```
+
+```ts
+// app/api/goodfellow/[...path]/route.ts
+import { revalidatePath } from "next/cache";
+
+export const { GET, POST } = goodfellowApi({
+  config,
+  authorize,
+  signIn: "/sign-in",
+  // A publish can change the header, menus, or a list every page shows, so every page renders again.
+  onPublish: () => revalidatePath("/", "layout"),
+});
+```
+
+Mark the page route `export const dynamic = "force-static"`, so each page is kept once it has rendered. Where `source` gives nothing, as in `next dev`, pages read the files on your computer. A page's first visit after a publish renders it, which needs the host's API to answer then; the pages already kept don't. The company example does this on Cloudflare Workers, keeping pages in Workers KV, where a publish can take up to a minute to reach every location.
 
 ## Safety
 

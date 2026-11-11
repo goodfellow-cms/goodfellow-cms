@@ -27,13 +27,17 @@ test.beforeEach(async () => {
   await fetch(`${GITHUB}/__reset`, { method: "POST" });
 });
 
-test("serves every page from what the build rendered, rendering none for a visit", async ({ request }) => {
+test("renders each page once from the content repository, then serves it without rendering", async ({ request }) => {
+  const asked = async () => ((await (await fetch(`${GITHUB}/__requests`)).json()) as { requests: number }).requests;
   for (const address of ["/", "/about/", "/news/", "/news/welcome/"]) {
-    // The first visit after the Worker starts may fill a cache; every one after is served as the build rendered it.
-    await request.get(`${SITE}${address}`);
+    // The first visit renders the page from the content repository; every one after is the kept copy, which asks
+    // GitHub nothing.
+    expect((await request.get(`${SITE}${address}`)).status(), address).toBe(200);
+    const before = await asked();
     const page = await request.get(`${SITE}${address}`);
     expect(page.status(), address).toBe(200);
     expect(page.headers()["x-vinext-cache"], address).toBe("HIT");
+    expect(await asked(), address).toBe(before);
   }
   expect((await request.get(`${SITE}/no-such-page/`)).status()).toBe(404);
 });

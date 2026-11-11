@@ -39,7 +39,9 @@ describe("goodfellowPages with a source", () => {
       ...files,
       read: async (path: string) => {
         const text = await files.read(path);
-        return path === "content/site.json" && text ? JSON.stringify({ ...JSON.parse(text), title, titleTemplate: `%s | ${title}` }) : text;
+        return path === "content/site.json" && text
+          ? JSON.stringify({ ...JSON.parse(text), title, titleTemplate: `%s | ${title}` })
+          : text;
       },
     };
     const live = goodfellowPages({ blocks: {} }, { root: "/nowhere", source: () => source });

@@ -1266,6 +1266,7 @@ export {
   type UpdateOptions,
   type UpdatePlan,
 } from "./registry.js";
+export { type RepositorySourceOptions, repositorySource } from "./repository-source.js";
 export {
   IMAGE_WIDTHS,
   imageSrcSet,
@@ -1305,7 +1306,6 @@ export {
   signInServiceProblem,
   withBackendOption,
 } from "./sign-in-config.js";
-export { type RepositorySourceOptions, repositorySource } from "./repository-source.js";
 export {
   adminSiteForCopy,
   builtSource,
