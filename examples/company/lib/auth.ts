@@ -11,7 +11,10 @@ import { dialectFor } from "./db/dialect.ts";
 import { canSendEmail, EmailRefused, passwordResetEmail, sendEmail } from "./email.ts";
 import { env, inBackground, type SiteEnv } from "./env.ts";
 
-/** How long a signed-in session is checked from its signed cookie alone, without reading the database. */
+/**
+ * How long the browser's own copy of a session (the "signed in as" line on members' pages) is read from its signed
+ * cookie alone, without the database. Nothing that decides who may see or change anything reads it.
+ */
 export const SESSION_CACHE_SECONDS = 5 * 60;
 
 /** The fewest characters `BETTER_AUTH_SECRET` may have. */
@@ -447,15 +450,20 @@ export async function authorize(request: Request): Promise<AppEditor | null | fa
 }
 
 /**
- * Whether a request comes from someone signed in, for pages only they see: their session is checked, from its signed
- * cookie for a few minutes at a time and the database after that, never only seen. `cookies` are the ones Better Auth
- * renewed or ended while checking, for the answer to pass on.
+ * Whether a request comes from someone signed in, for pages only they see: their session is read from the database
+ * every time, never only seen, and never from the session cookie's cached copy, which would keep showing the pages
+ * for the rest of the cache's time after a used reset link signs the account out everywhere, or after someone is
+ * banned or removed. `cookies` are the ones Better Auth renewed or ended while checking, for the answer to pass on.
  */
 export async function signedInWith(
   siteAuth: SiteAuth,
   request: Request,
 ): Promise<{ signedIn: boolean; cookies: string[] }> {
-  const { headers, response } = await siteAuth.api.getSession({ headers: request.headers, returnHeaders: true });
+  const { headers, response } = await siteAuth.api.getSession({
+    headers: request.headers,
+    query: { disableCookieCache: true },
+    returnHeaders: true,
+  });
   return { signedIn: Boolean(response && !response.user.banned), cookies: headers.getSetCookie() };
 }
 

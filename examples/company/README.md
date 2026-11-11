@@ -87,7 +87,7 @@ Every page is rendered once and served as it was, so a request costs the server 
 
 - **Pages that look the same to everyone**, which is every page here, are static.
 - **What shows who's signed in** is filled in by the browser (`app/(site)/members/signed-in-as.tsx`), so the page around it stays static.
-- **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session (from its signed cookie for a few minutes at a time, then the database) and sends everyone else to sign in before the page is served.
+- **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session in the database on every request, so a used reset link, a ban, or a removal takes effect at once, and sends everyone else to sign in before the page is served.
 
 ## How it fits together
 
