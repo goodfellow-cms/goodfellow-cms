@@ -374,7 +374,14 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
    */
   async function updateBlocks(release: string): Promise<{ kept: string[] } | { failed: UpdateResult }> {
     const kept: string[] = [];
-    let record = parseInstalledRecord(await read(INSTALLED_RECORD_FILE));
+    let record: ReturnType<typeof parseInstalledRecord>;
+    try {
+      record = parseInstalledRecord(await read(INSTALLED_RECORD_FILE));
+    } catch {
+      // What was written before is put back, as for any other failure.
+      log(`${INSTALLED_RECORD_FILE} can't be read, so the blocks weren't updated.`);
+      return { failed: await failed({ step: "blocks" }) };
+    }
     const registries = { [GOODFELLOW_REGISTRY]: options.registry ?? goodfellowRegistryUrl(release) };
     const dependencies = (JSON.parse(packageText) as { dependencies?: Record<string, string> }).dependencies;
     const packages = [...REGISTRY_PACKAGES, ...Object.keys(dependencies ?? {})];

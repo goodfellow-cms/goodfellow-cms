@@ -217,6 +217,17 @@ describe("goodfellow update", () => {
     expect(again.ran).not.toContain("npm run build");
   });
 
+  it("puts back what it wrote where the blocks' record can't be read", async () => {
+    await site();
+    const before = await read("package.json");
+    await writeFile(join(root, "blocks/installed/installed.json"), "{ not json\n");
+    const { run } = commands();
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, blocks: true, log: () => {}, env: {} });
+    expect(result).toMatchObject({ state: "failed", step: "blocks" });
+    expect(await read("package.json")).toBe(before);
+    expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+  });
+
   it("leaves block files someone changed", async () => {
     await site("export default { mine: true };\n");
     const { run } = commands();
