@@ -4,8 +4,10 @@ import type { AppEditor } from "@goodfellow-cms/core";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
+import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { dialectFor } from "./db/dialect.ts";
-import { env, type SiteEnv } from "./env.ts";
+import { passwordResetEmail, sendEmail } from "./email.ts";
+import { env, inBackground, type SiteEnv } from "./env.ts";
 
 /** How long a signed-in session is checked from its signed cookie alone, without reading the database. */
 export const SESSION_CACHE_SECONDS = 5 * 60;
@@ -15,6 +17,41 @@ export const MIN_SECRET_LENGTH = 32;
 
 /** How many times one address may try to sign in, and in how many seconds. */
 export const SIGN_IN_LIMIT = { window: 5 * 60, max: 10 };
+
+/** How many times one address may ask for a password reset email, and in how many seconds. */
+export const RESET_LIMIT = { window: 60 * 60, max: 5 };
+
+/** How long a password reset's link works, in minutes. */
+export const RESET_MINUTES = 30;
+
+/** The fewest characters a password may have. */
+export const MIN_PASSWORD_LENGTH = 12;
+
+/**
+ * Sends someone who forgot their password a link to choose a new one, at the site's own address, never the
+ * request's. Better Auth asks for it for any address, and answers the same whether or not it has an account, so this
+ * never fails where the visitor could see it: the email goes after the answer, and a failure is logged without it.
+ */
+function sendReset(siteEnv: SiteEnv) {
+  return async ({ user, token }: { user: { email: string; name: string }; token: string }) => {
+    const siteUrl = siteEnv.GOODFELLOW_SITE_URL;
+    if (!siteUrl) return console.error("Set GOODFELLOW_SITE_URL so password reset emails can link to the site.");
+    const link = new URL("/reset-password/", siteUrl);
+    link.searchParams.set("token", token);
+    const email = passwordResetEmail({
+      to: user.email,
+      name: user.name,
+      siteUrl,
+      link: link.href,
+      minutes: RESET_MINUTES,
+    });
+    inBackground(
+      sendEmail(siteEnv, email).catch((error: unknown) =>
+        console.error(`A password reset email wasn't sent: ${error instanceof Error ? error.name : "error"}.`),
+      ),
+    );
+  };
+}
 
 /**
  * `BETTER_AUTH_SECRET`, which signs sessions. Without one, Better Auth falls back to a secret anyone can read in its
@@ -43,10 +80,22 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       baseURL: siteEnv.GOODFELLOW_SITE_URL,
       trustedOrigins: [siteEnv.GOODFELLOW_SITE_URL],
     }),
-    emailAndPassword: { enabled: true, disableSignUp: true },
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: true,
+      minPasswordLength: MIN_PASSWORD_LENGTH,
+      // Invitations use the same links (lib/editors.ts), with a longer life of their own.
+      sendResetPassword: sendReset(siteEnv),
+      resetPasswordTokenExpiresIn: RESET_MINUTES * 60,
+      revokeSessionsOnPasswordReset: true,
+    },
     // Always on: Better Auth turns it on by itself only where NODE_ENV is "production", which Workers don't set. Kept
     // in the database, so every copy of the Worker counts the same attempts.
-    rateLimit: { enabled: true, storage: "database", customRules: { "/sign-in/email": SIGN_IN_LIMIT } },
+    rateLimit: {
+      enabled: true,
+      storage: "database",
+      customRules: { "/sign-in/email": SIGN_IN_LIMIT, "/request-password-reset": RESET_LIMIT },
+    },
     advanced: {
       // The site's addresses end in a slash (`trailingSlash`), so its routes arrive as `/api/auth/get-session/`.
       skipTrailingSlashes: true,
@@ -54,7 +103,11 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
     },
     session: { cookieCache: { enabled: true, maxAge: SESSION_CACHE_SECONDS } },
     // `admin` people are the site's owners; everyone else an admin invites is an editor.
-    plugins: [admin({ defaultRole: "editor", adminRoles: ["admin"] }), nextCookies()],
+    // The site's two roles, so the admin plugin refuses any other: admins, who may do everything, and editors.
+    plugins: [
+      admin({ defaultRole: "editor", adminRoles: ["admin"], roles: { admin: adminAc, editor: userAc } }),
+      nextCookies(),
+    ],
   } satisfies BetterAuthOptions;
 }
 

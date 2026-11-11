@@ -154,3 +154,80 @@ test("tells the admin panel where to sign in, and refuses requests from other si
   });
   expect(crossSite.status()).toBe(403);
 });
+
+/** The link in the newest message the fake Resend was sent for `to`. */
+async function emailedLink(to: string): Promise<string> {
+  let found: string | undefined;
+  await expect(async () => {
+    const sent = (await (await fetch(`http://127.0.0.1:${COMPANY.resend}/__sent`)).json()) as Array<{
+      to: string[];
+      text: string;
+    }>;
+    const message = sent.filter((email) => email.to.includes(to)).at(-1);
+    found = message?.text.match(/https?:\/\/\S+/)?.[0];
+    expect(found).toBeDefined();
+  }).toPass();
+  return found ?? "";
+}
+
+test("lets admins invite editors, who choose a password, and lets anyone choose a new one", async ({ page }) => {
+  // The database lasts the whole run, so each run invites someone new.
+  const email = `ivy-${Date.now()}@example.org`;
+  await signIn(page, "admin", "/admin/editors/");
+  await expect(page.getByRole("cell", { name: COMPANY_PEOPLE.editor.email })).toBeVisible();
+  await page.getByLabel("Name", { exact: true }).fill("Ivy Invited");
+  await page.getByLabel("Email address").fill(email);
+  await page.getByRole("button", { name: "Send the invitation" }).click();
+  await expect(page.getByRole("status")).toHaveText(new RegExp(`We've emailed ${email}`));
+  await expect(page.getByRole("cell", { name: "Ivy Invited (invited)" })).toBeVisible();
+
+  const invitation = await emailedLink(email);
+  expect(invitation).toMatch(new RegExp(`^${SITE}/accept-invite/\\?token=`));
+  await page.goto(`${SITE}/sign-out/`);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto(invitation);
+  await page.getByLabel("New password").fill("ivy's first password");
+  await page.getByLabel("The same password again").fill("ivy's first password");
+  await page.getByRole("button", { name: "Set my password" }).click();
+  await expect(page.getByText("Your password is set.")).toBeVisible();
+  // The link works once.
+  await page.goto(invitation);
+  await page.getByLabel("New password").fill("another long password");
+  await page.getByLabel("The same password again").fill("another long password");
+  await page.getByRole("button", { name: "Set my password" }).click();
+  await expect(page.getByRole("alert")).toContainText("already been used or has run out");
+
+  // Forgot it already.
+  await page.goto(`${SITE}/sign-in/`);
+  await page.getByRole("link", { name: "Forgot your password?" }).click();
+  await page.getByLabel("Email address").fill(email);
+  await page.getByRole("button", { name: "Send me a link" }).click();
+  await expect(page.getByText("If that address has an account here")).toBeVisible();
+  const reset = await emailedLink(email);
+  expect(reset).toMatch(new RegExp(`^${SITE}/reset-password/\\?token=`));
+  await page.goto(reset);
+  await page.getByLabel("New password").fill("ivy's second password");
+  await page.getByLabel("The same password again").fill("ivy's second password");
+  await page.getByRole("button", { name: "Change my password" }).click();
+  await expect(page.getByText("Your password is changed")).toBeVisible();
+
+  await page.goto(`${SITE}/sign-in/?next=%2Fmembers%2F`);
+  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Password").fill("ivy's second password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("Signed in as Ivy Invited.")).toBeVisible();
+});
+
+test("keeps the editors page to the site's admins", async ({ page }) => {
+  await signIn(page, "editor");
+  const answers = await page.evaluate(async () => {
+    const list = await fetch("/api/editors/");
+    const invite = await fetch("/api/editors/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "mallory@example.org", name: "Mallory", role: "admin" }),
+    });
+    return [list.status, invite.status];
+  });
+  expect(answers).toEqual([403, 403]);
+});

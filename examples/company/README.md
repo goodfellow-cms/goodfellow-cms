@@ -73,6 +73,14 @@ Each address can try to sign in 10 times in 5 minutes (`SIGN_IN_LIMIT` in `lib/a
 
 Signing out (`app/sign-out/`) works only from the site's own pages, so a link on another site can't sign people out; an address typed in asks first.
 
+## Editors
+
+Admins invite people from **Editors** (`/admin/editors/`): its name, email address, and whether they can edit pages or everything. The site makes their account with a password nobody knows and emails them a link to choose their own, which works once, for 48 hours (`INVITATION_HOURS` in `lib/editors.ts`). Until they've chosen one, the page lists them as invited and can send the link again. Admins change what others can do and remove them there, but never themselves, so the site always keeps an admin.
+
+Email goes through [Resend](https://resend.com) (`lib/email.ts`), since Workers can't send it any other way. Make a key that can only send, from a domain you've verified there, and set it as the `RESEND_API_KEY` secret, and add `EMAIL_FROM` (such as `Example Co <hello@example.org>`) to `wrangler.jsonc`'s `vars`. Without them, the editors page shows each invitation's link for you to send yourself.
+
+**Forgot your password?** on the sign-in page emails a link to choose a new one, which works once, for 30 minutes, and signs the account out everywhere once it's used. It says the same whether or not the address has an account, and each address can ask 5 times an hour. Passwords are at least 12 characters.
+
 ## Rendering
 
 Every page is rendered once and served as it was, so a request costs the server almost nothing:
