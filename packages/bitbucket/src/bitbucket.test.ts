@@ -670,6 +670,24 @@ describe("updates and scheduled changes", () => {
     );
     await backend.revision();
     expect(await backend.updates?.setup()).toBe("missing");
+    // Nor where the update pipeline's own publishing step is commented out.
+    fake.commit(
+      "bitbucket-pipelines.yml",
+      [
+        "pipelines:",
+        "  custom:",
+        "    update:",
+        "      - step:",
+        "          script: [npx goodfellow update --commit]",
+        "      - step:",
+        "          script:",
+        "            # - git am goodfellow-publish.patch",
+        "            - echo nothing",
+        "",
+      ].join("\n"),
+    );
+    await backend.revision();
+    expect(await backend.updates?.setup()).toBe("missing");
   });
 
   it("runs the update with the release asked for, rebuilds, and reads what the last run did from its log", async () => {

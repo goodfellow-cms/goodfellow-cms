@@ -237,22 +237,28 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         return json({ invite_email: email });
       }
     }
+    // The free plan's one level of each, with ids as GitLab gives them, and the deploy keys that may push.
+    const shownProtection = (
+      name: string,
+      branch: { push: number; merge: number; forcePush: boolean; deployKeys?: number[] },
+    ) => ({
+      name,
+      push_access_levels: [
+        { id: 1, access_level: branch.push, deploy_key_id: null },
+        ...(branch.deployKeys ?? []).map((key) => ({ id: 100 + key, access_level: 40, deploy_key_id: key })),
+      ],
+      merge_access_levels: [{ id: 2, access_level: branch.merge }],
+      allow_force_push: branch.forcePush,
+    });
+    if (rest === "/protected_branches" && request.method === "GET") {
+      return json([...protectedBranches].map(([name, branch]) => shownProtection(name, branch)));
+    }
     const protection = rest.match(/^\/protected_branches\/([^/]+)$/);
     if (protection) {
       const name = decodeURIComponent(protection[1] ?? "");
       const found = protectedBranches.get(name);
       if (!found) return json({ message: "404 Not found" }, 404);
-      // The free plan's one level of each, with ids as GitLab gives them, and the deploy keys that may push.
-      const shown = (branch: { push: number; merge: number; forcePush: boolean; deployKeys?: number[] }) => ({
-        name,
-        push_access_levels: [
-          { id: 1, access_level: branch.push, deploy_key_id: null },
-          ...(branch.deployKeys ?? []).map((key) => ({ id: 100 + key, access_level: 40, deploy_key_id: key })),
-        ],
-        merge_access_levels: [{ id: 2, access_level: branch.merge }],
-        allow_force_push: branch.forcePush,
-      });
-      if (request.method === "GET") return json(shown(found));
+      if (request.method === "GET") return json(shownProtection(name, found));
       if (request.method === "DELETE") {
         if (accessLevel < 40) return forbidden();
         protectedBranches.delete(name);
@@ -294,7 +300,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
         };
         protectedBranches.set(name, changed);
         protectionChanges.push(`PATCH ${name}`);
-        return json(shown(changed));
+        return json(shownProtection(name, changed));
       }
     }
     if (rest === "/protected_branches" && request.method === "POST") {
@@ -346,6 +352,8 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     id: number;
     source: string;
     status: string;
+    /** The publish job's status, where the pipeline has one. */
+    publish?: string;
     variables?: Array<{ key: string; value: string }>;
     trace: string;
   }> = [];
@@ -353,6 +361,7 @@ export function fakeGitLab(options: FakeGitLabOptions) {
   function addUpdateRun(run: {
     source?: string;
     status?: string;
+    publish?: string;
     trace?: string;
     variables?: Array<{ key: string; value: string }>;
   }) {
@@ -1216,7 +1225,10 @@ export function fakeGitLab(options: FakeGitLabOptions) {
     if (updateJobs) {
       const run = updateRuns.find((candidate) => candidate.id === Number(updateJobs[1]));
       return run
-        ? json([{ id: run.id, name: options.updateJob ?? "pages", status: run.status }])
+        ? json([
+            { id: run.id, name: options.updateJob ?? "pages", status: run.status },
+            ...(run.publish ? [{ id: run.id + 100000, name: "publish", status: run.publish }] : []),
+          ])
         : json({ message: "404 Not Found" }, 404);
     }
     const updateTrace = rest.match(/^\/jobs\/(\d{4,})\/trace$/);

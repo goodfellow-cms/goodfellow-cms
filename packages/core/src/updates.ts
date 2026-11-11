@@ -327,6 +327,20 @@ export interface UpdateResult {
   rollback?: boolean;
 }
 
+/**
+ * The lines of a setup file's section named `key` (such as a workflow's job or a pipeline), at whatever indent,
+ * down to the next line indented no further, without comment lines, which run nothing. Empty where there's none.
+ * Setup files are read to tell what a site's builds do, so commented-out commands mustn't count.
+ */
+export function setupSection(text: string, key: string): string {
+  const lines = text.split("\n").filter((line) => !/^\s*(?:-\s*)?#/.test(line));
+  const start = lines.findIndex((line) => line.trim() === `${key}:`);
+  if (start < 0) return "";
+  const indent = (lines[start] ?? "").search(/\S/);
+  const end = lines.findIndex((line, index) => index > start && line.trim() !== "" && line.search(/\S/) <= indent);
+  return lines.slice(start, end < 0 ? undefined : end).join("\n");
+}
+
 /** Starts the line `goodfellow update` prints about what it did. */
 export const UPDATE_RESULT_MARKER = "goodfellow-update ";
 

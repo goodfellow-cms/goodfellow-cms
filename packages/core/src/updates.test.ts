@@ -9,6 +9,7 @@ import {
   parseUpdateSettings,
   releaseVersions,
   SITE_OVERRIDES,
+  setupSection,
   siteVersion,
   updateSettingsFile,
   withSiteOverrides,
@@ -110,5 +111,30 @@ describe("update results", () => {
     const result = { state: "updated" as const, from: "0.4.1", to: "0.4.3", kept: [] };
     expect(findUpdateResult(`Installing…\n${formatUpdateResult(result)}\nDone`)).toEqual(result);
     expect(findUpdateResult("goodfellow-update {}")).toBeUndefined();
+  });
+});
+
+describe("setupSection", () => {
+  const workflow = [
+    "jobs:",
+    "    update:",
+    "        steps:",
+    "            - run: npx goodfellow update --commit",
+    "    publish-update:",
+    "        steps:",
+    "            # - run: git push",
+    "            - run: echo done",
+    "    build:",
+    "        steps: []",
+    "",
+  ].join("\n");
+
+  it("gives one section, at whatever indent, without comment lines", () => {
+    expect(setupSection(workflow, "publish-update")).toBe(
+      "    publish-update:\n        steps:\n            - run: echo done",
+    );
+    expect(setupSection(workflow, "update")).toContain("update --commit");
+    expect(setupSection(workflow, "update")).not.toContain("publish-update");
+    expect(setupSection(workflow, "deploy")).toBe("");
   });
 });

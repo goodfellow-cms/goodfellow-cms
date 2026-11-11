@@ -425,10 +425,15 @@ describe("updates", () => {
 
   it("says whether the site's workflow updates Goodfellow", async () => {
     expect(await (await site()).updates.setup()).toBe("ready");
-    const committed = "jobs:\n  update:\n    steps:\n      - run: npx goodfellow update --commit\n";
-    expect(await (await site(`${committed}  publish-update:\n    steps: []\n`)).updates.setup()).toBe("ready");
-    // A commit nothing publishes is thrown away when the job ends.
+    const committed = "jobs:\n    update:\n        steps:\n            - run: npx goodfellow update --commit\n";
+    const pushes = "    publish-update:\n        steps:\n            - run: git push origin HEAD:main\n";
+    expect(await (await site(`${committed}${pushes}`)).updates.setup()).toBe("ready");
+    // A commit nothing publishes is thrown away when the job ends: no job after it, one that doesn't push, or one
+    // whose push is commented out.
     expect(await (await site(committed)).updates.setup()).toBe("missing");
+    expect(await (await site(`${committed}    publish-update:\n        steps: []\n`)).updates.setup()).toBe("missing");
+    expect(await (await site(`${committed}${pushes.replace("- run:", "# - run:")}`)).updates.setup()).toBe("missing");
+    expect(await (await site("# run: npx goodfellow update --publish")).updates.setup()).toBe("missing");
     expect(await (await site("run: npx goodfellow build")).updates.setup()).toBe("missing");
   });
 

@@ -9,6 +9,7 @@ import {
   nightlyMode,
   SignInError,
   type SiteUpdates,
+  setupSection,
   siteVersion,
   type UpdateRun,
   UpdatesError,
@@ -62,9 +63,16 @@ export function githubUpdates(
     async setup() {
       const text = await files.read(workflowFile);
       if (!text) return "missing";
-      // With --commit, the update job's commit is thrown away unless the job after it publishes it.
-      if (/update --publish\b/.test(text)) return "ready";
-      return /update --commit\b/.test(text) && new RegExp(`^  ${PUBLISH_JOB}:`, "m").test(text) ? "ready" : "missing";
+      // Comment lines run nothing, so a commented-out command doesn't count.
+      const runs = text
+        .split("\n")
+        .filter((line) => !/^\s*(?:-\s*)?#/.test(line))
+        .join("\n");
+      if (/update --publish\b/.test(runs)) return "ready";
+      // With --commit, the update job's commit is thrown away unless the job after it pushes it.
+      return /update --commit\b/.test(runs) && /\bgit push\b/.test(setupSection(text, PUBLISH_JOB))
+        ? "ready"
+        : "missing";
     },
 
     async lastRun(): Promise<UpdateRun | undefined> {

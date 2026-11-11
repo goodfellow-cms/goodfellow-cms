@@ -521,8 +521,26 @@ describe("updates", () => {
     );
     expect(fake.updateSettings.schedules).toHaveLength(1);
 
+    const keyId = replaced?.id ?? 0;
+    // A wildcard protection covering the branch counts as the branch's.
+    fake.protectedBranches.delete("main");
+    fake.protectedBranches.set("ma*", { push: 30, merge: 30, forcePush: false, deployKeys: [keyId] });
+    expect(await updates.setup()).toBe("ready");
+    // An unprotected branch's pipelines never get the protected key.
+    fake.protectedBranches.delete("ma*");
+    expect(await updates.setup()).toBe("needs-setup");
     // A protection made again without the key, which then can't publish to the main branch.
     fake.protectedBranches.set("main", { push: 30, merge: 30, forcePush: false });
+    expect(await updates.setup()).toBe("needs-setup");
+    fake.protectedBranches.set("main", { push: 30, merge: 30, forcePush: false, deployKeys: [keyId] });
+    expect(await updates.setup()).toBe("ready");
+    // The key's variable changed so other branches' or jobs' pipelines could have it.
+    const id = "GOODFELLOW_DEPLOY_KEY goodfellow-publish";
+    const stored = fake.updateSettings.variables.get(id);
+    if (!stored) throw new Error("No variable");
+    fake.updateSettings.variables.set(id, { ...stored, protected: false });
+    expect(await updates.setup()).toBe("needs-setup");
+    fake.updateSettings.variables.set(id, { ...stored, masked: false });
     expect(await updates.setup()).toBe("needs-setup");
   });
 
@@ -640,8 +658,12 @@ describe("updates", () => {
       updateJob: "prepare",
     });
     const backend = await gitlab({ project: "parish/site", fetch: fake.fetch }).signInWithToken("test-token", false);
-    fake.addUpdateRun({ trace: 'goodfellow-update {"state":"updated","from":"0.4.1","to":"0.4.3","kept":[]}\n' });
+    const trace = 'goodfellow-update {"state":"updated","from":"0.4.1","to":"0.4.3","kept":[]}\n';
+    fake.addUpdateRun({ trace, publish: "success" });
     expect(await backend.updates?.lastRun()).toMatchObject({ state: "updated", result: { to: "0.4.3" } });
+    // Made, but the publish job didn't publish it.
+    fake.addUpdateRun({ trace, publish: "failed" });
+    expect(await backend.updates?.lastRun()).toMatchObject({ state: "failed" });
   });
 });
 

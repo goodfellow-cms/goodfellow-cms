@@ -12,6 +12,7 @@ import {
   newDeployKey,
   PREPARE_JOB,
   PUBLISH_ENVIRONMENT,
+  PUBLISH_JOB,
   PUBLISH_MARK,
   type SiteUpdates,
   type UpdateRun,
@@ -47,7 +48,15 @@ interface ProjectDeployKey {
 }
 
 interface ProtectedBranch {
+  name?: string;
   push_access_levels?: Array<{ id?: number; access_level: number | null; deploy_key_id?: number | null }>;
+}
+
+/** Whether a protection's name, which may hold `*` wildcards, covers the branch. */
+function protects(name: string | undefined, branch: string): boolean {
+  if (!name) return false;
+  const pattern = name.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(`^${pattern.join(".*")}$`).test(branch);
 }
 
 /** GitLab's Developer role, which a branch it protects for the key lets push, as an unprotected branch does. */
@@ -227,17 +236,28 @@ export function gitlabUpdates(
         );
         if (!scheduled) return "needs-setup";
         if (keyed) {
-          const [keys, variable, protection] = await Promise.all([
+          const [keys, variable, protections] = await Promise.all([
             publishingKeys(api, base),
             gitlabRequest(api, variablePath(base), { allow: [404] }),
-            gitlabRequest(api, `${base}/protected_branches/${encodeURIComponent(branch)}`, { allow: [404] }),
+            gitlabJson<ProtectedBranch[]>(api, `${base}/protected_branches?per_page=100`),
           ]);
           const pushing = keys.filter((key) => key.can_push);
-          // Where the branch is protected, a key may push to it only where the protection names it, which making
-          // the protection again (as letting editors publish does on older GitLab) can leave out.
-          const levels = protection.ok ? (((await protection.json()) as ProtectedBranch).push_access_levels ?? []) : [];
-          const named = !protection.ok || pushing.some((key) => levels.some((level) => level.deploy_key_id === key.id));
-          return pushing.length > 0 && named && variable.ok ? "ready" : "needs-setup";
+          // The key's variable is protected, so only a protected branch's pipelines get it, and a key may push to
+          // the branch only where a protection covering it (by name or wildcard) names it, which making the
+          // protection again (as letting editors publish does on older GitLab) can leave out.
+          const levels = protections
+            .filter((protection) => protects(protection.name, branch))
+            .flatMap((protection) => protection.push_access_levels ?? []);
+          const named = pushing.some((key) => levels.some((level) => level.deploy_key_id === key.id));
+          // Only the publish job's environment, on protected branches, and kept out of logs.
+          const settings = variable.ok
+            ? ((await variable.json()) as { protected?: boolean; masked?: boolean; environment_scope?: string })
+            : undefined;
+          const kept =
+            settings?.protected === true &&
+            settings.masked === true &&
+            settings.environment_scope === PUBLISH_ENVIRONMENT;
+          return pushing.length > 0 && named && kept ? "ready" : "needs-setup";
         }
         const settings = await gitlabJson<{ ci_push_repository_for_job_token_allowed?: boolean }>(api, base);
         return settings.ci_push_repository_for_job_token_allowed ? "ready" : "needs-setup";
@@ -282,7 +302,7 @@ export function gitlabUpdates(
         if (["created", "pending", "running", "waiting_for_resource", "preparing"].includes(pipeline.status)) {
           return { state: "running", ...run };
         }
-        const jobs = await gitlabJson<Array<{ id: number; name: string }>>(
+        const jobs = await gitlabJson<Array<{ id: number; name: string; status?: string }>>(
           api,
           `${base}/pipelines/${pipeline.id}/jobs?per_page=100`,
         );
@@ -296,6 +316,9 @@ export function gitlabUpdates(
         const result = response.ok ? findUpdateResult(await response.text()) : undefined;
         // A pipeline started for something else, which didn't update.
         if (!result) continue;
+        // The prepare job only commits the update; the publish job after it publishes it, or doesn't.
+        const publish = jobs.find((candidate) => candidate.name === PUBLISH_JOB);
+        if (result.state === "updated" && publish && publish.status !== "success") return { state: "failed", ...run };
         return { state: result.state, result, ...run };
       }
       return undefined;

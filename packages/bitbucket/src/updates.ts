@@ -9,6 +9,7 @@ import {
   PUBLISH_PATCH,
   SignInError,
   type SiteUpdates,
+  setupSection,
   type UpdateRun,
   UpdatesError,
 } from "@goodfellow-cms/core";
@@ -22,25 +23,13 @@ interface Variable {
   value?: string;
 }
 
-/** The lines of one of `bitbucket-pipelines.yml`'s pipelines, such as the update pipeline under `custom`. */
-function pipelineLines(setup: string, name: string): string {
-  const lines = setup.split("\n");
-  const start = lines.findIndex((line) => line.trim() === `${name}:` && /^\s+/.test(line));
-  if (start < 0) return "";
-  const indent = (lines[start]?.match(/^\s*/)?.[0] ?? "").length;
-  const end = lines.findIndex(
-    (line, index) => index > start && line.trim() !== "" && (line.match(/^\s*/)?.[0] ?? "").length <= indent,
-  );
-  return lines.slice(start, end < 0 ? undefined : end).join("\n");
-}
-
 /**
  * Whether the update pipeline publishes the updates it makes: itself, with `--publish`, or, with `--commit`, through
  * a step after it in the same pipeline that applies the commit (`PUBLISH_PATCH`), since the update's commit is
  * otherwise thrown away. The lockfile's publish step applies the same file, so only the update pipeline counts.
  */
 function publishesUpdates(setup: string): boolean {
-  const pipeline = pipelineLines(setup, BITBUCKET_PIPELINE_NAMES.update);
+  const pipeline = setupSection(setup, BITBUCKET_PIPELINE_NAMES.update);
   if (/update --publish\b/.test(pipeline)) return true;
   const commit = pipeline.search(/update --commit\b/);
   return commit >= 0 && pipeline.indexOf(`am ${PUBLISH_PATCH}`, commit) >= 0;
