@@ -145,6 +145,21 @@ describe("setupSection", () => {
     expect(Date.now() - started).toBeLessThan(1000);
   });
 
+  it("keeps a # in quotes, and an apostrophe within a word opens none", () => {
+    expect(setupLines(`      - run: 'echo "Publishing #1"; git push origin HEAD:main'`)).toEqual([
+      `      - run: 'echo "Publishing #1"; git push origin HEAD:main'`,
+    ]);
+    expect(setupLines(`      - run: echo "a \\" #1" # gone`)).toEqual([`      - run: echo "a \\" #1"`]);
+    expect(setupLines("      - run: echo don't # git push")).toEqual(["      - run: echo don't"]);
+  });
+
+  it("finds quoted and anchored keys", () => {
+    const pipeline = ['  "update": &update', "    - step: a", "  'publish-update': !job", "    steps: b"].join("\n");
+    expect(setupSection(pipeline, "update")).toBe('  "update": &update\n    - step: a');
+    expect(setupSection(pipeline, "publish-update")).toBe("  'publish-update': !job\n    steps: b");
+    expect(setupSection("  update: something else\n    x", "update")).toBe("");
+  });
+
   it("leaves out comments after a command", () => {
     expect(setupLines("      - echo nothing # git am goodfellow-publish.patch\n      - run: x")).toEqual([
       "      - echo nothing",

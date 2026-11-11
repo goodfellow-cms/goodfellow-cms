@@ -52,11 +52,32 @@ interface ProtectedBranch {
   push_access_levels?: Array<{ id?: number; access_level: number | null; deploy_key_id?: number | null }>;
 }
 
-/** Whether a protection's name, which may hold `*` wildcards, covers the branch. */
-function protects(name: string | undefined, branch: string): boolean {
+/**
+ * Whether a protection's name, which may hold `*` wildcards, covers the whole branch name. Matched without a
+ * regex, going back only to the last `*`, so the work grows with the two names' lengths whatever the name holds.
+ */
+export function protects(name: string | undefined, branch: string): boolean {
   if (!name) return false;
-  const pattern = name.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"));
-  return new RegExp(`^${pattern.join(".*")}$`).test(branch);
+  let at = 0;
+  let from = 0;
+  let star = -1;
+  let resume = 0;
+  while (at < branch.length) {
+    if (from < name.length && name[from] !== "*" && name[from] === branch[at]) {
+      at++;
+      from++;
+    } else if (from < name.length && name[from] === "*") {
+      star = from++;
+      resume = at;
+    } else if (star >= 0) {
+      from = star + 1;
+      at = ++resume;
+    } else {
+      return false;
+    }
+  }
+  while (from < name.length && name[from] === "*") from++;
+  return from === name.length;
 }
 
 /** GitLab's Developer role, which a branch it protects for the key lets push, as an unprotected branch does. */
