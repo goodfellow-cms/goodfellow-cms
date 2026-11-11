@@ -278,13 +278,43 @@ async function fetchJsonFromNetwork(url: string): Promise<unknown> {
  * `publish`, a site that built is published as one commit.
  */
 export async function update(options: UpdateOptions = {}): Promise<UpdateResult> {
+  const undo: { written: () => boolean; restore: () => Promise<void> } = {
+    written: () => false,
+    restore: async () => {},
+  };
+  try {
+    return await updateSite(options, undo);
+  } catch (error) {
+    // Anything else that goes wrong once files are written, such as a file that can't be read, puts them back too.
+    if (undo.written()) {
+      try {
+        await undo.restore();
+      } catch (rollbackError) {
+        // Both, so a rollback that didn't finish isn't hidden behind the error that started it, or the other way round.
+        throw new AggregateError([error, rollbackError], "The update failed, and putting the site back failed too.");
+      }
+    }
+    throw error;
+  }
+}
+
+async function updateSite(
+  options: UpdateOptions,
+  undo: { written: () => boolean; restore: () => Promise<void> },
+): Promise<UpdateResult> {
   const root = resolve(options.root ?? ".");
   const fetchJson = options.fetchJson ?? fetchJsonFromNetwork;
   const run = options.run ?? runCommand;
   const log = options.log ?? ((line: string) => console.log(line));
   const env = options.env ?? process.env;
 
-  const read = (path: string) => readFile(join(root, path), "utf8").catch(() => undefined);
+  // Only a file that isn't there is missing: one that can't be read stops the update, rather than being taken as
+  // missing and written over, or deleted when the update is undone.
+  const read = (path: string) =>
+    readFile(join(root, path), "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
   const packageText = await readFile(join(root, "package.json"), "utf8");
   const from = siteVersion(packageText);
   if (!from) {
@@ -352,7 +382,12 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
       await writeFile(file, change.content);
     }
   };
+  // Whether packages were installed, which putting the site back undoes.
+  let installed = false;
   const restore = async () => {
+    // Nothing written and nothing installed, such as where the blocks' record can't be read first: nothing to undo,
+    // and reinstalling could only leave the site's packages worse off.
+    if (originals.size === 0 && !installed) return;
     for (const [path, text] of originals) {
       const file = join(root, path);
       if (text === undefined) await rm(file, { force: true });
@@ -362,6 +397,8 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     // Without scripts on an automatic run, as its install was.
     await run("npm", ["ci", "--no-audit", "--no-fund", ...(target === "automatic" ? ["--ignore-scripts"] : [])], root);
   };
+  undo.written = () => originals.size > 0 || installed;
+  undo.restore = restore;
   const failed = async (result: Omit<UpdateResult, "state" | "from" | "to">): Promise<UpdateResult> => {
     await restore();
     log(`The update to ${to ?? from} didn't work, so nothing changed.`);
@@ -374,7 +411,16 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
    */
   async function updateBlocks(release: string): Promise<{ kept: string[] } | { failed: UpdateResult }> {
     const kept: string[] = [];
-    let record = parseInstalledRecord(await read(INSTALLED_RECORD_FILE));
+    let record: ReturnType<typeof parseInstalledRecord>;
+    try {
+      // Only a site without the record has no blocks: one that's there but can't be read isn't taken as empty,
+      // which would skip every block.
+      record = parseInstalledRecord(await read(INSTALLED_RECORD_FILE));
+    } catch {
+      // What was written before is put back, as for any other failure.
+      log(`${INSTALLED_RECORD_FILE} can't be read, so the blocks weren't updated.`);
+      return { failed: await failed({ step: "blocks" }) };
+    }
     const registries = { [GOODFELLOW_REGISTRY]: options.registry ?? goodfellowRegistryUrl(release) };
     const dependencies = (JSON.parse(packageText) as { dependencies?: Record<string, string> }).dependencies;
     const packages = [...REGISTRY_PACKAGES, ...Object.keys(dependencies ?? {})];
@@ -386,7 +432,11 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
         record = plan.record;
         kept.push(...plan.kept);
       } catch (error) {
-        if (!(error instanceof RegistryError)) throw error;
+        if (!(error instanceof RegistryError)) {
+          // Such as a block's file that can't be read, which is never taken as missing and written over.
+          log(`The block ${name} couldn't be updated: ${error instanceof Error ? error.message : String(error)}`);
+          return { failed: await failed({ step: "blocks" }) };
+        }
         // A block newer than the release the site goes back to stays as it is.
         if (rollback && error.problem.code === "unreachable") {
           log(`The block ${name} isn't in Goodfellow ${release}'s blocks, so it stays as it is.`);
@@ -536,6 +586,7 @@ export async function update(options: UpdateOptions = {}): Promise<UpdateResult>
     ...(before ? [`--before=${before}`] : []),
     ...(target === "automatic" ? ["--ignore-scripts"] : []),
   ];
+  installed = true;
   if ((await run("npm", install, root)).code !== 0) return failed({ step: "install" });
   // What npm installed may not be what its metadata said, such as a newer release a range takes, so an automatic
   // update checks every Goodfellow package the lockfile names before any of the site's code runs.

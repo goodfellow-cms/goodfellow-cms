@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -215,6 +215,61 @@ describe("goodfellow update", () => {
       from: "0.4.2",
     });
     expect(again.ran).not.toContain("npm run build");
+  });
+
+  it("puts back what it wrote where the blocks' record can't be read", async () => {
+    await site();
+    const before = await read("package.json");
+    await writeFile(join(root, "blocks/installed/installed.json"), "{ not json\n");
+    const { run } = commands();
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, blocks: true, log: () => {}, env: {} });
+    expect(result).toMatchObject({ state: "failed", step: "blocks" });
+    expect(await read("package.json")).toBe(before);
+    expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+  });
+
+  it("doesn't take a blocks record it can't read for an empty one", async () => {
+    await site();
+    // There, but not a file that can be read.
+    await rm(join(root, "blocks/installed/installed.json"));
+    await mkdir(join(root, "blocks/installed/installed.json"));
+    const { run } = commands();
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, blocks: true, log: () => {}, env: {} });
+    expect(result).toMatchObject({ state: "failed", step: "blocks" });
+    expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+  });
+
+  it("leaves the site's packages alone where the blocks' record can't be read before anything changes", async () => {
+    await site();
+    await writeFile(join(root, "blocks/installed/installed.json"), "{ not json\n");
+    const { ran, run } = commands();
+    // Goodfellow is up to date, so nothing is written before the blocks.
+    const result = await update({
+      root,
+      fetchJson,
+      run,
+      to: "0.4.1",
+      registry: REGISTRY,
+      blocks: true,
+      log: () => {},
+      env: {},
+    });
+    expect(result).toMatchObject({ state: "failed", step: "blocks" });
+    expect(ran.filter((line) => line.startsWith("npm"))).toEqual([]);
+  });
+
+  it("never takes a block's file it can't read for a missing one", async () => {
+    await site();
+    // There, but not a file that can be read, as for one the update may not read.
+    await rm(join(root, BLOCK));
+    await mkdir(join(root, BLOCK));
+    const before = await read("package.json");
+    const { run } = commands();
+    const result = await update({ root, fetchJson, run, registry: REGISTRY, blocks: true, log: () => {}, env: {} });
+    expect(result).toMatchObject({ state: "failed", step: "blocks" });
+    // Neither written over nor deleted when the update is undone.
+    expect((await stat(join(root, BLOCK))).isDirectory()).toBe(true);
+    expect(await read("package.json")).toBe(before);
   });
 
   it("leaves block files someone changed", async () => {
@@ -603,6 +658,30 @@ describe("goodfellow update", () => {
       expect(ran.some((line) => line.endsWith("commit --message Update the site's files for Goodfellow 0.4.1"))).toBe(
         true,
       );
+    });
+
+    it("puts back what it wrote where one of them can't be read", async () => {
+      await site();
+      const before = await read("package.json");
+      await mkdir(join(root, "app/admin/page.tsx"), { recursive: true });
+      await expect(update({ ...options(), siteFiles: files })).rejects.toThrow(/EISDIR/);
+      expect(await read("package.json")).toBe(before);
+      expect((await stat(join(root, "app/admin/page.tsx"))).isDirectory()).toBe(true);
+      expect(await read("app/admin/editor/page.tsx").catch(() => undefined)).toBeUndefined();
+    });
+
+    it("reports both errors where putting the site back fails too", async () => {
+      await site();
+      await mkdir(join(root, "app/admin/page.tsx"), { recursive: true });
+      const run: RunCommand = async (command, args) => {
+        if (command === "npm" && args[0] === "ci") throw new Error("npm couldn't be started");
+        return { code: 0, output: "abc123\n" };
+      };
+      const failure = await update({ ...options(), run, siteFiles: files }).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AggregateError);
+      const { errors } = failure as AggregateError;
+      expect(String(errors[0])).toMatch(/EISDIR/);
+      expect(String(errors[1])).toMatch(/npm couldn't be started/);
     });
 
     it("leaves files someone changed, and says so", async () => {
