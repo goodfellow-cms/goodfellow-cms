@@ -433,6 +433,8 @@ describe("updates", () => {
     expect(await (await site(committed)).updates.setup()).toBe("missing");
     expect(await (await site(`${committed}    publish-update:\n        steps: []\n`)).updates.setup()).toBe("missing");
     expect(await (await site(`${committed}${pushes.replace("- run:", "# - run:")}`)).updates.setup()).toBe("missing");
+    const disabled = "    publish-update:\n        steps:\n            - run: echo disabled # git push\n";
+    expect(await (await site(`${committed}${disabled}`)).updates.setup()).toBe("missing");
     expect(await (await site("# run: npx goodfellow update --publish")).updates.setup()).toBe("missing");
     expect(await (await site("run: npx goodfellow build")).updates.setup()).toBe("missing");
   });
