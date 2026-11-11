@@ -9,6 +9,8 @@
  */
 
 import type { AdminSite } from "./admin-site.js";
+import type { ContentSource } from "./content/load.js";
+import { SITE_FILE } from "./content/paths.js";
 import type { SiteDescription } from "./site-description.js";
 
 /** The copy's own address, such as `https://staging.example.org`, in place of Site settings' address. */
@@ -139,5 +141,33 @@ export function adminSiteForCopy(site: AdminSite, copy: SiteCopy): AdminSite {
     ...(copy.url ? rest : site),
     description: describedForCopy(site.description, copy),
     copy,
+  };
+}
+
+/**
+ * A source of the site's files as this build of it shows them: Site settings
+ * with the copy's address and search engine setting (`siteCopyFrom()`) and how
+ * pages' addresses end (`trailingSlashFrom()`), from `env`. Only for building
+ * and showing pages, wherever the files come from, such as a full-stack site's
+ * repository: what the admin panel reads and saves is the files as they are.
+ */
+export function builtSource(source: ContentSource, env: Readonly<Record<string, string | undefined>>): ContentSource {
+  const copy = siteCopyFrom(env);
+  const trailingSlash = trailingSlashFrom(env);
+  const built = (text: string) => withTrailingSlash(withSiteCopy(text, copy), trailingSlash);
+  return {
+    ...source,
+    read: async (path) => {
+      const text = await source.read(path);
+      return path === SITE_FILE && text !== undefined ? built(text) : text;
+    },
+    ...(source.readFiles && {
+      readFiles: async (paths) => {
+        const texts = await (source.readFiles as NonNullable<ContentSource["readFiles"]>)(paths);
+        const settings = texts.get(SITE_FILE);
+        if (settings !== undefined) texts.set(SITE_FILE, built(settings));
+        return texts;
+      },
+    }),
   };
 }

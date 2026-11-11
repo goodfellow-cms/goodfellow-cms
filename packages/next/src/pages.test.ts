@@ -30,6 +30,28 @@ describe("goodfellowPages", () => {
   });
 });
 
+describe("goodfellowPages with a source", () => {
+  it("renders from the source each time, so a publish shows without a rebuild", async () => {
+    const files = fileSystemSource(root);
+    let title = "Before";
+    // A repository's files, whose Site settings change when someone publishes.
+    const source = {
+      ...files,
+      read: async (path: string) => {
+        const text = await files.read(path);
+        return path === "content/site.json" && text ? JSON.stringify({ ...JSON.parse(text), title, titleTemplate: `%s | ${title}` }) : text;
+      },
+    };
+    const live = goodfellowPages({ blocks: {} }, { root: "/nowhere", source: () => source });
+    const params = { params: Promise.resolve({ path: ["news", "welcome"] }) };
+    expect((await live.generateMetadata(params)).title).toEqual({ absolute: "Welcome to our new website | Before" });
+    expect((await live.loadSite()).settings.title).toBe("Before");
+    title = "After";
+    expect((await live.generateMetadata(params)).title).toEqual({ absolute: "Welcome to our new website | After" });
+    expect(await live.generateStaticParams()).toContainEqual({ path: ["news", "welcome"] });
+  });
+});
+
 describe("demoContent", () => {
   it("copies the site's content for a demo's admin panel", async () => {
     const response = await goodfellowPages({ blocks: {}, demo: true }, { root }).demoContent();

@@ -500,6 +500,7 @@ export {
   type Page,
   parseContentFile,
   parseEntryFile,
+  prefetchedSource,
   readTextFiles,
   type SiteCode,
   type SiteContent,
@@ -1297,8 +1298,10 @@ export {
   signInServiceProblem,
   withBackendOption,
 } from "./sign-in-config.js";
+export { type RepositorySourceOptions, repositorySource } from "./repository-source.js";
 export {
   adminSiteForCopy,
+  builtSource,
   describedForCopy,
   isSiteCopy,
   NO_INDEX_VARIABLE,

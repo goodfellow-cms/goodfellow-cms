@@ -35,6 +35,7 @@ import {
   pagePathToFile,
   parseContentFile,
   parseEntryFile,
+  prefetchedSource,
   readTextFiles,
   SITE_FILE,
   type SiteContent,
@@ -321,12 +322,7 @@ export async function mediaImage(source: ContentSource, input: string): Promise<
  * one, since `loadSiteContent()` reads each file on its own.
  */
 export async function loadWholeSite(source: ContentSource): Promise<SiteContent> {
-  const paths = await source.list("content");
-  const files = await readTextFiles(source, paths);
-  return loadSiteContent({
-    read: async (path) => files.get(path),
-    list: async (dir) => paths.filter((path) => path.startsWith(`${dir}/`)),
-  });
+  return loadSiteContent(await prefetchedSource(source));
 }
 
 /** Every content file, as text: what the preview page needs to show a draft as the site would. */
