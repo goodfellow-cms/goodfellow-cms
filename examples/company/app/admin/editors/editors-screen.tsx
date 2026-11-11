@@ -8,6 +8,7 @@ interface SiteEditor {
   name: string;
   role: "admin" | "editor";
   joined: boolean;
+  twoFactor: boolean;
 }
 
 type Invited = { sent: true } | { sent: false; link: string };
@@ -95,6 +96,7 @@ export function EditorsScreen() {
             <th scope="col">Name</th>
             <th scope="col">Email address</th>
             <th scope="col">Can</th>
+            <th scope="col">Two-factor sign-in</th>
             <th scope="col">
               <span className="sr-only">Changes</span>
             </th>
@@ -127,6 +129,13 @@ export function EditorsScreen() {
                   <option value="editor">Edit pages</option>
                   <option value="admin">Edit everything, and manage editors</option>
                 </select>
+              </td>
+              <td>
+                {editor.twoFactor
+                  ? "On"
+                  : editor.role === "admin"
+                    ? "Off: edits pages only until they turn it on"
+                    : "Off"}
               </td>
               <td className="flex gap-2">
                 {!editor.joined && (

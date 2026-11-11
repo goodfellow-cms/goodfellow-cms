@@ -1,9 +1,10 @@
+import { createHmac } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { authOptions, authorizeWith } from "./auth.ts";
+import { authOptions, authorizeWith, authRoute, TWO_FACTOR_LIMIT } from "./auth.ts";
 import {
   acceptInvitation,
   EditorsError,
@@ -97,6 +98,8 @@ async function site(siteEnv: SiteEnv = SITE_ENV) {
     new Request(`${SITE}/api/editors/`, { method, headers: { ...(cookie && { cookie }), "sec-fetch-site": from } });
   const oliveId = await person("olive@example.org", "admin", "Olive Owner");
   const olive = await signIn("olive@example.org");
+  // As if she'd turned on two-factor sign-in after signing in, which admins need to manage editors.
+  await context.internalAdapter.updateUser(oliveId, { twoFactorEnabled: true });
   return { auth, context, person, signIn, asking, olive, oliveId, close: () => db.close() };
 }
 
@@ -225,11 +228,15 @@ describe("the editors API", () => {
     }
   });
 
-  it("answers only admins, from the site's own pages", async () => {
+  it("answers only admins with two-factor sign-in, from the site's own pages", async () => {
     const { auth, asking, olive, person, signIn, close } = await site();
     try {
       await person("eddie@example.org", "editor");
       const eddie = await signIn("eddie@example.org");
+      await person("ann@example.org", "admin");
+      await expect(listEditors(auth, asking(await signIn("ann@example.org"), "GET"))).rejects.toThrow(
+        /Turn on two-factor sign-in/,
+      );
       const invitation = { email: "x@example.org", name: "X", role: "admin" as const };
       await expect(listEditors(auth, asking(undefined, "GET"))).rejects.toMatchObject({ status: 401 });
       await expect(listEditors(auth, asking(eddie, "GET"))).rejects.toMatchObject({ status: 403 });
@@ -248,8 +255,12 @@ describe("the editors API", () => {
     try {
       const eddieId = await person("eddie@example.org", "editor");
       await setRole(auth, asking(olive, "PATCH"), eddieId, "admin");
-      expect(await authorizeWith(auth, asking(await signIn("eddie@example.org"), "GET"))).toMatchObject({
-        role: "owner",
+      // An admin now, who edits pages until he turns on two-factor sign-in.
+      const eddie = await signIn("eddie@example.org");
+      expect(await authorizeWith(auth, asking(eddie, "GET"))).toMatchObject({ role: "editor" });
+      expect((await listEditors(auth, asking(olive, "GET"))).find((editor) => editor.id === eddieId)).toMatchObject({
+        role: "admin",
+        twoFactor: false,
       });
       await expect(setRole(auth, asking(olive, "PATCH"), eddieId, "owner")).rejects.toMatchObject({ status: 400 });
       await expect(setRole(auth, asking(olive, "PATCH"), oliveId, "editor")).rejects.toMatchObject({ status: 409 });
@@ -297,6 +308,138 @@ describe("forgetting a password", () => {
       await auth.api.resetPassword({ body: { token, newPassword: "a brand new password" } });
       expect(await signIn("eddie@example.org", "a brand new password")).toBeDefined();
       await expect(auth.api.resetPassword({ body: { token, newPassword: "yet another password" } })).rejects.toThrow();
+    } finally {
+      close();
+    }
+  });
+});
+
+/** The secret in an `otpauth://` address, from its base32 key. */
+function secretOf(uri: string): Buffer {
+  const key = new URL(uri).searchParams.get("secret") ?? "";
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const char of key.replace(/=+$/, "").toUpperCase()) bits += alphabet.indexOf(char).toString(2).padStart(5, "0");
+  return Buffer.from((bits.match(/.{8}/g) ?? []).map((byte) => Number.parseInt(byte, 2)));
+}
+
+/** The code an authenticator app shows now for an `otpauth://` address (RFC 6238: SHA-1, 6 digits, 30 seconds). */
+function totp(uri: string): string {
+  const secret = secretOf(uri);
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  const hash = createHmac("sha1", secret).update(counter).digest();
+  const offset = (hash.at(-1) ?? 0) & 0xf;
+  return String((hash.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+describe("two-factor sign-in", () => {
+  it("makes an admin an owner once it's on, and asks every sign-in after for a code", async () => {
+    const { auth, context, person, signIn, asking, close } = await site();
+    try {
+      const annId = await person("ann@example.org", "admin");
+      const ann = await signIn("ann@example.org");
+      const headers = asking(ann, "GET").headers;
+      expect(await authorizeWith(auth, asking(ann, "GET"))).toMatchObject({ role: "editor" });
+      await expect(auth.api.enableTwoFactor({ headers, body: { password: "not her password" } })).rejects.toThrow();
+      const enabled = await auth.api.enableTwoFactor({ headers, body: { password: PASSWORD, method: "totp" } });
+      if (enabled.method !== "totp") throw new Error("It didn't set up an authenticator app.");
+      const { totpURI, backupCodes } = enabled;
+      // Her app names the account by the site's address.
+      expect(new URL(totpURI).searchParams.get("issuer")).toBe("localhost:4321");
+      // Not on until she shows her app has it.
+      expect(await authorizeWith(auth, asking(ann, "GET"))).toMatchObject({ role: "editor" });
+      const turnedOn = await auth.api.verifyTOTP({ headers, body: { code: totp(totpURI) }, asResponse: true });
+      // Turning it on starts a new session, and ends the one from before.
+      expect(await authorizeWith(auth, asking(ann, "GET"))).toBeNull();
+      expect(await authorizeWith(auth, asking(cookiesOf(turnedOn), "GET"))).toMatchObject({ role: "owner" });
+      const stored = await context.adapter.findOne<{ secret: string; backupCodes: string }>({
+        model: "twoFactor",
+        where: [{ field: "userId", value: annId }],
+      });
+      // Kept encrypted, so a copy of the database doesn't give the codes away.
+      expect(secretOf(totpURI).toString()).toHaveLength(32);
+      expect(stored?.secret).not.toContain(secretOf(totpURI).toString());
+      for (const code of backupCodes) expect(stored?.backupCodes).not.toContain(code);
+
+      // A password alone no longer signs her in: it answers with the code step, and no session.
+      const step = await auth.api.signInEmail({
+        body: { email: "ann@example.org", password: PASSWORD },
+        asResponse: true,
+      });
+      expect(await step.clone().json()).toMatchObject({ twoFactorRedirect: true });
+      const pending = cookiesOf(step);
+      expect(await auth.api.getSession({ headers: new Headers({ cookie: pending }) })).toBeNull();
+      await expect(
+        auth.api.verifyTOTP({ headers: new Headers({ cookie: pending }), body: { code: "000000" } }),
+      ).rejects.toThrow();
+      const verified = await auth.api.verifyTOTP({
+        headers: new Headers({ cookie: pending }),
+        body: { code: totp(totpURI) },
+        asResponse: true,
+      });
+      const signedIn = new Request(SITE, { headers: { cookie: cookiesOf(verified) } });
+      expect(await authorizeWith(auth, signedIn)).toMatchObject({ role: "owner" });
+
+      // A backup code works once.
+      const again = cookiesOf(
+        await auth.api.signInEmail({ body: { email: "ann@example.org", password: PASSWORD }, asResponse: true }),
+      );
+      const backup = (cookie: string) =>
+        auth.api.verifyBackupCode({ headers: new Headers({ cookie }), body: { code: backupCodes[0] ?? "" } });
+      await backup(again);
+      const third = cookiesOf(
+        await auth.api.signInEmail({ body: { email: "ann@example.org", password: PASSWORD }, asResponse: true }),
+      );
+      await expect(backup(third)).rejects.toThrow();
+    } finally {
+      close();
+    }
+  });
+
+  it("lets a person get a code wrong and try again, and limits how often one address can try", async () => {
+    const { auth, close } = await site();
+    try {
+      const attempt = async (address: string) =>
+        (
+          await auth.handler(
+            new Request(`${SITE}/api/auth/two-factor/verify-totp/`, {
+              method: "POST",
+              headers: { "content-type": "application/json", origin: SITE, "cf-connecting-ip": address },
+              body: JSON.stringify({ code: "000000" }),
+            }),
+          )
+        ).status;
+      // Without the cookie the password step sets, every try fails, but each still counts.
+      for (let tried = 0; tried < TWO_FACTOR_LIMIT.max; tried++) expect(await attempt("192.0.2.1")).toBe(401);
+      expect(await attempt("192.0.2.1")).toBe(429);
+      expect(await attempt("192.0.2.2")).toBe(401);
+    } finally {
+      close();
+    }
+  });
+
+  it("keeps the admin plugin's own routes from the browser, however they're spelled", async () => {
+    const { auth, olive, close } = await site();
+    try {
+      for (const path of [
+        "/api/auth/admin/list-users",
+        "/api/auth/admin/set-role/",
+        "/api/auth//admin/remove-user",
+        "/api/auth/%61dmin/create-user",
+        "/api/auth/Admin/impersonate-user",
+      ]) {
+        const answer = await authRoute(
+          auth,
+          new Request(`${SITE}${path}`, {
+            method: "POST",
+            headers: { cookie: olive ?? "", origin: SITE, "content-type": "application/json" },
+            body: "{}",
+          }),
+        );
+        expect(answer.status, path).toBe(404);
+      }
+      expect((await authRoute(auth, new Request(`${SITE}/api/auth/get-session/`))).status).toBe(200);
     } finally {
       close();
     }

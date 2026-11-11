@@ -8,7 +8,15 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
-import { COMPANY, COMPANY_PASSWORD, COMPANY_PEOPLE, companyFiles, companySite, createCompanySite } from "./site.mjs";
+import {
+  COMPANY,
+  COMPANY_PASSWORD,
+  COMPANY_PEOPLE,
+  COMPANY_TOTP_SECRET,
+  companyFiles,
+  companySite,
+  createCompanySite,
+} from "./site.mjs";
 
 /** Serves a fake's `handle` over HTTP, as the real service would be. */
 function serve(port, handle) {
@@ -91,23 +99,39 @@ run("vinext", ["build"]);
 // build put the Worker, so only the state goes.)
 rmSync(join(companySite, ".wrangler/state"), { recursive: true, force: true });
 run("wrangler", ["d1", "migrations", "apply", "goodfellow-company", "--local"]);
+// The password's hash, and the admin's authenticator secret and backup codes encrypted as Better Auth keeps them,
+// with the secret .dev.vars gives it.
+const secret = /^BETTER_AUTH_SECRET=(.*)$/m.exec(readFileSync(join(companySite, ".dev.vars"), "utf8"))?.[1];
 const hashed = spawnSync(
   process.execPath,
   [
     "--input-type=module",
     "-e",
-    'import { hashPassword } from "better-auth/crypto"; console.log(await hashPassword(process.argv[1]));',
+    `import { hashPassword, symmetricEncrypt } from "better-auth/crypto";
+const [password, key, totp] = process.argv.slice(1);
+console.log(JSON.stringify([
+  await hashPassword(password),
+  await symmetricEncrypt({ key, data: totp }),
+  await symmetricEncrypt({ key, data: JSON.stringify([]) }),
+]));`,
     COMPANY_PASSWORD,
+    secret,
+    COMPANY_TOTP_SECRET,
   ],
   { cwd: companySite, encoding: "utf8" },
 );
 if (hashed.status !== 0) throw new Error(hashed.stderr);
-const hash = hashed.stdout.trim();
+const [hash, totpSecret, backupCodes] = JSON.parse(hashed.stdout);
 const now = new Date().toISOString();
 const quote = (value) => `'${String(value).replaceAll("'", "''")}'`;
 const rows = Object.entries(COMPANY_PEOPLE).flatMap(([id, person]) => [
-  `insert into "user" (id, name, email, emailVerified, createdAt, updatedAt, role) values (${[id, person.name, person.email, 1, now, now, person.role].map(quote).join(", ")});`,
+  `insert into "user" (id, name, email, emailVerified, createdAt, updatedAt, role, twoFactorEnabled) values (${[id, person.name, person.email, 1, now, now, person.role, person.twoFactor ? 1 : 0].map(quote).join(", ")});`,
   `insert into account (id, accountId, providerId, userId, password, createdAt, updatedAt) values (${[`${id}-password`, id, "credential", id, hash, now, now].map(quote).join(", ")});`,
+  ...(person.twoFactor
+    ? [
+        `insert into twoFactor (id, secret, backupCodes, userId, verified, failedVerificationCount) values (${[`${id}-two-factor`, totpSecret, backupCodes, id, 1, 0].map(quote).join(", ")});`,
+      ]
+    : []),
 ]);
 run("wrangler", ["d1", "execute", "goodfellow-company", "--local", "--command", rows.join(" ")]);
 

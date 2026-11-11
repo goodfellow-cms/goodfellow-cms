@@ -1,6 +1,7 @@
 // The site's editors, for its admins: who has an account, inviting someone, changing what they may do, and removing
 // them. Everything here goes through Better Auth's admin plugin, which checks the caller is an admin, and through
-// `authorizeWith()`, which also refuses banned admins and admins acting as someone else.
+// `authorizeWith()`, which also refuses banned admins, admins acting as someone else, and admins without two-factor
+// sign-in.
 import { generateRandomString } from "better-auth/crypto";
 import { authorizeWith, type SiteAuth } from "./auth.ts";
 import { canSendEmail, type Email, invitationEmail, sendEmail } from "./email.ts";
@@ -18,6 +19,8 @@ export interface SiteEditor {
   role: EditorRole;
   /** Whether they've chosen a password from their invitation, or were made an admin with one. */
   joined: boolean;
+  /** Whether they've turned on two-factor sign-in, which admins need to act as admins. */
+  twoFactor: boolean;
 }
 
 /** How long an invitation's link works, in hours: long enough to see the email, short enough not to linger. */
@@ -47,8 +50,15 @@ export async function adminAsking(siteAuth: SiteAuth, request: Request): Promise
   }
   const editor = await authorizeWith(siteAuth, request);
   if (editor === null) throw new EditorsError(401, "Sign in first.");
-  if (editor === false || editor.role !== "owner") {
-    throw new EditorsError(403, "Only the site's admins can manage its editors.");
+  if (editor === false) throw new EditorsError(403, "Only the site's admins can manage its editors.");
+  if (editor.role !== "owner") {
+    const session = await siteAuth.api.getSession({ headers: request.headers, query: { disableCookieCache: true } });
+    throw new EditorsError(
+      403,
+      session?.user.role === "admin"
+        ? "Turn on two-factor sign-in on your account page first: admins need it to manage editors."
+        : "Only the site's admins can manage its editors.",
+    );
   }
   return { email: editor.email ?? editor.login, name: editor.name ?? editor.login };
 }
@@ -69,6 +79,7 @@ export async function listEditors(siteAuth: SiteAuth, request: Request): Promise
       name: user.name,
       role: roleOf(user.role),
       joined: user.emailVerified,
+      twoFactor: (user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true,
     }),
   );
   return editors.sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "admin" ? -1 : 1));
