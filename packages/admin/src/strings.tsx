@@ -2183,6 +2183,8 @@ export const defaultStrings = {
   "updates.error.load": "The updates couldn't be checked. Check your connection and try again.",
   "updates.error.not-allowed": "Your account can't do that on {host}. Ask one of the site's owners.",
   "updates.error.missing": "This site's build setup doesn't install updates, so there's nothing to run.",
+  "updates.error.publishing":
+    "GitLab didn't let Goodfellow publish updates to this site. One of the site's owners can let “Goodfellow publishing” publish to the live site in the project's settings on GitLab, then turn updates on again.",
   "updates.error.save": "The change couldn't be saved. Try again in a moment.",
   "updates.error.other": "Something went wrong. Try again in a moment.",
   "editors.intro": "The people who can edit this site.",

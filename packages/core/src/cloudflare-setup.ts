@@ -16,6 +16,13 @@ import {
   PUBLISH_UPDATE_JOB,
 } from "./github-workflows.js";
 import {
+  gitlabHookDecision,
+  gitlabHookUnpublished,
+  gitlabPrepareJob,
+  gitlabPublishJob,
+  gitlabPublishRules,
+} from "./gitlab-publish.js";
+import {
   GITLAB_LOCKFILE_VARIABLES,
   githubLockfileJobs,
   gitlabLockfileScript,
@@ -169,61 +176,32 @@ ${githubScheduledJobs({
 `;
 }
 
+/** Pipelines the prepare and publish jobs run in where another host builds the site: rebuilds and scheduled changes too. */
+const HOOK_RULES = `    - if: $GOODFELLOW_REBUILD
+    - if: $GOODFELLOW_SCHEDULED_CHANGE
+`;
+
 /** The nightly update and rebuild on GitLab, on scheduled pipelines and those the admin panel starts. */
 function gitlabPipeline({ next }: CloudflareSetup, host: HookHost): string {
   const cli = next ? "goodfellow-next" : "goodfellow";
   return `${comment(
-    `${host.label} builds and publishes the site whenever the default branch changes (including every Publish in the admin panel). This pipeline keeps it current. On scheduled pipelines, which the admin panel's Updates screen sets up to run each night, it first checks whether the site needs building: when Goodfellow has new fixes, which it installs (or the release GOODFELLOW_UPDATE names) and publishes only if the site still builds with them, unless content/updates.json turns automatic updates off; when something the site shows by today's date, such as an event, has changed; or when the live site isn't the newest build. The schedule's GOODFELLOW_NIGHTLY variable "always" rebuilds it every night, and the Updates screen turns the schedule off for "never". Updating needs "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, which the Updates screen turns on.
-When it needs building but there's no update to publish, it asks ${host.short} to rebuild the site. The admin panel also adds a pipeline schedule for each time a page or item is scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, and starts a pipeline with GOODFELLOW_REBUILD set for the Updates screen's Rebuild now, both of which only rebuild the site.
-When package.json names packages package-lock.json doesn't have, such as a plugin installed from the admin panel, the lockfile job writes package-lock.json, installing nothing and running none of their code, and publishes it, which ${host.short} then builds; publishing needs the same job token permission.
+    `${host.label} builds and publishes the site whenever the default branch changes (including every Publish in the admin panel). This pipeline keeps it current. On scheduled pipelines, which the admin panel's Updates screen sets up to run each night, it first checks whether the site needs building: when Goodfellow has new fixes, which it installs (or the release GOODFELLOW_UPDATE names) and publishes only if the site still builds with them, unless content/updates.json turns automatic updates off; when something the site shows by today's date, such as an event, has changed; or when the live site isn't the newest build. The schedule's GOODFELLOW_NIGHTLY variable "always" rebuilds it every night, and the Updates screen turns the schedule off for "never". The prepare job makes the update, and the publish job, which runs none of the site's code, checks it changes only what an update does and publishes it, with a deploy key the Updates screen adds: its private half is the GOODFELLOW_DEPLOY_KEY variable, which only jobs in the goodfellow-publish environment get.
+When it needs building but there's no update to publish, the publish job asks ${host.short} to rebuild the site. The admin panel also adds a pipeline schedule for each time a page or item is scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, and starts a pipeline with GOODFELLOW_REBUILD set for the Updates screen's Rebuild now, both of which only rebuild the site.
+When package.json names packages package-lock.json doesn't have, such as a plugin installed from the admin panel, the prepare job writes package-lock.json, installing nothing and running none of their code, and the publish job publishes it, which ${host.short} then builds.
 It asks ${host.short} through ${host.hookWhere}: add it here as the ${host.hook} variable (Settings → CI/CD → Variables, masked). See README.md.`,
   )}
 ${GITLAB_LOCKFILE_VARIABLES}
-${LOCKFILE_JOB}:
-  image: node:22
-  script:
-${gitlabLockfileScript({ skipPipeline: false })}  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"
-      changes: [package.json]
-
-update:
-  image: node:22
-  cache:
-    key:
-      files: [package-lock.json]
-    paths: [.npm/]
-  script:
-    - |
-      build=true
-      update=false
-      if [ -n "$GOODFELLOW_UPDATE" ]; then
-        update=true
-      elif [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ] && [ -z "$GOODFELLOW_REBUILD" ]; then
-        npm ci --cache .npm --prefer-offline
-        # Sets build and update; where it can't tell, the site is updated and rebuilt as before.
-        npx ${cli} nightly --output nightly.env && . ./nightly.env || update=true
-      fi
-    - |
-      if [ "$update" = true ]; then
-        [ -d node_modules ] || npm ci --cache .npm --prefer-offline
-        git remote set-url origin "https://gitlab-ci-token:\${CI_JOB_TOKEN}@\${CI_SERVER_FQDN:-$CI_SERVER_HOST}/\${CI_PROJECT_PATH}.git"
-        npx ${cli} update --publish --to "\${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't published; rebuilding the site as it is."
-      fi
-    # ${host.short} builds an update that was published by itself, so this is for when there wasn't one.
-    - |
-      if [ "$build" = false ] && [ "$update" = false ]; then
-        echo "Not rebuilding the site, since nothing has changed since it was built."
-      elif [ "$(git ls-remote origin "refs/heads/$CI_COMMIT_BRANCH" | cut -f1)" != "$CI_COMMIT_SHA" ]; then
-        echo "${host.short} builds the update that was published."
-      elif [ -z "$${host.hook}" ]; then
-        echo "Add ${host.hookName} as this project's ${host.hook} variable."
-        exit 1
-      else
-        curl --fail --silent --show-error --request POST "$${host.hook}"
-      fi
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE || $GOODFELLOW_REBUILD)
-
+${gitlabPrepareJob({
+  before: gitlabLockfileScript(),
+  decide: gitlabHookDecision(cli),
+  update: `npx ${cli} update`,
+  decision: true,
+  rules: gitlabPublishRules(HOOK_RULES),
+})}
+${gitlabPublishJob({
+  rules: gitlabPublishRules(HOOK_RULES),
+  unpublished: gitlabHookUnpublished(host.hook, host.hookName, host.short),
+})}
 ${gitlabTaskJob(cli)}`;
 }
 

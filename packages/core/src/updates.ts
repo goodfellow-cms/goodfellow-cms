@@ -436,7 +436,9 @@ export type UpdatesProblem =
   /** The sign-in, or the owner token, can't run it or change the host's settings. */
   | "not-allowed"
   /** The site's build setup has no update job. */
-  | "missing";
+  | "missing"
+  /** The host didn't let the key the update job publishes with publish to the main branch. */
+  | "publishing";
 
 export class UpdatesError extends Error {
   override name = "UpdatesError";

@@ -26,7 +26,7 @@ interface Invitation {
 }
 
 interface ProtectedBranch {
-  push_access_levels?: Array<{ id?: number; access_level: number | null }>;
+  push_access_levels?: Array<{ id?: number; access_level: number | null; deploy_key_id?: number | null }>;
   merge_access_levels?: Array<{ id?: number; access_level: number | null }>;
 }
 
@@ -185,10 +185,12 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
       }
       if (developersMay(current)) return;
       // In one change where GitLab can (15.6 and later), so the branch is never left unprotected:
-      // Developers' levels in, the others out.
+      // Developers' levels in, the others out, keeping the deploy key the nightly update publishes with.
       const swap = (levels: ProtectedBranch["push_access_levels"] = []) => [
         { access_level: DEVELOPER },
-        ...levels.flatMap((level) => (level.id === undefined ? [] : [{ id: level.id, _destroy: true }])),
+        ...levels.flatMap((level) =>
+          level.id === undefined || level.deploy_key_id ? [] : [{ id: level.id, _destroy: true }],
+        ),
       ];
       const patched = await gitlabRequest(api, protectedPath, {
         method: "PATCH",

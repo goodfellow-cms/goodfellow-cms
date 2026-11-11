@@ -484,7 +484,79 @@ describe("updates", () => {
     return { fake, updates: backend.updates };
   }
 
-  it("lets job tokens publish and adds a nightly schedule", async () => {
+  const KEYED = "publish:\n  environment:\n    name: goodfellow-publish\n";
+
+  it("gives the publish job a deploy key of its own, which only its environment gets, and a nightly schedule", async () => {
+    const { fake, updates } = await site(KEYED);
+    fake.updateSettings.jobTokenPush = true;
+    expect(await updates.setup()).toBe("needs-setup");
+    await updates.enable?.();
+    const [key] = fake.updateSettings.deployKeys;
+    expect(fake.updateSettings.deployKeys).toHaveLength(1);
+    expect(key).toMatchObject({ title: "Goodfellow publishing", can_push: true });
+    expect(key?.key).toMatch(/^ssh-ed25519 /);
+    expect(fake.protectedBranches.get("main")?.deployKeys).toEqual([key?.id]);
+    const variable = fake.updateSettings.variables.get("GOODFELLOW_DEPLOY_KEY goodfellow-publish");
+    expect(variable).toMatchObject({
+      masked: true,
+      protected: true,
+      raw: true,
+      environment_scope: "goodfellow-publish",
+    });
+    expect(atob(variable?.value ?? "")).toMatch(/^-----BEGIN OPENSSH PRIVATE KEY-----\n/);
+    expect(fake.updateSettings.variables.size).toBe(1);
+    // Job tokens no longer publish: only the publish job does.
+    expect(fake.updateSettings.jobTokenPush).toBe(false);
+    expect(fake.updateSettings.schedules).toEqual([expect.objectContaining({ ref: "main", cron: "17 4 * * *" })]);
+    expect(await updates.setup()).toBe("ready");
+
+    // Turning updates on again makes a new key, since the old one's private half can't be read back.
+    await updates.enable?.();
+    const [replaced] = fake.updateSettings.deployKeys;
+    expect(fake.updateSettings.deployKeys).toHaveLength(1);
+    expect(replaced?.id).not.toBe(key?.id);
+    expect(fake.protectedBranches.get("main")?.deployKeys).toEqual([replaced?.id]);
+    expect(fake.updateSettings.variables.get("GOODFELLOW_DEPLOY_KEY goodfellow-publish")?.value).not.toBe(
+      variable?.value,
+    );
+    expect(fake.updateSettings.schedules).toHaveLength(1);
+  });
+
+  it("keeps the publishing key where letting editors publish changes the main branch's protection", async () => {
+    const fake = fakeGitLab({
+      project: "parish/site",
+      files: { ...FILES, ".gitlab-ci.yml": KEYED },
+      tokens: { "test-token": { username: "maria" } },
+    });
+    const backend = await gitlab({ project: "parish/site", fetch: fake.fetch }).signInWithToken("test-token", false);
+    await backend.updates?.enable?.();
+    const [key] = fake.updateSettings.deployKeys;
+    await backend.editors?.letEditorsPublish?.();
+    expect(fake.protectedBranches.get("main")).toMatchObject({ push: 30, deployKeys: [key?.id] });
+  });
+
+  it("protects an unprotected main branch for Developers, as protected variables need", async () => {
+    const { fake, updates } = await site(KEYED);
+    fake.protectedBranches.delete("main");
+    await updates.enable?.();
+    expect(fake.protectedBranches.get("main")).toMatchObject({ push: 30, merge: 30 });
+    expect(fake.protectedBranches.get("main")?.deployKeys).toHaveLength(1);
+  });
+
+  it("takes the key away again where GitLab won't let it publish to the main branch", async () => {
+    const fake = fakeGitLab({
+      project: "parish/site",
+      files: { ...FILES, ".gitlab-ci.yml": KEYED },
+      tokens: { "test-token": { username: "maria" } },
+      noProtectionChanges: true,
+    });
+    const backend = await gitlab({ project: "parish/site", fetch: fake.fetch }).signInWithToken("test-token", false);
+    await expect(backend.updates?.enable?.()).rejects.toMatchObject({ problem: "publishing" });
+    expect(fake.updateSettings.deployKeys).toEqual([]);
+    expect(fake.updateSettings.variables.size).toBe(0);
+  });
+
+  it("for pipelines from before the publish job, lets job tokens publish and adds a nightly schedule", async () => {
     const { fake, updates } = await site();
     expect(await updates.setup()).toBe("needs-setup");
     await updates.enable?.();
@@ -554,6 +626,18 @@ describe("updates", () => {
       result: { from: "0.4.1", to: "0.4.3" },
       detailsUrl: "https://gitlab.com/parish/site/-/pipelines/1001",
     });
+  });
+
+  it("reads what the update did from the prepare job, where the pipeline has one", async () => {
+    const fake = fakeGitLab({
+      project: "parish/site",
+      files: { ...FILES, ".gitlab-ci.yml": KEYED },
+      tokens: { "test-token": { username: "maria" } },
+      updateJob: "prepare",
+    });
+    const backend = await gitlab({ project: "parish/site", fetch: fake.fetch }).signInWithToken("test-token", false);
+    fake.addUpdateRun({ trace: 'goodfellow-update {"state":"updated","from":"0.4.1","to":"0.4.3","kept":[]}\n' });
+    expect(await backend.updates?.lastRun()).toMatchObject({ state: "updated", result: { to: "0.4.3" } });
   });
 });
 

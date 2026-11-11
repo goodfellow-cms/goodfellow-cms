@@ -170,7 +170,11 @@ describe("planSite with the content in a repository of its own", () => {
     expect(pages.pages).toEqual({ publish: "site/dist" });
 
     const code = parse(text(files, ".gitlab-ci.yml"));
-    expect(code.update.script[0]).toContain("/parish/site-content.git");
+    expect(code.prepare.script[0]).toContain("/parish/site-content.git");
+    // The prepare job only commits; the publish job, which runs none of the site's code, publishes.
+    expect(JSON.stringify(code.prepare)).not.toContain("git push");
+    expect(code.publish.environment.name).toBe("goodfellow-publish");
+    expect(code.build.needs).toEqual([{ job: "publish", optional: true }]);
     expect(code.build.trigger).toEqual({ project: "parish/site-content" });
   });
 
@@ -317,7 +321,7 @@ describe("planSite with the content in a repository of its own", () => {
       { if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "schedule"' },
     ]);
     const code = parse(text(gitlab, ".gitlab-ci.yml"));
-    expect(Object.keys(code)).toEqual(["update", "rebuild"]);
+    expect(Object.keys(code)).toEqual(["prepare", "publish", "rebuild"]);
     expect(code.rebuild.script.at(-1)).toBe(
       'curl --fail --silent --show-error --request POST "$CLOUDFLARE_DEPLOY_HOOK"',
     );
@@ -357,7 +361,7 @@ describe("separateSetupFiles", () => {
     expect(pages.script).toContain("npx goodfellow-next content copy ..");
     expect(pages.script).toContain("npm run build");
     expect(pages.pages.publish).toBe("site/out");
-    expect(parse(code.get(".gitlab-ci.yml") ?? "").update.script).toContain("npx goodfellow-next content copy");
+    expect(parse(code.get(".gitlab-ci.yml") ?? "").prepare.script).toContain("npx goodfellow-next content copy");
   });
 
   it("gives Next.js sites on Vercel settings of their own", async () => {

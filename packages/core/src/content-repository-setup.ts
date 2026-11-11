@@ -22,6 +22,7 @@ import {
   githubUpdateJobs,
   PUBLISH_UPDATE_JOB,
 } from "./github-workflows.js";
+import { gitlabPrepareJob, gitlabPublishJob, PUBLISH_JOB } from "./gitlab-publish.js";
 import type { Host } from "./site-setup.js";
 
 /** Which repository the host builds the site from. */
@@ -364,6 +365,10 @@ pages:
 `;
 }
 
+/** The pipelines the code project's prepare and publish jobs run in: scheduled ones, and those with an update. */
+const CODE_UPDATE_RULES = `    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE)
+`;
+
 /** The code project's pipeline on GitLab: nightly updates, then the content project's build. */
 function gitlabCodePipeline(setup: SeparateSetup): string {
   const { copy, update } = commands(setup);
@@ -375,7 +380,7 @@ function gitlabCodePipeline(setup: SeparateSetup): string {
     ? `${REBUILD_JOB}:
   image: node:22
   needs:
-    - job: update
+    - job: ${PUBLISH_JOB}
       optional: true
   script:
     - |
@@ -389,7 +394,7 @@ function gitlabCodePipeline(setup: SeparateSetup): string {
 `
     : `build:
   needs:
-    - job: update
+    - job: ${PUBLISH_JOB}
       optional: true
   trigger:
     project: ${setup.content}
@@ -397,24 +402,19 @@ function gitlabCodePipeline(setup: SeparateSetup): string {
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 `;
   return `${comment(
-    `On scheduled pipelines (set one up to run each night under Build → Pipeline schedules), installs Goodfellow's newest fixes, unless content/updates.json in ${setup.content}, which holds the site's content, turns automatic updates off (or the release GOODFELLOW_UPDATE names), and publishes them only if the site still builds with them. That needs "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, and, if ${setup.content} is private, this project in its job token allowlist.
+    `On scheduled pipelines (set one up to run each night under Build → Pipeline schedules), installs Goodfellow's newest fixes, unless content/updates.json in ${setup.content}, which holds the site's content, turns automatic updates off (or the release GOODFELLOW_UPDATE names), and publishes them only if the site still builds with them: the prepare job makes the update, and the publish job, which runs none of the site's code, checks it changes only what an update does and publishes it, with a deploy key the Updates screen adds, whose private half is the GOODFELLOW_DEPLOY_KEY variable, which only jobs in the goodfellow-publish environment get. If ${setup.content} is private, add this project to its job token allowlist.
 ${builds}`,
   )}
-update:
-  image: node:22
-  cache:
-    key:
-      files: [package-lock.json]
-    paths: [.npm/]
-  script:
-    - git clone --depth 1 "https://gitlab-ci-token:\${CI_JOB_TOKEN}@\${CI_SERVER_FQDN:-$CI_SERVER_HOST}/${setup.content}.git" ${CONTENT_REPOSITORY_DIR}
+${gitlabPrepareJob({
+  before: `    - git clone --depth 1 "https://gitlab-ci-token:\${CI_JOB_TOKEN}@\${CI_SERVER_FQDN:-$CI_SERVER_HOST}/${setup.content}.git" ${CONTENT_REPOSITORY_DIR}
     - npm ci --cache .npm --prefer-offline
     - ${copy}
-    - git remote set-url origin "https://gitlab-ci-token:\${CI_JOB_TOKEN}@\${CI_SERVER_FQDN:-$CI_SERVER_HOST}/\${CI_PROJECT_PATH}.git"
-    - ${update} --publish --to "\${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't published; building the site as it is."
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_PIPELINE_SOURCE == "schedule" || $GOODFELLOW_UPDATE)
-
+`,
+  decide: "    - update=true\n",
+  update,
+  rules: CODE_UPDATE_RULES,
+})}
+${gitlabPublishJob({ rules: CODE_UPDATE_RULES })}
 ${build}`;
 }
 

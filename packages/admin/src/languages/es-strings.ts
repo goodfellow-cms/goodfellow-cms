@@ -2089,6 +2089,8 @@ export const strings: Strings = {
   "updates.error.not-allowed": "Tu cuenta no puede hacer eso en {host}. Pídeselo a alguien propietario del sitio.",
   "updates.error.missing":
     "La configuración de generación de este sitio no instala actualizaciones, así que no hay nada que ejecutar.",
+  "updates.error.publishing":
+    "GitLab no dejó que Goodfellow publicara actualizaciones en este sitio. Alguien propietario del sitio puede dejar que “Goodfellow publishing” publique en el sitio publicado desde la configuración del proyecto en GitLab y volver a activar las actualizaciones.",
   "updates.error.save": "No se pudo guardar el cambio. Inténtalo de nuevo en un momento.",
   "updates.error.other": "Algo salió mal. Inténtalo de nuevo en un momento.",
   "editors.intro": "Las personas que pueden editar este sitio.",
