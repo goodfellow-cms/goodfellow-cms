@@ -690,12 +690,14 @@ describe("forgetting a password", () => {
   });
 
   it("gives back an email's slot where the service refused it, and keeps it where it may have gone", async () => {
-    for (const failure of ["refused", "timed out"] as const) {
+    // Refused (a 4xx) surely wasn't sent; the service's own error (a 5xx) or a timeout may have been.
+    for (const failure of ["refused", "server error", "timed out"] as const) {
       let calls = 0;
       vi.stubGlobal("fetch", (async () => {
         calls++;
         if (calls > RESET_ACCOUNT_LIMIT.max) return new Response("{}", { status: 200 });
-        if (failure === "refused") return new Response("{}", { status: 503 });
+        if (failure === "refused") return new Response("{}", { status: 422 });
+        if (failure === "server error") return new Response("{}", { status: 503 });
         throw new DOMException("The operation timed out.", "TimeoutError");
       }) as typeof fetch);
       const { auth, context, person, close } = await site(EMAIL_ENV);
@@ -729,6 +731,54 @@ describe("forgetting a password", () => {
         close();
         vi.unstubAllGlobals();
       }
+    }
+  });
+
+  it("gives back the slot of the email that was refused, never another's", async () => {
+    // The first email is held until the second has been sent, then refused.
+    let releaseFirst: () => void = () => undefined;
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let calls = 0;
+    let firstDone: () => void = () => undefined;
+    const firstFinished = new Promise<void>((resolve) => {
+      firstDone = resolve;
+    });
+    vi.stubGlobal("fetch", (async () => {
+      calls++;
+      if (calls > 1) return new Response("{}", { status: 200 });
+      await firstHeld;
+      setTimeout(firstDone, 20);
+      return new Response("{}", { status: 422 });
+    }) as typeof fetch);
+    const { auth, context, person, close } = await site(EMAIL_ENV);
+    try {
+      const eddieId = await person("eddie@example.org", "editor");
+      const ask = (ip: string) =>
+        auth.handler(
+          new Request(`${SITE}/api/auth/request-password-reset/`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+            body: JSON.stringify({ email: "eddie@example.org" }),
+          }),
+        );
+      await ask("192.0.2.1");
+      await ask("192.0.2.2");
+      await vi.waitFor(() => expect(calls).toBe(2));
+      releaseFirst();
+      await firstFinished;
+      await vi.waitFor(async () => {
+        const slots = await context.adapter.findMany<{ id: string }>({
+          model: "verification",
+          where: [{ field: "identifier", value: `reset-sent:${eddieId}` }],
+        });
+        // The second email's slot, the one it went out under, still counts.
+        expect(slots.map((slot) => slot.id)).toEqual([`reset-sent:2:${eddieId}`]);
+      });
+    } finally {
+      close();
+      vi.unstubAllGlobals();
     }
   });
 

@@ -39,11 +39,15 @@ export const MIN_PASSWORD_LENGTH = 12;
  * Sends someone who forgot their password a link to choose a new one, at the site's own address, never the
  * request's. Better Auth asks for it for any address, and answers the same whether or not it has an account, so this
  * never fails where the visitor could see it: the email goes after the answer, and a failure is logged without it.
- * One the email service refused gives back the slot it took (`releaseSlot`), so an outage doesn't use up the account's
- * emails; one that may have gone, such as a request that timed out, keeps it.
+ * One the email service refused gives back the slot its request took (`releaseSlot`), so a misconfiguration doesn't
+ * use up the account's emails; one that may have gone, such as one that timed out or met the service's own error,
+ * keeps it.
  */
-function sendReset(siteEnv: SiteEnv, releaseSlot: (userId: string) => Promise<void>) {
-  return async ({ user, token }: { user: { id: string; email: string; name: string }; token: string }) => {
+function sendReset(siteEnv: SiteEnv, releaseSlot: (request: Request | undefined) => Promise<void>) {
+  return async (
+    { user, token }: { user: { id: string; email: string; name: string }; token: string },
+    request?: Request,
+  ) => {
     const siteUrl = siteEnv.GOODFELLOW_SITE_URL;
     if (!siteUrl) return console.error("Set GOODFELLOW_SITE_URL so password reset emails can link to the site.");
     const link = new URL("/reset-password/", siteUrl);
@@ -59,7 +63,7 @@ function sendReset(siteEnv: SiteEnv, releaseSlot: (userId: string) => Promise<vo
       sendEmail(siteEnv, email).catch(async (error: unknown) => {
         console.error(`A password reset email wasn't sent: ${error instanceof Error ? error.name : "error"}.`);
         if (error instanceof EmailRefused) {
-          await releaseSlot(user.id).catch(() => console.error("A password reset email's slot wasn't given back."));
+          await releaseSlot(request).catch(() => console.error("A password reset email's slot wasn't given back."));
         }
       }),
     );
@@ -183,32 +187,40 @@ export async function claimRow(
   }
 }
 
-/**
- * Takes one of the account's `RESET_ACCOUNT_LIMIT.max` slots for a reset email, each a row whose id says which slot
- * it is, kept for the limit's window: whether one was free. Two requests can't take the same slot, so of requests at
- * the same moment exactly as many go ahead as there were free slots.
- */
-async function takeResetSlot(adapter: RowAdapter, userId: string): Promise<boolean> {
-  const expiresAt = new Date(Date.now() + RESET_ACCOUNT_LIMIT.window * 1000);
-  for (let slot = 1; slot <= RESET_ACCOUNT_LIMIT.max; slot++) {
-    const row = { id: `${RESET_SENT_IDENTIFIER}${slot}:${userId}`, identifier: `${RESET_SENT_IDENTIFIER}${userId}` };
-    if (await claimRow(adapter, { ...row, value: userId, expiresAt })) return true;
-  }
-  return false;
+/** A slot an account's reset email took (`takeResetSlot()`): its row's id, and what only its taker knows. */
+interface ResetSlot {
+  id: string;
+  holder: string;
 }
 
 /**
- * Gives back one of the account's slots (`takeResetSlot()`), its newest, for an email that wasn't sent. Any of its
- * slots does, since each only counts one email.
+ * Takes one of the account's `RESET_ACCOUNT_LIMIT.max` slots for a reset email, each a row whose id says which slot
+ * it is, kept for the limit's window, or `null` where none was free. Two requests can't take the same slot, so of
+ * requests at the same moment exactly as many go ahead as there were free slots.
  */
-async function releaseResetSlot(adapter: Pick<AuthContext["adapter"], "findMany" | "deleteMany">, userId: string) {
-  const [newest] = await adapter.findMany<{ id: string }>({
+async function takeResetSlot(adapter: RowAdapter, userId: string): Promise<ResetSlot | null> {
+  const expiresAt = new Date(Date.now() + RESET_ACCOUNT_LIMIT.window * 1000);
+  for (let slot = 1; slot <= RESET_ACCOUNT_LIMIT.max; slot++) {
+    const id = `${RESET_SENT_IDENTIFIER}${slot}:${userId}`;
+    const holder = generateRandomString(32);
+    const row = { id, identifier: `${RESET_SENT_IDENTIFIER}${userId}`, value: holder, expiresAt };
+    if (await claimRow(adapter, row)) return { id, holder };
+  }
+  return null;
+}
+
+/**
+ * Gives back the slot an email took (`takeResetSlot()`), for an email that wasn't sent: that slot only, and only while
+ * it's still that email's, never one taken again since it ran out.
+ */
+async function releaseResetSlot(adapter: Pick<AuthContext["adapter"], "deleteMany">, slot: ResetSlot) {
+  await adapter.deleteMany({
     model: "verification",
-    where: [{ field: "identifier", value: `${RESET_SENT_IDENTIFIER}${userId}` }],
-    sortBy: { field: "createdAt", direction: "desc" },
-    limit: 1,
+    where: [
+      { field: "id", value: slot.id },
+      { field: "value", value: slot.holder },
+    ],
   });
-  if (newest) await adapter.deleteMany({ model: "verification", where: [{ field: "id", value: newest.id }] });
 }
 
 /**
@@ -223,6 +235,8 @@ function resetLinks(siteEnv: SiteEnv) {
   // The lock each request using a link holds, for its after hook to let go: by the request's own context, which Better
   // Auth makes for each request and gives its before and after hooks alike, so no other request's can be let go.
   const holding = new WeakMap<object, { userId: string; holder: string }>();
+  // The slot each request for a reset email took, by the request, which Better Auth hands its hooks and `sendReset`.
+  const reserved = new WeakMap<Request, ResetSlot>();
   type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
   const tokenOf = (ctx: HookContext) => {
     const token = ctx.body?.token || ctx.query?.token;
@@ -293,14 +307,17 @@ function resetLinks(siteEnv: SiteEnv) {
               // Someone who hasn't joined chooses a password with their invitation, never a reset email, so an
               // account never has both kinds of link at once. The rest take a slot (`takeResetSlot()`). The answer
               // is the same either way; how long it takes differs by a query or two, as Better Auth's own does.
-              const limited = !user?.user.emailVerified || !(await takeResetSlot(adapter, user.user.id));
-              if (limited) {
+              const slot = user?.user.emailVerified ? await takeResetSlot(adapter, user.user.id) : null;
+              if (!slot) {
                 // Better Auth's own answer, so a visitor can't tell the account was limited, or exists.
                 return ctx.json({
                   status: true,
                   message: "If this email exists in our system, check your email for the reset link",
                 });
               }
+              // The request Better Auth hands the email's sending (`sendReset`), so a refused email gives back this
+              // slot, not another email's.
+              if (ctx.request) reserved.set(ctx.request, slot);
             }),
           },
         ],
@@ -317,8 +334,11 @@ function resetLinks(siteEnv: SiteEnv) {
         ],
       },
     } satisfies BetterAuthPlugin,
-    async releaseSlot(userId: string) {
-      if (context) await releaseResetSlot(context.adapter, userId);
+    async releaseSlot(request: Request | undefined) {
+      const slot = request && reserved.get(request);
+      if (!context || !slot) return;
+      reserved.delete(request);
+      await releaseResetSlot(context.adapter, slot);
     },
     // A password chosen from a link: the account's other links go, and its address is shown to be its person's, since
     // the link reached it, which is what joining is (lib/editors.ts). Both while the lock is held.
