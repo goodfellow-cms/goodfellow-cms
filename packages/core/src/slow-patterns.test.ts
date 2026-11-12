@@ -157,6 +157,15 @@ describe("theme CSS", () => {
     const start = withThemeCss("", theme).split("\n")[0] ?? "";
     expect(themeCssRegion(`${start}\n`.repeat(LONG))).toBeUndefined();
     expect(themeCssRegion(`${start.slice(0, -2)}\n`.repeat(LONG) + THEME_CSS_END)).toBeUndefined();
+    // Start lines separated by other line breaks share one line end, which is found once.
+    const started = performance.now();
+    expect(themeCssRegion(`${"/* Theme CSS: x\u2028".repeat(LONG)}\n`)).toBeUndefined();
+    expect(themeCssRegion(`${"/* Theme CSS:  \u2028".repeat(LONG)}*/\n`)).toBeUndefined();
+    expect(themeCssRegion(`${"/* Theme CSS: x\u2028".repeat(LONG)}*/\n.a {}\n${THEME_CSS_END}`)).toEqual({
+      name: "x",
+      css: ".a {}",
+    });
+    expect(performance.now() - started).toBeLessThan(2000);
   });
 
   it("reads quoted and plain addresses, brackets in quotes included", () => {
@@ -165,6 +174,12 @@ describe("theme CSS", () => {
         `a { background: url( "https://a.example/x(1).png" ), URL('https://b.example/y.png'), url( https://c.example/z.png ) }`,
       ),
     ).toEqual(["https://a.example/x(1).png", "https://b.example/y.png", "https://c.example/z.png"]);
+  });
+
+  it("reads an address after one whose string a line break ends", () => {
+    expect(themeCssLoads(`a{background:url("broken\n);}b{background:url("https://other.example/x.png")}`)).toContain(
+      "https://other.example/x.png",
+    );
   });
 
   it("reads many addresses that never close quickly", () => {

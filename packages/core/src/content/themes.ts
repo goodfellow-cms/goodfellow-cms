@@ -146,14 +146,18 @@ export const THEME_CSS_END = "/* End of theme CSS */";
  */
 function cssRegion(css: string): { start: number; end: number; name: string; css: string } | undefined {
   const marker = `${CSS_START} `;
+  // Start lines separated by other line breaks share a line end, which is found once.
+  let lineEnd = -1;
   for (let start = css.indexOf(marker); start !== -1; start = css.indexOf(marker, start + 1)) {
     if (start > 0 && !"\n\r\u2028\u2029".includes(css.charAt(start - 1))) continue;
-    const lineEnd = css.indexOf("\n", start);
+    if (lineEnd < start) lineEnd = css.indexOf("\n", start);
     if (lineEnd === -1) return undefined;
-    const line = css.slice(start + marker.length, lineEnd);
-    if (!line.endsWith("*/")) continue;
-    const space = line.search(/\s/);
-    const name = space === -1 ? line.slice(0, -2) : line.slice(0, space);
+    const from = start + marker.length;
+    if (lineEnd - 2 < from || !css.startsWith("*/", lineEnd - 2)) continue;
+    // The name runs to the first space, or to the comment's end; a space ends it before the next start line.
+    let to = from;
+    while (to < lineEnd - 2 && !/\s/.test(css.charAt(to))) to += 1;
+    const name = css.slice(from, to);
     if (!name) continue;
     const close = css.indexOf(THEME_CSS_END, lineEnd + 1);
     // No later start line has an end after it either.
@@ -203,7 +207,6 @@ function cssUrls(text: string): string[] {
     let at = start.lastIndex;
     while (/\s/.test(text.charAt(at))) at += 1;
     const quote = text.charAt(at);
-    let read = at;
     if ((quote === '"' || quote === "'") && !unclosed.has(quote)) {
       const close = text.indexOf(quote, at + 1);
       if (close === -1) {
@@ -217,14 +220,14 @@ function cssUrls(text: string): string[] {
           start.lastIndex = after + 1;
           continue;
         }
-        read = close + 1;
       }
     }
     const paren = text.indexOf(")", at);
     // Without a ")" after it, no later address ends.
     if (paren === -1) break;
     values.push(text.slice(at, paren));
-    start.lastIndex = Math.max(read, paren + 1);
+    // A quote that doesn't end the address may be a later one's, so reading goes on after the ")".
+    start.lastIndex = paren + 1;
   }
   return values;
 }

@@ -125,10 +125,11 @@ function serversFor(args: string[]): Server[] {
       else if (arg !== "test" && !arg.startsWith("-")) filters.push(arg.replace(/(:\d+)+$/, ""));
     }
     if (!filters.length) return all;
+    // A filter that names no spec may be a pattern Playwright matches some other way, so start everything rather than guess.
+    if (filters.some((filter) => !names.some((name) => namedBy(filter, `tests/${name}`)))) return all;
     chosen = names.filter((name) => filters.some((filter) => namedBy(filter, `tests/${name}`)));
   }
   const specs = chosen.map((name) => readFileSync(new URL(`tests/${name}`, import.meta.url), "utf8"));
-  // A filter no spec matches is something else, so start everything rather than guess.
   if (!specs.length) return all;
   return SERVERS.filter(({ usedBy }) => !usedBy || specs.some((text) => usedBy.test(text))).map(({ server }) => server);
 }
