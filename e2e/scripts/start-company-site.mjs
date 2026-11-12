@@ -58,7 +58,9 @@ serve(COMPANY.resend, async (request) => {
   if (pathname === "/__sent") return Response.json(sent);
   if (request.method !== "POST" || pathname !== "/emails") return new Response(null, { status: 404 });
   if (request.headers.get("authorization") !== "Bearer re_company_test") return new Response(null, { status: 401 });
-  sent.push(await request.json());
+  const message = await request.json();
+  // One recipient comes as a string, several as a list.
+  sent.push({ ...message, to: [message.to].flat() });
   return Response.json({ id: String(sent.length) });
 });
 

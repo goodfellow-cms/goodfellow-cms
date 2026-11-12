@@ -31,5 +31,8 @@
     }
   ],
   // The site's address, which sign-in trusts requests from. On this computer, .dev.vars says it's localhost.
-  "vars": { "GOODFELLOW_SITE_URL": "https://www.example.com" }
+  "vars": { "GOODFELLOW_SITE_URL": "https://www.example.com" },
+  // The email settings aren't here: the Deploy workflow gives them from the code repository's variables, which the
+  // site's owners change (README.md's "Email"), so a deploy from a computer keeps them as they are.
+  "keep_vars": true
 }
