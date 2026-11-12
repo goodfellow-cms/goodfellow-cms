@@ -58,8 +58,48 @@ const ROOT = /^(?:(?:html|:root|:host)(?![\w-])(?:\s*>?\s*body(?![\w-]))?|body(?
 /** Attributes, classes, and pseudo-classes on the page itself, such as `[data-gf-color-scheme="dark"]`. */
 const QUALIFIERS = /^(?:\[[^\]]*\]|[.#][\w-]+|:[\w-]+(?:\((?:[^()]|\([^()]*\))*\))?)+/;
 
-/** A pseudo-element at the end of a selector, which `:is()` can't hold. */
-const PSEUDO_ELEMENT = /(::?(?:before|after|first-line|first-letter)|::[\w-]+(?:\([^)]*\))?)+$/i;
+/** Pseudo-elements CSS still lets selectors write with one colon. */
+const SINGLE_COLON = new Set(["before", "after", "first-line", "first-letter"]);
+
+/** Where the name of letters, digits, `_` and `-` that ends just before `end` starts. */
+function nameStart(text: string, end: number): number {
+  let at = end;
+  while (at > 0 && /[\w-]/.test(text.charAt(at - 1))) at -= 1;
+  return at;
+}
+
+/**
+ * Where the pseudo-element ending at `end` starts (`::marker`, `::part(x)`, or one of `SINGLE_COLON`'s
+ * with one colon), or -1 for none.
+ */
+function pseudoElementBefore(text: string, end: number): number {
+  if (text.charAt(end - 1) === ")") {
+    // Its argument holds no ")", so its "(" comes after the ")" before this one: the first there that follows a name.
+    const after = text.lastIndexOf(")", end - 2) + 1;
+    for (let open = text.indexOf("(", after); open !== -1 && open < end - 1; open = text.indexOf("(", open + 1)) {
+      const name = nameStart(text, open);
+      if (name < open && text.startsWith("::", name - 2)) return name - 2;
+    }
+    return -1;
+  }
+  const name = nameStart(text, end);
+  if (name === end) return -1;
+  if (text.startsWith("::", name - 2)) return name - 2;
+  return text.charAt(name - 1) === ":" && SINGLE_COLON.has(text.slice(name, end).toLowerCase()) ? name - 1 : -1;
+}
+
+/**
+ * Where the pseudo-elements at the end of a selector start, which `:is()` can't hold, or its length for none.
+ * They're read back from the end one at a time, so a long selector takes time in proportion to its length,
+ * where a pattern would try again from each colon.
+ */
+function pseudoElementsStart(selector: string): number {
+  let start = selector.length;
+  for (let found = pseudoElementBefore(selector, start); found !== -1; found = pseudoElementBefore(selector, start)) {
+    start = found;
+  }
+  return start;
+}
 
 /** One selector, kept to the canvas. */
 export function scopeSelector(selector: string): string {
@@ -72,9 +112,9 @@ export function scopeSelector(selector: string): string {
     const qualifiers = rest.match(QUALIFIERS)?.[0] ?? "";
     return qualifiers ? `:root${qualifiers} ${CANVAS}${rest.slice(qualifiers.length)}` : `${CANVAS}${rest}`;
   }
-  const pseudo = trimmed.match(PSEUDO_ELEMENT);
-  const base = pseudo ? trimmed.slice(0, pseudo.index).trim() : trimmed;
-  const after = pseudo ? pseudo[0] : "";
+  const pseudo = pseudoElementsStart(trimmed);
+  const base = trimmed.slice(0, pseudo).trim();
+  const after = trimmed.slice(pseudo);
   return base ? `${CANVAS} :is(${base})${after}` : `${CANVAS} ${after}`;
 }
 

@@ -66,24 +66,38 @@ describe("the starters' task setup", () => {
     expect(JSON.stringify(job.script)).not.toContain("npx");
   });
 
-  it("reads Bitbucket's task pipeline as two steps, the second running none of the site's code", () => {
+  it("reads Bitbucket's task pipeline in steps that can't publish, and leaves the answer from one that runs none of the site's code", () => {
     const pipeline = parse(bitbucketPipelines("goodfellow")).pipelines.custom["plugin-task"];
-    const [describe, task] = pipeline.slice(1).map((entry: { step: { script: string[] } }) => entry.step);
-    expect(describe.artifacts).toEqual(["goodfellow-task.json"]);
-    expect(JSON.stringify(describe.script)).toContain("npx goodfellow task --describe");
-    expect(JSON.stringify(task.script)).not.toContain("npx");
-    expect(JSON.stringify(task.script)).toContain("goodfellow-task.js");
+    type Step = { script: string[]; artifacts?: string[]; auth?: { system: { scopes: string[] } } };
+    const [describe, task, answer] = pipeline.slice(1).map((entry: { step: Step }) => entry.step) as Step[];
+    expect(describe?.artifacts).toEqual(["goodfellow-task.json"]);
+    expect(JSON.stringify(describe?.script)).toContain("npx goodfellow task --describe");
+    expect(JSON.stringify(task?.script)).not.toContain("npx");
+    expect(JSON.stringify(task?.script)).toContain("goodfellow-task.js");
+    expect(task?.artifacts).toEqual(["goodfellow-task-result.json"]);
+    // Only the step that runs none of the site's code may publish.
+    expect(describe?.auth?.system.scopes).toEqual(["read:git:bitbucket"]);
+    expect(task?.auth?.system.scopes).toEqual(["read:git:bitbucket"]);
+    expect(answer?.auth?.system.scopes).toEqual(["read:git:bitbucket", "write:git:bitbucket"]);
+    expect(JSON.stringify(answer?.script)).not.toMatch(/\bnpm\b|\bnpx\b|\bnode\b/);
+    expect(JSON.stringify(answer?.script)).toContain("git push");
   });
 });
 
 describe("Bitbucket's lockfile step", () => {
-  it("publishes package-lock.json only once every new package comes from npm's registry", () => {
-    const step = parse(bitbucketPipelines("goodfellow")).pipelines.branches.main[0].step;
-    const script = step.script.join("\n") as string;
+  it("commits package-lock.json only once every new package comes from npm's registry, and leaves publishing it to a step of its own", () => {
+    const [lockfile, publish] = parse(bitbucketPipelines("goodfellow")).pipelines.branches.main.map(
+      (entry: { step: { script: string[]; auth: { system: { scopes: string[] } } } }) => entry.step,
+    );
+    const script = lockfile.script.join("\n") as string;
     const check = script.indexOf(LOCKFILE_REGISTRY_CHECK);
     expect(check).toBeGreaterThan(0);
-    expect(check).toBeLessThan(script.indexOf("git push"));
+    expect(check).toBeLessThan(script.indexOf("commit -m"));
     expect(script.slice(check + LOCKFILE_REGISTRY_CHECK.length)).toMatch(/^' \|\| exit 1/);
+    expect(script).not.toContain("git push");
+    expect(lockfile.auth.system.scopes).toEqual(["read:git:bitbucket"]);
+    expect(publish.auth.system.scopes).toEqual(["read:git:bitbucket", "write:git:bitbucket"]);
+    expect(publish.script.join("\n")).toContain("git push");
   });
 });
 

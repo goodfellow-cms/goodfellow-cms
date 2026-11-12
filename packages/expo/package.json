@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/expo",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Shows a Goodfellow CMS site's content natively in an Expo app, from its content API, offline too.",
   "keywords": [
     "goodfellow",
@@ -8,7 +8,7 @@
     "expo",
     "react-native"
   ],
-  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/apps",
+  "homepage": "https://goodfellowcms.com/docs/apps",
   "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
   "funding": {
     "type": "github",

@@ -23,8 +23,24 @@ export const EMAIL_PROVIDERS = ["resend", "mailgun", "sendgrid", "ses", "plunk"]
 
 export type EmailProvider = (typeof EMAIL_PROVIDERS)[number];
 
+/**
+ * Thrown where the email service refused the message with a 4xx answer, every time it was tried, so it surely wasn't
+ * sent. Its own errors (5xx) throw something else, as does a request that timed out or never reached it, since the
+ * message may have gone: Resend, for one, says a 5xx can still have sent it.
+ */
+export class EmailRefused extends Error {
+  override name = "EmailRefused";
+}
+
 /** How long a service has to answer, in milliseconds. */
 const SEND_TIMEOUT = 10_000;
+
+/**
+ * How many times a message is sent before giving up: once more where the service was asked too often, which surely
+ * didn't send it. Done here rather than by the transport, whose receipt keeps only the last try's error, so
+ * `refused()` sees every answer; never after an answer that may have sent it, which would send it twice.
+ */
+const SEND_TRIES = 2;
 
 /** The service the settings name, or nothing for a name the site doesn't know. */
 export function emailProvider(siteEnv: SiteEnv): EmailProvider | undefined {
@@ -67,7 +83,7 @@ async function transportFor(siteEnv: SiteEnv, provider: EmailProvider): Promise<
   const apiKey = siteEnv.EMAIL_API_KEY ?? "";
   const common = {
     timeout: SEND_TIMEOUT,
-    retries: 1,
+    retries: 0,
     ...(siteEnv.EMAIL_API_URL && { baseUrl: siteEnv.EMAIL_API_URL }),
   };
   switch (provider) {
@@ -113,9 +129,30 @@ function failure(receipt: Extract<Receipt, { successful: false }>): string {
 }
 
 /**
+ * Whether the service answered every try with a 4xx status, so the message surely wasn't sent. A try that met a 5xx,
+ * timed out or never reached the service may have sent it, and so may one whose error has no status.
+ */
+function refused(receipts: Extract<Receipt, { successful: false }>[]): boolean {
+  return receipts.every((receipt) => {
+    const errors = receipt.errors ?? [];
+    return (
+      errors.length > 0 &&
+      errors.every((error) => error.statusCode !== undefined && error.statusCode >= 400 && error.statusCode < 500)
+    );
+  });
+}
+
+/** Whether the service only said it was asked too often (429), so the message surely wasn't sent and may be again. */
+function retryable(receipt: Extract<Receipt, { successful: false }>): boolean {
+  const errors = receipt.errors ?? [];
+  return errors.length > 0 && errors.every((error) => error.statusCode === 429);
+}
+
+/**
  * Sends a message from `EMAIL_FROM` through the service `EMAIL_PROVIDER` names, with `EMAIL_API_KEY`, which should be
  * a key that can only send, from the site's own domain. Throws `EmailNotSetUp` naming the settings that are missing,
- * and an error naming only the kind of failure otherwise. `transport` is for tests.
+ * `EmailRefused` where the service refused the message, and an error naming only the kind of failure otherwise.
+ * `transport` is for tests.
  */
 export async function sendEmail(siteEnv: SiteEnv, email: Email, transport?: Transport): Promise<void> {
   const missing = missingEmailSettings(siteEnv);
@@ -129,8 +166,17 @@ export async function sendEmail(siteEnv: SiteEnv, email: Email, transport?: Tran
     subject: email.subject,
     content: { text: email.text, html: email.html },
   });
-  const receipt = await (transport ?? (await transportFor(siteEnv, provider as EmailProvider))).send(message);
-  if (!receipt.successful) throw new Error(`The email wasn't sent: ${failure(receipt)}.`);
+  const sender = transport ?? (await transportFor(siteEnv, provider as EmailProvider));
+  const failed: Extract<Receipt, { successful: false }>[] = [];
+  for (let tries = 0; tries < SEND_TRIES; tries++) {
+    const receipt = await sender.send(message);
+    if (receipt.successful) return;
+    failed.push(receipt);
+    if (!retryable(receipt)) break;
+  }
+  const last = failed[failed.length - 1] as Extract<Receipt, { successful: false }>;
+  const reason = `The email wasn't sent: ${failure(last)}.`;
+  throw refused(failed) ? new EmailRefused(reason) : new Error(reason);
 }
 
 /** Text as HTML shows it, with nothing in it read as markup. */

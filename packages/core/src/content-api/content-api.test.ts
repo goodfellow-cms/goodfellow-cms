@@ -208,7 +208,14 @@ describe("contentApiFiles", () => {
       layouts: [
         {
           language: "en",
-          header: { root: { props: {} }, content: [{ type: "Text", props: { id: "T", text: "<p>Top</p>" } }] },
+          header: {
+            root: { props: {} },
+            content: [
+              { type: "Text", props: { id: "T", text: "<p>Top</p>" } },
+              // Ids are content's to choose, so one can be any key.
+              { type: "Text", props: { id: "__proto__", text: "<p>Odd</p>" } },
+            ],
+          },
           footer: { root: { props: {} }, content: [] },
         },
         { language: "es", header: { root: { props: {} }, content: [] }, footer: { root: { props: {} }, content: [] } },
@@ -276,9 +283,10 @@ describe("contentApiFiles", () => {
         ],
       },
     });
-    expect(byPath["/api/header.json"].richText).toEqual({
-      T: { text: [{ type: "paragraph", children: [{ type: "text", text: "Top" }] }] },
-    });
+    const headerText = byPath["/api/header.json"].richText;
+    expect(headerText.T).toEqual({ text: [{ type: "paragraph", children: [{ type: "text", text: "Top" }] }] });
+    expect(Object.hasOwn(headerText, "__proto__")).toBe(true);
+    expect(({} as Record<string, unknown>).text).toBeUndefined();
 
     const collections = byPath["/api/collections.json"] as ApiCollectionsFile;
     const news = collections.collections.find((collection) => collection.id === "news");

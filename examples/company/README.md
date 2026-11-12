@@ -2,7 +2,7 @@
 
 A full-stack website built with [Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) and [Next.js](https://nextjs.org), for an organization whose editors sign in with the site's own accounts rather than GitHub's. Pages are files in a content repository of their own, edited in the admin panel at `/admin`; the site's server publishes them for the editors and keeps accounts in a database.
 
-It runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), built with [vinext](https://github.com/cloudflare/vinext), Cloudflare's build of Next.js, with a [D1](https://developers.cloudflare.com/d1/) database. It's being built in steps, and isn't released yet; the [full-stack Next.js](https://goodfellow-cms.github.io/goodfellow-cms/docs/full-stack-nextjs) docs page describes what it's built on.
+It runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), built with [vinext](https://github.com/cloudflare/vinext), Cloudflare's build of Next.js, with a [D1](https://developers.cloudflare.com/d1/) database. It's being built in steps, and isn't released yet; the [full-stack Next.js](https://goodfellowcms.com/docs/full-stack-nextjs) docs page describes what it's built on.
 
 ## Working on the site
 
@@ -30,7 +30,7 @@ On your own computer, the admin panel saves straight to the files in `content/`,
 
 It runs on Cloudflare's free plan. Every page is rendered while the site builds, so most visits cost almost nothing.
 
-1. **The content repository.** Make it as the [content repository](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
+1. **The content repository.** Make it as the [content repository](https://goodfellowcms.com/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
 2. **The database.** Sign in with `npx wrangler login`, run `npx wrangler d1 create goodfellow-company`, and put the `database_id` it gives in `wrangler.jsonc`.
 3. **The site's settings.** In `wrangler.jsonc`, set `GOODFELLOW_SITE_URL` to the site's address. Then set its secrets: `npx wrangler secret put BETTER_AUTH_SECRET` (at least 32 random characters, such as `openssl rand -base64 32` makes; without it, the site signs nobody in) and `npx wrangler secret put GOODFELLOW_GIT_TOKEN` (a fine-grained token that can publish to the content repository, and nothing else).
 4. **Email.** Choose a service for invitations and password resets, and give the code repository its settings, as [Email](#email) says. The site works without it: the editors page then shows each invitation's link for you to send yourself.
@@ -80,7 +80,7 @@ Admins invite people from **Editors** (`/admin/editors/`): its name, email addre
 
 Invitations and password resets are sent by email: see [Email](#email). Without it, the editors page shows each invitation's link for you to send yourself.
 
-**Forgot your password?** on the sign-in page emails a link to choose a new one, which works once, for 30 minutes, and signs the account out everywhere once it's used. It says the same whether or not the address has an account. Each computer's network address can ask 5 times an hour, and each account is sent at most 3 links an hour, however many computers ask, even after one is used (`RESET_LIMIT` and `RESET_ACCOUNT_LIMIT` in `lib/auth.ts`). So someone asking for another person's address over and over can hold up that person's own link for up to an hour, which is the price of not letting them fill the inbox. Using any link makes the account's other links stop working, even when two are used at the same moment, since only one is used at a time. Someone who hasn't joined yet gets no reset email, since their invitation is how they choose a password: an admin sends it again. Without email set up, the page says the site can't send the link. Passwords are at least 12 characters.
+**Forgot your password?** on the sign-in page emails a link to choose a new one, which works once, for 30 minutes, and signs the account out everywhere once it's used. It says the same whether or not the address has an account. Each computer's network address can ask 5 times an hour, and each account is sent at most 3 links an hour, however many computers ask, even after one is used (`RESET_LIMIT` and `RESET_ACCOUNT_LIMIT` in `lib/auth.ts`). An email the email service refuses (it answers 4xx every time it's tried) doesn't count, so a misconfiguration doesn't use them up; one that may have gone does, such as a request that timed out or met the service's own error (5xx), which can still have sent it. So someone asking for another person's address over and over can hold up that person's own link for up to an hour, which is the price of not letting them fill the inbox. Using any link makes the account's other links stop working, even when two are used at the same moment, since only one is used at a time. That holds for 30 seconds a link (`LINK_LOCK_SECONDS`): if the server stalls for longer in the middle of saving a password, after the link was used, and the person sets another password with a newer link meanwhile, the stalled one can be saved last. Better Auth's password update can't be made to wait for the lock, and D1 has no transactions to hold them together, so this is accepted. Someone who hasn't joined yet gets no reset email, since their invitation is how they choose a password: an admin sends it again. Without email set up, the page says the site can't send the link. Passwords are at least 12 characters.
 
 ## Email
 
@@ -108,7 +108,7 @@ Every page is rendered once and served as it was, so a request costs the server 
 
 - **Pages that look the same to everyone**, which is every page here, are static.
 - **What shows who's signed in** is filled in by the browser (`app/(site)/members/signed-in-as.tsx`), so the page around it stays static.
-- **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session (from its signed cookie for a few minutes at a time, then the database) and sends everyone else to sign in before the page is served.
+- **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session in the database on every request, so a used reset link, a ban, or a removal takes effect at once, and sends everyone else to sign in before the page is served.
 
 ## How it fits together
 

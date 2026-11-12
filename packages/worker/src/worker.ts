@@ -65,7 +65,7 @@ export interface WorkerEnv {
   OWNER_PRIVATE_KEY?: string;
   /** 32 random bytes, base64-encoded, which seal sessions. Changing it signs everyone out. */
   SESSION_KEY?: string;
-  /** Addresses of setup pages allowed to create sites, separated by commas, such as `https://goodfellow-cms.github.io`. */
+  /** Addresses of setup pages allowed to create sites, separated by commas, such as `https://goodfellowcms.com`. */
   SETUP_ORIGINS?: string;
   /**
    * The only addresses tokens may go to, separated by commas, such as

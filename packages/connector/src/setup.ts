@@ -13,7 +13,7 @@ export function connectorManifest(options: { name: string; connector: string; re
   const connector = options.connector.replace(/\/$/, "");
   return {
     name: options.name,
-    url: "https://goodfellow-cms.github.io/goodfellow-cms/docs/claude",
+    url: "https://goodfellowcms.com/docs/claude",
     description:
       "Lets Claude work on Goodfellow sites: read their pages, change them in drafts, and publish them when the editor says so.",
     // The connector needs no events, but GitHub wants an address for them.

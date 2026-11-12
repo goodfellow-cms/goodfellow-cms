@@ -1,5 +1,24 @@
 # @goodfellow-cms/registry
 
+## 0.11.0
+
+### Patch Changes
+
+- f4a0a43: Long text no longer slows down reading pages, themes, WordPress imports, feeds, or apps' themes: a comment, block comment, or `[caption]` that never ends, or a long run of slashes or hyphens, used to take time that grew with the square of its length. Comments, scripts, and styles that never end are now read as browsers read them, to the page's end. Other sites' news feeds whose tags never end no longer slow the Feed list block's builds either, and adding a sign-in option after one that ends in a `//` comment puts its comma before the comment. Early installs refuse package names and releases with characters npm's command line could read as more than a name.
+- 44a825d: Resolves the rest of the code scanner's findings. Reading long theme CSS, Google Fonts stylesheets, pages that get the admin address's guard, and addresses with many slashes now takes time in proportion to their length. Values put into the guards' and blocks' inline scripts can't end the script early. A plugin's early install runs npm without a shell on Windows. The content API's rich text keeps any block id, `__proto__` included, as an ordinary key. The Comments block loads Garrul's script only from a web address.
+- f6fcc1a: Goodfellow's documentation is now at https://goodfellowcms.com, and the links the packages give, in their READMEs, the admin panel's help links, and the Claude Desktop extension, go there. The old address, https://goodfellow-cms.github.io/goodfellow-cms/, sends people to the same page at the new one.
+- 1008a42: Blocks' settings, the AI assistant's instructions, and these packages' messages and READMEs use the Oxford comma in lists ("pages, items, and media").
+  
+  The AI assistant's instructions also say plainly that it follows the request's own directions, such as "Translate the page", besides what the person asks, while the site's own text stays content, never instructions.
+- e3678d8: Security fixes from the November code review:
+  
+  - The sign-in service sends a sign-in back only to the admin panel (or the token broker's page), never to another page at the site's address, where an editor's redirect could pass it on to another site, and a link can no longer keep an owner signed in for longer.
+  - The Comments block shows Garrul's comments only from the address in Site Settings, which only owners change, since Garrul's script comes from wherever its address says.
+  - A token broker asks before publishing a file for the media library that can hold code: an SVG picture, or anything that isn't a kind the media library takes, such as a page or a script.
+  - Builds refuse a page whose comment a browser would end before the admin address's guard (`<!-->`, `<!--->` or `--!>`).
+  - Plugins' tasks install Goodfellow's task runner at the exact release the site's lockfile has, with nothing npm published more than a day after it. New sites get it in their setup; an update can't change a site's workflows, so an existing site that runs plugins' tasks gets it by copying the starter's `.github/workflows/plugin-task.yml`, or the `plugin-task` job of its `.gitlab-ci.yml`, over its own.
+  - Bitbucket invitations match a member by their account or username before the name they show, and refuse a name more than one member uses.
+
 ## 0.10.1
 
 No changes in this release.

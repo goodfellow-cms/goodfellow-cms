@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { authOptions, authorizeWith, RESET_ACCOUNT_LIMIT } from "./auth.ts";
+import { authOptions, authorizeWith, LINK_LOCK, lockLinks, RESET_ACCOUNT_LIMIT, unlockLinks } from "./auth.ts";
 import {
   acceptInvitation,
   EditorsError,
@@ -14,7 +14,7 @@ import {
   removeEditor,
   setRole,
 } from "./editors.ts";
-import { escapeHtml, invitationEmail, sendEmail } from "./email.ts";
+import { EmailRefused, escapeHtml, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 
 const SITE = "http://localhost:4321";
@@ -193,6 +193,23 @@ describe("emails", () => {
     );
     expect(refused).toMatch(/^The email wasn't sent: the service answered with an error \([a-z-]+\)\.$/);
     expect(refused).not.toContain("eddie");
+    // A 4xx every time it's tried means it surely wasn't sent; a 5xx on any try means it may have been.
+    await expect(sendEmail(EMAIL_ENV, email)).rejects.toBeInstanceOf(EmailRefused);
+    vi.stubGlobal("fetch", fakeResend(500).fetcher);
+    const failed = await sendEmail(EMAIL_ENV, email).catch((error: unknown) => error);
+    expect(failed).toBeInstanceOf(Error);
+    expect(failed).not.toBeInstanceOf(EmailRefused);
+    // Asked too often surely didn't send it, so it's tried once more, and what that try met decides.
+    const answers = [429, 503];
+    const busy = fakeService(() => Response.json({ message: "no" }, { status: answers.shift() ?? 200 }));
+    vi.stubGlobal("fetch", busy.fetcher);
+    const mixed = await sendEmail(EMAIL_ENV, email).catch((error: unknown) => error);
+    expect(busy.requests).toHaveLength(2);
+    expect(mixed).toBeInstanceOf(Error);
+    expect(mixed).not.toBeInstanceOf(EmailRefused);
+    answers.push(429, 200);
+    await sendEmail(EMAIL_ENV, email);
+    expect(busy.requests).toHaveLength(4);
     await expect(sendEmail(SITE_ENV, email)).rejects.toThrow(
       "Set EMAIL_PROVIDER, EMAIL_FROM, EMAIL_API_KEY to send email.",
     );
@@ -451,6 +468,185 @@ describe("the editors API", () => {
     }
   });
 
+  it("never lets a link used past its lock's time take a link sent since, or another request's lock", async () => {
+    const { auth, asking, olive, context, signIn, close } = await site();
+    type Adapter = typeof context.adapter;
+    const { transaction, consumeOne } = context.adapter;
+    try {
+      const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
+      if (invited.sent) throw new Error("It said it sent an email.");
+      const eddieId = (await context.internalAdapter.findUserByEmail("eddie@example.org"))?.user.id ?? "";
+      const token = (link: string) => new URL(link).searchParams.get("token");
+      const lockId = `${LINK_LOCK}${eddieId}`;
+      const lock = () =>
+        context.adapter.findOne<{ value: string }>({
+          model: "verification",
+          where: [{ field: "id", value: lockId }],
+        });
+      // As D1 has it, with nothing holding Better Auth's find and its consume together.
+      context.adapter.transaction = (async (run: (adapter: Adapter) => Promise<unknown>) =>
+        run(context.adapter)) as Adapter["transaction"];
+      // The invitation is used, and stops just before Better Auth consumes its row, past its lock's time.
+      let reached: () => void = () => undefined;
+      const atConsume = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      context.adapter.consumeOne = (async (data: Parameters<Adapter["consumeOne"]>[0]) => {
+        context.adapter.consumeOne = consumeOne;
+        await context.adapter.update({
+          model: "verification",
+          where: [{ field: "id", value: lockId }],
+          update: { expiresAt: new Date(Date.now() - 1000) },
+        });
+        reached();
+        await held;
+        return consumeOne(data);
+      }) as Adapter["consumeOne"];
+      const accepting = acceptInvitation(auth, asking(undefined), {
+        token: token(invited.link),
+        password: "the password from the old link",
+      });
+      await atConsume;
+      // Meanwhile a new link is sent, and someone else takes the account's lock.
+      const again = await inviteAgain(auth, SITE_ENV, asking(olive), eddieId);
+      if (again.sent) throw new Error("It said it sent an email.");
+      const holder = await lockLinks(context.adapter, eddieId);
+      expect(holder).toBeTruthy();
+      release();
+      await expect(accepting).rejects.toMatchObject({ status: 400 });
+      // The old link set nothing, the new one still works, and the lock is still the other request's.
+      expect(await signIn("eddie@example.org", "the password from the old link")).toBeUndefined();
+      expect(await lock()).toMatchObject({ value: holder });
+      await unlockLinks(context.adapter, eddieId, holder ?? "");
+      await acceptInvitation(auth, asking(undefined), { token: token(again.link), password: PASSWORD });
+      expect(await signIn("eddie@example.org")).toBeDefined();
+    } finally {
+      context.adapter.transaction = transaction;
+      context.adapter.consumeOne = consumeOne;
+      close();
+    }
+  });
+
+  it("never lets a link used again, once it's been used, let go of the lock its first use holds", async () => {
+    const { auth, asking, olive, context, signIn, close } = await site();
+    type Adapter = typeof context.adapter;
+    const { transaction, consumeOne } = context.adapter;
+    try {
+      const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
+      if (invited.sent) throw new Error("It said it sent an email.");
+      const eddieId = (await context.internalAdapter.findUserByEmail("eddie@example.org"))?.user.id ?? "";
+      const token = new URL(invited.link).searchParams.get("token") ?? "";
+      context.adapter.transaction = (async (run: (adapter: Adapter) => Promise<unknown>) =>
+        run(context.adapter)) as Adapter["transaction"];
+      // The invitation is used, and stops once Better Auth has consumed its row, before the person is marked joined.
+      let reached: () => void = () => undefined;
+      const consumed = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      context.adapter.consumeOne = (async (data: Parameters<Adapter["consumeOne"]>[0]) => {
+        context.adapter.consumeOne = consumeOne;
+        const row = await consumeOne(data);
+        reached();
+        await held;
+        return row;
+      }) as Adapter["consumeOne"];
+      const accepting = acceptInvitation(auth, asking(undefined), { token, password: PASSWORD });
+      await consumed;
+      // The same link again, in the body and in the query: refused, and the first use keeps the lock.
+      await expect(
+        auth.api.resetPassword({ body: { token, newPassword: "the password from the replay" } }),
+      ).rejects.toThrow();
+      await expect(
+        auth.api.resetPassword({ body: { newPassword: "the password from the replay" }, query: { token } }),
+      ).rejects.toThrow();
+      expect(
+        await context.adapter.findOne({
+          model: "verification",
+          where: [{ field: "id", value: `${LINK_LOCK}${eddieId}` }],
+        }),
+      ).toBeTruthy();
+      await expect(inviteAgain(auth, SITE_ENV, asking(olive), eddieId)).rejects.toMatchObject({ status: 409 });
+      release();
+      await accepting;
+      expect(await signIn("eddie@example.org")).toBeDefined();
+      expect(await signIn("eddie@example.org", "the password from the replay")).toBeUndefined();
+      // Joined, so no new link can be sent, and the first use let its lock go.
+      await expect(inviteAgain(auth, SITE_ENV, asking(olive), eddieId)).rejects.toMatchObject({ status: 409 });
+      expect(await lockLinks(context.adapter, eddieId)).toBeTruthy();
+    } finally {
+      context.adapter.transaction = transaction;
+      context.adapter.consumeOne = consumeOne;
+      close();
+    }
+  });
+
+  it("keeps a link sent while another is looked up, rather than retiring it for the one it replaced", async () => {
+    const { auth, asking, olive, context, signIn, close } = await site();
+    const create = context.adapter.create;
+    try {
+      const invited = await inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
+      if (invited.sent) throw new Error("It said it sent an email.");
+      const eddieId = (await context.internalAdapter.findUserByEmail("eddie@example.org"))?.user.id ?? "";
+      const token = (link: string) => new URL(link).searchParams.get("token");
+      // The old link is looked up, and stops just before it takes the account's lock.
+      let reached: () => void = () => undefined;
+      const atLock = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let paused = false;
+      context.adapter.create = (async (data: { data: { id?: unknown } }) => {
+        if (!paused && String(data.data.id).startsWith(LINK_LOCK)) {
+          paused = true;
+          reached();
+          await held;
+        }
+        return create(data as never);
+      }) as typeof create;
+      const accepting = acceptInvitation(auth, asking(undefined), {
+        token: token(invited.link),
+        password: "the password from the old link",
+      });
+      await atLock;
+      // Meanwhile a new link replaces it.
+      const again = await inviteAgain(auth, SITE_ENV, asking(olive), eddieId);
+      if (again.sent) throw new Error("It said it sent an email.");
+      release();
+      await expect(accepting).rejects.toMatchObject({ status: 400 });
+      context.adapter.create = create;
+      // The new link still works, and the lock was let go.
+      await acceptInvitation(auth, asking(undefined), { token: token(again.link), password: PASSWORD });
+      expect(await signIn("eddie@example.org")).toBeDefined();
+      expect(await signIn("eddie@example.org", "the password from the old link")).toBeUndefined();
+    } finally {
+      context.adapter.create = create;
+      close();
+    }
+  });
+
   it("lists, and changes, everyone however many there are", async () => {
     const { auth, asking, olive, context, close } = await site();
     try {
@@ -585,6 +781,99 @@ describe("forgetting a password", () => {
       expect(resend.sent).toHaveLength(RESET_ACCOUNT_LIMIT.max);
     } finally {
       close();
+    }
+  });
+
+  it("gives back an email's slot where the service refused it, and keeps it where it may have gone", async () => {
+    // Refused (a 4xx) surely wasn't sent; the service's own error (a 5xx) or a timeout may have been.
+    for (const failure of ["refused", "server error", "timed out"] as const) {
+      let calls = 0;
+      vi.stubGlobal("fetch", (async () => {
+        calls++;
+        if (calls > RESET_ACCOUNT_LIMIT.max) return new Response("{}", { status: 200 });
+        if (failure === "refused") return new Response("{}", { status: 422 });
+        if (failure === "server error") return new Response("{}", { status: 503 });
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      }) as typeof fetch);
+      const { auth, context, person, close } = await site(EMAIL_ENV);
+      try {
+        await person("eddie@example.org", "editor");
+        const slots = async () =>
+          (
+            await context.adapter.findMany({
+              model: "verification",
+              where: [{ field: "identifier", operator: "starts_with", value: "reset-sent:" }],
+            })
+          ).length;
+        const ask = (ip: string) =>
+          auth.handler(
+            new Request(`${SITE}/api/auth/request-password-reset/`, {
+              method: "POST",
+              headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+              body: JSON.stringify({ email: "eddie@example.org" }),
+            }),
+          );
+        for (let index = 0; index < RESET_ACCOUNT_LIMIT.max; index++) {
+          await ask(`192.0.2.${index + 1}`);
+          await vi.waitFor(() => expect(calls).toBe(index + 1));
+          await vi.waitFor(async () => expect(await slots()).toBe(failure === "refused" ? 0 : index + 1));
+        }
+        // Once the service works again: a refused email's slot is free, one that may have gone still counts.
+        await ask("192.0.2.50");
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(calls).toBe(failure === "refused" ? RESET_ACCOUNT_LIMIT.max + 1 : RESET_ACCOUNT_LIMIT.max);
+      } finally {
+        close();
+        vi.unstubAllGlobals();
+      }
+    }
+  });
+
+  it("gives back the slot of the email that was refused, never another's", async () => {
+    // The first email is held until the second has been sent, then refused.
+    let releaseFirst: () => void = () => undefined;
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let calls = 0;
+    let firstDone: () => void = () => undefined;
+    const firstFinished = new Promise<void>((resolve) => {
+      firstDone = resolve;
+    });
+    vi.stubGlobal("fetch", (async () => {
+      calls++;
+      if (calls > 1) return new Response("{}", { status: 200 });
+      await firstHeld;
+      setTimeout(firstDone, 20);
+      return new Response("{}", { status: 422 });
+    }) as typeof fetch);
+    const { auth, context, person, close } = await site(EMAIL_ENV);
+    try {
+      const eddieId = await person("eddie@example.org", "editor");
+      const ask = (ip: string) =>
+        auth.handler(
+          new Request(`${SITE}/api/auth/request-password-reset/`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+            body: JSON.stringify({ email: "eddie@example.org" }),
+          }),
+        );
+      await ask("192.0.2.1");
+      await ask("192.0.2.2");
+      await vi.waitFor(() => expect(calls).toBe(2));
+      releaseFirst();
+      await firstFinished;
+      await vi.waitFor(async () => {
+        const slots = await context.adapter.findMany<{ id: string }>({
+          model: "verification",
+          where: [{ field: "identifier", value: `reset-sent:${eddieId}` }],
+        });
+        // The second email's slot, the one it went out under, still counts.
+        expect(slots.map((slot) => slot.id)).toEqual([`reset-sent:2:${eddieId}`]);
+      });
+    } finally {
+      close();
+      vi.unstubAllGlobals();
     }
   });
 

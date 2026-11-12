@@ -192,7 +192,7 @@ describe("redirectFiles", () => {
     expect(file?.content).toContain("/b&quot;&gt;&lt;/script&gt;&lt;script&gt;alert(1)");
     expect(file?.content).toContain('location.replace("/b\\">\\u003c/script>\\u003cscript>alert(1)/"');
     expect(file?.content).toContain("&lt;b&gt;<a ");
-    expect(file?.content?.match(/<script>/g)).toHaveLength(1);
+    expect(file?.content?.split("<script>")).toHaveLength(2);
   });
 
   it("finds the redirect for an address", () => {

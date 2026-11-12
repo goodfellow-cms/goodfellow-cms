@@ -14,6 +14,8 @@
  * makes the same one every time.
  */
 
+import { UPDATE_CHECK } from "./github-workflows.js";
+import { BUILD_DECISION, PUBLISH_PATCH } from "./gitlab-publish.js";
 import {
   EARLY_CHECK,
   EARLY_COMMAND,
@@ -94,12 +96,66 @@ function comment(text: string): string {
 
 const COMMIT_AS = '-c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid';
 
+/**
+ * What a step that runs the site's code may do with the repository: read it.
+ * Every step's own token can otherwise publish to it, so a package taken over
+ * by someone else could change the site's code; a step that declares its
+ * scopes gets only those (Bitbucket's `auth.system.scopes`).
+ */
+export const BITBUCKET_READ_ONLY = `auth:
+            system:
+              scopes:
+                - read:git:bitbucket`;
+
+/** What a step that publishes, and runs none of the site's code, may do: read and publish. */
+export const BITBUCKET_PUBLISHES = `auth:
+            system:
+              scopes:
+                - read:git:bitbucket
+                - write:git:bitbucket`;
+
+/** The end of a step that commits what the site's code made, for the next step to check and publish. */
+const LEAVE_PATCH = `            # What this step committed, for the next to check and publish: this one ran the site's code, so it can't.
+            - git format-patch --binary --stdout "$BITBUCKET_COMMIT..HEAD" > ${PUBLISH_PATCH}`;
+
+/**
+ * A step that publishes what the step before it committed, running none of
+ * the site's code: it applies the commits, checks they change only what an
+ * update or a lockfile does (`UPDATE_CHECK`), with git and Node.js given only
+ * the variables they need, and pushes them. `unpublished` runs where there
+ * was nothing to publish.
+ */
+function publishStep(name: string, condition: string, unpublished?: string): string {
+  return `      - step:
+          name: ${name}
+          ${BITBUCKET_PUBLISHES}
+${condition}          script:
+            - |
+              run() { env -i HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin "$@"; }
+              if [ -f ${PUBLISH_PATCH} ] && [ ! -L ${PUBLISH_PATCH} ] && [ -s ${PUBLISH_PATCH} ]; then
+                run git -c user.name="Goodfellow" -c user.email=publish@goodfellow.invalid am ${PUBLISH_PATCH}
+                # The commits were made where the site's code ran, so only what an update or a lockfile changes is published.
+                run BASE="$BITBUCKET_COMMIT" node -e '${UPDATE_CHECK}'
+                git push origin "HEAD:refs/heads/$BITBUCKET_BRANCH"
+${unpublished ? `              else\n${unpublished}` : ""}              fi`;
+}
+
+/** Only when package.json changed, since a skipped step uses no build minutes. */
+const PACKAGE_CHANGED = `          condition:
+            changesets:
+              includePaths:
+                - package.json
+`;
+
 /** Asks Vercel to rebuild the site, or says how to give the pipeline the hook. */
 const REBUILD = `if [ -z "$${VERCEL_DEPLOY_HOOK}" ]; then
                 echo "Add the Vercel project's deploy hook as the repository variable ${VERCEL_DEPLOY_HOOK}."
                 exit 1
               fi
               curl --fail --silent --show-error --request POST "$${VERCEL_DEPLOY_HOOK}"`;
+
+/** `REBUILD` where the publish step has it, four spaces further in. */
+const REBUILD_IN_PUBLISH = REBUILD.replaceAll("\n              ", "\n                  ");
 
 /** A step that only asks Vercel to rebuild the site. */
 export function bitbucketRebuildStep(name: string): string {
@@ -117,7 +173,7 @@ export function bitbucketPipelines(cli: SiteCli): string {
   return `${comment(
     `Vercel builds and publishes the site whenever the main branch changes (including every Publish in the admin panel). These pipelines keep it current, and run plugins' tasks. The first runs only when package.json changes, and the others only when started: the admin panel's Updates screen adds a schedule for "${update}" each night (Pipelines → Schedules), the admin panel adds a schedule for "${scheduled}" at each time a page or item is to be shown or hidden, and it starts "${update}" and "${task}" when an owner or editor asks. "${update}" and "${task}" take about a minute of Bitbucket's build minutes each, of which the free plan has 50 a month; "${scheduled}" takes seconds.
 "${update}" checks whether the site needs building: when Goodfellow has new fixes, which it installs and publishes only if the site still builds with them, unless content/updates.json turns automatic updates off; when something the site shows by today's date, such as an event, has changed; or when the live site isn't the newest build. When it needs building but there's no update to publish, it asks Vercel to rebuild the site. The repository variable GOODFELLOW_NIGHTLY, which the Updates screen sets, can make it rebuild every night ("always") or not at all ("off"). "${scheduled}" asks Vercel to rebuild the site, at the time a page or item scheduled to be shown or hidden comes due; each of its schedules runs once, and the admin panel removes it once it has passed.
-They ask Vercel through the project's deploy hook (in Vercel, the project's Settings → Git → Deploy Hooks, for the main branch), which can only start builds: add it as the secured repository variable ${VERCEL_DEPLOY_HOOK} (Repository settings → Pipelines → Repository variables). Pipelines must be turned on (Repository settings → Pipelines → Settings). Every step gets the repository's variables and can publish to it, so keep only what the site needs there. See README.md.`,
+They ask Vercel through the project's deploy hook (in Vercel, the project's Settings → Git → Deploy Hooks, for the main branch), which can only start builds: add it as the secured repository variable ${VERCEL_DEPLOY_HOOK} (Repository settings → Pipelines → Repository variables). Pipelines must be turned on (Repository settings → Pipelines → Settings). Every step gets the repository's variables, so keep only what the site needs there. Steps that run the site's code can only read the repository (their auth scopes): what they commit, the next step, which runs none of it, checks and publishes. Where the main branch has branch restrictions, add main under its Pipelines write access, so that step can publish. See README.md.`,
   )}
 image: node:22
 
@@ -131,16 +187,13 @@ pipelines:
     main:
       - step:
           name: Lockfile
+          ${BITBUCKET_READ_ONLY}
           # Only when package.json changed, since a skipped step uses no build minutes.
-          condition:
-            changesets:
-              includePaths:
-                - package.json
-          script:
+${PACKAGE_CHANGED}          script:
             # When package.json names packages package-lock.json doesn't have, such as a plugin installed from the
             # admin panel: writes package-lock.json, installing nothing and running none of the packages' code,
-            # with releases at least ${RELEASE_AGE_DAYS} days old for what it adds, and publishes it, which Vercel
-            # then builds.
+            # with releases at least ${RELEASE_AGE_DAYS} days old for what it adds, for the next step to publish,
+            # which Vercel then builds.
             - |
               if node -e '${LOCKFILE_CHECK}'; then
                 echo "package-lock.json has every package package.json names."
@@ -155,8 +208,11 @@ pipelines:
                 # Only packages from npm's registry, or the step fails, publishing nothing.
                 node -e '${LOCKFILE_REGISTRY_CHECK}' || exit 1
                 git ${COMMIT_AS} commit -m "Write package-lock.json for the packages package.json names" package-lock.json
-                git push origin "HEAD:$BITBUCKET_BRANCH"
               fi
+${LEAVE_PATCH}
+          artifacts:
+            - ${PUBLISH_PATCH}
+${publishStep("Publish the lockfile", PACKAGE_CHANGED)}
 
   custom:
     ${update}:
@@ -166,7 +222,8 @@ pipelines:
           - name: GOODFELLOW_REBUILD
             default: ""
       - step:
-          name: Update and rebuild
+          name: Update
+          ${BITBUCKET_READ_ONLY}
           caches: [npm]
           script:
             - |
@@ -182,17 +239,24 @@ pipelines:
             - |
               if [ "$update" = true ]; then
                 [ -d node_modules ] || npm ci --prefer-offline
-                npx ${cli} update --publish --to "\${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't published; rebuilding the site as it is."
+                npx ${cli} update --commit --to "\${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't made; rebuilding the site as it is."
               fi
-            # Vercel builds an update that was published by itself, so this is for when there wasn't one.
-            - |
-              if [ "$build" = false ] && [ "$update" = false ]; then
-                echo "Not rebuilding the site, since nothing has changed since it was built."
-              elif [ "$(git ls-remote origin "refs/heads/$BITBUCKET_BRANCH" | cut -f1)" != "$BITBUCKET_COMMIT" ]; then
-                echo "Vercel builds the update that was published."
-              else
-                ${REBUILD}
-              fi
+            - echo "$build" > ${BUILD_DECISION}
+${LEAVE_PATCH}
+          artifacts:
+            - ${PUBLISH_PATCH}
+            - ${BUILD_DECISION}
+${publishStep(
+  "Publish and rebuild",
+  "",
+  `                # Vercel builds what's published by itself, so this is for when nothing was.
+                if [ "$(cat ${BUILD_DECISION} 2>/dev/null)" != true ]; then
+                  echo "Not rebuilding the site, since nothing has changed since it was built."
+                else
+                  ${REBUILD_IN_PUBLISH}
+                fi
+`,
+)}
 
     ${scheduled}:
 ${bitbucketRebuildStep("Scheduled change")}
@@ -212,6 +276,7 @@ ${bitbucketRebuildStep("Scheduled change")}
           - name: GOODFELLOW_TASK_KEY
       - step:
           name: Describe the plugin task
+          ${BITBUCKET_READ_ONLY}
           caches: [npm]
           script:
             - npm ci --prefer-offline || true
@@ -220,14 +285,27 @@ ${bitbucketRebuildStep("Scheduled change")}
             - ${TASK_DESCRIPTION}
       - step:
           name: Plugin task
+          ${BITBUCKET_READ_ONLY}
           script:
 ${taskRunnerInstall("/tmp/goodfellow-runner", "            - ")}
             - npm ci --ignore-scripts
             - ${taskRunner("/tmp/goodfellow-runner")} --description ${TASK_DESCRIPTION} --out "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" || true
+            - cp "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" ${TASK_RESULT_FILE} || echo '{"version":1,"failed":true}' > ${TASK_RESULT_FILE}
+          artifacts:
+            - ${TASK_RESULT_FILE}
+      - step:
+          # Leaves the answer for the admin panel, running none of the site's code.
+          name: Plugin task's answer
+          ${BITBUCKET_PUBLISHES}
+          script:
             - |
               case "$GOODFELLOW_TASK_REQUEST" in "" | *[!a-z0-9]*) echo "That isn't a request from the admin panel."; exit 1 ;; esac
-              answer="$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}"
-              [ -s "$answer" ] || echo '{"version":1,"failed":true}' > "$answer"
+              answer="$(mktemp)"
+              if [ -f ${TASK_RESULT_FILE} ] && [ ! -L ${TASK_RESULT_FILE} ] && [ -s ${TASK_RESULT_FILE} ]; then
+                cp ${TASK_RESULT_FILE} "$answer"
+              else
+                echo '{"version":1,"failed":true}' > "$answer"
+              fi
               git checkout -q --orphan answer
               git rm -rq --cached .
               cp "$answer" ${TASK_RESULT_FILE}

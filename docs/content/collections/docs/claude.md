@@ -28,7 +28,7 @@ Claude needs a token for each host your sites are on, which can change the sites
 
 **Claude Desktop:**
 
-1. Download the [Goodfellow extension](https://goodfellow-cms.github.io/goodfellow-cms/goodfellow.mcpb), `goodfellow.mcpb`.
+1. Download the [Goodfellow extension](https://goodfellowcms.com/goodfellow.mcpb), `goodfellow.mcpb`.
 2. In Claude Desktop, open **Settings → Extensions**. Drag `goodfellow.mcpb` into that window, or choose **Advanced settings → Install Extension…** and pick the file. (Opening the file from your downloads may do the same.)
 3. Claude shows what the extension is. Choose **Install**.
 4. Fill in its settings, then choose **Save**:

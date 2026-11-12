@@ -20,7 +20,7 @@ const WRANGLER = `// Goodfellow's sign-in worker.
   "vars": {
     "EDIT_APP_SLUG": "goodfellow-cms",
     "OWNER_APP_SLUG": "goodfellow-cms-owner",
-    "SETUP_ORIGINS": "https://goodfellow-cms.github.io"
+    "SETUP_ORIGINS": "https://goodfellowcms.com"
   }
   // Secrets, set with \`npx wrangler secret put NAME\`.
 }
@@ -123,11 +123,11 @@ describe("newSessionKey", () => {
 
 describe("wrangler.jsonc", () => {
   it("reads and changes settings, keeping comments and layout", () => {
-    expect(readVar(WRANGLER, "SETUP_ORIGINS")).toBe("https://goodfellow-cms.github.io");
+    expect(readVar(WRANGLER, "SETUP_ORIGINS")).toBe("https://goodfellowcms.com");
     expect(readVar(WRANGLER, "MISSING")).toBeUndefined();
     const changed = withVars(WRANGLER, { EDIT_APP_SLUG: "parish-sign-in", SETUP_ORIGINS: "" });
     expect(changed).toBe(
-      WRANGLER.replace('"goodfellow-cms"', '"parish-sign-in"').replace('"https://goodfellow-cms.github.io"', '""'),
+      WRANGLER.replace('"goodfellow-cms"', '"parish-sign-in"').replace('"https://goodfellowcms.com"', '""'),
     );
     expect(withVars(changed, { SETUP_ORIGINS: 'a"b' })).toContain('"SETUP_ORIGINS": "a\\"b"');
     expect(readVar(withVars(changed, { SETUP_ORIGINS: 'a"b' }), "SETUP_ORIGINS")).toBe('a"b');

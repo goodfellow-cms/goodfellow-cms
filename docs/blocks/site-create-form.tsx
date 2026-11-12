@@ -738,9 +738,9 @@ function Unconnected({ left, repos }: { left: UnmadeConnection[]; repos: Created
               </>
             ) : unmade.kind === "push" ? (
               <>
-                In {unmade.repo}'s{" "}
-                {at(unmade.repo, "/-/settings/ci_cd#js-token-access", "Settings → CI/CD → Job token permissions")}, turn
-                on Allow Git push requests to the repository, so it can install Goodfellow's fixes.
+                Turn on updates on the admin panel's Updates screen, which gives {unmade.repo}'s pipelines a key of
+                their own to install Goodfellow's fixes with. On GitLab before release 18.10, only paid plans let that
+                key publish to the protected main branch.
               </>
             ) : (
               <>

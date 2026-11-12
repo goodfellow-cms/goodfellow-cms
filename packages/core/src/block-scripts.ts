@@ -71,7 +71,19 @@ export const ANNOUNCEMENT_STORAGE_KEY = "goodfellow-closed-announcements";
 /** How many closed bars are remembered; older ones are forgotten first. */
 const CLOSED_ANNOUNCEMENTS = 20;
 
-const q = JSON.stringify;
+/**
+ * A value as a script's literal, with nothing a page could read as markup:
+ * `<` and `>` are escaped, as are the line separators JSON leaves in,
+ * so it can't end the script it's written into.
+ */
+function scriptValue(value: unknown): string {
+  return JSON.stringify(value).replace(
+    /[<>\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
+const q = scriptValue;
 
 /** The Code block's copy button. */
 export function copyScript(): string {

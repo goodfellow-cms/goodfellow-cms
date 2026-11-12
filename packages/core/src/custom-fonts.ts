@@ -10,6 +10,7 @@
 import { MEDIA_DIR } from "./content/paths.js";
 import type { CustomFont, CustomFontFile, FontCategory, Theme } from "./content/schemas.js";
 import type { FileChange } from "./content/store.js";
+import { trimChars } from "./trim.js";
 
 /** Where a site's own fonts are kept. */
 export const FONTS_MEDIA_DIR = `${MEDIA_DIR}/fonts`;
@@ -84,11 +85,7 @@ export function guessFontFamily(name: string): string {
 
 /** The name a font file is kept under: `brandon-700-italic.woff2`, or `brandon-100-900.woff2` for a variable font. */
 export function fontFileName(family: string, file: Pick<CustomFontFile, "weight" | "weightTo" | "style">): string {
-  const stem =
-    family
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "font";
+  const stem = trimChars(family.toLowerCase().replace(/[^a-z0-9]+/g, "-"), "-") || "font";
   const weights = file.weightTo ? `${file.weight}-${file.weightTo}` : String(file.weight);
   return `${stem.slice(0, 60)}-${weights}${file.style === "italic" ? "-italic" : ""}.woff2`;
 }

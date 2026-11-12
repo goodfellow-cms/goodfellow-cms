@@ -7,6 +7,8 @@
  * `127.0.0.1`; names that only DNS says are private can't be told from here.
  */
 
+import { trimChars } from "./trim.js";
+
 function ipv4(host: string): number[] | undefined {
   const parts = host.split(".");
   if (parts.length !== 4 || !parts.every((part) => /^\d{1,3}$/.test(part))) return undefined;
@@ -26,7 +28,7 @@ function mappedIpv4(host: string): number[] | undefined {
 }
 
 function hostName(host: string): string {
-  return host.toLowerCase().replace(/\.+$/, "");
+  return trimChars(host.toLowerCase(), ".", { start: false });
 }
 
 /** Whether a host name is this computer: `localhost` and its subdomains, `127.0.0.0/8`, `0.0.0.0`, `[::1]`, `[::]`. */

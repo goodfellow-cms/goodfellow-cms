@@ -9,6 +9,16 @@ export const worksWithPreact = true;
 /** The elements Garrul's script has been loaded for, which it can show comments in only once. */
 const started = new WeakSet<Element>();
 
+/** The script's address, only where it's a web one (`garrulAddress()` gives only those). */
+function scriptAddress(script: string): string | undefined {
+  try {
+    const url = new URL(script, location.href);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Garrul's comments, loaded once the page has: its script reads its settings
  * from `#garrul`'s attributes, which it finds by its id, and puts the comments
@@ -29,11 +39,12 @@ export function GarrulFrame({
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const host = box.current;
-    if (!host || started.has(host)) return;
+    const address = scriptAddress(script);
+    if (!host || !address || started.has(host)) return;
     started.add(host);
     if (!host.dataset.slug) host.dataset.slug = garrulSlug(location.pathname);
     const element = document.createElement("script");
-    element.src = script;
+    element.src = address;
     element.async = true;
     document.head.appendChild(element);
   }, [script]);

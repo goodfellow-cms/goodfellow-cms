@@ -1,6 +1,6 @@
 {
   "name": "goodfellow",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Build, develop, and preview Goodfellow CMS sites.",
   "keywords": [
     "goodfellow",
@@ -10,7 +10,7 @@
     "static-site-generator",
     "cli"
   ],
-  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/commands",
+  "homepage": "https://goodfellowcms.com/docs/commands",
   "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
   "funding": {
     "type": "github",

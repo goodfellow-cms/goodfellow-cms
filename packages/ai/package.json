@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/ai",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Goodfellow CMS's AI assistant: drafts and rewrites pages with Claude, OpenAI, or a free AI service, straight from the browser.",
   "keywords": [
     "goodfellow",
@@ -11,7 +11,7 @@
     "claude",
     "openai"
   ],
-  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/ai-assistant",
+  "homepage": "https://goodfellowcms.com/docs/ai-assistant",
   "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
   "funding": {
     "type": "github",
