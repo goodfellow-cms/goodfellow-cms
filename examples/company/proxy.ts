@@ -1,13 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth, sessionSecret, signedInWith } from "@/lib/auth";
 import { env } from "@/lib/env";
-import {
-  isMembersVersion,
-  isPageRequest,
-  membersVersionUrl,
-  readerFor,
-  routedPath,
-} from "@/lib/paywall";
+import { isMembersVersion, isPageRequest, membersVersionUrl, readerFor, routedPath } from "@/lib/paywall";
 
 /** Pages only people who are signed in see; anyone else is sent to sign in first. */
 const SIGNED_IN_ONLY = /^\/(?:members|admin\/editors|account)(?:\/|$)/;

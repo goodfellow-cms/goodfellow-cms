@@ -151,6 +151,7 @@ function withoutBlocksOf<T>(value: T, type: string): T {
  */
 export function withoutPaywall<T extends PageData>(data: T, paywall: string): T {
   return firstBlockOf(data, paywall) ? withoutBlocksOf(data, paywall) : data;
+}
 
 /** Who a page file says its page is for, from its JSON: `members`, or `everyone` where it doesn't say. */
 function pageVisibility(text: string | undefined): Visibility {
