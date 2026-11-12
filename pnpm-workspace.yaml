@@ -23,13 +23,13 @@ overrides:
   # satori, which vinext's Open Graph images use in the company example, asks for fflate 0.7.3; 0.7.5 fixes
   # GHSA-px8p-9vwx-vf98.
   "fflate@<0.7.5": "^0.7.5"
+  # Expo's command line asks for Zod 3, which has no fix for GHSA-mrhx-c7xc-m3w5; Zod 4.6.6 has it. Expo uses
+  # Zod only for its dev tools plugins' schemas (objects, strings, enums, arrays, unions), which Zod 4 reads the same
+  # way, and nothing in this repository runs Expo's command line.
+  "@expo/cli>zod": "^4.6.6"
 
 auditConfig:
   ignoreGhsas:
-    # Zod 3, which Expo's command line uses to read its own settings, has no
-    # fixed release (only Zod 4.6.6 has the fix), and it never reads visitors'
-    # or editors' input.
-    - GHSA-mrhx-c7xc-m3w5
     # deepmerge has no fixed release; Expo's config tools merge only the
     # app's own settings with it.
     - GHSA-gcqx-w48m-w2h4
