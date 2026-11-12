@@ -11,10 +11,21 @@ const members = {
 } as unknown as Parameters<typeof toDraft>[0];
 
 describe("a collection's settings form", () => {
-  it("keeps items' pages to members only while the collection has pages", () => {
+  it("keeps items to members only, with or without pages", () => {
     expect(fromDraft(members, toDraft(members)).visibility).toBe("members");
     expect(fromDraft(members, { ...toDraft(members), membersOnly: false }).visibility).toBeUndefined();
-    // Without pages the checkbox isn't shown, so the setting goes with them, rather than staying out of reach.
-    expect(fromDraft(members, { ...toDraft(members), withPages: false }).visibility).toBeUndefined();
+    // Items without pages are still kept out of the content API, so turning pages off keeps the setting.
+    expect(fromDraft(members, { ...toDraft(members), withPages: false }).visibility).toBe("members");
+  });
+
+  it("shows a template's members-only setting, and unchecking it makes the items everyone's", () => {
+    const template = { root: { props: { title: "{title}", visibility: "members" } }, content: [] };
+    const byTemplate = { ...members, visibility: undefined, template } as unknown as Parameters<typeof toDraft>[0];
+    expect(toDraft(byTemplate).membersOnly).toBe(true);
+    const unchecked = fromDraft(byTemplate, { ...toDraft(byTemplate), membersOnly: false });
+    expect(unchecked.visibility).toBeUndefined();
+    expect(unchecked.template).toEqual({ root: { props: { title: "{title}" } }, content: [] });
+    // Left checked, the template keeps saying so.
+    expect(fromDraft(byTemplate, toDraft(byTemplate)).template).toEqual(template);
   });
 });

@@ -146,11 +146,15 @@ describe("visibility", () => {
           { path: "content/pages/public.json", content: page("everyone") },
           { path: "content/pages/members.json", content: page("members") },
           { path: "content/site.json", content: "{}" },
-          { path: "content/pages/members.json", delete: true },
+          { path: "content/pages/public.json", delete: true },
         ],
         read,
       ),
     ).toEqual([]);
+    // Deleting a members' page would let the same address be published again for everyone.
+    expect(await visibilityChanges([{ path: "content/pages/members.json", delete: true }], read)).toEqual([
+      "content/pages/members.json",
+    ]);
     expect(
       await visibilityChanges(
         [

@@ -1,6 +1,6 @@
 import type { Config, Data } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
-import { shownSettings, withoutVisibility } from "./page-settings.js";
+import { isMembersPageData, shownSettings, withoutVisibility } from "./page-settings.js";
 
 const page = (props: Record<string, unknown>): Data => ({ root: { props }, content: [] });
 const DEFAULTS = {
@@ -66,5 +66,13 @@ describe("withoutVisibility", () => {
     // Configs without it, such as the header's and footer's, are left as they are.
     const layout: Config = { components: {} };
     expect(withoutVisibility(layout)).toBe(layout);
+  });
+});
+
+describe("isMembersPageData", () => {
+  it("says when a page is already for members, so a site without a server still shows the setting to undo it", () => {
+    expect(isMembersPageData({ root: { props: { visibility: "members" } } })).toBe(true);
+    expect(isMembersPageData({ root: { props: { visibility: "everyone" } } })).toBe(false);
+    expect(isMembersPageData({ root: {} })).toBe(false);
   });
 });
