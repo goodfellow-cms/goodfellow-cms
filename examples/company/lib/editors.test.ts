@@ -111,7 +111,7 @@ async function site(siteEnv: SiteEnv = SITE_ENV) {
   const olive = await signIn("olive@example.org");
   // As if she'd turned on two-factor sign-in after signing in, which admins need to manage editors.
   await context.internalAdapter.updateUser(oliveId, { twoFactorEnabled: true });
-  return { auth, context, person, signIn, asking, olive, oliveId, close: () => db.close() };
+  return { auth, db, context, person, signIn, asking, olive, oliveId, close: () => db.close() };
 }
 
 /**
@@ -1118,6 +1118,50 @@ describe("two-factor sign-in", () => {
         await auth.api.signInEmail({ body: { email: "ann@example.org", password: PASSWORD }, asResponse: true }),
       );
       await expect(backup(third)).rejects.toThrow();
+    } finally {
+      close();
+    }
+  });
+
+  it("comes back after BETTER_AUTH_SECRET changes with the README's statements, and each admin turning it on again", async () => {
+    const { auth, db, person, signIn, close } = await site();
+    try {
+      await person("ann@example.org", "admin");
+      const ann = new Headers({ cookie: (await signIn("ann@example.org")) ?? "" });
+      const enabled = await auth.api.enableTwoFactor({ headers: ann, body: { password: PASSWORD, method: "totp" } });
+      if (enabled.method !== "totp") throw new Error("It didn't set up an authenticator app.");
+      await auth.api.verifyTOTP({ headers: ann, body: { code: totp(enabled.totpURI) } });
+
+      const rotated = betterAuth(
+        authOptions(db, { ...SITE_ENV, BETTER_AUTH_SECRET: "another-secret-for-tests-at-least-32" }),
+      );
+      const signInEmail = () =>
+        rotated.api.signInEmail({ body: { email: "ann@example.org", password: PASSWORD }, asResponse: true });
+      // Her codes can't be read with the new secret, so she can't get past the code step.
+      const step = await signInEmail();
+      expect(await step.clone().json()).toMatchObject({ twoFactorRedirect: true });
+      await expect(
+        rotated.api.verifyTOTP({
+          headers: new Headers({ cookie: cookiesOf(step) }),
+          body: { code: totp(enabled.totpURI) },
+        }),
+      ).rejects.toThrow();
+
+      // The statements the README gives turn it off for every account, so her password signs her in, as an editor
+      // until she turns it on again.
+      const readme = await readFile(join(import.meta.dirname, "../README.md"), "utf8");
+      const command = readme.match(/wrangler d1 execute [^\n]*--command "([^"]+)"/)?.[1];
+      if (!command?.includes("twoFactor")) throw new Error("The README has no statements for this.");
+      db.exec(command);
+      const back = await signInEmail();
+      expect(await back.clone().json()).not.toMatchObject({ twoFactorRedirect: true });
+      const signedIn = new Request(SITE, { headers: { cookie: cookiesOf(back) } });
+      expect(await authorizeWith(rotated, signedIn)).toMatchObject({ role: "editor" });
+      const again = await rotated.api.enableTwoFactor({
+        headers: signedIn.headers,
+        body: { password: PASSWORD, method: "totp" },
+      });
+      expect(again.method).toBe("totp");
     } finally {
       close();
     }

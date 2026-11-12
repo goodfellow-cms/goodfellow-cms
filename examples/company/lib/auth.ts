@@ -459,7 +459,7 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       // /account/, which admins must before they can act as owners (`authorizeWith()`). Better Auth limits tries
       // (`TWO_FACTOR_LIMIT`, and the account's codes are locked for a while after ten wrong ones) and keeps
       // each secret, and the backup codes, encrypted with BETTER_AUTH_SECRET. Turning it on asks for the password
-      // again.
+      // again, which doesn't stop whoever has the password of an admin who hasn't turned it on yet.
       twoFactor({ issuer: issuerOf(siteEnv), backupCodeOptions: { storeBackupCodes: "encrypted" } }),
       resets.plugin,
       nextCookies(),
@@ -576,7 +576,9 @@ export async function editorAsking(
       name: user.name,
       email: user.email,
       ...(user.image && { avatarUrl: user.image }),
-      // A password alone never makes anyone an owner, who can change the site's settings and its editors.
+      // An owner, who can change the site's settings and its editors, is an admin who has turned on two-factor
+      // sign-in. Until an admin has, whoever has their password could turn it on with an app of their own, so admins
+      // turn it on as soon as they first sign in (README.md).
       role: isOwner(user) ? "owner" : "editor",
     },
     admin,
