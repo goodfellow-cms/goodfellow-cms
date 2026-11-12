@@ -143,7 +143,7 @@ jobs:
     # The Cloudflare token is the cloudflare-pages environment's own, which docs.yml's deploy job names. GitHub gives
     # a called workflow's jobs their environment's secrets only when the caller passes its secrets on, so without
     # this the deploy job gets them empty. Only that job reads any secret; the build job, which runs the docs' code,
-    # names none.
+    # names none, which packages/core/src/docs-workflow.test.ts checks.
     secrets: inherit
     permissions:
       actions: read
