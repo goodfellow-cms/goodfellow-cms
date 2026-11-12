@@ -6,6 +6,8 @@ import { SiteSetupForm } from "./site-setup-form";
 export interface SiteSetupProps {
   /** Which step of the setup page this is: choosing what kind of site, or signing in and creating it. */
   step: "choose" | "create";
+  /** The sign-in service's address, for "Sign in with GitHub", or "" to sign in with a token. */
+  githubSignIn: string;
   gitlabClientId: string;
   className: string;
 }
@@ -26,16 +28,24 @@ export const SiteSetup: ComponentConfig<SiteSetupProps> = {
         { label: "Sign in and create it", value: "create" },
       ],
     },
+    githubSignIn: {
+      type: "text",
+      label: "Sign-in service's address, for “Sign in with GitHub” (leave empty to sign in with a token)",
+    },
     gitlabClientId: {
       type: "text",
       label: "GitLab application ID, for “Sign in with GitLab” (leave empty to sign in with a token)",
     },
     className: classNameField,
   },
-  defaultProps: { step: "choose", gitlabClientId: "", className: "" },
-  render: ({ step, gitlabClientId, className }) => (
+  defaultProps: { step: "choose", githubSignIn: "", gitlabClientId: "", className: "" },
+  render: ({ step, githubSignIn, gitlabClientId, className }) => (
     <div className={cx("mx-auto w-full max-w-3xl", className)}>
-      {step === "create" ? <SiteCreateForm gitlabClientId={gitlabClientId} /> : <SiteSetupForm />}
+      {step === "create" ? (
+        <SiteCreateForm githubSignIn={githubSignIn} gitlabClientId={gitlabClientId} />
+      ) : (
+        <SiteSetupForm />
+      )}
     </div>
   ),
 };

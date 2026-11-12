@@ -128,6 +128,65 @@ The server sends on only the requests the assistant makes, and only for people `
 
 Owners can choose plugins on the admin panel's Plugins screen too, but on a full-stack site installing, updating, or removing one is submitted for review, as a pull request or merge request for a developer to accept, since the site's builds and server hold its secrets. Changes to `plugins/installed/` are refused from the admin panel otherwise. Once you've accepted one, add its server module to the API route if it has one.
 
+## After each publish
+
+`onPublish` is called after each publish from the admin panel, before the editor hears it worked. It's given the files the publish changed (`paths`, such as `content/pages/about.json`), who published them (`editor`, as `authorize` gave them), and the new `revision`:
+
+```ts
+export const { GET, POST } = goodfellowApi({
+  config,
+  authorize,
+  signIn: "/sign-in",
+  onPublish: async ({ paths, editor }) => {
+    await notifyTeam(`${editor.name} published ${paths.join(", ")}`);
+  },
+});
+```
+
+Use it to tell another system, or to refresh pages your app caches itself. The site still rebuilds as usual, which is when visitors see the change, unless its pages render from the repository (below). The publish has already happened when it's called, so if it fails, the failure goes to `onError` and the editor still sees "Published."
+
+## Publishing without a rebuild
+
+A full-stack site can render its pages from the repository as it is now, rather than from the files it was built with, so a publish shows without building the site again. Give `goodfellowPages()` a `source`, such as `repositorySource()` from `@goodfellow-cms/core`, which asks the host for the live branch's newest revision each time and reads each revision's content once, and keep rendered pages in your host's cache until a publish says they changed:
+
+```ts
+// lib/site.ts
+import { repositorySource } from "@goodfellow-cms/core";
+import { goodfellowPages } from "@goodfellow-cms/next";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import config from "@/goodfellow.config";
+
+let live: ReturnType<typeof repositorySource> | undefined;
+
+export const site = goodfellowPages(config, {
+  source: () => {
+    // `next dev`, and `next build`, which renders pages from the files it builds.
+    if (process.env.NODE_ENV === "development" || process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) return undefined;
+    const token = process.env.GOODFELLOW_GIT_TOKEN;
+    if (!token) throw new Error("Set GOODFELLOW_GIT_TOKEN, which pages read the repository with.");
+    const backend = config.backend;
+    if (!backend?.server) throw new Error("The site's backend can't be reached from its server.");
+    live ??= repositorySource(backend.server({ token }));
+    return live();
+  },
+});
+```
+
+```ts
+// app/api/goodfellow/[...path]/route.ts
+import { revalidatePath } from "next/cache";
+
+export const { GET, POST } = goodfellowApi({
+  config,
+  authorize,
+  signIn: "/sign-in",
+  // A publish can change the header, menus, or a list every page shows, so every page renders again.
+  onPublish: () => revalidatePath("/", "layout"),
+});
+```
+
+Mark the page route `export const dynamic = "force-static"`, so each page is kept once it has rendered, and give it, and the sitemap, a `revalidate` time, such as `export const revalidate = 3600`, since only a publish through the admin panel says pages changed: a page renders again once it's that old, so a scheduled time coming, what a page shows by today's date, and changes that reach the repository another way, such as from Claude or a merged review, show within about that long. It isn't exact: the first visit after that time still gets the old page while the new one renders, and if rendering fails, as when the host's API doesn't answer, the old page stays until a later visit renders it, so give a scheduled change some time before it has to be online. Where `source` gives nothing, as in `next dev` and while `next build` renders pages, pages read the files on your computer. Without the token it throws, so pages fail rather than show the files the site was built with, which the host would keep as though they were current while publishes never showed. Give the root layout's `<html lang>` `await site.language()` rather than the site's settings: it falls back to the language of the files the site was built with where `source` can't be read, such as without its token, so the admin panel and sign-in, which the root layout wraps, still open to fix it, while the pages themselves fail. A page's first visit after a publish renders it, which needs the host's API to answer then; the pages already kept don't. New photos and other files in `public/media/` are served from the files the site was built with, so build the site again after each publish, as the company example's content repository asks its code repository to, and until that build is online a page that shows a new photo shows it missing. `revalidatePath()` clears the pages kept where it runs, so a site on more than one server needs them kept in one place every server reads, such as Next.js's `cacheHandler` over a shared store, or every server but the one that took the publish shows the old pages until they're `revalidate` old. The company example does this on Cloudflare Workers, keeping pages in Workers KV, which every location reads, and where a publish can take up to a minute to reach every location.
+
 ## Safety
 
 - The API answers people who aren't signed in only with where to sign in. Every request must come from the site's own pages: it carries a header that browsers don't send to another site without asking it first, and requests that say they come from another site are refused.
