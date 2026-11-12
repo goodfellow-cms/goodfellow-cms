@@ -132,8 +132,9 @@ export const PERMISSIONS: Record<Purpose, Permissions> = {
     administration: "write",
     pages: "write",
     actions: "write",
-    // The nightly build setting, a repository variable the site's workflow reads.
-    variables: "write",
+    // The nightly build setting, a repository variable the site's workflow reads. GitHub names the permission
+    // Variables in its settings and `actions_variables` everywhere else, and refuses an app asking for `variables`.
+    actions_variables: "write",
     contents: "read",
     metadata: "read",
   },
@@ -154,7 +155,7 @@ export const PERMISSIONS: Record<Purpose, Permissions> = {
  */
 export const LATER_PERMISSIONS: Partial<Record<Purpose, string[]>> = {
   edit: ["checks", "statuses", "pull_requests"],
-  owner: ["variables"],
+  owner: ["actions_variables"],
   setup: ["secrets"],
 };
 
