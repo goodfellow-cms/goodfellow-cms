@@ -2,7 +2,7 @@
 // service's HTTP API, since Workers can't open SMTP connections. Which service is a setting (`EMAIL_PROVIDER`), so the
 // site's owners can change it without its developers (README.md). Messages carry links that let someone into an
 // account, so nothing here logs a message or puts one in an error.
-import { createMessage, type Receipt, type Transport } from "@upyo/core";
+import { createMessage, parseAddress, type Receipt, type Transport } from "@upyo/core";
 import type { SiteEnv } from "./env.ts";
 
 /** One message, as plain text and as HTML. */
@@ -13,7 +13,10 @@ export interface Email {
   html: string;
 }
 
-/** Thrown where the site has no way to send email, so callers can say what to do instead. */
+/**
+ * Thrown where the site has no way to send email, so callers can say what to do instead. Nothing was sent, as with
+ * `EmailRefused`.
+ */
 export class EmailNotSetUp extends Error {
   override name = "EmailNotSetUp";
 }
@@ -37,10 +40,14 @@ const SEND_TIMEOUT = 10_000;
 
 /**
  * How many times a message is sent before giving up: once more where the service was asked too often, which surely
- * didn't send it. Done here rather than by the transport, whose receipt keeps only the last try's error, so
- * `refused()` sees every answer; never after an answer that may have sent it, which would send it twice.
+ * didn't send it, and said to wait no longer than `MAX_RETRY_WAIT`. Done here rather than by the transport, whose
+ * receipt keeps only the last try's error, so `refused()` sees every answer; never after an answer that may have sent
+ * it, which would send it twice.
  */
 const SEND_TRIES = 2;
+
+/** The longest a service's `Retry-After` may ask the site to wait before the message is tried again, in milliseconds. */
+const MAX_RETRY_WAIT = 2_000;
 
 /** The service the settings name, or nothing for a name the site doesn't know. */
 export function emailProvider(siteEnv: SiteEnv): EmailProvider | undefined {
@@ -48,12 +55,13 @@ export function emailProvider(siteEnv: SiteEnv): EmailProvider | undefined {
   return EMAIL_PROVIDERS.find((provider) => provider === named);
 }
 
-/** What's missing for the site to send email, by setting name: nothing where it can. */
+/** What's missing for the site to send email, or can't be used, by setting name: nothing where it can. */
 export function missingEmailSettings(siteEnv: SiteEnv): string[] {
   const provider = emailProvider(siteEnv);
   const missing = [
     ...(provider ? [] : ["EMAIL_PROVIDER"]),
-    ...(siteEnv.EMAIL_FROM ? [] : ["EMAIL_FROM"]),
+    // An address the message can't be sent from, such as one with no domain, would only fail once a message is.
+    ...(siteEnv.EMAIL_FROM && parseAddress(siteEnv.EMAIL_FROM) ? [] : ["EMAIL_FROM"]),
     ...(siteEnv.EMAIL_API_KEY ? [] : ["EMAIL_API_KEY"]),
   ];
   // SES signs requests with a key pair, and needs to know which of its regions the site sends from.
@@ -67,6 +75,12 @@ export function missingEmailSettings(siteEnv: SiteEnv): string[] {
 /** Whether the site can send email: a service it knows, its key, and an address to send from. */
 export function canSendEmail(siteEnv: SiteEnv): boolean {
   return missingEmailSettings(siteEnv).length === 0;
+}
+
+/** Names as people read a list of them: `a`, `a and b`, `a, b, and c`. */
+function inWords(names: string[]): string {
+  if (names.length < 3) return names.join(" and ");
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 /** The domain an address is at. */
@@ -142,37 +156,56 @@ function refused(receipts: Extract<Receipt, { successful: false }>[]): boolean {
   });
 }
 
-/** Whether the service only said it was asked too often (429), so the message surely wasn't sent and may be again. */
-function retryable(receipt: Extract<Receipt, { successful: false }>): boolean {
+/**
+ * How long to wait before trying again, where the service only said it was asked too often (429), so the message
+ * surely wasn't sent, and said how long to wait, no longer than `MAX_RETRY_WAIT`: otherwise nothing, and it isn't tried
+ * again, since a service asked again at once almost always answers the same.
+ */
+function retryWait(receipt: Extract<Receipt, { successful: false }>): number | undefined {
   const errors = receipt.errors ?? [];
-  return errors.length > 0 && errors.every((error) => error.statusCode === 429);
+  if (errors.length === 0 || !errors.every((error) => error.statusCode === 429)) return undefined;
+  const waits = errors.map((error) => error.retryAfterMilliseconds);
+  if (waits.some((wait) => wait === undefined || !(wait >= 0) || wait > MAX_RETRY_WAIT)) return undefined;
+  return Math.max(...(waits as number[]));
 }
 
 /**
  * Sends a message from `EMAIL_FROM` through the service `EMAIL_PROVIDER` names, with `EMAIL_API_KEY`, which should be
  * a key that can only send, from the site's own domain. Throws `EmailNotSetUp` naming the settings that are missing,
- * `EmailRefused` where the service refused the message, and an error naming only the kind of failure otherwise.
- * `transport` is for tests.
+ * `EmailRefused` where the message surely wasn't sent (the service refused it, or it couldn't be made), and an error
+ * naming only the kind of failure otherwise.
  */
-export async function sendEmail(siteEnv: SiteEnv, email: Email, transport?: Transport): Promise<void> {
+export async function sendEmail(siteEnv: SiteEnv, email: Email): Promise<void> {
   const missing = missingEmailSettings(siteEnv);
   const provider = emailProvider(siteEnv);
-  if (!transport && (missing.length > 0 || !provider)) {
-    throw new EmailNotSetUp(`Set ${missing.join(", ")} to send email.`);
+  if (missing.length > 0 || !provider) throw new EmailNotSetUp(`Set ${inWords(missing)} to send email.`);
+  // Nothing has gone to the service yet, so a message that can't be made, such as for an address it can't read, or a
+  // transport that can't be, surely wasn't sent.
+  let message: ReturnType<typeof createMessage>;
+  let sender: Transport;
+  try {
+    message = createMessage({
+      from: siteEnv.EMAIL_FROM ?? "",
+      to: email.to,
+      subject: email.subject,
+      content: { text: email.text, html: email.html },
+    });
+  } catch {
+    throw new EmailRefused("The email wasn't sent: it couldn't be made, as for an address that can't be read.");
   }
-  const message = createMessage({
-    from: siteEnv.EMAIL_FROM ?? "",
-    to: email.to,
-    subject: email.subject,
-    content: { text: email.text, html: email.html },
-  });
-  const sender = transport ?? (await transportFor(siteEnv, provider as EmailProvider));
+  try {
+    sender = await transportFor(siteEnv, provider);
+  } catch {
+    throw new EmailNotSetUp("Check the email settings: the service couldn't be set up from them.");
+  }
   const failed: Extract<Receipt, { successful: false }>[] = [];
   for (let tries = 0; tries < SEND_TRIES; tries++) {
     const receipt = await sender.send(message);
     if (receipt.successful) return;
     failed.push(receipt);
-    if (!retryable(receipt)) break;
+    const wait = tries + 1 < SEND_TRIES ? retryWait(receipt) : undefined;
+    if (wait === undefined) break;
+    await new Promise((resolve) => setTimeout(resolve, wait));
   }
   const last = failed[failed.length - 1] as Extract<Receipt, { successful: false }>;
   const reason = `The email wasn't sent: ${failure(last)}.`;

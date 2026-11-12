@@ -14,7 +14,7 @@ import {
   removeEditor,
   setRole,
 } from "./editors.ts";
-import { EmailRefused, escapeHtml, invitationEmail, sendEmail } from "./email.ts";
+import { canSendEmail, EmailRefused, escapeHtml, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 
 const SITE = "http://localhost:4321";
@@ -199,25 +199,45 @@ describe("emails", () => {
     const failed = await sendEmail(EMAIL_ENV, email).catch((error: unknown) => error);
     expect(failed).toBeInstanceOf(Error);
     expect(failed).not.toBeInstanceOf(EmailRefused);
-    // Asked too often surely didn't send it, so it's tried once more, and what that try met decides.
-    const answers = [429, 503];
-    const busy = fakeService(() => Response.json({ message: "no" }, { status: answers.shift() ?? 200 }));
+    // Asked too often surely didn't send it, so it's tried once more where the service says to wait a moment, and
+    // what that try met decides; asked to wait longer, or not told how long, it isn't tried again.
+    const answers: [number, string?][] = [[429, "0"], [503]];
+    const busy = fakeService(() => {
+      const [status, retryAfter] = answers.shift() ?? [200];
+      return Response.json({ message: "no" }, { status, headers: retryAfter ? { "retry-after": retryAfter } : {} });
+    });
     vi.stubGlobal("fetch", busy.fetcher);
     const mixed = await sendEmail(EMAIL_ENV, email).catch((error: unknown) => error);
     expect(busy.requests).toHaveLength(2);
     expect(mixed).toBeInstanceOf(Error);
     expect(mixed).not.toBeInstanceOf(EmailRefused);
-    answers.push(429, 200);
+    answers.push([429, "1"], [200]);
     await sendEmail(EMAIL_ENV, email);
     expect(busy.requests).toHaveLength(4);
+    answers.push([429], [200]);
+    await expect(sendEmail(EMAIL_ENV, email)).rejects.toBeInstanceOf(EmailRefused);
+    expect(busy.requests).toHaveLength(5);
+    answers.length = 0;
+    answers.push([429, "60"], [200]);
+    await expect(sendEmail(EMAIL_ENV, email)).rejects.toBeInstanceOf(EmailRefused);
+    expect(busy.requests).toHaveLength(6);
+    // A message that can't be made goes to nobody, so it counts as refused.
+    answers.length = 0;
+    await expect(sendEmail(EMAIL_ENV, { ...email, to: "not an address" })).rejects.toBeInstanceOf(EmailRefused);
+    expect(busy.requests).toHaveLength(6);
+    // Nor can one go from an address that can't be read, which the settings check says.
+    const unreadableFrom = { ...EMAIL_ENV, EMAIL_FROM: "Example Co" };
+    expect(canSendEmail(unreadableFrom)).toBe(false);
+    await expect(sendEmail(unreadableFrom, email)).rejects.toThrow("Set EMAIL_FROM to send email.");
+    expect(busy.requests).toHaveLength(6);
     await expect(sendEmail(SITE_ENV, email)).rejects.toThrow(
-      "Set EMAIL_PROVIDER, EMAIL_FROM, EMAIL_API_KEY to send email.",
+      "Set EMAIL_PROVIDER, EMAIL_FROM, and EMAIL_API_KEY to send email.",
     );
     await expect(sendEmail({ ...EMAIL_ENV, EMAIL_PROVIDER: "carrier-pigeon" }, email)).rejects.toThrow(
       "Set EMAIL_PROVIDER to send email.",
     );
     await expect(sendEmail({ ...EMAIL_ENV, EMAIL_PROVIDER: "ses" }, email)).rejects.toThrow(
-      "Set EMAIL_KEY_ID, EMAIL_REGION to send email.",
+      "Set EMAIL_KEY_ID and EMAIL_REGION to send email.",
     );
   });
 
