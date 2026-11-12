@@ -80,7 +80,7 @@ export async function getPackageText(url: string, file: string, fetcher: Package
 
 /** npm's address for a package's metadata. */
 export function packageMetadataUrl(name: string): string {
-  return `${NPM_REGISTRY}/${name.replace("/", "%2F")}`;
+  return `${NPM_REGISTRY}/${name.replace(/\//g, "%2F")}`;
 }
 
 /** A file of a package's release, from jsDelivr. */

@@ -88,7 +88,9 @@ function error(status: number, message: string): Response {
 /** Bitbucket's filters (`q=`) as the backend writes them: one field, an operator, and a quoted value. */
 function filterValue(query: string | null, field: string): { op: string; value: string } | undefined {
   if (!query) return undefined;
-  const match = new RegExp(`${field.replace(/\./g, "\\.")}\\s*(~|=|IN)\\s*\\(?"((?:[^"\\\\]|\\\\.)*)"`).exec(query);
+  const match = new RegExp(
+    `${field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*(~|=|IN)\\s*\\(?"((?:[^"\\\\]|\\\\.)*)"`,
+  ).exec(query);
   return match ? { op: match[1] ?? "=", value: (match[2] ?? "").replace(/\\(.)/g, "$1") } : undefined;
 }
 

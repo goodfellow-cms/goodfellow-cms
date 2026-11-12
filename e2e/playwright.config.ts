@@ -88,13 +88,13 @@ const SERVERS: { server: Server; usedBy?: RegExp }[] = [
   { server: builtSite("broker"), usedBy: /BROKER_ADDRESSES|builtSites\.broker|4412/ },
 ];
 
-/** A file filter as Playwright reads it, a regular expression, or the text itself where it isn't one. */
-function fileFilter(text: string): RegExp {
-  try {
-    return new RegExp(text);
-  } catch {
-    return new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  }
+/**
+ * Whether a spec file is one a file filter names. Playwright reads filters as regular expressions, but
+ * choosing servers reads them as text, which is how they're written (`next islands`), so text from the
+ * command line is never made into a pattern.
+ */
+function namedBy(filter: string, file: string): boolean {
+  return file.includes(filter);
 }
 
 /** Options that take a value, so a value such as `--project chromium`'s isn't taken for a file. */
@@ -108,15 +108,15 @@ const VALUE_OPTIONS = new Set(["-c", "--config", "-g", "--grep", "--grep-invert"
 function serversFor(args: string[]): Server[] {
   const all = SERVERS.map(({ server }) => server);
   if (process.env.E2E_ALL_SERVERS) return all;
-  const filters: RegExp[] = [];
+  const filters: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] ?? "";
     if (VALUE_OPTIONS.has(arg)) i++;
-    else if (arg !== "test" && !arg.startsWith("-")) filters.push(fileFilter(arg.replace(/(:\d+)+$/, "")));
+    else if (arg !== "test" && !arg.startsWith("-")) filters.push(arg.replace(/(:\d+)+$/, ""));
   }
   if (!filters.length) return all;
   const specs = readdirSync(new URL("tests/", import.meta.url))
-    .filter((name) => name.endsWith(".spec.ts") && filters.some((filter) => filter.test(`tests/${name}`)))
+    .filter((name) => name.endsWith(".spec.ts") && filters.some((filter) => namedBy(filter, `tests/${name}`)))
     .map((name) => readFileSync(new URL(`tests/${name}`, import.meta.url), "utf8"));
   // A filter no spec matches is something else, so start everything rather than guess.
   if (!specs.length) return all;

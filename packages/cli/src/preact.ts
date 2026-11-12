@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { type Alias, build, type ViteDevServer } from "vite";
 import type { ClientModules } from "./islands.js";
-import { slashes } from "./islands.js";
+import { jsString, slashes } from "./islands.js";
 
 /**
  * Islands with Preact. Where every Client Component of a site says it works
@@ -137,9 +137,7 @@ export async function preactIslands(
   const decided = new Map<string, boolean>();
   const outDir = join(root, SERVER_BUNDLE_DIR);
   const entry = "virtual:goodfellow/preact-islands";
-  const loaders = [...modules].map(
-    ([name, file]) => `  ${JSON.stringify(name)}: () => import(${JSON.stringify(slashes(file))}),`,
-  );
+  const loaders = [...modules].map(([name, file]) => `  ${jsString(name)}: () => import(${jsString(slashes(file))}),`);
   await build({
     root,
     configFile: false,

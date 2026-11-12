@@ -26,6 +26,7 @@ import {
 import { brokerOrigin, configBroker } from "./broker.js";
 import { outsideHost } from "./cloudflare-setup.js";
 import { CONTENT_REPOSITORY_DIR, SITE_FILE } from "./content/paths.js";
+import { trimChars } from "./trim.js";
 
 /** Why the admin address couldn't be set or checked, in words for the person at the command line. */
 export class AdminSetupError extends Error {
@@ -98,7 +99,7 @@ export async function setAdminAddress(root: string, url: string | undefined): Pr
   const config = await readConfig(site);
   let admin: AdminAddress | undefined;
   if (url !== undefined) {
-    const trimmed = url.trim().replace(/\/+$/, "");
+    const trimmed = trimChars(url.trim(), "/", { start: false });
     const candidate = { url: /^[a-z]+:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}` };
     const problem = adminAddressProblem(candidate, await siteUrl(site));
     if (problem === "invalid") {

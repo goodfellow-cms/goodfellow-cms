@@ -59,7 +59,7 @@ const ROOT = /^(?:(?:html|:root|:host)(?![\w-])(?:\s*>?\s*body(?![\w-]))?|body(?
 const QUALIFIERS = /^(?:\[[^\]]*\]|[.#][\w-]+|:[\w-]+(?:\((?:[^()]|\([^()]*\))*\))?)+/;
 
 /** A pseudo-element at the end of a selector, which `:is()` can't hold. */
-const PSEUDO_ELEMENT = /(::?(?:before|after|first-line|first-letter)|::[\w-]+(?:\([^)]*\))?)+$/i;
+const PSEUDO_ELEMENT = /(:(?:before|after|first-line|first-letter)|::[\w-]+(?:\([^)]*\))?)+$/i;
 
 /** One selector, kept to the canvas. */
 export function scopeSelector(selector: string): string {
