@@ -12,7 +12,7 @@ import {
   setupPage,
   withVars,
 } from "./setup.js";
-import { PERMISSIONS } from "./worker.js";
+import { LATER_PERMISSIONS, PERMISSIONS } from "./worker.js";
 
 const WRANGLER = `// Goodfellow's sign-in worker.
 {
@@ -26,7 +26,40 @@ const WRANGLER = `// Goodfellow's sign-in worker.
 }
 `;
 
+/**
+ * GitHub's names for the repository permissions apps may ask for, as its app manifests and installation tokens take
+ * them. It refuses a manifest with any other ("Default permission records resource is not included in the list").
+ */
+const GITHUB_PERMISSIONS = new Set([
+  "actions",
+  "actions_variables",
+  "administration",
+  "checks",
+  "contents",
+  "deployments",
+  "environments",
+  "issues",
+  "metadata",
+  "packages",
+  "pages",
+  "pull_requests",
+  "repository_hooks",
+  "secret_scanning_alerts",
+  "secrets",
+  "security_events",
+  "statuses",
+  "vulnerability_alerts",
+  "workflows",
+]);
+
 describe("appPermissions", () => {
+  it("asks for permissions by GitHub's own names", () => {
+    for (const kind of ["edit", "owner"] as const) {
+      for (const name of Object.keys(appPermissions(kind))) expect(GITHUB_PERMISSIONS, name).toContain(name);
+    }
+    for (const later of Object.values(LATER_PERMISSIONS).flat()) expect(GITHUB_PERMISSIONS, later).toContain(later);
+  });
+
   it("gives each app everything its tokens ask for", () => {
     expect(appPermissions("edit")).toEqual(PERMISSIONS.edit);
     const owner = appPermissions("owner");
@@ -42,7 +75,7 @@ describe("appPermissions", () => {
       contents: "write",
       workflows: "write",
       secrets: "write",
-      variables: "write",
+      actions_variables: "write",
       metadata: "read",
     });
   });
@@ -148,6 +181,19 @@ describe("deployedAddress", () => {
       "https://sign-in.example.org",
     );
     expect(deployedAddress(JSON.stringify({ type: "deploy", targets: [] }))).toBeUndefined();
+  });
+
+  it("prefers the custom domain the owner chose, which Wrangler gives without https://", () => {
+    const deploy = (...targets: string[]) => JSON.stringify({ type: "deploy", targets });
+    expect(deployedAddress(deploy("sign-in.goodfellowcms.com (custom domain)"))).toBe(
+      "https://sign-in.goodfellowcms.com",
+    );
+    expect(
+      deployedAddress(deploy("https://sign-in.someone.workers.dev", "Sign-In.Example.org (custom domain)")),
+    ).toBe("https://sign-in.example.org");
+    // A route is a pattern, not an address, and a name without a dot isn't a domain.
+    expect(deployedAddress(deploy("example.org/sign-in/* (zone name: example.org)"))).toBeUndefined();
+    expect(deployedAddress(deploy("localhost (custom domain)"))).toBeUndefined();
     expect(deployedAddress("")).toBeUndefined();
   });
 });

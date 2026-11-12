@@ -149,8 +149,10 @@ export function withVars(config: string, vars: Record<string, string>): string {
 }
 
 /**
- * The worker's address, from the lines Wrangler writes to `WRANGLER_OUTPUT_FILE_PATH`:
- * its `workers.dev` address if it has one, or else the first `https://` one.
+ * The worker's address, from the lines Wrangler writes to `WRANGLER_OUTPUT_FILE_PATH`: its custom domain, which
+ * the owner chose, then its `workers.dev` address, or else the first `https://` one. Wrangler gives a custom
+ * domain without `https://`, as `sign-in.example.org (custom domain)`, and a route as a pattern with a path, such as
+ * `example.org/sign-in/*`, which isn't an address.
  */
 export function deployedAddress(output: string): string | undefined {
   const targets: string[] = [];
@@ -165,8 +167,16 @@ export function deployedAddress(output: string): string | undefined {
       // Not one of Wrangler's lines.
     }
   }
-  const addresses = targets.map((target) => target.trim()).filter((target) => /^https:\/\/[^\s/]+$/.test(target));
-  return (addresses.find((address) => address.endsWith(".workers.dev")) ?? addresses[0])?.replace(/\/$/, "");
+  const domains = targets
+    .map((target) => /^([a-z0-9.-]+) \(custom domain\)$/i.exec(target.trim())?.[1])
+    .filter((domain): domain is string => domain !== undefined && domain.includes("."))
+    .map((domain) => `https://${domain.toLowerCase()}`);
+  const addresses = targets.map((target) => target.trim()).filter((target) => /^https:\/\/[^\s/]+\/?$/.test(target));
+  return (
+    domains[0] ??
+    addresses.find((address) => address.replace(/\/$/, "").endsWith(".workers.dev")) ??
+    addresses[0]
+  )?.replace(/\/$/, "");
 }
 
 function escapeHtml(text: string): string {

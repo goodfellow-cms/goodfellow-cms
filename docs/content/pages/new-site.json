@@ -34,6 +34,7 @@
               "props": {
                 "id": "SiteSetup-setup",
                 "className": "",
+                "githubSignIn": "",
                 "gitlabClientId": "",
                 "step": "choose"
               }
