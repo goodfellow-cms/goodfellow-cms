@@ -24,8 +24,11 @@ overrides:
   # GHSA-px8p-9vwx-vf98.
   "fflate@<0.7.5": "^0.7.5"
   # Expo's command line asks for Zod 3, which has no fix for GHSA-mrhx-c7xc-m3w5; Zod 4.6.6 has it. Expo uses
-  # Zod only for its dev tools plugins' schemas (objects, strings, enums, arrays, unions), which Zod 4 reads the same
-  # way, and nothing in this repository runs Expo's command line.
+  # Zod only in two files, for its dev tools plugins' schemas (objects, strings, enums, arrays, unions, `.url()`,
+  # `.strict()`), and reads only `safeParse`'s `success`, `data`, `error.message` and `error.issues`, which Zod 4
+  # keeps: @expo/cli 58.1.15's schemas gave the same results under both for valid and invalid settings, and its
+  # command line starts. Apps are installed with npm, which ignores this; the docs' Apps page gives them the same
+  # override.
   "@expo/cli>zod": "^4.6.6"
 
 auditConfig:
