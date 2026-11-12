@@ -56,6 +56,13 @@ describe("pages left out of search", () => {
     );
   };
 
+  it("index pages whose file names hold characters globs read as patterns", async () => {
+    await writeFile(join(dir, "index.html"), page('<h1>Home</h1><div data-goodfellow-search=""></div>'));
+    await writeFile(join(dir, "notes[1].html"), page("<h1>Notes</h1>"));
+    await writeFile(join(dir, "plans{a,b}.html"), page("<h1>Plans</h1>"));
+    expect(await writeSearchIndex(dir)).toBe(3);
+  }, 60_000);
+
   it("stay out when every page is, rather than the whole site going in, header and all", async () => {
     // Pagefind indexes every page whole when no page marks content to index.
     await mkdir(join(dir, "staff"));
@@ -79,6 +86,10 @@ describe("pages left out of search", () => {
     expect(marksSearchContent("<main><p>Mark it with <code>data-pagefind-body</code>.</p></main>")).toBe(false);
     expect(marksSearchContent("<main><code>&lt;main data-pagefind-body&gt;</code></main>")).toBe(false);
     expect(marksSearchContent('<main data-pagefind-body-extra="">Hi</main>')).toBe(false);
+    // Nor in a comment or a script, which aren't elements.
+    expect(marksSearchContent("<!-- <main data-pagefind-body> --><main>Staff notes</main>")).toBe(false);
+    expect(marksSearchContent('<script>const m = "<main data-pagefind-body>";</script><main>Hi</main>')).toBe(false);
+    expect(marksSearchContent('<!-- old --><main id="x" data-pagefind-body>Hi</main>')).toBe(true);
   });
 });
 
