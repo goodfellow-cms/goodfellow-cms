@@ -53,6 +53,21 @@ describe("goodfellowPages with a source", () => {
     expect(await live.generateStaticParams()).toContainEqual({ path: ["news", "welcome"] });
   });
 
+  it("gives the root layout a language when the source can't be read, so the admin panel still opens", async () => {
+    const broken = goodfellowPages(
+      { blocks: {} },
+      {
+        root,
+        source: () => {
+          throw new Error("Set GOODFELLOW_GIT_TOKEN, which pages read the content repository with.");
+        },
+      },
+    );
+    expect(await broken.language()).toBe("en");
+    // Pages still fail, rather than show the content the site was built with as though it were current.
+    await expect(broken.loadSite()).rejects.toThrow("GOODFELLOW_GIT_TOKEN");
+  });
+
   it("reads the site's own files where the source gives nothing, as in next dev", async () => {
     const local = goodfellowPages({ blocks: {} }, { root, source: () => undefined });
     expect((await local.loadSite()).settings.title).toBe("My site");

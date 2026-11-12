@@ -385,6 +385,21 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
      */
     loadSite: site,
 
+    /**
+     * For the root layout's `<html lang>`: the site's main language. The root
+     * layout also wraps the admin panel and sign-in, which must open while
+     * `source` can't be read (to fix its token, say), so then it's the
+     * language of the files the site was built with; the pages themselves
+     * still fail, rather than show content the site would keep as current.
+     */
+    async language(): Promise<string> {
+      try {
+        return (await site()).settings.language;
+      } catch {
+        return (await loadSite(options.root)).settings.language;
+      }
+    },
+
     /** Every page's address, so Next.js builds them all. Any other address is "not found". */
     async generateStaticParams(): Promise<Array<{ path: string[] }>> {
       return exportedPages(await site(), config.blocks)
