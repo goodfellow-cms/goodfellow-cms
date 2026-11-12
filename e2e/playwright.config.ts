@@ -100,8 +100,47 @@ function namedBy(filter: string, file: string): boolean {
 /** The spec files a run is for, by name and separated by commas, which `scripts/test-groups.mjs` sets. */
 export const SPECS_VARIABLE = "E2E_SPECS";
 
-/** Options that take a value, so a value such as `--project chromium`'s isn't taken for a file. */
-const VALUE_OPTIONS = new Set(["-c", "--config", "-g", "--grep", "--grep-invert", "--project", "--reporter", "-j"]);
+/**
+ * Options that take a value, so a value such as `--project chromium`'s or `--trace off`'s isn't taken for a file:
+ * every one `playwright test --help` lists with a `<value>`.
+ */
+const VALUE_OPTIONS = new Set([
+  "--add-reporter",
+  "--browser",
+  "-c",
+  "--config",
+  "-g",
+  "--grep",
+  "-G",
+  "--grep-invert",
+  "--global-timeout",
+  "-j",
+  "--workers",
+  "--last-failed-file",
+  "--max-failures",
+  "--output",
+  "--project",
+  "--repeat-each",
+  "--reporter",
+  "--retries",
+  "--run-agents",
+  "--shard",
+  "--test-list",
+  "--test-list-invert",
+  "--timeout",
+  "--trace",
+  "--tsconfig",
+  "--ui-host",
+  "--ui-port",
+  "--update-source-method",
+]);
+
+/** Options whose value may be left out (`[value]`), with the values they take, which are skipped only when given. */
+const OPTIONAL_VALUES: Record<string, Set<string>> = {
+  "-u": new Set(["all", "changed", "missing", "none"]),
+  "--update-snapshots": new Set(["all", "changed", "missing", "none"]),
+  "--debug": new Set(["inspector", "cli"]),
+};
 
 /**
  * The servers a run needs: every one when it names no spec files (the whole suite, or a `--grep` across it),
@@ -121,7 +160,7 @@ function serversFor(args: string[]): Server[] {
     const filters: string[] = [];
     for (let i = 0; i < args.length; i++) {
       const arg = args[i] ?? "";
-      if (VALUE_OPTIONS.has(arg)) i++;
+      if (VALUE_OPTIONS.has(arg) || OPTIONAL_VALUES[arg]?.has(args[i + 1] ?? "")) i++;
       else if (arg !== "test" && !arg.startsWith("-")) filters.push(arg.replace(/(:\d+)+$/, ""));
     }
     if (!filters.length) return all;
