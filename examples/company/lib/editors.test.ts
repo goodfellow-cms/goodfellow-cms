@@ -14,7 +14,7 @@ import {
   removeEditor,
   setRole,
 } from "./editors.ts";
-import { canSendEmail, EmailRefused, escapeHtml, invitationEmail, sendEmail } from "./email.ts";
+import { canSendEmail, EMAIL_PROVIDERS, EmailRefused, escapeHtml, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 
 const SITE = "http://localhost:4321";
@@ -1101,6 +1101,36 @@ describe("forgetting a password", () => {
       expect(await ask("nobody@example.org")).toEqual(known);
     } finally {
       close();
+    }
+  });
+});
+
+describe("link tracking", () => {
+  // Each link in an email lets someone into an account, so tracking, which sends links through the service first,
+  // stays off: in each message where the service allows it, and otherwise by the README's steps for that service.
+  const NAMES: Record<(typeof EMAIL_PROVIDERS)[number], string> = {
+    resend: "Resend",
+    mailgun: "Mailgun",
+    sendgrid: "SendGrid",
+    ses: "SES",
+    plunk: "Plunk",
+  };
+
+  it("is turned off in the code, or the README says where to turn it off, for every service", async () => {
+    const code = await readFile(join(import.meta.dirname, "email.ts"), "utf8");
+    const readme = await readFile(join(import.meta.dirname, "../README.md"), "utf8");
+    const guidance = readme.split("\n").find((line) => line.includes("Link tracking must stay off")) ?? "";
+    expect(guidance).not.toBe("");
+    for (const provider of EMAIL_PROVIDERS) {
+      const start = code.indexOf(`case "${provider}": {`);
+      expect(start, provider).toBeGreaterThan(-1);
+      const next = code.indexOf("case ", start + 1);
+      const block = code.slice(start, next === -1 ? undefined : next);
+      const inCode = /[cC]lickTracking: false/.test(block);
+      expect(
+        inCode || guidance.includes(`in ${NAMES[provider]},`),
+        `${provider}: tracking off in code or in the README`,
+      ).toBe(true);
     }
   });
 });

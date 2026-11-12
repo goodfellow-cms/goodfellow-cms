@@ -89,9 +89,10 @@ function domainOf(address: string): string {
 }
 
 /**
- * The service's transport, from the settings. Tracking is off where a service has it, since it would send every link
- * in a message, each of which lets someone into an account, through the service's own servers first. Each package is
- * loaded only when it's the one named.
+ * The service's transport, from the settings. Tracking is turned off where a message can say so (Mailgun and
+ * SendGrid), since it would send every link in a message, each of which lets someone into an account, through the
+ * service's own servers first; Resend, Plunk, and SES set it at the service, which the README says to check. Each
+ * package is loaded only when it's the one named.
  */
 async function transportFor(siteEnv: SiteEnv, provider: EmailProvider): Promise<Transport> {
   const apiKey = siteEnv.EMAIL_API_KEY ?? "";
