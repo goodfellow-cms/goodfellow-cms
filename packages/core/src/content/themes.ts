@@ -10,7 +10,9 @@ import { z } from "zod";
 import { CURRENT_VERSION } from "../migrations/index.js";
 import { earlyInstallSchema, type ProvenanceSource, provenanceSourceSchema } from "../provenance.js";
 import { hashText } from "../registry.js";
+import { trimChars } from "../trim.js";
 import { customCssFileChange, layoutFileChange, siteSettingsFileChange, storedCss } from "./changes.js";
+import { withoutCssComments } from "./css-comments.js";
 import { ContentError } from "./errors.js";
 import { parseContentFile } from "./load.js";
 import { FOOTER_FILE, HEADER_FILE, THEME_FILE } from "./paths.js";
@@ -133,17 +135,52 @@ export function themeFromValues(values: ThemeValues): Theme {
 const CSS_START = "/* Theme CSS:";
 /** The line it ends with. */
 export const THEME_CSS_END = "/* End of theme CSS */";
-const CSS_REGION = /^\/\* Theme CSS: (\S+)[^\n]*\*\/\n([\s\S]*?)\n?\/\* End of theme CSS \*\/\n*/m;
+
+/**
+ * The theme's region of the custom CSS: from a line starting with
+ * `CSS_START`, the theme's name and a comment's end, to the first
+ * `THEME_CSS_END` after it and the blank lines after that. It's found by
+ * searching on from each start line, rather than with one pattern, so custom
+ * CSS with many lines that start like it takes time in proportion to its
+ * length.
+ */
+function cssRegion(css: string): { start: number; end: number; name: string; css: string } | undefined {
+  const marker = `${CSS_START} `;
+  // Start lines separated by other line breaks share a line end, which is found once.
+  let lineEnd = -1;
+  for (let start = css.indexOf(marker); start !== -1; start = css.indexOf(marker, start + 1)) {
+    if (start > 0 && !"\n\r\u2028\u2029".includes(css.charAt(start - 1))) continue;
+    if (lineEnd < start) lineEnd = css.indexOf("\n", start);
+    if (lineEnd === -1) return undefined;
+    const from = start + marker.length;
+    if (lineEnd - 2 < from || !css.startsWith("*/", lineEnd - 2)) continue;
+    // The name runs to the first space, or to the comment's end; a space ends it before the next start line.
+    let to = from;
+    while (to < lineEnd - 2 && !/\s/.test(css.charAt(to))) to += 1;
+    const name = css.slice(from, to);
+    if (!name) continue;
+    const close = css.indexOf(THEME_CSS_END, lineEnd + 1);
+    // No later start line has an end after it either.
+    if (close === -1) return undefined;
+    const body = css.slice(lineEnd + 1, close);
+    let end = close + THEME_CSS_END.length;
+    while (css.charAt(end) === "\n") end += 1;
+    return { start, end, name, css: body.endsWith("\n") ? body.slice(0, -1) : body };
+  }
+  return undefined;
+}
 
 /** Where a theme's CSS is in the site's custom CSS, if it's there. */
 export function themeCssRegion(css: string): { name: string; css: string } | undefined {
-  const match = CSS_REGION.exec(css);
-  return match ? { name: match[1] ?? "", css: match[2] ?? "" } : undefined;
+  const region = cssRegion(css);
+  return region ? { name: region.name, css: region.css } : undefined;
 }
 
 /** The site's custom CSS with the theme's CSS replaced, added at the start, or removed (`undefined`). */
 export function withThemeCss(css: string, theme: { name: string; release: string; css: string } | undefined): string {
-  const rest = css.replace(CSS_REGION, "").replace(/^\n+/, "");
+  const found = cssRegion(css);
+  const without = found ? css.slice(0, found.start) + css.slice(found.end) : css;
+  const rest = trimChars(without, "\n", { end: false });
   if (!theme?.css.trim()) return rest;
   const region = `${CSS_START} ${theme.name} ${theme.release}. An update replaces it unless it's changed. */\n${theme.css.trim()}\n${THEME_CSS_END}\n`;
   return rest.trim() ? `${region}\n${rest}` : region;
@@ -157,35 +194,54 @@ function allowedLoad(address: string): boolean {
 }
 
 /**
+ * What each `url(…)` in CSS holds: a quoted address, or what's before the
+ * next `)`. It searches on from each `url(` and never looks again at what one
+ * read, so CSS with many that never close takes time in proportion to its
+ * length, where a pattern would read to the end from each.
+ */
+function cssUrls(text: string): string[] {
+  const values: string[] = [];
+  const unclosed = new Set<string>();
+  const start = /url\(/gi;
+  for (let match = start.exec(text); match; match = start.exec(text)) {
+    let at = start.lastIndex;
+    while (/\s/.test(text.charAt(at))) at += 1;
+    const quote = text.charAt(at);
+    if ((quote === '"' || quote === "'") && !unclosed.has(quote)) {
+      const close = text.indexOf(quote, at + 1);
+      if (close === -1) {
+        // No later address has this quote's end either.
+        unclosed.add(quote);
+      } else {
+        let after = close + 1;
+        while (/\s/.test(text.charAt(after))) after += 1;
+        if (text.charAt(after) === ")") {
+          values.push(text.slice(at + 1, close));
+          start.lastIndex = after + 1;
+          continue;
+        }
+      }
+    }
+    const paren = text.indexOf(")", at);
+    // Without a ")" after it, no later address ends.
+    if (paren === -1) break;
+    values.push(text.slice(at, paren));
+    // A quote that doesn't end the address may be a later one's, so reading goes on after the ")".
+    start.lastIndex = paren + 1;
+  }
+  return values;
+}
+
+/**
  * What a theme's CSS loads besides Google Fonts and the site's own media,
  * such as pictures or fonts from other sites, which visitors' browsers would
  * then ask those sites for. The admin panel lists them before installing it.
  */
-/**
- * CSS without its comments. Searching on from each comment's start, rather
- * than matching `/\/\*[\s\S]*?\*\//g`, keeps a comment that never ends from
- * taking time that grows with the square of the CSS's length. One that never
- * ends stays, so what it names is still listed.
- */
-function withoutCssComments(css: string): string {
-  let result = "";
-  let from = 0;
-  for (let start = css.indexOf("/*"); start !== -1; start = css.indexOf("/*", from)) {
-    const end = css.indexOf("*/", start + 2);
-    if (end === -1) break;
-    result += css.slice(from, start);
-    from = end + 2;
-  }
-  return result + css.slice(from);
-}
-
 export function themeCssLoads(css: string): string[] {
   const text = withoutCssComments(css);
   const found = new Set<string>();
   const unescaped = (value: string) => value.replace(/\\(.)/g, "$1").trim();
-  for (const match of text.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi)) {
-    found.add(unescaped(match[1] ?? match[2] ?? match[3] ?? ""));
-  }
+  for (const address of cssUrls(text)) found.add(unescaped(address));
   for (const match of text.matchAll(/@import\s+(?:"([^"]*)"|'([^']*)')/gi)) {
     found.add(unescaped(match[1] ?? match[2] ?? ""));
   }

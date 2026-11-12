@@ -17,11 +17,11 @@ npm run preview  # serves dist/
 
 On your own computer, the admin panel saves straight to the files in `content/`.
 
-More blocks, such as an FAQ, tabs, and a pricing table, can be added on the admin panel's **Blocks** screen, which publishes their code into `blocks/installed/` and the shadcn components they use into `components/ui/`. See [Add blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/add-blocks).
+More blocks, such as an FAQ, tabs, and a pricing table, can be added on the admin panel's **Blocks** screen, which publishes their code into `blocks/installed/` and the shadcn components they use into `components/ui/`. See [Add blocks](https://goodfellowcms.com/docs/add-blocks).
 
-Plugins installed from **Site Settings → Plugins** are listed in `plugins/installed/`, which `goodfellow.config.tsx` imports; the site's build writes `package-lock.json` for them. See [Plugins](https://goodfellow-cms.github.io/goodfellow-cms/docs/plugins).
+Plugins installed from **Site Settings → Plugins** are listed in `plugins/installed/`, which `goodfellow.config.tsx` imports; the site's build writes `package-lock.json` for them. See [Plugins](https://goodfellowcms.com/docs/plugins).
 
-To add blocks of your own, write React components and add them to `blocks` in `goodfellow.config.tsx`. Parts that respond to visitors, such as a button that shows more, go in a file starting with `"use client"`, and only pages that use them load JavaScript: see [Interactive blocks](https://goodfellow-cms.github.io/goodfellow-cms/docs/interactive-blocks).
+To add blocks of your own, write React components and add them to `blocks` in `goodfellow.config.tsx`. Parts that respond to visitors, such as a button that shows more, go in a file starting with `"use client"`, and only pages that use them load JavaScript: see [Interactive blocks](https://goodfellowcms.com/docs/interactive-blocks).
 
 The News page and its stories are an example of a collection: a group of similar items that share one page design. Change it or delete it under **Collections** in the admin panel.
 
@@ -60,7 +60,7 @@ Also set the site's address under **Site settings → General → Site address**
 
 ### 3. Choose a host
 
-Each host's free plan has its own rules about business use. If the site is for a business, sells anything, shows ads, or is built or looked after by someone who's paid for it, check those rules first. As of October 2026, GitHub Pages and Vercel's free plan don't allow most of these, and GitLab Pages, Cloudflare Pages, and Netlify have no rule against them that we know of. See [Hosts and business sites](https://goodfellow-cms.github.io/goodfellow-cms/docs/hosts) in Goodfellow's documentation.
+Each host's free plan has its own rules about business use. If the site is for a business, sells anything, shows ads, or is built or looked after by someone who's paid for it, check those rules first. As of October 2026, GitHub Pages and Vercel's free plan don't allow most of these, and GitLab Pages, Cloudflare Pages, and Netlify have no rule against them that we know of. See [Hosts and business sites](https://goodfellowcms.com/docs/hosts) in Goodfellow's documentation.
 
 **GitHub Pages** (free for public repositories; not for online businesses or shops)
 
@@ -107,7 +107,7 @@ Delete the setup files for the hosts you don't use.
    - **Scopes:** `api`.
 3. Copy the **Application ID** into the config: `gitlab({ project: "your-name/your-site", clientId: "…" })`.
 
-Every editor needs permission to change the repository: on GitHub, write access; on GitLab, the Developer role or higher; on Bitbucket, Write. For Bitbucket's sign-in, see [Editors and sign-in](https://goodfellow-cms.github.io/goodfellow-cms/docs/sign-in#bitbucket).
+Every editor needs permission to change the repository: on GitHub, write access; on GitLab, the Developer role or higher; on Bitbucket, Write. For Bitbucket's sign-in, see [Editors and sign-in](https://goodfellowcms.com/docs/sign-in#bitbucket).
 
 ## Images and files
 
@@ -115,7 +115,7 @@ Upload images and files on the admin panel's **Media** screen, or with the **Cho
 
 ## Writing with AI
 
-The editor's **AI** panel can draft pages, rewrite blocks, and fill in news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellow-cms.github.io/goodfellow-cms/docs/configuration).
+The editor's **AI** panel can draft pages, rewrite blocks, and fill in news stories. Each editor picks an AI service there. Claude and some others need the editor's own API key and charge for use; there are free options, including copying the request into a chat app such as Claude.ai. To offer only some services, or to turn the assistant off, see `ai` in [Configuration](https://goodfellowcms.com/docs/configuration).
 
 ## Publishing
 

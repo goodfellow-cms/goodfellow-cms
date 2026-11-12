@@ -82,5 +82,6 @@ The Updates screen's **Last update** says when the last update ran and what it d
 - **The last update didn't build.** Every file went back as it was; the screen says why, and a developer may need to look. A plugin or theme that doesn't say it works with the new release is named on the screen.
 - **Rebuilding overnight is set to Never**, which also stops fixes being installed on their own.
 - **The setup doesn't run updates.** Sites made before the nightly check, and some on Vercel, need their setup files copied from a newer starter; on GitLab and Bitbucket, **Turn on automatic updates** has to be chosen once ([Turning it on](/docs/updates#turning-it-on)). Bitbucket's free plan has 50 build minutes a month, which a busy month can use up.
+- **GitLab's `publish` job says it has no key to publish with**, or GitLab answers that the key may not publish: an owner turns updates on again on the Updates screen, which makes a new **Goodfellow publishing** key. On GitLab before release 18.10, only paid plans let deploy keys publish to a protected branch.
 
 The [upgrade guide](/docs/upgrading) says how to bring an older site's setup up to date.

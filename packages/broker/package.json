@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/broker",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Goodfellow CMS's token broker: a page of its own that keeps editors' sign-in and AI keys, and shows the site's admin panel in a frame.",
   "keywords": [
     "goodfellow",
@@ -9,7 +9,7 @@
     "puck",
     "git-based-cms"
   ],
-  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/token-broker",
+  "homepage": "https://goodfellowcms.com/docs/token-broker",
   "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
   "funding": {
     "type": "github",

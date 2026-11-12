@@ -11,7 +11,7 @@
  */
 import { execFile, spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { promisify } from "node:util";
 import { INSTALLED_PLUGINS_FILE, THEME_FILE } from "./content/paths.js";
 import type { FileChange } from "./content/store.js";
@@ -24,7 +24,6 @@ import {
   earlyInstallsIn,
   type ProvenanceProblem,
 } from "./early-installs.js";
-import { commandToRun } from "./node-command.js";
 import { getPackageJson, oldEnough, type PackageFetch, packageMetadataUrl, RELEASE_AGE_DAYS } from "./npm-packages.js";
 import { parseInstalledPlugins } from "./plugin-packages.js";
 import {
@@ -229,10 +228,29 @@ export type NpmRunner = (args: string[], cwd: string) => Promise<number>;
 /**
  * What npm's arguments may hold here: its options, package names, exact
  * releases and dates. Names and releases come from the site's install
- * records, which anyone who can publish the site can change, and cmd.exe
- * reads `%` and `^` even in quotes, so anything else is refused.
+ * records, which anyone who can publish the site can change, so anything
+ * else is refused, though npm runs without a shell (`npmCommand()`).
  */
 const NPM_ARGUMENT = /^[\w@+=:,./~-]+$/;
+
+/**
+ * npm without a shell: on Windows, where `npm` is a .cmd file that only
+ * cmd.exe starts, its own script run by this Node, so no argument is ever
+ * read by a shell.
+ */
+export function npmCommand(
+  args: readonly string[],
+  platform: NodeJS.Platform = process.platform,
+  execPath = process.execPath,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): { file: string; args: string[] } {
+  if (platform !== "win32") return { file: "npm", args: [...args] };
+  const own = env.npm_execpath;
+  const cli = own?.endsWith("npm-cli.js")
+    ? own
+    : win32.join(win32.dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js");
+  return { file: execPath, args: [cli, ...args] };
+}
 
 const runNpm: NpmRunner = (args, cwd) =>
   new Promise((done) => {
@@ -240,8 +258,8 @@ const runNpm: NpmRunner = (args, cwd) =>
       done(1);
       return;
     }
-    const run = commandToRun("npm", args);
-    const child = spawn(run.file, run.args, { cwd, stdio: "inherit", shell: run.shell });
+    const run = npmCommand(args);
+    const child = spawn(run.file, run.args, { cwd, stdio: "inherit" });
     child.on("error", () => done(1));
     child.on("close", (code) => done(code ?? 1));
   });

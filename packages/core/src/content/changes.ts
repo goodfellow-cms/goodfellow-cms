@@ -238,9 +238,11 @@ export function movedPageRedirects(redirects: readonly Redirect[], from: string,
     .filter((redirect) => !at(redirect, to) && !at(redirect, from))
     // However the redirect writes the old address: /old/, /old?x or /old#top, keeping what's after it.
     .map((redirect) => {
-      const target = redirect.to.startsWith("/") ? /^([^?#]*)(.*)$/.exec(redirect.to) : null;
-      const path = target && redirectFrom(target[1] ?? "");
-      return path?.ok && path.path === from ? { ...redirect, to: `${to}${target?.[2] ?? ""}` } : redirect;
+      if (!redirect.to.startsWith("/")) return redirect;
+      const cut = redirect.to.search(/[?#]/);
+      const at = cut === -1 ? redirect.to.length : cut;
+      const path = redirectFrom(redirect.to.slice(0, at));
+      return path.ok && path.path === from ? { ...redirect, to: `${to}${redirect.to.slice(at)}` } : redirect;
     });
   return [...kept, { from, to }];
 }
@@ -536,7 +538,7 @@ function eventsCollectionSettings({
 
 /** The address pattern for entries whose addresses start with `prefix`: `/videos` → `/videos/{slug}`. */
 export function addressPatternFor(prefix: string): string {
-  const trimmed = prefix.trim().replace(/\/+$/, "");
+  const trimmed = trimChars(prefix.trim(), "/", { start: false });
   return `${trimmed.startsWith("/") ? "" : "/"}${trimmed}/${SLUG_PLACEHOLDER}`;
 }
 

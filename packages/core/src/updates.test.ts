@@ -9,6 +9,8 @@ import {
   parseUpdateSettings,
   releaseVersions,
   SITE_OVERRIDES,
+  setupLines,
+  setupSection,
   siteVersion,
   updateSettingsFile,
   withSiteOverrides,
@@ -110,5 +112,58 @@ describe("update results", () => {
     const result = { state: "updated" as const, from: "0.4.1", to: "0.4.3", kept: [] };
     expect(findUpdateResult(`Installing…\n${formatUpdateResult(result)}\nDone`)).toEqual(result);
     expect(findUpdateResult("goodfellow-update {}")).toBeUndefined();
+  });
+});
+
+describe("setupSection", () => {
+  const workflow = [
+    "jobs:",
+    "    update:",
+    "        steps:",
+    "            - run: npx goodfellow update --commit",
+    "    publish-update:",
+    "        steps:",
+    "            # - run: git push",
+    "            - run: echo done",
+    "    build:",
+    "        steps: []",
+    "",
+  ].join("\n");
+
+  it("gives one section, at whatever indent, without comment lines", () => {
+    expect(setupSection(workflow, "publish-update")).toBe(
+      "    publish-update:\n        steps:\n            - run: echo done",
+    );
+    expect(setupSection(workflow, "update")).toContain("update --commit");
+    expect(setupSection(workflow, "update")).not.toContain("publish-update");
+    expect(setupSection(workflow, "deploy")).toBe("");
+  });
+
+  it("reads a long run of tabs and hashes quickly", () => {
+    const started = Date.now();
+    expect(setupLines(`x${"\t#".repeat(100_000)}`)).toEqual(["x"]);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it("keeps a # in quotes, and an apostrophe within a word opens none", () => {
+    expect(setupLines(`      - run: 'echo "Publishing #1"; git push origin HEAD:main'`)).toEqual([
+      `      - run: 'echo "Publishing #1"; git push origin HEAD:main'`,
+    ]);
+    expect(setupLines(`      - run: echo "a \\" #1" # gone`)).toEqual([`      - run: echo "a \\" #1"`]);
+    expect(setupLines("      - run: echo don't # git push")).toEqual(["      - run: echo don't"]);
+  });
+
+  it("finds quoted and anchored keys", () => {
+    const pipeline = ['  "update": &update', "    - step: a", "  'publish-update': !job", "    steps: b"].join("\n");
+    expect(setupSection(pipeline, "update")).toBe('  "update": &update\n    - step: a');
+    expect(setupSection(pipeline, "publish-update")).toBe("  'publish-update': !job\n    steps: b");
+    expect(setupSection("  update: something else\n    x", "update")).toBe("");
+  });
+
+  it("leaves out comments after a command", () => {
+    expect(setupLines("      - echo nothing # git am goodfellow-publish.patch\n      - run: x")).toEqual([
+      "      - echo nothing",
+      "      - run: x",
+    ]);
   });
 });
