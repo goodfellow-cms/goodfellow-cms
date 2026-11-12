@@ -116,6 +116,20 @@ Goodfellow doesn't decide who's a member or what everyone else sees: your app do
 
 What builds publish beside the pages leaves members' pages and collections out, since anyone can read them: the site's search, feeds, calendar files, and the content API. Members' calendars offer no calendar files to download or subscribe to. Two things stay your app's to keep private: the content repository, which holds every page, so make it private; and anything a public page shows of members' items, such as a list of their titles.
 
+### Teasers and a paywall
+
+Rather than turn everyone else away, a members-only page can show them its start, a teaser, and say how to read the rest. Give `goodfellowPages()` the name of a block of your own that says so, such as a Paywall block with a link to subscribe and one to sign in:
+
+```ts
+export const site = goodfellowPages(config, { paywall: "Paywall" });
+```
+
+Editors put the block where a members-only page's teaser ends. `site.Page` then shows everyone the blocks above it, and the block itself. A paywall inside another block, such as a Section, ends the teaser before that whole block, since what else it holds may be for members. A members-only page with no paywall, such as a members' collection's item whose template places none, shows only the block, with its default words, so nothing an editor didn't choose to show is published. Members-only pages tell search engines nothing in structured data either, since an item's would start with its text.
+
+`site.MembersPage` shows every page in full, without its paywalls, for a route of its own, such as `app/(site)/members/pages/[[...path]]/page.tsx`, which your `proxy.ts` sends members' requests to. Export `site.generateStaticParams` from that route too, so every page's members' version is built ahead, as its version for everyone is, and both are served from the cache without rendering a page for any one visitor. It has to be every page, since the proxy can't tell which are for members, and a server that can't read `content/`, such as a Worker, can't render one that wasn't built. Only your app knows who's a member, so the proxy has to answer a request for that route's own address "Page not found", however it's spelled (`%70` for `p`, say), or anyone could read the pages there. Let the build's own requests through, though: vinext builds pages by asking for them through the proxy, and would keep "Page not found" as each members' version. Only the build has `NEXT_PHASE` set to `phase-production-build` (`PHASE_PRODUCTION_BUILD` from `next/constants`), which no request can change. It's also what keeps the members' version out of every cache between the site and the browser: send it with `Cache-Control: private`.
+
+The [company example](https://github.com/goodfellow-cms/goodfellow-cms/tree/master/examples/company) does all of this, deciding who's a member from a signed cookie, so most requests read no database; its README says how.
+
 ## AI keys on the server
 
 With `ai`, the AI assistant asks those services through the server, which adds its own key, so editors don't need keys of their own and never see the site's. Give a key for any of the [AI assistant's](/docs/ai-assistant) services, or a key and an address, such as `custom: { key, baseUrl: "https://ai.example/v1" }`, with `models` listing the only models editors may ask for where the service has others that cost more, Claude included (`anthropic: { key, models: ["claude-haiku-4-5"] }`). The server sends on only what the assistant asks for: Claude's answers in its own models and up to the assistant's length, never tools, files, or other services' features the site would pay for. Editors see them as provided by the site. They can still use other services with keys of their own, unless the config's `ai.providers` leaves those out.

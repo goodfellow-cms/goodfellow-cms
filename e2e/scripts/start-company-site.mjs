@@ -1,7 +1,7 @@
 // Builds a copy of the company example into a Cloudflare Worker with vinext, as its deploy workflow does, gives it
-// a local D1 database with an admin and an editor, and serves the built Worker in workerd, as Cloudflare would,
-// with a fake GitHub as its content repository and a fake Resend for its email. POST /__reset to the fake GitHub
-// starts it afresh; GET /__sent from the fake Resend lists what it was sent.
+// a local D1 database with an admin, an editor, and a subscriber, and serves the built Worker in workerd, as
+// Cloudflare would, with a fake GitHub as its content repository and a fake Resend for its email. POST /__reset to
+// the fake GitHub starts it afresh; GET /__sent from the fake Resend lists what it was sent.
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
@@ -111,6 +111,10 @@ const rows = Object.entries(COMPANY_PEOPLE).flatMap(([id, person]) => [
   `insert into "user" (id, name, email, emailVerified, createdAt, updatedAt, role) values (${[id, person.name, person.email, 1, now, now, person.role].map(quote).join(", ")});`,
   `insert into account (id, accountId, providerId, userId, password, createdAt, updatedAt) values (${[`${id}-password`, id, "credential", id, hash, now, now].map(quote).join(", ")});`,
 ]);
+// The subscriber's subscription, as a payment would record it, which never ends.
+rows.push(
+  `insert into entitlement (id, userId, kind, reference, createdAt) values (${["subscriber-monthly", "subscriber", "subscription", "price_monthly", now].map(quote).join(", ")});`,
+);
 run("wrangler", ["d1", "execute", "goodfellow-company", "--local", "--command", rows.join(" ")]);
 
 // The built Worker in workerd, with the local database and what .dev.vars says.

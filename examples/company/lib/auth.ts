@@ -9,6 +9,7 @@ import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { dialectFor } from "./db/dialect.ts";
 import { canSendEmail, EmailNotSetUp, EmailRefused, passwordResetEmail, sendEmail } from "./email.ts";
+import { entitlements } from "./entitlements.ts";
 import { env, inBackground, type SiteEnv } from "./env.ts";
 
 /**
@@ -418,6 +419,7 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
     plugins: [
       admin({ defaultRole: "editor", adminRoles: ["admin"], roles: { admin: adminAc, editor: userAc } }),
       resets.plugin,
+      entitlements(),
       nextCookies(),
     ],
   } satisfies BetterAuthOptions;

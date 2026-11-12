@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-handbook-intro",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-handbook",
+                "align": "left",
+                "className": "",
+                "level": "h1",
+                "text": "Subscribers' handbook"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-handbook-intro",
+                "align": "left",
+                "className": "mt-6",
+                "content": "<p>Everything we share with subscribers: how we work, what's coming, and the reports we write each quarter.</p>"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "narrow"
+        }
+      },
+      {
+        "type": "Paywall",
+        "props": {
+          "id": "Paywall-handbook",
+          "className": "",
+          "heading": "The rest is for subscribers",
+          "signInLabel": "Already subscribe? Sign in",
+          "subscribeHref": "",
+          "subscribeLabel": "Subscribe",
+          "text": "Subscribe to read the whole handbook."
+        }
+      },
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-handbook-body",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-handbook-quarter",
+                "align": "left",
+                "className": "",
+                "level": "h2",
+                "text": "This quarter"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-handbook-quarter",
+                "align": "left",
+                "className": "mt-4",
+                "content": "<p>Replace this with what only subscribers read. Pages marked for members are left out of the site's search, feeds and content API, and everyone else sees only what's above the paywall.</p>"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "narrow"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "What we share with subscribers.",
+        "image": "",
+        "title": "Subscribers' handbook",
+        "visibility": "members"
+      }
+    }
+  }
+}

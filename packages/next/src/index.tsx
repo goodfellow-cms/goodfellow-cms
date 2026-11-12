@@ -11,6 +11,7 @@ import {
   DARK_MODE_ATTRIBUTE,
   demoContent,
   describedForCopy,
+  expandSyncedBlocks,
   type FontStandIns,
   feedLinks,
   findRedirect,
@@ -23,6 +24,7 @@ import {
   heldStats,
   IMAGE_WIDTHS,
   type ImageSize,
+  isMembersOnly,
   loadSiteContent,
   normalizePagePath,
   type Page,
@@ -38,9 +40,11 @@ import {
   storedMediaSizes,
   type Theme,
   TRAILING_SLASH_VARIABLE,
+  teaserData,
   themeToCss,
   todayIn,
   withBase,
+  withoutPaywall,
   withSelfHostedFonts,
 } from "@goodfellow-cms/core";
 import {
@@ -92,6 +96,16 @@ export interface GoodfellowPagesOptions {
    * `basePath` that `withGoodfellow()` gave Next.js.
    */
   basePath?: string;
+  /**
+   * The name, in the site's `blocks`, of the block that ends a members-only
+   * page's teaser, on a full-stack site whose server keeps pages to their
+   * members (see the docs' Full-stack Next.js page). With it, `Page` shows
+   * everyone a members-only page's teaser (`teaserData()`), and `MembersPage`
+   * shows every page in full, for the route members are sent to; both leave
+   * the block out of what's shown in full. Without it, every page is shown in
+   * full, as a static export publishes it.
+   */
+  paywall?: string;
 }
 
 // In `next build`, which renders pages in several processes, each writes the dates what its pages show by today's
@@ -181,6 +195,27 @@ function exportedPages(content: SiteContent, blocks: GoodfellowConfig["blocks"])
 
 function findPage(content: SiteContent, blocks: GoodfellowConfig["blocks"], path: string): Page | undefined {
   return exportedPages(content, blocks).find((page) => page.path === path);
+}
+
+/** Who a page is shown to: the site's members, or everyone else. */
+export type PageReader = "everyone" | "members";
+
+/**
+ * The page as `reader` sees it, where the site has a `paywall` block (see
+ * `GoodfellowPagesOptions.paywall`): a members-only page's teaser for everyone
+ * else (`teaserData()`), and otherwise the page without its paywall blocks.
+ * Synced blocks go in first, since a paywall can be in one. Without a paywall,
+ * the page as it is.
+ */
+export function shownPage(content: SiteContent, page: Page, reader: PageReader, paywall?: string): Page {
+  if (!paywall) return page;
+  const inLanguage = contentForPage(content, page);
+  const data = expandSyncedBlocks(page.content.data, inLanguage, inLanguage.settings.language);
+  const shown =
+    reader === "everyone" && isMembersOnly(page, content.collections)
+      ? teaserData(data, paywall)
+      : withoutPaywall(data, paywall);
+  return { ...page, content: { ...page.content, data: shown } };
 }
 
 /** Whether the site asks visitors before loading other sites' content. */
@@ -348,6 +383,39 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
     );
   }
 
+  /** The page at the route's address, as `reader` sees it, inside `Layout`'s header and footer. */
+  async function renderPage(segments: string[] | undefined, reader: PageReader) {
+    const content = await site();
+    const page = findPage(content, config.blocks, pathOf(segments));
+    if (!page || page.path === "/404") {
+      // In `next dev`. Exports have a page at each old address instead, which `goodfellow-next finish` writes.
+      const moved = findRedirect(content, `/${(segments ?? []).join("/")}`);
+      if (moved) redirect(moved.to);
+      notFound();
+    }
+    const prepared = await preparePage(
+      configs,
+      content,
+      shownPage(content, page, reader, options.paywall),
+      await renderOptions(),
+    );
+    const pageContent = (
+      <PageContent
+        site={prepared.site}
+        pageConfig={prepared.pageConfig}
+        page={prepared.data}
+        {...(prepared.structuredData && { structuredData: prepared.structuredData })}
+      />
+    );
+    if (!hasLanguages(content.settings)) return pageContent;
+    return (
+      <>
+        <PageLanguage language={prepared.site.settings.language} />
+        {pageContent}
+      </>
+    );
+  }
+
   return {
     /** Every page's address, so Next.js builds them all. Any other address is "not found". */
     async generateStaticParams(): Promise<Array<{ path: string[] }>> {
@@ -455,33 +523,24 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       );
     },
 
-    /** The page at the route's address, inside `Layout`'s header and footer. */
+    /**
+     * The page at the route's address, inside `Layout`'s header and footer:
+     * with a `paywall`, a members-only page's teaser.
+     */
     async Page({ params }: PageProps) {
-      const content = await site();
-      const segments = (await params).path;
-      const page = findPage(content, config.blocks, pathOf(segments));
-      if (!page || page.path === "/404") {
-        // In `next dev`. Exports have a page at each old address instead, which `goodfellow-next finish` writes.
-        const moved = findRedirect(content, `/${(segments ?? []).join("/")}`);
-        if (moved) redirect(moved.to);
-        notFound();
-      }
-      const prepared = await preparePage(configs, content, page, await renderOptions());
-      const pageContent = (
-        <PageContent
-          site={prepared.site}
-          pageConfig={prepared.pageConfig}
-          page={prepared.data}
-          {...(prepared.structuredData && { structuredData: prepared.structuredData })}
-        />
-      );
-      if (!hasLanguages(content.settings)) return pageContent;
-      return (
-        <>
-          <PageLanguage language={prepared.site.settings.language} />
-          {pageContent}
-        </>
-      );
+      return renderPage((await params).path, "everyone");
+    },
+
+    /**
+     * The page at the route's address in full, as the site's members see it,
+     * for the route a full-stack site's middleware sends them to, which builds
+     * every page with `generateStaticParams`, since middleware can't tell
+     * which pages are for members. Only the site's own code can say who's a
+     * member, so that route must answer only requests the middleware sent it
+     * and the build's own, never a visitor's for its own address.
+     */
+    async MembersPage({ params }: PageProps) {
+      return renderPage((await params).path, "members");
     },
 
     /**
