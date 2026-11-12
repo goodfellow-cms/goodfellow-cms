@@ -47,12 +47,19 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # The commit the docs were built from, which the deploy job names to Cloudflare: GITHUB_SHA is the branch's head
+    # when the release workflow or the schedule runs this, not the release built.
+    outputs:
+      commit: ${{ steps.version.outputs.commit }}
+    # This job runs the released code and the packages it installs, so it must never name a secret
+    # (release.yml passes every secret on with `secrets: inherit`); packages/core/src/docs-workflow.test.ts checks.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Check out the version to build
+        id: version
         env:
           REF: ${{ inputs.ref }}
         run: |
@@ -64,7 +71,9 @@ jobs:
             fi
           fi
           git checkout --detach "$REF" 2>/dev/null || git checkout --detach "origin/$REF"
-          echo "Building the docs from $REF ($(git rev-parse --short HEAD))."
+          commit=$(git rev-parse HEAD)
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "Building the docs from $REF (${commit:0:7})."
           # The Sponsors list is the latest, whatever the rest comes from; pages also bring it up to date as they
           # load. Releases from before it don't show it.
           if [ -f .github/sponsors.json ]; then git show origin/master:.github/sponsors.json > .github/sponsors.json; fi
@@ -151,6 +160,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # The Cloudflare Pages project, made for Direct Upload, with goodfellowcms.com as its custom domain.
           PROJECT: ${{ vars.DOCS_PAGES_PROJECT || 'goodfellowcms' }}
+          COMMIT: ${{ needs.build.outputs.commit }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to the cloudflare-pages environment's secrets. See RELEASING.md."
@@ -158,7 +168,7 @@ jobs:
           fi
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/wrangler/node_modules/.bin/wrangler" pages deploy "$RUNNER_TEMP/docs" \
-            --project-name "$PROJECT" --branch main --commit-hash "$GITHUB_SHA" --commit-dirty=true
+            --project-name "$PROJECT" --branch main --commit-hash "$COMMIT" --commit-dirty=true
 
   old-address:
     # GitHub Pages: the pages at the old address that send people to the new one, once the new one has the site,

@@ -26,7 +26,7 @@ import {
   removeEditor,
   setRole,
 } from "./editors.ts";
-import { escapeHtml, invitationEmail, sendEmail } from "./email.ts";
+import { canSendEmail, EMAIL_PROVIDERS, EmailRefused, escapeHtml, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 
 const SITE = "http://localhost:4321";
@@ -37,9 +37,10 @@ const SITE_ENV: SiteEnv = {
 };
 const EMAIL_ENV: SiteEnv = {
   ...SITE_ENV,
-  RESEND_API_KEY: "re_test_only",
+  EMAIL_PROVIDER: "resend",
+  EMAIL_API_KEY: "re_test_only",
   EMAIL_FROM: "Example Co <hello@example.org>",
-  RESEND_API_URL: "https://resend.example",
+  EMAIL_API_URL: "https://email.example",
 };
 const PASSWORD = "correct horse battery staple";
 
@@ -50,18 +51,29 @@ interface Sent {
   body: { from: string; to: string[]; subject: string; text: string; html: string };
 }
 
-/** A stand-in for Resend's API, which keeps what it's sent and answers `status`. */
+/** A stand-in for Resend's API, which keeps what it's sent (with its recipients as a list) and answers `status`. */
 function fakeResend(status = 200) {
   const sent: Sent[] = [];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
     sent.push({
       url: String(input),
       authorization: new Headers(init?.headers).get("authorization"),
-      body: JSON.parse(String(init?.body)),
+      body: { ...body, to: [body.to].flat() },
     });
-    return new Response("{}", { status });
+    return Response.json(status === 200 ? { id: String(sent.length) } : { message: "no" }, { status });
   }) as typeof fetch;
   return { sent, fetcher };
+}
+
+/** A stand-in for any service's API, which keeps each request as it came and answers as `answer` makes it. */
+function fakeService(answer: () => Response = () => Response.json({ id: "1", message: "Queued.", success: true })) {
+  const requests: Request[] = [];
+  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requests.push(new Request(input, init));
+    return answer();
+  }) as typeof fetch;
+  return { requests, fetcher };
 }
 
 /** The link in a message's text. */
@@ -178,17 +190,123 @@ describe("emails", () => {
     expect(email.subject).toBe("You're invited to edit localhost:4321");
   });
 
-  it("go through Resend with the site's key, and say only its status when it refuses", async () => {
+  it("go through the service the settings name, with its key, and say only what kind of failure it was", async () => {
     const resend = fakeResend();
+    vi.stubGlobal("fetch", resend.fetcher);
     const email = { to: "eddie@example.org", subject: "Hello", text: "Hi", html: "<p>Hi</p>" };
-    await sendEmail(EMAIL_ENV, email, resend.fetcher);
+    await sendEmail(EMAIL_ENV, email);
     expect(resend.sent[0]).toMatchObject({
-      url: "https://resend.example/emails",
+      url: "https://email.example/emails",
       authorization: "Bearer re_test_only",
       body: { from: "Example Co <hello@example.org>", to: ["eddie@example.org"], subject: "Hello" },
     });
-    await expect(sendEmail(EMAIL_ENV, email, fakeResend(403).fetcher)).rejects.toThrow(/answered 403\.$/);
-    await expect(sendEmail(SITE_ENV, email, resend.fetcher)).rejects.toThrow(/RESEND_API_KEY and EMAIL_FROM/);
+    vi.stubGlobal("fetch", fakeResend(403).fetcher);
+    const refused = await sendEmail(EMAIL_ENV, email).then(
+      () => undefined,
+      (error: Error) => error.message,
+    );
+    expect(refused).toMatch(/^The email wasn't sent: the service answered with an error \([a-z-]+\)\.$/);
+    expect(refused).not.toContain("eddie");
+    // A 4xx every time it's tried means it surely wasn't sent; a 5xx on any try means it may have been.
+    await expect(sendEmail(EMAIL_ENV, email)).rejects.toBeInstanceOf(EmailRefused);
+    vi.stubGlobal("fetch", fakeResend(500).fetcher);
+    const failed = await sendEmail(EMAIL_ENV, email).catch((error: unknown) => error);
+    expect(failed).toBeInstanceOf(Error);
+    expect(failed).not.toBeInstanceOf(EmailRefused);
+    // Asked too often surely didn't send it, so it's tried once more where the service says to wait a moment, and
+    // what that try met decides; asked to wait longer, or not told how long, it isn't tried again.
+    const answers: [number, string?][] = [[429, "0"], [503]];
+    const busy = fakeService(() => {
+      const [status, retryAfter] = answers.shift() ?? [200];
+      return Response.json({ message: "no" }, { status, headers: retryAfter ? { "retry-after": retryAfter } : {} });
+    });
+    vi.stubGlobal("fetch", busy.fetcher);
+    const mixed = await sendEmail(EMAIL_ENV, email).catch((error: unknown) => error);
+    expect(busy.requests).toHaveLength(2);
+    expect(mixed).toBeInstanceOf(Error);
+    expect(mixed).not.toBeInstanceOf(EmailRefused);
+    answers.push([429, "1"], [200]);
+    await sendEmail(EMAIL_ENV, email);
+    expect(busy.requests).toHaveLength(4);
+    answers.push([429], [200]);
+    await expect(sendEmail(EMAIL_ENV, email)).rejects.toBeInstanceOf(EmailRefused);
+    expect(busy.requests).toHaveLength(5);
+    answers.length = 0;
+    answers.push([429, "60"], [200]);
+    await expect(sendEmail(EMAIL_ENV, email)).rejects.toBeInstanceOf(EmailRefused);
+    expect(busy.requests).toHaveLength(6);
+    // A message that can't be made goes to nobody, so it counts as refused.
+    answers.length = 0;
+    await expect(sendEmail(EMAIL_ENV, { ...email, to: "not an address" })).rejects.toBeInstanceOf(EmailRefused);
+    expect(busy.requests).toHaveLength(6);
+    // Nor can one go from an address that can't be read, which the settings check says.
+    const unreadableFrom = { ...EMAIL_ENV, EMAIL_FROM: "Example Co" };
+    expect(canSendEmail(unreadableFrom)).toBe(false);
+    await expect(sendEmail(unreadableFrom, email)).rejects.toThrow("Set EMAIL_FROM to send email.");
+    expect(busy.requests).toHaveLength(6);
+    await expect(sendEmail(SITE_ENV, email)).rejects.toThrow(
+      "Set EMAIL_PROVIDER, EMAIL_FROM, and EMAIL_API_KEY to send email.",
+    );
+    await expect(sendEmail({ ...EMAIL_ENV, EMAIL_PROVIDER: "carrier-pigeon" }, email)).rejects.toThrow(
+      "Set EMAIL_PROVIDER to send email.",
+    );
+    await expect(sendEmail({ ...EMAIL_ENV, EMAIL_PROVIDER: "ses" }, email)).rejects.toThrow(
+      "Set EMAIL_KEY_ID and EMAIL_REGION to send email.",
+    );
+  });
+
+  it("switch services with the settings alone, with no service's tracking in the links", async () => {
+    const email = { to: "eddie@example.org", subject: "Hello", text: "https://example.org/x", html: "<p>Hi</p>" };
+    const sendThrough = async (settings: Partial<SiteEnv>, answer?: () => Response) => {
+      const service = fakeService(answer);
+      vi.stubGlobal("fetch", service.fetcher);
+      const { EMAIL_API_URL: _url, ...withoutUrl } = EMAIL_ENV;
+      await sendEmail({ ...withoutUrl, ...settings }, email);
+      const [request] = service.requests;
+      if (!request) throw new Error("Nothing was sent.");
+      return { request, body: await request.text() };
+    };
+
+    const mailgun = await sendThrough({ EMAIL_PROVIDER: "mailgun", EMAIL_API_KEY: "mg-key", EMAIL_REGION: "eu" });
+    // Its domain is EMAIL_FROM's unless EMAIL_DOMAIN says otherwise.
+    expect(mailgun.request.url).toBe("https://api.eu.mailgun.net/v3/example.org/messages");
+    expect(mailgun.request.headers.get("authorization")).toBe(`Basic ${btoa("api:mg-key")}`);
+    for (const option of ["o:tracking", "o:tracking-clicks", "o:tracking-opens"]) {
+      expect(mailgun.body).toMatch(new RegExp(`name="${option}"\\s+(no|false)`));
+    }
+    const ownDomain = await sendThrough({ EMAIL_PROVIDER: "mailgun", EMAIL_DOMAIN: "mg.example.org" });
+    expect(ownDomain.request.url).toBe("https://api.mailgun.net/v3/mg.example.org/messages");
+    // An empty or blank EMAIL_DOMAIN, as Deploy sets where the variable is missing, falls back to EMAIL_FROM's.
+    for (const blank of ["", "  "]) {
+      const fallback = await sendThrough({ EMAIL_PROVIDER: "mailgun", EMAIL_DOMAIN: blank });
+      expect(fallback.request.url).toBe("https://api.mailgun.net/v3/example.org/messages");
+    }
+
+    // SendGrid answers a message it accepts with 202 and nothing else.
+    const sendgrid = await sendThrough(
+      { EMAIL_PROVIDER: "SendGrid", EMAIL_API_KEY: "SG.key" },
+      () => new Response(null, { status: 202 }),
+    );
+    expect(sendgrid.request.url).toBe("https://api.sendgrid.com/v3/mail/send");
+    expect(sendgrid.request.headers.get("authorization")).toBe("Bearer SG.key");
+    const tracking = JSON.parse(sendgrid.body).tracking_settings;
+    expect(tracking.click_tracking.enable).toBe(false);
+    expect(tracking.open_tracking.enable).toBe(false);
+
+    const plunk = await sendThrough({ EMAIL_PROVIDER: "plunk", EMAIL_API_KEY: "plunk-key" });
+    expect(plunk.request.url).toMatch(/^https:\/\/[^/]*useplunk\.com\//);
+    expect(plunk.request.headers.get("authorization")).toBe("Bearer plunk-key");
+
+    const ses = await sendThrough({
+      EMAIL_PROVIDER: "ses",
+      EMAIL_API_KEY: "ses-secret",
+      EMAIL_KEY_ID: "AKIDEXAMPLE",
+      EMAIL_REGION: "eu-west-1",
+    });
+    expect(ses.request.url).toMatch(/^https:\/\/email\.eu-west-1\.amazonaws\.com\//);
+    // Signed with the key pair, which never travels as it is.
+    expect(ses.request.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE\//);
+    expect(`${[...ses.request.headers.values()].join(" ")} ${ses.body}`).not.toContain("ses-secret");
   });
 });
 
@@ -197,8 +315,9 @@ describe("the editors API", () => {
     const { auth, asking, olive, signIn, close } = await site(EMAIL_ENV);
     try {
       const resend = fakeResend();
+      vi.stubGlobal("fetch", resend.fetcher);
       const invitation = { email: "eddie@example.org", name: "Eddie", role: "editor" as const };
-      expect(await inviteEditor(auth, EMAIL_ENV, asking(olive), invitation, resend.fetcher)).toEqual({ sent: true });
+      expect(await inviteEditor(auth, EMAIL_ENV, asking(olive), invitation)).toEqual({ sent: true });
       const [sent] = resend.sent;
       if (!sent) throw new Error("Nothing was sent.");
       expect(sent.body.to).toEqual(["eddie@example.org"]);
@@ -224,7 +343,7 @@ describe("the editors API", () => {
       });
       expect((await listEditors(auth, asking(olive, "GET")))[1]).toMatchObject({ joined: true });
       await expect(accept("another long password")).rejects.toThrow(/already been used or has run out/);
-      await expect(inviteEditor(auth, EMAIL_ENV, asking(olive), invitation, resend.fetcher)).rejects.toMatchObject({
+      await expect(inviteEditor(auth, EMAIL_ENV, asking(olive), invitation)).rejects.toMatchObject({
         status: 409,
       });
     } finally {
@@ -258,11 +377,12 @@ describe("the editors API", () => {
     }
   });
 
-  it("says why an invitation couldn't be sent, without Resend's answer", async () => {
+  it("says why an invitation couldn't be sent, without the service's answer", async () => {
     const { auth, asking, olive, close } = await site(EMAIL_ENV);
     try {
+      vi.stubGlobal("fetch", fakeResend(500).fetcher);
       const invitation = { email: "eddie@example.org", name: "Eddie", role: "editor" as const };
-      await expect(inviteEditor(auth, EMAIL_ENV, asking(olive), invitation, fakeResend(500).fetcher)).rejects.toThrow(
+      await expect(inviteEditor(auth, EMAIL_ENV, asking(olive), invitation)).rejects.toThrow(
         "The invitation couldn't be sent. Check the site's email settings, then send it again.",
       );
     } finally {
@@ -865,13 +985,11 @@ describe("forgetting a password", () => {
     vi.stubGlobal("fetch", resend.fetcher);
     const { auth, asking, olive, close } = await site(EMAIL_ENV);
     try {
-      const invited = await inviteEditor(
-        auth,
-        EMAIL_ENV,
-        asking(olive),
-        { email: "eddie@example.org", name: "Eddie", role: "admin" },
-        resend.fetcher,
-      );
+      const invited = await inviteEditor(auth, EMAIL_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
       expect(invited).toEqual({ sent: true });
       const ask = (email: string) =>
         auth.handler(
@@ -1212,6 +1330,36 @@ describe("two-factor sign-in", () => {
       expect((await authRoute(auth, new Request(`${SITE}/api/auth/get-session/`))).status).toBe(200);
     } finally {
       close();
+    }
+  });
+});
+
+describe("link tracking", () => {
+  // Each link in an email lets someone into an account, so tracking, which sends links through the service first,
+  // stays off: in each message where the service allows it, and otherwise by the README's steps for that service.
+  const NAMES: Record<(typeof EMAIL_PROVIDERS)[number], string> = {
+    resend: "Resend",
+    mailgun: "Mailgun",
+    sendgrid: "SendGrid",
+    ses: "SES",
+    plunk: "Plunk",
+  };
+
+  it("is turned off in the code, or the README says where to turn it off, for every service", async () => {
+    const code = await readFile(join(import.meta.dirname, "email.ts"), "utf8");
+    const readme = await readFile(join(import.meta.dirname, "../README.md"), "utf8");
+    const guidance = readme.split("\n").find((line) => line.includes("Link tracking must stay off")) ?? "";
+    expect(guidance).not.toBe("");
+    for (const provider of EMAIL_PROVIDERS) {
+      const start = code.indexOf(`case "${provider}": {`);
+      expect(start, provider).toBeGreaterThan(-1);
+      const next = code.indexOf("case ", start + 1);
+      const block = code.slice(start, next === -1 ? undefined : next);
+      const inCode = /[cC]lickTracking: false/.test(block);
+      expect(
+        inCode || guidance.includes(`in ${NAMES[provider]},`),
+        `${provider}: tracking off in code or in the README`,
+      ).toBe(true);
     }
   });
 });

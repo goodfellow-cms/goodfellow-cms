@@ -480,9 +480,10 @@ export function createCompanySite() {
       "BETTER_AUTH_SECRET=company-test-secret-at-least-32-characters",
       `GOODFELLOW_SITE_URL=http://localhost:${COMPANY.port}`,
       `GOODFELLOW_GIT_TOKEN=${COMPANY.token}`,
-      "RESEND_API_KEY=re_company_test",
+      "EMAIL_PROVIDER=resend",
+      "EMAIL_API_KEY=re_company_test",
       "EMAIL_FROM=Northwind <hello@example.org>",
-      `RESEND_API_URL=http://127.0.0.1:${COMPANY.resend}`,
+      `EMAIL_API_URL=http://127.0.0.1:${COMPANY.resend}`,
       "",
     ].join("\n"),
   );

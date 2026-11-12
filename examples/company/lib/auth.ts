@@ -9,7 +9,7 @@ import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { dialectFor } from "./db/dialect.ts";
-import { canSendEmail, EmailRefused, passwordResetEmail, sendEmail } from "./email.ts";
+import { canSendEmail, EmailNotSetUp, EmailRefused, passwordResetEmail, sendEmail } from "./email.ts";
 import { env, inBackground, type SiteEnv } from "./env.ts";
 
 /**
@@ -80,7 +80,8 @@ function sendReset(siteEnv: SiteEnv, releaseSlot: (request: Request | undefined)
     inBackground(
       sendEmail(siteEnv, email).catch(async (error: unknown) => {
         console.error(`A password reset email wasn't sent: ${error instanceof Error ? error.name : "error"}.`);
-        if (error instanceof EmailRefused) {
+        // Neither went to anyone, so the reset doesn't count against the account's limit.
+        if (error instanceof EmailRefused || error instanceof EmailNotSetUp) {
           await releaseSlot(request).catch(() => console.error("A password reset email's slot wasn't given back."));
         }
       }),
