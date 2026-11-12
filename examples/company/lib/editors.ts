@@ -1,9 +1,9 @@
 // The site's editors, for its admins: who has an account, inviting someone, changing what they may do, and removing
 // them. Everything here goes through Better Auth's admin plugin, which checks the caller is an admin, and through
-// `authorizeWith()`, which also refuses banned admins, admins acting as someone else, and admins without two-factor
-// sign-in.
+// `editorAsking()`, `authorizeWith()`'s check, which also refuses banned admins, admins acting as someone else, and
+// admins without two-factor sign-in.
 import { generateRandomString } from "better-auth/crypto";
-import { authorizeWith, lockLinks, RESET_IDENTIFIER, retireResetLinks, type SiteAuth, unlockLinks } from "./auth.ts";
+import { editorAsking, lockLinks, RESET_IDENTIFIER, retireResetLinks, type SiteAuth, unlockLinks } from "./auth.ts";
 import { canSendEmail, type Email, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
@@ -48,14 +48,13 @@ export async function adminAsking(siteAuth: SiteAuth, request: Request): Promise
   if (request.method !== "GET" && !fromThisSite(request)) {
     throw new EditorsError(403, "Manage editors from the site's own pages.");
   }
-  const editor = await authorizeWith(siteAuth, request);
+  const { editor, admin } = await editorAsking(siteAuth, request);
   if (editor === null) throw new EditorsError(401, "Sign in first.");
   if (editor === false) throw new EditorsError(403, "Only the site's admins can manage its editors.");
   if (editor.role !== "owner") {
-    const session = await siteAuth.api.getSession({ headers: request.headers, query: { disableCookieCache: true } });
     throw new EditorsError(
       403,
-      session?.user.role === "admin"
+      admin
         ? "Turn on two-factor sign-in on your account page first: admins need it to manage editors."
         : "Only the site's admins can manage its editors.",
     );

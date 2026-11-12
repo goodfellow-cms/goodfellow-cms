@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { authClient } from "@/lib/auth-client";
+import { authClient, TOO_MANY } from "@/lib/auth-client";
 
 /**
  * Where to go after signing in: `next` from the address, if it's on this site, or the home page. It's read as the
@@ -33,8 +33,7 @@ export function SignInForm() {
         email: String(form.get("email")),
         password: String(form.get("password")),
       });
-      if (error?.status === 429)
-        return setProblem("That's too many tries for now. Wait a few minutes, then try again.");
+      if (error?.status === 429) return setProblem(TOO_MANY);
       if (error) return setProblem("That email address and password don't match an account here.");
       if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) return setCode("app");
       location.assign(nextPath());
@@ -55,9 +54,7 @@ export function SignInForm() {
         code === "backup"
           ? await authClient.twoFactor.verifyBackupCode({ code: given })
           : await authClient.twoFactor.verifyTotp({ code: given });
-      if (error?.status === 429) {
-        return setProblem("That's too many tries for now. Wait a few minutes, then try again.");
-      }
+      if (error?.status === 429) return setProblem(TOO_MANY);
       if (error?.status === 401 && error.code === "INVALID_TWO_FACTOR_COOKIE") {
         setCode(undefined);
         return setProblem("That took too long. Sign in again.");

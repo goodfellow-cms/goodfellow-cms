@@ -1,7 +1,7 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
-import { authClient } from "@/lib/auth-client";
+import { type FormEvent, useEffect, useState } from "react";
+import { authClient, TOO_MANY } from "@/lib/auth-client";
 import { QrCode } from "./qr-code";
 
 /** What turning on two-factor sign-in gave: the authenticator app's address and backup codes, shown once. */
@@ -13,10 +13,24 @@ interface Setup {
 
 const RETRY = "That didn't work. Check your connection and try again.";
 
+type Session = typeof authClient.$Infer.Session;
+
 /** Someone's own account: who they are, and turning two-factor sign-in on and off. */
 export function AccountScreen() {
-  const { data: session, isPending } = authClient.useSession();
-  // What this page has just changed, since the session may be read from its cookie's copy for a few minutes.
+  // Read from the database, not the session cookie's copy, which can be a few minutes old: two-factor sign-in turned
+  // on in another browser would show as off here, and setting it up again would replace the app that works.
+  const [session, setSession] = useState<Session | null>();
+  useEffect(() => {
+    let current = true;
+    authClient.getSession({ query: { disableCookieCache: true } }).then(
+      ({ data }) => current && setSession(data ?? null),
+      () => current && setSession(null),
+    );
+    return () => {
+      current = false;
+    };
+  }, []);
+  // What this page has just changed since.
   const [changed, setChanged] = useState<boolean>();
   const [setup, setSetup] = useState<Setup>();
   const [problem, setProblem] = useState<string>();
@@ -43,7 +57,9 @@ export function AccountScreen() {
     const password = String(new FormData(event.currentTarget).get("password"));
     void step(async () => {
       const { data, error } = await authClient.twoFactor.enable({ password, method: "totp" });
-      if (error?.status === 429) return "That's too many tries for now. Wait a few minutes, then try again.";
+      if (error?.status === 429) return TOO_MANY;
+      if (error?.code === "TOTP_ALREADY_ENABLED") return "Two-factor sign-in is already on. Reload the page to see it.";
+      if (error?.status === 401) return "You've been signed out. Sign in again to change this.";
       if (error || !data) return "That isn't your password.";
       if (data.method !== "totp") return RETRY;
       setSetup({
@@ -59,7 +75,7 @@ export function AccountScreen() {
     const code = String(new FormData(event.currentTarget).get("code")).replace(/\s/g, "");
     void step(async () => {
       const { error } = await authClient.twoFactor.verifyTotp({ code });
-      if (error?.status === 429) return "That's too many tries for now. Wait a few minutes, then try again.";
+      if (error?.status === 429) return TOO_MANY;
       if (error) return "That code didn't work. Check the time on your phone is right, then try the next code.";
       setSetup(undefined);
       setChanged(true);
@@ -72,14 +88,14 @@ export function AccountScreen() {
     const password = String(new FormData(event.currentTarget).get("password"));
     void step(async () => {
       const { error } = await authClient.twoFactor.disable({ password });
-      if (error?.status === 429) return "That's too many tries for now. Wait a few minutes, then try again.";
+      if (error?.status === 429) return TOO_MANY;
       if (error) return "That isn't your password.";
       setChanged(false);
       setNotice("Two-factor sign-in is off.");
     });
   }
 
-  if (isPending) return <p>Loading…</p>;
+  if (session === undefined) return <p>Loading…</p>;
   if (!session) {
     return (
       <p>

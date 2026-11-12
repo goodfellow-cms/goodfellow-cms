@@ -5,9 +5,11 @@ import { DatabaseSync } from "node:sqlite";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  ADMIN_PATHS,
   authOptions,
   authorizeWith,
   authRoute,
+  isAdminPluginPath,
   LINK_LOCK,
   lockLinks,
   RESET_ACCOUNT_LIMIT,
@@ -614,6 +616,23 @@ describe("the editors API", () => {
     }
   });
 
+  it("closes, in the site's own router, every route the admin plugin lists, however it's spelled", () => {
+    expect(ADMIN_PATHS.length).toBeGreaterThan(5);
+    for (const path of ADMIN_PATHS) {
+      for (const spelled of [
+        `/api/auth${path}`,
+        `/api/auth${path}/`,
+        `/API/Auth/${path.toUpperCase()}`,
+        `/api/auth/${path}`,
+      ]) {
+        expect(isAdminPluginPath(spelled), spelled).toBe(true);
+      }
+    }
+    for (const path of ["/api/auth/get-session/", "/api/auth/two-factor/enable", "/api/auth/administrator"]) {
+      expect(isAdminPluginPath(path), path).toBe(false);
+    }
+  });
+
   it("changes and removes others, never the admin asking", async () => {
     const { auth, asking, olive, oliveId, person, signIn, close } = await site();
     try {
@@ -622,10 +641,10 @@ describe("the editors API", () => {
       // An admin now, who edits pages until he turns on two-factor sign-in.
       const eddie = await signIn("eddie@example.org");
       expect(await authorizeWith(auth, asking(eddie, "GET"))).toMatchObject({ role: "editor" });
-      expect((await listEditors(auth, asking(olive, "GET"))).find((editor) => editor.id === eddieId)).toMatchObject({
-        role: "admin",
-        twoFactor: false,
-      });
+      const listed = await listEditors(auth, asking(olive, "GET"));
+      expect(listed.find((editor) => editor.id === eddieId)).toMatchObject({ role: "admin", twoFactor: false });
+      // And Olive, who has it on, as on, so the list doesn't say off for everyone.
+      expect(listed.find((editor) => editor.id === oliveId)).toMatchObject({ role: "admin", twoFactor: true });
       await expect(setRole(auth, asking(olive, "PATCH"), eddieId, "owner")).rejects.toMatchObject({ status: 400 });
       await expect(setRole(auth, asking(olive, "PATCH"), oliveId, "editor")).rejects.toMatchObject({ status: 409 });
       await expect(removeEditor(auth, asking(olive, "DELETE"), oliveId)).rejects.toMatchObject({ status: 409 });
@@ -1032,6 +1051,8 @@ describe("two-factor sign-in", () => {
     try {
       const annId = await person("ann@example.org", "admin");
       const ann = await signIn("ann@example.org");
+      // Signed in somewhere else with the password alone, perhaps by someone who learned it.
+      const elsewhere = await signIn("ann@example.org");
       const headers = asking(ann, "GET").headers;
       expect(await authorizeWith(auth, asking(ann, "GET"))).toMatchObject({ role: "editor" });
       await expect(auth.api.enableTwoFactor({ headers, body: { password: "not her password" } })).rejects.toThrow();
@@ -1043,9 +1064,21 @@ describe("two-factor sign-in", () => {
       // Not on until she shows her app has it.
       expect(await authorizeWith(auth, asking(ann, "GET"))).toMatchObject({ role: "editor" });
       const turnedOn = await auth.api.verifyTOTP({ headers, body: { code: totp(totpURI) }, asResponse: true });
-      // Turning it on starts a new session, and ends the one from before.
+      // Turning it on starts a new session, and ends the one from before, and every other: a session that signed in
+      // with the password alone never becomes an owner's.
       expect(await authorizeWith(auth, asking(ann, "GET"))).toBeNull();
+      expect(await authorizeWith(auth, asking(elsewhere, "GET"))).toBeNull();
       expect(await authorizeWith(auth, asking(cookiesOf(turnedOn), "GET"))).toMatchObject({ role: "owner" });
+      // Nor can either set up an app again over the one that works (Better Auth refuses both): the ended session, or
+      // the new one, as from another tab that still shows it off, until she turns it off.
+      for (const cookie of [elsewhere, cookiesOf(turnedOn)]) {
+        await expect(
+          auth.api.enableTwoFactor({
+            headers: asking(cookie, "GET").headers,
+            body: { password: PASSWORD, method: "totp" },
+          }),
+        ).rejects.toThrow();
+      }
       const stored = await context.adapter.findOne<{ secret: string; backupCodes: string }>({
         model: "twoFactor",
         where: [{ field: "userId", value: annId }],

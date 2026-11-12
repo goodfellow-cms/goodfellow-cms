@@ -28,7 +28,8 @@ export const SIGN_IN_LIMIT = { window: 5 * 60, max: 10 };
  * How many times one address may try a two-factor code, or turn it on or off, and in how many seconds: the same as
  * signing in, in place of the plugin's three every ten seconds, which a wrong code and then the right one could use
  * up, as could an office's editors signing in from one address. Ten wrong codes lock the account's codes for a while
- * whatever the address.
+ * whatever the address, so someone with only the password can keep an account's codes locked; a new password stops
+ * them (README.md).
  */
 export const TWO_FACTOR_LIMIT = SIGN_IN_LIMIT;
 
@@ -371,7 +372,7 @@ function resetLinks(siteEnv: SiteEnv) {
  * The paths of Better Auth's admin plugin, which only the server uses (lib/editors.ts, through `api`), never a
  * browser: those routes don't refuse an admin changing their own role, which could leave the site without one.
  */
-const ADMIN_PATHS = Object.values(admin().endpoints).map((endpoint) => endpoint.path);
+export const ADMIN_PATHS = Object.values(admin().endpoints).map((endpoint) => endpoint.path);
 
 /**
  * `BETTER_AUTH_SECRET`, which signs sessions. Without one, Better Auth falls back to a secret anyone can read in its
@@ -394,8 +395,28 @@ export function sessionSecret(siteEnv: SiteEnv): string {
  */
 export function authOptions(database: BetterAuthOptions["database"], siteEnv: SiteEnv) {
   const resets = resetLinks(siteEnv);
+  // The updates that turn two-factor sign-in on, by the request making them, for the hook after each to see.
+  const turningOn = new WeakSet<object>();
   return {
     database,
+    databaseHooks: {
+      user: {
+        update: {
+          // An admin is an owner only with two-factor sign-in on (`isOwner()`), which counts the account, not how a
+          // session signed in, so turning it on ends every session the account has: one that signed in with the
+          // password alone, perhaps someone else's, would otherwise become an owner's. Better Auth starts the new
+          // session of the browser turning it on after this update, so only that one stays signed in.
+          async before(data, ctx) {
+            if (data.twoFactorEnabled === true && ctx) turningOn.add(ctx);
+          },
+          async after(user, ctx) {
+            if (!ctx || !turningOn.has(ctx)) return;
+            turningOn.delete(ctx);
+            await ctx.context.internalAdapter.deleteUserSessions(user.id);
+          },
+        },
+      },
+    },
     secret: sessionSecret(siteEnv),
     ...(siteEnv.GOODFELLOW_SITE_URL && {
       baseURL: siteEnv.GOODFELLOW_SITE_URL,
@@ -466,9 +487,13 @@ export function auth(): Promise<SiteAuth> {
 /** Where Better Auth's routes are, under the site's address. */
 const AUTH_PATH = "/api/auth/";
 
+/** The admin plugin's routes as the site's addresses have them, the same list `disabledPaths` closes. */
+const ADMIN_ROUTES = new Set(ADMIN_PATHS.map((path) => `${AUTH_PATH.slice(0, -1)}${path}`.toLowerCase()));
+
 /**
  * Whether an address's path is one of the admin plugin's routes, however it's spelled: decoded, with repeated
- * slashes as one, in any letter case, since a router could read any of those as the route.
+ * slashes as one, in any letter case, and with or without the slash at the end, since a router could read any of
+ * those as the route. Any route under `admin/` counts too, should the plugin add one.
  */
 export function isAdminPluginPath(pathname: string): boolean {
   let path = pathname;
@@ -478,7 +503,8 @@ export function isAdminPluginPath(pathname: string): boolean {
     // Not valid percent-encoding: no router reads it as a route.
   }
   path = path.replace(/\/{2,}/g, "/").toLowerCase();
-  return path === `${AUTH_PATH}admin` || path.startsWith(`${AUTH_PATH}admin/`);
+  while (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+  return ADMIN_ROUTES.has(path) || path === `${AUTH_PATH}admin` || path.startsWith(`${AUTH_PATH}admin/`);
 }
 
 /**
@@ -524,21 +550,36 @@ export async function signedInWith(
 
 /** `authorize()` with a Better Auth of its own, as tests give it. */
 export async function authorizeWith(siteAuth: SiteAuth, request: Request): Promise<AppEditor | null | false> {
+  return (await editorAsking(siteAuth, request)).editor;
+}
+
+/**
+ * `authorizeWith()`'s answer, with whether the account it read is an admin's, from the same read, for callers that
+ * say why someone isn't an owner.
+ */
+export async function editorAsking(
+  siteAuth: SiteAuth,
+  request: Request,
+): Promise<{ editor: AppEditor | null | false; admin: boolean }> {
   // Read from the database every time, never the session cookie's cached copy, so someone who's banned or loses
   // their role can't publish for the rest of the cache's time.
   const session = await siteAuth.api.getSession({ headers: request.headers, query: { disableCookieCache: true } });
-  if (!session) return null;
+  if (!session) return { editor: null, admin: false };
   const { user } = session;
-  if (user.banned || (user.role !== "admin" && user.role !== "editor")) return false;
+  const admin = user.role === "admin";
+  if (user.banned || (!admin && user.role !== "editor")) return { editor: false, admin };
   // An admin acting as someone else, with the admin plugin's impersonation, would publish in that person's name.
-  if (session.session.impersonatedBy) return false;
+  if (session.session.impersonatedBy) return { editor: false, admin };
   return {
-    login: user.email,
-    name: user.name,
-    email: user.email,
-    ...(user.image && { avatarUrl: user.image }),
-    // A password alone never makes anyone an owner, who can change the site's settings and its editors.
-    role: isOwner(user) ? "owner" : "editor",
+    editor: {
+      login: user.email,
+      name: user.name,
+      email: user.email,
+      ...(user.image && { avatarUrl: user.image }),
+      // A password alone never makes anyone an owner, who can change the site's settings and its editors.
+      role: isOwner(user) ? "owner" : "editor",
+    },
+    admin,
   };
 }
 
