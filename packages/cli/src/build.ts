@@ -3,6 +3,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import {
   absoluteUrl,
   adminSiteForCopy,
+  allPages,
   applyBasePath,
   CLOUDFLARE_REDIRECTS_PATH,
   calendarFiles,
@@ -443,8 +444,9 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     // checks check the site as it's written, so links to pages that aren't shown yet aren't errors.
     const problems = [...checkSite(loaded, { media, blocks: config.blocks, today }), ...(await checkBuiltPages(built))];
     const [nextChange] = upcomingChanges(loaded, now);
-    // A static site has no server to keep pages to members, so it says which it publishes to everyone.
-    const forMembers = membersPages(content, pages).map((page) => page.path);
+    // A static site has no server to keep pages to members, so it says which it publishes to everyone: the pages
+    // marked so, by `allPages()` as `goodfellow-next finish` lists them, not the pages blocks add under them too.
+    const forMembers = membersPages(content, allPages(content)).map((page) => page.path);
     return {
       outDir,
       pages: written,

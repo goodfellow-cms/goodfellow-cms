@@ -10,6 +10,24 @@ async function usesSearch(outDir: string, files: string[]): Promise<boolean> {
   return false;
 }
 
+/**
+ * Whether a page marks content to index (`data-pagefind-body`, on an element, not in its text). Only such pages are
+ * given to Pagefind: it leaves pages without the mark out only while some page has it, and with none indexes every
+ * page whole, headers, footers, "Page not found", and pages left out of search included.
+ */
+export function marksSearchContent(html: string): boolean {
+  return /<[a-zA-Z][^<>]*\sdata-pagefind-body(?=[\s=/>])/.test(html);
+}
+
+/** The files of `files` under `outDir` whose pages mark content to index. */
+async function markedFiles(outDir: string, files: string[]): Promise<string[]> {
+  const marked: string[] = [];
+  for (const file of files) {
+    if (marksSearchContent(await readFile(join(outDir, file), "utf8"))) marked.push(file);
+  }
+  return marked;
+}
+
 /** A built page to index: its address on the site, and its HTML. */
 export interface SearchPage {
   url: string;
@@ -18,7 +36,8 @@ export interface SearchPage {
 
 /**
  * Writes a Pagefind search index of a built site into `<outDir>/pagefind/`, if any
- * of its pages has a search block; other sites don't get one. Returns how many
+ * of its pages has a search block; other sites don't get one. Only pages that
+ * mark content to index are in it (`marksSearchContent()`). Returns how many
  * pages were indexed, or `undefined` if the site has no search.
  */
 export async function writeSearchIndex(outDir: string): Promise<number | undefined> {
@@ -28,13 +47,17 @@ export async function writeSearchIndex(outDir: string): Promise<number | undefin
   const indexDir = join(outDir, SEARCH_INDEX_DIR);
   await rm(indexDir, { recursive: true, force: true });
   if (!(await usesSearch(outDir, pages))) return undefined;
-  return indexWith(indexDir, (index) => index.addDirectory({ path: outDir, glob: `{${pages.join(",")}}` }));
+  const marked = await markedFiles(outDir, pages);
+  return indexWith(indexDir, async (index) =>
+    marked.length === 0 ? { errors: [] } : index.addDirectory({ path: outDir, glob: `{${marked.join(",")}}` }),
+  );
 }
 
 /**
  * Writes a Pagefind search index of `pages` into `indexDir`, such as a
  * full-stack Next.js site's prerendered pages into `public/pagefind/`, if any of
- * them has a search block. Returns how many pages were indexed, or `undefined`
+ * them has a search block. Only pages that mark content to index are in it
+ * (`marksSearchContent()`). Returns how many pages were indexed, or `undefined`
  * if the site has no search.
  */
 export async function writePagesSearchIndex(pages: SearchPage[], indexDir: string): Promise<number | undefined> {
@@ -42,7 +65,7 @@ export async function writePagesSearchIndex(pages: SearchPage[], indexDir: strin
   if (!pages.some((page) => page.html.includes(SEARCH_ATTRIBUTE))) return undefined;
   return indexWith(indexDir, async (index) => {
     const errors: string[] = [];
-    for (const page of pages) {
+    for (const page of pages.filter((candidate) => marksSearchContent(candidate.html))) {
       const added = await index.addHTMLFile({ url: page.url, content: page.html });
       errors.push(...added.errors);
     }
@@ -62,7 +85,8 @@ async function indexWith(
   try {
     const { index, errors } = await pagefind.createIndex({});
     if (!index) throw new Error(`Pagefind couldn't start: ${errors.join("; ")}`);
-    // Pages mark the content to index with data-pagefind-body, so headers, footers, and "Page not found" are left out.
+    // Pages mark the content to index with data-pagefind-body, so headers, footers, and "Page not found" are left out;
+    // `add` gives Pagefind only pages with the mark, since with none Pagefind would index every page whole.
     const added = await add(index);
     if (added.errors.length > 0) throw new Error(`Pagefind couldn't index the site: ${added.errors.join("; ")}`);
     // Pagefind's writeFiles can answer before every file is on disk, so the index is written here instead.

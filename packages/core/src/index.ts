@@ -824,6 +824,7 @@ export {
   VISIBILITIES,
   VISIBILITY_PROP,
   type Visibility,
+  visibilityChanges,
   withoutMembersContent,
   withoutPaywall,
 } from "./content/visibility.js";

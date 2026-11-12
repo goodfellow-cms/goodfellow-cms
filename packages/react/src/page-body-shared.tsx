@@ -1,4 +1,4 @@
-import { isAddedPage, isMembersCollection, type PageCredit, VISIBILITY_PROP } from "@goodfellow-cms/core";
+import { isAddedPage, isMembersCollection, neverIndexed, type PageCredit, VISIBILITY_PROP } from "@goodfellow-cms/core";
 import type { Config, Data, Metadata } from "@puckeditor/core";
 import type { ComponentType, ReactNode } from "react";
 import { ConsentNotice } from "./consent-shared.js";
@@ -139,7 +139,7 @@ export function createPageBody({ Render, SiteProvider }: Renderers) {
     // which an item's page takes from its collection's template, and members' pages, whose words anyone could
     // otherwise read in the index.
     const searched =
-      site.path !== "/404" &&
+      !neverIndexed(site.path ?? "") &&
       !isAddedPage(site) &&
       rootProps?.noSearch !== true &&
       rootProps?.[VISIBILITY_PROP] !== "members" &&

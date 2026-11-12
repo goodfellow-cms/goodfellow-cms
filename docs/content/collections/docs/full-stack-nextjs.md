@@ -110,7 +110,7 @@ Signing in and out stay the app's own: the admin panel sends people to `signIn`,
 
 ## Pages for members
 
-On a full-stack site, a page's settings have **Who can see this page**: **Everyone**, or **Only signed-in members**, which `visibility: "members"` stores. A collection's settings can keep every item's page to members too. Other sites aren't offered it, since only a server can keep a page to anyone, and `goodfellow build` and `goodfellow-next finish` warn when a static site has pages marked for members, which they publish to everyone.
+On a full-stack site, a page's settings have **Who can see this page**: **Everyone**, or **Only signed-in members**, which `visibility: "members"` stores. A collection's settings can keep every item's page to members too. Only the site's owners can change either: editors see a page's setting but can't change it, and the site's server refuses such a change from them. Other sites aren't offered it, since only a server can keep a page to anyone, and `goodfellow build` and `goodfellow-next finish` warn when a static site has pages marked for members, which they publish to everyone.
 
 Goodfellow doesn't decide who's a member or what everyone else sees: your app does. Where your page route or `proxy.ts` decides what to send, `isMembersOnly(page, content.collections)` from `@goodfellow-cms/core` says whether a page is for members, whether by its own setting, its collection's template, or its collection.
 

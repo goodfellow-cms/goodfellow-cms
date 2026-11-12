@@ -31,6 +31,7 @@ import {
   type ServerGit,
   SignInError,
   taskRequestProblem,
+  visibilityChanges,
 } from "./index.js";
 import { unsafeMediaChanges } from "./svg-check.js";
 
@@ -170,6 +171,19 @@ async function outsideLimitsAt(backend: GitBackend, login: string, changes: File
   const limits = limitsFor(await readPermissions(backend), login);
   if (!limits) return [];
   return outsideLimits(await limitsContent(backend, changes), limits, changes).map((problem) => problem.path);
+}
+
+/**
+ * The files of `changes` only a site's owners may change this way: block settings marked for owners, and who a page
+ * is for (`visibilityChanges()`), each file once.
+ */
+async function ownersOnlyPaths(
+  changes: FileChange[],
+  fields: OwnersOnlyFields | undefined,
+  read: (path: string) => Promise<string | undefined>,
+): Promise<string[]> {
+  const blocks = fields ? await ownersOnlyChanges(changes, fields, read) : [];
+  return [...new Set([...blocks, ...(await visibilityChanges(changes, read))])];
 }
 
 /** A change as sent over JSON, where an upload's bytes are base64. */
@@ -361,9 +375,9 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
       const refused = await refusedChanges(changes, editor, (path) => backend.read(path), options.provenance);
       if (refused) return refused;
-      // Block settings only owners may change, such as Custom HTML used exactly as written.
-      if (editor.role !== "owner" && options.ownersOnly) {
-        const changed = await ownersOnlyChanges(changes, options.ownersOnly, (path) => backend.read(path));
+      // Block settings only owners may change, such as Custom HTML used exactly as written, and who a page is for.
+      if (editor.role !== "owner") {
+        const changed = await ownersOnlyPaths(changes, options.ownersOnly, (path) => backend.read(path));
         if (changed.length > 0) return json(403, { error: "owners-only", paths: changed });
       }
       // An owner's limits for this person, held here too, since the browser can't be trusted to keep to them.
@@ -399,8 +413,8 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       if (code && editor.role !== "owner") return json(403, { error: "owners-only" });
       const refused = await refusedChanges(changes, editor, (path) => backend.read(path), options.provenance);
       if (refused) return refused;
-      if (editor.role !== "owner" && options.ownersOnly) {
-        const changed = await ownersOnlyChanges(changes, options.ownersOnly, (path) => backend.read(path));
+      if (editor.role !== "owner") {
+        const changed = await ownersOnlyPaths(changes, options.ownersOnly, (path) => backend.read(path));
         if (changed.length > 0) return json(403, { error: "owners-only", paths: changed });
       }
       const reviewers = plugins || code ? [] : reviewersFor(await readPermissions(backend), []);

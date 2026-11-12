@@ -73,7 +73,7 @@ interface Draft {
 let nextKey = 0;
 const newKey = () => `field-${nextKey++}`;
 
-function toDraft(settings: CollectionFile): Draft {
+export function toDraft(settings: CollectionFile): Draft {
   return {
     name: settings.name,
     entryName: settings.entryName,
@@ -137,7 +137,7 @@ function named(draft: Draft): DraftField[] {
 }
 
 /** The settings the draft would save, before checking. */
-function fromDraft(settings: CollectionFile, draft: Draft): CollectionFile {
+export function fromDraft(settings: CollectionFile, draft: Draft): CollectionFile {
   const fields: CollectionField[] = named(draft).map((field) => ({
     name: field.name ?? "",
     label: field.label.trim(),
@@ -180,7 +180,8 @@ function fromDraft(settings: CollectionFile, draft: Draft): CollectionFile {
     ...(!isDefaultSort && { sort: { field: sortField, order: draft.sortOrder } }),
     ...(body && { markdown: { body: body.name } }),
     ...(when && { calendar: { when, ...(place && { place }), ...(summary && { summary }) } }),
-    ...(draft.membersOnly && { visibility: "members" as const }),
+    // Only items' pages can be for members, and its checkbox shows only with them, so without pages it's cleared.
+    ...(draft.withPages && draft.membersOnly && { visibility: "members" as const }),
   };
 }
 
@@ -790,8 +791,9 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
               {collection.settings.path !== undefined && draft.path.trim() !== collection.settings.path && (
                 <p className="gfa-hint">{t("collectionSettings.pathWarning")}</p>
               )}
-              {/* Only a site with a server of its own can keep pages to members; elsewhere a choice already made shows. */}
-              {(account?.members || draft.membersOnly) && (
+              {/* Only a site with a server of its own can keep pages to members; elsewhere a choice already published
+                  shows, so it can be undone, and stays while it's unchecked, so that can be undone too. */}
+              {(account?.members || collection.settings.visibility === "members") && (
                 <label className="gfa-checkbox">
                   <input
                     type="checkbox"
