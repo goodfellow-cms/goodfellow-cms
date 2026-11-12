@@ -1,5 +1,54 @@
 # @goodfellow-cms/github
 
+## 0.11.0
+
+### Patch Changes
+
+- c4ecba5: On GitLab, the job that makes the nightly update or writes a plugin's lockfile, which runs the code of every package the site installs, no longer publishes. The starters' `.gitlab-ci.yml` makes them in a `prepare` job, which only commits, and a `publish` job that runs none of the site's code checks they change only what an update or a lockfile does and publishes them with a deploy key of its own, whose private half only that job gets. Turning on updates on the Updates screen adds the key, lets it publish to the main branch, and turns off job token pushes; the setup page does the same for a code project it creates. A developer copies the starter's `.gitlab-ci.yml` to an older site, after which an owner turns updates on again.
+  
+  On Bitbucket, the pipeline steps that run the site's code (the lockfile, the nightly update, and plugins' tasks) now ask only to read the repository, so their token can't publish, and a step after each, which runs none of the site's code, checks what they committed and publishes it, as on GitHub. Where the main branch has branch restrictions, add main under its Pipelines write access. A developer copies the newer `bitbucket-pipelines.yml` to an older site.
+- f6fcc1a: Goodfellow's documentation is now at https://goodfellowcms.com, and the links the packages give, in their READMEs, the admin panel's help links, and the Claude Desktop extension, go there. The old address, https://goodfellow-cms.github.io/goodfellow-cms/, sends people to the same page at the new one.
+- d813bd5: The backends', the command line's, the Claude connector's, create-goodfellow's, and the token broker's English use the Oxford comma in lists ("GitHub, GitLab, or Bitbucket").
+- 6210740: Fix small problems found in review:
+  
+  - The checks of built pages read a character reference past Unicode's last (`&#x110000;`) as browsers do, rather than stopping.
+  - Moving a page leaves links to the pages a block adds under a page that stays (`/news/events/page/2` when `/news` moves) where they are.
+  - The content API's manifest leaves out redirects the checks refuse, as builds do.
+  - Plugins can't ask for Netlify's variables (`NETLIFY_*`) as secrets.
+  - On GitHub, starting a draft from a revision GitHub doesn't have says so, rather than that a draft by that name exists, and a pull request from a deleted fork is no longer taken for one of the site's drafts.
+- 749d66b: Security fixes from the second November review:
+  
+  - Markdown items show text after an inline `<kbd>`, `<code>`, `<pre>`, or `<script>` tag as text, where it could carry live HTML onto the site's pages.
+  - A full-stack site's server publishes only on top of the live site as it is now, whatever revision the browser names, so a change waiting for review can't come along with an editor's own; the GitHub backend checks the same before every commit, moves the branch only from that commit in the same request, and takes only commits' ids as revisions.
+  - The sign-in service finishes a sign-in only in the browser that started it, so a link to GitHub that someone else started can't send an owner's sign-in to them. New sign-in services get it; an existing one gets it with its next weekly update, or by copying create-goodfellow's `templates/sign-in/` over it.
+  - `next dev`'s local backend answers nothing while other computers can reach the development server, and the Next.js starter starts it with `next dev --port 4321 -H 127.0.0.1`. On a site made by an earlier release, change the `dev` script in `package.json` to that.
+  - Publishing a draft refuses one that changes files the admin panel never edits, such as the site's configuration, packages, or workflows (anything outside its content, its media, and the folders the admin panel installs blocks and plugins into), which only reach a draft when someone saves them there on the site's host, and publishes exactly the changes the admin panel's **Publish all** and Claude's `publish` checked, media included.
+  - A token broker makes each change again before checking it, so the change it checks is the one it publishes, and checks the changes a draft is asked to publish, and theme and plugin records written as bytes.
+- 2627f6d: Signing in with a sign-in service now brings the one-time grant back after the address's `#`, so it never reaches the site's host or its logs. Sign-in services from before still work: their grant comes back in the query, as before.
+- db80e2f: The Updates screen counts an update job that only commits as set up only where a later job publishes what it commits, and Bitbucket's last update reads as failed where the step publishing it failed. GitLab's starter Pages job writes the lockfile only where it builds, letting editors publish keeps the publishing key's access to the main branch on older GitLab, and the Updates screen asks to turn updates on again where the main branch's protection no longer names the key.
+- Updated dependencies [b26b5ae]
+- Updated dependencies [f4a0a43]
+- Updated dependencies [44a825d]
+- Updated dependencies [810503b]
+- Updated dependencies [c4ecba5]
+- Updated dependencies [f6fcc1a]
+- Updated dependencies [ec40324]
+- Updated dependencies [c39766d]
+- Updated dependencies [5f09d89]
+- Updated dependencies [f287d1c]
+- Updated dependencies [3184524]
+- Updated dependencies [d7098cb]
+- Updated dependencies [bc2f3bd]
+- Updated dependencies [7698210]
+- Updated dependencies [6210740]
+- Updated dependencies [e3678d8]
+- Updated dependencies [c7c70ef]
+- Updated dependencies [0255dbc]
+- Updated dependencies [749d66b]
+- Updated dependencies [3bcdfa1]
+- Updated dependencies [db80e2f]
+  - @goodfellow-cms/core@0.11.0
+
 ## 0.10.1
 
 ### Patch Changes

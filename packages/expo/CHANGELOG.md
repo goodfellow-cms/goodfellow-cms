@@ -1,5 +1,62 @@
 # @goodfellow-cms/expo
 
+## 0.11.0
+
+### Patch Changes
+
+- b26b5ae: The content API's manifest lists a hash of each media library file (`media`), which both builds write, so apps download a picture replaced at the same address again. The field is optional, so apps that don't know it keep working.
+- f4a0a43: Long text no longer slows down reading pages, themes, WordPress imports, feeds, or apps' themes: a comment, block comment, or `[caption]` that never ends, or a long run of slashes or hyphens, used to take time that grew with the square of its length. Comments, scripts, and styles that never end are now read as browsers read them, to the page's end. Other sites' news feeds whose tags never end no longer slow the Feed list block's builds either, and adding a sign-in option after one that ends in a `//` comment puts its comma before the comment. Early installs refuse package names and releases with characters npm's command line could read as more than a name.
+- f6fcc1a: Goodfellow's documentation is now at https://goodfellowcms.com, and the links the packages give, in their READMEs, the admin panel's help links, and the Claude Desktop extension, go there. The old address, https://goodfellow-cms.github.io/goodfellow-cms/, sends people to the same page at the new one.
+- 1008a42: Blocks' settings, the AI assistant's instructions, and these packages' messages and READMEs use the Oxford comma in lists ("pages, items, and media").
+  
+  The AI assistant's instructions also say plainly that it follows the request's own directions, such as "Translate the page", besides what the person asks, while the site's own text stays content, never instructions.
+- bc2f3bd: Fix several bugs found in review:
+  
+  - A page title with `$` in it (`$5 lunches`) goes into the site's title template as written, not as a replacement pattern.
+  - WordPress and Markdown imports give a page whose address ends in `index`, or is under `/admin`, an address a page can have (`/docs/index-page`), rather than stopping.
+  - Apps keep their whole copy of the site, manifest included, when a download fails part way through updating it.
+  - An item's values are escaped in rich text inside a block's lists and objects (such as Questions and answers'), as they are elsewhere.
+  - The Calendar's Subscribe links on a page in another language subscribe to that language's calendar file, which builds now write for every language, empty until it has events.
+- 0255dbc: More fixes from November's security review:
+  
+  - The local backend in `goodfellow dev` and `next dev`, and the Claude connector's folders, never follow a link inside an editable folder to files outside it; the folders themselves may still be links, as a content repository's are.
+  - The Claude connector's screenshots run the browser in Chrome's sandbox, without the connector's tokens in its environment.
+  - A plugin can't ask to read `*`, `.git`, or files of secrets such as `.env.local`, or for Goodfellow's own `GOODFELLOW_` variables.
+  - Bitbucket sites' lockfile step publishes `package-lock.json` only once every new package comes from npm's registry, as GitHub's and GitLab's do. Sites made by an earlier release keep their `bitbucket-pipelines.yml` until it's copied from a new site's.
+  - WordPress imports take only web addresses for attachments, and importing on a computer downloads them only from public `https://` addresses or the site it was read from, no larger than the upload limit.
+  - Expo apps open redirects to other sites only over the web, and take the site's base path only where it's a path.
+  - Cleaning an SVG's CSS goes on until taking out an `@import` or `url()` can't join what's around it into another, and leaves the CSS out whole where something would still load from elsewhere, as an unfinished `url(` would.
+  - Rich text can't take an id Goodfellow's own scripts look up by spelling it with character references, such as `&#103;f-consent`.
+  - A full-stack site's AI proxy (`aiServer()`) sends on only the fields the AI assistant sends: Claude's own models, answers no longer than the assistant asks for, text messages and structured answers, and only its beta, so an editor can't spend the site's key on tools, files, or other models. `models` on a service's key limits the models editors may ask for.
+  - GitLab and Bitbucket sites list and close only their own repository's merge and pull requests as drafts' reviews, never one from a fork that uses a draft's branch name.
+  - The sign-in worker that `create-goodfellow` carries, which owners deploy, takes its setup page's forms only from that page, and always writes a new session key while it's being set up.
+  - The token broker publishes a draft with exactly the changes it checked, so nothing added to the draft in between goes live unchecked, and frames the admin panel at the screen an address names without what a sign-in brought back, such as the sign-in worker's grant or Bitbucket's token.
+  - The Claude connector reads a site's description as builds read other sites' files: from public `https://` addresses only (or a folder's development server), no larger than 5 MB, and within 15 seconds.
+  - A plugin installed from the admin panel runs its tasks only from its own package, so a task's description can't send its secrets to a file of the site's.
+  - The nightly update no longer changes blocks from Goodfellow's registry, and its publishing job on GitHub refuses `blocks/installed/`, `components/`, `lib/`, and `hooks/`, since the job that made the update ran the site's packages, which could have written code there. The Blocks screen offers **Update** where a newer version of an added block is ready, and `goodfellow update --blocks` (or `goodfellow-next update --blocks`) updates them all. GitHub sites made by an earlier release keep their workflow's older check until it's copied from a new site's, since updates can't change workflows.
+- Updated dependencies [b26b5ae]
+- Updated dependencies [f4a0a43]
+- Updated dependencies [44a825d]
+- Updated dependencies [810503b]
+- Updated dependencies [c4ecba5]
+- Updated dependencies [f6fcc1a]
+- Updated dependencies [ec40324]
+- Updated dependencies [c39766d]
+- Updated dependencies [5f09d89]
+- Updated dependencies [f287d1c]
+- Updated dependencies [3184524]
+- Updated dependencies [d7098cb]
+- Updated dependencies [bc2f3bd]
+- Updated dependencies [7698210]
+- Updated dependencies [6210740]
+- Updated dependencies [e3678d8]
+- Updated dependencies [c7c70ef]
+- Updated dependencies [0255dbc]
+- Updated dependencies [749d66b]
+- Updated dependencies [3bcdfa1]
+- Updated dependencies [db80e2f]
+  - @goodfellow-cms/core@0.11.0
+
 ## 0.10.1
 
 ### Patch Changes
