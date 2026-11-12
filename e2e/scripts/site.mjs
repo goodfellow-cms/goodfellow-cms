@@ -424,8 +424,8 @@ const searchPage = {
 export const companyExample = join(here, "../../examples/company");
 export const companySite = join(here, "../.site-company");
 
-/** The company test site's address, its fake GitHub's, and the token its server publishes with. */
-export const COMPANY = { port: 4416, github: 4417, token: "company-token", repo: "company/site-content" };
+/** The company test site's address, its fake GitHub's and Resend's, and the token its server publishes with. */
+export const COMPANY = { port: 4416, github: 4417, resend: 4418, token: "company-token", repo: "company/site-content" };
 
 /** The accounts the company test site's database starts with, all with the same password. */
 export const COMPANY_PEOPLE = {
@@ -478,6 +478,9 @@ export function createCompanySite() {
       "BETTER_AUTH_SECRET=company-test-secret-at-least-32-characters",
       `GOODFELLOW_SITE_URL=http://localhost:${COMPANY.port}`,
       `GOODFELLOW_GIT_TOKEN=${COMPANY.token}`,
+      "RESEND_API_KEY=re_company_test",
+      "EMAIL_FROM=Northwind <hello@example.org>",
+      `RESEND_API_URL=http://127.0.0.1:${COMPANY.resend}`,
       "",
     ].join("\n"),
   );

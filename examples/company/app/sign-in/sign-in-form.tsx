@@ -62,6 +62,9 @@ export function SignInForm() {
       <button type="submit" disabled={busy} className="rounded bg-primary px-4 py-2 text-primary-foreground">
         {busy ? "Signing in…" : "Sign in"}
       </button>
+      <p>
+        <a href="/reset-password/">Forgot your password?</a>
+      </p>
     </form>
   );
 }
