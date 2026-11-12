@@ -56,6 +56,34 @@ describe("goodfellowApi", () => {
     expect(fake.commitAuthors.get(next)).toMatchObject({ name: "Alice Editor", email: "alice@example.org" });
   });
 
+  it("tells the site's onPublish what each publish changed", async () => {
+    const fake = fakeGitHub({ repo: "parish/site", files: FILES });
+    const published: unknown[] = [];
+    const call = caller(
+      goodfellowApi({
+        config: defineConfig({ blocks: {}, backend: github({ repo: "parish/site", fetch: fake.fetch }) }),
+        token: "test-token",
+        authorize: () => ALICE,
+        signIn: "/sign-in",
+        onPublish: (changes) => {
+          published.push(changes);
+        },
+      }),
+    );
+    const { revision } = (await (await call("revision/")).json()) as { revision: string };
+    const saved = await call("write/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        changes: [{ path: "content/pages/about.json", content: "{}" }],
+        message: "Add About",
+        expectedRevision: revision,
+      }),
+    });
+    const { revision: next } = (await saved.json()) as { revision: string };
+    expect(published).toEqual([{ paths: ["content/pages/about.json"], editor: ALICE, revision: next }]);
+  });
+
   it("publishes to GitLab the same way", async () => {
     const fake = fakeGitLab({ project: "parish/site", files: FILES });
     const call = caller(

@@ -266,6 +266,19 @@ describe("coming back", () => {
   });
 });
 
+describe("owners' tokens", () => {
+  it("can change the site's Actions variables, such as when it rebuilds overnight", async () => {
+    const { fake, signIn } = setup({ env: { ALLOWED_ORIGINS: SITE } });
+    const { body } = await signIn("olivia", "owner");
+    const response = await fake.fetch("https://api.github.com/repos/parish/site/actions/variables", {
+      method: "POST",
+      headers: { authorization: `Bearer ${body.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ name: "GOODFELLOW_NIGHTLY", value: "off" }),
+    });
+    expect(response.status).toBe(201);
+  });
+});
+
 describe("staying signed in", () => {
   it("renews the token from the session, checking each time that the person still edits the site", async () => {
     const { fake, signIn, post } = setup();

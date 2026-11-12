@@ -1,8 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { SITE_FILE } from "./content/paths.js";
 import type { ContentSource } from "./index.js";
-import { siteCopyFrom, trailingSlashFrom, withSiteCopy, withTrailingSlash } from "./site-copy.js";
+import { builtSource } from "./site-copy.js";
 
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === "ENOENT";
@@ -22,14 +21,10 @@ export interface FileSystemSourceOptions {
 
 /** Reads a site's files from disk. Paths are relative to the site root and always use `/`. */
 export function fileSystemSource(root: string, options: FileSystemSourceOptions = {}): ContentSource {
-  const copy = options.env && siteCopyFrom(options.env);
-  const trailingSlash = options.env && trailingSlashFrom(options.env);
-  return {
+  const files: ContentSource = {
     async read(path) {
       try {
-        const text = await readFile(join(root, path), "utf8");
-        if (path !== SITE_FILE) return text;
-        return withTrailingSlash(copy ? withSiteCopy(text, copy) : text, trailingSlash);
+        return await readFile(join(root, path), "utf8");
       } catch (error) {
         if (isMissing(error)) return undefined;
         throw error;
@@ -48,6 +43,7 @@ export function fileSystemSource(root: string, options: FileSystemSourceOptions 
       }
     },
   };
+  return options.env ? builtSource(files, options.env) : files;
 }
 
 /**
