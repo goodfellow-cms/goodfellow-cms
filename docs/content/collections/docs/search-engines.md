@@ -15,6 +15,7 @@ Click outside every block in a page's editor to see its own settings:
 - **Page title**, shown in the browser's tab and in search results.
 - **Description for search engines**, shown under the title in search results and in link previews. Without one, the site's description from Site Settings is used.
 - **Search engines:** pages are in search results unless you choose **Hide from search results**, which asks search engines to leave the page out, and leaves it out of the sitemap. The page is still on the site, for anyone with its address, and in the site's own search; it isn't private. **Page not found** is always hidden from search results, so its setting can't be changed. A copy of the site, such as a staging site, can hide every page at once where it's built (see [Staging and production](/docs/staging)).
+- **The site's search:** pages are in the site's own [Search](/docs/search) unless you choose **Leave this page out of it**. That's separate from search engines: a page can be in one and not the other. Like hiding a page from search results, it doesn't make the page private.
 
 **More for search engines**, closed until you click it, has two settings few pages change:
 

@@ -6,12 +6,15 @@
  */
 export const labels: Record<string, string> = {
   "Ask search engines not to follow them": "Pedir a los buscadores que no los sigan",
+  "Find this page in it": "Encontrar esta página en ella",
   "Large where the page has a picture": "Grande si la página tiene una imagen",
+  "Leave this page out of it": "Dejar esta página fuera de ella",
   "Picture size when shared": "Tamaño de la imagen al compartir",
   "Search engines follow them": "Los buscadores los siguen",
   "Show none": "No mostrar ninguno",
   "Show some of the page's text": "Mostrar parte del texto de la página",
   "Text under the title in search results": "Texto bajo el título en los resultados de búsqueda",
+  "The site's search": "La búsqueda del sitio",
   "This page's links": "Los enlaces de esta página",
   "And the ones under them": "Y los que hay debajo",
   "Announcement bar": "Barra de aviso",
