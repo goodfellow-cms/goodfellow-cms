@@ -7,14 +7,8 @@
 
 import { type ContentSource, prefetchedSource } from "./content/load.js";
 import type { ServerGit } from "./git.js";
-import { builtSource } from "./site-copy.js";
 
 export interface RepositorySourceOptions {
-  /**
-   * The server's environment, read as builds read it (`builtSource()`): a copy
-   * of the site's address and search engine setting, and how pages' addresses end.
-   */
-  env?: Readonly<Record<string, string | undefined>>;
   /** How many revisions' files to keep in memory, newest last. Defaults to 2. */
   keep?: number;
 }
@@ -24,6 +18,8 @@ export interface RepositorySourceOptions {
  * branch: it asks the host for the revision each time, which is one request,
  * and reads every content file once per revision, in as few requests as the
  * host allows (`prefetchedSource()`), keeping the last few revisions' files.
+ * The files are as the repository has them: `goodfellowPages()` reads Site
+ * settings from them as this copy of the site is built (`builtSource()`).
  */
 export function repositorySource(git: ServerGit, options: RepositorySourceOptions = {}): () => Promise<ContentSource> {
   const keep = Math.max(1, options.keep ?? 2);
@@ -38,7 +34,6 @@ export function repositorySource(git: ServerGit, options: RepositorySourceOption
       files.catch(() => kept.delete(revision));
       for (const old of [...kept.keys()].slice(0, Math.max(0, kept.size - keep))) kept.delete(old);
     }
-    const source = await files;
-    return options.env ? builtSource(source, options.env) : source;
+    return files;
   };
 }

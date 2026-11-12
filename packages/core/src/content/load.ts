@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { type ContentKind, migrateContent } from "../migrations/index.js";
+import { trimChars } from "../trim.js";
 import { type Collection, type Entry, entryFieldProblems, sortCollectionEntries } from "./collections.js";
 import { type MediaDescription, type MediaFocus, mediaFileSchema, type PhotoCredit } from "./credits.js";
 import { ContentError, type ContentProblem } from "./errors.js";
@@ -84,7 +85,7 @@ export async function prefetchedSource(source: ContentSource, dir = "content"): 
   const listed = paths.filter((path) => files.has(path));
   return {
     read: async (path) => files.get(path),
-    list: async (folder) => listed.filter((path) => path.startsWith(`${folder.replace(/\/+$/, "")}/`)),
+    list: async (folder) => listed.filter((path) => path.startsWith(`${trimChars(folder, "/", { start: false })}/`)),
     readFiles: async (wanted) =>
       new Map(wanted.flatMap((path) => (files.has(path) ? [[path, files.get(path) as string] as const] : []))),
   };

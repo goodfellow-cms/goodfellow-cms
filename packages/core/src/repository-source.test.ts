@@ -48,18 +48,6 @@ describe("repositorySource", () => {
     expect(repo.asked.reads).toBe(2);
   });
 
-  it("reads Site settings as this copy of the site is built", async () => {
-    const repo = repository({ a: { "content/site.json": site("Parish") } });
-    const source = repositorySource(repo.git, {
-      env: { GOODFELLOW_SITE_URL: "https://staging.example.org", GOODFELLOW_TRAILING_SLASH: "false" },
-    });
-    const files = await source();
-    const settings = JSON.parse((await files.read("content/site.json")) ?? "{}");
-    expect(settings).toMatchObject({ title: "Parish", url: "https://staging.example.org", trailingSlash: false });
-    const batch = await files.readFiles?.(["content/site.json"]);
-    expect(JSON.parse(batch?.get("content/site.json") ?? "{}")).toMatchObject({ url: "https://staging.example.org" });
-  });
-
   it("tries a revision again where reading it failed, and keeps only the last few", async () => {
     let fail = true;
     const repo = repository({ a: { "content/site.json": site("A") } });

@@ -172,7 +172,7 @@ export const { GET, POST } = goodfellowApi({
 });
 ```
 
-Mark the page route `export const dynamic = "force-static"`, so each page is kept once it has rendered. Where `source` gives nothing, as in `next dev`, pages read the files on your computer. A page's first visit after a publish renders it, which needs the host's API to answer then; the pages already kept don't. The company example does this on Cloudflare Workers, keeping pages in Workers KV, where a publish can take up to a minute to reach every location.
+Mark the page route `export const dynamic = "force-static"`, so each page is kept once it has rendered, and give it, and the sitemap, a `revalidate` time, such as `export const revalidate = 3600`, since only a publish through the admin panel says pages changed: a page renders again once it's that old, so a scheduled time coming, what a page shows by today's date, and changes that reach the repository another way, such as from Claude or a merged review, show within it. Where `source` gives nothing, as in `next dev`, pages read the files on your computer. A page's first visit after a publish renders it, which needs the host's API to answer then; the pages already kept don't. The company example does this on Cloudflare Workers, keeping pages in Workers KV, where a publish can take up to a minute to reach every location.
 
 ## Safety
 

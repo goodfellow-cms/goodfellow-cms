@@ -156,19 +156,24 @@ export function builtSource(source: ContentSource, env: Readonly<Record<string, 
   const copy = siteCopyFrom(env);
   const trailingSlash = trailingSlashFrom(env);
   const built = (text: string) => withTrailingSlash(withSiteCopy(text, copy), trailingSlash);
+  // Each method by name, called on `source`: a backend is a class, whose methods a spread would leave behind.
+  const readFiles = source.readFiles?.bind(source);
+  const fileSizes = source.fileSizes?.bind(source);
   return {
-    ...source,
     read: async (path) => {
       const text = await source.read(path);
       return path === SITE_FILE && text !== undefined ? built(text) : text;
     },
-    ...(source.readFiles && {
+    list: (dir) => source.list(dir),
+    ...(readFiles && {
       readFiles: async (paths) => {
-        const texts = await (source.readFiles as NonNullable<ContentSource["readFiles"]>)(paths);
+        // A copy, since the source may keep the map it answers with.
+        const texts = new Map(await readFiles(paths));
         const settings = texts.get(SITE_FILE);
         if (settings !== undefined) texts.set(SITE_FILE, built(settings));
         return texts;
       },
     }),
+    ...(fileSizes && { fileSizes: (dir) => fileSizes(dir) }),
   };
 }
