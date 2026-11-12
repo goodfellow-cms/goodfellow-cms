@@ -1,7 +1,7 @@
 blank_issues_enabled: true
 contact_links:
   - name: Documentation
-    url: https://goodfellow-cms.github.io/goodfellow-cms/docs/introduction
+    url: https://goodfellowcms.com/docs/introduction
     about: How to create, edit, and run a Goodfellow site.
   - name: Report a security problem
     url: https://github.com/goodfellow-cms/goodfellow-cms/security/advisories/new

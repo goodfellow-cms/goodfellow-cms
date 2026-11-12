@@ -10,9 +10,9 @@ export default defineConfig({ blocks, backend: bitbucket({ repo: "your-workspace
 
 Bitbucket's own static websites have one address for each workspace and no custom domains, so sites stored on Bitbucket are built and put online by Vercel. `npm create goodfellow@latest my-site -- --bitbucket your-workspace/your-site` sets one up, with its `bitbucket-pipelines.yml`.
 
-[Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab, or Bitbucket repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellow-cms.github.io/goodfellow-cms/) for everything else.
+[Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab, or Bitbucket repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellowcms.com/) for everything else.
 
-More in the docs: [Sign-in](https://goodfellow-cms.github.io/goodfellow-cms/docs/sign-in) and [Hosts and business sites](https://goodfellow-cms.github.io/goodfellow-cms/docs/hosts).
+More in the docs: [Sign-in](https://goodfellowcms.com/docs/sign-in) and [Hosts and business sites](https://goodfellowcms.com/docs/hosts).
 
 ## License
 

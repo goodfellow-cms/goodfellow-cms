@@ -101,7 +101,7 @@ test("a GitLab site turns on automatic updates, and shows why the last one wasn'
   });
   fake.addUpdateRun({
     trace: [
-      "$ npx goodfellow update --publish --to fixes",
+      "$ npx goodfellow update --commit --to fixes",
       'goodfellow-update {"state":"failed","from":"0.4.1","to":"0.4.3","step":"build","cause":{"kind":"code","file":"blocks/installed/shadcn-faq/block.tsx","message":"Unexpected token"}}',
       "$ npx goodfellow build",
     ].join("\n"),
@@ -117,7 +117,10 @@ test("a GitLab site turns on automatic updates, and shows why the last one wasn'
   await expect(page.getByText(/^Automatic updates aren't turned on yet/)).toBeVisible();
   await page.getByRole("button", { name: "Turn on automatic updates" }).click();
   await expect(page.getByText(/^Automatic updates aren't turned on yet/)).toHaveCount(0);
-  expect(fake.updateSettings).toMatchObject({ jobTokenPush: true, schedules: [{ cron: "17 4 * * *" }] });
+  // The publish job gets a deploy key of its own, and job tokens can't publish.
+  expect(fake.updateSettings).toMatchObject({ jobTokenPush: false, schedules: [{ cron: "17 4 * * *" }] });
+  expect(fake.updateSettings.deployKeys).toEqual([expect.objectContaining({ title: "Goodfellow publishing" })]);
+  expect(fake.updateSettings.variables.has("GOODFELLOW_DEPLOY_KEY goodfellow-publish")).toBe(true);
 
   await expect(page.getByText(/the update didn't work, so nothing changed/)).toBeVisible();
   await expect(page.getByText("The site didn't build with Goodfellow 0.4.3", { exact: false })).toBeVisible();

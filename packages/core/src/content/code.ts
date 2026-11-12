@@ -5,6 +5,7 @@
  * `parseHeadCode`), since a React document can't take raw HTML in its head.
  */
 import { isExternalLink } from "../external-links.js";
+import { withoutCssComments } from "./css-comments.js";
 
 /** An element of the head's code: its tag, its attributes in order, and the text inside it. */
 export interface HeadElement {
@@ -130,7 +131,7 @@ function isOtherSite(href: string, siteUrl: string | undefined): boolean {
 
 /** The addresses CSS loads: `@import "…"` and `url(…)`, unquoted or not, with CSS's escapes left as they are. */
 function cssAddresses(css: string): string[] {
-  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const text = withoutCssComments(css);
   return [
     ...[...text.matchAll(/@import\s+(?:url\(\s*)?["']?([^"')\s;]+)/gi)].map((match) => match[1] ?? ""),
     ...[...text.matchAll(/url\(\s*["']?([^"')\s]+)/gi)].map((match) => match[1] ?? ""),

@@ -89,7 +89,7 @@ export type SetupWarning =
 export type UnmadeConnection =
   /** `reader`'s pipelines can't read `read` yet: add `reader` to `read`'s job token allowlist (GitLab). */
   | { kind: "read"; reader: string; read: string; reason: string }
-  /** `repo`'s pipelines can't publish Goodfellow's updates yet: allow its job token to push (GitLab). */
+  /** `repo`'s pipelines can't publish Goodfellow's updates yet: turn updates on, which adds their key (GitLab). */
   | { kind: "push"; repo: string; reason: string }
   /** `repo` has no pipeline schedule to run each night yet (GitLab). */
   | { kind: "nightly"; repo: string; reason: string };

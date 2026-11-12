@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { githubUpdateJobs } from "./github-workflows.js";
+import { gitlabPagesPipelineJobs } from "./gitlab-publish.js";
 import {
   GITLAB_LOCKFILE_VARIABLES,
   githubLockfileJobs,
-  gitlabLockfileScript,
   LOCKFILE_CHECK,
   LOCKFILE_REGISTRY_CHECK,
 } from "./lockfile-setup.js";
@@ -109,7 +109,15 @@ describe("the starters' workflows", () => {
       );
       const pipeline = await read(`${site}/.gitlab-ci.yml`);
       expect(pipeline).toContain(GITLAB_LOCKFILE_VARIABLES);
-      expect(pipeline).toContain(gitlabLockfileScript({ skipPipeline: true }));
+      const next = cli === "goodfellow-next";
+      expect(pipeline).toContain(
+        gitlabPagesPipelineJobs({
+          cli,
+          build: next ? "npm run build" : "npx goodfellow build",
+          output: next ? "out" : "dist",
+          cachePaths: next ? ".npm/, .next/cache/" : ".npm/",
+        }),
+      );
     }
   });
 });

@@ -37,7 +37,9 @@ test("signs in with the site's own sign-in, and never sends the browser to GitHu
   await expect(page.getByRole("link", { name: "About us", exact: true })).toBeVisible();
   await expect(page.locator(".gfa-account")).toContainText("Alice Editor");
 
-  expect(asked.some((url) => url.startsWith(GITHUB) || url.includes("api.github.com"))).toBe(false);
+  // The browser never asks GitHub, the real one or the fake the server uses, for anything.
+  const hosts = asked.map((url) => new URL(url).host);
+  expect(hosts.some((host) => host === new URL(GITHUB).host || host === "api.github.com")).toBe(false);
   expect(await page.content()).not.toContain(NEXT_SERVER.token);
 
   await page.getByRole("button", { name: "Sign out" }).click();

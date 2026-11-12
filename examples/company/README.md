@@ -2,7 +2,7 @@
 
 A full-stack website built with [Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) and [Next.js](https://nextjs.org), for an organization whose editors sign in with the site's own accounts rather than GitHub's. Pages are files in a content repository of their own, edited in the admin panel at `/admin`; the site's server publishes them for the editors and keeps accounts in a database.
 
-It runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), built with [vinext](https://github.com/cloudflare/vinext), Cloudflare's build of Next.js, with a [D1](https://developers.cloudflare.com/d1/) database. It's being built in steps, and isn't released yet; the [full-stack Next.js](https://goodfellow-cms.github.io/goodfellow-cms/docs/full-stack-nextjs) docs page describes what it's built on.
+It runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), built with [vinext](https://github.com/cloudflare/vinext), Cloudflare's build of Next.js, with a [D1](https://developers.cloudflare.com/d1/) database. It's being built in steps, and isn't released yet; the [full-stack Next.js](https://goodfellowcms.com/docs/full-stack-nextjs) docs page describes what it's built on.
 
 ## Working on the site
 
@@ -30,7 +30,7 @@ On your own computer, the admin panel saves straight to the files in `content/`,
 
 A publish shows the next time its pages are visited, without building the site (within about a minute at every Cloudflare location, as KV spreads it): a page renders from the content repository the first time it's visited after a publish, and a Workers KV namespace keeps it for every visit after, which costs one KV read. That first render reads every content file, which can take more than the free plan's 10 ms of CPU time on a large site, so plan on Workers Paid ($5 a month) unless your pages render within it. Pages already kept don't need GitHub to answer, but a page's first visit after a publish does.
 
-1. **The content repository.** Make it as the [content repository](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
+1. **The content repository.** Make it as the [content repository](https://goodfellowcms.com/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
 2. **The database.** Sign in with `npx wrangler login`, run `npx wrangler d1 create goodfellow-company`, and put the `database_id` it gives in `wrangler.jsonc`. Then run `npx wrangler kv namespace create goodfellow-company-cache`, where rendered pages are kept, and put its `id` there too.
 3. **The site's settings.** In `wrangler.jsonc`, set `GOODFELLOW_SITE_URL` to the site's address. Then set its secrets: `npx wrangler secret put BETTER_AUTH_SECRET` (at least 32 random characters, such as `openssl rand -base64 32` makes; without it, the site signs nobody in) and `npx wrangler secret put GOODFELLOW_GIT_TOKEN` (a fine-grained token that can publish to the content repository, and nothing else).
 4. **Putting it online.** `npm run build && npm run deploy` applies the database's migrations and uploads the Worker. To do it from GitHub instead, after every change, add the secrets `.github/workflows/deploy.yml` lists to the code repository.
@@ -73,13 +73,21 @@ Each address can try to sign in 10 times in 5 minutes (`SIGN_IN_LIMIT` in `lib/a
 
 Signing out (`app/sign-out/`) works only from the site's own pages, so a link on another site can't sign people out; an address typed in asks first.
 
+## Editors
+
+Admins invite people from **Editors** (`/admin/editors/`): its name, email address, and whether they can edit pages or everything. The site makes their account with a password nobody knows and emails them a link to choose their own, which works once, for 48 hours (`INVITATION_HOURS` in `lib/editors.ts`). Until they've chosen one, the page lists them as invited and can send the link again, which makes the one before stop working. An account's links are sent and used one at a time, so exactly one works; someone who sends or uses one while another is being sent or used is asked to try again in a moment. Admins change what others can do and remove them there, but never themselves, so the site always keeps an admin.
+
+Email goes through [Resend](https://resend.com) (`lib/email.ts`), since Workers can't send it any other way. Make a key that can only send, from a domain you've verified there, and set it as the `RESEND_API_KEY` secret, and add `EMAIL_FROM` (such as `Example Co <hello@example.org>`) to `wrangler.jsonc`'s `vars`. Without them, the editors page shows each invitation's link for you to send yourself.
+
+**Forgot your password?** on the sign-in page emails a link to choose a new one, which works once, for 30 minutes, and signs the account out everywhere once it's used. It says the same whether or not the address has an account. Each computer's network address can ask 5 times an hour, and each account is sent at most 3 links an hour, however many computers ask, even after one is used (`RESET_LIMIT` and `RESET_ACCOUNT_LIMIT` in `lib/auth.ts`). An email the email service refuses (Resend answers 4xx) doesn't count, so a misconfiguration doesn't use them up; one that may have gone does, such as a request that timed out or met Resend's own error (5xx), which can still have sent it. So someone asking for another person's address over and over can hold up that person's own link for up to an hour, which is the price of not letting them fill the inbox. Using any link makes the account's other links stop working, even when two are used at the same moment, since only one is used at a time. That holds for 30 seconds a link (`LINK_LOCK_SECONDS`): if the server stalls for longer in the middle of saving a password, after the link was used, and the person sets another password with a newer link meanwhile, the stalled one can be saved last. Better Auth's password update can't be made to wait for the lock, and D1 has no transactions to hold them together, so this is accepted. Someone who hasn't joined yet gets no reset email, since their invitation is how they choose a password: an admin sends it again. Without email set up, the page says the site can't send the link. Passwords are at least 12 characters.
+
 ## Rendering
 
 Every page is rendered once for each publish and served as it was, so a request costs the server almost nothing:
 
 - **Pages that look the same to everyone**, which is every page here, render from the content repository as it is now (`repositorySource()` in `lib/site.ts`, with `GOODFELLOW_GIT_TOKEN`) the first time they're visited, and the `VINEXT_KV_CACHE` namespace keeps them (vinext's `kvDataAdapter()` in `vite.config.ts`; Workers Cache would need no namespace, but nothing emulates it outside Cloudflare, so the tests couldn't check it). Each publish asks for every page to render again (`revalidatePath()` in `app/api/goodfellow/[...path]/route.ts`), since a change to the header, menus, or a collection can reach any page. In `npm run dev`, pages read the files on this computer.
 - **What shows who's signed in** is filled in by the browser (`app/(site)/members/signed-in-as.tsx`), so the page around it stays static.
-- **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session (from its signed cookie for a few minutes at a time, then the database) and sends everyone else to sign in before the page is served.
+- **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session in the database on every request, so a used reset link, a ban, or a removal takes effect at once, and sends everyone else to sign in before the page is served.
 
 ## How it fits together
 

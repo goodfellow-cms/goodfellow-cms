@@ -12,6 +12,7 @@ import type { AdminSite } from "./admin-site.js";
 import type { ContentSource } from "./content/load.js";
 import { SITE_FILE } from "./content/paths.js";
 import type { SiteDescription } from "./site-description.js";
+import { trimChars } from "./trim.js";
 
 /** The copy's own address, such as `https://staging.example.org`, in place of Site settings' address. */
 export const SITE_URL_VARIABLE = "GOODFELLOW_SITE_URL";
@@ -95,7 +96,7 @@ export function siteCopyFrom(env: Readonly<Record<string, string | undefined>>):
   if (!YES.has(hide) && !NO.has(hide)) {
     throw new Error(`${NO_INDEX_VARIABLE} is "${env[NO_INDEX_VARIABLE]}": set it to true or false.`);
   }
-  return { ...(url && { url: url.replace(/\/+$/, "") }), ...(YES.has(hide) && { noIndex: true }) };
+  return { ...(url && { url: trimChars(url, "/", { start: false }) }), ...(YES.has(hide) && { noIndex: true }) };
 }
 
 /** Whether a copy has anything of its own. */

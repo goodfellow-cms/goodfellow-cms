@@ -32,6 +32,21 @@ describe("scopeSelector", () => {
     expect(scopeSelector("a::before")).toBe(".gf-canvas :is(a)::before");
     expect(scopeSelector("::after")).toBe(".gf-canvas ::after");
     expect(scopeSelector("input::placeholder")).toBe(".gf-canvas :is(input)::placeholder");
+    expect(scopeSelector("a:hover:before")).toBe(".gf-canvas :is(a:hover):before");
+    expect(scopeSelector("p:FIRST-LINE")).toBe(".gf-canvas :is(p):FIRST-LINE");
+    expect(scopeSelector("x-card::part(label)::after")).toBe(".gf-canvas :is(x-card)::part(label)::after");
+    expect(scopeSelector("a::part(a(b)")).toBe(".gf-canvas :is(a)::part(a(b)");
+    expect(scopeSelector("a:hover")).toBe(".gf-canvas :is(a:hover)");
+    expect(scopeSelector("a:not(b)")).toBe(".gf-canvas :is(a:not(b))");
+    expect(scopeSelector("a:xbefore")).toBe(".gf-canvas :is(a:xbefore)");
+  });
+
+  it("reads long selectors that end in something else quickly", () => {
+    const started = performance.now();
+    const long = `a${":before".repeat(100_000)}!`;
+    expect(scopeSelector(long)).toBe(`.gf-canvas :is(${long})`);
+    expect(scopeSelector(`a${"::b(".repeat(100_000)})!`)).toContain(".gf-canvas :is(");
+    expect(performance.now() - started).toBeLessThan(2000);
   });
 
   it("lets ancestors outside the canvas match, as the dark variant needs", () => {

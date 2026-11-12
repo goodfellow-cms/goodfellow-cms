@@ -1,6 +1,7 @@
 // Builds a copy of the company example into a Cloudflare Worker with vinext, as its deploy workflow does, gives it
 // a local D1 database with an admin and an editor, and serves the built Worker in workerd, as Cloudflare would,
-// with a fake GitHub as its content repository. POST /__reset to the fake GitHub starts it afresh.
+// with a fake GitHub as its content repository and a fake Resend for its email. POST /__reset to the fake GitHub
+// starts it afresh; GET /__sent from the fake Resend lists what it was sent.
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
@@ -48,6 +49,17 @@ serve(COMPANY.github, async (request) => {
   if (pathname === "/__requests") return Response.json({ requests });
   requests++;
   return github.handle(request);
+});
+
+// Resend's API, as the site sends email: it keeps each message, sent with the site's key, for the tests to read.
+const sent = [];
+serve(COMPANY.resend, async (request) => {
+  const { pathname } = new URL(request.url);
+  if (pathname === "/__sent") return Response.json(sent);
+  if (request.method !== "POST" || pathname !== "/emails") return new Response(null, { status: 404 });
+  if (request.headers.get("authorization") !== "Bearer re_company_test") return new Response(null, { status: 401 });
+  sent.push(await request.json());
+  return Response.json({ id: String(sent.length) });
 });
 
 /** A package's command, run with this Node, from the copy's packages. */

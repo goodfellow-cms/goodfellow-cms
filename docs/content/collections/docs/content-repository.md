@@ -61,7 +61,7 @@ Whoever can push to the repository a host builds from controls the build: its se
 ### GitLab Pages
 
 - **The content project's** `.gitlab-ci.yml` clones the code, copies the content into it, builds the site, and publishes it with GitLab Pages, whenever the content changes and when the code project's pipeline starts it.
-- **The code project's** `.gitlab-ci.yml` installs Goodfellow's fixes on scheduled pipelines and then starts the content project's pipeline, as it does after every change to the code. Set up a pipeline schedule to run each night under Build → Pipeline schedules, and turn on "Allow Git push requests to the repository" under Settings → CI/CD → Job token permissions, which lets it publish updates.
+- **The code project's** `.gitlab-ci.yml` installs Goodfellow's fixes on scheduled pipelines and then starts the content project's pipeline, as it does after every change to the code. Set up a pipeline schedule to run each night under Build → Pipeline schedules, and turn on updates on the admin panel's Updates screen, which gives the code project's `publish` job a deploy key of its own to publish updates with (see [Keeping a site up to date](/docs/updates#turning-it-on)).
 - **Job tokens:** each pipeline reads the other project with its job token, which that project has to allow, even where it's public: add each project to the other's job token allowlist, under Settings → CI/CD → Job token permissions.
 
 ### Cloudflare Pages

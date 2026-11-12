@@ -1,8 +1,8 @@
 # @goodfellow-cms/mcp
 
-Work on a [Goodfellow](https://goodfellow-cms.github.io/goodfellow-cms/) site from Claude. An [MCP](https://modelcontextprotocol.io) server with Goodfellow's tools: Claude reads a site's pages, items, and settings, sees what blocks it has, makes changes in a draft, takes screenshots, and publishes the draft or submits it for review.
+Work on a [Goodfellow](https://goodfellowcms.com/) site from Claude. An [MCP](https://modelcontextprotocol.io) server with Goodfellow's tools: Claude reads a site's pages, items, and settings, sees what blocks it has, makes changes in a draft, takes screenshots, and publishes the draft or submits it for review.
 
-See [Work with Claude](https://goodfellow-cms.github.io/goodfellow-cms/docs/claude) for setting it up. This package runs the tools on your own computer, signed in with GitHub, GitLab, or Bitbucket tokens that stay there, for as many sites as you like, including sites in folders on your computer.
+See [Work with Claude](https://goodfellowcms.com/docs/claude) for setting it up. This package runs the tools on your own computer, signed in with GitHub, GitLab, or Bitbucket tokens that stay there, for as many sites as you like, including sites in folders on your computer.
 
 ## Claude Code
 
@@ -17,7 +17,7 @@ claude mcp add goodfellow --env GOODFELLOW_SITE="github:your-name/your-site, git
 
 ## Claude Desktop
 
-Install the [Goodfellow extension](https://goodfellow-cms.github.io/goodfellow-cms/goodfellow.mcpb), which `pnpm pack-extension` builds from this package; [Work with Claude](https://goodfellow-cms.github.io/goodfellow-cms/docs/claude#2-add-goodfellow-to-claude) goes through it step by step.
+Install the [Goodfellow extension](https://goodfellowcms.com/goodfellow.mcpb), which `pnpm pack-extension` builds from this package; [Work with Claude](https://goodfellowcms.com/docs/claude#2-add-goodfellow-to-claude) goes through it step by step.
 
 ## In your own server
 

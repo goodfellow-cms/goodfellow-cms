@@ -88,7 +88,9 @@ function error(status: number, message: string): Response {
 /** Bitbucket's filters (`q=`) as the backend writes them: one field, an operator, and a quoted value. */
 function filterValue(query: string | null, field: string): { op: string; value: string } | undefined {
   if (!query) return undefined;
-  const match = new RegExp(`${field.replace(/\./g, "\\.")}\\s*(~|=|IN)\\s*\\(?"((?:[^"\\\\]|\\\\.)*)"`).exec(query);
+  const match = new RegExp(
+    `${field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*(~|=|IN)\\s*\\(?"((?:[^"\\\\]|\\\\.)*)"`,
+  ).exec(query);
   return match ? { op: match[1] ?? "=", value: (match[2] ?? "").replace(/\\(.)/g, "$1") } : undefined;
 }
 
@@ -257,14 +259,18 @@ export function fakeBitbucket(options: FakeBitbucketOptions) {
   }
 
   /** Adds a finished run of the update pipeline, as a schedule would have started it, with what it logged. */
-  function addUpdateRun(log: string, state: FakePipeline["state"] = "COMPLETED"): FakePipeline {
+  function addUpdateRun(
+    log: string,
+    state: FakePipeline["state"] = "COMPLETED",
+    result: FakePipeline["result"] = "SUCCESSFUL",
+  ): FakePipeline {
     const pipeline: FakePipeline = {
       uuid: nextId(),
       buildNumber: pipelines.length + 1,
       pattern: BITBUCKET_PIPELINE_NAMES.update,
       variables: {},
       state,
-      ...(state === "COMPLETED" && { result: "SUCCESSFUL" as const }),
+      ...(state === "COMPLETED" && { result }),
       createdOn: new Date(Date.UTC(2026, 0, 6, 9, pipelines.length)).toISOString(),
       log,
     };
