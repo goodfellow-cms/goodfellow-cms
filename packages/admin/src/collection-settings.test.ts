@@ -25,7 +25,10 @@ describe("a collection's settings form", () => {
     const unchecked = fromDraft(byTemplate, { ...toDraft(byTemplate), membersOnly: false });
     expect(unchecked.visibility).toBeUndefined();
     expect(unchecked.template).toEqual({ root: { props: { title: "{title}" } }, content: [] });
-    // Left checked, the template keeps saying so.
-    expect(fromDraft(byTemplate, toDraft(byTemplate)).template).toEqual(template);
+    // Left checked, nothing changes: the template keeps saying so, and the collection's own setting isn't added.
+    const kept = fromDraft(byTemplate, toDraft(byTemplate));
+    expect(kept.template).toEqual(template);
+    expect(kept.visibility).toBeUndefined();
+    expect(kept).toEqual(fromDraft(kept, toDraft(kept)));
   });
 });

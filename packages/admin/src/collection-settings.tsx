@@ -186,7 +186,11 @@ export function fromDraft(settings: CollectionFile, draft: Draft): CollectionFil
     ...(body && { markdown: { body: body.name } }),
     ...(when && { calendar: { when, ...(place && { place }), ...(summary && { summary }) } }),
     // Items are kept out of the content API whether or not they have pages, so the setting stays with or without them.
-    ...(draft.membersOnly && { visibility: "members" as const }),
+    // Left checked, the collection keeps what it said, so one kept to members by its template alone isn't changed.
+    ...(draft.membersOnly &&
+      (isMembersCollection({ settings })
+        ? settings.visibility && { visibility: settings.visibility }
+        : { visibility: "members" as const })),
     // Unchecking it makes the items everyone's, so the template's own "Who can see this page" goes too.
     ...(!draft.membersOnly && rest.template && { template: everyonesTemplate(rest.template) }),
   };
