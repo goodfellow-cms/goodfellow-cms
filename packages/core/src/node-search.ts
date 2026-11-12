@@ -1,30 +1,25 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { Parser } from "htmlparser2";
 import { SEARCH_ATTRIBUTE, SEARCH_INDEX_DIR } from "./search.js";
 
-/** Whether any built page has a search block, which marks itself with `SEARCH_ATTRIBUTE`. */
-async function usesSearch(outDir: string, files: string[]): Promise<boolean> {
-  for (const file of files) {
-    if ((await readFile(join(outDir, file), "utf8")).includes(SEARCH_ATTRIBUTE)) return true;
-  }
-  return false;
-}
-
 /**
- * Whether a page marks content to index (`data-pagefind-body`, on an element, not in its text). Only such pages are
- * given to Pagefind: it leaves pages without the mark out only while some page has it, and with none indexes every
- * page whole, headers, footers, "Page not found", and pages left out of search included.
+ * Whether a page marks content to index (`data-pagefind-body`, on an element). Only such pages are given to Pagefind:
+ * it leaves pages without the mark out only while some page has it, and with none indexes every page whole, headers,
+ * footers, "Page not found", and pages left out of search included. The page is read as HTML, so the name in its text,
+ * a comment, or a script never counts.
  */
 export function marksSearchContent(html: string): boolean {
-  return /<[a-zA-Z][^<>]*\sdata-pagefind-body(?=[\s=/>])/.test(html);
-}
-
-/** The files of `files` under `outDir` whose pages mark content to index. */
-async function markedFiles(outDir: string, files: string[]): Promise<string[]> {
-  const marked: string[] = [];
-  for (const file of files) {
-    if (marksSearchContent(await readFile(join(outDir, file), "utf8"))) marked.push(file);
-  }
+  let marked = false;
+  const parser = new Parser({
+    onopentag(_name, attributes) {
+      if (!marked && Object.hasOwn(attributes, "data-pagefind-body")) {
+        marked = true;
+        parser.pause();
+      }
+    },
+  });
+  parser.end(html);
   return marked;
 }
 
@@ -46,11 +41,20 @@ export async function writeSearchIndex(outDir: string): Promise<number | undefin
     .filter((file) => file.endsWith(".html") && !file.startsWith("admin/") && !file.startsWith(`${SEARCH_INDEX_DIR}/`));
   const indexDir = join(outDir, SEARCH_INDEX_DIR);
   await rm(indexDir, { recursive: true, force: true });
-  if (!(await usesSearch(outDir, pages))) return undefined;
-  const marked = await markedFiles(outDir, pages);
-  return indexWith(indexDir, async (index) =>
-    marked.length === 0 ? { errors: [] } : index.addDirectory({ path: outDir, glob: `{${marked.join(",")}}` }),
+  const read = await Promise.all(
+    pages.map(async (file) => ({ file, html: await readFile(join(outDir, file), "utf8") })),
   );
+  if (!read.some((page) => page.html.includes(SEARCH_ATTRIBUTE))) return undefined;
+  // Each page is given by its path in the site, from which Pagefind works out its address as it would indexing the
+  // folder; a glob of their names would read characters such as `[` and `{` in them as patterns.
+  return indexWith(indexDir, async (index) => {
+    const errors: string[] = [];
+    for (const { file, html } of read.filter((page) => marksSearchContent(page.html))) {
+      const added = await index.addHTMLFile({ sourcePath: file, content: html });
+      errors.push(...added.errors);
+    }
+    return { errors };
+  });
 }
 
 /**

@@ -67,7 +67,7 @@ To run it from your own computer instead, which developers may prefer, you need 
 
 1. In a copy of Goodfellow's repository, run `pnpm install`.
 2. In `packages/worker`, run `pnpm run setup`. It:
-   - deploys the service to Cloudflare, to learn its address. Wrangler, Cloudflare's tool, asks you to sign in to Cloudflare, and the first time, to choose your `workers.dev` address;
+   - deploys the service to Cloudflare, to learn its address. Wrangler, Cloudflare's tool, asks you to sign in to Cloudflare, and the first time, to choose your `workers.dev` address. Where `wrangler.jsonc`'s `routes` give it a custom domain, such as `{ "pattern": "sign-in.example.org", "custom_domain": true }`, that's its address;
    - asks whether an organization should own the GitHub Apps, and whether anyone's sites can use them;
    - opens a page in your browser that creates the two apps on GitHub with their settings filled in. For each, check its name, which editors see when they sign in, and choose **Create GitHub App**;
    - asks for your setup page's address, if you run one;

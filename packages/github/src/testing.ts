@@ -1063,7 +1063,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       workflow: app.permissions.workflows === "write",
       actions: app.permissions.actions !== undefined,
       actionsWrite: app.permissions.actions === "write",
-      variables: app.permissions.variables === "write",
+      variables: app.permissions.actions_variables === "write",
     });
     refreshTokens.set(refresh, { app, login });
     issued.push({ token: access, kind: "user", app: app.slug, login, permissions: app.permissions });
@@ -1183,7 +1183,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         admin: permissions.administration === "write",
         actions: permissions.actions !== undefined,
         actionsWrite: permissions.actions === "write",
-        variables: permissions.variables === "write",
+        variables: permissions.actions_variables === "write",
       });
       issued.push({ token, kind: "installation", app: app.slug, repositories, permissions });
       return json({ token, expires_at: new Date(Date.now() + 3_600_000).toISOString(), permissions }, 201);
