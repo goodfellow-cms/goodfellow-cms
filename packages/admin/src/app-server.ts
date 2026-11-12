@@ -12,6 +12,7 @@ import {
   type RevisionFiles,
   SignInError,
   type TaskSecretsPlace,
+  trimChars,
 } from "@goodfellow-cms/core";
 
 /** Thrown when the site's server refuses something, such as an editor changing settings only owners may change. */
@@ -36,7 +37,7 @@ export class AppServerError extends Error {
 
 /** A full-stack site's API for the admin panel, at `api`, such as `/api/goodfellow`. */
 export function appServer(api: string) {
-  const base = api.replace(/\/+$/, "");
+  const base = trimChars(api, "/", { start: false });
 
   async function request(
     endpoint: string,

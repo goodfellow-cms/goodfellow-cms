@@ -12,7 +12,7 @@ Goodfellow's packages are released together, with one version number: every pack
    pnpm release:version
    ```
 
-   This runs `changeset version`, which bumps every package to the new version, adds the changesets to each package's `CHANGELOG.md` and deletes them. Read the changelogs, then commit (for example "Release 0.2.0"), push and open a pull request.
+   This runs `changeset version`, which bumps every package to the new version, adds the changesets to each package's `CHANGELOG.md` and deletes them. Read the changelogs, then commit (for example "Release 0.2.0"), push and open a pull request. Label it `no-coderabbit`: it changes only versions and changelogs, written from changesets CodeRabbit has already reviewed, so a review would only spend the repository's hourly review on it, and the label passes the "CodeRabbit reviewed" status.
 
 2. Merge it once CI passes. When CI then passes on `master`, the **Release** workflow (`.github/workflows/release.yml`):
    - stages every package npm doesn't have at the new version, with provenance. A staged version isn't published yet: nobody can install it until a maintainer approves it;

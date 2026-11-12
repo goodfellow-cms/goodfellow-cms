@@ -26,7 +26,24 @@ export interface SiteEnv {
   /** The token the server publishes to the content repository with. */
   GOODFELLOW_GIT_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
+  /** Sends invitations and password resets (lib/email.ts): a Resend key that can only send, from the site's domain. */
   RESEND_API_KEY?: string;
+  /** Who those emails are from, such as `Example Co <hello@example.org>`, on a domain Resend has verified. */
+  EMAIL_FROM?: string;
+  /** Resend's API, for tests to point elsewhere. */
+  RESEND_API_URL?: string;
+}
+
+/** How a Worker keeps work going after it has answered; elsewhere, the process simply carries on. */
+let keepGoing: ((work: Promise<unknown>) => void) | undefined;
+
+/**
+ * Runs `work` after the answer has gone, such as sending an email, so how long it takes says nothing about the
+ * request: on Cloudflare through the Worker's `waitUntil()`, which `env()` finds.
+ */
+export function inBackground(work: Promise<unknown>): void {
+  if (keepGoing) keepGoing(work);
+  else void work;
 }
 
 /** Whether this is a Cloudflare Worker, which says so in its user agent. */
@@ -49,7 +66,9 @@ export function env(): Promise<SiteEnv> {
         /* webpackIgnore: true */ /* turbopackIgnore: true */ /* @vite-ignore */ "cloudflare:workers"
       )) as {
         env: SiteEnv;
+        waitUntil?: (work: Promise<unknown>) => void;
       };
+      keepGoing = workers.waitUntil;
       return { CLIENT_IP_HEADER: "cf-connecting-ip", ...workers.env };
     }
     // Left out of builds, where NODE_ENV is "production", so wrangler is never bundled.

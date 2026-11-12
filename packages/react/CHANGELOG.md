@@ -1,5 +1,48 @@
 # @goodfellow-cms/react
 
+## 0.11.0
+
+### Minor Changes
+
+- 3184524: Goodfellow uses Puck 0.24.0. In the editor, each block's toolbar has a drag handle, so a large block such as a section can be moved without dragging the block itself. A page's settings are in groups: the title, description, and whether search engines show the page come first, the rarer search engine settings are in **More for search engines**, which starts closed, and the image, picture size, and link preview are under **Sharing**; a collection's page design has the same. A site's own blocks can use Puck's new checkbox fields, which the AI assistant, the Claude connector, and the checks of what an editor hands back know: their value is a list of the chosen options.
+
+### Patch Changes
+
+- b26b5ae: The content API's manifest lists a hash of each media library file (`media`), which both builds write, so apps download a picture replaced at the same address again. The field is optional, so apps that don't know it keep working.
+- f6fcc1a: Goodfellow's documentation is now at https://goodfellowcms.com, and the links the packages give, in their READMEs, the admin panel's help links, and the Claude Desktop extension, go there. The old address, https://goodfellow-cms.github.io/goodfellow-cms/, sends people to the same page at the new one.
+- 1008a42: Blocks' settings, the AI assistant's instructions, and these packages' messages and READMEs use the Oxford comma in lists ("pages, items, and media").
+  
+  The AI assistant's instructions also say plainly that it follows the request's own directions, such as "Translate the page", besides what the person asks, while the site's own text stays content, never instructions.
+- bc2f3bd: Fix several bugs found in review:
+  
+  - A page title with `$` in it (`$5 lunches`) goes into the site's title template as written, not as a replacement pattern.
+  - WordPress and Markdown imports give a page whose address ends in `index`, or is under `/admin`, an address a page can have (`/docs/index-page`), rather than stopping.
+  - Apps keep their whole copy of the site, manifest included, when a download fails part way through updating it.
+  - An item's values are escaped in rich text inside a block's lists and objects (such as Questions and answers'), as they are elsewhere.
+  - The Calendar's Subscribe links on a page in another language subscribe to that language's calendar file, which builds now write for every language, empty until it has events.
+- Updated dependencies [b26b5ae]
+- Updated dependencies [f4a0a43]
+- Updated dependencies [44a825d]
+- Updated dependencies [810503b]
+- Updated dependencies [c4ecba5]
+- Updated dependencies [f6fcc1a]
+- Updated dependencies [ec40324]
+- Updated dependencies [c39766d]
+- Updated dependencies [5f09d89]
+- Updated dependencies [f287d1c]
+- Updated dependencies [3184524]
+- Updated dependencies [d7098cb]
+- Updated dependencies [bc2f3bd]
+- Updated dependencies [7698210]
+- Updated dependencies [6210740]
+- Updated dependencies [e3678d8]
+- Updated dependencies [c7c70ef]
+- Updated dependencies [0255dbc]
+- Updated dependencies [749d66b]
+- Updated dependencies [3bcdfa1]
+- Updated dependencies [db80e2f]
+  - @goodfellow-cms/core@0.11.0
+
 ## 0.10.1
 
 ### Patch Changes
