@@ -173,8 +173,9 @@ function createMessage(error: unknown): string {
 }
 
 export interface SiteCreateFormProps {
-  /** The Application ID of the GitLab OAuth application for this page, for "Sign in with GitLab". */
+  /** The sign-in service's address, for "Sign in with GitHub", or "" to sign in with a token. */
   githubSignIn: string;
+  /** The Application ID of the GitLab OAuth application for this page, for "Sign in with GitLab". */
   gitlabClientId: string;
 }
 

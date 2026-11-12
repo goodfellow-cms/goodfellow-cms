@@ -194,6 +194,11 @@ describe("deployedAddress", () => {
     // A route is a pattern, not an address, and a name without a dot isn't a domain.
     expect(deployedAddress(deploy("example.org/sign-in/* (zone name: example.org)"))).toBeUndefined();
     expect(deployedAddress(deploy("localhost (custom domain)"))).toBeUndefined();
+    // Nor is anything that isn't a host's name.
+    for (const name of [".", "..example", "-x.example", "a..b", "x-.example", "sign_in.example.org"]) {
+      expect(deployedAddress(deploy(`${name} (custom domain)`)), name).toBeUndefined();
+    }
+    expect(deployedAddress(deploy("https://sign-in.someone.workers.dev/"))).toBe("https://sign-in.someone.workers.dev");
     expect(deployedAddress("")).toBeUndefined();
   });
 });

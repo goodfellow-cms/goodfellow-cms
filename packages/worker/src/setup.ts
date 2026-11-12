@@ -168,15 +168,20 @@ export function deployedAddress(output: string): string | undefined {
     }
   }
   const domains = targets
-    .map((target) => /^([a-z0-9.-]+) \(custom domain\)$/i.exec(target.trim())?.[1])
-    .filter((domain): domain is string => domain?.includes(".") === true)
-    .map((domain) => `https://${domain.toLowerCase()}`);
-  const addresses = targets.map((target) => target.trim()).filter((target) => /^https:\/\/[^\s/]+\/?$/.test(target));
-  return (
-    domains[0] ??
-    addresses.find((address) => address.replace(/\/$/, "").endsWith(".workers.dev")) ??
-    addresses[0]
-  )?.replace(/\/$/, "");
+    .map((target) => /^(\S+) \(custom domain\)$/.exec(target.trim())?.[1]?.toLowerCase())
+    .filter((domain): domain is string => domain !== undefined && isHostname(domain))
+    .map((domain) => `https://${domain}`);
+  const addresses = targets
+    .map((target) => target.trim())
+    .filter((target) => /^https:\/\/[^\s/]+\/?$/.test(target))
+    .map((address) => address.replace(/\/$/, ""));
+  return domains[0] ?? addresses.find((address) => address.endsWith(".workers.dev")) ?? addresses[0];
+}
+
+/** Whether `name` is a host's name with a dot in it: labels of letters, digits, and inner hyphens. */
+function isHostname(name: string): boolean {
+  const labels = name.split(".");
+  return labels.length > 1 && labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
 }
 
 function escapeHtml(text: string): string {
