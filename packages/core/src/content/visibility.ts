@@ -69,8 +69,10 @@ function pageVisibility(text: string | undefined): Visibility {
 /**
  * The pages in `changes` whose "Who can see this page" changes, a new page's included, which, like a collection's
  * settings, only a site's owners may change: making a members' page public publishes it to everyone, its search
- * entry and content API file included. A full-stack site's server refuses them from anyone else (`appApi()`). Pages
- * sent as bytes are read as text, so sending one that way never skips the check; `read` gives a file as it was.
+ * entry and content API file included. Deleting a members' page counts too, since the same address could then be
+ * published again for everyone; moving one does both, as its new file is a new members' page. A full-stack site's
+ * server refuses them from anyone else (`appApi()`). Pages sent as bytes are read as text, so sending one that
+ * way never skips the check; `read` gives a file as it was.
  */
 export async function visibilityChanges(
   changes: readonly FileChange[],
@@ -78,7 +80,12 @@ export async function visibilityChanges(
 ): Promise<string[]> {
   const changed: string[] = [];
   for (const change of changes) {
-    if (!change.path.startsWith("content/pages/") || !change.path.endsWith(".json") || "delete" in change) continue;
+    if (!change.path.startsWith("content/pages/") || !change.path.endsWith(".json")) continue;
+    const before = pageVisibility(await read(change.path));
+    if ("delete" in change) {
+      if (before === "members") changed.push(change.path);
+      continue;
+    }
     let text: string;
     if ("content" in change) text = change.content;
     else {
@@ -88,7 +95,7 @@ export async function visibilityChanges(
         text = "";
       }
     }
-    if (pageVisibility(text) !== pageVisibility(await read(change.path))) changed.push(change.path);
+    if (pageVisibility(text) !== before) changed.push(change.path);
   }
   return changed;
 }

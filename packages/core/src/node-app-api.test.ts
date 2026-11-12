@@ -516,6 +516,24 @@ describe("appApi", () => {
       from: revision,
     });
     expect(review.status).toBe(403);
+    // Nor can it be taken away and published again for everyone: deleting a members' page is the owners' too.
+    const deleted = await post("write", {
+      changes: [{ path: "content/pages/about.json", delete: true }],
+      message: "Delete",
+      expectedRevision: revision,
+    });
+    expect(deleted.status).toBe(403);
+    expect(await deleted.json()).toEqual({ error: "owners-only", paths: ["content/pages/about.json"] });
+    signIn(OWEN);
+    expect(
+      (
+        await post("write", {
+          changes: [{ path: "content/pages/about.json", delete: true }],
+          message: "Delete",
+          expectedRevision: revision,
+        })
+      ).status,
+    ).toBe(200);
   });
 
   it("refuses media the site can't use, and SVGs that skipped the admin panel's cleaning", async () => {

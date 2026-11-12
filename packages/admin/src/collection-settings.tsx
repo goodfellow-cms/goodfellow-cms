@@ -13,11 +13,13 @@ import {
   type FieldType,
   GROUP_FIELD_TYPES,
   type GroupFieldType,
+  isMembersCollection,
   isReservedPagePath,
   MAX_GROUP_FIELDS,
   type SiteSettings,
   serializeContent,
   TITLE_FIELD,
+  VISIBILITY_PROP,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
@@ -61,7 +63,10 @@ interface Draft {
   sortOrder: "asc" | "desc";
   /** The formatted-text field that is the body of entries' Markdown files, or "" for JSON files. */
   markdownBody: string;
-  /** Whether items' pages are for the site's members only, which only a full-stack site offers. */
+  /**
+   * Whether items are for the site's members only, which only a full-stack site offers: by the collection's own
+   * setting or its template's, either of which keeps them out of what builds publish beside the pages.
+   */
   membersOnly: boolean;
   /** For a calendar, the date and time field of its events, and the fields shown beside them, or "" for none. */
   calendarWhen: string;
@@ -82,7 +87,7 @@ export function toDraft(settings: CollectionFile): Draft {
     sortField: settings.sort?.field ?? TITLE_FIELD,
     sortOrder: settings.sort?.order ?? "asc",
     markdownBody: settings.markdown?.body ?? "",
-    membersOnly: settings.visibility === "members",
+    membersOnly: isMembersCollection({ settings }),
     calendarWhen: settings.calendar?.when ?? "",
     calendarPlace: settings.calendar?.place ?? "",
     calendarSummary: settings.calendar?.summary ?? "",
@@ -180,9 +185,19 @@ export function fromDraft(settings: CollectionFile, draft: Draft): CollectionFil
     ...(!isDefaultSort && { sort: { field: sortField, order: draft.sortOrder } }),
     ...(body && { markdown: { body: body.name } }),
     ...(when && { calendar: { when, ...(place && { place }), ...(summary && { summary }) } }),
-    // Only items' pages can be for members, and its checkbox shows only with them, so without pages it's cleared.
-    ...(draft.withPages && draft.membersOnly && { visibility: "members" as const }),
+    // Items are kept out of the content API whether or not they have pages, so the setting stays with or without them.
+    ...(draft.membersOnly && { visibility: "members" as const }),
+    // Unchecking it makes the items everyone's, so the template's own "Who can see this page" goes too.
+    ...(!draft.membersOnly && rest.template && { template: everyonesTemplate(rest.template) }),
   };
+}
+
+/** A collection's template without its root's "Who can see this page" saying `members`. */
+function everyonesTemplate(template: NonNullable<CollectionFile["template"]>): CollectionFile["template"] {
+  const root = (template as { root?: { props?: Record<string, unknown> } }).root;
+  if (root?.props?.[VISIBILITY_PROP] !== "members") return template;
+  const { [VISIBILITY_PROP]: _visibility, ...props } = root.props;
+  return { ...template, root: { ...root, props } } as CollectionFile["template"];
 }
 
 /** The kinds of field a calendar's settings can name. */
@@ -791,19 +806,20 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
               {collection.settings.path !== undefined && draft.path.trim() !== collection.settings.path && (
                 <p className="gfa-hint">{t("collectionSettings.pathWarning")}</p>
               )}
-              {/* Only a site with a server of its own can keep pages to members; elsewhere a choice already published
-                  shows, so it can be undone, and stays while it's unchecked, so that can be undone too. */}
-              {(account?.members || collection.settings.visibility === "members") && (
-                <label className="gfa-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={draft.membersOnly}
-                    onChange={(event) => setDraft({ ...draft, membersOnly: event.target.checked })}
-                  />
-                  {t("collectionSettings.membersOnly")}
-                </label>
-              )}
             </>
+          )}
+          {/* Only a site with a server of its own can keep items to members; elsewhere a choice already published
+              shows, so it can be undone, and stays while it's unchecked, so that can be undone too. It's apart from
+              the pages' settings, since items without pages are still kept out of the content API. */}
+          {(account?.members || isMembersCollection(collection)) && (
+            <label className="gfa-checkbox">
+              <input
+                type="checkbox"
+                checked={draft.membersOnly}
+                onChange={(event) => setDraft({ ...draft, membersOnly: event.target.checked })}
+              />
+              {t("collectionSettings.membersOnly")}
+            </label>
           )}
           <div className="gfa-inline-form">
             <Field label={t("collectionSettings.sortField")}>

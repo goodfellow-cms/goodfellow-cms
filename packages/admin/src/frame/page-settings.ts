@@ -39,6 +39,11 @@ export function withoutVisibility(config: Config): Config {
   return { ...config, root: { ...config.root, fields: rest } };
 }
 
+/** Whether a page's or template's data says it's for members only, so its owner is shown the setting to undo it. */
+export function isMembersPageData(data: { root?: { props?: object } }): boolean {
+  return (data.root?.props as Record<string, unknown> | undefined)?.[VISIBILITY_PROP] === "members";
+}
+
 /** The settings "Page not found" has whatever its file says, which the editor shows with no choice. */
 const FIXED: Readonly<Record<string, unknown>> = { noIndex: true, noSearch: true };
 
