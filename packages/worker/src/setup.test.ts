@@ -188,9 +188,9 @@ describe("deployedAddress", () => {
     expect(deployedAddress(deploy("sign-in.goodfellowcms.com (custom domain)"))).toBe(
       "https://sign-in.goodfellowcms.com",
     );
-    expect(
-      deployedAddress(deploy("https://sign-in.someone.workers.dev", "Sign-In.Example.org (custom domain)")),
-    ).toBe("https://sign-in.example.org");
+    expect(deployedAddress(deploy("https://sign-in.someone.workers.dev", "Sign-In.Example.org (custom domain)"))).toBe(
+      "https://sign-in.example.org",
+    );
     // A route is a pattern, not an address, and a name without a dot isn't a domain.
     expect(deployedAddress(deploy("example.org/sign-in/* (zone name: example.org)"))).toBeUndefined();
     expect(deployedAddress(deploy("localhost (custom domain)"))).toBeUndefined();

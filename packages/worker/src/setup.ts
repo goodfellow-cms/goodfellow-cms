@@ -169,7 +169,7 @@ export function deployedAddress(output: string): string | undefined {
   }
   const domains = targets
     .map((target) => /^([a-z0-9.-]+) \(custom domain\)$/i.exec(target.trim())?.[1])
-    .filter((domain): domain is string => domain !== undefined && domain.includes("."))
+    .filter((domain): domain is string => domain?.includes(".") === true)
     .map((domain) => `https://${domain.toLowerCase()}`);
   const addresses = targets.map((target) => target.trim()).filter((target) => /^https:\/\/[^\s/]+\/?$/.test(target));
   return (
