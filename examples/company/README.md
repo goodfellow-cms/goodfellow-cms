@@ -84,7 +84,11 @@ Invitations and password resets are sent by email: see [Email](#email). Without 
 
 ## Email
 
-The site sends email through the service its settings name, with [Upyo](https://upyo.org) (`lib/email.ts`), which speaks to each one's HTTP API, since Workers can't send email any other way. Nothing in the code names a service, so the site's owners can move to another one without a developer, from the code repository's settings on GitHub. Changing them takes the repository's **Admin** role, so give it to the owners who look after the site:
+The site sends email through the service its settings name, with [Upyo](https://upyo.org) (`lib/email.ts`), which speaks to each one's HTTP API, since Workers can't send email any other way. Nothing in the code names a service, so the site's owners can move to another one without a developer, from the code repository's settings on GitHub.
+
+**Not sure which to use?** If the company doesn't already have an email service, use [Resend](https://resend.com). It's the simplest to set up: you verify your domain by adding the DNS records it shows you, and make a key that can only send. Its [free plan](https://resend.com/pricing) sends 3,000 emails a month, at most 100 a day, which is far more than invitations and password resets need. Its link tracking is off unless someone turns it on. If the company already sends email through Mailgun, SendGrid, Amazon SES, or Plunk, use that instead, so its domain's settings stay in one place.
+
+Changing the settings takes the repository's **Admin** role, so give it to the owners who look after the site:
 
 1. **Make a key at the service** that can only send, from a domain you've verified there, so a key that leaks can't do more.
 2. **Change the settings**, in the code repository's **Settings → Secrets and variables → Actions**. On the **Variables** tab, set `EMAIL_PROVIDER` to the service, `EMAIL_FROM` to who the emails are from (such as `Example Co <hello@example.org>`, on the domain you verified), and any of the others the service needs, from the table below; delete any the new service doesn't use. On the **Secrets** tab, set `EMAIL_API_KEY` to the key.
