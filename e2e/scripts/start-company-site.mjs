@@ -45,11 +45,17 @@ const newGitHub = () =>
     tokens: { [COMPANY.token]: { login: "company-bot", name: "Company bot" } },
   });
 let github = newGitHub();
+// How many requests the Worker has made to GitHub, so tests can tell a page it rendered from one Workers Cache kept.
+let requests = 0;
 serve(COMPANY.github, async (request) => {
-  if (new URL(request.url).pathname === "/__reset") {
+  const { pathname } = new URL(request.url);
+  if (pathname === "/__reset") {
     github = newGitHub();
+    requests = 0;
     return new Response(null, { status: 204 });
   }
+  if (pathname === "/__requests") return Response.json({ requests });
+  requests++;
   return github.handle(request);
 });
 

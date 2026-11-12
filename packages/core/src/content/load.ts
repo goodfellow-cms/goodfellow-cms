@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { type ContentKind, migrateContent } from "../migrations/index.js";
+import { trimChars } from "../trim.js";
 import { type Collection, type Entry, entryFieldProblems, sortCollectionEntries } from "./collections.js";
 import { type MediaDescription, type MediaFocus, mediaFileSchema, type PhotoCredit } from "./credits.js";
 import { ContentError, type ContentProblem } from "./errors.js";
@@ -70,6 +71,24 @@ export async function readTextFiles(source: ContentSource, paths: string[]): Pro
   if (source.readFiles) return source.readFiles(paths);
   const texts = await Promise.all(paths.map(async (path) => [path, await source.read(path)] as const));
   return new Map(texts.filter((entry): entry is readonly [string, string] => entry[1] !== undefined));
+}
+
+/**
+ * Every file under `dir` read up front, in as few requests as `source` can
+ * (`readFiles()`), as a source that answers from memory: for loading the whole
+ * site from a git host, since `loadSiteContent()` reads each file on its own.
+ * Paths outside `dir` read as missing and list as empty.
+ */
+export async function prefetchedSource(source: ContentSource, dir = "content"): Promise<ContentSource> {
+  const paths = await source.list(dir);
+  const files = await readTextFiles(source, paths);
+  const listed = paths.filter((path) => files.has(path));
+  return {
+    read: async (path) => files.get(path),
+    list: async (folder) => listed.filter((path) => path.startsWith(`${trimChars(folder, "/", { start: false })}/`)),
+    readFiles: async (wanted) =>
+      new Map(wanted.flatMap((path) => (files.has(path) ? [[path, files.get(path) as string] as const] : []))),
+  };
 }
 
 export interface Page {

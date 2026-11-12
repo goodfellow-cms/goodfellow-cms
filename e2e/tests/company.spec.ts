@@ -49,13 +49,17 @@ test.beforeEach(async () => {
   await fetch(`${GITHUB}/__reset`, { method: "POST" });
 });
 
-test("serves every page from what the build rendered, rendering none for a visit", async ({ request }) => {
+test("renders each page once from the content repository, then serves it without rendering", async ({ request }) => {
+  const asked = async () => ((await (await fetch(`${GITHUB}/__requests`)).json()) as { requests: number }).requests;
   for (const address of ["/", "/about/", "/news/", "/news/welcome/"]) {
-    // The first visit after the Worker starts may fill a cache; every one after is served as the build rendered it.
-    await request.get(`${SITE}${address}`);
+    // The first visit renders the page from the content repository; every one after is the kept copy, which asks
+    // GitHub nothing.
+    expect((await request.get(`${SITE}${address}`)).status(), address).toBe(200);
+    const before = await asked();
     const page = await request.get(`${SITE}${address}`);
     expect(page.status(), address).toBe(200);
     expect(page.headers()["x-vinext-cache"], address).toBe("HIT");
+    expect(await asked(), address).toBe(before);
   }
   expect((await request.get(`${SITE}/no-such-page/`)).status()).toBe(404);
 });
@@ -114,6 +118,8 @@ test("signs out only when the site's own pages ask", async ({ request }) => {
 });
 
 test("publishes to the content repository through the Worker, naming the editor as the author", async ({ page }) => {
+  // The page as visitors see it before, which Workers Cache keeps.
+  expect(await (await page.request.get(`${SITE}/about/`)).text()).not.toContain("About our company");
   await signIn(page, "editor");
   await expect(page.locator(".gfa-account")).toContainText(COMPANY_PEOPLE.editor.name);
   await page.getByRole("link", { name: "About us", exact: true }).click();
@@ -131,6 +137,8 @@ test("publishes to the content repository through the Worker, naming the editor 
   expect(Buffer.from(about.content, "base64").toString("utf8")).toContain("About our company");
   // The token the Worker publishes with never reaches the browser.
   expect(await page.content()).not.toContain(COMPANY.token);
+  // Visitors see it without the site being built again: the publish asked for its pages to render again.
+  expect(await (await page.request.get(`${SITE}/about/`)).text()).toContain("About our company");
 });
 
 test("leaves Site Settings to the site's admins, whatever an editor's browser sends", async ({ page }) => {

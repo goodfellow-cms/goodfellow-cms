@@ -12,12 +12,15 @@
     "html_handling": "none",
     "not_found_handling": "none",
     "binding": "ASSETS",
-    // Every page goes through the Worker, which serves the copy rendered when the site was built, so proxy.ts can
-    // send people who aren't signed in away from pages for members. Only the build's own files skip it.
+    // Every page goes through the Worker, which serves the copy the KV namespace keeps, so proxy.ts can send people
+    // who aren't signed in away from pages for members. Only the build's own files skip it.
     "run_worker_first": ["/*", "!/_next/static/*", "!/*/_next/static/*"]
   },
   // Resizes the media library's photos for next/image (Cloudflare Images).
   "images": { "binding": "IMAGES" },
+  // Where rendered pages are kept between publishes (vite.config.ts). Make it with
+  // `npx wrangler kv namespace create goodfellow-company-cache` and put its id here.
+  "kv_namespaces": [{ "binding": "VINEXT_KV_CACHE", "id": "your-kv-namespace-id" }],
   "d1_databases": [
     {
       "binding": "DB",
