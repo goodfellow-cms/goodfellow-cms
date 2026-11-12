@@ -32,8 +32,16 @@ function fromBase32(key: string): Buffer {
   return Buffer.from((bits.match(/.{8}/g) ?? []).map((byte) => Number.parseInt(byte, 2)));
 }
 
-/** Signs in with the site's own form, with a code from the admin's authenticator app, and goes on to `next`. */
+let signIns = 0;
+
+/**
+ * Signs in with the site's own form, with a code from the admin's authenticator app, and goes on to `next`. Each
+ * sign-in comes from an address of its own, which Cloudflare gives the Worker as cf-connecting-ip, so the tests'
+ * sign-ins together don't reach the limit on tries from one address (`SIGN_IN_LIMIT`), which another test checks.
+ */
 async function signIn(page: Page, as: keyof typeof COMPANY_PEOPLE, next = "/admin/") {
+  signIns += 1;
+  await page.setExtraHTTPHeaders({ "cf-connecting-ip": `203.0.113.${signIns % 250}` });
   await page.goto(`${SITE}/sign-in/?next=${encodeURIComponent(next)}`);
   await page.getByLabel("Email address").fill(COMPANY_PEOPLE[as].email);
   await page.getByLabel("Password").fill(COMPANY_PASSWORD);
