@@ -145,15 +145,20 @@ A full-stack site can render its pages from the repository as it is now, rather 
 // lib/site.ts
 import { repositorySource } from "@goodfellow-cms/core";
 import { goodfellowPages } from "@goodfellow-cms/next";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import config from "@/goodfellow.config";
 
 let live: ReturnType<typeof repositorySource> | undefined;
 
 export const site = goodfellowPages(config, {
   source: () => {
+    // `next dev`, and `next build`, which renders pages from the files it builds.
+    if (process.env.NODE_ENV === "development" || process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) return undefined;
     const token = process.env.GOODFELLOW_GIT_TOKEN;
-    if (process.env.NODE_ENV === "development" || !token || !config.backend?.server) return undefined;
-    live ??= repositorySource(config.backend.server({ token }));
+    if (!token) throw new Error("Set GOODFELLOW_GIT_TOKEN, which pages read the repository with.");
+    const backend = config.backend;
+    if (!backend?.server) throw new Error("The site's backend can't be reached from its server.");
+    live ??= repositorySource(backend.server({ token }));
     return live();
   },
 });
@@ -172,7 +177,7 @@ export const { GET, POST } = goodfellowApi({
 });
 ```
 
-Mark the page route `export const dynamic = "force-static"`, so each page is kept once it has rendered, and give it, and the sitemap, a `revalidate` time, such as `export const revalidate = 3600`, since only a publish through the admin panel says pages changed: a page renders again once it's that old, so a scheduled time coming, what a page shows by today's date, and changes that reach the repository another way, such as from Claude or a merged review, show within it. Where `source` gives nothing, as in `next dev`, pages read the files on your computer. Give the root layout's `<html lang>` `await site.language()` rather than the site's settings: it falls back to the language of the files the site was built with where `source` can't be read, such as without its token, so the admin panel and sign-in, which the root layout wraps, still open to fix it, while the pages themselves fail. A page's first visit after a publish renders it, which needs the host's API to answer then; the pages already kept don't. New photos and other files in `public/media/` are served from the files the site was built with, so build the site again after each publish, as the company example's content repository asks its code repository to, and until that build is online a page that shows a new photo shows it missing. The company example does this on Cloudflare Workers, keeping pages in Workers KV, where a publish can take up to a minute to reach every location.
+Mark the page route `export const dynamic = "force-static"`, so each page is kept once it has rendered, and give it, and the sitemap, a `revalidate` time, such as `export const revalidate = 3600`, since only a publish through the admin panel says pages changed: a page renders again once it's that old, so a scheduled time coming, what a page shows by today's date, and changes that reach the repository another way, such as from Claude or a merged review, show within it. Where `source` gives nothing, as in `next dev` and while `next build` renders pages, pages read the files on your computer. Without the token it throws, so pages fail rather than show the files the site was built with, which the host would keep as though they were current while publishes never showed. Give the root layout's `<html lang>` `await site.language()` rather than the site's settings: it falls back to the language of the files the site was built with where `source` can't be read, such as without its token, so the admin panel and sign-in, which the root layout wraps, still open to fix it, while the pages themselves fail. A page's first visit after a publish renders it, which needs the host's API to answer then; the pages already kept don't. New photos and other files in `public/media/` are served from the files the site was built with, so build the site again after each publish, as the company example's content repository asks its code repository to, and until that build is online a page that shows a new photo shows it missing. The company example does this on Cloudflare Workers, keeping pages in Workers KV, where a publish can take up to a minute to reach every location.
 
 ## Safety
 
