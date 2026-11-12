@@ -432,11 +432,13 @@ export const COMPANY = { port: 4416, github: 4417, resend: 4418, token: "company
  * nothing, subscribes, so they see members-only pages in full.
  */
 export const COMPANY_PEOPLE = {
-  admin: { name: "Ada Admin", email: "ada@example.org", role: "admin" },
+  admin: { name: "Ada Admin", email: "ada@example.org", role: "admin", twoFactor: true },
   editor: { name: "Eli Editor", email: "eli@example.org", role: "editor" },
   subscriber: { name: "Sam Subscriber", email: "sam@example.org", role: "member" },
 };
 export const COMPANY_PASSWORD = "correct-horse-battery";
+/** The admin's authenticator app's secret: the admin has two-factor sign-in on, which admins need to act as owners. */
+export const COMPANY_TOTP_SECRET = "e2e-admin-authenticator-secret-1";
 
 /** The company example's content and media, as the contents of the fake content repository. */
 export function companyFiles() {

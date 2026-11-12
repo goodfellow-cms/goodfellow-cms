@@ -46,6 +46,16 @@ export type PluginServer = (
   context: { path: string; editor: PluginServerEditor | null },
 ) => Response | Promise<Response>;
 
+/** What a publish through the admin panel's API changed, for `AppApiOptions.onPublish`. */
+export interface PublishedChanges {
+  /** The files the publish wrote or removed, such as `content/pages/about.json`. */
+  paths: string[];
+  /** Who published them. */
+  editor: AppEditor;
+  /** The revision they're in, on the site's main branch. */
+  revision: string;
+}
+
 export interface AppApiOptions {
   /** The site's repository, through a token of the site's own: `config.backend.server({ token })`. */
   git: ServerGit;
@@ -67,6 +77,14 @@ export interface AppApiOptions {
   };
   /** Told about failures the admin panel only hears about as "something went wrong". Defaults to `console.error`. */
   onError?: (error: unknown) => void;
+  /**
+   * Called after each publish through this API, before the admin panel hears
+   * it worked, with the files it changed, who published them, and the
+   * revision they're in: for instance to refresh the pages they're on, or to
+   * tell another system. The publish has happened by then, so a failure here
+   * goes to `onError`, never to the editor.
+   */
+  onPublish?: (published: PublishedChanges) => void | Promise<void>;
   /**
    * Plugins' server modules, by plugin name, such as
    * `{ "goodfellow-plugin-s3": s3Server }`, which answer requests to
@@ -383,7 +401,15 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       // An owner's limits for this person, held here too, since the browser can't be trusted to keep to them.
       const outside = await outsideLimitsAt(backend, editor.login, changes);
       if (outside.length > 0) return json(403, { error: "outside-limits", paths: outside });
-      return json(200, await backend.write(changes, { message, expectedRevision }));
+      const written = await backend.write(changes, { message, expectedRevision });
+      if (options.onPublish) {
+        try {
+          await options.onPublish({ paths: changes.map((change) => change.path), editor, revision: written.revision });
+        } catch (error) {
+          onError(error);
+        }
+      }
+      return json(200, written);
     }
     if (post && endpoint === "review") {
       // A draft with the changes, submitted for review: installing, updating, or removing a plugin, or changing the

@@ -7,7 +7,6 @@ import { authOptions } from "./auth.ts";
 import { can, grant, subscribedUntil } from "./entitlements.ts";
 import type { SiteEnv } from "./env.ts";
 import {
-  isBuildingPages,
   isMembersVersion,
   isPageRequest,
   MEMBERS_VERSION_PATH,
@@ -254,13 +253,6 @@ describe("addresses", () => {
       "/_next/data/x.json",
     ]) {
       expect(isPageRequest("GET", path), path).toBe(false);
-    }
-  });
-
-  it("lets only the site's build through to the members' versions, by its own environment", () => {
-    expect(isBuildingPages("phase-production-build")).toBe(true);
-    for (const phase of [undefined, "", "phase-production-server", "phase-development-server"]) {
-      expect(isBuildingPages(phase), String(phase)).toBe(false);
     }
   });
 

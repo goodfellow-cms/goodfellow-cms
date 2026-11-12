@@ -3,7 +3,6 @@
 // cookie this file signs, saying whether the person subscribes, so most requests read no database: only someone
 // signed in whose cookie is missing or has run out is looked up, and then not again for `PAYWALL_SECONDS`.
 import { getSessionCookie } from "better-auth/cookies";
-import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import type { SiteAuth } from "./auth.ts";
 import { subscribedUntil } from "./entitlements.ts";
 
@@ -184,14 +183,6 @@ export function routedPath(pathname: string): string | undefined {
 /** Whether a request asks for a members' version itself, by its `routedPath()`, which only proxy.ts may send to. */
 export function isMembersVersion(path: string): boolean {
   return path === MEMBERS_VERSION_PATH || path.startsWith(`${MEMBERS_VERSION_PATH}/`);
-}
-
-/**
- * Whether the site's build is asking, rendering the members' versions ahead, as vinext's build does through
- * proxy.ts: only the build's own environment says so (`NEXT_PHASE`), which no request can set.
- */
-export function isBuildingPages(phase = typeof process === "undefined" ? undefined : process.env.NEXT_PHASE): boolean {
-  return phase === PHASE_PRODUCTION_BUILD;
 }
 
 /** Where proxy.ts sends a member's request for `url`'s page: its members' version, with the same query. */

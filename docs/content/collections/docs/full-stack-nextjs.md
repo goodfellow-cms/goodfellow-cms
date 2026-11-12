@@ -126,7 +126,7 @@ export const site = goodfellowPages(config, { paywall: "Paywall" });
 
 Editors put the block where a members-only page's teaser ends. `site.Page` then shows everyone the blocks above it, and the block itself. A paywall inside another block, such as a Section, ends the teaser before that whole block, since what else it holds may be for members. A members-only page with no paywall, such as a members' collection's item whose template places none, shows only the block, with its default words, so nothing an editor didn't choose to show is published. Members-only pages tell search engines nothing in structured data either, since an item's would start with its text.
 
-`site.MembersPage` shows every page in full, without its paywalls, for a route of its own, such as `app/(site)/members/pages/[[...path]]/page.tsx`, which your `proxy.ts` sends members' requests to. Export `site.generateStaticParams` from that route too, so every page's members' version is built ahead, as its version for everyone is, and both are served from the cache without rendering a page for any one visitor. It has to be every page, since the proxy can't tell which are for members, and a server that can't read `content/`, such as a Worker, can't render one that wasn't built. Only your app knows who's a member, so the proxy has to answer a request for that route's own address "Page not found", however it's spelled (`%70` for `p`, say), or anyone could read the pages there. Let the build's own requests through, though: vinext builds pages by asking for them through the proxy, and would keep "Page not found" as each members' version. Only the build has `NEXT_PHASE` set to `phase-production-build` (`PHASE_PRODUCTION_BUILD` from `next/constants`), which no request can change. It's also what keeps the members' version out of every cache between the site and the browser: send it with `Cache-Control: private`.
+`site.MembersPage` shows every page in full, without its paywalls, for a route of its own, such as `app/(site)/members/pages/[[...path]]/page.tsx`, which your `proxy.ts` sends members' requests to. Give that route the same `dynamic` and `revalidate` as your page route, so each members' version is kept once it has rendered, as its version for everyone is, and both are served from the cache without rendering a page for any one visitor. Every page has one, since the proxy can't tell which are for members. The members' versions render as they're asked for, so the site needs a `source` (see [Publishing without a rebuild](#publishing-without-a-rebuild)) where its server can't read `content/`, such as on a Worker. Only your app knows who's a member, so the proxy has to answer a request for that route's own address "Page not found", however it's spelled (`%70` for `p`, say), or anyone could read the pages there. It's also what keeps the members' version out of every cache between the site and the browser: send it with `Cache-Control: private`.
 
 The [company example](https://github.com/goodfellow-cms/goodfellow-cms/tree/master/examples/company) does all of this, deciding who's a member from a signed cookie, so most requests read no database; its README says how.
 
@@ -141,6 +141,65 @@ The server sends on only the requests the assistant makes, and only for people `
 [Plugins](/docs/plugins#on-full-stack-sites-servers) with a server module answer at `/api/goodfellow/plugins/<id>/`. Import each server module in the API route and pass it to `goodfellowApi()` as `plugins: { "goodfellow-plugin-gallery": galleryServer }`. They're answered for anyone, as webhooks need, and told who's signed in only for requests from the site's own pages. A server module runs with everything the server has, so add only plugins you'd trust with its token.
 
 Owners can choose plugins on the admin panel's Plugins screen too, but on a full-stack site installing, updating, or removing one is submitted for review, as a pull request or merge request for a developer to accept, since the site's builds and server hold its secrets. Changes to `plugins/installed/` are refused from the admin panel otherwise. Once you've accepted one, add its server module to the API route if it has one.
+
+## After each publish
+
+`onPublish` is called after each publish from the admin panel, before the editor hears it worked. It's given the files the publish changed (`paths`, such as `content/pages/about.json`), who published them (`editor`, as `authorize` gave them), and the new `revision`:
+
+```ts
+export const { GET, POST } = goodfellowApi({
+  config,
+  authorize,
+  signIn: "/sign-in",
+  onPublish: async ({ paths, editor }) => {
+    await notifyTeam(`${editor.name} published ${paths.join(", ")}`);
+  },
+});
+```
+
+Use it to tell another system, or to refresh pages your app caches itself. The site still rebuilds as usual, which is when visitors see the change, unless its pages render from the repository (below). The publish has already happened when it's called, so if it fails, the failure goes to `onError` and the editor still sees "Published."
+
+## Publishing without a rebuild
+
+A full-stack site can render its pages from the repository as it is now, rather than from the files it was built with, so a publish shows without building the site again. Give `goodfellowPages()` a `source`, such as `repositorySource()` from `@goodfellow-cms/core`, which asks the host for the live branch's newest revision each time and reads each revision's content once, and keep rendered pages in your host's cache until a publish says they changed:
+
+```ts
+// lib/site.ts
+import { repositorySource } from "@goodfellow-cms/core";
+import { goodfellowPages } from "@goodfellow-cms/next";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import config from "@/goodfellow.config";
+
+let live: ReturnType<typeof repositorySource> | undefined;
+
+export const site = goodfellowPages(config, {
+  source: () => {
+    // `next dev`, and `next build`, which renders pages from the files it builds.
+    if (process.env.NODE_ENV === "development" || process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) return undefined;
+    const token = process.env.GOODFELLOW_GIT_TOKEN;
+    if (!token) throw new Error("Set GOODFELLOW_GIT_TOKEN, which pages read the repository with.");
+    const backend = config.backend;
+    if (!backend?.server) throw new Error("The site's backend can't be reached from its server.");
+    live ??= repositorySource(backend.server({ token }));
+    return live();
+  },
+});
+```
+
+```ts
+// app/api/goodfellow/[...path]/route.ts
+import { revalidatePath } from "next/cache";
+
+export const { GET, POST } = goodfellowApi({
+  config,
+  authorize,
+  signIn: "/sign-in",
+  // A publish can change the header, menus, or a list every page shows, so every page renders again.
+  onPublish: () => revalidatePath("/", "layout"),
+});
+```
+
+Mark the page route `export const dynamic = "force-static"`, so each page is kept once it has rendered, and give it, and the sitemap, a `revalidate` time, such as `export const revalidate = 3600`, since only a publish through the admin panel says pages changed: a page renders again once it's that old, so a scheduled time coming, what a page shows by today's date, and changes that reach the repository another way, such as from Claude or a merged review, show within about that long. It isn't exact: the first visit after that time still gets the old page while the new one renders, and if rendering fails, as when the host's API doesn't answer, the old page stays until a later visit renders it, so give a scheduled change some time before it has to be online. Where `source` gives nothing, as in `next dev` and while `next build` renders pages, pages read the files on your computer. Without the token it throws, so pages fail rather than show the files the site was built with, which the host would keep as though they were current while publishes never showed. Give the root layout's `<html lang>` `await site.language()` rather than the site's settings: it falls back to the language of the files the site was built with where `source` can't be read, such as without its token, so the admin panel and sign-in, which the root layout wraps, still open to fix it, while the pages themselves fail. A page's first visit after a publish renders it, which needs the host's API to answer then; the pages already kept don't. New photos and other files in `public/media/` are served from the files the site was built with, so build the site again after each publish, as the company example's content repository asks its code repository to, and until that build is online a page that shows a new photo shows it missing. `revalidatePath()` clears the pages kept where it runs, so a site on more than one server needs them kept in one place every server reads, such as Next.js's `cacheHandler` over a shared store, or every server but the one that took the publish shows the old pages until they're `revalidate` old. The company example does this on Cloudflare Workers, keeping pages in Workers KV, which every location reads, and where a publish can take up to a minute to reach every location.
 
 ## Safety
 

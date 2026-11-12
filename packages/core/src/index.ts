@@ -500,6 +500,7 @@ export {
   type Page,
   parseContentFile,
   parseEntryFile,
+  prefetchedSource,
   readTextFiles,
   type SiteCode,
   type SiteContent,
@@ -1300,6 +1301,7 @@ export {
   type UpdateOptions,
   type UpdatePlan,
 } from "./registry.js";
+export { type RepositorySourceOptions, repositorySource } from "./repository-source.js";
 export {
   IMAGE_WIDTHS,
   imageSrcSet,
@@ -1341,6 +1343,7 @@ export {
 } from "./sign-in-config.js";
 export {
   adminSiteForCopy,
+  builtSource,
   describedForCopy,
   isSiteCopy,
   NO_INDEX_VARIABLE,

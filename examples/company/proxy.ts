@@ -2,7 +2,6 @@ import { type NextRequest, NextResponse } from "next/server";
 import { auth, sessionSecret, signedInWith } from "@/lib/auth";
 import { env } from "@/lib/env";
 import {
-  isBuildingPages,
   isMembersVersion,
   isPageRequest,
   membersVersionUrl,
@@ -11,20 +10,18 @@ import {
 } from "@/lib/paywall";
 
 /** Pages only people who are signed in see; anyone else is sent to sign in first. */
-const SIGNED_IN_ONLY = /^\/(?:members|admin\/editors)(?:\/|$)/;
+const SIGNED_IN_ONLY = /^\/(?:members|admin\/editors|account)(?:\/|$)/;
 
 // Runs before any page, so pages themselves stay the same for everyone they're for and are served from the cache: it
 // only chooses where a request goes.
 //
 // - Subscribers' requests for pages go to the pages' members' versions (lib/paywall.ts), which show members-only
 //   pages in full; everyone else's get the pages as they are, where those are teasers. A request for a members'
-//   version itself is "Page not found", whoever asks, since only the cookie says who may see one, unless it's the
-//   site's build rendering them ahead, which nothing a visitor sends can make it seem.
+//   version itself is "Page not found", whoever asks, since only the cookie says who may see one.
 // - Pages for people who are signed in send everyone else to sign in first. The session is read from the database,
 //   not only its cookie seen, so a made-up, ended, or banned one gets no further.
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const path = routedPath(request.nextUrl.pathname);
-  if (isBuildingPages()) return NextResponse.next();
   if (path === undefined || isMembersVersion(path)) {
     return NextResponse.rewrite(new URL("/404/", request.url));
   }
