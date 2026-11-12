@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { specGroups } from "../playwright.config.ts";
+import { SPECS_VARIABLE, specGroups } from "../playwright.config.ts";
 
 /**
  * `pnpm test:e2e`: every spec, in the groups `specGroups()` makes, one Playwright run after another, so each
@@ -17,7 +17,9 @@ for (const [index, specs] of groups.entries()) {
   // Each file as a filter that matches it alone, with either slash: Playwright's filters are regular expressions
   // found anywhere in a test's path, so `blocks.spec.ts` would also match `wordpress-blocks.spec.ts`.
   const filters = specs.map((spec) => `(^|[\\\\/])tests[\\\\/]${spec.replaceAll(".", "\\.")}$`);
-  const run = spawnSync(process.execPath, [cli, "test", ...filters, ...options], { stdio: "inherit" });
+  // The config chooses the group's servers from the names themselves, never from the filters.
+  const env = { ...process.env, [SPECS_VARIABLE]: specs.join(",") };
+  const run = spawnSync(process.execPath, [cli, "test", ...filters, ...options], { stdio: "inherit", env });
   if (run.status !== 0) failed.push(index + 1);
 }
 if (failed.length > 0) {

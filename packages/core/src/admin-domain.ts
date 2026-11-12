@@ -61,6 +61,18 @@ export function adminAddressProblem(admin: AdminAddress, siteUrl: string | undef
   return undefined;
 }
 
+/**
+ * A string as a script's literal, with nothing a page could read as markup:
+ * `<` and `>` are escaped, as are the line separators JSON leaves in,
+ * so it can't end the script or the CDATA section it's in.
+ */
+function scriptString(value: string): string {
+  return JSON.stringify(value).replace(
+    /[<>\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
 /** What marks a guard script, so checks can find it. */
 export const GUARD_ATTRIBUTE = "data-goodfellow-guard";
 
@@ -72,8 +84,8 @@ export const GUARD_ATTRIBUTE = "data-goodfellow-guard";
  * to, so they only stop.
  */
 export function siteGuard(admin: string, site: string | undefined): string {
-  const go = site ? `location.replace(${JSON.stringify(site)}+location.pathname+location.search+location.hash);` : "";
-  return `(function(){if(location.origin!==${JSON.stringify(admin)})return;try{document.write("\\x3cplaintext hidden>")}catch(e){}try{window.stop()}catch(e){}${go}})();`;
+  const go = site ? `location.replace(${scriptString(site)}+location.pathname+location.search+location.hash);` : "";
+  return `(function(){if(location.origin!==${scriptString(admin)})return;try{document.write("\\x3cplaintext hidden>")}catch(e){}try{window.stop()}catch(e){}${go}})();`;
 }
 
 /**
@@ -83,7 +95,7 @@ export function siteGuard(admin: string, site: string | undefined): string {
  * starts only there, going there from anywhere else.
  */
 export function adminGuard(admin: AdminAddress, broker?: string): string {
-  const origin = JSON.stringify(adminOrigin(admin) ?? "");
+  const origin = scriptString(adminOrigin(admin) ?? "");
   const checked = admin.checked === true;
   // With a token broker, the admin panel is shown in its frame, and waits for the broker before showing anything.
   const framedCheck = broker ? "var framed=false;" : "var framed=true;try{framed=window.top!==window}catch(e){}";
@@ -130,9 +142,13 @@ function guardElement(script: string, kind: PageFileKind): string {
 /** Where the guard goes: just after `<head>`, or failing that `<html>` or the doctype, in HTML; just inside the root element in XML. */
 function guardPosition(text: string, kind: PageFileKind): number | undefined {
   if (kind === "html") {
-    for (const pattern of [/<head(?:\s[^>]*)?>/i, /<html(?:\s[^>]*)?>/i, /<!doctype[^>]*>/i]) {
-      const match = pattern.exec(text);
-      if (match) return match.index + match[0].length;
+    for (const [name, whole] of [
+      [/<head/gi, true],
+      [/<html/gi, true],
+      [/<!doctype/gi, false],
+    ] as const) {
+      const end = tagEnd(text, name, whole);
+      if (end !== undefined) return end;
     }
     return /^\s*$/.test(text) ? undefined : 0;
   }
@@ -140,12 +156,71 @@ function guardPosition(text: string, kind: PageFileKind): number | undefined {
   return root ? root.end : undefined;
 }
 
+/**
+ * Where the first tag `name` finds (a global, case-insensitive pattern of the
+ * tag's start alone) ends, just after its `>`: a `<head>` or `<head …>` where
+ * `whole`, so `<header>` doesn't count, or anything after a `<!doctype`.
+ * Searching on from each start, rather than matching `/<head(?:\s[^>]*)?>/`,
+ * keeps text with many tags that never end from taking time that grows with
+ * the square of its length.
+ */
+function tagEnd(text: string, name: RegExp, whole: boolean): number | undefined {
+  name.lastIndex = 0;
+  for (let match = name.exec(text); match; match = name.exec(text)) {
+    const after = match.index + match[0].length;
+    const next = text.charAt(after);
+    if (whole && next !== ">" && !/\s/.test(next)) continue;
+    const close = text.indexOf(">", after);
+    // No later tag ends either, since there's no ">" after this one.
+    return close === -1 ? undefined : close + 1;
+  }
+  return undefined;
+}
+
+/**
+ * Where an XML file's prolog ends: its byte order mark, space, declaration,
+ * processing instructions, comments, and doctype (with its internal subset in
+ * brackets). It's read by searching on from each part's start, so a part
+ * that never ends takes time in proportion to the text, and the prolog ends
+ * before it.
+ */
+function prologEnd(text: string): number {
+  let at = text.charCodeAt(0) === 0xfeff ? 1 : 0;
+  for (;;) {
+    if (/\s/.test(text.charAt(at))) {
+      at += 1;
+    } else if (text.startsWith("<?", at)) {
+      const end = text.indexOf("?>", at + 2);
+      if (end === -1) return at;
+      at = end + 2;
+    } else if (text.startsWith("<!--", at)) {
+      const end = text.indexOf("-->", at + 4);
+      if (end === -1) return at;
+      at = end + 3;
+    } else if (text.slice(at, at + 9).toLowerCase() === "<!doctype") {
+      let end = at + 9;
+      while (end < text.length && text.charAt(end) !== ">") {
+        if (text.charAt(end) === "[") {
+          const close = text.indexOf("]", end + 1);
+          if (close === -1) return at;
+          end = close + 1;
+        } else {
+          end += 1;
+        }
+      }
+      if (end >= text.length) return at;
+      at = end + 1;
+    } else {
+      return at;
+    }
+  }
+}
+
 /** The root element's start tag in an XML file, after its declaration, comments, doctype, and processing instructions. */
 function rootElement(
   text: string,
 ): { start: number; end: number; tag: string; name: string; empty: boolean } | undefined {
-  const prolog = /^(?:\uFEFF)?(?:\s+|<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE(?:[^[>]|\[[\s\S]*?\])*>)*/i.exec(text);
-  const start = prolog ? prolog[0].length : 0;
+  const start = prologEnd(text);
   const tag = /^<([A-Za-z_][^\s/>]*)(?:\s+[^\s=/>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'))?)*\s*(\/?)>/.exec(text.slice(start));
   if (!tag) return undefined;
   return { start, end: start + tag[0].length, tag: tag[0], name: tag[1] ?? "", empty: tag[2] === "/" };

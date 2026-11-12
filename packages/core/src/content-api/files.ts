@@ -229,7 +229,9 @@ function withoutSlots(defaults: Record<string, unknown>, fields: Fields): Record
 
 /** Reads prepared data for rich text and the blocks it uses, sanitizing rich text as pages do. */
 class DataReader {
-  readonly richText: ApiRichText = {};
+  // Kept by block ids and prop paths, which content chooses, so objects with no prototype hold them: an id
+  // such as "__proto__" is then a key like any other.
+  readonly richText: ApiRichText = Object.create(null);
 
   constructor(
     private readonly description: SiteDescription,
@@ -265,8 +267,9 @@ class DataReader {
 
   private keep(owner: string, path: string, nodes: RichTextBlock[]): void {
     if (nodes.length === 0) return;
-    this.richText[owner] ??= {};
-    this.richText[owner][path] = nodes;
+    const own: Record<string, RichTextBlock[]> = this.richText[owner] ?? Object.create(null);
+    own[path] = nodes;
+    this.richText[owner] = own;
   }
 
   private value(value: unknown, field: Fields[string], owner: string, path: string): unknown {

@@ -26,6 +26,7 @@ import { type Schedule, scheduleState } from "./content/schedule.js";
 import type { CollectionField } from "./content/schemas.js";
 import { expandSyncedBlocks } from "./content/synced-blocks.js";
 import { rewriteMarkdown } from "./markdown-import.js";
+import { trimChars } from "./trim.js";
 import { itemParts, type ConvertContext as ReadContext } from "./wordpress/convert.js";
 import { blocksIn, type ConvertContext, type PuckBlock, puckBlocks, withoutTitle } from "./wordpress/export.js";
 import { partsMarkdown } from "./wordpress/markdown.js";
@@ -231,7 +232,7 @@ export function markdownExport(loaded: SiteContent, options: MarkdownExportOptio
   let unsaid = 0;
   for (const redirect of content.redirects ?? []) {
     const target = linkTarget(redirect.to);
-    const path = target?.kind === "page" ? target.path.replace(/(.)\/+$/, "$1") : undefined;
+    const path = target?.kind === "page" ? withoutTrailingSlashes(target.path) : undefined;
     if (path && addresses.has(path) && !/[?#]/.test(redirect.to)) {
       aliases.set(path, [...(aliases.get(path) ?? []), permalink(redirect.from)]);
     } else unsaid++;
@@ -374,7 +375,7 @@ export function markdownExport(loaded: SiteContent, options: MarkdownExportOptio
       const path = target.path.slice(1);
       return mediaPaths.has(path) ? `${relativePath(file, path)}${rest}` : address;
     }
-    const to = fileByPath.get(target.path.replace(/(.)\/+$/, "$1"));
+    const to = fileByPath.get(withoutTrailingSlashes(target.path));
     return to ? `${relativePath(file, to)}${rest}` : address;
   };
 
@@ -418,13 +419,20 @@ export function markdownExport(loaded: SiteContent, options: MarkdownExportOptio
   };
 }
 
+/** A path without the slashes at its end, keeping `/` for the home page. */
+function withoutTrailingSlashes(path: string): string {
+  return trimChars(path, "/", { start: false }) || path.slice(0, 1);
+}
+
 /** A name for the export: the site's title, then `-markdown`. */
 export function markdownExportName(content: Pick<SiteContent, "settings">): string {
-  const base = content.settings.title
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const base = trimChars(
+    content.settings.title
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-"),
+    "-",
+  );
   return `${base || "site"}-markdown`;
 }
