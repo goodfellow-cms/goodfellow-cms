@@ -109,7 +109,8 @@ async function transportFor(siteEnv: SiteEnv, provider: EmailProvider): Promise<
       const { MailgunTransport } = await import("@upyo/mailgun");
       return new MailgunTransport({
         apiKey,
-        domain: siteEnv.EMAIL_DOMAIN || domainOf(siteEnv.EMAIL_FROM ?? ""),
+        // EMAIL_FROM is an address by now (missingEmailSettings()), so there's always a domain to fall back on.
+        domain: siteEnv.EMAIL_DOMAIN?.trim() || domainOf(siteEnv.EMAIL_FROM ?? ""),
         region: siteEnv.EMAIL_REGION?.trim().toLowerCase() === "eu" ? "eu" : "us",
         tracking: false,
         clickTracking: false,

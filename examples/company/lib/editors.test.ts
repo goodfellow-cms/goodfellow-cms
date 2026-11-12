@@ -262,6 +262,11 @@ describe("emails", () => {
     }
     const ownDomain = await sendThrough({ EMAIL_PROVIDER: "mailgun", EMAIL_DOMAIN: "mg.example.org" });
     expect(ownDomain.request.url).toBe("https://api.mailgun.net/v3/mg.example.org/messages");
+    // An empty or blank EMAIL_DOMAIN, as Deploy sets where the variable is missing, falls back to EMAIL_FROM's.
+    for (const blank of ["", "  "]) {
+      const fallback = await sendThrough({ EMAIL_PROVIDER: "mailgun", EMAIL_DOMAIN: blank });
+      expect(fallback.request.url).toBe("https://api.mailgun.net/v3/example.org/messages");
+    }
 
     // SendGrid answers a message it accepts with 202 and nothing else.
     const sendgrid = await sendThrough(
