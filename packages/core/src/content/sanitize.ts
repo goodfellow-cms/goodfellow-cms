@@ -9,6 +9,18 @@ const GLOBAL_ATTRIBUTES = ["class", "id", "title", "lang", "dir"];
 
 let filter: InstanceType<typeof xss.FilterXSS> | undefined;
 
+/**
+ * An address attribute (`href`, `src`) as the page will have it: checked with `isSafeUrl()` as browsers read it, with
+ * character references spelled out (`&#106;`, `&colon;`), and written as it was, with only its quotes and angle
+ * brackets escaped, since browsers spell a value's references out once, so they read the address that was checked.
+ * A reference left as written (`&Tab;`) can't hide a scheme, since `isSafeUrl()` refuses any colon before a `/`, `?`,
+ * or `#`. js-xss's own check isn't used: it keeps only a few kinds of address, and drops relative ones (`about/`,
+ * `?page=2`) and schemes in capitals (`HTTPS://`).
+ */
+function safeAddress(value: string): string {
+  return isSafeUrl(xss.friendlyAttrValue(value).trim()) ? xss.escapeAttrValue(value.trim()) : "";
+}
+
 function createFilter() {
   const allowList = xss.getDefaultWhiteList();
   for (const tag of Object.keys(allowList)) {
@@ -36,8 +48,8 @@ function createFilter() {
       return name === "id" && /^\s*gf-/i.test(xss.friendlyAttrValue(value)) ? "" : undefined;
     },
     safeAttrValue(tag, name, value, cssFilter) {
+      if (name === "href" || name === "src") return safeAddress(value);
       const safe = xss.safeAttrValue(tag, name, value, cssFilter);
-      if ((name === "href" || name === "src") && !isSafeUrl(safe)) return "";
       if (name === "srcset" && safe.split(",").some((candidate) => !isSafeUrl(candidate.trim().split(/\s+/)[0] ?? "")))
         return "";
       return safe;
@@ -89,8 +101,11 @@ export const RICH_TEXT_TAGS: Readonly<Record<string, readonly string[]>> = {
   hr: [],
 };
 
-/** Alignments rich text can have, as Puck's editor writes them: left is the default, which it leaves unsaid. */
-const ALIGNMENTS = new Set(["center", "right", "justify"]);
+/**
+ * Alignments rich text can have, as Puck's editor writes them. Left is kept too: inside a block that centers its text,
+ * a paragraph set to the left differs from one that says nothing.
+ */
+const ALIGNMENTS = new Set(["left", "center", "right", "justify"]);
 
 /** The text alignment a style gives, read declaration by declaration. */
 function textAlign(style: string): string | undefined {
@@ -139,8 +154,7 @@ export function cleanRichText(html: string): string {
       return undefined;
     },
     safeAttrValue(tag, name, value, cssFilter) {
-      const safe = xss.safeAttrValue(tag, name, value, cssFilter);
-      return name === "href" && !isSafeUrl(safe) ? "" : safe;
+      return name === "href" ? safeAddress(value) : xss.safeAttrValue(tag, name, value, cssFilter);
     },
   });
   return richTextFilter.process(html);
@@ -163,8 +177,7 @@ export function tableCellHtml(html: string): string {
     stripIgnoreTagBody: ["script", "style", "iframe", "object", "embed", "noscript", "template"],
     css: false,
     safeAttrValue(tag, name, value, cssFilter) {
-      const safe = xss.safeAttrValue(tag, name, value, cssFilter);
-      return name === "href" && !isSafeUrl(safe) ? "" : safe;
+      return name === "href" ? safeAddress(value) : xss.safeAttrValue(tag, name, value, cssFilter);
     },
   });
   return cellFilter.process(html);

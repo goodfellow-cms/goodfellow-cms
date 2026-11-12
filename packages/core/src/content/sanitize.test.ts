@@ -69,7 +69,7 @@ describe("cleanRichText", () => {
       '<p style="text-align: center">Hi</p>',
     );
     expect(cleanRichText('<p style="text-align: left">Hi</p><p style="text-align: x">Hi</p>')).toBe(
-      "<p>Hi</p><p>Hi</p>",
+      '<p style="text-align: left">Hi</p><p>Hi</p>',
     );
     expect(cleanRichText('<code class="bg-red-500">x</code>')).toBe("<code>x</code>");
     expect(cleanRichText('<a href="/about/" target="_self" rel="">Us</a>')).toBe('<a href="/about/">Us</a>');
@@ -85,5 +85,57 @@ describe("cleanRichText", () => {
     cleanRichText("<a".repeat(50_000));
     cleanRichText(`<p style="${"text-align: ".repeat(20_000)}">x</p>`);
     expect(performance.now() - started).toBeLessThan(2000);
+  });
+});
+
+describe("addresses in sanitized HTML", () => {
+  // Each filter, given a link, with what it gives back.
+  const filters: [string, (href: string) => string][] = [
+    ["sanitizeHtml", (href) => sanitizeHtml(`<a href="${href}">x</a>`)],
+    ["tableCellHtml", (href) => tableCellHtml(`<a href="${href}">x</a>`)],
+    ["cleanRichText", (href) => cleanRichText(`<a href="${href}">x</a>`)],
+  ];
+
+  it.each(filters)("%s keeps every address that can't run code, as written", (_name, link) => {
+    for (const href of [
+      "about/",
+      "?page=2",
+      "#top",
+      "/media/a.pdf",
+      "../up",
+      "HTTPS://example.org/",
+      "Mailto:a@example.org",
+    ]) {
+      expect(link(href)).toBe(`<a href="${href}">x</a>`);
+    }
+    expect(link("/search?q=a&amp;b=2")).toBe('<a href="/search?q=a&amp;b=2">x</a>');
+  });
+
+  it.each(filters)("%s leaves out addresses that run code, however they're spelled", (_name, link) => {
+    for (const href of [
+      "javascript:steal()",
+      "JaVaScRiPt:steal()",
+      " javascript:steal()",
+      "java&#x09;script:steal()",
+      "&#106;avascript:steal()",
+      "javascript&colon;steal()",
+      "javascript&#58steal()",
+      "java&Tab;script:steal()",
+      "data:text/html,x",
+      "vbscript:x",
+    ]) {
+      expect(link(href)).toBe("<a href>x</a>");
+    }
+  });
+
+  it.each(filters)("%s writes an address as it was, so the page reads it once, as it was checked", (_name, link) => {
+    // `&#38;` is `&`, so browsers read this as `&#106;avascript:…`, an address on the site, never as `javascript:`.
+    expect(link("&#38;#106;avascript:steal()")).toBe('<a href="&#38;#106;avascript:steal()">x</a>');
+    expect(sanitizeHtml(`<a href='/a"b<c'>x</a>`)).toBe('<a href="/a&quot;b&lt;c">x</a>');
+  });
+
+  it("keeps images' relative addresses too", () => {
+    expect(sanitizeHtml('<img src="media/a.jpg" alt="A">')).toBe('<img src="media/a.jpg" alt="A">');
+    expect(sanitizeHtml('<img src="javascript:steal()" alt="A">')).toBe('<img src alt="A">');
   });
 });
