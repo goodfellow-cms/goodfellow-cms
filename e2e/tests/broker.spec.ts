@@ -99,7 +99,7 @@ test("asks before showing the admin panel from an address it hasn't shown it fro
   await expect(page.getByRole("alertdialog")).toContainText(
     `Last time, this page showed the admin panel from ${new URL(site).origin}`,
   );
-  expect(page.frames().some((frame) => frame.url().startsWith("https://evil.example"))).toBe(false);
+  expect(page.frames().some((frame) => new URL(frame.url()).origin === "https://evil.example")).toBe(false);
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("heading", { name: "Sign in to edit parish/site" })).toBeVisible();
 });

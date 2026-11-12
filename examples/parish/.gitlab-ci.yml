@@ -9,25 +9,30 @@
 # site's files again, which GitLab Pages needs of a pages job, rather than
 # building it. The schedule's GOODFELLOW_NIGHTLY variable "always" builds it
 # every night, and the Updates screen turns the schedule off for "never".
-# Updating needs "Allow Git push requests to the repository" under Settings →
-# CI/CD → Job token permissions, which the Updates screen turns on.
+# The prepare job makes the update, and, when package.json names packages
+# package-lock.json doesn't have, such as a plugin installed from the admin
+# panel, writes package-lock.json, installing nothing and running none of their
+# code. It runs the site's code, so it only commits: the publish job, which
+# runs none of it, checks the commits change only what an update or a lockfile
+# does and publishes them, with a deploy key the Updates screen adds. The key's
+# private half is the GOODFELLOW_DEPLOY_KEY variable (Settings → CI/CD →
+# Variables), protected and scoped to the goodfellow-publish environment, so
+# only the publish job gets it; a publish starts a pipeline of its own, which
+# builds the site with it.
 # The admin panel also adds a pipeline schedule for each time a page or item is
 # scheduled to be shown or hidden, with GOODFELLOW_SCHEDULED_CHANGE set, and
 # starts a pipeline for the Updates screen's Rebuild now, both of which only
-# build the site. When package.json names packages package-lock.json doesn't
-# have, such as a plugin installed from the admin panel, it writes
-# package-lock.json first, installing nothing and running none of their code,
-# and publishes it, which also needs that job token permission. Plugins' tasks,
-# such as S3 storage signing uploads with keys in the project's CI/CD
-# variables, run in the plugin-task job below, in pipelines the admin panel
-# starts, which build nothing. See README.md.
+# build the site. Plugins' tasks, such as S3 storage signing uploads with keys
+# in the project's CI/CD variables, run in the plugin-task job below, in
+# pipelines the admin panel starts, which build nothing. See README.md.
 variables:
   LOCKFILE_CHECK: 'const fs = require("fs"); const read = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; } }; const site = read("package.json") || {}; const root = ((read("package-lock.json") || {}).packages || {})[""]; const same = (a, b) => JSON.stringify(Object.entries(a || {}).sort()) === JSON.stringify(Object.entries(b || {}).sort()); process.exit(root && ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].every((key) => same(site[key], root[key])) ? 0 : 1);'
   EARLY_CHECK: 'const fs = require("fs"); let record; try { record = JSON.parse(fs.readFileSync("plugins/installed/installed.json", "utf8")); } catch { process.exit(0); } process.exit(Object.values(record.plugins || {}).some((plugin) => plugin && plugin.early) ? 1 : 0);'
   LOCKFILE_REGISTRY_CHECK: 'const { execFileSync } = require("child_process"); const fs = require("fs"); const read = (text) => { try { return JSON.parse(text); } catch { return undefined; } }; const found = (value, into) => { if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) { if (key === "resolved") into.add(String(item)); else found(item, into); } return into; }; let before; try { before = read(execFileSync("git", ["show", "HEAD:package-lock.json"], { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] })); } catch {} const had = found(before, new Set()); const refused = [...found(read(fs.readFileSync("package-lock.json", "utf8")), new Set())].filter((address) => !had.has(address) && !address.startsWith("https://registry.npmjs.org/")); for (const address of refused) console.log("::error::package-lock.json takes a package from somewhere other than npm, so it was not published: " + address); process.exit(refused.length > 0 ? 1 : 0);'
 
-pages:
+prepare:
   image: node:22
+  stage: build
   cache:
     key:
       files: [package-lock.json]
@@ -35,36 +40,131 @@ pages:
   script:
     # When package.json names packages package-lock.json doesn't have, such as a plugin installed from the
     # admin panel: writes package-lock.json, installing nothing and running none of the packages' code, with
-    # releases at least 3 days old for what it adds, and publishes it.
+    # releases at least 3 days old for what it adds, for the publish job to publish.
     - |
       if ! node -e "$LOCKFILE_CHECK"; then
         # A plugin installed before it was 3 days old is checked against its provenance first,
         # and the job fails if it doesn't check out.
         if node -e "$EARLY_CHECK"; then npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"; else core=$(node -e 'const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);') || exit 1; npm exec --yes --package="@goodfellow-cms/core@$core" -- goodfellow-early; fi
         node -e "$LOCKFILE_REGISTRY_CHECK"
-        git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_FQDN:-$CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
         git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names" package-lock.json
-        git push -o ci.skip origin "HEAD:$CI_COMMIT_BRANCH" || echo "package-lock.json wasn't published: turn on \"Allow Git push requests to the repository\" under Settings → CI/CD → Job token permissions."
       fi
-    - npm ci --cache .npm --prefer-offline
     - |
       build=true
       update=false
       if [ -n "$GOODFELLOW_UPDATE" ]; then
         update=true
       elif [ "$CI_PIPELINE_SOURCE" = "schedule" ] && [ -z "$GOODFELLOW_SCHEDULED_CHANGE" ]; then
+        npm ci --cache .npm --prefer-offline
         # Sets build and update; where it can't tell, the site is updated and built as before.
         npx goodfellow nightly --output nightly.env && . ./nightly.env || update=true
       fi
     - |
       if [ "$update" = true ]; then
-        git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_FQDN:-$CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
-        npx goodfellow update --publish --to "${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't published; building the site as it is."
+        [ -d node_modules ] || npm ci --cache .npm --prefer-offline
+        npx goodfellow update --commit --to "${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't made; the site stays as it is."
+      fi
+    - echo "$build" > goodfellow-build.txt
+    # What this job committed, for the publish job to check and publish: this job ran the site's code, so it can't.
+    - git format-patch --binary --stdout "$CI_COMMIT_SHA..HEAD" > goodfellow-publish.patch
+  artifacts:
+    paths: [goodfellow-publish.patch, goodfellow-build.txt]
+    expire_in: 1 day
+  # A newer publish cancels it ("Auto-cancel redundant pipelines" under
+  # Settings → CI/CD → General pipelines, on by default).
+  interruptible: true
+  rules:
+    - if: $GOODFELLOW_TASK_PLUGIN
+      when: never
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      when: never
+    - if: $GOODFELLOW_UPDATE
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $GOODFELLOW_SCHEDULED_CHANGE == null
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes: [package.json]
+
+publish:
+  image: node:22
+  stage: test
+  needs:
+    - job: prepare
+      artifacts: true
+  # Only jobs in this environment, on protected branches, get GOODFELLOW_DEPLOY_KEY: the private half of
+  # the deploy key the admin panel's Updates screen adds, which can publish to this project. Nothing in this
+  # job runs the site's code.
+  environment:
+    name: goodfellow-publish
+    action: prepare
+  allow_failure: true
+  script:
+    - |
+      run() { env -i HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin "$@"; }
+      if [ -f goodfellow-publish.patch ] && [ ! -L goodfellow-publish.patch ] && [ -s goodfellow-publish.patch ]; then
+        run git -c user.name="Goodfellow" -c user.email=publish@goodfellow.invalid am goodfellow-publish.patch
+        # The commits were made where the site's code ran, so only what an update or a lockfile changes is published.
+        run BASE="$CI_COMMIT_SHA" node -e 'const { execFileSync } = require("child_process"); const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 1 << 28 }); const files = ["package.json","package-lock.json","content/updates.json","vercel.json","app/admin/page.tsx","app/admin/editor/page.tsx"]; const refused = []; const raw = git("diff", "--no-renames", "--raw", "-z", process.env.BASE, "HEAD").split("\0"); for (let i = 0; i + 1 < raw.length; i += 2) { const mode = raw[i].split(" ")[1]; const path = raw[i + 1]; const plain = ["000000", "100644", "100755"].includes(mode); if (!plain || !files.includes(path)) refused.push(path); } const found = (value, into) => { if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) { if (key === "resolved") into.add(String(item)); else found(item, into); } return into; }; const lock = (rev) => { try { return JSON.parse(git("show", rev + ":package-lock.json")); } catch { return undefined; } }; const before = found(lock(process.env.BASE), new Set()); for (const address of found(lock("HEAD"), new Set())) { if (!before.has(address) && !address.startsWith("https://registry.npmjs.org/")) refused.push("package-lock.json: " + address); } for (const path of refused) console.log("::error::The update changed what an update never does, so it was not published: " + path); process.exit(refused.length > 0 ? 1 : 0);'
+        if [ -z "$GOODFELLOW_DEPLOY_KEY" ]; then
+          echo "Nothing was published, since this job has no key to publish with: turn on updates on the admin panel's Updates screen, which adds one."
+          exit 1
+        fi
+        key="$(mktemp)"
+        trap 'rm -f "$key"' EXIT
+        printf '%s' "$GOODFELLOW_DEPLOY_KEY" | base64 -d > "$key"
+        chmod 600 "$key"
+        run GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/known_hosts -p ${CI_SERVER_SHELL_SSH_PORT:-22}" git push "git@${CI_SERVER_SHELL_SSH_HOST:-$CI_SERVER_HOST}:${CI_PROJECT_PATH}.git" "HEAD:refs/heads/$CI_COMMIT_BRANCH"
+      fi
+  rules:
+    - if: $GOODFELLOW_TASK_PLUGIN
+      when: never
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      when: never
+    - if: $GOODFELLOW_UPDATE
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $GOODFELLOW_SCHEDULED_CHANGE == null
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes: [package.json]
+
+pages:
+  image: node:22
+  stage: deploy
+  # Where the prepare and publish jobs run: on scheduled pipelines, with an update, and when package.json changes.
+  needs:
+    - job: prepare
+      artifacts: true
+      optional: true
+    - job: publish
+      artifacts: false
+      optional: true
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [.npm/]
+  script:
+    - |
+      build="$(cat goodfellow-build.txt 2>/dev/null || echo true)"
+      head="$(git ls-remote origin "refs/heads/$CI_COMMIT_BRANCH" | cut -f1)"
+      if [ -n "$head" ] && [ "$head" != "$CI_COMMIT_SHA" ]; then
+        echo "A newer version has been published, which its own pipeline builds."
+        build=false
+      fi
+      reused=false
+      if [ "$build" = false ] && curl --fail --silent --show-error --location --header "JOB-TOKEN: $CI_JOB_TOKEN" --output live.zip "$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/$CI_DEFAULT_BRANCH/download?job=pages" && unzip -q -o live.zip; then
+        echo "Publishing the live site's files again, since they're still current."
+        reused=true
+      fi
+    # When package.json names packages package-lock.json doesn't have, such as a plugin installed from the
+    # admin panel: writes package-lock.json, installing nothing and running none of the packages' code, with
+    # releases at least 3 days old for what it adds, where the publish job couldn't publish it, to build the site with.
+    - |
+      if [ "$reused" = false ] && ! node -e "$LOCKFILE_CHECK"; then
+        # A plugin installed before it was 3 days old is checked against its provenance first,
+        # and the job fails if it doesn't check out.
+        if node -e "$EARLY_CHECK"; then npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"; else core=$(node -e 'const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);') || exit 1; npm exec --yes --package="@goodfellow-cms/core@$core" -- goodfellow-early; fi
+        node -e "$LOCKFILE_REGISTRY_CHECK"
+        git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names" package-lock.json
       fi
     - |
-      if [ "$build" = false ] && curl --fail --silent --show-error --location --header "JOB-TOKEN: $CI_JOB_TOKEN" --output live.zip "$CI_API_V4_URL/projects/$CI_PROJECT_ID/jobs/artifacts/$CI_DEFAULT_BRANCH/download?job=pages" && unzip -q -o live.zip; then
-        echo "Publishing the live site's files again, since nothing has changed since they were built."
-      else
+      if [ "$reused" = false ]; then
+        npm ci --cache .npm --prefer-offline
         # Pages may serve the site from a subfolder, such as https://group.gitlab.io/site/.
         export GOODFELLOW_BASE="$(node -e 'console.log(new URL(process.env.CI_PAGES_URL).pathname)')"
         npx goodfellow build

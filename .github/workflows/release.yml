@@ -140,7 +140,9 @@ jobs:
     uses: ./.github/workflows/docs.yml
     with:
       ref: ${{ needs.tag.outputs.sha }}
+    # The Cloudflare token is the cloudflare-pages environment's own, which docs.yml's deploy job names.
     permissions:
+      actions: read
       contents: read
       pages: write
       id-token: write

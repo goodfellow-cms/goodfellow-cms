@@ -223,6 +223,21 @@ describe.each(DATABASES)("the migrated database, on %s", (_, open) => {
       expect((await signedInWith(auth, new Request(`${SITE}/members/`))).signedIn).toBe(false);
     }));
 
+  it("keeps members' pages from a session that has ended or someone banned, even with its cookie's cached copy", () =>
+    withDatabase(open, async (database) => {
+      const { auth, person, signedIn } = await site(database);
+      const context = await auth.$context;
+      const eddie = await person("eddie@example.org", "editor");
+      // Sessions end everywhere as a used reset link ends them, while the browser keeps its cookies.
+      const before = await signedIn("eddie@example.org");
+      expect(before.headers.get("cookie")).toContain("session_data");
+      await context.internalAdapter.deleteUserSessions(eddie);
+      expect((await signedInWith(auth, before)).signedIn).toBe(false);
+      const banned = await signedIn("eddie@example.org");
+      await context.internalAdapter.updateUser(eddie, { banned: true });
+      expect((await signedInWith(auth, banned)).signedIn).toBe(false);
+    }));
+
   it("signs out only for the site's own pages", () =>
     withDatabase(open, async (database) => {
       const { auth, person, signedIn } = await site(database);

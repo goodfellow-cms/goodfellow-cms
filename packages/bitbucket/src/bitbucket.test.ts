@@ -649,6 +649,45 @@ describe("updates and scheduled changes", () => {
     fake.commit("bitbucket-pipelines.yml", "pipelines: {}\n");
     await backend.revision();
     expect(await backend.updates?.setup()).toBe("missing");
+    // An update committed that no step after it publishes is thrown away, even where the lockfile's step publishes.
+    fake.commit(
+      "bitbucket-pipelines.yml",
+      [
+        "pipelines:",
+        "  branches:",
+        "    main:",
+        "      - step:",
+        "          script: [git am goodfellow-publish.patch]",
+        "  custom:",
+        "    update:",
+        "      - step:",
+        "          script: [npx goodfellow update --commit]",
+        "    scheduled:",
+        "      - step:",
+        "          script: [git am goodfellow-publish.patch]",
+        "",
+      ].join("\n"),
+    );
+    await backend.revision();
+    expect(await backend.updates?.setup()).toBe("missing");
+    // Nor where the update pipeline's own publishing step is commented out.
+    fake.commit(
+      "bitbucket-pipelines.yml",
+      [
+        "pipelines:",
+        "  custom:",
+        "    update:",
+        "      - step:",
+        "          script: [npx goodfellow update --commit]",
+        "      - step:",
+        "          script:",
+        "            # - git am goodfellow-publish.patch",
+        "            - echo nothing # git am goodfellow-publish.patch",
+        "",
+      ].join("\n"),
+    );
+    await backend.revision();
+    expect(await backend.updates?.setup()).toBe("missing");
   });
 
   it("runs the update with the release asked for, rebuilds, and reads what the last run did from its log", async () => {
@@ -663,6 +702,9 @@ describe("updates and scheduled changes", () => {
     ]);
     fake.addUpdateRun(`Installing\n${formatUpdateResult({ state: "updated", from: "0.5.0", to: "0.5.1" })}\n`);
     expect(await updates.lastRun()).toMatchObject({ state: "updated", result: { to: "0.5.1" } });
+    // The update was made, but the step that publishes it failed.
+    fake.addUpdateRun(formatUpdateResult({ state: "updated", from: "0.5.0", to: "0.5.2" }), "COMPLETED", "FAILED");
+    expect(await updates.lastRun()).toMatchObject({ state: "failed" });
     fake.addUpdateRun("", "IN_PROGRESS");
     expect((await updates.lastRun())?.state).toBe("running");
   });

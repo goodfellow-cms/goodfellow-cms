@@ -1,10 +1,17 @@
 # Builds the documentation site (docs/) and the demo (docs/scripts/demo.mjs, at
-# /demo/) and publishes them with GitHub Pages. The release workflow runs it after
-# each release, so the docs describe the latest version on npm, and it runs every
-# night from the latest release, so the demo's dates stay current. To publish a fix
-# to the docs between releases, run it from the Actions tab with "master" as the
-# version. In the repository's Settings → Pages, "Source" must be "GitHub Actions".
-# See RELEASING.md.
+# /demo/) and publishes them at https://goodfellowcms.com with Cloudflare Pages.
+# The release workflow runs it after each release, so the docs describe the
+# latest version on npm, and it runs every night from the latest release, so the
+# demo's dates stay current. To publish a fix to the docs between releases, run
+# it from the Actions tab with "master" as the version. See RELEASING.md.
+#
+# Building runs the code of the version built and the packages it installs, so it
+# has no secrets: a second job, which runs none of it, uploads what it built with
+# the Cloudflare token (the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+# secrets, in the cloudflare-pages environment). The docs used to be at
+# https://goodfellow-cms.github.io/goodfellow-cms/, so a third job keeps that on
+# GitHub Pages as a page at each old address that sends people to the same page
+# at the new one (Settings → Pages → Source: GitHub Actions).
 name: Deploy docs
 
 on:
@@ -23,21 +30,23 @@ on:
   schedule:
     - cron: "23 7 * * *"
 
-# Each job asks for what it needs: the build, which runs the workspace's dependencies, can only read, and only the
-# deploy job, which runs none of them, can publish to Pages.
+# Each job asks for what it needs: the build, which runs the workspace's dependencies, can only read, and only
+# the jobs that run none of them can publish, to Cloudflare Pages and to GitHub Pages at the old address.
 permissions: {}
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  # The docs' address, whatever the version built says, since versions from before it said the old one.
+  DOCS_URL: https://goodfellowcms.com
+
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # configure-pages reads the site's address.
-      pages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -65,10 +74,8 @@ jobs:
           node-version: 22
           check-latest: true
           cache: pnpm
-      - id: pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - run: pnpm install --frozen-lockfile
-      # The packages the docs site is built with, then the site itself, served from /repository-name/.
+      # The packages the docs site is built with, then the site itself, at the domain's root.
       - run: pnpm turbo run build --filter='@goodfellow-cms/docs^...'
       # The starters for the setup page, with lockfiles for the sites it creates: their versions are on npm by now.
       # Releases from before the setup page (0.1.0) don't have it.
@@ -77,37 +84,86 @@ jobs:
         working-directory: docs
         env:
           GOODFELLOW_STARTER_LOCKFILES: "1"
-      - run: pnpm --filter @goodfellow-cms/docs exec goodfellow build --base "$BASE_PATH/"
+      # What AI tools read (llms.txt, llms-full.txt, and each page's Markdown), into public/ for the build to copy.
+      # The docs' own build script runs it too, but this calls goodfellow build directly, for its base and address.
+      # Releases from before it don't have it.
+      - if: hashFiles('docs/scripts/llms.mjs') != ''
+        run: node scripts/llms.mjs
+        working-directory: docs
         env:
-          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          GOODFELLOW_SITE_URL: ${{ env.DOCS_URL }}
+      - run: pnpm --filter @goodfellow-cms/docs exec goodfellow build --base /
+        env:
+          GOODFELLOW_SITE_URL: ${{ env.DOCS_URL }}
       # The demo: the parish example as this release's create-goodfellow makes it, with the recommended blocks
       # and the Gutenberg plugin, from npm. Releases from before it don't have it.
       - if: hashFiles('docs/scripts/demo.mjs') != ''
-        run: node scripts/demo.mjs "$BASE_PATH/demo/" dist/demo
+        run: node scripts/demo.mjs /demo/ dist/demo
         working-directory: docs
         env:
-          BASE_PATH: ${{ steps.pages.outputs.base_path }}
-          GOODFELLOW_SITE_URL: ${{ steps.pages.outputs.base_url }}/demo
+          GOODFELLOW_SITE_URL: ${{ env.DOCS_URL }}/demo
           GOODFELLOW_SIGN_IN_PREVIEW: ${{ runner.temp }}/sign-in-preview
       # The docs' screenshots of the setup page and the demo's admin panel, taken with the runner's Chrome into
       # dist/screenshots/, so they're never kept in the repository.
       - if: hashFiles('docs/scripts/screenshots.mjs') != ''
-        run: node scripts/screenshots.mjs dist "$BASE_PATH" "$RUNNER_TEMP/sign-in-preview"
+        run: node scripts/screenshots.mjs dist "" "$RUNNER_TEMP/sign-in-preview"
         working-directory: docs
-        env:
-          BASE_PATH: ${{ steps.pages.outputs.base_path }}
       # The Claude Desktop extension, which the Work with Claude page links to. Releases from before it don't have it.
       - if: hashFiles('packages/mcp/scripts/pack-extension.mjs') != ''
         run: |
           pnpm turbo run build --filter='@goodfellow-cms/mcp^...'
           pnpm --filter @goodfellow-cms/mcp pack-extension
           cp packages/mcp/goodfellow.mcpb docs/dist/goodfellow.mcpb
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          path: docs/dist
+          name: docs
+          path: docs/dist/
+          retention-days: 1
+          if-no-files-found: error
 
   deploy:
+    # Uploads what the build job built to Cloudflare Pages, running none of its code.
     needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    environment:
+      name: cloudflare-pages
+      url: ${{ env.DOCS_URL }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          check-latest: true
+      - name: Download what the build job built
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name docs --dir "$RUNNER_TEMP/docs"
+      # An exact release of wrangler, with nothing newer than three days old, installed without running any
+      # package's scripts.
+      - name: Install wrangler
+        run: |
+          npm install --prefix "$RUNNER_TEMP/wrangler" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund \
+            --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)" wrangler@4.156.1
+      - name: Upload to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # The Cloudflare Pages project, made for Direct Upload, with goodfellowcms.com as its custom domain.
+          PROJECT: ${{ vars.DOCS_PAGES_PROJECT || 'goodfellowcms' }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to the cloudflare-pages environment's secrets. See RELEASING.md."
+            exit 1
+          fi
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/wrangler/node_modules/.bin/wrangler" pages deploy "$RUNNER_TEMP/docs" \
+            --project-name "$PROJECT" --branch main --commit-hash "$GITHUB_SHA" --commit-dirty=true
+
+  old-address:
+    # GitHub Pages: the pages at the old address that send people to the new one, once the new one has the site,
+    # so the old address never sends people to one that doesn't have it yet.
+    needs: [build, deploy]
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -116,5 +172,37 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Two pages: the old address's home page, and the 404.html GitHub Pages serves for every other address under
+      # it. Both send people to the same page at the new address, keeping the query and anchor, or to its home page
+      # without JavaScript. Nothing of the build's is needed, and nothing runs but the shell.
+      - name: Write the old address's pages
+        env:
+          OLD_BASE: /goodfellow-cms
+        run: |
+          mkdir -p "$RUNNER_TEMP/old-address"
+          page() {
+            cat <<HTML
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <title>Goodfellow CMS has moved</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          $1<script>var old = "$OLD_BASE"; var path = location.pathname; if (path === old || path.indexOf(old + "/") === 0) path = path.slice(old.length); location.replace("$DOCS_URL" + (path || "/") + location.search + location.hash);</script>
+          <meta http-equiv="refresh" content="0; url=$DOCS_URL/">
+          </head>
+          <body>
+          <p>Goodfellow CMS has moved to <a href="$DOCS_URL/">$DOCS_URL</a>.</p>
+          </body>
+          </html>
+          HTML
+          }
+          # The home page's canonical link tells search engines it moved for good.
+          page "<link rel=\"canonical\" href=\"$DOCS_URL/\">
+          " > "$RUNNER_TEMP/old-address/index.html"
+          page "" > "$RUNNER_TEMP/old-address/404.html"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/old-address
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

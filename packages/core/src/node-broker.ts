@@ -17,6 +17,7 @@ import { SITE_FILE } from "./content/paths.js";
 import type { HostSource } from "./git.js";
 import { syncContentHeaders } from "./node-admin.js";
 import { GOODFELLOW_VERSION } from "./site-description.js";
+import { trimChars } from "./trim.js";
 
 /** Why the broker couldn't be added or its address set, in words for the person at the command line. */
 export class BrokerSetupError extends Error {
@@ -108,7 +109,7 @@ export async function setBrokerAddress(root: string, url: string | undefined): P
   });
   let address: string | undefined;
   if (url !== undefined) {
-    const trimmed = url.trim().replace(/\/+$/, "");
+    const trimmed = trimChars(url.trim(), "/", { start: false });
     const problem = brokerAddressProblem(
       { url: trimmed },
       { siteUrl: (await siteSettings(root)).url, admin: configAdmin(config) },

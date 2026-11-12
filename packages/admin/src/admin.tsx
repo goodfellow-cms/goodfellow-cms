@@ -11,6 +11,7 @@ import {
   HEADER_FILE,
   readAdminText,
   SYNCED_BLOCKS_DIR,
+  trimChars,
 } from "@goodfellow-cms/core";
 import { Menu as MenuIcon, Moon, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -776,9 +777,12 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
             redirectAddressesListed: false,
             role: session.role,
             ...(session.ai.length > 0 && {
-              ai: { server: new URL(`${server.replace(/\/+$/, "")}/ai`, location.href).href, services: session.ai },
+              ai: {
+                server: new URL(`${trimChars(server, "/", { start: false })}/ai`, location.href).href,
+                services: session.ai,
+              },
             }),
-            plugins: new URL(`${server.replace(/\/+$/, "")}/plugins`, location.href).href,
+            plugins: new URL(`${trimChars(server, "/", { start: false })}/plugins`, location.href).href,
             ...(session.role === "owner" && { review: appServer(server).review }),
             ...(session.codeReview && { codeReview: true }),
             earlyInstalls: session.earlyInstalls === true,

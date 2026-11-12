@@ -37,7 +37,7 @@ Its `media` gives a hash of each file in the media library, by address (`/media/
 
 ## Rich text
 
-Rich text is sanitized HTML, as pages have it, wherever a block's field holds it. An item's Markdown body in `collections.json` is HTML too. For an app that draws content without an HTML renderer, each page, header, and footer file also has `richText`: the same rich text as a simple structure, by the id of the block it's in (`root` for the page's settings), then by prop. A prop inside a list or a group is named with dots, such as `items.0.text`, and a Table block's cells by row and column, such as `cells.1.0`, since cells can be bold, italic, or links.
+Rich text is HTML kept to the formatting the editor makes, as pages have it, wherever a block's field holds it. An item's Markdown body in `collections.json` is HTML too. For an app that draws content without an HTML renderer, each page, header, and footer file also has `richText`: the same rich text as a simple structure, by the id of the block it's in (`root` for the page's settings), then by prop. A prop inside a list or a group is named with dots, such as `items.0.text`, and a Table block's cells by row and column, such as `cells.1.0`, since cells can be bold, italic, or links.
 
 ```json
 {

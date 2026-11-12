@@ -23,6 +23,8 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    # A pull request labelled no-coderabbit isn't reviewed by itself, so a push to it never spends the hour's review.
+    labels: ["!no-coderabbit"]
   finishing_touches:
     docstrings:
       enabled: false

@@ -1,5 +1,37 @@
 # @goodfellow-cms/broker
 
+## 0.11.0
+
+### Patch Changes
+
+- f6fcc1a: Goodfellow's documentation is now at https://goodfellowcms.com, and the links the packages give, in their READMEs, the admin panel's help links, and the Claude Desktop extension, go there. The old address, https://goodfellow-cms.github.io/goodfellow-cms/, sends people to the same page at the new one.
+- d813bd5: The backends', the command line's, the Claude connector's, create-goodfellow's, and the token broker's English use the Oxford comma in lists ("GitHub, GitLab, or Bitbucket").
+- 0255dbc: More fixes from November's security review:
+  
+  - The local backend in `goodfellow dev` and `next dev`, and the Claude connector's folders, never follow a link inside an editable folder to files outside it; the folders themselves may still be links, as a content repository's are.
+  - The Claude connector's screenshots run the browser in Chrome's sandbox, without the connector's tokens in its environment.
+  - A plugin can't ask to read `*`, `.git`, or files of secrets such as `.env.local`, or for Goodfellow's own `GOODFELLOW_` variables.
+  - Bitbucket sites' lockfile step publishes `package-lock.json` only once every new package comes from npm's registry, as GitHub's and GitLab's do. Sites made by an earlier release keep their `bitbucket-pipelines.yml` until it's copied from a new site's.
+  - WordPress imports take only web addresses for attachments, and importing on a computer downloads them only from public `https://` addresses or the site it was read from, no larger than the upload limit.
+  - Expo apps open redirects to other sites only over the web, and take the site's base path only where it's a path.
+  - Cleaning an SVG's CSS goes on until taking out an `@import` or `url()` can't join what's around it into another, and leaves the CSS out whole where something would still load from elsewhere, as an unfinished `url(` would.
+  - Rich text can't take an id Goodfellow's own scripts look up by spelling it with character references, such as `&#103;f-consent`.
+  - A full-stack site's AI proxy (`aiServer()`) sends on only the fields the AI assistant sends: Claude's own models, answers no longer than the assistant asks for, text messages and structured answers, and only its beta, so an editor can't spend the site's key on tools, files, or other models. `models` on a service's key limits the models editors may ask for.
+  - GitLab and Bitbucket sites list and close only their own repository's merge and pull requests as drafts' reviews, never one from a fork that uses a draft's branch name.
+  - The sign-in worker that `create-goodfellow` carries, which owners deploy, takes its setup page's forms only from that page, and always writes a new session key while it's being set up.
+  - The token broker publishes a draft with exactly the changes it checked, so nothing added to the draft in between goes live unchecked, and frames the admin panel at the screen an address names without what a sign-in brought back, such as the sign-in worker's grant or Bitbucket's token.
+  - The Claude connector reads a site's description as builds read other sites' files: from public `https://` addresses only (or a folder's development server), no larger than 5 MB, and within 15 seconds.
+  - A plugin installed from the admin panel runs its tasks only from its own package, so a task's description can't send its secrets to a file of the site's.
+  - The nightly update no longer changes blocks from Goodfellow's registry, and its publishing job on GitHub refuses `blocks/installed/`, `components/`, `lib/`, and `hooks/`, since the job that made the update ran the site's packages, which could have written code there. The Blocks screen offers **Update** where a newer version of an added block is ready, and `goodfellow update --blocks` (or `goodfellow-next update --blocks`) updates them all. GitHub sites made by an earlier release keep their workflow's older check until it's copied from a new site's, since updates can't change workflows.
+- 749d66b: Security fixes from the second November review:
+  
+  - Markdown items show text after an inline `<kbd>`, `<code>`, `<pre>`, or `<script>` tag as text, where it could carry live HTML onto the site's pages.
+  - A full-stack site's server publishes only on top of the live site as it is now, whatever revision the browser names, so a change waiting for review can't come along with an editor's own; the GitHub backend checks the same before every commit, moves the branch only from that commit in the same request, and takes only commits' ids as revisions.
+  - The sign-in service finishes a sign-in only in the browser that started it, so a link to GitHub that someone else started can't send an owner's sign-in to them. New sign-in services get it; an existing one gets it with its next weekly update, or by copying create-goodfellow's `templates/sign-in/` over it.
+  - `next dev`'s local backend answers nothing while other computers can reach the development server, and the Next.js starter starts it with `next dev --port 4321 -H 127.0.0.1`. On a site made by an earlier release, change the `dev` script in `package.json` to that.
+  - Publishing a draft refuses one that changes files the admin panel never edits, such as the site's configuration, packages, or workflows (anything outside its content, its media, and the folders the admin panel installs blocks and plugins into), which only reach a draft when someone saves them there on the site's host, and publishes exactly the changes the admin panel's **Publish all** and Claude's `publish` checked, media included.
+  - A token broker makes each change again before checking it, so the change it checks is the one it publishes, and checks the changes a draft is asked to publish, and theme and plugin records written as bytes.
+
 ## 0.10.1
 
 No changes in this release.

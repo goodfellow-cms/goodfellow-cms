@@ -3,7 +3,7 @@
 // `authorizeWith()`, which also refuses banned admins, admins acting as someone else, and admins without two-factor
 // sign-in.
 import { generateRandomString } from "better-auth/crypto";
-import { authorizeWith, type SiteAuth } from "./auth.ts";
+import { authorizeWith, lockLinks, RESET_IDENTIFIER, retireResetLinks, type SiteAuth, unlockLinks } from "./auth.ts";
 import { canSendEmail, type Email, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
@@ -26,8 +26,8 @@ export interface SiteEditor {
 /** How long an invitation's link works, in hours: long enough to see the email, short enough not to linger. */
 export const INVITATION_HOURS = 48;
 
-/** The most people the page lists. */
-const MAX_LISTED = 500;
+/** How many people are read from the database at a time. */
+const PAGE_SIZE = 200;
 
 /** A problem the page shows, with the HTTP status the API answers with. */
 export class EditorsError extends Error {
@@ -67,22 +67,46 @@ function roleOf(value: unknown): EditorRole {
   return value === "admin" ? "admin" : "editor";
 }
 
-/** Everyone with an account, admins first, then by name. */
+/** Choosing a password from the invitation's link shows the address is theirs, which marks it verified (lib/auth.ts). */
+function editorOf(user: {
+  id: string;
+  email: string;
+  name: string;
+  role?: string | null;
+  emailVerified: boolean;
+  twoFactorEnabled?: boolean | null;
+}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: roleOf(user.role),
+    joined: user.emailVerified,
+    twoFactor: user.twoFactorEnabled === true,
+  } satisfies SiteEditor;
+}
+
+/** Everyone with an account, admins first, then by name, read a page at a time, however many there are. */
 export async function listEditors(siteAuth: SiteAuth, request: Request): Promise<SiteEditor[]> {
   await adminAsking(siteAuth, request);
-  const { users } = await siteAuth.api.listUsers({ headers: request.headers, query: { limit: MAX_LISTED } });
-  // Choosing a password from the invitation's link shows the address is theirs, which marks it verified (lib/auth.ts).
-  const editors = users.map(
-    (user): SiteEditor => ({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: roleOf(user.role),
-      joined: user.emailVerified,
-      twoFactor: (user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true,
-    }),
-  );
+  const editors: SiteEditor[] = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { users } = await siteAuth.api.listUsers({
+      headers: request.headers,
+      query: { limit: PAGE_SIZE, offset, sortBy: "id", sortDirection: "asc" },
+    });
+    editors.push(...users.map(editorOf));
+    if (users.length < PAGE_SIZE) break;
+  }
   return editors.sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "admin" ? -1 : 1));
+}
+
+/** The person a change is for, found by their id, wherever they'd be listed. */
+async function editorById(siteAuth: SiteAuth, userId: string): Promise<SiteEditor> {
+  const user =
+    typeof userId === "string" && userId ? await (await siteAuth.$context).internalAdapter.findUserById(userId) : null;
+  if (!user) throw new EditorsError(404, "There's no such person.");
+  return editorOf(user as Parameters<typeof editorOf>[0]);
 }
 
 /** What an admin gives to invite someone. */
@@ -109,7 +133,8 @@ export function invitationFrom(body: unknown): Invitation {
 
 /**
  * A new single-use link that lets the person choose a password, as Better Auth's password reset reads it, at the
- * site's own address, never the request's, which a visitor could choose.
+ * site's own address, never the request's, which a visitor could choose. Their earlier links stop working, so one
+ * that went astray can't be used later.
  */
 async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: string): Promise<string> {
   if (!siteEnv.GOODFELLOW_SITE_URL) {
@@ -117,11 +142,34 @@ async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: stri
   }
   const token = generateRandomString(32);
   const context = await siteAuth.$context;
-  await context.internalAdapter.createVerificationValue({
-    value: userId,
-    identifier: `reset-password:${token}`,
-    expiresAt: new Date(Date.now() + INVITATION_HOURS * 60 * 60 * 1000),
-  });
+  const { adapter, internalAdapter } = context;
+  // Each link is a row of its own, and the person's others go once it's written, all while the account's lock is held,
+  // so a link is never sent while one is being used (lib/auth.ts). A row is never rewritten with a new token: Better
+  // Auth consumes a link by its row's id, so a request that found the old token, and ran on past the lock, could
+  // otherwise consume the new one.
+  const holder = await lockLinks(adapter, userId);
+  if (!holder) {
+    throw new EditorsError(409, "This person's link is being sent or used at the moment. Try again in a moment.");
+  }
+  try {
+    if ((await internalAdapter.findUserById(userId))?.emailVerified) {
+      throw new EditorsError(409, "They've already joined.");
+    }
+    const now = new Date();
+    const row = await adapter.create<{ id: string }>({
+      model: "verification",
+      data: {
+        identifier: `${RESET_IDENTIFIER}${token}`,
+        value: userId,
+        expiresAt: new Date(now.getTime() + INVITATION_HOURS * 60 * 60 * 1000),
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    await retireResetLinks(adapter, userId, row.id);
+  } finally {
+    await unlockLinks(adapter, userId, holder);
+  }
   const link = new URL("/accept-invite/", siteEnv.GOODFELLOW_SITE_URL);
   link.searchParams.set("token", token);
   return link.href;
@@ -190,8 +238,7 @@ export async function inviteAgain(
   fetcher?: typeof fetch,
 ): Promise<Invited> {
   const admin = await adminAsking(siteAuth, request);
-  const editor = (await listEditors(siteAuth, request)).find((candidate) => candidate.id === userId);
-  if (!editor) throw new EditorsError(404, "There's no such person.");
+  const editor = await editorById(siteAuth, userId);
   if (editor.joined) throw new EditorsError(409, `${editor.email} has already joined.`);
   const link = await invitationLink(siteAuth, siteEnv, editor.id);
   const email = invitationEmail({
@@ -208,9 +255,7 @@ export async function inviteAgain(
 /** Refuses a change that would leave the asking admin, or the site, without an admin. */
 async function keepAnAdmin(siteAuth: SiteAuth, request: Request, userId: string): Promise<void> {
   const admin = await adminAsking(siteAuth, request);
-  const editors = await listEditors(siteAuth, request);
-  const target = editors.find((editor) => editor.id === userId);
-  if (!target) throw new EditorsError(404, "There's no such person.");
+  const target = await editorById(siteAuth, userId);
   if (target.email === admin.email) {
     throw new EditorsError(409, "You can't change or remove yourself. Ask another admin.");
   }
@@ -239,8 +284,8 @@ export function problemResponse(error: unknown): Response {
 }
 
 /**
- * Accepts an invitation: sets the password the person chose with the invitation's link, which then stops working,
- * and marks their address as theirs, since the link reached it. Answers the same for any link that doesn't work.
+ * Accepts an invitation: sets the password the person chose with the invitation's link, which then stops working, as
+ * do their other links (`onPasswordReset` in lib/auth.ts), and marks their address as theirs, since the link reached it. Answers the same for any link that doesn't work.
  */
 export async function acceptInvitation(siteAuth: SiteAuth, request: Request, body: unknown): Promise<void> {
   if (!fromThisSite(request)) throw new EditorsError(403, "Accept the invitation from the site's own pages.");
@@ -253,7 +298,7 @@ export async function acceptInvitation(siteAuth: SiteAuth, request: Request, bod
   );
   if (!/^[A-Za-z0-9_-]{16,128}$/.test(token)) throw expired;
   const context = await siteAuth.$context;
-  const verification = await context.internalAdapter.findVerificationValue(`reset-password:${token}`);
+  const verification = await context.internalAdapter.findVerificationValue(`${RESET_IDENTIFIER}${token}`);
   if (!verification || verification.expiresAt < new Date()) throw expired;
   try {
     await siteAuth.api.resetPassword({ body: { token, newPassword: password } });
@@ -266,7 +311,8 @@ export async function acceptInvitation(siteAuth: SiteAuth, request: Request, bod
       );
     }
     if (status === 400) throw expired;
+    if (status === 409) throw new EditorsError(409, "Your password is being set at the moment. Try again in a moment.");
     throw error;
   }
-  await context.internalAdapter.updateUser(verification.value, { emailVerified: true });
+  // Marking them joined, and retiring their other links, happened as the password was set (`onPasswordReset`).
 }

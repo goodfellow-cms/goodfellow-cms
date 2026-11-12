@@ -6,8 +6,10 @@ import {
   NIGHTLY_VARIABLE,
   type NightlyBuilds,
   type NightlyMode,
+  PUBLISH_PATCH,
   SignInError,
   type SiteUpdates,
+  setupSection,
   type UpdateRun,
   UpdatesError,
 } from "@goodfellow-cms/core";
@@ -19,6 +21,18 @@ interface Variable {
   uuid: string;
   key: string;
   value?: string;
+}
+
+/**
+ * Whether the update pipeline publishes the updates it makes: itself, with `--publish`, or, with `--commit`, through
+ * a step after it in the same pipeline that applies the commit (`PUBLISH_PATCH`), since the update's commit is
+ * otherwise thrown away. The lockfile's publish step applies the same file, so only the update pipeline counts.
+ */
+function publishesUpdates(setup: string): boolean {
+  const pipeline = setupSection(setup, BITBUCKET_PIPELINE_NAMES.update);
+  if (/update --publish\b/.test(pipeline)) return true;
+  const commit = pipeline.search(/update --commit\b/);
+  return commit >= 0 && pipeline.indexOf(`am ${PUBLISH_PATCH}`, commit) >= 0;
 }
 
 function notAllowed(error: unknown): never {
@@ -114,7 +128,7 @@ export function bitbucketUpdates(
   return {
     async setup() {
       const setup = await readSetup();
-      if (!setup?.includes("update --publish")) return "missing";
+      if (!publishesUpdates(setup ?? "")) return "missing";
       try {
         const [settings, found] = await Promise.all([
           bitbucketJson<{ enabled?: boolean }>(api(), config),
@@ -178,6 +192,13 @@ export function bitbucketUpdates(
         const result = findUpdateResult(log);
         // A pipeline started for something else, such as a rebuild, which didn't update.
         if (!result) continue;
+        if (result.state === "updated") {
+          // The first step only made the update; the step after it publishes it, so the pipeline's result says
+          // whether it was.
+          const outcome = pipeline.state?.result?.name;
+          if (!outcome) return { state: "unknown", ...run };
+          if (outcome !== "SUCCESSFUL") return { state: "failed", ...run };
+        }
         return { state: result.state, result, ...run };
       }
       return undefined;
