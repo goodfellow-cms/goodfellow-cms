@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { writePagesSearchIndex, writeSearchIndex } from "./node-search.js";
+import { marksSearchContent, writePagesSearchIndex, writeSearchIndex } from "./node-search.js";
 
 const page = (body: string, main = true, lang = "en") =>
   `<!DOCTYPE html><html lang="${lang}"><head><title>Page</title></head><body><header>Site name</header>${
@@ -38,6 +38,48 @@ describe("writeSearchIndex", () => {
       2,
     ]);
   }, 60_000);
+});
+
+describe("pages left out of search", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "goodfellow-search-"));
+  });
+  afterEach(() => rm(dir, { recursive: true, force: true }));
+
+  /** The page counts of the index in `indexDir`. */
+  const pageCount = async (indexDir: string) => {
+    const entry = JSON.parse(await readFile(join(indexDir, "pagefind-entry.json"), "utf8"));
+    return Object.values(entry.languages).reduce<number>(
+      (total, language) => total + (language as { page_count: number }).page_count,
+      0,
+    );
+  };
+
+  it("stay out when every page is, rather than the whole site going in, header and all", async () => {
+    // Pagefind indexes every page whole when no page marks content to index.
+    await mkdir(join(dir, "staff"));
+    await writeFile(join(dir, "index.html"), page('<h1>Home</h1><div data-goodfellow-search=""></div>', false));
+    await writeFile(join(dir, "staff/index.html"), page("<h1>Staff</h1><p>Door code 4321.</p>", false));
+    await writeFile(join(dir, "404.html"), page("<h1>Page not found</h1>", false));
+    expect(await writeSearchIndex(dir)).toBe(0);
+    expect(await pageCount(join(dir, "pagefind"))).toBe(0);
+
+    const indexDir = join(dir, "public/pagefind");
+    const pages = [
+      { url: "/", html: page('<h1>Home</h1><div data-goodfellow-search=""></div>', false) },
+      { url: "/staff/", html: page("<h1>Staff</h1><p>Door code 4321.</p>", false) },
+    ];
+    expect(await writePagesSearchIndex(pages, indexDir)).toBe(0);
+  }, 60_000);
+
+  it("are told apart by the attribute on an element, never by its name in a page's text", () => {
+    expect(marksSearchContent('<main class="gf-main" data-pagefind-body="">Hi</main>')).toBe(true);
+    expect(marksSearchContent("<main data-pagefind-body>Hi</main>")).toBe(true);
+    expect(marksSearchContent("<main><p>Mark it with <code>data-pagefind-body</code>.</p></main>")).toBe(false);
+    expect(marksSearchContent("<main><code>&lt;main data-pagefind-body&gt;</code></main>")).toBe(false);
+    expect(marksSearchContent('<main data-pagefind-body-extra="">Hi</main>')).toBe(false);
+  });
 });
 
 describe("writePagesSearchIndex", () => {

@@ -26,15 +26,21 @@ describe("shownSettings", () => {
     expect(settings.keep(original)).toEqual(original);
   });
 
-  it("shows Page not found as hidden from search results, with no choice, and keeps its file as it was", () => {
+  it("shows Page not found as hidden from search results and the site's search, with no choice, and keeps its file as it was", () => {
     const original = page({ title: "Page not found" });
     const settings = shownSettings(original, "/404");
     const shown = settings.show(original);
     expect(shown.root).toEqual({
-      props: { title: "Page not found", ...DEFAULTS, noIndex: true },
-      readOnly: { noIndex: true },
+      props: { title: "Page not found", ...DEFAULTS, noIndex: true, noSearch: true },
+      readOnly: { noIndex: true, noSearch: true },
     });
     expect(settings.keep(shown)).toEqual(original);
+    // Whatever the editor's frame hands back for them, its file keeps what it said.
+    const changed = {
+      ...shown,
+      root: { ...shown.root, props: { ...shown.root.props, noIndex: false, noSearch: false } },
+    };
+    expect(settings.keep(changed)).toEqual(original);
   });
 
   it("shows templates in search results where they haven't chosen", () => {
