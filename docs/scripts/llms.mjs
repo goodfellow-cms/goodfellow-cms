@@ -2,10 +2,8 @@
 // Markdown at its address with `.md` after it (`/docs/media.md`), `llms.txt`
 // listing them by section with their descriptions, and `llms-full.txt` with
 // every page in one file. Addresses on the site are written out in full, since
-// tools read the files without the site around them.
-//
-// The domain's own `llms.txt`, at https://goodfellow-cms.github.io/llms.txt,
-// is in the goodfellow-cms.github.io repository and points here.
+// tools read the files without the site around them. The site is at its
+// domain's root, so `llms.txt` is the domain's own.
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,7 +16,8 @@ const docsDir = join(root, "content/collections/docs");
 
 const site = JSON.parse(readFileSync(join(root, "content/site.json"), "utf8"));
 const collection = JSON.parse(readFileSync(join(docsDir, "_collection.json"), "utf8"));
-const base = site.url.replace(/\/$/, "");
+// The address the build gives the site (`GOODFELLOW_SITE_URL`, as the docs workflow sets it), else Site settings'.
+const base = (process.env.GOODFELLOW_SITE_URL || site.url).replace(/\/$/, "");
 const sections = collection.fields.find((field) => field.name === "section").options;
 
 /** A root-relative address as a full one, and others as they are. */

@@ -8,6 +8,7 @@
  */
 import { z } from "zod";
 import { CURRENT_VERSION } from "../migrations/index.js";
+import { trimChars } from "../trim.js";
 import type { SiteContent } from "./load.js";
 import { MEDIA_STORAGE_FILE } from "./paths.js";
 import { serializeContent } from "./serialize.js";
@@ -56,7 +57,7 @@ export type MediaStorage = Omit<MediaStorageFile, "version">;
 /** Where a stored file is public, or `undefined` for an address the storage doesn't keep. */
 export function storedMediaUrl(storage: MediaStorage | undefined, address: string): string | undefined {
   if (!storage || !Object.hasOwn(storage.files, address)) return undefined;
-  return `${storage.url.replace(/\/+$/, "")}/${address.slice("/media/".length)}`;
+  return `${trimChars(storage.url, "/", { start: false })}/${address.slice("/media/".length)}`;
 }
 
 /** The addresses of the files a storage keeps. */

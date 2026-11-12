@@ -76,7 +76,7 @@ function toAbsolute(siteUrl: string | undefined, url: string | undefined): strin
 
 /**
  * Creates a function that renders pages of a site to complete HTML documents.
- * Rendering waits for everything (including lazily loaded rich text), so the
+ * Rendering waits for everything (including components that load lazily), so the
  * output is final static HTML. Only pages whose blocks use Client Components
  * load JavaScript, given `assets.islands`, to run those components.
  */

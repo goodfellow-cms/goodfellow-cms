@@ -7,6 +7,7 @@ import {
   PUBLISHED_ADMIN_TEXT_DIR,
   parseAdminTextFile,
   parseAdminTextIndex,
+  trimChars,
 } from "@goodfellow-cms/core";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { EditorText } from "./editor-text.js";
@@ -91,7 +92,7 @@ export function useSiteAdminTextFiles(files: Record<string, AdminTextFile> | und
 
 /** Reads the published copy's list of the site's languages, once, unless the site's own files came first. */
 async function readPublished(siteUrl: string): Promise<void> {
-  const base = new URL(`${siteUrl.replace(/\/+$/, "")}/`, location.href);
+  const base = new URL(`${trimChars(siteUrl, "/", { start: false })}/`, location.href);
   const published = new URL(PUBLISHED_ADMIN_TEXT_DIR, base).href;
   let languages: SiteText["languages"] = [];
   try {

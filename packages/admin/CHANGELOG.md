@@ -1,5 +1,99 @@
 # @goodfellow-cms/admin
 
+## 0.11.0
+
+### Minor Changes
+
+- 639a7af: The AI assistant fills in an item's event fields, their start and end, keeping how an event repeats; says after each answer how many settings it changed and blocks it put in, and how many it left out because they didn't fit; and lists services that cost nothing first.
+- 810503b: Full-stack sites' API now runs on servers without Node, such as Cloudflare Workers. `appApi()` comes from the new `@goodfellow-cms/core/server` entry, which uses Web `Request` and `Response` and nothing from Node, and `goodfellowApi()` uses it.
+  
+  Checking plugin and theme updates installed before they're three days old needs Node, so it's now an option: pass `provenance: nodeProvenance()` (from `@goodfellow-cms/core/node`) to `goodfellowApi()` to keep checking them. Without it, the server refuses them (`early-unavailable`), and the admin panel doesn't offer **Install now** on that site, so updates wait until they're old enough. `appApi()` from `@goodfellow-cms/core/node` still checks them by default. `AppApiOptions.provenance` is now a check function (`nodeProvenance(options)`) instead of its options.
+- c39766d: New pages, duplicates, and translations now start out not published: they're saved with the site, marked **Not published yet** on the Pages screen, and left out of builds until someone publishes them, with **Publish** in their editor or beside them on the Pages screen. Content files mark them with an optional `notPublished: true`.
+- 3184524: Goodfellow uses Puck 0.24.0. In the editor, each block's toolbar has a drag handle, so a large block such as a section can be moved without dragging the block itself. A page's settings are in groups: the title, description, and whether search engines show the page come first, the rarer search engine settings are in **More for search engines**, which starts closed, and the image, picture size, and link preview are under **Sharing**; a collection's page design has the same. A site's own blocks can use Puck's new checkbox fields, which the AI assistant, the Claude connector, and the checks of what an editor hands back know: their value is a list of the chosen options.
+
+### Patch Changes
+
+- a7ee62a: Cards for the free services. Until an editor has an AI service set up, the AI panel shows a card for each one that costs nothing (a chat app, OVHcloud, and the free tiers of Gemini, Groq, Mistral, and OpenRouter), with **Use this** and, where a key is needed, a link to get one free. Site Settings' General tab starts with a card each for forms, comments, and visit counts, saying whether the site has them set up and linking to where they're set up.
+- 44a825d: Resolves the rest of the code scanner's findings. Reading long theme CSS, Google Fonts stylesheets, pages that get the admin address's guard, and addresses with many slashes now takes time in proportion to their length. Values put into the guards' and blocks' inline scripts can't end the script early. A plugin's early install runs npm without a shell on Windows. The content API's rich text keeps any block id, `__proto__` included, as an ordinary key. The Comments block loads Garrul's script only from a web address.
+- c4ecba5: On GitLab, the job that makes the nightly update or writes a plugin's lockfile, which runs the code of every package the site installs, no longer publishes. The starters' `.gitlab-ci.yml` makes them in a `prepare` job, which only commits, and a `publish` job that runs none of the site's code checks they change only what an update or a lockfile does and publishes them with a deploy key of its own, whose private half only that job gets. Turning on updates on the Updates screen adds the key, lets it publish to the main branch, and turns off job token pushes; the setup page does the same for a code project it creates. A developer copies the starter's `.gitlab-ci.yml` to an older site, after which an owner turns updates on again.
+  
+  On Bitbucket, the pipeline steps that run the site's code (the lockfile, the nightly update, and plugins' tasks) now ask only to read the repository, so their token can't publish, and a step after each, which runs none of the site's code, checks what they committed and publishes it, as on GitHub. Where the main branch has branch restrictions, add main under its Pipelines write access. A developer copies the newer `bitbucket-pipelines.yml` to an older site.
+- f6fcc1a: Goodfellow's documentation is now at https://goodfellowcms.com, and the links the packages give, in their READMEs, the admin panel's help links, and the Claude Desktop extension, go there. The old address, https://goodfellow-cms.github.io/goodfellow-cms/, sends people to the same page at the new one.
+- b683b3e: The Entry field block is called Item field, as items are everywhere else in the admin panel. Its name in content (`EntryField`) and its parts' names (`gf-entry-field…`) stay, and searching for "entry field" still finds it.
+- 1408dbd: The admin panel's English uses the Oxford comma in lists ("pages, items, and media").
+- 1008a42: Blocks' settings, the AI assistant's instructions, and these packages' messages and READMEs use the Oxford comma in lists ("pages, items, and media").
+  
+  The AI assistant's instructions also say plainly that it follows the request's own directions, such as "Translate the page", besides what the person asks, while the site's own text stays content, never instructions.
+- 7698210: Tighten a few things found in the security review:
+  
+  - The starters' `publish-lockfile` job, and GitLab's lockfile step, refuse a lockfile that takes a package from anywhere but npm's registry that the committed one didn't, as publishing updates already does (`LOCKFILE_REGISTRY_CHECK`). Sites made before this keep their workflows until a developer copies the starter's.
+  - On GitLab and Bitbucket, an editor whose view of the site predates someone else's scheduled change no longer removes that change's build: `ScheduledBuilds.sync()` takes the times the admin panel listed last as `known`, and stops a build still to come only where its time is among them.
+- e3678d8: Security fixes from the November code review:
+  
+  - The sign-in service sends a sign-in back only to the admin panel (or the token broker's page), never to another page at the site's address, where an editor's redirect could pass it on to another site, and a link can no longer keep an owner signed in for longer.
+  - The Comments block shows Garrul's comments only from the address in Site Settings, which only owners change, since Garrul's script comes from wherever its address says.
+  - A token broker asks before publishing a file for the media library that can hold code: an SVG picture, or anything that isn't a kind the media library takes, such as a page or a script.
+  - Builds refuse a page whose comment a browser would end before the admin address's guard (`<!-->`, `<!--->` or `--!>`).
+  - Plugins' tasks install Goodfellow's task runner at the exact release the site's lockfile has, with nothing npm published more than a day after it. New sites get it in their setup; an update can't change a site's workflows, so an existing site that runs plugins' tasks gets it by copying the starter's `.github/workflows/plugin-task.yml`, or the `plugin-task` job of its `.gitlab-ci.yml`, over its own.
+  - Bitbucket invitations match a member by their account or username before the name they show, and refuse a name more than one member uses.
+- c7c70ef: The AI assistant's requests put the site's title, description, pages, collections, contact details, and images, and the page, collection, item kind, language, and links a task names, between the markers its instructions say hold the site's content, which asks the AI service to treat text an editor wrote there as content rather than as part of the request. It makes such text much less likely to steer the answer, though no AI service guarantees that, and answers are still checked against the site's fields.
+  
+  Automatic updates wait until a Goodfellow release is two days old, never install one npm says is deprecated, and install one only where every Goodfellow package's npm provenance says Goodfellow's own release workflow built it. **Install fixes now**, and `goodfellow update` with a release, still install at once. Packages are installed as npm had them a day after the release came out, or now if that's sooner.
+- 0255dbc: More fixes from November's security review:
+  
+  - The local backend in `goodfellow dev` and `next dev`, and the Claude connector's folders, never follow a link inside an editable folder to files outside it; the folders themselves may still be links, as a content repository's are.
+  - The Claude connector's screenshots run the browser in Chrome's sandbox, without the connector's tokens in its environment.
+  - A plugin can't ask to read `*`, `.git`, or files of secrets such as `.env.local`, or for Goodfellow's own `GOODFELLOW_` variables.
+  - Bitbucket sites' lockfile step publishes `package-lock.json` only once every new package comes from npm's registry, as GitHub's and GitLab's do. Sites made by an earlier release keep their `bitbucket-pipelines.yml` until it's copied from a new site's.
+  - WordPress imports take only web addresses for attachments, and importing on a computer downloads them only from public `https://` addresses or the site it was read from, no larger than the upload limit.
+  - Expo apps open redirects to other sites only over the web, and take the site's base path only where it's a path.
+  - Cleaning an SVG's CSS goes on until taking out an `@import` or `url()` can't join what's around it into another, and leaves the CSS out whole where something would still load from elsewhere, as an unfinished `url(` would.
+  - Rich text can't take an id Goodfellow's own scripts look up by spelling it with character references, such as `&#103;f-consent`.
+  - A full-stack site's AI proxy (`aiServer()`) sends on only the fields the AI assistant sends: Claude's own models, answers no longer than the assistant asks for, text messages and structured answers, and only its beta, so an editor can't spend the site's key on tools, files, or other models. `models` on a service's key limits the models editors may ask for.
+  - GitLab and Bitbucket sites list and close only their own repository's merge and pull requests as drafts' reviews, never one from a fork that uses a draft's branch name.
+  - The sign-in worker that `create-goodfellow` carries, which owners deploy, takes its setup page's forms only from that page, and always writes a new session key while it's being set up.
+  - The token broker publishes a draft with exactly the changes it checked, so nothing added to the draft in between goes live unchecked, and frames the admin panel at the screen an address names without what a sign-in brought back, such as the sign-in worker's grant or Bitbucket's token.
+  - The Claude connector reads a site's description as builds read other sites' files: from public `https://` addresses only (or a folder's development server), no larger than 5 MB, and within 15 seconds.
+  - A plugin installed from the admin panel runs its tasks only from its own package, so a task's description can't send its secrets to a file of the site's.
+  - The nightly update no longer changes blocks from Goodfellow's registry, and its publishing job on GitHub refuses `blocks/installed/`, `components/`, `lib/`, and `hooks/`, since the job that made the update ran the site's packages, which could have written code there. The Blocks screen offers **Update** where a newer version of an added block is ready, and `goodfellow update --blocks` (or `goodfellow-next update --blocks`) updates them all. GitHub sites made by an earlier release keep their workflow's older check until it's copied from a new site's, since updates can't change workflows.
+- 749d66b: Security fixes from the second November review:
+  
+  - Markdown items show text after an inline `<kbd>`, `<code>`, `<pre>`, or `<script>` tag as text, where it could carry live HTML onto the site's pages.
+  - A full-stack site's server publishes only on top of the live site as it is now, whatever revision the browser names, so a change waiting for review can't come along with an editor's own; the GitHub backend checks the same before every commit, moves the branch only from that commit in the same request, and takes only commits' ids as revisions.
+  - The sign-in service finishes a sign-in only in the browser that started it, so a link to GitHub that someone else started can't send an owner's sign-in to them. New sign-in services get it; an existing one gets it with its next weekly update, or by copying create-goodfellow's `templates/sign-in/` over it.
+  - `next dev`'s local backend answers nothing while other computers can reach the development server, and the Next.js starter starts it with `next dev --port 4321 -H 127.0.0.1`. On a site made by an earlier release, change the `dev` script in `package.json` to that.
+  - Publishing a draft refuses one that changes files the admin panel never edits, such as the site's configuration, packages, or workflows (anything outside its content, its media, and the folders the admin panel installs blocks and plugins into), which only reach a draft when someone saves them there on the site's host, and publishes exactly the changes the admin panel's **Publish all** and Claude's `publish` checked, media included.
+  - A token broker makes each change again before checking it, so the change it checks is the one it publishes, and checks the changes a draft is asked to publish, and theme and plugin records written as bytes.
+- 3bcdfa1: "Stay signed in on this device" is now on unless the editor turns it off, as on a shared computer, and stays off in that tab when signing in at the host comes back with a problem. Publishing only asks about warnings the publish brings to the files it changes, so one an editor published anyway isn't asked about again, and pages rendered for the checks are compared with how they rendered before.
+- Updated dependencies [639a7af]
+- Updated dependencies [b26b5ae]
+- Updated dependencies [f4a0a43]
+- Updated dependencies [44a825d]
+- Updated dependencies [810503b]
+- Updated dependencies [c4ecba5]
+- Updated dependencies [f6fcc1a]
+- Updated dependencies [ec40324]
+- Updated dependencies [b683b3e]
+- Updated dependencies [c39766d]
+- Updated dependencies [1008a42]
+- Updated dependencies [5f09d89]
+- Updated dependencies [f287d1c]
+- Updated dependencies [3184524]
+- Updated dependencies [d7098cb]
+- Updated dependencies [bc2f3bd]
+- Updated dependencies [7698210]
+- Updated dependencies [6210740]
+- Updated dependencies [e3678d8]
+- Updated dependencies [c7c70ef]
+- Updated dependencies [0255dbc]
+- Updated dependencies [749d66b]
+- Updated dependencies [3bcdfa1]
+- Updated dependencies [db80e2f]
+  - @goodfellow-cms/ai@0.11.0
+  - @goodfellow-cms/core@0.11.0
+  - @goodfellow-cms/react@0.11.0
+  - @goodfellow-cms/registry@0.11.0
+
 ## 0.10.1
 
 ### Patch Changes

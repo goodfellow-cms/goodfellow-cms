@@ -26,12 +26,15 @@ const HEADING_WEIGHT = 700;
  */
 export function fontFilesFor(css: string, wanted: Array<{ family: string; weight: number }>): string[] {
   const files: string[] = [];
-  for (const [, subset, body] of css.matchAll(/\/\*\s*([\w-]+)\s*\*\/\s*@font-face\s*\{([^}]*)\}/g)) {
+  for (const [, subset, body] of css.matchAll(/\/\*\s*([\w-]+)\s*\*\/\s*@font-face\s*\{([^{}]*)\}/g)) {
     if (subset !== "latin" || !body) continue;
     const family = /font-family:\s*['"]([^'"]+)['"]/.exec(body)?.[1];
     const style = /font-style:\s*(\w+)/.exec(body)?.[1];
     const weights = /font-weight:\s*(\d+)(?:\s+(\d+))?/.exec(body);
-    const url = /url\((https:\/\/fonts\.gstatic\.com\/[^)\s]+\.woff2)\)/.exec(body)?.[1];
+    // A file's address holds no brackets, so each search stops at the next `url(`.
+    const url = [...body.matchAll(/url\((https:\/\/fonts\.gstatic\.com\/[^()\s]+)\)/g)]
+      .map((match) => match[1])
+      .find((address) => address?.endsWith(".woff2"));
     if (!family || style !== "normal" || !weights || !url?.startsWith(FONT_FILES)) continue;
     const low = Number(weights[1]);
     const high = Number(weights[2] ?? weights[1]);

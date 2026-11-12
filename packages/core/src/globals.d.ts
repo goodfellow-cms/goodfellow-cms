@@ -22,7 +22,13 @@ declare const crypto: {
       extractable: boolean,
       usages: string[],
     ): Promise<{ publicKey: CryptoKeyLike; privateKey: CryptoKeyLike }>;
+    generateKey(
+      algorithm: { name: "Ed25519" },
+      extractable: boolean,
+      usages: string[],
+    ): Promise<{ publicKey: CryptoKeyLike; privateKey: CryptoKeyLike }>;
     exportKey(format: "jwk", key: CryptoKeyLike): Promise<Record<string, unknown>>;
+    exportKey(format: "raw" | "pkcs8", key: CryptoKeyLike): Promise<ArrayBuffer>;
     importKey(
       format: "jwk",
       key: Record<string, unknown>,

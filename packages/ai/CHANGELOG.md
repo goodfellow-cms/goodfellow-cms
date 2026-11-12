@@ -1,5 +1,62 @@
 # @goodfellow-cms/ai
 
+## 0.11.0
+
+### Minor Changes
+
+- 639a7af: The AI assistant fills in an item's event fields, their start and end, keeping how an event repeats; says after each answer how many settings it changed and blocks it put in, and how many it left out because they didn't fit; and lists services that cost nothing first.
+- 3184524: Goodfellow uses Puck 0.24.0. In the editor, each block's toolbar has a drag handle, so a large block such as a section can be moved without dragging the block itself. A page's settings are in groups: the title, description, and whether search engines show the page come first, the rarer search engine settings are in **More for search engines**, which starts closed, and the image, picture size, and link preview are under **Sharing**; a collection's page design has the same. A site's own blocks can use Puck's new checkbox fields, which the AI assistant, the Claude connector, and the checks of what an editor hands back know: their value is a list of the chosen options.
+
+### Patch Changes
+
+- f6fcc1a: Goodfellow's documentation is now at https://goodfellowcms.com, and the links the packages give, in their READMEs, the admin panel's help links, and the Claude Desktop extension, go there. The old address, https://goodfellow-cms.github.io/goodfellow-cms/, sends people to the same page at the new one.
+- b683b3e: The Entry field block is called Item field, as items are everywhere else in the admin panel. Its name in content (`EntryField`) and its parts' names (`gf-entry-field…`) stay, and searching for "entry field" still finds it.
+- 1008a42: Blocks' settings, the AI assistant's instructions, and these packages' messages and READMEs use the Oxford comma in lists ("pages, items, and media").
+  
+  The AI assistant's instructions also say plainly that it follows the request's own directions, such as "Translate the page", besides what the person asks, while the site's own text stays content, never instructions.
+- c7c70ef: The AI assistant's requests put the site's title, description, pages, collections, contact details, and images, and the page, collection, item kind, language, and links a task names, between the markers its instructions say hold the site's content, which asks the AI service to treat text an editor wrote there as content rather than as part of the request. It makes such text much less likely to steer the answer, though no AI service guarantees that, and answers are still checked against the site's fields.
+  
+  Automatic updates wait until a Goodfellow release is two days old, never install one npm says is deprecated, and install one only where every Goodfellow package's npm provenance says Goodfellow's own release workflow built it. **Install fixes now**, and `goodfellow update` with a release, still install at once. Packages are installed as npm had them a day after the release came out, or now if that's sooner.
+- 0255dbc: More fixes from November's security review:
+  
+  - The local backend in `goodfellow dev` and `next dev`, and the Claude connector's folders, never follow a link inside an editable folder to files outside it; the folders themselves may still be links, as a content repository's are.
+  - The Claude connector's screenshots run the browser in Chrome's sandbox, without the connector's tokens in its environment.
+  - A plugin can't ask to read `*`, `.git`, or files of secrets such as `.env.local`, or for Goodfellow's own `GOODFELLOW_` variables.
+  - Bitbucket sites' lockfile step publishes `package-lock.json` only once every new package comes from npm's registry, as GitHub's and GitLab's do. Sites made by an earlier release keep their `bitbucket-pipelines.yml` until it's copied from a new site's.
+  - WordPress imports take only web addresses for attachments, and importing on a computer downloads them only from public `https://` addresses or the site it was read from, no larger than the upload limit.
+  - Expo apps open redirects to other sites only over the web, and take the site's base path only where it's a path.
+  - Cleaning an SVG's CSS goes on until taking out an `@import` or `url()` can't join what's around it into another, and leaves the CSS out whole where something would still load from elsewhere, as an unfinished `url(` would.
+  - Rich text can't take an id Goodfellow's own scripts look up by spelling it with character references, such as `&#103;f-consent`.
+  - A full-stack site's AI proxy (`aiServer()`) sends on only the fields the AI assistant sends: Claude's own models, answers no longer than the assistant asks for, text messages and structured answers, and only its beta, so an editor can't spend the site's key on tools, files, or other models. `models` on a service's key limits the models editors may ask for.
+  - GitLab and Bitbucket sites list and close only their own repository's merge and pull requests as drafts' reviews, never one from a fork that uses a draft's branch name.
+  - The sign-in worker that `create-goodfellow` carries, which owners deploy, takes its setup page's forms only from that page, and always writes a new session key while it's being set up.
+  - The token broker publishes a draft with exactly the changes it checked, so nothing added to the draft in between goes live unchecked, and frames the admin panel at the screen an address names without what a sign-in brought back, such as the sign-in worker's grant or Bitbucket's token.
+  - The Claude connector reads a site's description as builds read other sites' files: from public `https://` addresses only (or a folder's development server), no larger than 5 MB, and within 15 seconds.
+  - A plugin installed from the admin panel runs its tasks only from its own package, so a task's description can't send its secrets to a file of the site's.
+  - The nightly update no longer changes blocks from Goodfellow's registry, and its publishing job on GitHub refuses `blocks/installed/`, `components/`, `lib/`, and `hooks/`, since the job that made the update ran the site's packages, which could have written code there. The Blocks screen offers **Update** where a newer version of an added block is ready, and `goodfellow update --blocks` (or `goodfellow-next update --blocks`) updates them all. GitHub sites made by an earlier release keep their workflow's older check until it's copied from a new site's, since updates can't change workflows.
+- Updated dependencies [b26b5ae]
+- Updated dependencies [f4a0a43]
+- Updated dependencies [44a825d]
+- Updated dependencies [810503b]
+- Updated dependencies [c4ecba5]
+- Updated dependencies [f6fcc1a]
+- Updated dependencies [ec40324]
+- Updated dependencies [c39766d]
+- Updated dependencies [5f09d89]
+- Updated dependencies [f287d1c]
+- Updated dependencies [3184524]
+- Updated dependencies [d7098cb]
+- Updated dependencies [bc2f3bd]
+- Updated dependencies [7698210]
+- Updated dependencies [6210740]
+- Updated dependencies [e3678d8]
+- Updated dependencies [c7c70ef]
+- Updated dependencies [0255dbc]
+- Updated dependencies [749d66b]
+- Updated dependencies [3bcdfa1]
+- Updated dependencies [db80e2f]
+  - @goodfellow-cms/core@0.11.0
+
 ## 0.10.1
 
 ### Patch Changes

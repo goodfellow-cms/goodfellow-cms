@@ -12,6 +12,7 @@ import {
   SYNCED_BLOCK_PROP,
   syncedBlockIn,
 } from "@goodfellow-cms/core";
+import { richTextTransforms } from "@goodfellow-cms/react";
 import { type Config, type Data, Render, registerOverlayPortal } from "@puckeditor/core";
 import { syncedBlockEditorHref } from "../router.js";
 import { useStrings } from "../strings.js";
@@ -55,7 +56,7 @@ function SyncedBlockDrawing({ name, config, drawing }: { name: string; config: C
         </a>
       </div>
       <div inert>
-        <Render config={config} data={data} metadata={drawing.metadata} />
+        <Render config={config} data={data} metadata={drawing.metadata} fieldTransforms={richTextTransforms} />
       </div>
     </div>
   );

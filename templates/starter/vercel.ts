@@ -82,7 +82,7 @@ function pageAddresses(): Set<string> {
 
 /** An address as Vercel matches it, with the characters its patterns use escaped. */
 function source(path: string): string {
-  return encodeURI(path).replace(/[()[\]{}+*?:!]/g, "\\$&");
+  return encodeURI(path).replace(/[()[\]{}+*?:!\\]/g, "\\$&");
 }
 
 function redirects() {

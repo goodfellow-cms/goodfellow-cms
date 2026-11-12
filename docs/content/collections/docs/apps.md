@@ -65,6 +65,20 @@ export default function App() {
 
 Pictures are kept with the pages that show them. Videos, sound, and other files are played and opened from the site, since keeping them would fill the phone.
 
+### `npm audit` and Zod
+
+`npm audit` in the app flags Zod 3 ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)), which Expo's command line depends on and which has no fixed release. Expo's command line runs only on your computer, and uses Zod only to check its dev tools plugins' settings and what they print, never anything the app's users send. To use Zod 4, which has the fix, add an override to the app's `package.json`, as Goodfellow's own workspace does, then run `npm install`:
+
+```json
+{
+  "overrides": {
+    "@expo/cli": { "zod": "^4.6.6" }
+  }
+}
+```
+
+Expo SDK 58's command line checks those settings the same way with either.
+
 ## How blocks differ in apps
 
 Most blocks look and work as they do on the website. A few can't:

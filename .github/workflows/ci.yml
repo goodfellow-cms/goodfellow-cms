@@ -107,7 +107,9 @@ jobs:
               exit 1
             fi
           done
-      - run: pnpm test:e2e
+      # Streamed as it runs, rather than Turbo's way on Actions of printing a task's output once it ends, so a run
+      # stopped at the time limit still shows which test it was in.
+      - run: pnpm test:e2e --log-order=stream
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:

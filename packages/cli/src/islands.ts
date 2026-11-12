@@ -8,7 +8,7 @@ import { type Plugin, parseAst } from "vite";
  * paths come from the site's files, so `<`, `>` and line separators are
  * escaped too, and the code can't be read as anything else wherever it ends up.
  */
-function jsString(value: string): string {
+export function jsString(value: string): string {
   return JSON.stringify(value).replace(
     /[<>\u2028\u2029]/g,
     (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,

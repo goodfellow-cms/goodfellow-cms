@@ -144,7 +144,7 @@ export function useDebounced<T>(value: T, ms: number): T {
 }
 
 /** Where Goodfellow's documentation is, which the admin panel links to for more than a hint can say. */
-export const DOCS_URL = "https://goodfellow-cms.github.io/goodfellow-cms/docs/";
+export const DOCS_URL = "https://goodfellowcms.com/docs/";
 
 /** A page of the documentation, or a section of one, by its address and heading's link name. */
 export function docsLink(page: string, section?: string): string {

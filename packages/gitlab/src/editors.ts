@@ -26,7 +26,7 @@ interface Invitation {
 }
 
 interface ProtectedBranch {
-  push_access_levels?: Array<{ id?: number; access_level: number | null }>;
+  push_access_levels?: Array<{ id?: number; access_level: number | null; deploy_key_id?: number | null }>;
   merge_access_levels?: Array<{ id?: number; access_level: number | null }>;
 }
 
@@ -173,10 +173,16 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
         (["push_access_levels", "merge_access_levels"] as const).every((kind) =>
           (protection[kind] ?? []).some((level) => level.access_level !== null && level.access_level <= DEVELOPER),
         );
-      const protect = (level: number) =>
+      const protect = (level: number, keys: number[] = []) =>
         gitlabRequest(api, `${base}/protected_branches`, {
           method: "POST",
-          body: { name: branch, push_access_level: level, merge_access_level: level, allow_force_push: false },
+          body: {
+            name: branch,
+            push_access_level: level,
+            merge_access_level: level,
+            allow_force_push: false,
+            ...(keys.length > 0 && { allowed_to_push: keys.map((id) => ({ deploy_key_id: id })) }),
+          },
         });
       const current = await read();
       if (!current) {
@@ -185,10 +191,12 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
       }
       if (developersMay(current)) return;
       // In one change where GitLab can (15.6 and later), so the branch is never left unprotected:
-      // Developers' levels in, the others out.
+      // Developers' levels in, the others out, keeping the deploy key the nightly update publishes with.
       const swap = (levels: ProtectedBranch["push_access_levels"] = []) => [
         { access_level: DEVELOPER },
-        ...levels.flatMap((level) => (level.id === undefined ? [] : [{ id: level.id, _destroy: true }])),
+        ...levels.flatMap((level) =>
+          level.id === undefined || level.deploy_key_id ? [] : [{ id: level.id, _destroy: true }],
+        ),
       ];
       const patched = await gitlabRequest(api, protectedPath, {
         method: "PATCH",
@@ -200,19 +208,28 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
         allow: [400, 404, 405, 422],
       }).catch(notAllowed);
       if (patched.ok && developersMay(await read())) return;
-      // Older GitLab: the protection is removed and made again, then checked.
+      // Older GitLab: the protection is removed and made again, with the deploy keys that could push, then checked.
+      const keys = (current.push_access_levels ?? []).flatMap((level) =>
+        level.deploy_key_id ? [level.deploy_key_id] : [],
+      );
       await gitlabRequest(api, protectedPath, { method: "DELETE", allow: [404] }).catch(notAllowed);
       try {
-        await protect(DEVELOPER);
+        await protect(DEVELOPER, keys);
       } catch (error) {
         // Put the protection back as it was, rather than leave the branch unprotected.
-        await protect(MAINTAINER).catch(() => undefined);
+        await protect(MAINTAINER, keys).catch(() => undefined);
         notAllowed(error);
       }
       const after = await read();
       if (!after || !developersMay(after)) {
-        if (!after) await protect(MAINTAINER).catch(() => undefined);
+        if (!after) await protect(MAINTAINER, keys).catch(() => undefined);
         throw new Error("GitLab didn't keep the main branch's new protection. Try again.");
+      }
+      const kept = new Set((after.push_access_levels ?? []).map((level) => level.deploy_key_id));
+      if (keys.some((key) => !kept.has(key))) {
+        throw new Error(
+          "GitLab protected the main branch again without the key nightly updates publish with. Turn on updates again on the Updates screen.",
+        );
       }
     },
   };
