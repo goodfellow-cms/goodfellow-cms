@@ -4,6 +4,7 @@
 // collections: the site's search, feeds, calendar files, and the content API leave them out.
 import type { Collection } from "./collections.js";
 import type { Page, SiteContent } from "./load.js";
+import type { FileChange } from "./store.js";
 
 /** Who can see a page: `everyone`, as where it's left out, or only the site's `members`. */
 export const VISIBILITIES = ["everyone", "members"] as const;
@@ -12,9 +13,14 @@ export type Visibility = (typeof VISIBILITIES)[number];
 /** The page setting that says who a page is for, which a collection's template gives its items' pages. */
 export const VISIBILITY_PROP = "visibility";
 
-/** Whether every item of a collection is for members only, as its `_collection.json` says. */
+/**
+ * Whether every item of a collection is for members only, as its `_collection.json` says: its own setting, or its
+ * template's "Who can see this page", which every item's page has, so its items are left out of what builds publish
+ * beside the pages either way.
+ */
 export function isMembersCollection(collection: Pick<Collection, "settings">): boolean {
-  return collection.settings.visibility === "members";
+  const template = collection.settings.template as { root?: { props?: Record<string, unknown> } } | undefined;
+  return collection.settings.visibility === "members" || template?.root?.props?.[VISIBILITY_PROP] === "members";
 }
 
 /**
@@ -47,4 +53,42 @@ export function withoutMembersContent(content: SiteContent): SiteContent {
   const pages = content.pages.filter((page) => !isMembersOnly(page, content.collections));
   if (collections.length === content.collections.length && pages.length === content.pages.length) return content;
   return { ...content, collections, pages };
+}
+
+/** Who a page file says its page is for, from its JSON: `members`, or `everyone` where it doesn't say. */
+function pageVisibility(text: string | undefined): Visibility {
+  if (text === undefined) return "everyone";
+  try {
+    const props = (JSON.parse(text) as { data?: { root?: { props?: Record<string, unknown> } } }).data?.root?.props;
+    return props?.[VISIBILITY_PROP] === "members" ? "members" : "everyone";
+  } catch {
+    return "everyone";
+  }
+}
+
+/**
+ * The pages in `changes` whose "Who can see this page" changes, a new page's included, which, like a collection's
+ * settings, only a site's owners may change: making a members' page public publishes it to everyone, its search
+ * entry and content API file included. A full-stack site's server refuses them from anyone else (`appApi()`). Pages
+ * sent as bytes are read as text, so sending one that way never skips the check; `read` gives a file as it was.
+ */
+export async function visibilityChanges(
+  changes: readonly FileChange[],
+  read: (path: string) => Promise<string | undefined>,
+): Promise<string[]> {
+  const changed: string[] = [];
+  for (const change of changes) {
+    if (!change.path.startsWith("content/pages/") || !change.path.endsWith(".json") || "delete" in change) continue;
+    let text: string;
+    if ("content" in change) text = change.content;
+    else {
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(change.bytes);
+      } catch {
+        text = "";
+      }
+    }
+    if (pageVisibility(text) !== pageVisibility(await read(change.path))) changed.push(change.path);
+  }
+  return changed;
 }

@@ -91,6 +91,8 @@ const pageRootFields: Fields = {
   visibility: {
     type: "radio",
     label: "Who can see this page",
+    // Making a members' page public publishes it to everyone, so only owners choose, as with collections' settings.
+    metadata: { owners: true },
     options: [
       { label: "Everyone", value: "everyone" },
       { label: "Only signed-in members", value: "members" },

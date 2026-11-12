@@ -823,6 +823,7 @@ export {
   VISIBILITIES,
   VISIBILITY_PROP,
   type Visibility,
+  visibilityChanges,
   withoutMembersContent,
 } from "./content/visibility.js";
 export {

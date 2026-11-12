@@ -3,7 +3,13 @@ import { buildNotes } from "../fonts.js";
 import { calendarFiles } from "./calendars.js";
 import { feedFiles } from "./feeds.js";
 import { allPages, type ContentSource, loadSiteContent } from "./load.js";
-import { isMembersOnly, membersPages, withoutMembersContent } from "./visibility.js";
+import {
+  isMembersCollection,
+  isMembersOnly,
+  membersPages,
+  visibilityChanges,
+  withoutMembersContent,
+} from "./visibility.js";
 
 function memorySource(files: Record<string, unknown>): ContentSource {
   const text = Object.fromEntries(Object.entries(files).map(([path, value]) => [path, JSON.stringify(value)]));
@@ -97,5 +103,44 @@ describe("visibility", () => {
     const many = buildNotes({ membersPages: ["/a", "/b", "/c", "/d", "/e", "/f", "/g"] });
     expect(many[0]).toMatch(/^7 pages are marked for signed-in members only \(\/a, \/b, \/c, \/d, \/e, and 2 more\)/);
     expect(buildNotes({ membersPages: [] })).toEqual([]);
+  });
+
+  it("counts a collection whose design is for members as members'", () => {
+    const template = (visibility: string) => ({ root: { props: { visibility } }, content: [] });
+    expect(isMembersCollection({ settings: { template: template("members") } } as never)).toBe(true);
+    expect(isMembersCollection({ settings: { template: template("everyone") } } as never)).toBe(false);
+    expect(isMembersCollection({ settings: { visibility: "members" } } as never)).toBe(true);
+    expect(isMembersCollection({ settings: {} } as never)).toBe(false);
+  });
+
+  it("finds pages whose readers a change changes, however they're sent", async () => {
+    const page = (visibility?: string) =>
+      JSON.stringify({ version: 1, data: { root: { props: { ...(visibility && { visibility }) } }, content: [] } });
+    const files: Record<string, string> = {
+      "content/pages/public.json": page(),
+      "content/pages/members.json": page("members"),
+    };
+    const read = async (path: string) => files[path];
+    expect(
+      await visibilityChanges(
+        [
+          { path: "content/pages/public.json", content: page("everyone") },
+          { path: "content/pages/members.json", content: page("members") },
+          { path: "content/site.json", content: "{}" },
+          { path: "content/pages/members.json", delete: true },
+        ],
+        read,
+      ),
+    ).toEqual([]);
+    expect(
+      await visibilityChanges(
+        [
+          { path: "content/pages/public.json", content: page("members") },
+          { path: "content/pages/members.json", bytes: new TextEncoder().encode(page()) },
+          { path: "content/pages/new.json", content: page("members") },
+        ],
+        read,
+      ),
+    ).toEqual(["content/pages/public.json", "content/pages/members.json", "content/pages/new.json"]);
   });
 });
