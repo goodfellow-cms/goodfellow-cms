@@ -97,6 +97,9 @@ function namedBy(filter: string, file: string): boolean {
   return file.includes(filter);
 }
 
+/** The spec files a run is for, by name and separated by commas, which `scripts/test-groups.mjs` sets. */
+export const SPECS_VARIABLE = "E2E_SPECS";
+
 /** Options that take a value, so a value such as `--project chromium`'s isn't taken for a file. */
 const VALUE_OPTIONS = new Set(["-c", "--config", "-g", "--grep", "--grep-invert", "--project", "--reporter", "-j"]);
 
@@ -108,16 +111,23 @@ const VALUE_OPTIONS = new Set(["-c", "--config", "-g", "--grep", "--grep-invert"
 function serversFor(args: string[]): Server[] {
   const all = SERVERS.map(({ server }) => server);
   if (process.env.E2E_ALL_SERVERS) return all;
-  const filters: string[] = [];
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i] ?? "";
-    if (VALUE_OPTIONS.has(arg)) i++;
-    else if (arg !== "test" && !arg.startsWith("-")) filters.push(arg.replace(/(:\d+)+$/, ""));
+  const names = readdirSync(new URL("tests/", import.meta.url)).filter((name) => name.endsWith(".spec.ts"));
+  // `scripts/test-groups.mjs` names its group's specs exactly, since the filters it gives Playwright are patterns.
+  const listed = process.env[SPECS_VARIABLE]?.split(",").filter(Boolean);
+  let chosen: string[];
+  if (listed?.length) {
+    chosen = names.filter((name) => listed.includes(name));
+  } else {
+    const filters: string[] = [];
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i] ?? "";
+      if (VALUE_OPTIONS.has(arg)) i++;
+      else if (arg !== "test" && !arg.startsWith("-")) filters.push(arg.replace(/(:\d+)+$/, ""));
+    }
+    if (!filters.length) return all;
+    chosen = names.filter((name) => filters.some((filter) => namedBy(filter, `tests/${name}`)));
   }
-  if (!filters.length) return all;
-  const specs = readdirSync(new URL("tests/", import.meta.url))
-    .filter((name) => name.endsWith(".spec.ts") && filters.some((filter) => namedBy(filter, `tests/${name}`)))
-    .map((name) => readFileSync(new URL(`tests/${name}`, import.meta.url), "utf8"));
+  const specs = chosen.map((name) => readFileSync(new URL(`tests/${name}`, import.meta.url), "utf8"));
   // A filter no spec matches is something else, so start everything rather than guess.
   if (!specs.length) return all;
   return SERVERS.filter(({ usedBy }) => !usedBy || specs.some((text) => usedBy.test(text))).map(({ server }) => server);
