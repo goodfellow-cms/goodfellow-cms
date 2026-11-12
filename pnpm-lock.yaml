@@ -360,6 +360,24 @@ importers:
       '@puckeditor/core':
         specifier: 0.24.0
         version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+      '@upyo/core':
+        specifier: 0.6.0
+        version: 0.6.0
+      '@upyo/mailgun':
+        specifier: 0.6.0
+        version: 0.6.0(@upyo/core@0.6.0)
+      '@upyo/plunk':
+        specifier: 0.6.0
+        version: 0.6.0(@upyo/core@0.6.0)
+      '@upyo/resend':
+        specifier: 0.6.0
+        version: 0.6.0(@upyo/core@0.6.0)
+      '@upyo/sendgrid':
+        specifier: 0.6.0
+        version: 0.6.0(@upyo/core@0.6.0)
+      '@upyo/ses':
+        specifier: 0.6.0
+        version: 0.6.0(@upyo/core@0.6.0)
       '@vinext/cloudflare':
         specifier: 1.3.3
         version: 1.3.3(@cloudflare/vite-plugin@1.67.0(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(workerd@1.20261101.1)(wrangler@4.156.1(@types/node@22.20.5)))(vinext@1.4.4(77c43a0fe6cacff530c6c935f746ef65))
@@ -4204,6 +4222,40 @@ packages:
     peerDependenciesMeta:
       next:
         optional: true
+
+  '@upyo/core@0.6.0':
+    resolution: {integrity: sha512-zgNNXOcUe5662vQ5qmGJcwioy7KvrOKUeuDifb6oA23MYz3MvRWmhaMlbjAnZWt6OzutKAP/lR3C9/afTld7EQ==}
+    engines: {bun: '>=1.2.0', deno: '>=2.3.0', node: '>=20.0.0'}
+
+  '@upyo/mailgun@0.6.0':
+    resolution: {integrity: sha512-JmbqaVvkpBL0z4W/tEEonzy3o8BWEZl6T3eawfPHhd2UwZ59j+qWZrzO6ts0GUNwgNmTJpo+Tkh10r9jUDE+AQ==}
+    engines: {bun: '>=1.2.0', deno: '>=2.3.0', node: '>=20.0.0'}
+    peerDependencies:
+      '@upyo/core': 0.6.0
+
+  '@upyo/plunk@0.6.0':
+    resolution: {integrity: sha512-PLmNo8JRltaxOz60/Mb9OUEnZFEn02fB+toL4AJXpGykm2JRUkl0TffKnEdOYsYqZ3Y7StnKhz9mEG3fN1SxNQ==}
+    engines: {bun: '>=1.2.0', deno: '>=2.3.0', node: '>=20.0.0'}
+    peerDependencies:
+      '@upyo/core': 0.6.0
+
+  '@upyo/resend@0.6.0':
+    resolution: {integrity: sha512-BXian1dI86vj4jMq3JLHAZHYAv/luoKVF+zGriw8p2C8I6cUnrufcvdbu6UiDyAC9FSQO1az4Tz3uL6X8rujsw==}
+    engines: {bun: '>=1.2.0', deno: '>=2.3.0', node: '>=20.0.0'}
+    peerDependencies:
+      '@upyo/core': 0.6.0
+
+  '@upyo/sendgrid@0.6.0':
+    resolution: {integrity: sha512-qkVvtPE4gZhzWGgNfLsHUPrClfi6Q5o2UQ86VdWktOHtW2dNQD2psCV1q7WWg320zInItR2K6dRVYuKwcontGw==}
+    engines: {bun: '>=1.2.0', deno: '>=2.3.0', node: '>=20.0.0'}
+    peerDependencies:
+      '@upyo/core': 0.6.0
+
+  '@upyo/ses@0.6.0':
+    resolution: {integrity: sha512-ZGrRbHQ3cF8FbmXF/JXT14sG+AbxrAGfMnu9ylJrl3Gl5uX96jzaT4Xsd6Wesdc57iQu7hzU1ACjzEIdTPEcWA==}
+    engines: {bun: '>=1.2.0', deno: '>=2.3.0', node: '>=20.0.0'}
+    peerDependencies:
+      '@upyo/core': 0.6.0
 
   '@vercel/og@1.0.3':
     resolution: {integrity: sha512-/iYJ34PDu4lty1TXdL86qHEw8viveHTllG1PWLuJX8tSFfqKL7kyVJeUORJmQ250bHB0h+alcalXUlza3c/NSA==}
@@ -10960,6 +11012,28 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
     optionalDependencies:
       next: 16.4.3(@babel/core@7.29.7(supports-color@8.1.1))(@playwright/test@1.63.0)(@types/node@22.20.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+
+  '@upyo/core@0.6.0': {}
+
+  '@upyo/mailgun@0.6.0(@upyo/core@0.6.0)':
+    dependencies:
+      '@upyo/core': 0.6.0
+
+  '@upyo/plunk@0.6.0(@upyo/core@0.6.0)':
+    dependencies:
+      '@upyo/core': 0.6.0
+
+  '@upyo/resend@0.6.0(@upyo/core@0.6.0)':
+    dependencies:
+      '@upyo/core': 0.6.0
+
+  '@upyo/sendgrid@0.6.0(@upyo/core@0.6.0)':
+    dependencies:
+      '@upyo/core': 0.6.0
+
+  '@upyo/ses@0.6.0(@upyo/core@0.6.0)':
+    dependencies:
+      '@upyo/core': 0.6.0
 
   '@vercel/og@1.0.3(@types/node@22.20.5)':
     dependencies:
