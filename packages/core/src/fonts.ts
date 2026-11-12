@@ -193,7 +193,7 @@ export function buildNotes(result: {
   const lines: string[] = [];
   if (result.membersPages && result.membersPages.length > 0) {
     const shown = result.membersPages.slice(0, 5).join(", ");
-    const more = result.membersPages.length > 5 ? ` and ${result.membersPages.length - 5} more` : "";
+    const more = result.membersPages.length > 5 ? `, and ${result.membersPages.length - 5} more` : "";
     lines.push(
       `${result.membersPages.length === 1 ? "A page is" : `${result.membersPages.length} pages are`} marked for signed-in members only (${shown}${more}), but this site has no server to keep ${result.membersPages.length === 1 ? "it" : "them"} to members, so everyone can read ${result.membersPages.length === 1 ? "it" : "them"}. Only a full-stack site can keep pages to members.`,
     );

@@ -95,7 +95,7 @@ describe("visibility", () => {
       "A page is marked for signed-in members only (/handbook), but this site has no server to keep it to members, so everyone can read it. Only a full-stack site can keep pages to members.",
     ]);
     const many = buildNotes({ membersPages: ["/a", "/b", "/c", "/d", "/e", "/f", "/g"] });
-    expect(many[0]).toMatch(/^7 pages are marked for signed-in members only \(\/a, \/b, \/c, \/d, \/e and 2 more\)/);
+    expect(many[0]).toMatch(/^7 pages are marked for signed-in members only \(\/a, \/b, \/c, \/d, \/e, and 2 more\)/);
     expect(buildNotes({ membersPages: [] })).toEqual([]);
   });
 });
