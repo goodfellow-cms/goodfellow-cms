@@ -4,9 +4,10 @@ import type { Config, Data } from "@puckeditor/core";
 /**
  * Page settings as the editor shows them where a page hasn't chosen: "Search
  * engines" shows that the page is in search results, as it is unless its
- * settings say otherwise, and on "Page not found", which never is, shows that
- * it isn't, with no choice; the other search engine settings, and the picture
- * size when shared, show what they are where a page leaves them out.
+ * settings say otherwise, and "The site's search" that the page is in it; on
+ * "Page not found", which never is in either, both show that it isn't, with no
+ * choice; the other search engine settings, and the picture size when shared,
+ * show what they are where a page leaves them out.
  * `keep()` takes them out again, so files hold only what editors chose.
  */
 export interface ShownSettings {
@@ -38,6 +39,12 @@ export function withoutVisibility(config: Config): Config {
   return { ...config, root: { ...config.root, fields: rest } };
 }
 
+/** The settings "Page not found" has whatever its file says, which the editor shows with no choice. */
+const FIXED: Readonly<Record<string, unknown>> = { noIndex: true, noSearch: true };
+
+/** Every setting in `FIXED`, as read-only. */
+const FIXED_READ_ONLY = Object.fromEntries(Object.keys(FIXED).map((name) => [name, true]));
+
 /** For pages and templates, whose settings include `noIndex`; `path` is the page's, for pages. */
 export function shownSettings(original: Data, path: string | undefined): ShownSettings {
   const fixed = path !== undefined && neverIndexed(path);
@@ -53,7 +60,7 @@ export function shownSettings(original: Data, path: string | undefined): ShownSe
       if (fixed) {
         return {
           ...data,
-          root: { ...root, props: { ...props, noIndex: true }, readOnly: { ...root.readOnly, noIndex: true } },
+          root: { ...root, props: { ...props, ...FIXED }, readOnly: { ...root.readOnly, ...FIXED_READ_ONLY } },
         };
       }
       return { ...data, root: { ...root, props } };
@@ -65,7 +72,7 @@ export function shownSettings(original: Data, path: string | undefined): ShownSe
         // "Page not found" keeps what its file says, since it can't be changed; elsewhere, leaving the
         // default unchosen means the same as choosing it.
         const kept =
-          (fixed && name === "noIndex") || (originalProps[name] === undefined && props[name] === value)
+          (fixed && name in FIXED) || (originalProps[name] === undefined && props[name] === value)
             ? originalProps[name]
             : props[name];
         if (kept === undefined) delete props[name];
