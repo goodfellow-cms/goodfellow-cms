@@ -110,6 +110,12 @@ describe("sendBuildFile", () => {
     expect(sent).toBe(true);
     expect(res).toMatchObject({ statusCode: 500, ended: true });
     expect(said).toEqual(["/feeds/jobs.rss couldn't be made: The database didn't answer."]);
+    // Whatever a source rejects with, null too, is said, and the request still answered.
+    const nothing = answer();
+    const rejecting = () => Promise.reject(null);
+    await sendBuildFile(files, "/feeds/jobs.rss", nothing as never, rejecting, (message) => said.push(message));
+    expect(nothing).toMatchObject({ statusCode: 500, ended: true });
+    expect(said.at(-1)).toBe("/feeds/jobs.rss couldn't be made: null");
     // Without anywhere to say it, the failure is the caller's.
     await expect(sendBuildFile(files, "/feeds/jobs.rss", answer() as never, failing)).rejects.toThrow("database");
   });

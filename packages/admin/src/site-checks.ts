@@ -200,14 +200,17 @@ export async function checkPublish(
   let after: SiteContent;
   try {
     after = await contentWithChanges(source, changes, sourced);
-  } catch {
+  } catch (error) {
+    // A sign-in that ran out is for signing in again, never for publishing without the checks.
+    if (error instanceof SignInError) throw error;
     return { blocking: [], warnings: [], content: before };
   }
   if (sources) {
     // Asked each time, so publishing again retries a source that couldn't be read, here or as the site loaded.
     try {
       after = await withSourcedCollections(after, sources);
-    } catch {
+    } catch (error) {
+      if (error instanceof SignInError) throw error;
       const unread = after.collections.filter((one) => Object.hasOwn(sources, one.id)).map((one) => one.id);
       return { blocking: [], warnings: [], unread, content: after };
     }

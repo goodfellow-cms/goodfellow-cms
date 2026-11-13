@@ -657,10 +657,17 @@ export function AdminProvider({
         await askLimits(outside, state.content, submit);
         return { ok: false, reason: "checks", error: undefined };
       }
-      const checks =
-        options?.checks === false
-          ? undefined
-          : await checkPublish(content, state, changes, { blocks, code, sources: checkSources(changes), sourced });
+      let checks: PublishChecks | undefined;
+      try {
+        checks =
+          options?.checks === false
+            ? undefined
+            : await checkPublish(content, state, changes, { blocks, code, sources: checkSources(changes), sourced });
+      } catch (error) {
+        // A sign-in that ran out while checking: signing in again, as a write that finds it does.
+        if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
+        return { ok: false, reason: "error", error };
+      }
       if (!(await confirmChecks(checks))) return { ok: false, reason: "checks", error: undefined };
       let target = draft;
       let started: Draft | undefined;
@@ -764,7 +771,13 @@ export function AdminProvider({
       return { ok: false, reason: "error", error };
     }
     // Every file in the draft, against the live site as it is now.
-    const checks = await checkPublish(store, live, changes, { blocks, code, sources: checkSources(changes), sourced });
+    let checks: PublishChecks;
+    try {
+      checks = await checkPublish(store, live, changes, { blocks, code, sources: checkSources(changes), sourced });
+    } catch (error) {
+      if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
+      return { ok: false, reason: "error", error };
+    }
     if (!(await confirmChecks(checks))) {
       return { ok: false, reason: "checks", error: undefined };
     }

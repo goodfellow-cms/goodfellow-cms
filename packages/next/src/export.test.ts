@@ -23,7 +23,7 @@ import {
   writeRedirectFiles,
 } from "./export.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
-import { readCollectionSources } from "./plugins.js";
+import { loadSiteModule, readCollectionSources } from "./plugins.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -269,6 +269,20 @@ describe("collections' sources in an export", () => {
       await rm(site, { recursive: true, force: true });
       if (other) await rm(other, { recursive: true, force: true });
     }
+  });
+});
+
+describe("loadSiteModule", () => {
+  it("loads modules started at once each as itself", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-modules-"));
+    const count = 12;
+    for (let index = 0; index < count; index++) {
+      await writeFile(join(out, `module-${index}.mjs`), `export default ${index};\n`);
+    }
+    const loaded = await Promise.all(
+      Array.from({ length: count }, (_, index) => loadSiteModule(out, join(out, `module-${index}.mjs`))),
+    );
+    expect(loaded.map((module) => module.default)).toEqual(Array.from({ length: count }, (_, index) => index));
   });
 });
 

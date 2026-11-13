@@ -311,7 +311,11 @@ function devPlugin(
             plugins: async () => (await loadServerEntry(server)).config.plugins ?? [],
             server: "goodfellow-dev" as const,
           };
-          if (await handleDevApi(store, req, res, { registryDir, tasks, allowedHosts })) return;
+          // Calendar files and feeds, as builds write them, from the content as it is now, with what sources give,
+          // here and at the development API's own addresses alike.
+          const sourcedSite = async (files: ContentSource) =>
+            loadSourcedSite(server, root, (await loadServerEntry(server)).config, files);
+          if (await handleDevApi(store, req, res, { registryDir, tasks, allowedHosts, load: sourcedSite })) return;
           if (req.method !== "GET" && req.method !== "HEAD") return next();
           const url = new URL(req.url ?? "/", "http://localhost");
 
@@ -334,9 +338,6 @@ function devPlugin(
             res.end(JSON.stringify(describedForCopy(describe(), siteCopyFrom(process.env)), null, 2));
             return;
           }
-          // Calendar files and feeds, as builds write them, from the content as it is now.
-          const sourcedSite = async (files: ContentSource) =>
-            loadSourcedSite(server, root, (await loadServerEntry(server)).config, files);
           // One that can't be made, such as when a collection's source can't be read, answers as a failure, said here,
           // never as a file that isn't there, as the development API does in next dev.
           const logError = (message: string) => server.config.logger.error(message, { timestamp: true });

@@ -4,7 +4,7 @@
  * `goodfellow-next finish` from the site's config, which Next.js alone
  * bundles otherwise. Node only.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
@@ -74,7 +74,8 @@ export async function loadSiteModule(
   const { build } = await import("rolldown");
   const outDir = join(root, "node_modules/.goodfellow");
   await mkdir(outDir, { recursive: true });
-  const file = join(outDir, `module-${process.pid}-${Date.now()}.mjs`);
+  // Each call a file of its own, since several can start in the same millisecond.
+  const file = join(outDir, `module-${process.pid}-${Date.now()}-${randomUUID()}.mjs`);
   await build({
     input,
     cwd: root,

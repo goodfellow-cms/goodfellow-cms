@@ -148,6 +148,14 @@ describe("checkPublish", () => {
     const read = await checkPublish(withJobs, { content, media: [] }, linking, site);
     expect(read.unread).toBeUndefined();
     expect(read.blocking).toEqual([]);
+    // A sign-in that ran out is for signing in again, whether reading the source or the site's own files finds it.
+    const expired = () => Promise.reject(new SignInError("invalid", "Sign in again."));
+    const signedOut = { ...site, sources: { jobs: { items: expired } } };
+    await expect(checkPublish(withJobs, { content, media: [] }, linking, signedOut)).rejects.toBeInstanceOf(
+      SignInError,
+    );
+    const unreadable = { read: expired, list: expired, readBytes: expired } as unknown as typeof withJobs;
+    await expect(checkPublish(unreadable, { content, media: [] }, linking, site)).rejects.toBeInstanceOf(SignInError);
     // Where the admin panel can't read the items, as on a static site, whose build does: links that could go to the
     // collection's pages, in any of the site's languages, aren't checked, and every other link still is.
     const unreachable = [

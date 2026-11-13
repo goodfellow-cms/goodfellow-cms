@@ -243,7 +243,8 @@ export async function sendBuildFile(
     content = await load(source);
   } catch (error) {
     if (!onError) throw error;
-    onError(`${pathname} couldn't be made: ${(error as Error).message}`);
+    // A source can reject with anything, null included.
+    onError(`${pathname} couldn't be made: ${error instanceof Error ? error.message : String(error)}`);
     res.statusCode = 500;
     res.end();
     return true;
