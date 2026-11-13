@@ -94,6 +94,17 @@ describe("synced blocks", () => {
     expect(spanish?.content[0]?.props.text).toBe("Horario de misas");
   });
 
+  it("leave what holds none as it was, so expanding twice copies nothing more", async () => {
+    const content = await site();
+    const home = content.pages.find((found) => found.path === "/");
+    const expanded = expandSyncedBlocks(home?.content.data, content);
+    expect(expandSyncedBlocks(expanded, content)).toBe(expanded);
+    // Only what held a placement is new: the root's props are shared.
+    expect(expanded?.root).toBe(home?.content.data.root);
+    expect(expanded?.content).not.toBe(home?.content.data.content);
+    expect(expanded?.content[2]).toBe(home?.content.data.content[1]);
+  });
+
   it("leave nothing for a synced block that isn't there, or one placed inside another", async () => {
     const content = await site({
       "content/synced-blocks/loop.json": {

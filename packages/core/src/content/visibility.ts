@@ -55,6 +55,160 @@ export function withoutMembersContent(content: SiteContent): SiteContent {
   return { ...content, collections, pages };
 }
 
+/** A block in Puck's data, found by its shape wherever it is: a page's content, a slot, or a drop zone. */
+interface PlacedBlock {
+  type: string;
+  props: Record<string, unknown>;
+}
+
+function isPlacedBlock(value: unknown): value is PlacedBlock {
+  const block = value as PlacedBlock | null;
+  return (
+    typeof block === "object" &&
+    block !== null &&
+    typeof block.type === "string" &&
+    typeof block.props === "object" &&
+    block.props !== null
+  );
+}
+
+/** The first block of `type` anywhere in `value`, in the order a page shows them. */
+function firstBlockOf(value: unknown, type: string): PlacedBlock | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = firstBlockOf(item, type);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+  if (isPlacedBlock(value) && value.type === type) return value;
+  for (const item of Object.values(value)) {
+    const found = firstBlockOf(item, type);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/** The ids of every block anywhere in `value`. */
+function blockIds(value: unknown, ids = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const item of value) blockIds(item, ids);
+  } else if (value && typeof value === "object") {
+    if (isPlacedBlock(value) && typeof value.props.id === "string") ids.add(value.props.id);
+    for (const item of Object.values(value)) blockIds(item, ids);
+  }
+  return ids;
+}
+
+/** Puck's data, as far as what's for members needs to know it. */
+interface PageData {
+  root?: unknown;
+  content?: unknown[];
+  zones?: Record<string, unknown[]>;
+}
+
+/** The block a drop zone's key (`<block id>:<zone>`) belongs to. */
+function zoneOwner(key: string): string {
+  return key.slice(0, Math.max(0, key.lastIndexOf(":")));
+}
+
+/**
+ * The drop zones of the blocks whose ids are in `ids`, and of the blocks in those zones, and so on: everything those
+ * blocks show. Adds the ids of the blocks in them to `ids`.
+ */
+function zonesOf(zones: Record<string, unknown[]>, ids: Set<string>): Set<string> {
+  const keys = new Set<string>();
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [key, blocks] of Object.entries(zones)) {
+      if (keys.has(key) || !ids.has(zoneOwner(key))) continue;
+      keys.add(key);
+      blockIds(blocks, ids);
+      grew = true;
+    }
+  }
+  return keys;
+}
+
+/** The first `paywall` block a page's top-level `block` shows: in its slots, or in its drop zones and theirs. */
+function paywallIn(
+  block: unknown,
+  zones: Record<string, unknown[]> | undefined,
+  paywall: string,
+): PlacedBlock | undefined {
+  const found = firstBlockOf(block, paywall);
+  if (found || !zones) return found;
+  for (const key of zonesOf(zones, blockIds(block))) {
+    const inZone = firstBlockOf(zones[key], paywall);
+    if (inZone) return inZone;
+  }
+  return undefined;
+}
+
+/** `value` with every list of blocks in it emptied, as the root's slots are in a teaser. */
+function withoutSlotBlocks<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return (value.some(isPlacedBlock) ? [] : value.map((item) => withoutSlotBlocks(item))) as T;
+  }
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withoutSlotBlocks(item)])) as T;
+}
+
+/**
+ * What everyone but a members-only page's members sees of it: its blocks
+ * before the first `paywall` block (by its name in the site's `blocks`), and
+ * that block, which says what the rest is for and how to have it. A paywall
+ * inside a block (in its slot, or a drop zone, however deep) ends the teaser
+ * before that block, since what else it holds may be for members. A page with
+ * no paywall block shows only one, with its own words, so nothing an editor
+ * didn't choose is shown. Drop zones go with the blocks shown, however deep,
+ * blocks in the root's slots are left out, and synced blocks should already be
+ * in place (`expandSyncedBlocks()`), since a paywall can be in one.
+ */
+export function teaserData<T extends PageData>(data: T, paywall: string): T {
+  const content = data.content ?? [];
+  let at = -1;
+  let placed: PlacedBlock | undefined;
+  for (const [index, block] of content.entries()) {
+    placed = paywallIn(block, data.zones, paywall);
+    if (placed) {
+      at = index;
+      break;
+    }
+  }
+  const shown = at === -1 ? [] : content.slice(0, at);
+  const block = placed ?? { type: paywall, props: { id: `${paywall}-teaser` } };
+  const kept = data.zones ? zonesOf(data.zones, blockIds([...shown, block])) : undefined;
+  const zones = data.zones && Object.fromEntries(Object.entries(data.zones).filter(([key]) => kept?.has(key)));
+  return {
+    ...data,
+    ...("root" in data && { root: withoutSlotBlocks(data.root) }),
+    content: [...shown, block],
+    ...(zones && { zones }),
+  };
+}
+
+/** `value` without any block of `type`, in slots and drop zones too. */
+function withoutBlocksOf<T>(value: T, type: string): T {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item) => !(isPlacedBlock(item) && item.type === type))
+      .map((item) => withoutBlocksOf(item, type)) as T;
+  }
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withoutBlocksOf(item, type)])) as T;
+}
+
+/**
+ * A page's data as its members see it, or anyone sees a page for everyone:
+ * without its `paywall` blocks, which are only for what others see of it
+ * (`teaserData()`).
+ */
+export function withoutPaywall<T extends PageData>(data: T, paywall: string): T {
+  return firstBlockOf(data, paywall) ? withoutBlocksOf(data, paywall) : data;
+}
+
 /** Who a page file says its page is for, from its JSON: `members`, or `everyone` where it doesn't say. */
 function pageVisibility(text: string | undefined): Visibility {
   if (text === undefined) return "everyone";

@@ -1,6 +1,7 @@
 import { type ContentSource, repositorySource } from "@goodfellow-cms/core";
 import { goodfellowPages } from "@goodfellow-cms/next";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { PAYWALL_BLOCK } from "@/blocks/paywall";
 import config from "@/goodfellow.config";
 import { env } from "@/lib/env";
 
@@ -24,5 +25,8 @@ async function source(): Promise<ContentSource | undefined> {
   return live();
 }
 
-/** The site's pages, shared by the routes that show them. */
-export const site = goodfellowPages(config, { source });
+/**
+ * The site's pages, shared by the routes that show them: members-only pages as their teasers, ending at their
+ * Paywall block, for everyone but subscribers, whom proxy.ts sends to the pages' members' versions.
+ */
+export const site = goodfellowPages(config, { source, paywall: PAYWALL_BLOCK });

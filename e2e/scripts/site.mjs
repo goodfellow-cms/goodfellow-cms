@@ -427,10 +427,14 @@ export const companySite = join(here, "../.site-company");
 /** The company test site's address, its fake GitHub's and Resend's, and the token its server publishes with. */
 export const COMPANY = { port: 4416, github: 4417, resend: 4418, token: "company-token", repo: "company/site-content" };
 
-/** The accounts the company test site's database starts with, all with the same password. */
+/**
+ * The accounts the company test site's database starts with, all with the same password: the subscriber, who edits
+ * nothing, subscribes, so they see members-only pages in full.
+ */
 export const COMPANY_PEOPLE = {
   admin: { name: "Ada Admin", email: "ada@example.org", role: "admin", twoFactor: true },
   editor: { name: "Eli Editor", email: "eli@example.org", role: "editor" },
+  subscriber: { name: "Sam Subscriber", email: "sam@example.org", role: "member" },
 };
 export const COMPANY_PASSWORD = "correct-horse-battery";
 /** The admin's authenticator app's secret: the admin has two-factor sign-in on, which admins need to act as owners. */
