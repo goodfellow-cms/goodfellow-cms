@@ -304,6 +304,40 @@ describe("Stripe's events", () => {
     }
   });
 
+  it("take back a purchase refunded while coming back from Checkout writes it", async () => {
+    const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "report" }));
+      const session = [...stripe.sessions.values()].at(-1);
+      stripe.pay(session?.id ?? "");
+      // Coming back from Checkout reads the payment, unrefunded, then waits on Stripe for what was bought...
+      let reading = () => {};
+      const read = new Promise<void>((resolve) => {
+        reading = resolve;
+      });
+      let release = () => {};
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const slow = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input instanceof Request ? input.url : input).includes("/line_items")) {
+          reading();
+          await released;
+        }
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      const coming = applySession(context.adapter, slow, session?.id ?? "");
+      await read;
+      // ...while the refund's event is handled, which finds nothing to take back yet.
+      await deliver(stripe.refund(session?.payment_intent ?? ""));
+      release();
+      await coming;
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+    } finally {
+      close();
+    }
+  });
+
   it("are refused unless Stripe signed them, and read nothing but which object changed", async () => {
     const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
     try {

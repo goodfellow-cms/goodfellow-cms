@@ -92,7 +92,7 @@ async function sendEvents(events) {
       headers: { "content-type": "application/json", "stripe-signature": signature },
       body,
     });
-    if (!answer.ok) console.error(`The site answered Stripe's ${event.type} with ${answer.status}.`);
+    if (!answer.ok) throw new Error(`The site answered Stripe's ${event.type} with ${answer.status}.`);
   }
 }
 const page = (title, body) =>

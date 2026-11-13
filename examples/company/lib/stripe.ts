@@ -237,7 +237,7 @@ async function takenBack(stripe: Stripe, paymentIntentId: string): Promise<boole
  * for: once it's paid, never before (some payments take days, and Stripe says when they arrive), a subscription as
  * `applySubscription()` writes it, and a one-off purchase for each product, kept for good, unless its payment has been
  * refunded or disputed since (`revokePayment()`), so coming back with an old Session, or a late event, gives nothing
- * back. Keeps the Stripe customer they paid as (`customerOf()`).
+ * back, even where the refund is handled while this writes. Keeps the Stripe customer they paid as (`customerOf()`).
  */
 export async function applySession(adapter: EntitlementAdapter, stripe: Stripe, sessionId: string): Promise<void> {
   const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -255,6 +255,9 @@ export async function applySession(adapter: EntitlementAdapter, stripe: Stripe, 
     await adapter.deleteMany({ model: "entitlement", where: [{ field: "id", value: id }] });
     if (!taken) await grant(adapter, { id, userId, kind: "purchase", reference: product, expiresAt: null });
   }
+  // A refund the webhook handled while this read the products found nothing to take back yet, so it's looked for
+  // again now that the purchases are written; one after this is handled after them, and takes them back itself.
+  if (payment && !taken && (await takenBack(stripe, payment))) await revokePayment(adapter, stripe, payment);
 }
 
 /**
