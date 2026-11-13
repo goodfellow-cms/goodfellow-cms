@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test scripts/test-filters.test.mjs",
     "test:e2e": "node scripts/test-groups.mjs",
     "typecheck": "tsc -p tsconfig.json"
   },
