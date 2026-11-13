@@ -2,12 +2,16 @@
 
 import { type FormEvent, useState } from "react";
 import { NewPasswordFields, passwordProblem } from "@/app/reset-password/new-password-fields";
+import { nextPath } from "@/app/sign-in/next-path";
 
-/** Choosing a password with an invitation's link, which then stops working. */
+/**
+ * Choosing a password with an invitation's link, or a sign-up's, which then stops working, then signing in: to edit,
+ * after an invitation, or at the page a reader signed up from, which their link names.
+ */
 export function AcceptInviteForm() {
   const [problem, setProblem] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  const [signIn, setSignIn] = useState<string>();
 
   async function accept(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,7 +28,7 @@ export function AcceptInviteForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token, password }),
       });
-      if (response.ok) return setDone(true);
+      if (response.ok) return setSignIn(`/sign-in/?next=${encodeURIComponent(nextPath("/admin/"))}`);
       const { error } = (await response.json().catch(() => ({}))) as { error?: string };
       setProblem(error ?? "That didn't work. Try again in a moment.");
     } catch {
@@ -34,10 +38,10 @@ export function AcceptInviteForm() {
     }
   }
 
-  if (done) {
+  if (signIn) {
     return (
       <p>
-        Your password is set. <a href="/sign-in/?next=/admin/">Sign in</a> to start editing.
+        Your password is set. <a href={signIn}>Sign in</a> with it.
       </p>
     );
   }

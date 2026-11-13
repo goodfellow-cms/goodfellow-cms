@@ -1,0 +1,3 @@
+-- Written by scripts/emit-migrations.ts from lib/db/migrations/20261113133000_by-hand-once.ts.
+delete from "entitlement" where "kind" = 'subscription' and "reference" = 'by-hand' and exists (select 1 from "entitlement" as "newer" where "newer"."userId" = "entitlement"."userId" and "newer"."kind" = 'subscription' and "newer"."reference" = 'by-hand' and ("newer"."createdAt" > "entitlement"."createdAt" or ("newer"."createdAt" = "entitlement"."createdAt" and "newer"."id" > "entitlement"."id")));
+create unique index "entitlement_by_hand_idx" on "entitlement" ("userId") where "kind" = 'subscription' and "reference" = 'by-hand';

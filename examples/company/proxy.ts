@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { isMembersVersion, isPageRequest, membersVersionUrl, readerFor, routedPath } from "@/lib/paywall";
 
 /** Pages only people who are signed in see; anyone else is sent to sign in first. */
-const SIGNED_IN_ONLY = /^\/(?:members|admin\/editors|account)(?:\/|$)/;
+const SIGNED_IN_ONLY = /^\/(?:members|admin\/(?:editors|subscribers)|account)(?:\/|$)/;
 
 // Runs before any page, so pages themselves stay the same for everyone they're for and are served from the cache: it
 // only chooses where a request goes.
