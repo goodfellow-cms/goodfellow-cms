@@ -15,6 +15,9 @@ overrides:
   "node-forge@<1.4.3": "^1.4.3"
   # Express, which the MCP SDK uses, asks for qs 6.16.0; 6.16.1 fixes GHSA-6pq8-jhm2-2vcw.
   "express>qs": "^6.16.1"
+  # The MCP SDK, which the connector and the Claude Desktop extension use, asks for @hono/node-server 2.1.5; 2.1.6
+  # fixes GHSA-qv5m-9pm6-hqp3 and GHSA-jpvv-r467-5p4w.
+  "@hono/node-server@<2.1.6": "^2.1.6"
   # Sigstore's packages (cacache and @tufjs/models) and Expo's tools ask for glob 13
   # and minimatch 10; glob 14.0.2 fixes GHSA-3g3m-2fjr-6pw4 and minimatch 11.0.1
   # fixes GHSA-g3hv-75wg-m249, and both keep the functions they call.
