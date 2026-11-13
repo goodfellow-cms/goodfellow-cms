@@ -394,7 +394,9 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
       });
     };
     // Where another request takes the lock over while this writes, what this wrote is taken away again, so a stale
-    // read never keeps a cancelled subscription, and the event, sent again, writes it as Stripe has it then.
+    // read never keeps a cancelled subscription, and the event, sent again, writes it as Stripe has it then. Accepted:
+    // a request stopped (as a Worker can be) after writing and before letting the lock go takes nothing away, so a
+    // subscription cancelled meanwhile stays until the end of the period this read, which it had paid for.
     await fence(remove);
     await remove();
     if (!SUBSCRIBED.has(subscription.status)) return;
