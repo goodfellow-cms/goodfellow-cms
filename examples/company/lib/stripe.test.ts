@@ -247,8 +247,11 @@ describe("the Stripe customer", () => {
   });
 });
 
-/** An adapter like `adapter` whose first entitlement write waits until `release()`, saying when it starts waiting. */
-function pausingWrites<T extends object>(adapter: T) {
+/**
+ * An adapter like `adapter` whose first entitlement write (`create`, unless `method` says `deleteMany`) waits until
+ * `release()`, saying when it starts waiting.
+ */
+function pausingWrites<T extends object>(adapter: T, method: "create" | "deleteMany" = "create") {
   let waiting = () => {};
   const paused = new Promise<void>((resolve) => {
     waiting = resolve;
@@ -261,7 +264,7 @@ function pausingWrites<T extends object>(adapter: T) {
   const pausing = new Proxy(adapter, {
     get(target, name, receiver) {
       const value = Reflect.get(target, name, receiver);
-      if (name !== "create" || typeof value !== "function") return value;
+      if (name !== method || typeof value !== "function") return value;
       return async (data: { model: string }) => {
         if (data.model === "entitlement" && once) {
           once = false;
@@ -432,6 +435,53 @@ describe("Stripe's events", () => {
     }
   });
 
+  it("take back what a request wrote once its lock turns out taken over while it wrote, for the event to come again", async () => {
+    const { stripe, client, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const session = [...stripe.sessions.values()].at(-1);
+      stripe.pay(session?.id ?? "");
+      // Coming back from Checkout renews its lock, then stalls in the middle of writing an active subscription...
+      const slow = pausingWrites(context.adapter);
+      const coming = applySession(slow.adapter, client, session?.id ?? "");
+      await slow.paused;
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + (STRIPE_LOCK_SECONDS + 1) * 1000);
+      // ...past its lock's time, while the cancellation's event takes the lock over and ends it.
+      expect((await deliver(stripe.cancel(session?.subscription ?? ""))).status).toBe(200);
+      slow.release();
+      await expect(coming).rejects.toMatchObject({ name: "StripeBusy" });
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+      close();
+    }
+  });
+
+  it("are sent again where a request's lock was taken over while it wrote, so a won dispute's purchase comes back", async () => {
+    const { stripe, client, buy, deliver, context, readerId, close } = await payments();
+    try {
+      const bought = await buy("report");
+      const created = stripe.dispute(bought?.payment_intent ?? "");
+      // The dispute's event, read while it's open, stalls in the middle of taking the purchase back...
+      const slow = pausingWrites(context.adapter, "deleteMany");
+      const coming = applySession(slow.adapter, client, bought?.id ?? "");
+      await slow.paused;
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + (STRIPE_LOCK_SECONDS + 1) * 1000);
+      // ...past its lock's time, while the site wins the dispute and its event gives the purchase back.
+      expect((await deliver(stripe.closeDispute(bought?.payment_intent ?? "", "won"))).status).toBe(200);
+      slow.release();
+      await expect(coming).rejects.toMatchObject({ name: "StripeBusy" });
+      // Stripe sends the event it wasn't answered for again, which reads the dispute as won.
+      expect((await deliver(created)).status).toBe(200);
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      close();
+    }
+  });
+
   it("write a purchase one request at a time, coming back from Checkout and by the event at once", async () => {
     const { stripe, client, buying, checkout, deliver, context, readerId, reader, close } = await payments();
     try {
@@ -590,6 +640,36 @@ describe("coming back from Checkout", () => {
       ).toBe("/");
       expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
     } finally {
+      close();
+    }
+  });
+
+  it("writes it once more where another request took over writing it meanwhile", async () => {
+    const { auth, stripe, client, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const session = [...stripe.sessions.values()][0];
+      const events = stripe.pay(session?.id ?? "");
+      const created = events.find((event) => event.type === "customer.subscription.created");
+      // Coming back stalls in the middle of writing the subscription, past its lock's time...
+      const slow = pausingWrites(context.adapter);
+      const coming = returnFromCheckout(
+        new Request(`${SITE}/api/checkout/done/?next=%2Fsubscribe&session_id=${session?.id}`, {
+          headers: { cookie: reader ?? "" },
+        }),
+        { siteAuth: auth, stripe: client, adapter: slow.adapter },
+      );
+      await slow.paused;
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + (STRIPE_LOCK_SECONDS + 1) * 1000);
+      // ...while the subscription's event takes its lock over and writes it, and what coming back wrote is taken
+      // away once it finds that out: it writes it again, since no event comes back to it.
+      expect((await deliver(created ?? {})).status).toBe(200);
+      slow.release();
+      expect(await coming).toBe("/subscribe");
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+    } finally {
+      vi.useRealTimers();
       close();
     }
   });

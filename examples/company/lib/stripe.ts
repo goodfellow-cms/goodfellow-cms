@@ -304,12 +304,15 @@ export class StripeBusy extends Error {
  * one that read it earlier can't write what it read over a newer state, or write the same rows at once. The lock is
  * taken before anything is read, so whoever holds it reads Stripe as it is now. Throws `StripeBusy` where another
  * request holds it; one past `STRIPE_LOCK_SECONDS`, left by a request that stopped or stalled, is taken over, and
- * `write` calls the `fence` it's given right before writing, which stops a request whose lock was taken over.
+ * `write` calls the `fence` it's given right before writing, which stops a request whose lock was taken over. The
+ * database can't renew the lock and write in one step (D1 has no transactions), so a request that stalls after its
+ * fence finds out when it lets the lock go: it then runs the `undo` it gave its fence, if any, and throws `StripeBusy`
+ * in place of whatever `write` gave or threw, so Stripe sends the event again and it's written as Stripe has it then.
  */
 async function withStripeLock<T>(
   adapter: PaymentsAdapter,
   object: string,
-  write: (fence: () => Promise<void>) => Promise<T>,
+  write: (fence: Fence) => Promise<T>,
 ): Promise<T> {
   const id = `${STRIPE_LOCK_IDENTIFIER}${object}`;
   await adapter.deleteMany({
@@ -324,9 +327,10 @@ async function withStripeLock<T>(
   if (!(await claimRow(adapter, { id, identifier: id, value: holder, expiresAt }))) {
     throw new StripeBusy("Another request is writing what this gave.");
   }
+  let undo: (() => Promise<void>) | undefined;
   // Called just before writing: renews the lock for this request, or, where another request has taken it over since
   // (this one ran past its time), stops here, so a write from an older read never lands after a newer one.
-  const fence = async () => {
+  const fence: Fence = async (undoing) => {
     const renewed = await adapter.updateMany({
       model: "verification",
       where: [
@@ -336,19 +340,37 @@ async function withStripeLock<T>(
       update: { expiresAt: new Date(Date.now() + STRIPE_LOCK_SECONDS * 1000), updatedAt: new Date() },
     });
     if (renewed === 0) throw new StripeBusy("Another request took over writing what this gave.");
+    undo = undoing;
   };
-  try {
-    return await write(fence);
-  } finally {
-    await adapter.deleteMany({
+  const release = () =>
+    adapter.deleteMany({
       model: "verification",
       where: [
         { field: "id", value: id },
         { field: "value", value: holder },
       ],
     });
+  let done: { written: T } | { failure: unknown };
+  try {
+    done = { written: await write(fence) };
+  } catch (failure) {
+    done = { failure };
   }
+  // Gone, the lock was taken over while this wrote, so what it wrote, or failed to (the other request's rows can be in
+  // the way), may be older than what the other request did.
+  if ((await release()) === 0) {
+    await undo?.();
+    throw new StripeBusy("Another request took over writing what this gave while it wrote.");
+  }
+  if ("failure" in done) throw done.failure;
+  return done.written;
 }
+
+/**
+ * Renews a Stripe object's lock just before writing (`withStripeLock()`), with what takes the write back if the lock
+ * turns out to have been taken over while it was written.
+ */
+type Fence = (undo?: () => Promise<void>) => Promise<void>;
 
 /**
  * Writes a Stripe subscription's state, as Stripe has it now, into the person's entitlements: until its current
@@ -362,14 +384,19 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
     // An account deleted since took its entitlements with it, and writing one for it would fail on every retry.
     if (!userId || !(await stillHere(adapter, userId))) return;
     const reference = subscriptionReference(subscription.id);
-    await fence();
-    await adapter.deleteMany({
-      model: "entitlement",
-      where: [
-        { field: "userId", value: userId },
-        { field: "reference", value: reference },
-      ],
-    });
+    const remove = async () => {
+      await adapter.deleteMany({
+        model: "entitlement",
+        where: [
+          { field: "userId", value: userId },
+          { field: "reference", value: reference },
+        ],
+      });
+    };
+    // Where another request takes the lock over while this writes, what this wrote is taken away again, so a stale
+    // read never keeps a cancelled subscription, and the event, sent again, writes it as Stripe has it then.
+    await fence(remove);
+    await remove();
     if (!SUBSCRIBED.has(subscription.status)) return;
     const ends = Math.max(...subscription.items.data.map((item) => item.current_period_end));
     if (!Number.isFinite(ends)) return;
@@ -437,12 +464,7 @@ export function applySession(adapter: PaymentsAdapter, stripe: Stripe, sessionId
 }
 
 /** `applySession()`, with the Checkout Session's lock held. */
-async function writeSession(
-  adapter: PaymentsAdapter,
-  stripe: Stripe,
-  sessionId: string,
-  fence: () => Promise<void>,
-): Promise<void> {
+async function writeSession(adapter: PaymentsAdapter, stripe: Stripe, sessionId: string, fence: Fence): Promise<void> {
   const session = await stripe.checkout.sessions.retrieve(sessionId);
   const userId = session.client_reference_id;
   if (!userId || session.metadata?.userId !== userId) return;
@@ -455,6 +477,8 @@ async function writeSession(
   const payment = idOf(session.payment_intent);
   const taken = payment ? await takenBack(stripe, payment) : false;
   const products = await productsOf(stripe, session.id);
+  // Nothing to take back if the lock is lost while writing: a refund or dispute is looked for again below, and the
+  // event sent again writes the rest, so a purchase isn't lost where a dispute was won meanwhile.
   await fence();
   for (const product of products) {
     const id = purchaseId(session.id, product);
@@ -638,7 +662,14 @@ export async function returnFromCheckout(
   if (!session) return next;
   const checkout = await options.stripe.checkout.sessions.retrieve(sessionId).catch(() => undefined);
   if (checkout?.client_reference_id !== session.user.id) return next;
-  await applySession(options.adapter, options.stripe, checkout.id);
+  try {
+    await applySession(options.adapter, options.stripe, checkout.id);
+  } catch (error) {
+    // Another request took over writing it while this did, which took what this wrote away again, or is writing it:
+    // once more, as Stripe has it now, since no event comes back here.
+    if (!(error instanceof StripeBusy)) throw error;
+    await applySession(options.adapter, options.stripe, checkout.id);
+  }
   return next;
 }
 
