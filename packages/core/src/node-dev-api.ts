@@ -238,9 +238,11 @@ export async function sendBuildFile(
 ): Promise<boolean> {
   const kind = buildFileKind(pathname);
   if (!kind) return false;
-  let content: SiteContent;
+  let file: { path: string; content: string } | undefined;
   try {
-    content = await load(source);
+    // Loading the site, with what its sources give, and making its files, either of which can fail.
+    const content = await load(source);
+    file = kind.files(shownContent(content)).find((candidate) => candidate.path === pathname);
   } catch (error) {
     if (!onError) throw error;
     // A source can reject with anything, null included.
@@ -249,7 +251,6 @@ export async function sendBuildFile(
     res.end();
     return true;
   }
-  const file = kind.files(shownContent(content)).find((candidate) => candidate.path === pathname);
   if (!file) {
     res.statusCode = 404;
     res.end();

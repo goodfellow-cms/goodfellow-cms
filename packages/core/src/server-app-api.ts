@@ -358,8 +358,8 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
     const sourced = (get || post) && /^collections\/([a-z0-9-]+)\/items$/.exec(endpoint);
     if (sourced) {
       const id = sourced[1] ?? "";
-      // Asked with settings a publish would give the collection, for its checks: only owners change those, and a
-      // new field's values are then what they'd publish anyway.
+      // Asked with the settings an owner's admin panel has for the collection, a draft's or a publish's, which may
+      // not be published yet: only owners change those, and a new field's values are then what they'd publish anyway.
       let proposed: CollectionFile | undefined;
       if (post) {
         if (editor.role !== "owner") return json(403, { error: "owners-only" });

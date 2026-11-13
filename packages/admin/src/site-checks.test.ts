@@ -1,6 +1,5 @@
 import {
   type CollectionFile,
-  type CollectionSources,
   type ContentSource,
   collectionFileSchema,
   type GoodfellowConfig,
@@ -9,9 +8,9 @@ import {
   sourcedItemsFor,
 } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { localSiteCode } from "./frame/local-code.js";
-import { checkPublish, describeProblem, readShown, withProposedSettings } from "./site-checks.js";
+import { askedWithSettings, checkPublish, describeProblem, readShown } from "./site-checks.js";
 import { defaultStrings, type StringKey } from "./strings.js";
 
 const page = (title: string, content: unknown[] = []) =>
@@ -283,11 +282,11 @@ describe("checkPublish", () => {
       read: async (path) => files[path],
       list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
     };
-    // As the server answers: only the fields the settings it's given name.
+    // As the server answers: only the fields the settings it's given name, or, without any, those published.
     const rows = [{ slug: "welder", fields: { title: "Welder", pay: "a lot" } }];
-    const read = async (_id: string, settings: CollectionFile) => sourcedItemsFor("jobs", settings, rows);
     const published = collectionFileSchema.parse(jobs);
-    const sources = { jobs: { items: () => read("jobs", published) } };
+    const read = async (_id: string, settings?: CollectionFile) => sourcedItemsFor("jobs", settings ?? published, rows);
+    const sources = { jobs: { items: () => read("jobs") } };
     const content = await loadSiteContent(withJobs, { sourced: ["jobs"] });
     const { shown } = await readShown(content, sources);
     const loadedJobs = { content, ...(shown && { shown }), media: [] };
@@ -298,17 +297,126 @@ describe("checkPublish", () => {
         content: JSON.stringify({ ...jobs, fields: [...jobs.fields, { name: "pay", label: "Pay", type: "number" }] }),
       },
     ];
-    const checks = (asked: CollectionSources | undefined) =>
+    const checks = (asked: Parameters<typeof checkPublish>[3]["sources"]) =>
       checkPublish(withJobs, loadedJobs, withPay, {
         blocks: config.blocks,
         code: localSiteCode(config),
         sources: asked,
       });
-    expect((await checks(withProposedSettings(sources, withPay, read))).leftOut).toEqual(["Welder"]);
+    expect((await checks(askedWithSettings(["jobs"], read, () => true))).leftOut).toEqual(["Welder"]);
     // Asked with the settings as they're published, the field's values never came, so nothing seemed amiss.
     expect((await checks(sources)).leftOut).toBeUndefined();
-    // Other changes leave the sources as they are.
-    expect(withProposedSettings(sources, [], read)?.jobs).toBe(sources.jobs);
+  });
+
+  it("asks as published for someone who isn't an owner, whose changes to a collection's settings the server refuses", async () => {
+    const jobs = {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    };
+    const files: Record<string, string> = {
+      ...FILES,
+      "content/collections/jobs/_collection.json": JSON.stringify(jobs),
+    };
+    const withJobs: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    // As the server answers an editor: settings are owners' to send, so asking with them is refused.
+    const asked: (CollectionFile | undefined)[] = [];
+    const read = async (_id: string, settings?: CollectionFile) => {
+      asked.push(settings);
+      if (settings) throw new Error("owners-only");
+      return [{ slug: "welder", fields: { title: "Welder" } }];
+    };
+    const sources = askedWithSettings(["jobs"], read, () => false);
+    const content = await loadSiteContent(withJobs, { sourced: ["jobs"] });
+    const { shown } = await readShown(content, sources);
+    // A move whose relinking rewrites the collection's template: the checks still read the source, and the server
+    // says why the publish can't go, rather than the checks taking the source for one that can't be read.
+    const relinked = [
+      {
+        path: "content/collections/jobs/_collection.json",
+        content: JSON.stringify({ ...jobs, path: "/work/{slug}" }),
+      },
+    ];
+    const checks = await checkPublish(withJobs, { content, ...(shown && { shown }), media: [] }, relinked, {
+      blocks: config.blocks,
+      code: localSiteCode(config),
+      sources,
+    });
+    expect(checks.unread).toBeUndefined();
+    expect(asked).toEqual([undefined, undefined]);
+  });
+
+  it("reads a draft's new collection with the draft's settings, which the server doesn't have yet", async () => {
+    const collection = (name: string, path: string) => ({
+      version: 1,
+      name,
+      entryName: name,
+      path,
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    });
+    const files: Record<string, string> = {
+      ...FILES,
+      "content/collections/jobs/_collection.json": JSON.stringify(collection("Jobs", "/jobs/{slug}")),
+      // Only in the draft: the server reads the settings as published, where it has none.
+      "content/collections/events/_collection.json": JSON.stringify(collection("Events", "/events/{slug}")),
+    };
+    const draft: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    const read = async (id: string, settings?: CollectionFile) => {
+      if (id === "events" && !settings) throw new Error("not-found");
+      return [{ slug: `${id}-one`, fields: { title: `One of the ${id}` } }];
+    };
+    const content = await loadSiteContent(draft, { sourced: ["jobs", "events"] });
+    const { shown, unreadSources } = await readShown(
+      content,
+      askedWithSettings(["jobs", "events"], read, () => true),
+    );
+    expect(unreadSources).toBeUndefined();
+    expect(shown?.collections.map((one) => [one.id, one.entries.map((entry) => entry.slug)])).toEqual(
+      expect.arrayContaining([
+        ["jobs", ["jobs-one"]],
+        ["events", ["events-one"]],
+      ]),
+    );
+  });
+
+  it("logs nothing in the editor's browser for a source's items it leaves out", async () => {
+    const jobs = {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    };
+    const files: Record<string, string> = {
+      ...FILES,
+      "content/collections/jobs/_collection.json": JSON.stringify(jobs),
+    };
+    const withJobs: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    // An item whose name can't be an address, which loading leaves out.
+    const sources = { jobs: { items: async () => [{ slug: "Not A Name", fields: { title: "Welder" } }] } };
+    const content = await loadSiteContent(withJobs, { sourced: ["jobs"] });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await checkPublish(withJobs, { content, media: [] }, [], {
+        blocks: config.blocks,
+        code: localSiteCode(config),
+        sources,
+      });
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("knows the files a publish adds, and doesn't ask again about problems it didn't bring", async () => {

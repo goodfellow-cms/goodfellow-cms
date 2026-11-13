@@ -4,8 +4,6 @@ import {
   type CollectionSources,
   type ContentSource,
   checkSite,
-  collectionFileSchema,
-  collectionSettingsFile,
   entryTitle,
   type FileChange,
   FOOTER_FILE,
@@ -97,8 +95,9 @@ function contentWithChanges(
  */
 export async function readShown(
   content: SiteContent,
-  sources: CollectionSources | undefined,
+  sourcesFor: CollectionSources | SourcesFor | undefined,
 ): Promise<{ shown?: SiteContent; unreadSources?: true }> {
+  const sources = typeof sourcesFor === "function" ? sourcesFor(content) : sourcesFor;
   if (!sources) return {};
   try {
     const shown = await withSourcedCollections(content, sources, () => {});
@@ -143,34 +142,29 @@ function withoutUnreachable(
   });
 }
 
-/**
- * The sources a publish's checks ask: a collection whose settings the changes write is asked with those, so its
- * source's values for a field they add are checked as the site would check them once published. The rest are asked
- * as they are.
- */
-export function withProposedSettings(
-  sources: CollectionSources | undefined,
-  changes: readonly FileChange[],
-  read: (collection: string, settings: CollectionFile) => Promise<SourcedItem[]>,
-): CollectionSources | undefined {
-  if (!sources) return undefined;
-  return Object.fromEntries(
-    Object.entries(sources).map(([id, source]) => {
-      const change = changes.find((one) => one.path === collectionSettingsFile(id));
-      const settings = change && "content" in change ? proposedSettings(change.content) : undefined;
-      return [id, settings ? { ...source, items: () => read(id, settings) } : source];
-    }),
-  );
-}
+/** The sources to ask for a copy of the site: what the admin panel reads, for the site as it's loaded or checked. */
+export type SourcesFor = (content: SiteContent) => CollectionSources | undefined;
 
-/** A collection's settings as a change writes them, or nothing where they can't be read, as loading would refuse. */
-function proposedSettings(text: string): CollectionFile | undefined {
-  try {
-    const parsed = collectionFileSchema.safeParse(JSON.parse(text));
-    return parsed.success ? parsed.data : undefined;
-  } catch {
-    return undefined;
-  }
+/**
+ * The sources of the collections `sourced` names, for a copy of the site: an owner asks each with the collection's
+ * settings as that copy has them (`read(id, settings)`), so a draft's new collection, or a publish's new field, is
+ * read as it would be once published; anyone else, whose changes to those settings the server refuses anyway, asks
+ * with the settings as they're published (`read(id)`).
+ */
+export function askedWithSettings(
+  sourced: readonly string[],
+  read: (collection: string, settings?: CollectionFile) => Promise<SourcedItem[]>,
+  owner: () => boolean,
+): SourcesFor {
+  return (content) => {
+    if (sourced.length === 0) return undefined;
+    return Object.fromEntries(
+      sourced.map((id) => {
+        const collection = content.collections.find((one) => one.id === id);
+        return [id, { items: () => (collection && owner() ? read(id, collection.settings) : read(id)) }];
+      }),
+    );
+  };
 }
 
 /**
@@ -186,14 +180,16 @@ export async function checkPublish(
   site: {
     blocks: Record<string, ComponentConfig>;
     code: SiteCodeService;
-    sources?: CollectionSources;
+    /** The sources the admin panel reads, or what gives them for the site as the changes would leave it. */
+    sources?: CollectionSources | SourcesFor;
     /** Every collection whose items come from a source, by id: those without one in `sources` the admin panel can't read. */
     sourced?: readonly string[];
   },
 ): Promise<PublishChecks> {
-  const { blocks, code, sources } = site;
-  const sourced = site.sourced ?? Object.keys(sources ?? {});
-  const unreachable = new Set(sourced.filter((id) => !sources || !Object.hasOwn(sources, id)));
+  const { blocks, code } = site;
+  const given = typeof site.sources === "function" ? undefined : site.sources;
+  const sourced = site.sourced ?? Object.keys(given ?? {});
+  const unreachable = new Set(sourced.filter((id) => !site.sources || (given && !Object.hasOwn(given, id))));
   let leftOut: string[] | undefined;
   // As visitors see it, with sourced collections' items, so links to their pages aren't missing.
   const before = loaded.shown ?? loaded.content;
@@ -205,10 +201,12 @@ export async function checkPublish(
     if (error instanceof SignInError) throw error;
     return { blocking: [], warnings: [], content: before };
   }
+  const sources = typeof site.sources === "function" ? site.sources(after) : site.sources;
   if (sources) {
     // Asked each time, so publishing again retries a source that couldn't be read, here or as the site loaded.
     try {
-      after = await withSourcedCollections(after, sources);
+      // Items left out are named below (`leftOut`), so nothing is logged in the editor's browser, as `readShown()`.
+      after = await withSourcedCollections(after, sources, () => {});
     } catch (error) {
       if (error instanceof SignInError) throw error;
       const unread = after.collections.filter((one) => Object.hasOwn(sources, one.id)).map((one) => one.id);

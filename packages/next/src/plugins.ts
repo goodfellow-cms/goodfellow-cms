@@ -6,7 +6,7 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -51,18 +51,38 @@ export async function configHasPlugins(root: string): Promise<boolean> {
 }
 
 /**
- * A module of the site, loaded in Node: bundled with Rolldown, with the
- * packages it imports left for Node to load and stylesheets left out, then
- * imported.
+ * Modules kept by site and input (`loadKeptSiteModule()`): one for each, the latest, so an older one, and the source
+ * `keptCollectionSources()` made from it, can be let go once the code changes. With it, the hash of its bundled code,
+ * and when each file bundled into it last changed, or none where one changed while it was bundled.
  */
-const keptModules = new Map<string, Promise<Record<string, unknown>>>();
+const keptModules = new Map<
+  string,
+  { hash: string; files: Map<string, number> | undefined; module: Promise<Record<string, unknown>> }
+>();
+
+/** When `path` last changed, or `undefined` where it's gone. */
+async function changedAt(path: string): Promise<number | undefined> {
+  return stat(path).then(
+    (info) => info.mtimeMs,
+    () => undefined,
+  );
+}
+
+/** Whether no file of `files` has changed since it was bundled. */
+async function unchanged(files: Map<string, number> | undefined): Promise<boolean> {
+  if (!files || files.size === 0) return false;
+  const times = await Promise.all([...files.keys()].map(changedAt));
+  return [...files.values()].every((time, index) => times[index] === time);
+}
 
 /**
- * `loadSiteModule()`, giving the same module again while its bundled code is
- * the same, for collections' sources, which `next dev` reads on every request:
- * so `keptCollectionSources()` makes each source once until its code changes.
+ * `loadSiteModule()`, for collections' sources and the config naming them, which `next dev` reads on every request:
+ * bundled again only once a file bundled into it has changed, and the same module again while its bundled code is
+ * the same, so `keptCollectionSources()` makes each source once until its code changes.
  */
 export async function loadKeptSiteModule(root: string, input: string): Promise<Record<string, unknown>> {
+  const kept = keptModules.get(JSON.stringify([root, input]));
+  if (kept && (await unchanged(kept.files))) return kept.module;
   return loadSiteModule(root, input, { keep: true });
 }
 
@@ -76,6 +96,9 @@ export async function loadSiteModule(
   await mkdir(outDir, { recursive: true });
   // Each call a file of its own, since several can start in the same millisecond.
   const file = join(outDir, `module-${process.pid}-${Date.now()}-${randomUUID()}.mjs`);
+  const started = Date.now();
+  // Every file the bundle reads, which its output doesn't list where a module's code was inlined into another's.
+  const read = new Set<string>();
   await build({
     input,
     cwd: root,
@@ -88,7 +111,10 @@ export async function loadSiteModule(
     plugins: [
       {
         name: "goodfellow:no-styles",
-        load: (id) => (id.endsWith(".css") ? { code: "", moduleType: "js" } : undefined),
+        load: (id) => {
+          read.add(id);
+          return id.endsWith(".css") ? { code: "", moduleType: "js" } : undefined;
+        },
       },
     ],
     onLog(level, log, handler) {
@@ -100,18 +126,30 @@ export async function loadSiteModule(
   try {
     if (!keep) return (await import(pathToFileURL(file).href)) as Record<string, unknown>;
     // By the site too: the bundle's packages are found from its own folder, so two sites' same code isn't one module.
-    const key = JSON.stringify([
-      root,
-      createHash("sha256")
-        .update(await readFile(file))
-        .digest("hex"),
-    ]);
-    let module = keptModules.get(key);
-    if (!module) {
-      module = import(pathToFileURL(file).href) as Promise<Record<string, unknown>>;
-      keptModules.set(key, module);
-      module.catch(() => keptModules.delete(key));
+    const key = JSON.stringify([root, input]);
+    const hash = createHash("sha256")
+      .update(await readFile(file))
+      .digest("hex");
+    // The site's own files bundled into it, and when each changed: one changed while it was bundled may not be in it.
+    const files = new Map<string, number>();
+    for (const id of read) {
+      if (!isAbsolute(id)) continue;
+      const time = await changedAt(id);
+      if (time !== undefined) files.set(id, time);
     }
+    const settled = [...files.values()].every((time) => time < started) ? files : undefined;
+    const kept = keptModules.get(key);
+    if (kept?.hash === hash) {
+      kept.files = settled;
+      return await kept.module;
+    }
+    const module = import(pathToFileURL(file).href) as Promise<Record<string, unknown>>;
+    const entry = { hash, files: settled, module };
+    // Replacing the one kept before, so it's let go.
+    keptModules.set(key, entry);
+    module.catch(() => {
+      if (keptModules.get(key) === entry) keptModules.delete(key);
+    });
     return await module;
   } finally {
     await rm(file, { force: true });
@@ -135,8 +173,10 @@ export async function loadSiteConfig(root: string): Promise<GoodfellowConfig> {
  */
 export async function readCollectionSources(root: string): Promise<CollectionSources> {
   const dir = resolve(root);
-  if (!findConfigFile(dir)) return {};
-  const { collections } = await loadSiteConfig(dir);
+  const configFile = findConfigFile(dir);
+  if (!configFile) return {};
+  // Kept as the sources' modules are, so a request bundles nothing while nothing has changed.
+  const { collections } = (await loadKeptSiteModule(dir, configFile)).default as GoodfellowConfig;
   const modules: Record<string, SourceModuleImport> = {};
   for (const [id, collection] of Object.entries(collections ?? {})) {
     modules[id] = (await loadKeptSiteModule(dir, adminModule(dir, collection.source))) as SourceModuleImport;

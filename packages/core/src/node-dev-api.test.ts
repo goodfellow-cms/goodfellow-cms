@@ -120,6 +120,19 @@ describe("sendBuildFile", () => {
     await expect(sendBuildFile(files, "/feeds/jobs.rss", answer() as never, failing)).rejects.toThrow("database");
   });
 
+  it("answers a failure where the site loads but its file can't be made from it, rather than throw", async () => {
+    // A site the feeds can't be made from: what's loaded has no settings to read.
+    const unusable: SiteLoader = async () => ({ collections: [{ id: "jobs" }] }) as never;
+    const res = answer();
+    const said: string[] = [];
+    expect(await sendBuildFile(files, "/feeds/jobs.rss", res as never, unusable, (message) => said.push(message))).toBe(
+      true,
+    );
+    expect(res).toMatchObject({ statusCode: 500, ended: true });
+    expect(said).toHaveLength(1);
+    expect(said[0]).toMatch(/^\/feeds\/jobs\.rss couldn't be made: /);
+  });
+
   it("leaves other addresses alone, without loading the site", async () => {
     const load = vi.fn(failing);
     const res = answer();

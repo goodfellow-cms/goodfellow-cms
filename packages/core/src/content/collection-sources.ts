@@ -92,23 +92,41 @@ export function checkSourceModules(
   modules: Record<string, SourceModuleImport>,
 ): void {
   for (const id of Object.keys(modules)) {
-    if (!collections?.[id]) {
+    if (!collections || !Object.hasOwn(collections, id)) {
       throw new CollectionSourceError(
         `A source was given for the collection "${id}", but the site's config doesn't name one. Add it to the config's collections.`,
       );
     }
   }
-  for (const [id, config] of Object.entries(collections ?? {})) {
-    if (typeof sourceMaker(modules[id]) !== "function") {
-      throw new CollectionSourceError(
-        `The collection "${id}" reads its items from ${config.source}, which the site's server wasn't given. Import it and pass it as the "${id}" source.`,
-      );
-    }
-  }
+  for (const [id, config] of Object.entries(collections ?? {})) sourceMakerFor(id, config, modules);
 }
 
-function sourceMaker(module: SourceModuleImport | undefined): CollectionSourceModule | undefined {
-  return typeof module === "function" ? module : module?.default;
+/**
+ * What makes the collection `id`'s source, from the module the site's server gave for it, its own property only (a
+ * collection may be called `constructor`), or a `CollectionSourceError` saying it wasn't given.
+ */
+function sourceMakerFor(
+  id: string,
+  config: CollectionSourceConfig,
+  modules: Record<string, SourceModuleImport>,
+): CollectionSourceModule {
+  const module = Object.hasOwn(modules, id) ? modules[id] : undefined;
+  const make = typeof module === "function" ? module : module?.default;
+  if (typeof make !== "function") {
+    throw new CollectionSourceError(
+      `The collection "${id}" reads its items from ${config.source}, which the site's server wasn't given. Import it and pass it as the "${id}" source.`,
+    );
+  }
+  return make;
+}
+
+/** The collection `id`'s source, made from its module with the config's options (`sourceMakerFor()`). */
+function madeSource(
+  id: string,
+  config: CollectionSourceConfig,
+  modules: Record<string, SourceModuleImport>,
+): CollectionSource {
+  return sourceMakerFor(id, config, modules)(config.options ?? {});
 }
 
 /**
@@ -122,10 +140,7 @@ export function collectionSources(
 ): CollectionSources {
   checkSourceModules(collections, modules);
   const sources: CollectionSources = {};
-  for (const [id, config] of Object.entries(collections ?? {})) {
-    const make = sourceMaker(modules[id]) as CollectionSourceModule;
-    sources[id] = make(config.options ?? {});
-  }
+  for (const [id, config] of Object.entries(collections ?? {})) sources[id] = madeSource(id, config, modules);
   return sources;
 }
 
@@ -144,6 +159,7 @@ export function keptCollectionSources(
   checkSourceModules(collections, modules);
   const sources: CollectionSources = {};
   for (const [id, config] of Object.entries(collections ?? {})) {
+    // Checked above: the module given for the collection, its own property.
     const module = modules[id] as SourceModuleImport;
     const options = JSON.stringify(config.options ?? {});
     let made = kept.get(module);
@@ -153,7 +169,7 @@ export function keptCollectionSources(
     }
     let source = made.get(options);
     if (!source) {
-      source = (sourceMaker(module) as CollectionSourceModule)(config.options ?? {});
+      source = madeSource(id, config, modules);
       made.set(options, source);
     }
     sources[id] = source;
@@ -188,14 +204,7 @@ export function collectionSource(
   id: string,
 ): CollectionSource | undefined {
   const config = collections && Object.hasOwn(collections, id) ? collections[id] : undefined;
-  if (!config) return undefined;
-  const make = sourceMaker(Object.hasOwn(modules, id) ? modules[id] : undefined);
-  if (typeof make !== "function") {
-    throw new CollectionSourceError(
-      `The collection "${id}" reads its items from ${config.source}, which the site's server wasn't given. Import it and pass it as the "${id}" source.`,
-    );
-  }
-  return make(config.options ?? {});
+  return config ? madeSource(id, config, modules) : undefined;
 }
 
 /** Where a sourced item is in problems and links, since it has no file: `source:<collection>/<slug>`. */
@@ -378,9 +387,10 @@ export async function sourceChanges(
   for (const [id, changes] of asked.filter((one) => one !== undefined)) {
     next[id] = changes.next;
     if (changes.slugs.length === 0) continue;
-    collections.push(id);
+    // A collection the site has no settings for has no pages, nor anything to show its items.
     const collection = content.collections.find((one) => one.id === id);
     if (!collection) continue;
+    collections.push(id);
     const changed = new Set(changes.slugs);
     for (const entry of collection.entries) {
       if (changed.has(entry.slug) && entry.path) paths.add(entry.path);

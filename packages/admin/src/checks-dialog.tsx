@@ -55,7 +55,7 @@ export function ChecksDialog({
           )}
         </>
       )}
-      {checks.blocking.length > 0 && checks.warnings.length > 0 && (
+      {unread.length === 0 && checks.blocking.length > 0 && checks.warnings.length > 0 && (
         <>
           <p>{t("checks.alsoWarnings")}</p>
           <ProblemList content={content} problems={checks.warnings} />

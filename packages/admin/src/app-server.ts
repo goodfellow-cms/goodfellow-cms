@@ -98,7 +98,8 @@ export function appServer(api: string) {
 
     /** The items of a collection whose items come from a source, as the server's source gives them. */
     async sourcedItems(collection: string, settings?: CollectionFile): Promise<SourcedItem[]> {
-      // With settings a publish would give the collection, for its checks, which the server takes from owners only.
+      // With the settings the admin panel has for the collection, a draft's or a publish's, which the server takes
+      // from owners only (`askedWithSettings()`).
       const endpoint = `collections/${encodeURIComponent(collection)}/items`;
       const answer = (await (await request(endpoint, settings ? { body: { settings } } : {})).json()) as {
         items?: unknown;

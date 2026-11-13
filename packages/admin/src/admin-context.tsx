@@ -4,7 +4,6 @@ import {
   adminOrigin,
   allPages,
   type CollectionFile,
-  type CollectionSources,
   ConflictError,
   type ContentStore,
   type DemoStore,
@@ -74,7 +73,7 @@ import { pluginSecretsHelp } from "./plugin-secrets.js";
 import { REGISTRY_VERSION } from "./registry-version.js";
 import { navigate } from "./router.js";
 import { useScheduleInfoOf } from "./schedule.js";
-import { checkPublish, type PublishChecks, readShown, withProposedSettings } from "./site-checks.js";
+import { askedWithSettings, checkPublish, type PublishChecks, readShown, type SourcesFor } from "./site-checks.js";
 import type { SiteCodeService } from "./site-code.js";
 import { showSiteIcon } from "./site-icon.js";
 import { StringsProvider, useStrings, useStringTable } from "./strings.js";
@@ -311,7 +310,7 @@ const DEPLOY_CHECK_LIMIT = 20 * 60_000;
 
 async function load(
   store: ContentStore,
-  sources: CollectionSources | undefined,
+  sources: SourcesFor | undefined,
   sourced: readonly string[],
 ): Promise<LoadState> {
   try {
@@ -494,32 +493,23 @@ export function AdminProvider({
   // is read when items are, and only whether there is one decides the sources, which loading the site again follows.
   const sourcedItems = useRef(account?.sourcedItems);
   sourcedItems.current = account?.sourcedItems;
+  const role = useRef(account?.role);
+  role.current = account?.role;
   const hasSourcedItems = Boolean(account?.sourcedItems);
-  const sources = useMemo((): CollectionSources | undefined => {
+  // An owner asks with the collection's settings as the site being loaded or checked has them, so a draft's new
+  // collection and a publish's new field are read as they'd be published (`askedWithSettings()`).
+  const sources = useMemo((): SourcesFor | undefined => {
     if (sourced.length === 0 || !hasSourcedItems) return undefined;
-    return Object.fromEntries(
-      sourced.map((id) => [
-        id,
-        {
-          items: async () => {
-            const read = sourcedItems.current;
-            if (!read) throw new Error("The site's server no longer reads its collections' items.");
-            return read(id);
-          },
-        },
-      ]),
-    );
-  }, [sourced, hasSourcedItems]);
-  // For a publish's checks: a collection whose settings it changes is asked with them (`withProposedSettings()`).
-  const checkSources = useCallback(
-    (changes: FileChange[]) =>
-      withProposedSettings(sources, changes, (id, settings) => {
+    return askedWithSettings(
+      sourced,
+      (id, settings) => {
         const read = sourcedItems.current;
         if (!read) throw new Error("The site's server no longer reads its collections' items.");
         return read(id, settings);
-      }),
-    [sources],
-  );
+      },
+      () => role.current === "owner",
+    );
+  }, [sourced, hasSourcedItems]);
 
   // The store the shown site was last loaded from, so switching drafts loads it once, and a slower earlier load is ignored.
   const loadedFrom = useRef<ContentStore>(undefined);
@@ -662,7 +652,7 @@ export function AdminProvider({
         checks =
           options?.checks === false
             ? undefined
-            : await checkPublish(content, state, changes, { blocks, code, sources: checkSources(changes), sourced });
+            : await checkPublish(content, state, changes, { blocks, code, sources, sourced });
       } catch (error) {
         // A sign-in that ran out while checking: signing in again, as a write that finds it does.
         if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
@@ -713,7 +703,7 @@ export function AdminProvider({
       askLimits,
       reviewers,
       t,
-      checkSources,
+      sources,
       sourced,
     ],
   );
@@ -741,12 +731,20 @@ export function AdminProvider({
     if (!draft) return { ok: false, reason: "error", error: new Error("There's no draft open.") };
     let changes: FileChange[];
     let live: LoadState;
+    // A sign-in that ran out, reading the draft or the live site with its sources, is for signing in again.
+    const signedOut = (error: unknown) => {
+      if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
+    };
     try {
       [changes, live] = await Promise.all([draft.changes(), load(store, sources, sourced)]);
     } catch (error) {
+      signedOut(error);
       return { ok: false, reason: "error", error };
     }
-    if (live.status !== "ready") return { ok: false, reason: "error", error: live.status === "error" && live.error };
+    if (live.status !== "ready") {
+      if (live.status === "error") signedOut(live.error);
+      return { ok: false, reason: "error", error: live.status === "error" && live.error };
+    }
     const outside = outsideLimits(live.content, limitsFor(live.content.permissions, account?.user.login), changes);
     if (outside.length > 0) {
       const current = draft;
@@ -773,7 +771,7 @@ export function AdminProvider({
     // Every file in the draft, against the live site as it is now.
     let checks: PublishChecks;
     try {
-      checks = await checkPublish(store, live, changes, { blocks, code, sources: checkSources(changes), sourced });
+      checks = await checkPublish(store, live, changes, { blocks, code, sources, sourced });
     } catch (error) {
       if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
       return { ok: false, reason: "error", error };
@@ -809,7 +807,6 @@ export function AdminProvider({
     reviewers,
     refreshDrafts,
     sources,
-    checkSources,
     sourced,
   ]);
 

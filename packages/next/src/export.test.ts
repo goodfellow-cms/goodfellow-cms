@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cloudflareSiteHeaders, editorPolicy, startsWithGuard } from "@goodfellow-cms/core";
@@ -23,7 +23,7 @@ import {
   writeRedirectFiles,
 } from "./export.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
-import { loadSiteModule, readCollectionSources } from "./plugins.js";
+import { loadKeptSiteModule, loadSiteModule, readCollectionSources } from "./plugins.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -283,6 +283,34 @@ describe("loadSiteModule", () => {
       Array.from({ length: count }, (_, index) => loadSiteModule(out, join(out, `module-${index}.mjs`))),
     );
     expect(loaded.map((module) => module.default)).toEqual(Array.from({ length: count }, (_, index) => index));
+  });
+
+  it("keeps a module without bundling it again until a file bundled into it changes", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-kept-"));
+    const entry = join(out, "source.mjs");
+    const part = join(out, "part.mjs");
+    const past = new Date(Date.now() - 60_000);
+    await writeFile(entry, 'import part from "./part.mjs";\nexport default part;\n');
+    await writeFile(part, "export default 1;\n");
+    for (const path of [entry, part]) await utimes(path, past, past);
+    const first = await loadKeptSiteModule(out, entry);
+    expect(first.default).toBe(1);
+    // A file whose text changed but whose time didn't isn't read again: nothing is bundled.
+    await writeFile(part, "export default 2;\n");
+    await utimes(part, past, past);
+    expect(await loadKeptSiteModule(out, entry)).toBe(first);
+    // Once it has changed, it's bundled again, and its new code is a new module.
+    const later = new Date(past.getTime() + 1_000);
+    await utimes(part, later, later);
+    const second = await loadKeptSiteModule(out, entry);
+    expect(second.default).toBe(2);
+    // Changed back, it's a new module again: the one before isn't kept, so the source made from it can go.
+    await writeFile(part, "export default 1;\n");
+    const latest = new Date(past.getTime() + 2_000);
+    await utimes(part, latest, latest);
+    const third = await loadKeptSiteModule(out, entry);
+    expect(third.default).toBe(1);
+    expect(third).not.toBe(first);
   });
 });
 

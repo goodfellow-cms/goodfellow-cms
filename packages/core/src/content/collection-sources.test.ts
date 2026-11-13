@@ -312,6 +312,20 @@ describe("collectionSources", () => {
     expect(() => checkSourceModules(config, {})).toThrow(CollectionSourceError);
     expect(() => checkSourceModules(undefined, { jobs: make })).toThrow(CollectionSourceError);
   });
+
+  it("reads only the modules given and the collections named, whatever a collection is called", async () => {
+    // A collection called `constructor` with no module given, and a module given for one the config doesn't name.
+    const config = { constructor: { source: "./lib/constructor.ts" } };
+    expect(() => checkSourceModules(config, {})).toThrow(CollectionSourceError);
+    expect(() => collectionSources(config, {})).toThrow(CollectionSourceError);
+    expect(() => keptCollectionSources(config, {})).toThrow(CollectionSourceError);
+    expect(() => collectionSource(config, {}, "constructor")).toThrow(CollectionSourceError);
+    expect(() => checkSourceModules({}, { constructor: make })).toThrow(CollectionSourceError);
+    // Given, it's made like any other.
+    const made = collectionSources(config, { constructor: make });
+    expect(Object.hasOwn(made, "constructor")).toBe(true);
+    expect(await (made.constructor as unknown as CollectionSource).items()).toHaveLength(1);
+  });
 });
 
 describe("loadSourcedContent", () => {
@@ -403,6 +417,15 @@ describe("sourceChanges", () => {
       collections: [],
       paths: [],
       next: { jobs: "1" },
+    });
+  });
+
+  it("names no collection the site has no settings for, which has no pages", async () => {
+    const events: CollectionSource = { items: async () => [], changed: async () => ({ slugs: ["fair"], next: "2" }) };
+    expect(await sourceChanges(await site(), { events })).toEqual({
+      collections: [],
+      paths: [],
+      next: { events: "2" },
     });
   });
 });
