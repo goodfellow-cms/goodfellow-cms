@@ -138,18 +138,6 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
   // The one customer they pay as, so all they pay for is in one place in Stripe's portal: where Stripe no longer has
   // the one the site kept (deleted there, or the site moved from test mode), a new one in its place.
   let customer = await options.customer(user);
-  if (subscribing) {
-    let subscriptions: Stripe.Subscription[] | undefined;
-    try {
-      subscriptions = (await stripe.subscriptions.list({ customer, price: price.id, status: "all", limit: 100 })).data;
-    } catch (error) {
-      if (!isMissing(error, "customer")) throw error;
-    }
-    // Someone who already pays for this subscription manages it rather than paying for it twice.
-    if (subscriptions?.some((subscription) => SUBSCRIBED.has(subscription.status))) {
-      return (await stripe.billingPortal.sessions.create({ customer, return_url: page })).url;
-    }
-  }
   const create = (customer: string) =>
     stripe.checkout.sessions.create({
       mode: subscribing ? "subscription" : "payment",
@@ -161,16 +149,63 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
       success_url: done,
       cancel_url: page,
     });
-  let checkout: Stripe.Checkout.Session;
+  const start = async (): Promise<string> => {
+    let checkout: Stripe.Checkout.Session;
+    try {
+      checkout = await create(customer);
+    } catch (error) {
+      if (!isMissing(error, "customer")) throw error;
+      customer = await options.customer(user, customer);
+      checkout = await create(customer);
+    }
+    if (!checkout.url) throw new PaymentsError(502, "Stripe didn't start the payment. Try again in a moment.");
+    return checkout.url;
+  };
+  // Something bought once can be bought again.
+  if (!subscribing) return start();
+  // A subscription, one request at a time for each person and price, so a second press, or a second tab, can't start
+  // a second subscription before the first is paid for: someone who already pays for it manages it, and one who has
+  // started paying for it goes back to that Checkout.
+  const adapter = (await siteAuth.$context).adapter as unknown as PaymentsAdapter;
   try {
-    checkout = await create(customer);
+    return await withStripeLock(adapter, `checkout:${userId}:${price.id}`, async () => {
+      if (await subscribed(stripe, customer, price.id)) {
+        return (await stripe.billingPortal.sessions.create({ customer, return_url: page })).url;
+      }
+      return (await openCheckout(stripe, customer, price.id)) ?? (await start());
+    });
+  } catch (error) {
+    if (error instanceof StripeBusy)
+      throw new PaymentsError(409, "Your payment is already starting. Try again in a moment.");
+    throw error;
+  }
+}
+
+/** Whether `customer` has a subscription to `price` that still holds (`SUBSCRIBED`). */
+async function subscribed(stripe: Stripe, customer: string, price: string): Promise<boolean> {
+  try {
+    const { data } = await stripe.subscriptions.list({ customer, price, status: "all", limit: 100 });
+    return data.some((subscription) => SUBSCRIBED.has(subscription.status));
+  } catch (error) {
+    // A customer Stripe no longer has pays for nothing; Checkout makes them a new one.
+    if (isMissing(error, "customer")) return false;
+    throw error;
+  }
+}
+
+/** The address of a Checkout Session `customer` has open for `price`, if any, to go back to rather than start another. */
+async function openCheckout(stripe: Stripe, customer: string, price: string): Promise<string | undefined> {
+  try {
+    for await (const session of stripe.checkout.sessions.list({ customer, status: "open", limit: 100 })) {
+      if (session.mode !== "subscription" || !session.url) continue;
+      for await (const item of stripe.checkout.sessions.listLineItems(session.id, { limit: 100 })) {
+        if (item.price?.id === price) return session.url;
+      }
+    }
   } catch (error) {
     if (!isMissing(error, "customer")) throw error;
-    customer = await options.customer(user, customer);
-    checkout = await create(customer);
   }
-  if (!checkout.url) throw new PaymentsError(502, "Stripe didn't start the payment. Try again in a moment.");
-  return checkout.url;
+  return undefined;
 }
 
 /** Stripe's id of whatever's in `value`: the id itself, or an object Stripe expanded. */
@@ -268,9 +303,14 @@ export class StripeBusy extends Error {
  * can write (`claimRow()`), so reading it from Stripe and writing what it gives never overlap with another request's:
  * one that read it earlier can't write what it read over a newer state, or write the same rows at once. The lock is
  * taken before anything is read, so whoever holds it reads Stripe as it is now. Throws `StripeBusy` where another
- * request holds it; one past `STRIPE_LOCK_SECONDS`, left by a request that stopped, is taken over.
+ * request holds it; one past `STRIPE_LOCK_SECONDS`, left by a request that stopped or stalled, is taken over, and
+ * `write` calls the `fence` it's given right before writing, which stops a request whose lock was taken over.
  */
-async function withStripeLock<T>(adapter: PaymentsAdapter, object: string, write: () => Promise<T>): Promise<T> {
+async function withStripeLock<T>(
+  adapter: PaymentsAdapter,
+  object: string,
+  write: (fence: () => Promise<void>) => Promise<T>,
+): Promise<T> {
   const id = `${STRIPE_LOCK_IDENTIFIER}${object}`;
   await adapter.deleteMany({
     model: "verification",
@@ -284,8 +324,21 @@ async function withStripeLock<T>(adapter: PaymentsAdapter, object: string, write
   if (!(await claimRow(adapter, { id, identifier: id, value: holder, expiresAt }))) {
     throw new StripeBusy("Another request is writing what this gave.");
   }
+  // Called just before writing: renews the lock for this request, or, where another request has taken it over since
+  // (this one ran past its time), stops here, so a write from an older read never lands after a newer one.
+  const fence = async () => {
+    const renewed = await adapter.updateMany({
+      model: "verification",
+      where: [
+        { field: "id", value: id },
+        { field: "value", value: holder },
+      ],
+      update: { expiresAt: new Date(Date.now() + STRIPE_LOCK_SECONDS * 1000), updatedAt: new Date() },
+    });
+    if (renewed === 0) throw new StripeBusy("Another request took over writing what this gave.");
+  };
   try {
-    return await write();
+    return await write(fence);
   } finally {
     await adapter.deleteMany({
       model: "verification",
@@ -303,12 +356,13 @@ async function withStripeLock<T>(adapter: PaymentsAdapter, object: string, write
  * the site named when it made the Checkout Session, in the subscription's metadata, never anything the event says.
  */
 export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subscriptionId: string): Promise<void> {
-  return withStripeLock(adapter, `subscription:${subscriptionId}`, async () => {
+  return withStripeLock(adapter, `subscription:${subscriptionId}`, async (fence) => {
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
     const userId = subscription.metadata?.userId;
     // An account deleted since took its entitlements with it, and writing one for it would fail on every retry.
     if (!userId || !(await stillHere(adapter, userId))) return;
     const reference = subscriptionReference(subscription.id);
+    await fence();
     await adapter.deleteMany({
       model: "entitlement",
       where: [
@@ -379,11 +433,16 @@ async function stillHere(adapter: PaymentsAdapter, userId: string): Promise<bool
  * back, even where the refund is handled while this writes. Keeps the Stripe customer they paid as (`customerOf()`).
  */
 export function applySession(adapter: PaymentsAdapter, stripe: Stripe, sessionId: string): Promise<void> {
-  return withStripeLock(adapter, `session:${sessionId}`, () => writeSession(adapter, stripe, sessionId));
+  return withStripeLock(adapter, `session:${sessionId}`, (fence) => writeSession(adapter, stripe, sessionId, fence));
 }
 
 /** `applySession()`, with the Checkout Session's lock held. */
-async function writeSession(adapter: PaymentsAdapter, stripe: Stripe, sessionId: string): Promise<void> {
+async function writeSession(
+  adapter: PaymentsAdapter,
+  stripe: Stripe,
+  sessionId: string,
+  fence: () => Promise<void>,
+): Promise<void> {
   const session = await stripe.checkout.sessions.retrieve(sessionId);
   const userId = session.client_reference_id;
   if (!userId || session.metadata?.userId !== userId) return;
@@ -395,7 +454,9 @@ async function writeSession(adapter: PaymentsAdapter, stripe: Stripe, sessionId:
   if (session.mode !== "payment") return;
   const payment = idOf(session.payment_intent);
   const taken = payment ? await takenBack(stripe, payment) : false;
-  for (const product of await productsOf(stripe, session.id)) {
+  const products = await productsOf(stripe, session.id);
+  await fence();
+  for (const product of products) {
     const id = purchaseId(session.id, product);
     await adapter.deleteMany({ model: "entitlement", where: [{ field: "id", value: id }] });
     if (!taken) await grant(adapter, { id, userId, kind: "purchase", reference: product, expiresAt: null });
@@ -536,14 +597,15 @@ async function handle(adapter: PaymentsAdapter, stripe: Stripe, event: Stripe.Ev
     case "customer.subscription.paused":
     case "customer.subscription.resumed":
       return applySubscription(adapter, stripe, event.data.object.id);
-    case "charge.refunded":
-    case "charge.dispute.created": {
+    case "charge.refunded": {
       const paymentIntent = idOf(event.data.object.payment_intent);
       if (paymentIntent) await revokePayment(adapter, stripe, paymentIntent);
       return;
     }
+    case "charge.dispute.created":
     case "charge.dispute.closed": {
-      // Won, what the payment bought comes back; lost, it stays taken back: `applySession()` reads which.
+      // Open or lost, what the payment bought is taken back; won, it comes back: `applySession()` reads which from
+      // Stripe as it is now, so a creation that arrives after its closure undoes nothing.
       const paymentIntent = idOf(event.data.object.payment_intent);
       if (!paymentIntent) return;
       for await (const session of stripe.checkout.sessions.list({ payment_intent: paymentIntent, limit: 10 })) {

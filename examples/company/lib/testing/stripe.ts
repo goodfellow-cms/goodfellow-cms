@@ -182,8 +182,17 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
         return json(shownSession(session));
       }
       if (!parts[3] && request.method === "GET") {
-        const intent = url.searchParams.get("payment_intent");
-        return json(list([...sessions.values()].filter((one) => one.payment_intent === intent).map(shownSession)));
+        // By whichever of their payment, customer, and status the request names.
+        const [intent, customer, status] = ["payment_intent", "customer", "status"].map((name) =>
+          url.searchParams.get(name),
+        );
+        const found = [...sessions.values()].filter(
+          (one) =>
+            (intent === null || one.payment_intent === intent) &&
+            (customer === null || one.customer === customer) &&
+            (status === null || one.status === status),
+        );
+        return json(list(found.map(shownSession)));
       }
       const session = sessions.get(parts[3] ?? "");
       if (!session) return missing();
