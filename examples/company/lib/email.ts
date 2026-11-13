@@ -1,7 +1,7 @@
-// The one place the site sends email: invitations and password resets, through Upyo, which speaks to each email
-// service's HTTP API, since Workers can't open SMTP connections. Which service is a setting (`EMAIL_PROVIDER`), so the
-// site's owners can change it without its developers (README.md). Messages carry links that let someone into an
-// account, so nothing here logs a message or puts one in an error.
+// The one place the site sends email: invitations, password resets, and confirming new accounts' addresses, through
+// Upyo, which speaks to each email service's HTTP API, since Workers can't open SMTP connections. Which service is a
+// setting (`EMAIL_PROVIDER`), so the site's owners can change it without its developers (README.md). Messages carry
+// links that let someone into an account, so nothing here logs a message or puts one in an error.
 import { createMessage, parseAddress, type Receipt, type Transport } from "@upyo/core";
 import type { SiteEnv } from "./env.ts";
 
@@ -275,5 +275,22 @@ export function passwordResetEmail(options: {
     "Choose a new password",
     options.link,
     `The link works once, for ${options.minutes} minutes. If it wasn't you, ignore this message: your password stays as it is.`,
+  );
+}
+
+/**
+ * The message that confirms the address someone signed up with, which signs them in. Anyone can sign up with any
+ * address, so it says nothing they typed, not even their name: a stranger can't use it to send someone words of
+ * their own.
+ */
+export function verificationEmail(options: { to: string; siteUrl: string; link: string; hours: number }): Email {
+  const site = siteName(options.siteUrl);
+  return linkEmail(
+    options.to,
+    `Confirm your email address for ${site}`,
+    ["Hello,", `Confirm the address you signed up to ${site} with, which signs you in:`],
+    "Confirm my address",
+    options.link,
+    `The link works for ${options.hours} hours. If you didn't sign up, ignore this message: no account is made until it's confirmed.`,
   );
 }

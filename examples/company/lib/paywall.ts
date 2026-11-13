@@ -155,6 +155,7 @@ export const APP_ROUTES = [
   "reset-password",
   "sign-in",
   "sign-out",
+  "sign-up",
 ] as const;
 
 /** What isn't a page, by its first segment: the app's routes and the folders of built files and media. */

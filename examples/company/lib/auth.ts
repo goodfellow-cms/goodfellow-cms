@@ -1,4 +1,5 @@
-// The site's own sign-in: Better Auth, with email addresses and passwords, and two roles. Better Auth is given the
+// The site's own sign-in: Better Auth, with email addresses and passwords, and three roles: the site's admins and
+// editors, whom an admin invites, and its readers, who sign up themselves to subscribe. Better Auth is given the
 // database's dialect (lib/db/dialect.ts), never a driver, so this file is the same on every host.
 import type { AppEditor } from "@goodfellow-cms/core";
 import { type BetterAuthOptions, type BetterAuthPlugin, betterAuth, type Where } from "better-auth";
@@ -9,7 +10,14 @@ import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { dialectFor } from "./db/dialect.ts";
-import { canSendEmail, EmailNotSetUp, EmailRefused, passwordResetEmail, sendEmail } from "./email.ts";
+import {
+  canSendEmail,
+  EmailNotSetUp,
+  EmailRefused,
+  passwordResetEmail,
+  sendEmail,
+  verificationEmail,
+} from "./email.ts";
 import { entitlements } from "./entitlements.ts";
 import { env, inBackground, type SiteEnv } from "./env.ts";
 
@@ -42,6 +50,28 @@ export const RESET_LIMIT = { window: 60 * 60, max: 5 };
  * address's limit can't stop people at several addresses filling someone's inbox.
  */
 export const RESET_ACCOUNT_LIMIT = { window: 60 * 60, max: 3 };
+
+/** How many accounts one network address may make, and in how many seconds. */
+export const SIGN_UP_LIMIT = { window: 60 * 60, max: 5 };
+
+/** How many times one network address may ask for an address's confirmation email again, and in how many seconds. */
+export const VERIFY_LIMIT = RESET_LIMIT;
+
+/**
+ * How many confirmation emails one account may be sent, and in how many seconds, whoever asks, the first one signing
+ * up sends included: as with resets, the network address's limit can't stop people at several addresses filling
+ * someone's inbox.
+ */
+export const VERIFY_ACCOUNT_LIMIT = RESET_ACCOUNT_LIMIT;
+
+/** How long the link that confirms a new account's address works, in hours. */
+export const VERIFY_HOURS = 24;
+
+/**
+ * The role of an account someone made themselves, to read the site: a reader, who sees members-only pages only while
+ * they subscribe (lib/paywall.ts), and can't edit anything. Admins invite editors and admins.
+ */
+export const MEMBER_ROLE = "member";
 
 /** How long a password reset's link works, in minutes. */
 export const RESET_MINUTES = 30;
@@ -99,10 +129,13 @@ export function canSendResets(siteEnv: SiteEnv): boolean {
 export const RESET_IDENTIFIER = "reset-password:";
 
 /**
- * The start of the identifier, and id, of a slot an account's reset email took (`takeResetSlot()`), kept for
+ * The start of the identifier, and id, of a slot an account's reset email took (`takeEmailSlot()`), kept for
  * `RESET_ACCOUNT_LIMIT`'s window apart from the links themselves, so retiring links doesn't free it.
  */
 export const RESET_SENT_IDENTIFIER = "reset-sent:";
+
+/** The same for the emails that confirm a new account's address, kept for `VERIFY_ACCOUNT_LIMIT`'s window. */
+export const VERIFY_SENT_IDENTIFIER = "verify-sent:";
 
 /**
  * Makes every link that would let someone choose a password for this account stop working, but `keep`, the id of
@@ -207,33 +240,46 @@ export async function claimRow(
   }
 }
 
-/** A slot an account's reset email took (`takeResetSlot()`): its row's id, and what only its taker knows. */
-interface ResetSlot {
+/** A slot an account's email took (`takeEmailSlot()`): its row's id, and what only its taker knows. */
+interface EmailSlot {
   id: string;
   holder: string;
 }
 
 /**
- * Takes one of the account's `RESET_ACCOUNT_LIMIT.max` slots for a reset email, each a row whose id says which slot
- * it is, kept for the limit's window, or `null` where none was free. Two requests can't take the same slot, so of
- * requests at the same moment exactly as many go ahead as there were free slots.
+ * Takes one of the account's `limit.max` slots for an email of the kind `prefix` names (`RESET_SENT_IDENTIFIER`, or
+ * `VERIFY_SENT_IDENTIFIER`), each a row whose id says which slot it is, kept for the limit's window, or `null` where
+ * none was free. Two requests can't take the same slot, so of requests at the same moment exactly as many go ahead as
+ * there were free slots. Slots past their window go first, so they can be taken again.
  */
-async function takeResetSlot(adapter: RowAdapter, userId: string): Promise<ResetSlot | null> {
-  const expiresAt = new Date(Date.now() + RESET_ACCOUNT_LIMIT.window * 1000);
-  for (let slot = 1; slot <= RESET_ACCOUNT_LIMIT.max; slot++) {
-    const id = `${RESET_SENT_IDENTIFIER}${slot}:${userId}`;
+async function takeEmailSlot(
+  adapter: RowAdapter & Pick<AuthContext["adapter"], "deleteMany">,
+  prefix: string,
+  userId: string,
+  limit: { window: number; max: number },
+): Promise<EmailSlot | null> {
+  await adapter.deleteMany({
+    model: "verification",
+    where: [
+      { field: "identifier", operator: "starts_with", value: prefix },
+      { field: "expiresAt", operator: "lt", value: new Date() },
+    ],
+  });
+  const expiresAt = new Date(Date.now() + limit.window * 1000);
+  for (let slot = 1; slot <= limit.max; slot++) {
+    const id = `${prefix}${slot}:${userId}`;
     const holder = generateRandomString(32);
-    const row = { id, identifier: `${RESET_SENT_IDENTIFIER}${userId}`, value: holder, expiresAt };
+    const row = { id, identifier: `${prefix}${userId}`, value: holder, expiresAt };
     if (await claimRow(adapter, row)) return { id, holder };
   }
   return null;
 }
 
 /**
- * Gives back the slot an email took (`takeResetSlot()`), for an email that wasn't sent: that slot only, and only while
+ * Gives back the slot an email took (`takeEmailSlot()`), for an email that wasn't sent: that slot only, and only while
  * it's still that email's, never one taken again since it ran out.
  */
-async function releaseResetSlot(adapter: Pick<AuthContext["adapter"], "deleteMany">, slot: ResetSlot) {
+async function releaseEmailSlot(adapter: Pick<AuthContext["adapter"], "deleteMany">, slot: EmailSlot) {
   await adapter.deleteMany({
     model: "verification",
     where: [
@@ -256,7 +302,7 @@ function resetLinks(siteEnv: SiteEnv) {
   // Auth makes for each request and gives its before and after hooks alike, so no other request's can be let go.
   const holding = new WeakMap<object, { userId: string; holder: string }>();
   // The slot each request for a reset email took, by the request, which Better Auth hands its hooks and `sendReset`.
-  const reserved = new WeakMap<Request, ResetSlot>();
+  const reserved = new WeakMap<Request, EmailSlot>();
   type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
   const tokenOf = (ctx: HookContext) => {
     const token = ctx.body?.token || ctx.query?.token;
@@ -313,21 +359,14 @@ function resetLinks(siteEnv: SiteEnv) {
                 });
               }
               const { adapter, internalAdapter } = ctx.context;
-              const now = Date.now();
-              // Slots past their hour go, so they can be taken again.
-              await adapter.deleteMany({
-                model: "verification",
-                where: [
-                  { field: "identifier", operator: "starts_with", value: RESET_SENT_IDENTIFIER },
-                  { field: "expiresAt", operator: "lt", value: new Date(now) },
-                ],
-              });
               const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
               const user = email ? await internalAdapter.findUserByEmail(email) : null;
               // Someone who hasn't joined chooses a password with their invitation, never a reset email, so an
-              // account never has both kinds of link at once. The rest take a slot (`takeResetSlot()`). The answer
+              // account never has both kinds of link at once. The rest take a slot (`takeEmailSlot()`). The answer
               // is the same either way; how long it takes differs by a query or two, as Better Auth's own does.
-              const slot = user?.user.emailVerified ? await takeResetSlot(adapter, user.user.id) : null;
+              const slot = user?.user.emailVerified
+                ? await takeEmailSlot(adapter, RESET_SENT_IDENTIFIER, user.user.id, RESET_ACCOUNT_LIMIT)
+                : null;
               if (!slot) {
                 // Better Auth's own answer, so a visitor can't tell the account was limited, or exists.
                 return ctx.json({
@@ -358,7 +397,7 @@ function resetLinks(siteEnv: SiteEnv) {
       const slot = request && reserved.get(request);
       if (!context || !slot) return;
       reserved.delete(request);
-      await releaseResetSlot(context.adapter, slot);
+      await releaseEmailSlot(context.adapter, slot);
     },
     // A password chosen from a link: the account's other links go, and its address is shown to be its person's, since
     // the link reached it, which is what joining is (lib/editors.ts). Both while the lock is held.
@@ -366,6 +405,105 @@ function resetLinks(siteEnv: SiteEnv) {
       if (!context) return;
       await retireResetLinks(context.adapter, user.id);
       await context.internalAdapter.updateUser(user.id, { emailVerified: true });
+    },
+  };
+}
+
+/** The longest name an account may have, as invitations take (lib/editors.ts). */
+export const MAX_NAME_LENGTH = 100;
+
+/**
+ * Where a confirmation email's link may send someone once it has signed them in: a path on this site, as the sign-up
+ * page gives it, or the home page. It's read as a browser reads it, so spellings that leave the site
+ * (`//other.example`, `/\other.example`, `javascript:`) go to the home page instead.
+ */
+export function confirmedPath(callbackURL: string | null | undefined): string {
+  if (!callbackURL) return "/";
+  try {
+    const target = new URL(callbackURL, "https://site.invalid");
+    return target.origin === "https://site.invalid" ? `${target.pathname}${target.search}${target.hash}` : "/";
+  } catch {
+    return "/";
+  }
+}
+
+/**
+ * The site's own rules for signing up, which readers do to subscribe: only where the site can send the email that
+ * confirms their address, since an account can't sign in until it has, with a name of `MAX_NAME_LENGTH` at most. The
+ * email goes only to accounts readers made (`MEMBER_ROLE`) that haven't confirmed theirs yet, and at most
+ * `VERIFY_ACCOUNT_LIMIT`'s, so asking again can't fill someone's inbox, and an invited editor, who chooses a password
+ * from their invitation, never gets one. It goes after the answer, which is the same whatever happened, and links to
+ * the site's own address, never the request's.
+ */
+function confirmations(siteEnv: SiteEnv) {
+  let context: AuthContext | undefined;
+  const refuseWithoutEmail = () => {
+    if (!canSendResets(siteEnv)) {
+      throw APIError.from("SERVICE_UNAVAILABLE", {
+        message: "This site can't send the email that confirms an address, so nobody can sign up yet.",
+        code: "SIGN_UP_UNAVAILABLE",
+      });
+    }
+  };
+  return {
+    plugin: {
+      id: "site-confirmations",
+      init(authContext) {
+        context = authContext;
+      },
+      hooks: {
+        before: [
+          {
+            matcher: (ctx) => ctx.path === "/sign-up/email",
+            handler: createAuthMiddleware(async (ctx) => {
+              refuseWithoutEmail();
+              const name = typeof ctx.body?.name === "string" ? ctx.body.name.trim() : "";
+              const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+              if (name === "" || name.length > MAX_NAME_LENGTH || email.length > 254) {
+                throw APIError.from("BAD_REQUEST", {
+                  message: `Give your name, in ${MAX_NAME_LENGTH} characters at most, and your email address.`,
+                  code: "INVALID_SIGN_UP",
+                });
+              }
+            }),
+          },
+          {
+            matcher: (ctx) => ctx.path === "/send-verification-email",
+            handler: createAuthMiddleware(async () => refuseWithoutEmail()),
+          },
+        ],
+      },
+    } satisfies BetterAuthPlugin,
+    sendVerificationEmail({ user, url }: { user: { id: string }; url: string }) {
+      const siteUrl = siteEnv.GOODFELLOW_SITE_URL;
+      if (!context || !siteUrl) return;
+      const { adapter, internalAdapter } = context;
+      const asked = new URL(url);
+      const link = new URL("/api/auth/verify-email/", siteUrl);
+      link.searchParams.set("token", asked.searchParams.get("token") ?? "");
+      link.searchParams.set("callbackURL", confirmedPath(asked.searchParams.get("callbackURL")));
+      inBackground(
+        (async () => {
+          const found = await internalAdapter.findUserById(user.id);
+          if (!found || found.emailVerified || (found as { role?: string }).role !== MEMBER_ROLE) return;
+          const slot = await takeEmailSlot(adapter, VERIFY_SENT_IDENTIFIER, found.id, VERIFY_ACCOUNT_LIMIT);
+          if (!slot) return;
+          const email = verificationEmail({
+            to: found.email,
+            siteUrl,
+            link: link.href,
+            hours: VERIFY_HOURS,
+          });
+          await sendEmail(siteEnv, email).catch(async (error: unknown) => {
+            console.error(`A confirmation email wasn't sent: ${error instanceof Error ? error.name : "error"}.`);
+            if (error instanceof EmailRefused || error instanceof EmailNotSetUp) {
+              await releaseEmailSlot(adapter, slot).catch(() =>
+                console.error("A confirmation email's slot wasn't given back."),
+              );
+            }
+          });
+        })().catch(() => console.error("A confirmation email wasn't sent.")),
+      );
     },
   };
 }
@@ -391,12 +529,13 @@ export function sessionSecret(siteEnv: SiteEnv): string {
 }
 
 /**
- * The site's sign-in settings, with its database: no sign-up, since an
- * admin invites people, and sessions cached in a signed cookie, which the
- * middleware reads without the database, so most requests read none.
+ * The site's sign-in settings, with its database: sign-up for readers, whose accounts can't edit anything and can't
+ * sign in until their address is confirmed, while an admin invites editors; and sessions cached in a signed cookie,
+ * which the middleware reads without the database, so most requests read none.
  */
 export function authOptions(database: BetterAuthOptions["database"], siteEnv: SiteEnv) {
   const resets = resetLinks(siteEnv);
+  const confirming = confirmations(siteEnv);
   // The updates that turn two-factor sign-in on, by the request making them, for the hook after each to see.
   const turningOn = new WeakSet<object>();
   return {
@@ -426,13 +565,25 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
     }),
     emailAndPassword: {
       enabled: true,
-      disableSignUp: true,
+      // Readers sign up to subscribe. Their accounts are `MEMBER_ROLE`'s (the admin plugin's `defaultRole`), which
+      // signing up can't change, and can't sign in until the email `confirmations()` sends has confirmed their
+      // address. Asking to sign up with an address that already has an account answers as for a new one, and sends
+      // nothing (Better Auth does so wherever addresses need confirming), so nobody learns who has an account here.
+      requireEmailVerification: true,
       minPasswordLength: MIN_PASSWORD_LENGTH,
       // Invitations use the same links (lib/editors.ts), with a longer life of their own.
       sendResetPassword: sendReset(siteEnv, resets.releaseSlot),
       resetPasswordTokenExpiresIn: RESET_MINUTES * 60,
       revokeSessionsOnPasswordReset: true,
       onPasswordReset: resets.onPasswordReset,
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: false,
+      autoSignInAfterVerification: true,
+      expiresIn: VERIFY_HOURS * 60 * 60,
+      sendVerificationEmail: async (data: { user: { id: string }; url: string }) =>
+        confirming.sendVerificationEmail(data),
     },
     // The server calls these through `api`, which `disabledPaths` doesn't hold; browsers get "Not Found".
     disabledPaths: ADMIN_PATHS,
@@ -445,6 +596,8 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
         "/sign-in/email": SIGN_IN_LIMIT,
         "/two-factor/*": TWO_FACTOR_LIMIT,
         "/request-password-reset": RESET_LIMIT,
+        "/sign-up/email": SIGN_UP_LIMIT,
+        "/send-verification-email": VERIFY_LIMIT,
       },
     },
     advanced: {
@@ -453,10 +606,15 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       ...(siteEnv.CLIENT_IP_HEADER && { ipAddress: { ipAddressHeaders: [siteEnv.CLIENT_IP_HEADER] } }),
     },
     session: { cookieCache: { enabled: true, maxAge: SESSION_CACHE_SECONDS } },
-    // The site's two roles, so the admin plugin refuses any other: `admin`, the site's owners, and `editor`, which
-    // everyone else an admin invites is.
+    // The site's three roles, so the admin plugin refuses any other: `admin`, the site's owners; `editor`, which
+    // everyone else an admin invites is; and `member`, every account someone made themselves (`MEMBER_ROLE`), which
+    // is the default so that signing up never makes an editor. Invitations always name their role (lib/editors.ts).
     plugins: [
-      admin({ defaultRole: "editor", adminRoles: ["admin"], roles: { admin: adminAc, editor: userAc } }),
+      admin({
+        defaultRole: MEMBER_ROLE,
+        adminRoles: ["admin"],
+        roles: { admin: adminAc, editor: userAc, [MEMBER_ROLE]: userAc },
+      }),
       // A code from an authenticator app, or a backup code, after the password, for people who turn it on at
       // /account/, which admins must before they can act as owners (`authorizeWith()`). Better Auth limits tries
       // (`TWO_FACTOR_LIMIT`, and the account's codes are locked for a while after ten wrong ones) and keeps
@@ -464,6 +622,7 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       // again, which doesn't stop whoever has the password of an admin who hasn't turned it on yet.
       twoFactor({ issuer: issuerOf(siteEnv), backupCodeOptions: { storeBackupCodes: "encrypted" } }),
       resets.plugin,
+      confirming.plugin,
       entitlements(),
       nextCookies(),
     ],

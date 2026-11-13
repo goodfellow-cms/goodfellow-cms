@@ -54,7 +54,11 @@ export interface EntitlementAdapter {
     sortBy?: { field: string; direction: "asc" | "desc" };
   }): Promise<T[]>;
   create<T extends Record<string, unknown>>(data: { model: string; data: T; forceAllowId?: boolean }): Promise<unknown>;
+  deleteMany(data: { model: string; where: { field: string; value: string }[] }): Promise<number>;
 }
+
+/** The `reference` of a subscription an owner gave someone by hand, on the subscribers page (lib/subscribers.ts). */
+export const BY_HAND = "by-hand";
 
 /** Whether an entitlement still holds at `now`. */
 function holds(entitlement: Pick<Entitlement, "expiresAt">, now: Date): boolean {
@@ -64,13 +68,18 @@ function holds(entitlement: Pick<Entitlement, "expiresAt">, now: Date): boolean 
 /** How many entitlements are read at a time: Better Auth's adapter gives at most 100 unless it's told otherwise. */
 const PAGE = 100;
 
-/** Every entitlement someone has, a page at a time in the order of their ids, so none is missed or read twice. */
-async function entitlementsOf(adapter: EntitlementAdapter, userId: string): Promise<Entitlement[]> {
+/**
+ * Every entitlement matching `where`, a page at a time in the order of their ids, so none is missed or read twice.
+ */
+async function entitlementsWhere(
+  adapter: EntitlementAdapter,
+  where: { field: string; value: string }[],
+): Promise<Entitlement[]> {
   const all: Entitlement[] = [];
   for (;;) {
     const page = await adapter.findMany<Entitlement>({
       model: "entitlement",
-      where: [{ field: "userId", value: userId }],
+      where,
       limit: PAGE,
       offset: all.length,
       sortBy: { field: "id", direction: "asc" },
@@ -78,6 +87,36 @@ async function entitlementsOf(adapter: EntitlementAdapter, userId: string): Prom
     all.push(...page);
     if (page.length < PAGE) return all;
   }
+}
+
+/** Every entitlement someone has. */
+function entitlementsOf(adapter: EntitlementAdapter, userId: string): Promise<Entitlement[]> {
+  return entitlementsWhere(adapter, [{ field: "userId", value: userId }]);
+}
+
+/** Every subscription that holds at `now`, whoever's it is, for the subscribers page. */
+export async function currentSubscriptions(adapter: EntitlementAdapter, now = new Date()): Promise<Entitlement[]> {
+  return (await entitlementsWhere(adapter, [{ field: "kind", value: "subscription" }])).filter((entitlement) =>
+    holds(entitlement, now),
+  );
+}
+
+/** Takes away the subscription an owner gave someone by hand, if they have one, leaving any they paid for. */
+export async function takeAwayByHand(adapter: EntitlementAdapter, userId: string): Promise<void> {
+  await adapter.deleteMany({
+    model: "entitlement",
+    where: [
+      { field: "userId", value: userId },
+      { field: "kind", value: "subscription" },
+      { field: "reference", value: BY_HAND },
+    ],
+  });
+}
+
+/** Gives someone a subscription by hand, until `expiresAt` or with no end, in place of one given them before. */
+export async function giveByHand(adapter: EntitlementAdapter, userId: string, expiresAt: Date | null): Promise<void> {
+  await takeAwayByHand(adapter, userId);
+  await grant(adapter, { userId, kind: "subscription", reference: BY_HAND, expiresAt });
 }
 
 /** Whether someone is entitled to `reference` now. */

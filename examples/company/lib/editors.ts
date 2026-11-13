@@ -85,26 +85,52 @@ function editorOf(user: {
   } satisfies SiteEditor;
 }
 
-/** Everyone with an account, admins first, then by name, read a page at a time, however many there are. */
-export async function listEditors(siteAuth: SiteAuth, request: Request): Promise<SiteEditor[]> {
-  await adminAsking(siteAuth, request);
-  const editors: SiteEditor[] = [];
+/**
+ * Every account with `role`, read a page at a time, however many there are, as Better Auth's admin plugin lists them,
+ * which checks the caller is an admin.
+ */
+export async function usersWithRole(siteAuth: SiteAuth, request: Request, role: string) {
+  const found = [];
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { users } = await siteAuth.api.listUsers({
       headers: request.headers,
-      query: { limit: PAGE_SIZE, offset, sortBy: "id", sortDirection: "asc" },
+      query: {
+        limit: PAGE_SIZE,
+        offset,
+        sortBy: "id",
+        sortDirection: "asc",
+        filterField: "role",
+        filterOperator: "eq",
+        filterValue: role,
+      },
     });
-    editors.push(...users.map(editorOf));
-    if (users.length < PAGE_SIZE) break;
+    found.push(...users);
+    if (users.length < PAGE_SIZE) return found;
   }
+}
+
+/**
+ * The site's admins and editors, admins first, then by name. Readers who signed up are the subscribers page's
+ * (lib/subscribers.ts), so however many there are, they're never listed here.
+ */
+export async function listEditors(siteAuth: SiteAuth, request: Request): Promise<SiteEditor[]> {
+  await adminAsking(siteAuth, request);
+  const editors = [
+    ...(await usersWithRole(siteAuth, request, "admin")),
+    ...(await usersWithRole(siteAuth, request, "editor")),
+  ].map(editorOf);
   return editors.sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "admin" ? -1 : 1));
 }
 
-/** The person a change is for, found by their id, wherever they'd be listed. */
+/**
+ * The editor or admin a change is for, found by their id. A reader's account is the subscribers page's, so the
+ * editors page can't change it, invite it again, or remove it.
+ */
 async function editorById(siteAuth: SiteAuth, userId: string): Promise<SiteEditor> {
   const user =
     typeof userId === "string" && userId ? await (await siteAuth.$context).internalAdapter.findUserById(userId) : null;
-  if (!user) throw new EditorsError(404, "There's no such person.");
+  const role = (user as { role?: string | null } | null)?.role;
+  if (!user || (role !== "admin" && role !== "editor")) throw new EditorsError(404, "There's no such person.");
   return editorOf(user as Parameters<typeof editorOf>[0]);
 }
 
