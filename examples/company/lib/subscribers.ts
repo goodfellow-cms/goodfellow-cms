@@ -42,7 +42,8 @@ function shown(entitlement: Entitlement): ShownSubscription {
 }
 
 /**
- * Every reader, and every editor or admin with a subscription, subscribers first, then by name. Subscriptions are
+ * Every reader, with no role or `MEMBER_ROLE`, and every editor or admin with a subscription, subscribers first, then
+ * by name. Subscriptions are
  * read once for everyone, not for each person, however many readers there are.
  */
 export async function listSubscribers(siteAuth: SiteAuth, request: Request): Promise<Subscriber[]> {
@@ -52,7 +53,22 @@ export async function listSubscribers(siteAuth: SiteAuth, request: Request): Pro
   for (const entitlement of await currentSubscriptions(context.adapter)) {
     byPerson.set(entitlement.userId, [...(byPerson.get(entitlement.userId) ?? []), shown(entitlement)]);
   }
-  const readers = await usersWithRole(siteAuth, request, MEMBER_ROLE);
+  const members = await usersWithRole(siteAuth, request, MEMBER_ROLE);
+  // Accounts with no role are readers' too (`isMemberRole()`), which the admin plugin's list can't ask for, so they're
+  // read from the database a page at a time.
+  const roleless: typeof members = [];
+  for (;;) {
+    const page = await context.adapter.findMany<(typeof members)[number]>({
+      model: "user",
+      where: [{ field: "role", value: null }],
+      limit: LOOKUP_SIZE,
+      offset: roleless.length,
+      sortBy: { field: "id", direction: "asc" },
+    });
+    roleless.push(...page);
+    if (page.length < LOOKUP_SIZE) break;
+  }
+  const readers = [...members, ...roleless];
   const listed = new Set(readers.map((user) => user.id));
   // Everyone else with a subscription, read together, as many to a query as the database is asked for at once.
   const missing = [...byPerson.keys()].filter((userId) => !listed.has(userId));

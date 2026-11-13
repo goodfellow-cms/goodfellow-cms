@@ -14,7 +14,7 @@ import {
   VERIFY_ACCOUNT_LIMIT,
 } from "./auth.ts";
 import { acceptInvitation, EditorsError, inviteEditor, listEditors, removeEditor, setRole } from "./editors.ts";
-import { grant, subscribedUntil } from "./entitlements.ts";
+import { BY_HAND, giveByHand, grant, subscribedUntil } from "./entitlements.ts";
 import type { SiteEnv } from "./env.ts";
 import { SignUpError, signUp, signUpFrom } from "./sign-up.ts";
 import { sitePath } from "./site-path.ts";
@@ -255,9 +255,12 @@ describe("signing up", () => {
         await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1 + index), SENT);
       }
       // From one address, only so many sign-ups at all, whatever their addresses.
+      const before = sent.length;
       for (let index = 0; index < SIGN_UP_LIMIT.max; index++) {
         await signUp(auth, SITE_ENV, signingUp({ name: "N", email: `n${index}@example.org` }, "203.0.113.1"));
       }
+      // Their emails are sent after answering, and must be before the database closes.
+      await vi.waitFor(() => expect(sent).toHaveLength(before + SIGN_UP_LIMIT.max), SENT);
       const over = signUp(auth, SITE_ENV, signingUp({ name: "N", email: "over@example.org" }, "203.0.113.1"));
       await expect(over).rejects.toMatchObject({ status: 429 });
     } finally {
@@ -329,6 +332,11 @@ describe("signing up", () => {
       "https://other.example/",
       "//other.example/",
       "/\\other.example",
+      // Paths that come out as another site's address once dot segments are taken out.
+      "/.//other.example/",
+      "/a/..//other.example",
+      "/%2e//other.example",
+      "/./\\other.example",
       "javascript:alert(1)",
       "",
     ]) {
@@ -403,14 +411,77 @@ describe("the subscribers page", () => {
       await takeAwaySubscription(auth, asking(olive, "DELETE"), paulId);
       expect(await subscribedUntil(context.adapter, ritaId)).toBeUndefined();
       expect(await subscribedUntil(context.adapter, paulId)).toBeNull();
-      // An editor with no subscription isn't a reader, so drops off the list.
+      // An editor with no subscription isn't a reader, so drops off the list, while an account with no role is a
+      // reader's, subscribing or not.
       await takeAwaySubscription(auth, asking(olive, "DELETE"), eddieId);
+      const noraId = await person("nora@example.org", MEMBER_ROLE);
+      await context.internalAdapter.updateUser(noraId, { role: null });
       expect((await listSubscribers(auth, asking(olive, "GET"))).map((subscriber) => subscriber.email)).toEqual([
         "paul@example.org",
+        "nora@example.org",
         "rita@example.org",
       ]);
     } finally {
       close();
+    }
+  });
+
+  it("leaves one subscription given by hand where two are given at once", async () => {
+    const { context, person, close } = await site();
+    try {
+      const ritaId = await person("rita@example.org", MEMBER_ROLE);
+      const later = new Date(Date.now() + 30 * DAY);
+      await Promise.all([giveByHand(context.adapter, ritaId, null), giveByHand(context.adapter, ritaId, later)]);
+      const given = await context.adapter.findMany({
+        model: "entitlement",
+        where: [
+          { field: "userId", value: ritaId },
+          { field: "reference", value: BY_HAND },
+        ],
+      });
+      expect(given).toHaveLength(1);
+      // The one refused by the database is given again in place of the other, so neither is lost without a word.
+      expect((await subscribedUntil(context.adapter, ritaId))?.toISOString()).toBe(later.toISOString());
+    } finally {
+      close();
+    }
+  });
+
+  it("keeps the newest of the subscriptions given someone by hand before the database held one each", async () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      const dir = join(import.meta.dirname, "../migrations/sqlite");
+      const names = (await readdir(dir)).sort();
+      const once = names.findIndex((name) => name.endsWith("_by-hand-once.sql"));
+      for (const name of names.slice(0, once)) db.exec(await readFile(join(dir, name), "utf8"));
+      db.exec(`insert into "user" ("id", "name", "email", "emailVerified", "createdAt", "updatedAt")
+        values ('u1', 'Rita', 'rita@example.org', 1, '2026-11-01', '2026-11-01')`);
+      for (const [id, reference, createdAt] of [
+        ["e1", BY_HAND, "2026-11-01T00:00:00.000Z"],
+        ["e2", BY_HAND, "2026-11-03T00:00:00.000Z"],
+        ["e3", BY_HAND, "2026-11-02T00:00:00.000Z"],
+        ["e4", "stripe:sub_1", "2026-11-01T00:00:00.000Z"],
+      ]) {
+        db.prepare(
+          `insert into "entitlement" ("id", "userId", "kind", "reference", "createdAt") values (?, 'u1', 'subscription', ?, ?)`,
+        ).run(id, reference, createdAt);
+      }
+      for (const name of names.slice(once)) db.exec(await readFile(join(dir, name), "utf8"));
+      expect(
+        db
+          .prepare(`select "id" from "entitlement" order by "id"`)
+          .all()
+          .map((row) => row.id),
+      ).toEqual(["e2", "e4"]);
+      expect(() =>
+        db
+          .prepare(
+            `insert into "entitlement" ("id", "userId", "kind", "reference", "createdAt") values ('e5', 'u1', 'subscription', ?, '2026-11-04')`,
+          )
+          .run(BY_HAND),
+      ).toThrow(/UNIQUE/);
+    } finally {
+      db.close();
     }
   });
 

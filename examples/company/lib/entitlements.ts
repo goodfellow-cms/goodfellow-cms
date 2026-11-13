@@ -116,10 +116,21 @@ export async function takeAwayByHand(adapter: EntitlementAdapter, userId: string
   });
 }
 
-/** Gives someone a subscription by hand, until `expiresAt` or with no end, in place of one given them before. */
+/**
+ * Gives someone a subscription by hand, until `expiresAt` or with no end, in place of one given them before. The
+ * database holds one a person (`entitlement_by_hand_idx`), so where another admin's gift lands between taking the
+ * old one away and giving this one, this one is refused, and is given once more in its place: the last to ask wins.
+ */
 export async function giveByHand(adapter: EntitlementAdapter, userId: string, expiresAt: Date | null): Promise<void> {
-  await takeAwayByHand(adapter, userId);
-  await grant(adapter, { userId, kind: "subscription", reference: BY_HAND, expiresAt });
+  const give = async () => {
+    await takeAwayByHand(adapter, userId);
+    await grant(adapter, { userId, kind: "subscription", reference: BY_HAND, expiresAt });
+  };
+  try {
+    await give();
+  } catch {
+    await give();
+  }
 }
 
 /** Whether someone is entitled to `reference` now. */
