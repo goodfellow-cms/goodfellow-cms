@@ -54,6 +54,7 @@ export interface EntitlementAdapter {
     sortBy?: { field: string; direction: "asc" | "desc" };
   }): Promise<T[]>;
   create<T extends Record<string, unknown>>(data: { model: string; data: T; forceAllowId?: boolean }): Promise<unknown>;
+  updateMany(data: { model: string; where: Where[]; update: Record<string, unknown> }): Promise<number>;
   deleteMany(data: { model: string; where: Where[] }): Promise<number>;
 }
 
@@ -117,19 +118,26 @@ export async function takeAwayByHand(adapter: EntitlementAdapter, userId: string
 }
 
 /**
- * Gives someone a subscription by hand, until `expiresAt` or with no end, in place of one given them before. The
- * database holds one a person (`entitlement_by_hand_idx`), so where another admin's gift lands between taking the
- * old one away and giving this one, this one is refused, and is given once more in its place: the last to ask wins.
+ * Gives someone a subscription by hand, until `expiresAt` or with no end, in place of one given them before. Each is
+ * one write, so a write that fails leaves the gift before as it was: the one given before is changed where there is
+ * one, and a new one is added where there isn't. The database holds one a person (`entitlement_by_hand_idx`), so where
+ * another admin's gift is added in between, adding this one is refused, and that one is changed instead. When two
+ * admins give someone one at once, the one the database writes last stays.
  */
 export async function giveByHand(adapter: EntitlementAdapter, userId: string, expiresAt: Date | null): Promise<void> {
-  const give = async () => {
-    await takeAwayByHand(adapter, userId);
-    await grant(adapter, { userId, kind: "subscription", reference: BY_HAND, expiresAt });
-  };
+  const where: Where[] = [
+    { field: "userId", value: userId },
+    { field: "kind", value: "subscription" },
+    { field: "reference", value: BY_HAND },
+  ];
+  const change = () =>
+    adapter.updateMany({ model: "entitlement", where, update: { expiresAt, createdAt: new Date() } });
+  if ((await change()) > 0) return;
   try {
-    await give();
-  } catch {
-    await give();
+    await grant(adapter, { userId, kind: "subscription", reference: BY_HAND, expiresAt });
+  } catch (error) {
+    // Refused for another admin's gift, which is changed instead; anything else is this write's own failure.
+    if ((await change()) === 0) throw error;
   }
 }
 

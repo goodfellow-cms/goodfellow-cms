@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { betterAuth } from "better-auth";
+import { betterAuth, type Where } from "better-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   authOptions,
@@ -134,6 +134,20 @@ function choose(siteAuth: Parameters<typeof acceptInvitation>[0], token: string,
     headers: { "sec-fetch-site": "same-origin" },
   });
   return acceptInvitation(siteAuth, request, { token, password });
+}
+
+/** The subscriptions given someone by hand, as the database holds them. */
+function byHand(
+  adapter: { findMany: (data: { model: string; where: Where[] }) => Promise<unknown[]> },
+  userId: string,
+) {
+  return adapter.findMany({
+    model: "entitlement",
+    where: [
+      { field: "userId", value: userId },
+      { field: "reference", value: BY_HAND },
+    ],
+  });
 }
 
 describe("signing up", () => {
@@ -432,15 +446,51 @@ describe("the subscribers page", () => {
       const ritaId = await person("rita@example.org", MEMBER_ROLE);
       const later = new Date(Date.now() + 30 * DAY);
       await Promise.all([giveByHand(context.adapter, ritaId, null), giveByHand(context.adapter, ritaId, later)]);
-      const given = await context.adapter.findMany({
-        model: "entitlement",
-        where: [
-          { field: "userId", value: ritaId },
-          { field: "reference", value: BY_HAND },
-        ],
-      });
-      expect(given).toHaveLength(1);
-      // The one refused by the database is given again in place of the other, so neither is lost without a word.
+      expect(await byHand(context.adapter, ritaId)).toHaveLength(1);
+    } finally {
+      close();
+    }
+  });
+
+  it("changes the subscription given before rather than taking it away first", async () => {
+    const { context, person, close } = await site();
+    try {
+      const ritaId = await person("rita@example.org", MEMBER_ROLE);
+      const soon = new Date(Date.now() + 3 * DAY);
+      const later = new Date(Date.now() + 30 * DAY);
+      await giveByHand(context.adapter, ritaId, soon);
+      // A database that would refuse a new row can't take the gift away.
+      const refusing = { ...context.adapter, create: () => Promise.reject(new Error("Refused.")) };
+      await giveByHand(refusing, ritaId, later);
+      expect((await subscribedUntil(context.adapter, ritaId))?.toISOString()).toBe(later.toISOString());
+      expect(await byHand(context.adapter, ritaId)).toHaveLength(1);
+      // Where there's none to change, the refusal is this gift's own.
+      const nedId = await person("ned@example.org", MEMBER_ROLE);
+      await expect(giveByHand(refusing, nedId, later)).rejects.toThrow("Refused.");
+      expect(await subscribedUntil(context.adapter, nedId)).toBeUndefined();
+    } finally {
+      close();
+    }
+  });
+
+  it("changes another admin's gift where it's added in between", async () => {
+    const { context, person, close } = await site();
+    try {
+      const ritaId = await person("rita@example.org", MEMBER_ROLE);
+      const later = new Date(Date.now() + 30 * DAY);
+      let first = true;
+      const crossing = {
+        ...context.adapter,
+        updateMany: async (data: Parameters<typeof context.adapter.updateMany>[0]) => {
+          if (!first) return context.adapter.updateMany(data);
+          first = false;
+          // Nothing to change yet, then another admin's gift, with no end, lands before this one is added.
+          await giveByHand(context.adapter, ritaId, null);
+          return 0;
+        },
+      };
+      await giveByHand(crossing, ritaId, later);
+      expect(await byHand(context.adapter, ritaId)).toHaveLength(1);
       expect((await subscribedUntil(context.adapter, ritaId))?.toISOString()).toBe(later.toISOString());
     } finally {
       close();
