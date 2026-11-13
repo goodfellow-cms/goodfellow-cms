@@ -3,6 +3,7 @@ import {
   APP_API_HEADER,
   type AppEditor,
   type AppSession,
+  type CollectionSource,
   type CollectionSources,
   ConflictError,
   decodeBase64,
@@ -118,10 +119,11 @@ export interface AppApiOptions {
    * The sources the config's `collections` name, by collection id
    * (`collectionSources()`), whose items `collections/<id>/items` gives anyone
    * signed in to edit, so the admin panel can show them, read-only. Or a
-   * function giving them, called only when that route is asked, so a source
-   * that can't be made fails only its items, never signing in or publishing.
+   * function giving one collection's source (`undefined` for none), called
+   * only when that collection's items are asked for, so a source that can't
+   * be made fails only its own items, never another's, signing in or publishing.
    */
-  sources?: CollectionSources | (() => CollectionSources);
+  sources?: CollectionSources | ((collection: string) => CollectionSource | undefined);
 }
 
 /** Room for a save with uploads, which are sent as base64 (a third larger than the files). */
@@ -352,8 +354,9 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
     if (sourced) {
       const id = sourced[1] ?? "";
       try {
-        const sources = typeof options.sources === "function" ? options.sources() : (options.sources ?? {});
-        const source = Object.hasOwn(sources, id) && sources[id];
+        const sources = options.sources;
+        const source =
+          typeof sources === "function" ? sources(id) : sources && Object.hasOwn(sources, id) ? sources[id] : undefined;
         if (!source) return json(404, { error: "not-found" });
         return json(200, { items: await source.items() });
       } catch (error) {

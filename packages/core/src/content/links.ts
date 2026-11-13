@@ -417,20 +417,18 @@ export interface AddressMove {
  * The site with every link to moved addresses pointing at their new ones,
  * keeping each link's `?…` and `#…`, and the files whose links changed.
  * Addresses under a moved one, such as a list's `/news/page/2`, move with it,
- * unless they're pages of their own.
+ * unless they're pages of their own: `content`'s, or one of `pages`, the
+ * addresses of pages it doesn't hold, such as items a collection's source gives.
  */
 export function relinkSite(
   content: SiteContent,
   moves: readonly AddressMove[],
   blocks?: Blocks,
+  pages: Iterable<string> = [],
 ): { content: SiteContent; files: string[] } {
   const moved = new Map(moves.filter((move) => move.from !== move.to).map((move) => [move.from, move.to]));
   if (moved.size === 0) return { content, files: [] };
-  const staying = new Set(
-    allPages(content)
-      .map((page) => page.path)
-      .filter((path) => !moved.has(path)),
-  );
+  const staying = new Set([...allPages(content).map((page) => page.path), ...pages].filter((path) => !moved.has(path)));
   const newAddress = (path: string): string | undefined => {
     const exact = moved.get(path);
     if (exact !== undefined) return exact;

@@ -141,6 +141,39 @@ describe("checkPublish", () => {
     expect(read.blocking).toEqual([]);
   });
 
+  it("stops a publish that would take an item a source gives off the site, and never reads the files it replaces", async () => {
+    const jobs = {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    };
+    const files: Record<string, string> = {
+      ...FILES,
+      "content/collections/jobs/_collection.json": JSON.stringify(jobs),
+      // A file the source's items replace, which loading would refuse.
+      "content/collections/jobs/broken.json": JSON.stringify({ version: 1, fields: { title: 42 } }),
+    };
+    const withJobs: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    const sources = { jobs: { items: async () => [{ slug: "about", fields: { title: "About the job" } }] } };
+    const content = await loadSiteContent(withJobs, { sourced: ["jobs"] });
+    const site = { blocks: config.blocks, code: localSiteCode(config), sources };
+    const { shown } = await readShown(content, sources);
+    // Nothing that changes the item's address: the publish is checked as any.
+    const plain = await checkPublish(withJobs, { content, ...(shown && { shown }), media: [] }, [], site);
+    expect(plain.leftOut).toBeUndefined();
+    // A new pattern gives it the address of the page /about, which keeps it, so the item would go.
+    const moved = [
+      { path: "content/collections/jobs/_collection.json", content: JSON.stringify({ ...jobs, path: "/{slug}" }) },
+    ];
+    const checks = await checkPublish(withJobs, { content, ...(shown && { shown }), media: [] }, moved, site);
+    expect(checks.leftOut).toEqual(["About the job"]);
+  });
+
   it("knows the files a publish adds, and doesn't ask again about problems it didn't bring", async () => {
     const checks = await checkPublish(
       source,

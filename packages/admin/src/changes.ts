@@ -5,6 +5,7 @@
  */
 import {
   type AddressMove,
+  allPages,
   type Collection,
   type CollectionField,
   type CollectionFile,
@@ -109,15 +110,17 @@ function movedEntryPages(
  * choices that are no longer offered, are removed from every entry in the
  * same save, so a field added later with the same name starts empty. Given
  * the `site`, a new address pattern points every link to an item's page at
- * its new address, in the same save: the pages of the items `sourced` gives
- * too, for a collection whose items come from a source, which have no files
- * to write (`LoadState.shown`).
+ * its new address, in the same save. Given the site as visitors see it
+ * (`shown`, `LoadState.shown`), that covers the pages of items a source gives
+ * too, which have no files to write, and leaves alone links to other sourced
+ * items' pages under the moved ones.
  */
 export function collectionSettingsChanges(
   collection: Collection,
   settings: CollectionFile,
-  site?: { content: SiteContent; blocks?: Record<string, ComponentConfig>; sourced?: readonly Entry[] },
+  site?: { content: SiteContent; blocks?: Record<string, ComponentConfig>; shown?: SiteContent },
 ): FileChange[] {
+  const sourced = site?.shown?.collections.find((one) => one.id === collection.id && one.sourced)?.entries ?? [];
   // Items are read with the fields they were saved with; the template is the new one.
   const relinked = site
     ? relinkSite(
@@ -129,8 +132,9 @@ export function collectionSettingsChanges(
               : candidate,
           ),
         },
-        movedEntryPages(site.content.settings, collection, settings, [...collection.entries, ...(site.sourced ?? [])]),
+        movedEntryPages(site.content.settings, collection, settings, [...collection.entries, ...sourced]),
         site.blocks,
+        site.shown ? allPages(site.shown).map((page) => page.path) : [],
       )
     : undefined;
   const current = relinked?.content.collections.find((candidate) => candidate.id === collection.id) ?? collection;

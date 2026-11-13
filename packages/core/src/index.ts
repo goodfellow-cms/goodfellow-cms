@@ -369,6 +369,7 @@ export {
   type CollectionSourceModule,
   type CollectionSources,
   checkSourceModules,
+  collectionSource,
   collectionSources,
   defineCollectionSource,
   isSourcedItem,

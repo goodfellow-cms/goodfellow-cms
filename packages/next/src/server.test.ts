@@ -64,23 +64,30 @@ describe("goodfellowApi", () => {
     const config = defineConfig({
       blocks: {},
       backend: github({ repo: "parish/site", fetch: fake.fetch }),
-      collections: { jobs: { source: "./lib/jobs.ts" } },
+      collections: { jobs: { source: "./lib/jobs.ts" }, news: { source: "./lib/news.ts" } },
     });
+    const news = vi.fn(() => ({ items: async () => [{ slug: "hello", fields: { title: "Hello" } }] }));
     const call = caller(
       goodfellowApi({
         config,
         token: "test-token",
         authorize: () => ALICE,
         signIn: "/sign-in",
-        sources: { jobs: make },
+        sources: { jobs: make, news },
       }),
     );
     expect((await call("revision/")).status).toBe(200);
     expect(make).not.toHaveBeenCalled();
     expect((await call("collections/jobs/items/")).status).toBe(502);
     expect(make).toHaveBeenCalledOnce();
+    // Another collection's items come through, its source made once and kept.
+    expect((await call("collections/news/items/")).status).toBe(200);
+    expect((await call("collections/news/items/")).status).toBe(200);
+    expect(news).toHaveBeenCalledOnce();
     // A module the config names but the site's code didn't give is refused at the first request.
-    const missing = caller(goodfellowApi({ config, token: "test-token", authorize: () => ALICE, signIn: "/sign-in" }));
+    const missing = caller(
+      goodfellowApi({ config, token: "test-token", authorize: () => ALICE, signIn: "/sign-in", sources: { news } }),
+    );
     await expect(missing("revision/")).rejects.toThrow(/lib\/jobs\.ts/);
   });
 

@@ -280,20 +280,39 @@ describe("collections", () => {
   it("moves the pages of items that come from a source too, writing no file for them", () => {
     const home = withBlocks("/", "Home", [
       { type: "Button", props: { id: "Button-1", href: "/videos/sermon", label: "Sermon" } },
+      { type: "Button", props: { id: "Button-2", href: "/videos/sermon/details", label: "Details" } },
     ]);
     // The site's files hold the collection without its items, which the source gives as the site shows them.
     const stored: Collection = { ...videos, entries: [] };
     const sourced: Entry = { ...entry("sermon", { title: "Sermon" }), file: "source:videos/sermon" };
+    // Another collection's source gives a page under the moved one, which stays where it is.
+    const details: Collection = {
+      id: "details",
+      file: "content/collections/details/_collection.json",
+      settings: { ...settings, name: "Details", path: "/videos/{slug}/details" },
+      entries: [
+        {
+          ...entry("sermon", { title: "Details" }),
+          collection: "details",
+          path: "/videos/sermon/details",
+          file: "source:details/sermon",
+        },
+      ],
+      sourced: true as const,
+    };
+    const content = site({ pages: [home], collections: [stored] });
+    const shown = { ...content, collections: [{ ...stored, entries: [sourced], sourced: true as const }, details] };
     const changes = collectionSettingsChanges(
       stored,
       { ...settings, path: "/watch/{slug}" },
-      { content: site({ pages: [home], collections: [stored] }), blocks, sourced: [sourced] },
+      { content, blocks, shown },
     );
     expect(changes.map((change) => change.path)).toEqual([
       "content/collections/videos/_collection.json",
       "content/pages/index.json",
     ]);
     expect(changes[1]).toMatchObject({ content: expect.stringContaining('"href": "/watch/sermon"') });
+    expect(changes[1]).toMatchObject({ content: expect.stringContaining('"href": "/videos/sermon/details"') });
   });
 
   it("removes deleted fields and choices from every entry in the same save", () => {

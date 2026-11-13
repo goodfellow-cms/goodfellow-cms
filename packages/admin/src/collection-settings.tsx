@@ -6,6 +6,7 @@ import {
   type CollectionFile,
   collectionFileSchema,
   collectionsLinkingTo,
+  type Entry,
   entryLanguage,
   entryPathIn,
   entryTitle,
@@ -642,12 +643,12 @@ function DeleteCollectionDialog({ collection, onClose }: { collection: Collectio
 /** Finds an entry whose page would take an address something else already has, with a new address pattern. */
 function addressClash(
   site: SiteSettings,
-  collection: Collection,
+  entries: readonly Entry[],
   settings: CollectionFile,
   addresses: Set<string>,
 ): string | undefined {
   const used = new Set(addresses);
-  for (const entry of collection.entries) {
+  for (const entry of entries) {
     const address = entryPathIn(site, settings, entry.slug, entryLanguage(site, entry));
     if (address === undefined) continue;
     if (used.has(address) || isReservedPagePath(address)) return entryTitle(entry);
@@ -662,10 +663,14 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
   const { blocks, publish, reload, account, state } = useAdmin();
   const { content } = useSiteContent();
   const source = useCollectionSource(collection.id);
-  // A sourced collection's items as the site shows them, whose pages move when the address pattern changes.
-  const sourced = source
-    ? (state.status === "ready" ? state.shown : undefined)?.collections.find((one) => one.id === collection.id)?.entries
-    : undefined;
+  // The site as visitors see it, with a sourced collection's items, whose pages move when the address pattern changes.
+  const visible = state.status === "ready" ? state.shown : undefined;
+  const sourced = useMemo(
+    () => (source ? (visible?.collections.find((one) => one.id === collection.id)?.entries ?? []) : []),
+    [source, visible, collection.id],
+  );
+  // A source that couldn't be read leaves its items' addresses unknown, so a new pattern can't move their pages yet.
+  const unread = Boolean(source) && state.status === "ready" && state.unreadSources === true;
   const [draft, setDraft] = useState(() => toDraft(collection.settings));
   const [showErrors, setShowErrors] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -700,12 +705,15 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
             .filter((page) => page.entry?.collection !== collection.id)
             .map((page) => page.path),
         );
-        const clash = addressClash(content.settings, collection, next, others);
+        const clash = addressClash(content.settings, [...collection.entries, ...sourced], next, others);
         if (clash) result.path = t("collectionSettings.addressClash", { title: clash });
+        else if (unread && next.path !== collection.settings.path) {
+          result.path = t("collectionSettings.sourceUnread", { source: source ?? "" });
+        }
       }
     }
     return result;
-  }, [next, content, collection, t]);
+  }, [next, content, collection, sourced, unread, source, t]);
 
   const valid = Object.keys(errors).length === 0;
   const dirty = serializeContent(next) !== serializeContent(collection.settings);
@@ -733,7 +741,7 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
     setStatus({ type: "publishing" });
     const settings = collectionFileSchema.parse(next);
     const result = await publish(
-      collectionSettingsChanges(collection, settings, { content, blocks, ...(sourced && { sourced }) }),
+      collectionSettingsChanges(collection, settings, { content, blocks, ...(visible && { shown: visible }) }),
       t("collectionSettings.message", { name: next.name }),
     );
     if (result.ok) {

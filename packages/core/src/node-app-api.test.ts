@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { APP_API_HEADER, type AppEditor, isSettingsPath } from "./app-api.js";
+import type { CollectionSource } from "./content/collection-sources.js";
 import type { OwnersOnlyFields } from "./content/owners-only.js";
 import { ConflictError, type FileChange } from "./content/store.js";
 import type { EarlyInstallCheck } from "./early-installs.js";
@@ -240,7 +241,7 @@ describe("appApi", () => {
   });
 
   it("makes sources given as a function only when their items are asked for, failing only that", async () => {
-    const make = vi.fn((): Record<string, never> => {
+    const make = vi.fn((): CollectionSource => {
       throw new Error("JOBS_DATABASE_URL isn't set");
     });
     const { call, errors } = setup(ALICE, { sources: make });
@@ -252,7 +253,7 @@ describe("appApi", () => {
     expect(await failed.text()).not.toContain("JOBS_DATABASE_URL");
     expect(errors).toHaveLength(1);
     const items = [{ slug: "welder", fields: { title: "Welder" } }];
-    const working = setup(ALICE, { sources: () => ({ jobs: { items: async () => items } }) });
+    const working = setup(ALICE, { sources: (id) => (id === "jobs" ? { items: async () => items } : undefined) });
     expect(await (await working.call("collections/jobs/items")).json()).toEqual({ items });
     expect((await working.call("collections/news/items")).status).toBe(404);
   });

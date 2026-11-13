@@ -311,7 +311,9 @@ async function load(store: ContentStore, sources?: CollectionSources): Promise<L
   try {
     // Read the revision first: reads then see that revision, even if someone publishes while loading.
     const revision = await store.revision();
-    const [content, media] = await Promise.all([loadSiteContent(store), store.list(MEDIA_DIR)]);
+    // Sourced collections' item files aren't read: their sources' items replace them, and nothing edits them.
+    const sourced = Object.keys(sources ?? {});
+    const [content, media] = await Promise.all([loadSiteContent(store, { sourced }), store.list(MEDIA_DIR)]);
     return { status: "ready", content, ...(await readShown(content, sources)), revision, media };
   } catch (error) {
     return { status: "error", error };
@@ -563,7 +565,13 @@ export function AdminProvider({
 
   /** Shows the site checks' dialog where they found anything, and says whether to go ahead. */
   const confirmChecks = useCallback(async (checks: PublishChecks | undefined) => {
-    if (!checks || (checks.blocking.length === 0 && checks.warnings.length === 0 && !checks.unread?.length)) {
+    if (
+      !checks ||
+      (checks.blocking.length === 0 &&
+        checks.warnings.length === 0 &&
+        !checks.unread?.length &&
+        !checks.leftOut?.length)
+    ) {
       return true;
     }
     const go = await new Promise<boolean>((decide) => setChecking({ checks, content: checks.content, decide }));

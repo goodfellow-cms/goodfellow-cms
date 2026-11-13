@@ -3,7 +3,7 @@ import { createServer, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { withSourcedCollections } from "./content/collection-sources.js";
 import { loadSiteContent } from "./content/load.js";
 import { DEV_API_PREFIX, handleDevApi, isAllowedDevHost, isLocalOrigin, type SiteLoader } from "./node-dev-api.js";
@@ -37,8 +37,14 @@ describe("handleDevApi's feeds", { timeout: NODE_TIMEOUT }, () => {
       version: 1,
       fields: { title: "From a file", posted: "2026-01-01" },
     });
+    let reading = true;
     const sources = {
-      jobs: { items: async () => [{ slug: "welder", fields: { title: "Welder", posted: "2026-11-02" } }] },
+      jobs: {
+        items: async () => {
+          if (!reading) throw new Error("The database didn't answer.");
+          return [{ slug: "welder", fields: { title: "Welder", posted: "2026-11-02" } }];
+        },
+      },
     };
     const load: SiteLoader = async (files) =>
       withSourcedCollections(await loadSiteContent(files, { sourced: ["jobs"] }), sources);
@@ -56,6 +62,17 @@ describe("handleDevApi's feeds", { timeout: NODE_TIMEOUT }, () => {
       expect(rss).not.toContain("From a file");
       // Without a loader, the site's files.
       expect(await (await fetch(`${origin}/plain${DEV_API_PREFIX}/feeds/jobs.rss`)).text()).toContain("From a file");
+      // A source that can't be read answers 500, saying why only on this computer, never with the files it replaces.
+      reading = false;
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const failed = await fetch(`${origin}${DEV_API_PREFIX}/feeds/jobs.rss`);
+        expect(failed.status).toBe(500);
+        expect(await failed.text()).not.toContain("database");
+        expect(error).toHaveBeenCalledWith(expect.stringContaining("The database didn't answer."));
+      } finally {
+        error.mockRestore();
+      }
     } finally {
       await new Promise((done) => server.close(done));
       await rm(root, { recursive: true, force: true });

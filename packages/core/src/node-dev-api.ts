@@ -271,7 +271,13 @@ export async function handleDevApi(
   }
   // Calendar files and feeds are public, as they are on the built site: next dev rewrites /calendars/ and /feeds/ here.
   if (req.method === "GET" && buildFileKind(`/${endpoint}`)) {
-    if (!(await sendBuildFile(store, `/${endpoint}`, res, options.load))) send(res, 404, { error: "not-found" });
+    try {
+      if (!(await sendBuildFile(store, `/${endpoint}`, res, options.load))) send(res, 404, { error: "not-found" });
+    } catch (error) {
+      // Such as a collection's source that can't be read: said here, on the developer's computer, and never in the answer.
+      console.error(`/${endpoint} couldn't be made: ${(error as Error).message}`);
+      send(res, 500, { error: "build-file" });
+    }
     return true;
   }
   if (!isTrusted(req, options.trustOrigin)) {

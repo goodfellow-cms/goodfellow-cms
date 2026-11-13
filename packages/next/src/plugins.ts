@@ -26,7 +26,7 @@ import {
   type SourceModuleImport,
   withSourcedCollections,
 } from "@goodfellow-cms/core";
-import { LICENSES_FILE, licensesPlugin, mediaStorageOrigins } from "@goodfellow-cms/core/node";
+import { builtSiteSource, LICENSES_FILE, licensesPlugin, mediaStorageOrigins } from "@goodfellow-cms/core/node";
 
 const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
 const FRAME_ENTRY = "\0goodfellow:plugin-frame";
@@ -112,6 +112,32 @@ export async function readCollectionSources(root: string): Promise<CollectionSou
     modules[id] = (await loadSiteModule(dir, adminModule(dir, collection.source))) as SourceModuleImport;
   }
   return collectionSources(collections, modules);
+}
+
+const sourcedIds = new Map<string, Promise<string[]>>();
+
+/**
+ * The collections the site's config names sources for, once a process, read
+ * from the config without making any source: what loading the site's files
+ * leaves out the item files of (`LoadOptions.sourced`), since a source's items
+ * replace them, wherever a step reads only the files.
+ */
+export function sourcedCollectionIds(root: string): Promise<string[]> {
+  const dir = resolve(root);
+  let ids = sourcedIds.get(dir);
+  if (!ids) {
+    ids = findConfigFile(dir)
+      ? loadSiteConfig(dir).then((config) => Object.keys(config.collections ?? {}))
+      : Promise.resolve([]);
+    sourcedIds.set(dir, ids);
+  }
+  return ids;
+}
+
+/** The site's files as builds read them, leaving out sourced collections' item files (`sourcedCollectionIds()`). */
+export async function loadSiteFiles(root: string): Promise<SiteContent> {
+  const dir = resolve(root);
+  return loadSiteContent(builtSiteSource(dir), { sourced: await sourcedCollectionIds(dir) });
 }
 
 const loadedSources = new Map<string, Promise<CollectionSources>>();

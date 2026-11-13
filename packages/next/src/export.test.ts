@@ -7,12 +7,14 @@ import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   blockPageRender,
+  buildFileFolders,
   checkPages,
   exportedPages,
   fixSegmentFiles,
   guardExport,
   nextDistDir,
   renderedPages,
+  writeBuildRecordFile,
   writeEditorFrames,
   writeExportHeaders,
   writeFeedFiles,
@@ -227,7 +229,7 @@ describe("collections' sources in an export", () => {
       );
       await file(
         "lib/jobs.ts",
-        'export default (options: { title: string }) => ({ items: async () => [{ slug: "welder", fields: { title: options.title, posted: "2026-11-01" } }] });\n',
+        'export default (options: { title: string }) => ({ items: async () => [{ slug: "welder", fields: { title: options.title, posted: "2026-11-01" } }, { slug: "later", fields: { title: "Later", posted: "2026-11-02" }, showFrom: "2031-03-04T05:06" }] });\n',
       );
       expect(await writeFeedFiles(out, site)).toBe(2);
       expect(await readFile(join(out, "feeds/jobs.rss"), "utf8")).toContain("https://example.org/jobs/welder/");
@@ -237,6 +239,13 @@ describe("collections' sources in an export", () => {
         "no-alt",
         "source:jobs/welder",
       ]);
+      // Steps that read only the files leave out the item file the source replaces too.
+      expect(await buildFileFolders(site)).toBeInstanceOf(Array);
+      // The build record says the site changes when the source's scheduled item shows.
+      await writeBuildRecordFile(out, site);
+      expect(JSON.parse(await readFile(join(out, "goodfellow-build.json"), "utf8")).currentUntil).toContain(
+        "2031-03-04",
+      );
     } finally {
       await rm(site, { recursive: true, force: true });
     }

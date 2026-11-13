@@ -1,6 +1,7 @@
 import {
   allPages,
   type CollectionSources,
+  type ContentProblem,
   type ContentSource,
   checkSite,
   entryTitle,
@@ -39,6 +40,12 @@ export interface PublishChecks {
    * publish too, until publishing again finds the source answering.
    */
   unread?: string[];
+  /**
+   * Items a collection's source gives that the site shows now, which the
+   * publish would leave out, such as when a new address pattern gives one a
+   * page's address: their titles. This stops the publish too.
+   */
+  leftOut?: string[];
 }
 
 /** The media library's files as the addresses content uses, such as `/media/photo.jpg`. */
@@ -47,24 +54,31 @@ function mediaAddresses(paths: Iterable<string>): string[] {
 }
 
 /** The site as it would be once the changes are published, read like the site itself. */
-function contentWithChanges(source: ContentSource, changes: FileChange[]): Promise<SiteContent> {
+function contentWithChanges(
+  source: ContentSource,
+  changes: FileChange[],
+  sourced: readonly string[] = [],
+): Promise<SiteContent> {
   const changed = new Map(changes.map((change) => [change.path, change]));
-  return loadSiteContent({
-    read: async (path) => {
-      const change = changed.get(path);
-      if (!change) return source.read(path);
-      return "content" in change ? change.content : undefined;
+  return loadSiteContent(
+    {
+      read: async (path) => {
+        const change = changed.get(path);
+        if (!change) return source.read(path);
+        return "content" in change ? change.content : undefined;
+      },
+      list: async (dir) => {
+        const listed = new Set(await source.list(dir));
+        for (const change of changes) {
+          if (!change.path.startsWith(`${dir}/`)) continue;
+          if ("delete" in change) listed.delete(change.path);
+          else listed.add(change.path);
+        }
+        return [...listed];
+      },
     },
-    list: async (dir) => {
-      const listed = new Set(await source.list(dir));
-      for (const change of changes) {
-        if (!change.path.startsWith(`${dir}/`)) continue;
-        if ("delete" in change) listed.delete(change.path);
-        else listed.add(change.path);
-      }
-      return [...listed];
-    },
-  });
+    { sourced },
+  );
 }
 
 /**
@@ -106,18 +120,27 @@ export async function checkPublish(
   const before = loaded.shown ?? loaded.content;
   let after: SiteContent;
   try {
-    after = await contentWithChanges(source, changes);
+    after = await contentWithChanges(source, changes, Object.keys(sources ?? {}));
   } catch {
     return { blocking: [], warnings: [], content: before };
   }
   if (sources) {
     // Asked each time, so publishing again retries a source that couldn't be read, here or as the site loaded.
+    const problems: ContentProblem[] = [];
     try {
-      after = await withSourcedCollections(after, sources, () => {});
+      after = await withSourcedCollections(after, sources, (problem) => problems.push(problem));
     } catch {
       const unread = after.collections.filter((one) => Object.hasOwn(sources, one.id)).map((one) => one.id);
       return { blocking: [], warnings: [], unread, content: after };
     }
+    // Items shown before that the changes would leave out: an item's problem is named by its `sourcedItemFile()`.
+    const shownBefore = new Map(
+      before.collections.flatMap((collection) =>
+        collection.sourced ? collection.entries.map((entry) => [entry.file, entryTitle(entry)] as const) : [],
+      ),
+    );
+    const leftOut = [...new Set(problems.flatMap((problem) => shownBefore.get(problem.file) ?? []))];
+    if (leftOut.length > 0) return { blocking: [], warnings: [], leftOut, content: after };
   }
   const media = new Set(loaded.media);
   for (const change of changes) {

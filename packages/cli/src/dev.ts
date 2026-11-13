@@ -317,7 +317,11 @@ function devPlugin(
           res.setHeader("Content-Type", "text/html; charset=utf-8");
           if (url.pathname === "/admin" || url.pathname === "/admin/") {
             // Content with a problem still opens the admin panel, which explains it.
-            const icon = await loadSiteContent(fileSystemSource(root)).then(
+            const sourced = await loadServerEntry(server).then(
+              ({ config }) => Object.keys(config.collections ?? {}),
+              (): string[] => [],
+            );
+            const icon = await loadSiteContent(fileSystemSource(root), { sourced }).then(
               (content) => content.settings.favicon,
               () => undefined,
             );
@@ -338,7 +342,11 @@ function devPlugin(
           if (await sendBuildFile(builtSiteSource(root), url.pathname, res, sourced).catch(() => false)) return;
           if (/\.[a-z0-9]+$/i.test(url.pathname)) {
             // Old addresses such as /news.html send visitors on, as the built site's pages there do.
-            const content = await loadSiteContent(builtSiteSource(root)).then(shownContent, () => undefined);
+            // The files alone, without what sources give, which no redirect needs, or the item files they replace.
+            const { config } = await loadServerEntry(server);
+            const content = await loadSiteContent(builtSiteSource(root), {
+              sourced: Object.keys(config.collections ?? {}),
+            }).then(shownContent, () => undefined);
             const redirect = content && findRedirect(content, url.pathname);
             if (content && redirect) return void res.end(redirectPage(content, redirect.to));
             return next();

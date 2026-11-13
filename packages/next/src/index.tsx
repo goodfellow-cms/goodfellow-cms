@@ -198,18 +198,26 @@ export interface PageProps {
  * content edits show on reload in development.
  */
 export const loadSite = cache(
-  async (root: string = process.cwd(), sources: CollectionSources = {}): Promise<SiteContent> =>
+  async (
+    root: string = process.cwd(),
+    sources: CollectionSources = {},
+    // Collections whose item files aren't read, since their sources' items replace them: the sources' by default.
+    sourced: readonly string[] = Object.keys(sources),
+  ): Promise<SiteContent> =>
     // How pages' full addresses end comes from `withGoodfellow()`, which Next.js passes in its `env`.
     shownContent(
       await withSourcedCollections(
         await loadSiteContent(
           builtSiteSource(root, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
-          { sourced: Object.keys(sources) },
+          { sourced },
         ),
         sources,
       ),
     ),
 );
+
+/** No collection sources: the same object each time, so `loadSite()`'s cache knows it. */
+const NO_SOURCES: CollectionSources = {};
 
 /** The site as `source` gives it, read as builds read it, once a request, as visitors see it now. */
 const loadSourceSite = cache(
@@ -392,6 +400,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   // site is read, where a failure (such as a missing setting a source checks for) fails that read, and the root
   // layout's `language()` can still open the admin panel.
   checkSourceModules(config.collections, options.sources ?? {});
+  const sourcedIds = Object.keys(config.collections ?? {});
   let made: CollectionSources | undefined;
   const site = async () => {
     made ??= collectionSources(config.collections, options.sources ?? {});
@@ -495,8 +504,9 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       try {
         return (await site()).settings.language;
       } catch {
-        // Without the collections' sources, which the language doesn't need, and which may be what failed.
-        return (await loadSite(options.root)).settings.language;
+        // Without the collections' sources, which the language doesn't need, and which may be what failed, or the item
+        // files their items replace.
+        return (await loadSite(options.root, NO_SOURCES, sourcedIds)).settings.language;
       }
     },
 

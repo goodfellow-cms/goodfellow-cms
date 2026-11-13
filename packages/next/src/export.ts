@@ -15,7 +15,6 @@ import {
   feedFiles,
   type GoodfellowConfig,
   hasLanguages,
-  loadSiteContent,
   membersPages,
   type Page,
   type PluginTaskRequest,
@@ -66,6 +65,7 @@ import {
   configHasPlugins,
   loadCollectionSources,
   loadSiteConfig,
+  loadSiteFiles,
   loadSiteModule,
   loadSourcedSite,
 } from "./plugins.js";
@@ -154,7 +154,7 @@ export async function writeContentApi(outDir: string, root = process.cwd()): Pro
  * code, such as `es/feeds/`.
  */
 export async function buildFileFolders(root = process.cwd()): Promise<string[]> {
-  const { settings } = await loadSiteContent(builtSiteSource(resolve(root)));
+  const { settings } = await loadSiteFiles(root);
   return siteLanguages(settings).flatMap((language) =>
     [CALENDARS_DIR, FEEDS_DIR].map((dir) => `${language.prefix.slice(1)}${language.prefix ? "/" : ""}${dir}`),
   );
@@ -282,7 +282,7 @@ export interface FontsWritten {
  * subfolder (`rootRobotsUrl()`).
  */
 export async function writeFontFiles(outDir: string, root = process.cwd()): Promise<FontsWritten> {
-  const { settings } = await loadSiteContent(builtSiteSource(resolve(root)));
+  const { settings } = await loadSiteFiles(root);
   const fonts = await selfHostFonts(outDir, settings.theme, { base: await exportBasePath(root) });
   const robotsElsewhere = rootRobotsUrl(settings.url);
   return {
@@ -300,7 +300,8 @@ export async function writeFontFiles(outDir: string, root = process.cwd()): Prom
  */
 export async function writeBuildRecordFile(outDir: string, root = process.cwd()): Promise<string | undefined> {
   const dir = resolve(root);
-  const content = await loadSiteContent(builtSiteSource(dir));
+  // With sourced items' schedules, which say when the site next changes, as the export's own pages had them.
+  const content = await loadSourcedSite(builtSiteSource(dir), loadCollectionSources(dir));
   const date = await reportedDate(join(await nextDistDir(dir), BUILD_DATES_DIR));
   const record = await writeBuildRecord(outDir, { root: dir, content, now: new Date(), ...(date && { date }) });
   return record.currentUntil;
@@ -394,7 +395,7 @@ export async function guardExport(outDir: string, root = process.cwd()): Promise
   const admin = parsed?.ok ? parsed.description.admin : undefined;
   if (!admin) return undefined;
   const dir = resolve(root);
-  const content = await loadSiteContent(builtSiteSource(dir));
+  const content = await loadSiteFiles(dir);
   return guardBuiltSite(outDir, {
     admin,
     ...(parsed?.ok && parsed.description.broker && { broker: parsed.description.broker }),
@@ -481,7 +482,7 @@ function withPageLanguage(html: string, language: string): string {
  */
 export async function writePageLanguages(outDir: string | undefined, root = process.cwd()): Promise<number> {
   const dir = resolve(root);
-  const { settings } = await loadSiteContent(builtSiteSource(dir));
+  const { settings } = await loadSiteFiles(dir);
   if (!hasLanguages(settings)) return 0;
   const base = outDir ?? join(await nextDistDir(dir), "server/app");
   // Before a build, or after one that writes no .next/, such as vinext's, there's nothing rendered to mark.
@@ -673,7 +674,7 @@ export function blockPageRender(root: string): PageRender {
     const entry = (await loadSiteModule(site, join(site, block.entry))).default as GoodfellowConfig["blocks"][string];
     const { createPageRenderer } = await import("@goodfellow-cms/react/server");
     const render = createPageRenderer({ ...config, blocks: { ...config.blocks, [block.name]: entry } });
-    const content = await loadSiteContent(builtSiteSource(site));
+    const content = await loadSiteFiles(site);
     return render(content, { path: "/", file: "content/pages/index.json", content: page });
   };
 }

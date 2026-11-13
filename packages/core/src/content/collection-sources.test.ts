@@ -3,6 +3,7 @@ import {
   type CollectionSource,
   CollectionSourceError,
   checkSourceModules,
+  collectionSource,
   collectionSources,
   defineCollectionSource,
   isSourcedItem,
@@ -236,6 +237,23 @@ describe("collectionSources", () => {
     expect(() => collectionSources({ jobs: { source: "./lib/jobs.ts" } }, {})).toThrow(/lib\/jobs\.ts/);
     expect(() => collectionSources(undefined, { jobs: make })).toThrow(CollectionSourceError);
     expect(collectionSources(undefined, {})).toEqual({});
+  });
+
+  it("makes one collection's source on its own, and none for a collection the config names no source for", () => {
+    const failing = vi.fn((): CollectionSource => {
+      throw new Error("NEWS_DATABASE_URL isn't set");
+    });
+    const config = {
+      jobs: { source: "./lib/jobs.ts", options: { table: "openings" } },
+      news: { source: "./lib/news.ts" },
+    };
+    const modules = { jobs: make, news: failing };
+    expect(collectionSource(config, modules, "jobs")).toBeDefined();
+    expect(failing).not.toHaveBeenCalled();
+    expect(collectionSource(config, modules, "events")).toBeUndefined();
+    expect(collectionSource(config, modules, "constructor")).toBeUndefined();
+    expect(() => collectionSource(config, modules, "news")).toThrow("NEWS_DATABASE_URL");
+    expect(() => collectionSource(config, {}, "jobs")).toThrow(CollectionSourceError);
   });
 
   it("checks the modules without making any source", () => {

@@ -1,8 +1,8 @@
 import { aiServer, type ServerKeys } from "@goodfellow-cms/ai";
 import {
-  type CollectionSources,
+  type CollectionSource,
   checkSourceModules,
-  collectionSources,
+  collectionSource,
   type GoodfellowConfig,
   ownersOnlyFields,
   type SourceModuleImport,
@@ -111,9 +111,9 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
         throw new Error(`goodfellowApi() needs a token: set ${GIT_TOKEN_VARIABLE}, or pass \`token\`.`);
       })();
     const ai = options.ai && aiServer(options.ai);
-    // Every collection's module must be there, but the sources are made only when the admin panel asks for items.
+    // Every collection's module must be there, but each source is made only when the admin panel asks for its items.
     checkSourceModules(options.config.collections, options.sources ?? {});
-    let sources: CollectionSources | undefined;
+    const sources = new Map<string, CollectionSource | undefined>();
     api = appApi({
       git: backend.server({ token }),
       authorize: options.authorize,
@@ -126,7 +126,10 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
       ...(options.codeChanges && { codeChanges: options.codeChanges }),
       ...(options.provenance && { provenance: options.provenance }),
       ownersOnly: ownersOnlyFields(options.config.blocks ?? {}),
-      sources: () => (sources ??= collectionSources(options.config.collections, options.sources ?? {})),
+      sources: (id) => {
+        if (!sources.has(id)) sources.set(id, collectionSource(options.config.collections, options.sources ?? {}, id));
+        return sources.get(id);
+      },
     });
     return api;
   }

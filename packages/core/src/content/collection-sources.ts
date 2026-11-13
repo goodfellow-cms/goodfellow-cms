@@ -129,6 +129,29 @@ export function collectionSources(
   return sources;
 }
 
+/**
+ * One collection's source, made from its module with the config's options, or
+ * `undefined` for a collection the config names no source for. Throws a
+ * `CollectionSourceError` where its module is missing. A server that answers
+ * for one collection at a time makes only that one, so a source that can't be
+ * made never stops another's items.
+ */
+export function collectionSource(
+  collections: Record<string, CollectionSourceConfig> | undefined,
+  modules: Record<string, SourceModuleImport>,
+  id: string,
+): CollectionSource | undefined {
+  const config = collections && Object.hasOwn(collections, id) ? collections[id] : undefined;
+  if (!config) return undefined;
+  const make = sourceMaker(Object.hasOwn(modules, id) ? modules[id] : undefined);
+  if (typeof make !== "function") {
+    throw new CollectionSourceError(
+      `The collection "${id}" reads its items from ${config.source}, which the site's server wasn't given. Import it and pass it as the "${id}" source.`,
+    );
+  }
+  return make(config.options ?? {});
+}
+
 /** Where a sourced item is in problems and links, since it has no file: `source:<collection>/<slug>`. */
 export function sourcedItemFile(collection: string, slug: string): string {
   return `source:${collection}/${slug}`;

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { allPages, type CollectionSource, loadSiteContent, parseDemoContent } from "@goodfellow-cms/core";
@@ -215,6 +215,28 @@ describe("goodfellowPages with collections' sources", () => {
     await expect(failing.generateStaticParams()).rejects.toThrow("NEWS_DATABASE_URL");
     // The root layout still has the site's language, for the admin panel and sign-in.
     expect(await failing.language()).toBe("en");
+  });
+
+  it("gives the root layout the site's language from files whose sourced collections hold a file loading refuses", async () => {
+    const copy = await mkdtemp(join(tmpdir(), "goodfellow-sourced-"));
+    try {
+      await cp(join(root, "content"), join(copy, "content"), { recursive: true });
+      await writeFile(
+        join(copy, "content/collections/news/broken.json"),
+        '{ "version": 1, "fields": { "title": 42 } }\n',
+      );
+      const failing = goodfellowPages(config, {
+        root: copy,
+        sources: {
+          news: (): CollectionSource => {
+            throw new Error("NEWS_DATABASE_URL isn't set");
+          },
+        },
+      });
+      expect(await failing.language()).toBe("en");
+    } finally {
+      await rm(copy, { recursive: true, force: true });
+    }
   });
 });
 
