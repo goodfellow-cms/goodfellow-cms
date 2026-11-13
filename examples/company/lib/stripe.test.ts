@@ -243,6 +243,34 @@ describe("the Stripe customer", () => {
   });
 });
 
+/** An adapter like `adapter` whose first entitlement write waits until `release()`, saying when it starts waiting. */
+function pausingWrites<T extends object>(adapter: T) {
+  let waiting = () => {};
+  const paused = new Promise<void>((resolve) => {
+    waiting = resolve;
+  });
+  let release = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let once = true;
+  const pausing = new Proxy(adapter, {
+    get(target, name, receiver) {
+      const value = Reflect.get(target, name, receiver);
+      if (name !== "create" || typeof value !== "function") return value;
+      return async (data: { model: string }) => {
+        if (data.model === "entitlement" && once) {
+          once = false;
+          waiting();
+          await released;
+        }
+        return value.call(target, data);
+      };
+    },
+  });
+  return { adapter: pausing, paused, release };
+}
+
 describe("Stripe's events", () => {
   it("give a subscription once it's paid, until its period ends, and take it away once it's cancelled", async () => {
     const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
@@ -333,6 +361,54 @@ describe("Stripe's events", () => {
       release();
       await coming;
       expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+    } finally {
+      close();
+    }
+  });
+
+  it("write a subscription one request at a time, so a stale read never brings a cancelled one back", async () => {
+    const { stripe, client, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const session = [...stripe.sessions.values()].at(-1);
+      stripe.pay(session?.id ?? "");
+      const subscription = session?.subscription ?? "";
+      // Coming back from Checkout reads the subscription as active, and stops just before writing it...
+      const slow = pausingWrites(context.adapter);
+      const coming = applySession(slow.adapter, client, session?.id ?? "");
+      await slow.paused;
+      // ...while it's cancelled, whose event waits for it rather than being overtaken by it.
+      const cancelled = stripe.cancel(subscription);
+      expect((await deliver(cancelled)).status).toBe(409);
+      slow.release();
+      await coming;
+      expect((await deliver(cancelled)).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+    } finally {
+      close();
+    }
+  });
+
+  it("write a purchase one request at a time, coming back from Checkout and by the event at once", async () => {
+    const { stripe, client, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "report" }));
+      const session = [...stripe.sessions.values()].at(-1);
+      const [completed] = stripe.pay(session?.id ?? "");
+      const slow = pausingWrites(context.adapter);
+      const coming = applySession(slow.adapter, client, session?.id ?? "");
+      await slow.paused;
+      // The event, arriving while coming back writes the same purchase, is tried again once it's done.
+      expect((await deliver(completed ?? {})).status).toBe(409);
+      slow.release();
+      await coming;
+      expect((await deliver(completed ?? {})).status).toBe(200);
+      const purchases = await context.adapter.findMany({
+        model: "entitlement",
+        where: [{ field: "userId", value: readerId }],
+      });
+      expect(purchases).toHaveLength(1);
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
     } finally {
       close();
     }
