@@ -9,6 +9,8 @@ import {
   billingAddress,
   checkoutAddress,
   customerOf,
+  PaymentsError,
+  paymentsProblem,
   placeFrom,
   returnFromCheckout,
   STRIPE_EVENT_IDENTIFIER,
@@ -57,7 +59,7 @@ async function payments() {
       siteEnv: PAYMENTS_ENV,
       stripe: client,
       findButton,
-      customer: (user) => accountCustomer(site.context.adapter, client, user),
+      customer: (user, stale) => accountCustomer(site.context.adapter, client, user, stale),
     });
   /** Sends the site one of Stripe's events, signed with `secret`. */
   const deliver = (event: object, secret = "whsec_test_only") => {
@@ -559,6 +561,124 @@ describe("coming back from Checkout", () => {
       expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
     } finally {
       close();
+    }
+  });
+});
+
+describe("what Stripe and the site's accounts can come to", () => {
+  it("sends a subscriber to Stripe's portal rather than selling them the same subscription again", async () => {
+    const { stripe, buy, buying, checkout, customer, readerId, reader, close } = await payments();
+    try {
+      await buy("monthly");
+      const sessions = stripe.sessions.size;
+      const address = await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      expect(address).toBe(`${STRIPE}/portal/${await customer(readerId)}`);
+      expect(stripe.sessions.size).toBe(sessions);
+      // Something bought once can be bought again.
+      await checkout(buying(reader, { page: "/subscribe", block: "report" }));
+      expect(stripe.sessions.size).toBe(sessions + 1);
+    } finally {
+      close();
+    }
+  });
+
+  it("makes a new Stripe customer in place of one Stripe no longer has", async () => {
+    const { stripe, client, buy, buying, checkout, customer, context, readerId, reader, auth, asking, close } =
+      await payments();
+    try {
+      await buy("report");
+      const gone = (await customer(readerId)) ?? "";
+      // Deleted in Stripe, as a customer can be, or never there, as when the site moves from test mode.
+      stripe.customers.delete(gone);
+      // Its portal has nothing to manage...
+      const portal = billingAddress(asking(reader, "POST", "same-origin", "/api/billing/"), {
+        siteAuth: auth,
+        siteEnv: PAYMENTS_ENV,
+        stripe: client,
+        customer: (userId) => customerOf(context.adapter, userId),
+      });
+      await expect(portal).rejects.toMatchObject({ status: 404 });
+      // ...and Checkout makes them a new one, which the site keeps.
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const kept = await customer(readerId);
+      expect(kept).not.toBe(gone);
+      expect(stripe.customers.has(kept ?? "")).toBe(true);
+      expect([...stripe.sessions.values()].at(-1)?.customer).toBe(kept);
+    } finally {
+      close();
+    }
+  });
+
+  it("says a price Stripe doesn't have isn't on sale, and passes on any other failure", async () => {
+    const { stripe, buying, checkout, reader, close } = await payments();
+    try {
+      await expect(checkout(buying(reader, { page: "/subscribe", block: "gone" }))).rejects.toMatchObject({
+        status: 409,
+      });
+      stripe.settings.forbidden = true;
+      const refused = checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      await expect(refused).rejects.toThrow();
+      await expect(refused).rejects.not.toBeInstanceOf(PaymentsError);
+    } finally {
+      close();
+    }
+  });
+
+  it("leaves alone what Stripe says of an account that's been deleted", async () => {
+    const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+    try {
+      // A subscription and something bought once, paid for after the account was deleted.
+      const events = [];
+      for (const block of ["monthly", "report"]) {
+        await checkout(buying(reader, { page: "/subscribe", block }));
+        events.push(...stripe.pay([...stripe.sessions.values()].at(-1)?.id ?? ""));
+      }
+      await context.adapter.deleteMany({ model: "user", where: [{ field: "id", value: readerId }] });
+      for (const event of events) expect((await deliver(event)).status).toBe(200);
+      const left = await context.adapter.findMany({
+        model: "entitlement",
+        where: [{ field: "userId", value: readerId }],
+      });
+      expect(left).toHaveLength(0);
+    } finally {
+      close();
+    }
+  });
+
+  it("gives a purchase back once the site wins its dispute, and not once it's lost", async () => {
+    const { stripe, buy, deliver, context, readerId, close } = await payments();
+    try {
+      const won = await buy("report");
+      await deliver(stripe.dispute(won?.payment_intent ?? ""));
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+      await deliver(stripe.closeDispute(won?.payment_intent ?? "", "won"));
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
+      // A purchase whose dispute was lost stays taken back.
+      await context.adapter.deleteMany({ model: "entitlement", where: [{ field: "userId", value: readerId }] });
+      const lost = await buy("report");
+      await deliver(stripe.dispute(lost?.payment_intent ?? ""));
+      await deliver(stripe.closeDispute(lost?.payment_intent ?? "", "lost"));
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+    } finally {
+      close();
+    }
+  });
+});
+
+describe("payments' routes", () => {
+  it("answer a problem in its own words, and anything else in words of their own, logging its name", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const known = paymentsProblem(new PaymentsError(409, "This isn't on sale at the moment."), "Checkout");
+      expect(known.status).toBe(409);
+      expect(await known.text()).toBe("This isn't on sale at the moment.");
+      expect(log).not.toHaveBeenCalled();
+      const other = paymentsProblem(new TypeError("secret detail"), "Opening the customer portal");
+      expect(other.status).toBe(500);
+      expect(await other.text()).not.toContain("secret");
+      expect(log).toHaveBeenCalledWith("Opening the customer portal failed: TypeError.");
+    } finally {
+      log.mockRestore();
     }
   });
 });

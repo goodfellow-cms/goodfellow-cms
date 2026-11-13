@@ -1,5 +1,5 @@
 // A stand-in for the parts of Stripe's API the site uses (lib/stripe.ts), for tests: prices, customers, Checkout Sessions and
-// their line items, payments and their charges, subscriptions, and customer portal sessions, kept in memory, with a checkout page that pays and
+// their line items, payments and their charges and disputes, subscriptions, and customer portal sessions, kept in memory, with a checkout page that pays and
 // sends the site Stripe's events, signed as Stripe signs them. Never used by the site itself.
 import { createHmac } from "node:crypto";
 
@@ -39,7 +39,7 @@ interface FakeSubscription {
   status: string;
   customer: string;
   metadata: Record<string, string>;
-  items: { object: "list"; data: { id: string; current_period_end: number }[] };
+  items: { object: "list"; data: { id: string; current_period_end: number; price: { id: string } }[] };
 }
 
 interface FakeCharge {
@@ -93,13 +93,24 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
   const charges = new Map<string, FakeCharge>();
   /** Customers, by id, and the ones made with each idempotency key. */
   const customers = new Map<string, { id: string; object: "customer"; email: string | null; metadata: object }>();
-  const madeWithKey = new Map<string, string>();
-  /** Set to make each request a new one whatever its idempotency key, as once the key's 24 hours have passed. */
-  const settings = { idempotency: true };
+  /** What each idempotency key's request was answered with, which Stripe gives again, deleted since or not. */
+  const madeWithKey = new Map<string, { id: string; object: "customer"; email: string | null; metadata: object }>();
+  /** Each payment's disputes, by the payment's id. */
+  const disputes = new Map<string, { id: string; object: "dispute"; payment_intent: string; status: string }[]>();
+  /**
+   * `idempotency` off makes each request a new one whatever its idempotency key, as once the key's 24 hours have
+   * passed; `forbidden` refuses every request as a restricted key without the permission would be.
+   */
+  const settings = { idempotency: true, forbidden: false };
   let count = 0;
   const next = (prefix: string) => `${prefix}_test${++count}`;
   const json = (value: unknown, status = 200) => Response.json(value, { status });
-  const missing = () => json({ error: { type: "invalid_request_error", message: "No such object." } }, 404);
+  /** Stripe's answer for an object it doesn't have, or one a request named as `param`. */
+  const missing = (param?: string) =>
+    json(
+      { error: { type: "invalid_request_error", code: "resource_missing", message: "No such object.", param } },
+      param ? 400 : 404,
+    );
   const list = <T>(data: T[]) => ({ object: "list", data, has_more: false, url: "" });
   const priceObject = (price: FakePrice & { active: boolean }) => ({
     id: price.id,
@@ -129,6 +140,9 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     if (request.headers.get("authorization") !== `Bearer ${options.key}`) {
       return json({ error: { type: "invalid_request_error", message: "Invalid API Key provided." } }, 401);
     }
+    if (settings.forbidden) {
+      return json({ error: { type: "invalid_request_error", message: "The key doesn't have that permission." } }, 403);
+    }
     const parts = url.pathname.split("/").filter(Boolean);
     const body = request.method === "POST" ? decoded(await request.text()) : {};
     if (parts[0] !== "v1") return missing();
@@ -138,6 +152,7 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     }
     if (parts[1] === "checkout" && parts[2] === "sessions") {
       if (!parts[3] && request.method === "POST") {
+        if (body.customer && !customers.has(body.customer as string)) return missing("customer");
         const items = body.line_items as Record<string, { price: string }>;
         const price = prices.get(items?.["0"]?.price ?? "");
         if (!price?.active) return missing();
@@ -180,7 +195,7 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     }
     if (parts[1] === "customers" && !parts[2] && request.method === "POST") {
       const key = request.headers.get("idempotency-key");
-      const earlier = key && settings.idempotency ? customers.get(madeWithKey.get(key) ?? "") : undefined;
+      const earlier = key && settings.idempotency ? madeWithKey.get(key) : undefined;
       if (earlier) return json(earlier);
       const customer = {
         id: next("cus"),
@@ -189,18 +204,33 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
         metadata: (body.metadata as object) ?? {},
       };
       customers.set(customer.id, customer);
-      if (key) madeWithKey.set(key, customer.id);
+      if (key) madeWithKey.set(key, customer);
       return json(customer);
     }
     if (parts[1] === "payment_intents" && parts[2] && request.method === "GET") {
       const charge = charges.get(parts[2]);
       return charge ? json({ id: parts[2], object: "payment_intent", latest_charge: charge }) : missing();
     }
+    if (parts[1] === "subscriptions" && !parts[2] && request.method === "GET") {
+      const customer = url.searchParams.get("customer");
+      const price = url.searchParams.get("price");
+      return json(
+        list(
+          [...subscriptions.values()].filter(
+            (one) => one.customer === customer && (!price || one.items.data.some((item) => item.price.id === price)),
+          ),
+        ),
+      );
+    }
+    if (parts[1] === "disputes" && !parts[2] && request.method === "GET") {
+      return json(list(disputes.get(url.searchParams.get("payment_intent") ?? "") ?? []));
+    }
     if (parts[1] === "subscriptions" && parts[2] && request.method === "GET") {
       const subscription = subscriptions.get(parts[2]);
       return subscription ? json(subscription) : missing();
     }
     if (parts[1] === "billing_portal" && parts[2] === "sessions" && request.method === "POST") {
+      if (!customers.has(body.customer as string)) return missing("customer");
       return json({
         id: next("bps"),
         object: "billing_portal.session",
@@ -219,6 +249,7 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     charges,
     prices,
     customers,
+    disputes,
     settings,
     /**
      * Pays a Checkout Session, as the customer would: one-off payments get a payment, subscriptions a subscription
@@ -243,7 +274,13 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
           metadata: session.subscriptionMetadata,
           items: {
             object: "list",
-            data: [{ id: next("si"), current_period_end: Math.floor(Date.now() / 1000) + days * 24 * 60 * 60 }],
+            data: [
+              {
+                id: next("si"),
+                current_period_end: Math.floor(Date.now() / 1000) + days * 24 * 60 * 60,
+                price: { id: session.price },
+              },
+            ],
           },
         };
         subscriptions.set(subscription.id, subscription);
@@ -283,7 +320,21 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       const charge = charges.get(paymentIntentId);
       if (!charge) throw new Error(`No payment ${paymentIntentId}.`);
       charge.disputed = true;
-      return event("charge.dispute.created", { id: next("dp"), object: "dispute", payment_intent: paymentIntentId });
+      const dispute = {
+        id: next("dp"),
+        object: "dispute" as const,
+        payment_intent: paymentIntentId,
+        status: "needs_response",
+      };
+      disputes.set(paymentIntentId, [...(disputes.get(paymentIntentId) ?? []), dispute]);
+      return event("charge.dispute.created", { ...dispute });
+    },
+    /** Closes a payment's dispute as `status` says (the site's `won`, or `lost`). Gives the event Stripe sends. */
+    closeDispute(paymentIntentId: string, status: "won" | "lost" = "won") {
+      const dispute = disputes.get(paymentIntentId)?.at(-1);
+      if (!dispute) throw new Error(`No dispute of ${paymentIntentId}.`);
+      dispute.status = status;
+      return event("charge.dispute.closed", { ...dispute });
     },
     /** Any event, for checking what the site does with ones it doesn't use, or with a made-up object. */
     event,

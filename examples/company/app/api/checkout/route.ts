@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { findButton } from "@/lib/site";
-import { accountCustomer, checkoutAddress, PaymentsError, stripeFor } from "@/lib/stripe";
+import { accountCustomer, checkoutAddress, paymentsProblem, stripeFor } from "@/lib/stripe";
 
 // Where a Buy button's form goes (blocks/buy-button.tsx): on to Stripe Checkout, or to sign in first (lib/stripe.ts).
 export async function POST(request: Request): Promise<Response> {
@@ -15,20 +15,10 @@ export async function POST(request: Request): Promise<Response> {
       siteEnv,
       stripe,
       findButton,
-      customer: (user) => accountCustomer(adapter, stripe, user),
+      customer: (user, stale) => accountCustomer(adapter, stripe, user, stale),
     });
     return new Response(null, { status: 303, headers: { location: address, "cache-control": "no-store" } });
   } catch (error) {
-    return problem(error);
+    return paymentsProblem(error, "Checkout");
   }
-}
-
-/** A problem as plain words, since a form posted here: its own for a known one, and nothing about anything else. */
-function problem(error: unknown): Response {
-  const known = error instanceof PaymentsError;
-  if (!known) console.error(`Checkout failed: ${error instanceof Error ? error.name : "error"}.`);
-  return new Response(known ? error.message : "Something went wrong. Try again in a moment.", {
-    status: known ? error.status : 500,
-    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
-  });
 }

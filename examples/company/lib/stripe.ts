@@ -38,6 +38,28 @@ export class PaymentsError extends Error {
   }
 }
 
+/**
+ * The answer a payments route gives for `error`: a `PaymentsError` in its own words and status, and anything else as
+ * a 500 in words that say nothing about it, logged by its name only, with what was being done, so it can be found.
+ */
+export function paymentsProblem(error: unknown, doing: string): Response {
+  const known = error instanceof PaymentsError;
+  if (!known) console.error(`${doing} failed: ${error instanceof Error ? error.name : "error"}.`);
+  return new Response(known ? error.message : "Something went wrong. Try again in a moment.", {
+    status: known ? error.status : 500,
+    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+  });
+}
+
+/** Whether Stripe refused a request because it has no such object, or none named as `param` where one is given. */
+function isMissing(error: unknown, param?: string): boolean {
+  return (
+    error instanceof Stripe.errors.StripeInvalidRequestError &&
+    error.code === "resource_missing" &&
+    (param === undefined || error.param === param)
+  );
+}
+
 /** A Buy button, as its page has it: which page, and the button's own id on it. */
 export interface ButtonPlace {
   page: string;
@@ -71,8 +93,11 @@ export interface CheckoutOptions {
   siteEnv: SiteEnv;
   stripe: Stripe;
   findButton: FindButton;
-  /** The Stripe customer the person pays as, made the first time (`accountCustomer()`). */
-  customer: (user: { id: string; email: string }) => Promise<string>;
+  /**
+   * The Stripe customer the person pays as, made the first time (`accountCustomer()`), or in place of `stale`, one
+   * Stripe no longer has.
+   */
+  customer: (user: { id: string; email: string }, stale?: string) => Promise<string>;
 }
 
 /**
@@ -97,25 +122,53 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
   }
   const button = await findButton(place);
   if (!button) throw new PaymentsError(404, "That button isn't on any of this site's pages.");
-  const price = await stripe.prices.retrieve(button.price).catch(() => undefined);
+  // A price Stripe doesn't have isn't on sale; any other failure, such as a key without the permission, is the site's.
+  const price = await stripe.prices.retrieve(button.price).catch((error: unknown) => {
+    if (isMissing(error)) return undefined;
+    throw error;
+  });
   if (!price?.active) throw new PaymentsError(409, "This isn't on sale at the moment.");
   const subscribing = price.type === "recurring";
   const userId = session.user.id;
   const back = new URL("/api/checkout/done/", siteUrl);
   back.searchParams.set("next", place.page);
   const done = `${back.href}&session_id={CHECKOUT_SESSION_ID}`;
-  // The one customer they pay as, so all they pay for is in one place in Stripe's portal.
-  const customer = await options.customer({ id: userId, email: session.user.email });
-  const checkout = await stripe.checkout.sessions.create({
-    mode: subscribing ? "subscription" : "payment",
-    line_items: [{ price: price.id, quantity: 1 }],
-    client_reference_id: userId,
-    customer,
-    metadata: { userId },
-    ...(subscribing && { subscription_data: { metadata: { userId } } }),
-    success_url: done,
-    cancel_url: new URL(place.page, siteUrl).href,
-  });
+  const page = new URL(place.page, siteUrl).href;
+  const user = { id: userId, email: session.user.email };
+  // The one customer they pay as, so all they pay for is in one place in Stripe's portal: where Stripe no longer has
+  // the one the site kept (deleted there, or the site moved from test mode), a new one in its place.
+  let customer = await options.customer(user);
+  if (subscribing) {
+    let subscriptions: Stripe.Subscription[] | undefined;
+    try {
+      subscriptions = (await stripe.subscriptions.list({ customer, price: price.id, status: "all", limit: 100 })).data;
+    } catch (error) {
+      if (!isMissing(error, "customer")) throw error;
+    }
+    // Someone who already pays for this subscription manages it rather than paying for it twice.
+    if (subscriptions?.some((subscription) => SUBSCRIBED.has(subscription.status))) {
+      return (await stripe.billingPortal.sessions.create({ customer, return_url: page })).url;
+    }
+  }
+  const create = (customer: string) =>
+    stripe.checkout.sessions.create({
+      mode: subscribing ? "subscription" : "payment",
+      line_items: [{ price: price.id, quantity: 1 }],
+      client_reference_id: userId,
+      customer,
+      metadata: { userId },
+      ...(subscribing && { subscription_data: { metadata: { userId } } }),
+      success_url: done,
+      cancel_url: page,
+    });
+  let checkout: Stripe.Checkout.Session;
+  try {
+    checkout = await create(customer);
+  } catch (error) {
+    if (!isMissing(error, "customer")) throw error;
+    customer = await options.customer(user, customer);
+    checkout = await create(customer);
+  }
   if (!checkout.url) throw new PaymentsError(502, "Stripe didn't start the payment. Try again in a moment.");
   return checkout.url;
 }
@@ -149,14 +202,27 @@ export async function accountCustomer(
   adapter: CustomerAdapter,
   stripe: Stripe,
   user: { id: string; email: string },
+  stale?: string,
 ): Promise<string> {
+  // One Stripe no longer has is forgotten, unless another request has already put a new one in its place.
+  if (stale) {
+    await adapter.updateMany({
+      model: "user",
+      where: [
+        { field: "id", value: user.id },
+        { field: "stripeCustomerId", value: stale },
+      ],
+      update: { stripeCustomerId: null },
+    });
+  }
   const kept = await customerOf(adapter, user.id);
   if (kept) return kept;
   const address = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(user.email)));
   const hash = Array.from(address.subarray(0, 12), (byte) => byte.toString(16).padStart(2, "0")).join("");
   const made = await stripe.customers.create(
     { email: user.email, metadata: { userId: user.id } },
-    { idempotencyKey: `customer:${user.id}:${hash}` },
+    // In place of a stale one, a key of its own, or Stripe would give back the customer the key first made.
+    { idempotencyKey: `customer:${user.id}:${hash}${stale ? `:${stale}` : ""}` },
   );
   await rememberCustomer(adapter, user.id, made.id);
   return (await customerOf(adapter, user.id)) ?? made.id;
@@ -240,7 +306,8 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
   return withStripeLock(adapter, `subscription:${subscriptionId}`, async () => {
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
     const userId = subscription.metadata?.userId;
-    if (!userId) return;
+    // An account deleted since took its entitlements with it, and writing one for it would fail on every retry.
+    if (!userId || !(await stillHere(adapter, userId))) return;
     const reference = subscriptionReference(subscription.id);
     await adapter.deleteMany({
       model: "entitlement",
@@ -276,12 +343,32 @@ export function purchaseId(sessionId: string, product: string): string {
   return `stripe:${sessionId}:${product}`;
 }
 
-/** Whether a payment has been refunded, in full or in part, or disputed, as Stripe has it now. */
+/**
+ * How a dispute ends that leaves the payment the site's: won, or an inquiry closed without the money taken. Any other,
+ * open or lost, counts against the payment.
+ */
+const KEPT_DISPUTE = new Set(["won", "warning_closed"]);
+
+/**
+ * Whether a payment has been refunded, in full or in part, or is disputed, as Stripe has it now: a dispute the site
+ * has won doesn't count, so the purchase comes back once it's closed (`charge.dispute.closed`).
+ */
 async function takenBack(stripe: Stripe, paymentIntentId: string): Promise<boolean> {
   const payment = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ["latest_charge"] });
   const charge = payment.latest_charge;
   if (typeof charge === "string") throw new Error("Stripe didn't give the payment's charge.");
-  return Boolean(charge && (charge.amount_refunded > 0 || charge.disputed));
+  if (!charge) return false;
+  if (charge.amount_refunded > 0) return true;
+  if (!charge.disputed) return false;
+  for await (const dispute of stripe.disputes.list({ payment_intent: paymentIntentId, limit: 100 })) {
+    if (!KEPT_DISPUTE.has(dispute.status)) return true;
+  }
+  return false;
+}
+
+/** Whether the account `userId` still exists: what Stripe says of one that's been deleted is left alone. */
+async function stillHere(adapter: PaymentsAdapter, userId: string): Promise<boolean> {
+  return Boolean(await adapter.findOne({ model: "user", where: [{ field: "id", value: userId }] }));
 }
 
 /**
@@ -301,6 +388,7 @@ async function writeSession(adapter: PaymentsAdapter, stripe: Stripe, sessionId:
   const userId = session.client_reference_id;
   if (!userId || session.metadata?.userId !== userId) return;
   if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") return;
+  if (!(await stillHere(adapter, userId))) return;
   await rememberCustomer(adapter, userId, idOf(session.customer as string | { id: string } | null));
   const subscription = idOf(session.subscription);
   if (session.mode === "subscription" && subscription) return applySubscription(adapter, stripe, subscription);
@@ -454,6 +542,15 @@ async function handle(adapter: PaymentsAdapter, stripe: Stripe, event: Stripe.Ev
       if (paymentIntent) await revokePayment(adapter, stripe, paymentIntent);
       return;
     }
+    case "charge.dispute.closed": {
+      // Won, what the payment bought comes back; lost, it stays taken back: `applySession()` reads which.
+      const paymentIntent = idOf(event.data.object.payment_intent);
+      if (!paymentIntent) return;
+      for await (const session of stripe.checkout.sessions.list({ payment_intent: paymentIntent, limit: 10 })) {
+        await applySession(adapter, stripe, session.id);
+      }
+      return;
+    }
     default:
       return;
   }
@@ -507,9 +604,15 @@ export async function billingAddress(
   if (!session || session.user.banned) throw new PaymentsError(401, "Sign in first.");
   const customer = await options.customer(session.user.id);
   if (!customer) throw new PaymentsError(404, "You don't pay for anything here.");
-  const portal = await stripe.billingPortal.sessions.create({
-    customer,
-    return_url: new URL("/account/", siteUrl).href,
-  });
-  return portal.url;
+  try {
+    const portal = await stripe.billingPortal.sessions.create({
+      customer,
+      return_url: new URL("/account/", siteUrl).href,
+    });
+    return portal.url;
+  } catch (error) {
+    // A customer Stripe no longer has has nothing to manage; the next Checkout makes them a new one.
+    if (isMissing(error, "customer")) throw new PaymentsError(404, "You don't pay for anything here.");
+    throw error;
+  }
 }

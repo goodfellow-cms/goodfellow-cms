@@ -1,9 +1,9 @@
 import { type ContentSource, repositorySource } from "@goodfellow-cms/core";
-import { goodfellowPages, loadSite } from "@goodfellow-cms/next";
+import { goodfellowPages } from "@goodfellow-cms/next";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { PAYWALL_BLOCK } from "@/blocks/paywall";
 import config from "@/goodfellow.config";
-import { buttonFrom, buttonOn } from "@/lib/buttons";
+import { buttonOn } from "@/lib/buttons";
 import { env } from "@/lib/env";
 import type { Button, ButtonPlace } from "@/lib/stripe";
 
@@ -34,10 +34,10 @@ async function source(): Promise<ContentSource | undefined> {
 export const site = goodfellowPages(config, { source, paywall: PAYWALL_BLOCK });
 
 /**
- * The Buy button at `place`, as visitors see the site now, from the content repository as pages render from it
- * (`buttonFrom()`), or, in `next dev` and while the site is built, the files pages render from.
+ * The Buy button at `place`, as visitors see the site now: read from the site as its pages render it
+ * (`site.loadSite()`), from the content repository, once a request, with what pages read, or, in `next dev` and while
+ * the site is built, the files pages render from.
  */
 export async function findButton(place: ButtonPlace): Promise<Button | undefined> {
-  const from = await source();
-  return from ? buttonFrom(from, place) : buttonOn(await loadSite(), place);
+  return buttonOn(await site.loadSite(), place);
 }
