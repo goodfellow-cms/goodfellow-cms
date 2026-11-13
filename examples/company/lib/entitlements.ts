@@ -2,7 +2,7 @@
 // as a download. Payments decide when someone becomes entitled (Stripe, in a pull request to come); this is the only
 // file that reads the table. It's a Better Auth model, so it's read through Better Auth's own adapter, which is the
 // same on D1, Postgres, and the tests' SQLite.
-import type { BetterAuthPlugin } from "better-auth";
+import type { BetterAuthPlugin, Where } from "better-auth";
 import { generateRandomString } from "better-auth/crypto";
 
 /** What an entitlement is: a `subscription`, which runs until it ends, or a `purchase`, which is kept. */
@@ -48,13 +48,13 @@ export function entitlements() {
 export interface EntitlementAdapter {
   findMany<T>(data: {
     model: string;
-    where: { field: string; value: string }[];
+    where: Where[];
     limit?: number;
     offset?: number;
     sortBy?: { field: string; direction: "asc" | "desc" };
   }): Promise<T[]>;
   create<T extends Record<string, unknown>>(data: { model: string; data: T; forceAllowId?: boolean }): Promise<unknown>;
-  deleteMany(data: { model: string; where: { field: string; value: string }[] }): Promise<number>;
+  deleteMany(data: { model: string; where: Where[] }): Promise<number>;
 }
 
 /** The `reference` of a subscription an owner gave someone by hand, on the subscribers page (lib/subscribers.ts). */
@@ -71,10 +71,7 @@ const PAGE = 100;
 /**
  * Every entitlement matching `where`, a page at a time in the order of their ids, so none is missed or read twice.
  */
-async function entitlementsWhere(
-  adapter: EntitlementAdapter,
-  where: { field: string; value: string }[],
-): Promise<Entitlement[]> {
+async function entitlementsWhere(adapter: EntitlementAdapter, where: Where[]): Promise<Entitlement[]> {
   const all: Entitlement[] = [];
   for (;;) {
     const page = await adapter.findMany<Entitlement>({
@@ -94,11 +91,17 @@ function entitlementsOf(adapter: EntitlementAdapter, userId: string): Promise<En
   return entitlementsWhere(adapter, [{ field: "userId", value: userId }]);
 }
 
-/** Every subscription that holds at `now`, whoever's it is, for the subscribers page. */
+/**
+ * Every subscription that holds at `now`, whoever's it is, for the subscribers page: asked of the database as ones
+ * with no end, then ones ending after `now`, so the periods paid for long ago, which stay recorded, are never read.
+ */
 export async function currentSubscriptions(adapter: EntitlementAdapter, now = new Date()): Promise<Entitlement[]> {
-  return (await entitlementsWhere(adapter, [{ field: "kind", value: "subscription" }])).filter((entitlement) =>
-    holds(entitlement, now),
-  );
+  const kind = { field: "kind", value: "subscription" };
+  const [endless, ending] = await Promise.all([
+    entitlementsWhere(adapter, [kind, { field: "expiresAt", value: null }]),
+    entitlementsWhere(adapter, [kind, { field: "expiresAt", operator: "gt", value: now }]),
+  ]);
+  return [...endless, ...ending].filter((entitlement) => holds(entitlement, now));
 }
 
 /** Takes away the subscription an owner gave someone by hand, if they have one, leaving any they paid for. */

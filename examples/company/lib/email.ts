@@ -279,18 +279,18 @@ export function passwordResetEmail(options: {
 }
 
 /**
- * The message that confirms the address someone signed up with, which signs them in. Anyone can sign up with any
- * address, so it says nothing they typed, not even their name: a stranger can't use it to send someone words of
- * their own.
+ * The message that lets someone who signed up choose their password, which confirms the address is theirs. Anyone
+ * can sign up with any address, so it says nothing they typed, not even their name: a stranger can't use it to send
+ * someone words of their own.
  */
-export function verificationEmail(options: { to: string; siteUrl: string; link: string; hours: number }): Email {
+export function signUpEmail(options: { to: string; siteUrl: string; link: string; hours: number }): Email {
   const site = siteName(options.siteUrl);
   return linkEmail(
     options.to,
-    `Confirm your email address for ${site}`,
-    ["Hello,", `Confirm the address you signed up to ${site} with, which signs you in:`],
-    "Confirm my address",
+    `Choose your password for ${site}`,
+    ["Hello,", `Choose a password for the account you asked for at ${site}, which confirms this address is yours:`],
+    "Choose my password",
     options.link,
-    `The link works for ${options.hours} hours. If you didn't sign up, ignore this message: no account is made until it's confirmed.`,
+    `The link works for ${options.hours} hours. If you didn't sign up, ignore this message: nobody can sign in with this address until a password is chosen from it.`,
   );
 }

@@ -284,25 +284,32 @@ test("lets readers sign up, and admins give them a subscription by hand and take
   await expect(page).toHaveURL(`${SITE}/sign-up/?next=%2Fhandbook`);
   await page.getByLabel("Your name").fill("Rita Reader");
   await page.getByLabel("Email address").fill(email);
-  await page.getByLabel("New password").fill(password);
-  await page.getByLabel("The same password again").fill(password);
   await page.getByRole("button", { name: "Sign up" }).click();
   await expect(page.getByRole("status")).toContainText(`We've sent a link to ${email}`);
 
-  // Not before the address is confirmed.
   const readerSignIn = async () => {
     await page.goto(`${SITE}/sign-in/?next=${encodeURIComponent("/handbook/")}`);
     await page.getByLabel("Email address").fill(email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
   };
+  // Nobody can sign in with the address until a password is chosen from the link sent to it.
   await readerSignIn();
-  await expect(page.getByRole("alert")).toContainText("Confirm your email address first");
+  await expect(page.getByRole("alert")).toContainText("don't match an account here");
 
-  // The link confirms it and signs in, back on the page, which is still the teaser without a subscription.
-  const confirmation = await emailedLink(email, "/api/auth/verify-email/");
-  expect(new URL(confirmation).origin).toBe(SITE);
-  await page.goto(confirmation);
+  // The link chooses the password, then signing in goes back to the page, which is still the teaser.
+  const choosing = await emailedLink(email, "/accept-invite/");
+  expect(new URL(choosing).origin).toBe(SITE);
+  await page.goto(choosing);
+  await expect(page.getByRole("heading", { name: "Choose your password" })).toBeVisible();
+  await page.getByLabel("New password").fill(password);
+  await page.getByLabel("The same password again").fill(password);
+  await page.getByRole("button", { name: "Set my password" }).click();
+  await expect(page.getByText("Your password is set.")).toBeVisible();
+  await page.getByRole("link", { name: "Sign in" }).click();
+  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(`${SITE}/handbook/`);
   await expect(page.getByRole("heading", { name: paywall })).toBeVisible();
   await expect(page.getByText(membersOnly)).toHaveCount(0);

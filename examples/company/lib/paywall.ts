@@ -5,16 +5,12 @@
 import { getSessionCookie, parseCookies } from "better-auth/cookies";
 import type { SiteAuth } from "./auth.ts";
 import { subscribedUntil } from "./entitlements.ts";
+import { PAYWALL_SECONDS } from "./paywall-time.ts";
 
 /** The cookie that says which version of members-only pages someone gets. */
 export const PAYWALL_COOKIE = "paywall";
 
-/**
- * How long the cookie's answer is kept, in seconds, before the database is asked again: how long a subscription that
- * ends early (cancelled, or refunded) still shows members' pages, and how long someone who has just subscribed waits
- * on a page they were already reading, unless what took the payment clears the cookie.
- */
-export const PAYWALL_SECONDS = 10 * 60;
+export { PAYWALL_SECONDS } from "./paywall-time.ts";
 
 /**
  * Where the members' versions of pages are, which only proxy.ts sends requests to: a request for an address here

@@ -1,13 +1,11 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
-import { NewPasswordFields, passwordProblem } from "@/app/reset-password/new-password-fields";
 import { nextPath } from "@/app/sign-in/next-path";
-import { authClient, TOO_MANY } from "@/lib/auth-client";
 
 /**
- * Makes a reader's account, which can't sign in until the link emailed to its address has confirmed it. The answer
- * is the same whether or not the address already has an account, so the form never says which do.
+ * Asks for a reader's account, whose password is chosen from the link emailed to its address (lib/sign-up.ts). The
+ * answer is the same whether or not the address already has an account, so the form never says which do.
  */
 export function SignUpForm() {
   const [problem, setProblem] = useState<string>();
@@ -19,27 +17,19 @@ export function SignUpForm() {
   async function signUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const password = String(form.get("password"));
-    const wrong = passwordProblem(password, String(form.get("again")));
-    if (wrong) return setProblem(wrong);
     const email = String(form.get("email")).trim();
     setBusy(true);
     setProblem(undefined);
     try {
-      const { error } = await authClient.signUp.email({
-        name: String(form.get("name")).trim(),
-        email,
-        password,
-        // Where the confirmation's link signs them in to: the page they came from (lib/auth.ts keeps it on this site).
-        callbackURL: nextPath(),
+      const response = await fetch("/api/sign-up/", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        // Where to go once the password is chosen: the page they came from (lib/sign-up.ts keeps it on this site).
+        body: JSON.stringify({ name: String(form.get("name")), email, next: nextPath() }),
       });
-      if (error?.status === 429) return setProblem(TOO_MANY);
-      if (error?.status === 503) {
-        return setProblem("This site can't send the email that confirms an address yet, so nobody can sign up.");
-      }
-      if (error?.status === 400) return setProblem(error.message ?? "Check what you've typed, then try again.");
-      if (error) return setProblem("Signing up didn't work. Try again in a moment.");
-      setSentTo(email);
+      if (response.ok) return setSentTo(email);
+      const { error } = (await response.json().catch(() => ({}))) as { error?: string };
+      setProblem(error ?? "Signing up didn't work. Try again in a moment.");
     } catch {
       setProblem("Signing up didn't work. Check your connection and try again.");
     } finally {
@@ -51,8 +41,8 @@ export function SignUpForm() {
     return (
       <div className="grid gap-4" role="status">
         <p>
-          We've sent a link to {sentTo}. Follow it within 24 hours to confirm your address, which signs you in. If you
-          already have an account here, no email comes: <a href={signIn}>sign in</a> instead, or{" "}
+          We've sent a link to {sentTo}. Follow it within 24 hours to choose your password. If you already have an
+          account here, no email comes: <a href={signIn}>sign in</a> instead, or{" "}
           <a href="/reset-password/">choose a new password</a>.
         </p>
       </div>
@@ -69,7 +59,6 @@ export function SignUpForm() {
         Email address
         <input name="email" type="email" autoComplete="email" required className="rounded border px-3 py-2" />
       </label>
-      <NewPasswordFields />
       {problem && <p role="alert">{problem}</p>}
       <button type="submit" disabled={busy} className="rounded bg-primary px-4 py-2 text-primary-foreground">
         {busy ? "Signing up…" : "Sign up"}

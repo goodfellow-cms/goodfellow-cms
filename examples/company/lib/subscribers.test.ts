@@ -3,10 +3,21 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { authOptions, authorizeWith, confirmedPath, MEMBER_ROLE, VERIFY_ACCOUNT_LIMIT } from "./auth.ts";
-import { EditorsError, listEditors, removeEditor, setRole } from "./editors.ts";
+import {
+  authOptions,
+  authorizeWith,
+  lockLinks,
+  MAX_NAME_LENGTH,
+  MEMBER_ROLE,
+  SIGN_UP_LIMIT,
+  unlockLinks,
+  VERIFY_ACCOUNT_LIMIT,
+} from "./auth.ts";
+import { acceptInvitation, EditorsError, inviteEditor, listEditors, removeEditor, setRole } from "./editors.ts";
 import { grant, subscribedUntil } from "./entitlements.ts";
 import type { SiteEnv } from "./env.ts";
+import { SignUpError, signUp, signUpFrom } from "./sign-up.ts";
+import { sitePath } from "./site-path.ts";
 import { giftFrom, giveSubscription, listSubscribers, removeSubscriber, takeAwaySubscription } from "./subscribers.ts";
 
 const SITE = "http://localhost:4321";
@@ -101,67 +112,109 @@ function linkIn(text: string | undefined): URL {
   return new URL(found[0]);
 }
 
+/** A sign-up from the site's own sign-up page, from `ip`. */
+function signingUp(body: unknown, ip = "192.0.2.1") {
+  return new Request(`${SITE}/api/sign-up/`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "sec-fetch-site": "same-origin", "cf-connecting-ip": ip },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Chooses a password with a link's token, as the password page does. */
+function choose(siteAuth: Parameters<typeof acceptInvitation>[0], token: string, password = PASSWORD) {
+  const request = new Request(`${SITE}/api/accept-invite/`, {
+    method: "POST",
+    headers: { "sec-fetch-site": "same-origin" },
+  });
+  return acceptInvitation(siteAuth, request, { token, password });
+}
+
 describe("signing up", () => {
-  it("makes a reader's account, which signs in once the emailed link confirms its address, and can't edit", async () => {
+  it("makes a reader's account, whose password is chosen from the emailed link, and which can't edit", async () => {
     const sent = fakeResend();
-    const { auth, context, ask, signIn, close } = await site();
+    const { auth, context, signIn, close } = await site();
     try {
-      // Signing up can't choose its own role: asking to is refused, and makes no account.
-      const choosing = await ask("/sign-up/email", {
-        name: "Rita Reader",
-        email: "rita@example.org",
-        password: PASSWORD,
-        role: "admin",
-      });
-      expect(choosing.status).toBe(400);
+      // Better Auth's own sign-up, which takes a password before the address is confirmed, is off.
+      const direct = await auth.handler(
+        new Request(`${SITE}/api/auth/sign-up/email`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: SITE },
+          body: JSON.stringify({ name: "Rita", email: "rita@example.org", password: PASSWORD }),
+        }),
+      );
+      expect(direct.ok).toBe(false);
       expect(await context.internalAdapter.findUserByEmail("rita@example.org")).toBeNull();
-      const answer = await ask("/sign-up/email", {
-        name: "Visit https://other.example now",
-        email: "rita@example.org",
-        password: PASSWORD,
-        callbackURL: "/handbook/",
-      });
-      expect(answer.status).toBe(200);
-      expect(cookiesOf(answer)).toBe("");
-      const found = await context.internalAdapter.findUserByEmail("rita@example.org");
-      expect(found?.user).toMatchObject({ role: MEMBER_ROLE, emailVerified: false });
-      // Not until the address is confirmed.
-      expect((await signIn("rita@example.org")).response.status).toBe(403);
+
+      await signUp(
+        auth,
+        SITE_ENV,
+        signingUp({ name: "  Visit https://other.example now  ", email: " Rita@Example.org ", next: "/handbook/" }),
+      );
       await vi.waitFor(() => expect(sent).toHaveLength(1));
-      expect(sent[0]).toMatchObject({
-        to: "rita@example.org",
-        subject: "Confirm your email address for localhost:4321",
+      const found = await context.internalAdapter.findUserByEmail("rita@example.org");
+      expect(found?.user).toMatchObject({
+        role: MEMBER_ROLE,
+        emailVerified: false,
+        name: "Visit https://other.example now",
       });
+      expect(sent[0]).toMatchObject({ to: "rita@example.org", subject: "Choose your password for localhost:4321" });
       // Anyone can sign up with anyone's address, so the email says nothing they typed.
       expect(sent[0]?.text).not.toContain("other.example");
       const link = linkIn(sent[0]?.text);
-      expect(`${link.origin}${link.pathname}`).toBe(`${SITE}/api/auth/verify-email/`);
-      expect(link.searchParams.get("callbackURL")).toBe("/handbook/");
-      // Following it confirms the address, signs in, and goes on to the page they came from.
-      const followed = await auth.handler(new Request(link, { headers: { "cf-connecting-ip": "192.0.2.1" } }));
-      expect(followed.status).toBe(302);
-      expect(followed.headers.get("location")).toBe("/handbook/");
-      const cookie = cookiesOf(followed);
-      expect(cookie).not.toBe("");
+      expect(`${link.origin}${link.pathname}`).toBe(`${SITE}/accept-invite/`);
+      expect(link.searchParams.get("next")).toBe("/handbook/");
+      // Nobody signs in before a password is chosen from the link, which confirms the address.
+      expect((await signIn("rita@example.org")).response.ok).toBe(false);
+      await choose(auth, link.searchParams.get("token") ?? "");
       expect((await context.internalAdapter.findUserByEmail("rita@example.org"))?.user.emailVerified).toBe(true);
+      const { response, cookie } = await signIn("rita@example.org");
+      expect(response.status).toBe(200);
       // A reader's account can't edit the site.
-      const asking = new Request(`${SITE}/api/goodfellow/session`, { headers: { cookie } });
+      const asking = new Request(`${SITE}/api/goodfellow/session`, { headers: { cookie: cookie ?? "" } });
       expect(await authorizeWith(auth, asking)).toBe(false);
-      expect((await signIn("rita@example.org")).response.status).toBe(200);
     } finally {
       close();
     }
   });
 
-  it("answers the same for an address that already has an account, and sends it nothing", async () => {
+  it("never lets whoever signed up with someone else's address in, and sends its owner a new link when they sign up", async () => {
     const sent = fakeResend();
-    const { ask, person, close } = await site();
+    const { auth, context, signIn, close } = await site();
+    try {
+      // A stranger signs up with Rita's address: they never learn a password that works.
+      await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "rita@example.org" }));
+      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      expect((await signIn("rita@example.org", "anything the stranger might try")).response.ok).toBe(false);
+      // Rita, whose first link ran out, signs up again herself, and gets a new one, which is the one that works.
+      await signUp(auth, SITE_ENV, signingUp({ name: "Rita", email: "rita@example.org" }, "198.51.100.7"));
+      await vi.waitFor(() => expect(sent).toHaveLength(2));
+      const first = linkIn(sent[0]?.text).searchParams.get("token") ?? "";
+      const second = linkIn(sent[1]?.text).searchParams.get("token") ?? "";
+      await expect(choose(auth, first)).rejects.toThrow(EditorsError);
+      await choose(auth, second, "rita's very own password");
+      expect((await signIn("rita@example.org", "rita's very own password")).response.status).toBe(200);
+      // Once she has a password, signing up with her address sends nothing more.
+      await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "rita@example.org" }, "203.0.113.8"));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(sent).toHaveLength(2);
+      expect((await context.internalAdapter.findUserByEmail("rita@example.org"))?.user.emailVerified).toBe(true);
+    } finally {
+      close();
+    }
+  });
+
+  it("answers the same for an address that already has an account, and sends an editor's nothing", async () => {
+    const sent = fakeResend();
+    const { auth, person, close } = await site();
     try {
       await person("eddie@example.org", "editor");
-      const taken = await ask("/sign-up/email", { name: "Eve", email: "eddie@example.org", password: PASSWORD });
-      const fresh = await ask("/sign-up/email", { name: "Nina", email: "nina@example.org", password: PASSWORD });
-      expect(taken.status).toBe(fresh.status);
-      expect(Object.keys(await taken.json()).sort()).toEqual(Object.keys(await fresh.json()).sort());
+      await person("ivy@example.org", "editor", false);
+      for (const email of ["eddie@example.org", "ivy@example.org", "nina@example.org"]) {
+        await expect(
+          signUp(auth, SITE_ENV, signingUp({ name: "Eve", email }, `198.51.100.${email.length}`)),
+        ).resolves.toBeUndefined();
+      }
       await vi.waitFor(() => expect(sent).toHaveLength(1));
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(sent.map((message) => message.to)).toEqual(["nina@example.org"]);
@@ -170,53 +223,102 @@ describe("signing up", () => {
     }
   });
 
-  it("is refused where the site can't send the email that confirms an address, and for a name that's too long", async () => {
-    const { EMAIL_PROVIDER: _, ...withoutEmail } = SITE_ENV;
-    const { ask, context, close } = await site(withoutEmail);
-    try {
-      const answer = await ask("/sign-up/email", { name: "Rita", email: "rita@example.org", password: PASSWORD });
-      expect(answer.status).toBe(503);
-      expect(await context.internalAdapter.findUserByEmail("rita@example.org")).toBeNull();
-    } finally {
-      close();
-    }
-    const { ask: askAgain, close: closeAgain } = await site();
-    fakeResend();
-    try {
-      const long = await askAgain("/sign-up/email", {
-        name: "R".repeat(101),
-        email: "r@example.org",
-        password: PASSWORD,
-      });
-      expect(long.status).toBe(400);
-    } finally {
-      closeAgain();
-    }
-  });
-
-  it("sends an account at most its share of confirmation emails, and none to an invited editor", async () => {
+  it("sends an account at most its share of links, and lets each address sign up only so often", async () => {
     const sent = fakeResend();
-    const { ask, person, close } = await site();
+    const { auth, context, close } = await site();
     try {
-      await ask("/sign-up/email", { name: "Rita", email: "rita@example.org", password: PASSWORD });
       // From several addresses, so only the account's own limit holds.
       for (let index = 0; index < VERIFY_ACCOUNT_LIMIT.max + 2; index++) {
-        await ask("/send-verification-email", { email: "rita@example.org" }, `198.51.100.${index}`);
+        await signUp(auth, SITE_ENV, signingUp({ name: "Rita", email: "rita@example.org" }, `198.51.100.${index}`));
+        // One after another, as people asking at different times would.
+        await vi.waitFor(() => expect(sent).toHaveLength(Math.min(index + 1, VERIFY_ACCOUNT_LIMIT.max)));
+        await new Promise((resolve) => setTimeout(resolve, 20));
       }
-      // An editor an admin invited, who hasn't chosen a password yet, chooses one from the invitation instead.
-      await person("ivy@example.org", "editor", false);
-      const invited = await ask("/send-verification-email", { email: "ivy@example.org" }, "203.0.113.9");
-      expect(invited.status).toBe(200);
-      await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max));
+      expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max);
+      // A sign-up that made no link, as while another of the account's is being sent or used, uses none of its share.
+      await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, "192.0.2.50"));
+      await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1));
+      const paul = (await context.internalAdapter.findUserByEmail("paul@example.org"))?.user.id ?? "";
+      const holder = await lockLinks(context.adapter, paul);
+      await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, "192.0.2.51"));
       await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sent.map((message) => message.to)).toEqual(Array(VERIFY_ACCOUNT_LIMIT.max).fill("rita@example.org"));
+      expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1);
+      await unlockLinks(context.adapter, paul, holder ?? "");
+      for (let index = 1; index < VERIFY_ACCOUNT_LIMIT.max; index++) {
+        await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, `192.0.2.${60 + index}`));
+        await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1 + index));
+      }
+      // From one address, only so many sign-ups at all, whatever their addresses.
+      for (let index = 0; index < SIGN_UP_LIMIT.max; index++) {
+        await signUp(auth, SITE_ENV, signingUp({ name: "N", email: `n${index}@example.org` }, "203.0.113.1"));
+      }
+      const over = signUp(auth, SITE_ENV, signingUp({ name: "N", email: "over@example.org" }, "203.0.113.1"));
+      await expect(over).rejects.toMatchObject({ status: 429 });
     } finally {
       close();
     }
   });
 
-  it("only ever sends someone on to a page of this site once they've confirmed", () => {
-    expect(confirmedPath("/handbook/?a=1#b")).toBe("/handbook/?a=1#b");
+  it("is refused where the site can't send email, from other sites, and for a name or address that won't do", async () => {
+    const { EMAIL_PROVIDER: _, ...withoutEmail } = SITE_ENV;
+    const { auth, context, close } = await site(withoutEmail);
+    try {
+      const refused = signUp(auth, withoutEmail, signingUp({ name: "Rita", email: "rita@example.org" }));
+      await expect(refused).rejects.toMatchObject({ status: 503 });
+      expect(await context.internalAdapter.findUserByEmail("rita@example.org")).toBeNull();
+      const elsewhere = new Request(`${SITE}/api/sign-up/`, {
+        method: "POST",
+        headers: { "sec-fetch-site": "cross-site" },
+        body: "{}",
+      });
+      await expect(signUp(auth, SITE_ENV, elsewhere)).rejects.toMatchObject({ status: 403 });
+    } finally {
+      close();
+    }
+    // The name's length counts as it's sent, so spaces can't make a long one fit.
+    expect(() => signUpFrom({ name: `a${" ".repeat(MAX_NAME_LENGTH)}`, email: "a@example.org" })).toThrow(SignUpError);
+    expect(() => signUpFrom({ name: "R".repeat(MAX_NAME_LENGTH + 1), email: "a@example.org" })).toThrow(SignUpError);
+    expect(() => signUpFrom({ name: "   ", email: "a@example.org" })).toThrow(SignUpError);
+    expect(() => signUpFrom({ name: "Rita", email: "not an address" })).toThrow(SignUpError);
+    expect(signUpFrom({ name: "R".repeat(MAX_NAME_LENGTH), email: "a@example.org", next: "//other.example/" })).toEqual(
+      {
+        name: "R".repeat(MAX_NAME_LENGTH),
+        email: "a@example.org",
+        next: "/",
+      },
+    );
+  });
+
+  it("lets an admin invite an address someone signed up with but never chose a password for", async () => {
+    const sent = fakeResend();
+    const { auth, context, olive, asking, close } = await site();
+    try {
+      await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "ivy@example.org" }));
+      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      await inviteEditor(auth, SITE_ENV, asking(olive), { email: "ivy@example.org", name: "Ivy", role: "editor" });
+      await vi.waitFor(() => expect(sent).toHaveLength(2));
+      expect((await context.internalAdapter.findUserByEmail("ivy@example.org"))?.user).toMatchObject({
+        name: "Ivy",
+        role: "editor",
+      });
+      // The sign-up's link stops working: only the invitation's sets the password.
+      const signedUp = linkIn(sent[0]?.text).searchParams.get("token") ?? "";
+      await expect(choose(auth, signedUp)).rejects.toThrow(EditorsError);
+      // Someone who has chosen a password is refused, as before.
+      await choose(auth, linkIn(sent[1]?.text).searchParams.get("token") ?? "");
+      const again = inviteEditor(auth, SITE_ENV, asking(olive), {
+        email: "ivy@example.org",
+        name: "Ivy",
+        role: "editor",
+      });
+      await expect(again).rejects.toMatchObject({ status: 409 });
+    } finally {
+      close();
+    }
+  });
+
+  it("only ever sends someone on to a page of this site", () => {
+    expect(sitePath("/handbook/?a=1#b")).toBe("/handbook/?a=1#b");
     for (const elsewhere of [
       "https://other.example/",
       "//other.example/",
@@ -224,9 +326,9 @@ describe("signing up", () => {
       "javascript:alert(1)",
       "",
     ]) {
-      expect(confirmedPath(elsewhere)).toBe("/");
+      expect(sitePath(elsewhere)).toBe("/");
     }
-    expect(confirmedPath(undefined)).toBe("/");
+    expect(sitePath(undefined, "/admin/")).toBe("/admin/");
   });
 });
 
@@ -266,6 +368,14 @@ describe("the subscribers page", () => {
         reference: "prod_monthly",
         expiresAt: null,
       });
+      // A period an editor paid for long ago, which stays recorded, but isn't a subscription now.
+      const ellaId = await person("ella@example.org", "editor");
+      await grant(context.adapter, {
+        userId: ellaId,
+        kind: "subscription",
+        reference: "stripe:sub_old",
+        expiresAt: new Date(Date.now() - DAY),
+      });
       const until = new Date(Date.now() + 30 * DAY).toISOString().slice(0, 10);
       await giveSubscription(auth, asking(olive), giftFrom({ email: "Rita@Example.org", until }));
       await giveSubscription(auth, asking(olive), giftFrom({ email: "eddie@example.org" }));
@@ -304,6 +414,14 @@ describe("the subscribers page", () => {
       const ritaId = await person("rita@example.org", MEMBER_ROLE);
       const eddieId = await person("eddie@example.org", "editor");
       await expect(removeSubscriber(auth, asking(olive, "DELETE"), eddieId)).rejects.toMatchObject({ status: 409 });
+      // An account with no role is a reader's on both pages: listed as one with a subscription, and removable.
+      const noneId = await person("nora@example.org", MEMBER_ROLE);
+      await context.internalAdapter.updateUser(noneId, { role: null });
+      await giveSubscription(auth, asking(olive), { email: "nora@example.org", until: null });
+      const nora = (await listSubscribers(auth, asking(olive, "GET"))).find((one) => one.id === noneId);
+      expect(nora?.role).toBe(MEMBER_ROLE);
+      await removeSubscriber(auth, asking(olive, "DELETE"), noneId);
+      expect(await context.internalAdapter.findUserById(noneId)).toBeNull();
       const eddie = (await signIn("eddie@example.org")).cookie;
       const rita = (await signIn("rita@example.org")).cookie;
       for (const cookie of [eddie, rita, undefined]) {
@@ -325,16 +443,25 @@ describe("the subscribers page", () => {
     }
   });
 
-  it("takes a day after today it lasts until, or none", () => {
+  it("takes a day it lasts to the end of, today or later, or none", () => {
     const now = new Date("2026-11-13T12:00:00Z");
     expect(giftFrom({ email: " Rita@Example.org " }, now)).toEqual({ email: "rita@example.org", until: null });
+    // To the end of the day chosen, UTC, which the page shows as that day.
     expect(giftFrom({ email: "rita@example.org", until: "2026-12-01" }, now).until?.toISOString()).toBe(
-      "2026-12-01T00:00:00.000Z",
+      "2026-12-01T23:59:59.999Z",
+    );
+    expect(giftFrom({ email: "rita@example.org", until: "2026-11-13" }, now).until?.toISOString()).toBe(
+      "2026-11-13T23:59:59.999Z",
+    );
+    // Late in the day west of UTC, where it's already tomorrow there, tomorrow where the admin is can be chosen.
+    const evening = new Date("2026-11-14T02:00:00Z");
+    expect(giftFrom({ email: "rita@example.org", until: "2026-11-14" }, evening).until?.toISOString()).toBe(
+      "2026-11-14T23:59:59.999Z",
     );
     for (const body of [
       { email: "not an address" },
       { email: "rita@example.org", until: "2026-02-30" },
-      { email: "rita@example.org", until: "2026-11-13" },
+      { email: "rita@example.org", until: "2026-11-12" },
       { email: "rita@example.org", until: "tomorrow" },
       { email: "rita@example.org", until: 5 },
     ]) {
