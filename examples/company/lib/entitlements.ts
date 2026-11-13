@@ -101,6 +101,17 @@ export async function currentSubscriptions(adapter: EntitlementAdapter, now = ne
   );
 }
 
+/** Someone's subscriptions that hold at `now`. */
+export async function subscriptionsOf(
+  adapter: EntitlementAdapter,
+  userId: string,
+  now = new Date(),
+): Promise<Entitlement[]> {
+  return (await entitlementsOf(adapter, userId)).filter(
+    (entitlement) => entitlement.kind === "subscription" && holds(entitlement, now),
+  );
+}
+
 /** Takes away the subscription an owner gave someone by hand, if they have one, leaving any they paid for. */
 export async function takeAwayByHand(adapter: EntitlementAdapter, userId: string): Promise<void> {
   await adapter.deleteMany({

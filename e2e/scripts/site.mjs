@@ -424,8 +424,19 @@ const searchPage = {
 export const companyExample = join(here, "../../examples/company");
 export const companySite = join(here, "../.site-company");
 
-/** The company test site's address, its fake GitHub's and Resend's, and the token its server publishes with. */
-export const COMPANY = { port: 4416, github: 4417, resend: 4418, token: "company-token", repo: "company/site-content" };
+/**
+ * The company test site's address, its fake GitHub's, Resend's, and Stripe's, the token its server publishes with,
+ * and the Stripe price its Subscribe page sells.
+ */
+export const COMPANY = {
+  port: 4416,
+  github: 4417,
+  resend: 4418,
+  stripe: 4419,
+  token: "company-token",
+  repo: "company/site-content",
+  price: "price_monthly",
+};
 
 /**
  * The accounts the company test site's database starts with, all with the same password: the subscriber, who edits
@@ -435,12 +446,17 @@ export const COMPANY_PEOPLE = {
   admin: { name: "Ada Admin", email: "ada@example.org", role: "admin", twoFactor: true },
   editor: { name: "Eli Editor", email: "eli@example.org", role: "editor" },
   subscriber: { name: "Sam Subscriber", email: "sam@example.org", role: "member" },
+  // A reader with no subscription, who buys one in the tests.
+  buyer: { name: "Bea Buyer", email: "bea@example.org", role: "member" },
 };
 export const COMPANY_PASSWORD = "correct-horse-battery";
 /** The admin's authenticator app's secret: the admin has two-factor sign-in on, which admins need to act as owners. */
 export const COMPANY_TOTP_SECRET = "e2e-admin-authenticator-secret-1";
 
-/** The company example's content and media, as the contents of the fake content repository. */
+/**
+ * The company example's content and media, as the contents of the fake content repository, with a Stripe price on
+ * the Subscribe page's Buy button, which the example leaves for its owners to choose.
+ */
 export function companyFiles() {
   const files = {};
   for (const dir of ["content", "public/media"]) {
@@ -449,6 +465,10 @@ export function companyFiles() {
       if (statSync(path).isFile()) files[`${dir}/${file.split("\\").join("/")}`] = readFileSync(path, "utf8");
     }
   }
+  const subscribe = "content/pages/subscribe.json";
+  if (!files[subscribe]?.includes('"price": ""'))
+    throw new Error("The Subscribe page's Buy button has changed: update site.mjs.");
+  files[subscribe] = files[subscribe].replace('"price": ""', `"price": ${JSON.stringify(COMPANY.price)}`);
   return files;
 }
 
@@ -488,6 +508,9 @@ export function createCompanySite() {
       "EMAIL_API_KEY=re_company_test",
       "EMAIL_FROM=Northwind <hello@example.org>",
       `EMAIL_API_URL=http://127.0.0.1:${COMPANY.resend}`,
+      "STRIPE_SECRET_KEY=rk_company_test",
+      "STRIPE_WEBHOOK_SECRET=whsec_company_test",
+      `STRIPE_API_URL=http://127.0.0.1:${COMPANY.stripe}`,
       "",
     ].join("\n"),
   );

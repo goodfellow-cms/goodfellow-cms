@@ -1,13 +1,16 @@
 // Builds a copy of the company example into a Cloudflare Worker with vinext, as its deploy workflow does, gives it
 // a local D1 database with an admin, an editor, and a subscriber, and serves the built Worker in workerd, as
-// Cloudflare would, with a fake GitHub as its content repository and a fake Resend for its email. POST /__reset to
-// the fake GitHub starts it afresh; GET /__sent from the fake Resend lists what it was sent.
+// Cloudflare would, with a fake GitHub as its content repository, a fake Resend for its email, and a fake Stripe for
+// its payments. POST /__reset to the fake GitHub starts it afresh; GET /__sent from the fake Resend lists what it was
+// sent; the fake Stripe's checkout pages pay, and POST /__cancel?subscription=… to it ends a subscription, each
+// sending the site Stripe's events.
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
+import { fakeStripe, signEvent } from "../../examples/company/lib/testing/stripe.ts";
 import {
   COMPANY,
   COMPANY_PASSWORD,
@@ -70,6 +73,51 @@ serve(COMPANY.resend, async (request) => {
   // One recipient comes as a string, several as a list.
   sent.push({ ...message, to: [message.to].flat() });
   return Response.json({ id: String(sent.length) });
+});
+
+// Stripe: its API as the site calls it, a checkout page whose Pay button pays and sends the site Stripe's events,
+// signed with the webhook's secret, before going back to the site as Stripe does, and a stand-in for its customer
+// portal.
+const stripe = fakeStripe({
+  key: "rk_company_test",
+  base: `http://127.0.0.1:${COMPANY.stripe}`,
+  prices: [{ id: COMPANY.price, product: "prod_members", type: "recurring" }],
+});
+async function sendEvents(events) {
+  for (const event of events) {
+    const { body, signature } = signEvent("whsec_company_test", event);
+    const answer = await fetch(`http://localhost:${COMPANY.port}/api/stripe/webhook/`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "stripe-signature": signature },
+      body,
+    });
+    if (!answer.ok) console.error(`The site answered Stripe's ${event.type} with ${answer.status}.`);
+  }
+}
+const page = (title, body) =>
+  new Response(`<!doctype html><title>${title}</title>${body}`, { headers: { "content-type": "text/html" } });
+serve(COMPANY.stripe, async (request) => {
+  const url = new URL(request.url);
+  const [, place, id, action] = url.pathname.split("/");
+  if (place === "checkout") {
+    const session = stripe.sessions.get(id ?? "");
+    if (!session) return new Response("No such checkout.", { status: 404 });
+    if (!action)
+      return page("Stripe Checkout", `<form method="post" action="/checkout/${id}/pay"><button>Pay</button></form>`);
+    if (action !== "pay" || request.method !== "POST") return new Response(null, { status: 404 });
+    await sendEvents(stripe.pay(id));
+    return new Response(null, {
+      status: 303,
+      headers: { location: session.success_url.replace("{CHECKOUT_SESSION_ID}", id) },
+    });
+  }
+  if (place === "portal") return page("Stripe customer portal", "<h1>Your subscription</h1>");
+  if (place === "__subscriptions") return Response.json([...stripe.subscriptions.values()]);
+  if (place === "__cancel" && request.method === "POST") {
+    await sendEvents([stripe.cancel(url.searchParams.get("subscription") ?? "")]);
+    return new Response(null, { status: 204 });
+  }
+  return stripe.handle(request);
 });
 
 /** A package's command, run with this Node, from the copy's packages. */

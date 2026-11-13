@@ -1,105 +1,11 @@
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { authOptions, authorizeWith, confirmedPath, MEMBER_ROLE, VERIFY_ACCOUNT_LIMIT } from "./auth.ts";
+import { authorizeWith, confirmedPath, MEMBER_ROLE, VERIFY_ACCOUNT_LIMIT } from "./auth.ts";
 import { EditorsError, listEditors, removeEditor, setRole } from "./editors.ts";
 import { grant, subscribedUntil } from "./entitlements.ts";
-import type { SiteEnv } from "./env.ts";
 import { giftFrom, giveSubscription, listSubscribers, removeSubscriber, takeAwaySubscription } from "./subscribers.ts";
-
-const SITE = "http://localhost:4321";
-const SITE_ENV: SiteEnv = {
-  BETTER_AUTH_SECRET: "a-secret-for-tests-only-at-least-32-chars",
-  GOODFELLOW_SITE_URL: SITE,
-  CLIENT_IP_HEADER: "cf-connecting-ip",
-  EMAIL_PROVIDER: "resend",
-  EMAIL_API_KEY: "re_test_only",
-  EMAIL_FROM: "Example Co <hello@example.org>",
-  EMAIL_API_URL: "https://email.example",
-};
-const PASSWORD = "correct horse battery staple";
-const DAY = 24 * 60 * 60 * 1000;
-
-/** A stand-in for Resend's API, which keeps the messages it's sent. */
-function fakeResend() {
-  const sent: { to: string; subject: string; text: string }[] = [];
-  vi.stubGlobal("fetch", (async (_input: RequestInfo | URL, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body));
-    sent.push({ to: [body.to].flat()[0], subject: body.subject, text: body.text });
-    return Response.json({ id: String(sent.length) });
-  }) as typeof fetch);
-  return sent;
-}
-
-/** The `cookie` header a browser would send after an answer. */
-function cookiesOf(response: Response): string {
-  return response.headers
-    .getSetCookie()
-    .filter((cookie) => !/;\s*Max-Age=0/i.test(cookie))
-    .map((cookie) => cookie.split(";")[0])
-    .join("; ");
-}
-
-/** The site's sign-in on a fresh SQLite database, as D1 has it, with Olive the admin signed in, two-factor on. */
-async function site(siteEnv: SiteEnv = SITE_ENV) {
-  const db = new DatabaseSync(":memory:");
-  const dir = join(import.meta.dirname, "../migrations/sqlite");
-  for (const name of (await readdir(dir)).sort()) db.exec(await readFile(join(dir, name), "utf8"));
-  const auth = betterAuth(authOptions(db, siteEnv));
-  const context = await auth.$context;
-  const person = async (email: string, role: string, verified = true) => {
-    const user = await context.internalAdapter.createUser(
-      { email, name: email.split("@")[0] ?? email, emailVerified: verified, role },
-      { method: "admin" },
-    );
-    await context.internalAdapter.linkAccount({
-      userId: user.id,
-      providerId: "credential",
-      accountId: user.id,
-      password: await context.password.hash(PASSWORD),
-    });
-    return user.id;
-  };
-  /** Asks Better Auth's routes as a browser on the site would, from `ip`. */
-  const ask = (path: string, body: unknown, ip = "192.0.2.1", cookie?: string) =>
-    auth.handler(
-      new Request(`${SITE}/api/auth${path}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          origin: SITE,
-          "cf-connecting-ip": ip,
-          ...(cookie && { cookie }),
-        },
-        body: JSON.stringify(body),
-      }),
-    );
-  const signIn = async (email: string, password = PASSWORD) => {
-    const response = await ask("/sign-in/email", { email, password });
-    return { response, cookie: response.ok ? cookiesOf(response) : undefined };
-  };
-  /** A request from the subscribers page, or from `from` with another `Sec-Fetch-Site`. */
-  const asking = (cookie: string | undefined, method = "POST", from = "same-origin") =>
-    new Request(`${SITE}/api/subscribers/`, {
-      method,
-      headers: { ...(cookie && { cookie }), "sec-fetch-site": from },
-    });
-  const oliveId = await person("olive@example.org", "admin");
-  const olive = (await signIn("olive@example.org")).cookie;
-  await context.internalAdapter.updateUser(oliveId, { twoFactorEnabled: true });
-  return { auth, db, context, person, ask, signIn, asking, olive, oliveId, close: () => db.close() };
-}
+import { cookiesOf, DAY, fakeResend, linkIn, PASSWORD, SITE, SITE_ENV, testSite as site } from "./testing/site.ts";
 
 afterEach(() => vi.unstubAllGlobals());
-
-/** The link in a message's text. */
-function linkIn(text: string | undefined): URL {
-  const found = text?.match(/https?:\/\/\S+/);
-  if (!found) throw new Error("No link in the message.");
-  return new URL(found[0]);
-}
 
 describe("signing up", () => {
   it("makes a reader's account, which signs in once the emailed link confirms its address, and can't edit", async () => {
