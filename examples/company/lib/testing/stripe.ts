@@ -316,21 +316,35 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       subscription.status = "canceled";
       return event("customer.subscription.deleted", subscription);
     },
-    /** Refunds a payment, all of it or `amount`. Gives the event Stripe sends. */
-    refund(paymentIntentId: string, amount?: number) {
+    /** Refunds a payment, all of it or `amount`. Gives the event Stripe sends, `type`, since it sends both. */
+    refund(paymentIntentId: string, amount?: number, type: "charge.refunded" | "refund.created" = "charge.refunded") {
       const charge = charges.get(paymentIntentId);
       if (!charge) throw new Error(`No payment ${paymentIntentId}.`);
       charge.amount_refunded = amount ?? charge.amount;
       charge.refunded = charge.amount_refunded >= charge.amount;
-      return event("charge.refunded", { ...charge, payment_intent: paymentIntentId });
+      if (type === "refund.created") {
+        return event(type, {
+          id: next("re"),
+          object: "refund",
+          payment_intent: paymentIntentId,
+          status: "pending",
+        });
+      }
+      return event(type, { ...charge, payment_intent: paymentIntentId });
     },
-    /** A payment's refund failing, as a bank can refuse one: the money is the site's again. Gives the event Stripe sends. */
-    failRefund(paymentIntentId: string) {
+    /**
+     * A payment's refund failing, as a bank can refuse one: the money is the site's again. Gives the event Stripe
+     * sends, `type`, since Stripe sends each of them for a refund that failed.
+     */
+    failRefund(
+      paymentIntentId: string,
+      type: "refund.failed" | "refund.updated" | "charge.refund.updated" = "refund.failed",
+    ) {
       const charge = charges.get(paymentIntentId);
       if (!charge) throw new Error(`No payment ${paymentIntentId}.`);
       charge.amount_refunded = 0;
       charge.refunded = false;
-      return event("charge.refund.updated", {
+      return event(type, {
         id: next("re"),
         object: "refund",
         payment_intent: paymentIntentId,

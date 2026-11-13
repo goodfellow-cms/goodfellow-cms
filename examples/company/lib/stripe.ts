@@ -483,7 +483,7 @@ const KEPT_DISPUTE = new Set(["won", "warning_closed"]);
 /**
  * Whether a payment has been refunded, in full or in part, or is disputed, as Stripe has it now: a dispute the site
  * has won doesn't count, so the purchase comes back once it's closed (`charge.dispute.closed`), as it does once a refund
- * fails (`charge.refund.updated`), which Stripe takes off `amount_refunded`.
+ * fails (`refund.failed`, `refund.updated`, or `charge.refund.updated`), which Stripe takes off `amount_refunded`.
  */
 async function takenBack(stripe: Stripe, paymentIntentId: string): Promise<boolean> {
   const payment = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ["latest_charge"] });
@@ -660,6 +660,9 @@ async function handle(adapter: PaymentsAdapter, stripe: Stripe, event: Stripe.Ev
       return applySubscription(adapter, stripe, event.data.object.id);
     case "charge.refunded":
     case "charge.refund.updated":
+    case "refund.created":
+    case "refund.updated":
+    case "refund.failed":
     case "charge.dispute.created":
     case "charge.dispute.closed": {
       // Refunded or disputed, open or lost, what the payment bought is taken back; a refund that failed, or a dispute

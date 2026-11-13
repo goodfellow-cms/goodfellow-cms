@@ -314,39 +314,45 @@ describe("Stripe's events", () => {
     }
   });
 
-  it("give a purchase for good once it's paid, and take it back once it's refunded", async () => {
-    const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
-    try {
-      await checkout(buying(reader, { page: "/subscribe", block: "report" }));
-      const session = [...stripe.sessions.values()][0];
-      const events = stripe.pay(session?.id ?? "");
-      for (const event of events) await deliver(event);
-      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
-      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
-      await deliver(stripe.refund(session?.payment_intent ?? ""));
-      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
-    } finally {
-      close();
-    }
-  });
+  it.each(["charge.refunded", "refund.created"] as const)(
+    "give a purchase for good once it's paid, and take it back once it's refunded (%s)",
+    async (type) => {
+      const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+      try {
+        await checkout(buying(reader, { page: "/subscribe", block: "report" }));
+        const session = [...stripe.sessions.values()][0];
+        const events = stripe.pay(session?.id ?? "");
+        for (const event of events) await deliver(event);
+        expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
+        expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+        await deliver(stripe.refund(session?.payment_intent ?? "", undefined, type));
+        expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+      } finally {
+        close();
+      }
+    },
+  );
 
-  it("give a purchase back once its refund fails, whichever of the refund's events arrives last", async () => {
-    const { stripe, buy, deliver, context, readerId, close } = await payments();
-    try {
-      const bought = await buy("report");
-      const refunded = stripe.refund(bought?.payment_intent ?? "");
-      await deliver(refunded);
-      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
-      // The bank refuses the refund, so the money is the site's again.
-      await deliver(stripe.failRefund(bought?.payment_intent ?? ""));
-      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
-      // The refund's own event, arriving late, reads the payment as it is now, and takes nothing back.
-      await deliver({ ...refunded, id: `${refunded.id}-again` });
-      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
-    } finally {
-      close();
-    }
-  });
+  it.each(["refund.failed", "refund.updated", "charge.refund.updated"] as const)(
+    "give a purchase back once its refund fails, whichever of the refund's events arrives last (%s)",
+    async (type) => {
+      const { stripe, buy, deliver, context, readerId, close } = await payments();
+      try {
+        const bought = await buy("report");
+        const refunded = stripe.refund(bought?.payment_intent ?? "");
+        await deliver(refunded);
+        expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+        // The bank refuses the refund, so the money is the site's again.
+        await deliver(stripe.failRefund(bought?.payment_intent ?? "", type));
+        expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
+        // The refund's own event, arriving late, reads the payment as it is now, and takes nothing back.
+        await deliver({ ...refunded, id: `${refunded.id}-again` });
+        expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
+      } finally {
+        close();
+      }
+    },
+  );
 
   it("take back only what the refunded payment bought, and never give it again", async () => {
     const { stripe, buy, deliver, client, context, readerId, close } = await payments();
