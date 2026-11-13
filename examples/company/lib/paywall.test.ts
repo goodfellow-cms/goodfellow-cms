@@ -321,6 +321,14 @@ describe("entitlements", () => {
     expect(await can(context.adapter, nellId, "a", new Date(later.getTime() + 1))).toBe(false);
   });
 
+  it("reads every one someone has, past the 100 Better Auth's adapter gives by default", async () => {
+    const { context, nellId } = await site();
+    const references = Array.from({ length: 150 }, (_, index) => `download-${index}`);
+    for (const reference of references) await grant(context.adapter, { userId: nellId, kind: "purchase", reference });
+    const found = await Promise.all(references.map((reference) => can(context.adapter, nellId, reference)));
+    expect(found.filter(Boolean)).toHaveLength(150);
+  });
+
   it("goes when the person's account does", async () => {
     const { context, samId } = await site();
     await context.internalAdapter.deleteUser(samId);

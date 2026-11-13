@@ -257,6 +257,18 @@ describe("teaserData and withoutPaywall", () => {
     expect(teaserData(data, "Paywall").zones).toEqual(data.zones);
   });
 
+  it("keeps the paywall's own drop zones, which say how to join", () => {
+    const data = {
+      root: {},
+      content: [block("Heading", "title"), block("Paywall", "wall"), block("Text", "after", { text: "Members only" })],
+      zones: {
+        "wall:actions": [block("Columns", "join")],
+        "join:left": [block("Button", "sign-in", { label: "Sign in" })],
+      },
+    };
+    expect(teaserData(data, "Paywall").zones).toEqual(data.zones);
+  });
+
   it("leaves out the blocks in the root's slots, keeping its settings", () => {
     const data = {
       root: { props: { title: "Handbook", content: [block("Text", "secret", { text: "Members only" })] } },

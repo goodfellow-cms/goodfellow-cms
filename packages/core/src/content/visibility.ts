@@ -179,7 +179,7 @@ export function teaserData<T extends PageData>(data: T, paywall: string): T {
   }
   const shown = at === -1 ? [] : content.slice(0, at);
   const block = placed ?? { type: paywall, props: { id: `${paywall}-teaser` } };
-  const kept = data.zones ? zonesOf(data.zones, blockIds(shown)) : undefined;
+  const kept = data.zones ? zonesOf(data.zones, blockIds([...shown, block])) : undefined;
   const zones = data.zones && Object.fromEntries(Object.entries(data.zones).filter(([key]) => kept?.has(key)));
   return {
     ...data,

@@ -46,7 +46,13 @@ export function entitlements() {
 
 /** What reading and writing entitlements needs of Better Auth's adapter. */
 export interface EntitlementAdapter {
-  findMany<T>(data: { model: string; where: { field: string; value: string }[] }): Promise<T[]>;
+  findMany<T>(data: {
+    model: string;
+    where: { field: string; value: string }[];
+    limit?: number;
+    offset?: number;
+    sortBy?: { field: string; direction: "asc" | "desc" };
+  }): Promise<T[]>;
   create<T extends Record<string, unknown>>(data: { model: string; data: T; forceAllowId?: boolean }): Promise<unknown>;
 }
 
@@ -55,8 +61,23 @@ function holds(entitlement: Pick<Entitlement, "expiresAt">, now: Date): boolean 
   return entitlement.expiresAt === null || entitlement.expiresAt === undefined || new Date(entitlement.expiresAt) > now;
 }
 
+/** How many entitlements are read at a time: Better Auth's adapter gives at most 100 unless it's told otherwise. */
+const PAGE = 100;
+
+/** Every entitlement someone has, a page at a time in the order of their ids, so none is missed or read twice. */
 async function entitlementsOf(adapter: EntitlementAdapter, userId: string): Promise<Entitlement[]> {
-  return adapter.findMany<Entitlement>({ model: "entitlement", where: [{ field: "userId", value: userId }] });
+  const all: Entitlement[] = [];
+  for (;;) {
+    const page = await adapter.findMany<Entitlement>({
+      model: "entitlement",
+      where: [{ field: "userId", value: userId }],
+      limit: PAGE,
+      offset: all.length,
+      sortBy: { field: "id", direction: "asc" },
+    });
+    all.push(...page);
+    if (page.length < PAGE) return all;
+  }
 }
 
 /** Whether someone is entitled to `reference` now. */
