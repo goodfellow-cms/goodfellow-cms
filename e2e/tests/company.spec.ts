@@ -32,8 +32,16 @@ function fromBase32(key: string): Buffer {
   return Buffer.from((bits.match(/.{8}/g) ?? []).map((byte) => Number.parseInt(byte, 2)));
 }
 
-/** Signs in with the site's own form, with a code from the admin's authenticator app, and goes on to `next`. */
+let signIns = 0;
+
+/**
+ * Signs in with the site's own form, with a code from the admin's authenticator app, and goes on to `next`. Each
+ * sign-in comes from an address of its own, which Cloudflare gives the Worker as cf-connecting-ip, so the tests'
+ * sign-ins together don't reach the limit on tries from one address (`SIGN_IN_LIMIT`), which another test checks.
+ */
 async function signIn(page: Page, as: keyof typeof COMPANY_PEOPLE, next = "/admin/") {
+  signIns += 1;
+  await page.setExtraHTTPHeaders({ "cf-connecting-ip": `203.0.113.${signIns % 250}` });
   await page.goto(`${SITE}/sign-in/?next=${encodeURIComponent(next)}`);
   await page.getByLabel("Email address").fill(COMPANY_PEOPLE[as].email);
   await page.getByLabel("Password").fill(COMPANY_PASSWORD);
@@ -92,6 +100,63 @@ test("keeps the members' page to people who are signed in", async ({ page, reque
   await expect(page).toHaveURL(`${SITE}/`);
   await page.goto(`${SITE}/members/`);
   await expect(page).toHaveURL(`${SITE}/sign-in/?next=%2Fmembers%2F`);
+});
+
+test("shows everyone but subscribers a members-only page's teaser, and subscribers all of it", async ({
+  page,
+  request,
+}) => {
+  const intro = "Everything we share with subscribers";
+  const membersOnly = "Replace this with what only subscribers read.";
+  const paywall = "The rest is for subscribers";
+  const teaser = async () => {
+    const answer = await request.get(`${SITE}/handbook/`);
+    expect(answer.status()).toBe(200);
+    return answer.text();
+  };
+  // Signed out: the teaser, the same for everyone, from the cache.
+  await teaser();
+  const signedOut = await request.get(`${SITE}/handbook/`);
+  expect(signedOut.headers()["x-vinext-cache"]).toBe("HIT");
+  // A subscriber gets another page at the same address, so no shared cache may give them this one.
+  expect(signedOut.headers().vary?.toLowerCase()).toContain("cookie");
+  const html = await signedOut.text();
+  expect(html).toContain(intro);
+  expect(html).toContain(paywall);
+  expect(html).not.toContain(membersOnly);
+
+  // The members' version answers only requests the proxy sends it, however its address is spelled.
+  for (const address of ["/members/pages/handbook/", "/members/%70ages/handbook/", "/%6Dembers/pages/handbook/"]) {
+    const direct = await request.get(`${SITE}${address}`, { maxRedirects: 0 });
+    expect(direct.status(), address).toBe(404);
+    expect(await direct.text(), address).not.toContain(membersOnly);
+  }
+
+  // Signed in without a subscription: still the teaser.
+  await signIn(page, "editor", "/handbook/");
+  await expect(page.getByRole("heading", { name: paywall })).toBeVisible();
+  await expect(page.getByText(membersOnly)).toHaveCount(0);
+  await page.goto(`${SITE}/sign-out/`);
+  await page.getByRole("button", { name: "Sign out" }).click();
+
+  // A subscriber: the whole page, without the paywall, from the cache too, and kept from every shared cache.
+  await signIn(page, "subscriber", "/handbook/");
+  await expect(page.getByText(membersOnly)).toBeVisible();
+  await expect(page.getByRole("heading", { name: paywall })).toHaveCount(0);
+  await page.reload();
+  const full = await page.request.get(`${SITE}/handbook/`);
+  expect(await full.text()).toContain(membersOnly);
+  expect(full.headers()["x-vinext-cache"]).toBe("HIT");
+  expect(full.headers()["cache-control"]).toContain("private");
+  // Even a subscriber can't open the members' version's own address.
+  expect((await page.request.get(`${SITE}/members/pages/handbook/`)).status()).toBe(404);
+
+  // Signed out again: the teaser, whatever the cookie that said they subscribe still says.
+  await page.goto(`${SITE}/sign-out/`);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto(`${SITE}/handbook/`);
+  await expect(page.getByRole("heading", { name: paywall })).toBeVisible();
+  await expect(page.getByText(membersOnly)).toHaveCount(0);
 });
 
 test("limits how often one address can try to sign in, counting in the Worker's database", async ({ request }) => {

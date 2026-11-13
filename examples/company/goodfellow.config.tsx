@@ -2,12 +2,13 @@ import { blocks, categories } from "@goodfellow-cms/blocks";
 import { defineConfig } from "@goodfellow-cms/core";
 import { github } from "@goodfellow-cms/github";
 import { installedBlocks, installedCategories } from "./blocks/installed";
+import { Paywall } from "./blocks/paywall";
 import { installedPlugins } from "./plugins/installed";
 
 export default defineConfig({
-  // The built-in blocks, and those installed from the admin panel's Blocks screen.
-  // Add your own here too, e.g. `blocks: { ...blocks, ...installedBlocks, MassTimes }`.
-  blocks: { ...blocks, ...installedBlocks },
+  // The built-in blocks, those installed from the admin panel's Blocks screen, and the site's own: the Paywall, where
+  // a page for members only stops for everyone else (lib/site.ts).
+  blocks: { ...blocks, ...installedBlocks, Paywall },
   categories: { ...categories, ...installedCategories },
 
   // Plugins installed from the admin panel's Plugins screen. Add your own here too,

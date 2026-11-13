@@ -3,12 +3,15 @@ import { buildNotes } from "../fonts.js";
 import { calendarFiles } from "./calendars.js";
 import { feedFiles } from "./feeds.js";
 import { allPages, type ContentSource, loadSiteContent } from "./load.js";
+import { structuredData } from "./structured-data.js";
 import {
   isMembersCollection,
   isMembersOnly,
   membersPages,
+  teaserData,
   visibilityChanges,
   withoutMembersContent,
+  withoutPaywall,
 } from "./visibility.js";
 
 function memorySource(files: Record<string, unknown>): ContentSource {
@@ -96,6 +99,22 @@ describe("visibility", () => {
     expect(withoutMembersContent(published)).toBe(published);
   });
 
+  it("tells search engines nothing about members' pages, whose teasers would show their items' summaries", async () => {
+    const content = await site();
+    const pages = allPages(content);
+    const page = (path: string) => {
+      const found = pages.find((candidate) => candidate.path === path);
+      if (!found) throw new Error(`No page at ${path}.`);
+      return found;
+    };
+    const today = "2026-11-15";
+    expect(structuredData(content, page("/news/launch"), today)).toContainEqual(
+      expect.objectContaining({ "@type": "Article", headline: "Launch" }),
+    );
+    expect(structuredData(content, page("/memos/pay"), today)).toEqual([]);
+    expect(structuredData(content, page("/handbook"), today)).toEqual([]);
+  });
+
   it("warns where a static site publishes members' pages to everyone", () => {
     expect(buildNotes({ membersPages: ["/handbook"] })).toEqual([
       "A page is marked for signed-in members only (/handbook), but this site has no server to keep it to members, so everyone can read it. Only a full-stack site can keep pages to members.",
@@ -146,5 +165,128 @@ describe("visibility", () => {
         read,
       ),
     ).toEqual(["content/pages/public.json", "content/pages/members.json", "content/pages/new.json"]);
+  });
+});
+
+describe("teaserData and withoutPaywall", () => {
+  const block = (type: string, id: string, props: Record<string, unknown> = {}) => ({ type, props: { id, ...props } });
+
+  it("shows the blocks before the paywall, then the paywall", () => {
+    const data = {
+      root: { props: { title: "Handbook" } },
+      content: [
+        block("Section", "intro"),
+        block("Paywall", "wall", { heading: "For members" }),
+        block("Text", "secret", { text: "Members only" }),
+      ],
+    };
+    expect(teaserData(data, "Paywall")).toEqual({
+      root: { props: { title: "Handbook" } },
+      content: [block("Section", "intro"), block("Paywall", "wall", { heading: "For members" })],
+    });
+    expect(withoutPaywall(data, "Paywall").content).toEqual([
+      block("Section", "intro"),
+      block("Text", "secret", { text: "Members only" }),
+    ]);
+  });
+
+  it("ends the teaser before a block that holds the paywall, which may hold members' words beside it", () => {
+    const data = {
+      root: {},
+      content: [
+        block("Heading", "title"),
+        block("Section", "body", {
+          content: [block("Text", "secret", { text: "Members only" }), block("Paywall", "wall")],
+        }),
+      ],
+    };
+    expect(teaserData(data, "Paywall").content).toEqual([block("Heading", "title"), block("Paywall", "wall")]);
+    expect(withoutPaywall(data, "Paywall").content).toEqual([
+      block("Heading", "title"),
+      block("Section", "body", { content: [block("Text", "secret", { text: "Members only" })] }),
+    ]);
+  });
+
+  it("shows only a paywall where the page has none, never words an editor didn't choose to show", () => {
+    const data = { root: {}, content: [block("Section", "intro"), block("Text", "secret", { text: "Members only" })] };
+    expect(teaserData(data, "Paywall").content).toEqual([{ type: "Paywall", props: { id: "Paywall-teaser" } }]);
+    expect(JSON.stringify(teaserData(data, "Paywall"))).not.toContain("Members only");
+    expect(withoutPaywall(data, "Paywall")).toBe(data);
+  });
+
+  it("keeps only the drop zones of the blocks it shows", () => {
+    const data = {
+      root: {},
+      content: [block("Columns", "shown"), block("Paywall", "wall"), block("Columns", "hidden")],
+      zones: {
+        "shown:left": [block("Text", "a", { text: "Open" })],
+        "hidden:left": [block("Text", "b", { text: "Members only" })],
+      },
+    };
+    expect(teaserData(data, "Paywall").zones).toEqual({ "shown:left": [block("Text", "a", { text: "Open" })] });
+    expect(JSON.stringify(teaserData(data, "Paywall"))).not.toContain("Members only");
+  });
+
+  it("finds a paywall in a drop zone, however deep, and ends the teaser before the block whose zone it's in", () => {
+    const data = {
+      root: {},
+      content: [block("Heading", "title"), block("Columns", "cols"), block("Text", "after", { text: "Members only" })],
+      zones: {
+        "cols:left": [block("Columns", "inner")],
+        "inner:right": [
+          block("Text", "beside", { text: "Members only" }),
+          block("Paywall", "wall", { heading: "Join" }),
+        ],
+      },
+    };
+    const teaser = teaserData(data, "Paywall");
+    expect(teaser.content).toEqual([block("Heading", "title"), block("Paywall", "wall", { heading: "Join" })]);
+    expect(teaser.zones).toEqual({});
+    expect(JSON.stringify(teaser)).not.toContain("Members only");
+  });
+
+  it("keeps the drop zones of the blocks in the zones it shows, however deep", () => {
+    const data = {
+      root: {},
+      content: [block("Columns", "shown"), block("Paywall", "wall")],
+      zones: {
+        "shown:left": [block("Columns", "a")],
+        "a:inner": [block("Text", "b", { text: "Open" })],
+      },
+    };
+    expect(teaserData(data, "Paywall").zones).toEqual(data.zones);
+  });
+
+  it("keeps the paywall's own drop zones, which say how to join", () => {
+    const data = {
+      root: {},
+      content: [block("Heading", "title"), block("Paywall", "wall"), block("Text", "after", { text: "Members only" })],
+      zones: {
+        "wall:actions": [block("Columns", "join")],
+        "join:left": [block("Button", "sign-in", { label: "Sign in" })],
+      },
+    };
+    expect(teaserData(data, "Paywall").zones).toEqual(data.zones);
+  });
+
+  it("leaves out the blocks in the root's slots, keeping its settings", () => {
+    const data = {
+      root: { props: { title: "Handbook", content: [block("Text", "secret", { text: "Members only" })] } },
+      content: [block("Paywall", "wall")],
+    };
+    expect(teaserData(data, "Paywall").root).toEqual({ props: { title: "Handbook", content: [] } });
+  });
+
+  it("takes paywalls out of drop zones and the root too, for members", () => {
+    const data = {
+      root: { props: { content: [block("Paywall", "in-root")] } },
+      content: [block("Columns", "cols")],
+      zones: { "cols:left": [block("Paywall", "in-zone"), block("Text", "kept")] },
+    };
+    expect(withoutPaywall(data, "Paywall")).toEqual({
+      root: { props: { content: [] } },
+      content: [block("Columns", "cols")],
+      zones: { "cols:left": [block("Text", "kept")] },
+    });
   });
 });

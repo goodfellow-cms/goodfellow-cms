@@ -10,6 +10,7 @@ import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { dialectFor } from "./db/dialect.ts";
 import { canSendEmail, EmailNotSetUp, EmailRefused, passwordResetEmail, sendEmail } from "./email.ts";
+import { entitlements } from "./entitlements.ts";
 import { env, inBackground, type SiteEnv } from "./env.ts";
 
 /**
@@ -463,6 +464,7 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       // again, which doesn't stop whoever has the password of an admin who hasn't turned it on yet.
       twoFactor({ issuer: issuerOf(siteEnv), backupCodeOptions: { storeBackupCodes: "encrypted" } }),
       resets.plugin,
+      entitlements(),
       nextCookies(),
     ],
   } satisfies BetterAuthOptions;
