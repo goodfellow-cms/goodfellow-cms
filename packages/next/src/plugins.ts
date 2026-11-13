@@ -9,6 +9,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  type CollectionSource,
   type CollectionSources,
   type ContentSource,
   collectionSources,
@@ -142,12 +143,25 @@ export async function loadSiteFiles(root: string): Promise<SiteContent> {
 
 const loadedSources = new Map<string, Promise<CollectionSources>>();
 
-/** `readCollectionSources()`, once a process, for the steps of `goodfellow-next finish`, which each read the site. */
+/**
+ * `readCollectionSources()`, once a process, for the steps of `goodfellow-next
+ * finish`, which each read the site: each source's items are read once too,
+ * so its feeds, calendars, content API, redirects and checks all show the same
+ * items, however the source changes while they're written.
+ */
 export function loadCollectionSources(root: string): Promise<CollectionSources> {
   const dir = resolve(root);
   let loaded = loadedSources.get(dir);
   if (!loaded) {
-    loaded = readCollectionSources(dir);
+    loaded = readCollectionSources(dir).then((sources) =>
+      Object.fromEntries(
+        Object.entries(sources).map(([id, source]): [string, CollectionSource] => {
+          let items: ReturnType<CollectionSource["items"]> | undefined;
+          const changed = source.changed?.bind(source);
+          return [id, { items: () => (items ??= source.items()), ...(changed && { changed }) }];
+        }),
+      ),
+    );
     loadedSources.set(dir, loaded);
   }
   return loaded;

@@ -9,6 +9,7 @@ import {
   itemsLinkingTo,
   mainLanguage,
   siteLanguages,
+  trimChars,
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, type ReactNode, useState } from "react";
@@ -347,10 +348,71 @@ function DeleteEntryDialog({
 
 type DialogState = { type: "new" } | { type: "move"; entry: Entry } | { type: "delete"; entry: Entry } | null;
 
+/** A link that opens an item's page on the site, in a new tab, unless it isn't published. */
+function ViewEntry({ item }: { item: Entry }) {
+  const t = useStrings();
+  const { siteUrl } = useAdmin();
+  if (!item.path || item.content.notPublished) return null;
+  return (
+    <a
+      className="gfa-button gfa-button-ghost"
+      href={`${trimChars(siteUrl, "/", { start: false })}${item.path}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      {t("pages.view")}
+    </a>
+  );
+}
+
+/** A collection's items as a table: each one's title, its address where items have pages, and what can be done with it. */
+function EntriesTable({
+  collection,
+  actionsLabel,
+  title,
+  actions,
+}: {
+  collection: Collection;
+  /** What the column of actions is called, for screen readers. */
+  actionsLabel: string;
+  title: (item: Entry) => ReactNode;
+  actions: (item: Entry) => ReactNode;
+}) {
+  const t = useStrings();
+  const { settings } = collection;
+  if (collection.entries.length === 0) return <p>{t("entries.empty", { name: settings.name })}</p>;
+  return (
+    <table className="gfa-table">
+      <thead>
+        <tr>
+          <th>{t("entries.column.title")}</th>
+          {settings.path && <th>{t("entries.column.address")}</th>}
+          <th>
+            <span className="gfa-visually-hidden">{actionsLabel}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {collection.entries.map((item) => (
+          <tr key={item.slug}>
+            <td>{title(item)}</td>
+            {settings.path && (
+              <td>
+                <code>{item.path}</code>
+              </td>
+            )}
+            <td className="gfa-row-actions">{actions(item)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 /** A collection's items as the site shows them, read-only, where they come from another system. */
 function SourcedEntries({ collection, source }: { collection: Collection; source: string }) {
   const t = useStrings();
-  const { siteUrl, account, state, reload } = useAdmin();
+  const { account, state, reload } = useAdmin();
   const { settings } = collection;
   // The source couldn't be read as the site loaded: what's listed would be the folder's files, which the site doesn't show.
   const unread = state.status === "ready" && state.unreadSources === true;
@@ -369,47 +431,14 @@ function SourcedEntries({ collection, source }: { collection: Collection; source
             <Button onClick={() => void reload()}>{t("action.tryAgain")}</Button>
           </div>
         )}
-        {account?.sourcedItems &&
-          !unread &&
-          (collection.entries.length === 0 ? (
-            <p>{t("entries.empty", { name: settings.name })}</p>
-          ) : (
-            <table className="gfa-table">
-              <thead>
-                <tr>
-                  <th>{t("entries.column.title")}</th>
-                  {settings.path && <th>{t("entries.column.address")}</th>}
-                  <th>
-                    <span className="gfa-visually-hidden">{t("pages.view")}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {collection.entries.map((item) => (
-                  <tr key={item.slug}>
-                    <td>{entryTitle(item)}</td>
-                    {settings.path && (
-                      <td>
-                        <code>{item.path}</code>
-                      </td>
-                    )}
-                    <td className="gfa-row-actions">
-                      {item.path && !item.content.notPublished && (
-                        <a
-                          className="gfa-button gfa-button-ghost"
-                          href={`${siteUrl.replace(/\/$/, "")}${item.path}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {t("pages.view")}
-                        </a>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ))}
+        {account?.sourcedItems && !unread && (
+          <EntriesTable
+            collection={collection}
+            actionsLabel={t("pages.view")}
+            title={(item) => entryTitle(item)}
+            actions={(item) => <ViewEntry item={item} />}
+          />
+        )}
       </div>
     </CollectionLayout>
   );
@@ -424,7 +453,6 @@ export function EntriesScreen({ collection }: { collection: Collection }) {
 function FileEntries({ collection }: { collection: Collection }) {
   const { content } = useSiteContent();
   const t = useStrings();
-  const { siteUrl } = useAdmin();
   const [dialog, setDialog] = useState<DialogState>(null);
   const close = () => setDialog(null);
   const { settings } = collection;
@@ -440,68 +468,41 @@ function FileEntries({ collection }: { collection: Collection }) {
           </Button>
         </div>
 
-        {collection.entries.length === 0 ? (
-          <p>{t("entries.empty", { name: settings.name })}</p>
-        ) : (
-          <table className="gfa-table">
-            <thead>
-              <tr>
-                <th>{t("entries.column.title")}</th>
-                {settings.path && <th>{t("entries.column.address")}</th>}
-                <th>
-                  <span className="gfa-visually-hidden">{t("pages.edit")}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {collection.entries.map((item) => (
-                <tr key={item.slug}>
-                  <td>
-                    <a href={entryEditorHref(collection.id, item.slug)} className="gfa-link-strong">
-                      {entryTitle(item)}
-                    </a>
-                    <ScheduleStatus schedule={item.content} content={content} />
-                    <EntryTranslations
-                      collection={collection}
-                      entry={item}
-                      entryHref={(slug) => entryEditorHref(collection.id, slug)}
-                    />
-                  </td>
-                  {settings.path && (
-                    <td>
-                      <code>{item.path}</code>
-                    </td>
-                  )}
-                  <td className="gfa-row-actions">
-                    <a className="gfa-button gfa-button-secondary" href={entryEditorHref(collection.id, item.slug)}>
-                      {t("pages.edit")}
-                    </a>
-                    {item.path && (
-                      <>
-                        {!item.content.notPublished && (
-                          <a
-                            className="gfa-button gfa-button-ghost"
-                            href={`${siteUrl.replace(/\/$/, "")}${item.path}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {t("pages.view")}
-                          </a>
-                        )}
-                        <Button variant="ghost" onClick={() => setDialog({ type: "move", entry: item })}>
-                          {t("pages.move")}
-                        </Button>
-                      </>
-                    )}
-                    <Button variant="ghost" onClick={() => setDialog({ type: "delete", entry: item })}>
-                      {t("pages.delete")}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <EntriesTable
+          collection={collection}
+          actionsLabel={t("pages.edit")}
+          title={(item) => (
+            <>
+              <a href={entryEditorHref(collection.id, item.slug)} className="gfa-link-strong">
+                {entryTitle(item)}
+              </a>
+              <ScheduleStatus schedule={item.content} content={content} />
+              <EntryTranslations
+                collection={collection}
+                entry={item}
+                entryHref={(slug) => entryEditorHref(collection.id, slug)}
+              />
+            </>
+          )}
+          actions={(item) => (
+            <>
+              <a className="gfa-button gfa-button-secondary" href={entryEditorHref(collection.id, item.slug)}>
+                {t("pages.edit")}
+              </a>
+              {item.path && (
+                <>
+                  <ViewEntry item={item} />
+                  <Button variant="ghost" onClick={() => setDialog({ type: "move", entry: item })}>
+                    {t("pages.move")}
+                  </Button>
+                </>
+              )}
+              <Button variant="ghost" onClick={() => setDialog({ type: "delete", entry: item })}>
+                {t("pages.delete")}
+              </Button>
+            </>
+          )}
+        />
 
         {dialog?.type === "new" && <NewEntryDialog collection={collection} onClose={close} />}
         {dialog?.type === "move" && <MoveEntryDialog collection={collection} entry={dialog.entry} onClose={close} />}

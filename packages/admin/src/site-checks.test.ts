@@ -139,6 +139,38 @@ describe("checkPublish", () => {
     const read = await checkPublish(withJobs, { content, media: [] }, linking, site);
     expect(read.unread).toBeUndefined();
     expect(read.blocking).toEqual([]);
+    // Where the admin panel can't read the items, as on a static site, whose build does: links that could go to the
+    // collection's pages, in any of the site's languages, aren't checked, and every other link still is.
+    const unreachable = [
+      ...linking,
+      { path: "content/pages/other.json", content: page("Other", [button("Button-2", "/es/jobs/soldador")]) },
+      { path: "content/pages/more.json", content: page("More", [button("Button-3", "/jobs/welder/more")]) },
+      { path: "content/pages/careers.json", content: page("Careers", [button("Button-4", "/careers/welder")]) },
+    ];
+    const spanish: Record<string, string> = {
+      ...files,
+      "content/site.json": JSON.stringify({
+        version: 1,
+        title: "St. Joseph",
+        languages: [{ code: "es", name: "Español" }],
+      }),
+      // A file the build's source replaces, which the checks leave unread here too.
+      "content/collections/jobs/broken.json": JSON.stringify({ version: 1, fields: { title: 42 } }),
+    };
+    const inSpanish: ContentSource = {
+      read: async (path) => spanish[path],
+      list: async (dir) => Object.keys(spanish).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    const loadedSpanish = await loadSiteContent(inSpanish, { sourced: ["jobs"] });
+    const onStatic = await checkPublish(inSpanish, { content: loadedSpanish, media: [] }, unreachable, {
+      blocks: config.blocks,
+      code: localSiteCode(config),
+      sourced: ["jobs"],
+    });
+    expect(onStatic.blocking.map((problem) => problem.kind === "missing-page" && problem.target).sort()).toEqual([
+      "/careers/welder",
+      "/jobs/welder/more",
+    ]);
   });
 
   it("stops a publish that would take an item a source gives off the site, and never reads the files it replaces", async () => {

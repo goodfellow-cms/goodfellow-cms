@@ -307,12 +307,15 @@ const CODE_TIMEOUT = 20_000;
 const DEPLOY_CHECK_INTERVAL = 5_000;
 const DEPLOY_CHECK_LIMIT = 20 * 60_000;
 
-async function load(store: ContentStore, sources?: CollectionSources): Promise<LoadState> {
+async function load(
+  store: ContentStore,
+  sources: CollectionSources | undefined,
+  sourced: readonly string[],
+): Promise<LoadState> {
   try {
     // Read the revision first: reads then see that revision, even if someone publishes while loading.
     const revision = await store.revision();
     // Sourced collections' item files aren't read: their sources' items replace them, and nothing edits them.
-    const sourced = Object.keys(sources ?? {});
     const [content, media] = await Promise.all([loadSiteContent(store, { sourced }), store.list(MEDIA_DIR)]);
     return { status: "ready", content, ...(await readShown(content, sources)), revision, media };
   } catch (error) {
@@ -481,30 +484,30 @@ export function AdminProvider({
     });
   }, [demo, mediaPreviews]);
 
-  // The items of collections whose items come from a source, from a full-stack site's server: none elsewhere, where
-  // the admin panel can't reach the source, so they're shown with no items, as nothing on the site comes from files.
-  // The account is made again each time its screen draws, so its latest is read when items are, and only whether
-  // there is one decides the sources, which loading the site again follows.
+  // The collections whose items come from a source, whose item files the site never reads.
+  const sourced = useMemo(() => Object.keys(site.description.collections ?? {}), [site.description.collections]);
+  // Their items, from a full-stack site's server. Elsewhere the admin panel can't reach the sources, so there are
+  // none: their collections show no items, and their screens say why, and the publish checks leave links to their
+  // pages alone (`checkPublish()`'s `sourced`). The account is made again each time its screen draws, so its latest
+  // is read when items are, and only whether there is one decides the sources, which loading the site again follows.
   const sourcedItems = useRef(account?.sourcedItems);
   sourcedItems.current = account?.sourcedItems;
   const hasSourcedItems = Boolean(account?.sourcedItems);
   const sources = useMemo((): CollectionSources | undefined => {
-    const ids = Object.keys(site.description.collections ?? {});
-    if (ids.length === 0) return undefined;
+    if (sourced.length === 0 || !hasSourcedItems) return undefined;
     return Object.fromEntries(
-      ids.map((id) => [
+      sourced.map((id) => [
         id,
         {
           items: async () => {
             const read = sourcedItems.current;
-            // Without a server that reads them, the collection lists no items, and its screen says why.
-            if (!read || !hasSourcedItems) return [];
+            if (!read) throw new Error("The site's server no longer reads its collections' items.");
             return read(id);
           },
         },
       ]),
     );
-  }, [site.description.collections, hasSourcedItems]);
+  }, [sourced, hasSourcedItems]);
 
   // The store the shown site was last loaded from, so switching drafts loads it once, and a slower earlier load is ignored.
   const loadedFrom = useRef<ContentStore>(undefined);
@@ -514,11 +517,11 @@ export function AdminProvider({
     async (from: ContentStore) => {
       loadedFrom.current = from;
       const view = views.current;
-      const next = await load(from, sources);
+      const next = await load(from, sources, sourced);
       if (next.status === "error" && next.error instanceof SignInError) onSignInError?.(next.error);
       if (loadedFrom.current === from) setState(next.status === "ready" ? { ...next, view } : next);
     },
-    [onSignInError, sources],
+    [onSignInError, sources, sourced],
   );
 
   const reload = useCallback(() => loadFrom(content), [loadFrom, content]);
@@ -643,7 +646,9 @@ export function AdminProvider({
         return { ok: false, reason: "checks", error: undefined };
       }
       const checks =
-        options?.checks === false ? undefined : await checkPublish(content, state, changes, { blocks, code, sources });
+        options?.checks === false
+          ? undefined
+          : await checkPublish(content, state, changes, { blocks, code, sources, sourced });
       if (!(await confirmChecks(checks))) return { ok: false, reason: "checks", error: undefined };
       let target = draft;
       let started: Draft | undefined;
@@ -690,6 +695,7 @@ export function AdminProvider({
       reviewers,
       t,
       sources,
+      sourced,
     ],
   );
 
@@ -717,7 +723,7 @@ export function AdminProvider({
     let changes: FileChange[];
     let live: LoadState;
     try {
-      [changes, live] = await Promise.all([draft.changes(), load(store, sources)]);
+      [changes, live] = await Promise.all([draft.changes(), load(store, sources, sourced)]);
     } catch (error) {
       return { ok: false, reason: "error", error };
     }
@@ -746,7 +752,7 @@ export function AdminProvider({
       return { ok: false, reason: "error", error };
     }
     // Every file in the draft, against the live site as it is now.
-    if (!(await confirmChecks(await checkPublish(store, live, changes, { blocks, code, sources })))) {
+    if (!(await confirmChecks(await checkPublish(store, live, changes, { blocks, code, sources, sourced })))) {
       return { ok: false, reason: "checks", error: undefined };
     }
     let revision: string;
@@ -777,6 +783,7 @@ export function AdminProvider({
     reviewers,
     refreshDrafts,
     sources,
+    sourced,
   ]);
 
   const submitDraft = useCallback(async () => {

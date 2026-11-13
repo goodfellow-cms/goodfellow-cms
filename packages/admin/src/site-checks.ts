@@ -8,9 +8,11 @@ import {
   type FileChange,
   FOOTER_FILE,
   HEADER_FILE,
+  languagePattern,
   loadSiteContent,
   MEDIA_DIR,
   MENUS_FILE,
+  matchesAddressPattern,
   publishProblems,
   REDIRECTS_FILE,
   SITE_FILE,
@@ -104,6 +106,34 @@ export async function readShown(
 }
 
 /**
+ * Whether a link's address could be a page of a collection whose items the
+ * admin panel can't read, such as a static site's, whose build reads them: its
+ * pages aren't known here, so a link to one can't be checked.
+ */
+function unreachablePage(content: SiteContent, unreachable: ReadonlySet<string>, target: string): boolean {
+  return content.collections.some(
+    (collection) =>
+      unreachable.has(collection.id) &&
+      siteLanguages(content.settings).some((language) => {
+        const pattern = languagePattern(content.settings, collection.settings, language.code);
+        return pattern !== undefined && matchesAddressPattern(pattern, target);
+      }),
+  );
+}
+
+/** The problems without links that might go to an unreachable collection's pages (`unreachablePage()`). */
+function withoutUnreachable(
+  problems: SiteProblem[],
+  content: SiteContent,
+  unreachable: ReadonlySet<string>,
+): SiteProblem[] {
+  if (unreachable.size === 0) return problems;
+  return problems.filter(
+    (problem) => problem.kind !== "missing-page" || !unreachablePage(content, unreachable, problem.target),
+  );
+}
+
+/**
  * The site checks for a publish: the site as it's loaded, and as the changes
  * would leave it, with the pages they change rendered. A site the changes
  * would leave unreadable isn't checked; loading it again after publishing
@@ -113,14 +143,22 @@ export async function checkPublish(
   source: ContentSource,
   loaded: { content: SiteContent; shown?: SiteContent; media: string[] },
   changes: FileChange[],
-  site: { blocks: Record<string, ComponentConfig>; code: SiteCodeService; sources?: CollectionSources },
+  site: {
+    blocks: Record<string, ComponentConfig>;
+    code: SiteCodeService;
+    sources?: CollectionSources;
+    /** Every collection whose items come from a source, by id: those without one in `sources` the admin panel can't read. */
+    sourced?: readonly string[];
+  },
 ): Promise<PublishChecks> {
   const { blocks, code, sources } = site;
+  const sourced = site.sourced ?? Object.keys(sources ?? {});
+  const unreachable = new Set(sourced.filter((id) => !sources || !Object.hasOwn(sources, id)));
   // As visitors see it, with sourced collections' items, so links to their pages aren't missing.
   const before = loaded.shown ?? loaded.content;
   let after: SiteContent;
   try {
-    after = await contentWithChanges(source, changes, Object.keys(sources ?? {}));
+    after = await contentWithChanges(source, changes, sourced);
   } catch {
     return { blocking: [], warnings: [], content: before };
   }
@@ -158,10 +196,21 @@ export async function checkPublish(
     code.renderedProblems(after, pagesToRender(after, changed), today).catch((): SiteProblem[] => []),
   ]);
   const problemsBefore = [
-    ...checkSite(before, { media: mediaAddresses(loaded.media), blocks, pages: pagesBefore }),
+    ...withoutUnreachable(
+      checkSite(before, { media: mediaAddresses(loaded.media), blocks, pages: pagesBefore }),
+      before,
+      unreachable,
+    ),
     ...renderedBefore,
   ];
-  const problems = [...checkSite(after, { media: mediaAddresses(media), blocks, pages: pagesAfter }), ...rendered];
+  const problems = [
+    ...withoutUnreachable(
+      checkSite(after, { media: mediaAddresses(media), blocks, pages: pagesAfter }),
+      after,
+      unreachable,
+    ),
+    ...rendered,
+  ];
   const found = publishProblems(problemsBefore, problems, changed);
   return { ...found, content: after };
 }

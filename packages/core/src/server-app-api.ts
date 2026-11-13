@@ -6,6 +6,8 @@ import {
   type CollectionSource,
   type CollectionSources,
   ConflictError,
+  collectionFileSchema,
+  collectionSettingsFile,
   decodeBase64,
   encodeBase64Bytes,
   type FileChange,
@@ -27,11 +29,13 @@ import {
   type PluginServerEditor,
   PluginTaskError,
   type PluginTaskRequest,
+  parseContentFile,
   pluginId,
   readPermissions,
   reviewersFor,
   type ServerGit,
   SignInError,
+  sourcedItemsFor,
   taskRequestProblem,
   visibilityChanges,
 } from "./index.js";
@@ -358,7 +362,18 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
         const source =
           typeof sources === "function" ? sources(id) : sources && Object.hasOwn(sources, id) ? sources[id] : undefined;
         if (!source) return json(404, { error: "not-found" });
-        return json(200, { items: await source.items() });
+        // Only what the collection's fields name, from its settings as they're published now, so a row's other
+        // columns never reach editors, and only items a file could hold, so one value JSON can't hold leaves out
+        // only its item.
+        const path = collectionSettingsFile(id);
+        const [text, items] = await Promise.all([
+          options.git.revision().then(async (revision) => (await reader(revision)).read(path)),
+          source.items(),
+        ]);
+        const settings =
+          text === undefined ? undefined : parseContentFile("collection", collectionFileSchema, path, text);
+        if (!settings?.ok) return json(404, { error: "not-found" });
+        return json(200, { items: sourcedItemsFor(id, settings.value, items) });
       } catch (error) {
         // What the source's system answered stays on the server, as the repository's does.
         onError(error);

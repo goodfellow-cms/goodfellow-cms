@@ -57,7 +57,16 @@ describe("goodfellowApi", () => {
   });
 
   it("makes collections' sources only when their items are asked for, so one that can't be made fails only that", async () => {
-    const fake = fakeGitHub({ repo: "parish/site", files: FILES });
+    const news = {
+      version: 1,
+      name: "News",
+      entryName: "Story",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    };
+    const fake = fakeGitHub({
+      repo: "parish/site",
+      files: { ...FILES, "content/collections/news/_collection.json": JSON.stringify(news) },
+    });
     const make = vi.fn(() => {
       throw new Error("JOBS_DATABASE_URL isn't set");
     });
@@ -66,14 +75,15 @@ describe("goodfellowApi", () => {
       backend: github({ repo: "parish/site", fetch: fake.fetch }),
       collections: { jobs: { source: "./lib/jobs.ts" }, news: { source: "./lib/news.ts" } },
     });
-    const news = vi.fn(() => ({ items: async () => [{ slug: "hello", fields: { title: "Hello" } }] }));
+    const hello = { slug: "hello", fields: { title: "Hello" } };
+    const makeNews = vi.fn(() => ({ items: async () => [hello] }));
     const call = caller(
       goodfellowApi({
         config,
         token: "test-token",
         authorize: () => ALICE,
         signIn: "/sign-in",
-        sources: { jobs: make, news },
+        sources: { jobs: make, news: makeNews },
       }),
     );
     expect((await call("revision/")).status).toBe(200);
@@ -82,11 +92,17 @@ describe("goodfellowApi", () => {
     expect(make).toHaveBeenCalledOnce();
     // Another collection's items come through, its source made once and kept.
     expect((await call("collections/news/items/")).status).toBe(200);
-    expect((await call("collections/news/items/")).status).toBe(200);
-    expect(news).toHaveBeenCalledOnce();
+    expect(await (await call("collections/news/items/")).json()).toEqual({ items: [hello] });
+    expect(makeNews).toHaveBeenCalledOnce();
     // A module the config names but the site's code didn't give is refused at the first request.
     const missing = caller(
-      goodfellowApi({ config, token: "test-token", authorize: () => ALICE, signIn: "/sign-in", sources: { news } }),
+      goodfellowApi({
+        config,
+        token: "test-token",
+        authorize: () => ALICE,
+        signIn: "/sign-in",
+        sources: { news: makeNews },
+      }),
     );
     await expect(missing("revision/")).rejects.toThrow(/lib\/jobs\.ts/);
   });

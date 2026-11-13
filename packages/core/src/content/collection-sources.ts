@@ -4,10 +4,10 @@
 // (`withSourcedCollections()`), so pages, feeds, calendars and the content API see ordinary items.
 import { type Collection, type Entry, sortCollectionEntries } from "./collections.js";
 import type { ContentProblem } from "./errors.js";
-import { entryLanguage, entryPathIn, isOtherLanguage } from "./languages.js";
+import { entryLanguage, entryPathIn, isOtherLanguage, siteLanguages } from "./languages.js";
 import { allPages, parseEntryFile, type SiteContent } from "./load.js";
 import { isAddressSegment, isReservedPagePath } from "./paths.js";
-import type { EntryFile } from "./schemas.js";
+import type { CollectionFile, EntryFile } from "./schemas.js";
 
 /**
  * One item as a source gives it: what an item's file would hold, without its
@@ -162,46 +162,83 @@ export function isSourcedItem(entry: Pick<Entry, "file">): boolean {
   return entry.file.startsWith("source:");
 }
 
-/** The items `source` gives, as `collection`'s entries, leaving out (into `problems`) any a file couldn't hold. */
-async function sourcedEntries(
+/**
+ * One of a source's items checked as an item's file would be, with only the
+ * values of the collection's own fields, so a row's other columns, such as
+ * notes or applicants' addresses, never reach pages, the content API or the
+ * admin panel. Gives the problem instead where a file couldn't hold it.
+ */
+function checkedItem(
+  id: string,
+  settings: CollectionFile,
+  item: SourcedItem,
+): { ok: true; slug: string; file: string; value: EntryFile } | { ok: false; problem: ContentProblem } {
+  const slug = typeof item?.slug === "string" ? item.slug : "";
+  const file = sourcedItemFile(id, slug || "?");
+  if (!isAddressSegment(slug)) {
+    return {
+      ok: false,
+      problem: { file, message: "has a name that can't be used: lowercase letters, numbers, and hyphens only." },
+    };
+  }
+  const { slug: _, ...rest } = item;
+  let text: string;
+  try {
+    text = JSON.stringify({ version: 1, ...rest });
+  } catch {
+    // Such as a BigInt, or a value that holds itself, which a file couldn't either.
+    return { ok: false, problem: { file, message: "has a value that can't be written as JSON." } };
+  }
+  // Checked as an item's JSON file would be, so a Markdown collection's body is a field like any other here.
+  const parsed = parseEntryFile({ ...settings, markdown: undefined }, file, text);
+  if (!parsed.ok) return parsed;
+  const names = new Set(settings.fields.map((field) => field.name));
+  const fields = Object.fromEntries(Object.entries(parsed.value.fields).filter(([name]) => names.has(name)));
+  return { ok: true, slug, file, value: { ...parsed.value, fields } };
+}
+
+/**
+ * A source's items as the admin panel may see them (`collections/<id>/items`):
+ * those a file could hold, each with only the collection's own fields, and
+ * each name once. The site's other checks, of languages and addresses, are
+ * made where the admin panel loads them (`withSourcedCollections()`).
+ */
+export function sourcedItemsFor(id: string, settings: CollectionFile, items: readonly SourcedItem[]): SourcedItem[] {
+  const shown: SourcedItem[] = [];
+  const slugs = new Set<string>();
+  for (const item of items) {
+    const checked = checkedItem(id, settings, item);
+    if (!checked.ok || slugs.has(checked.slug)) continue;
+    slugs.add(checked.slug);
+    const { version: _, ...value } = checked.value;
+    shown.push({ slug: checked.slug, ...value });
+  }
+  return shown;
+}
+
+/** A source's items, as `collection`'s entries, leaving out (into `problems`) any a file couldn't hold. */
+function sourcedEntries(
   content: SiteContent,
   collection: Collection,
-  source: CollectionSource,
+  items: readonly SourcedItem[],
   taken: Map<string, string>,
   problems: ContentProblem[],
-): Promise<Entry[]> {
-  const items = await source.items();
+): Entry[] {
   const entries: Entry[] = [];
+  // The names of items shown, so a later item with the same name is left out, but never for one that was refused.
   const slugs = new Set<string>();
-  // Checked as an item's JSON file would be, so a Markdown collection's body is a field like any other here.
-  const settings = { ...collection.settings, markdown: undefined };
   for (const item of items) {
-    const slug = typeof item?.slug === "string" ? item.slug : "";
-    const file = sourcedItemFile(collection.id, slug || "?");
-    if (!isAddressSegment(slug)) {
-      problems.push({ file, message: "has a name that can't be used: lowercase letters, numbers, and hyphens only." });
+    const checked = checkedItem(collection.id, collection.settings, item);
+    if (!checked.ok) {
+      problems.push(checked.problem);
       continue;
     }
+    const { slug, file, value } = checked;
     if (slugs.has(slug)) {
       problems.push({ file, message: `is given twice by the collection's source. Only the first is shown.` });
       continue;
     }
-    slugs.add(slug);
-    const { slug: _, ...rest } = item;
-    let text: string;
-    try {
-      text = JSON.stringify({ version: 1, ...rest });
-    } catch {
-      // Such as a BigInt, or a value that holds itself, which a file couldn't either.
-      problems.push({ file, message: "has a value that can't be written as JSON." });
-      continue;
-    }
-    const parsed = parseEntryFile(settings, file, text);
-    if (!parsed.ok) {
-      problems.push(parsed.problem);
-      continue;
-    }
-    const language = entryLanguage(content.settings, { content: parsed.value });
+    const language = entryLanguage(content.settings, { content: value });
     if (language !== content.settings.language && !isOtherLanguage(content.settings, language)) {
       problems.push({ file, message: `is in ${language}, which isn't one of the site's languages.` });
       continue;
@@ -218,7 +255,8 @@ async function sourcedEntries(
       continue;
     }
     if (path) taken.set(path, file);
-    entries.push({ collection: collection.id, slug, file, ...(path && { path }), content: parsed.value });
+    slugs.add(slug);
+    entries.push({ collection: collection.id, slug, file, ...(path && { path }), content: value });
   }
   return sortCollectionEntries(collection.settings, entries);
 }
@@ -239,20 +277,27 @@ export async function withSourcedCollections(
   sources: CollectionSources,
   onProblem: (problem: ContentProblem) => void = (problem) => console.warn(`${problem.file} ${problem.message}`),
 ): Promise<SiteContent> {
-  const sourced = new Set(Object.keys(sources).filter((id) => content.collections.some((one) => one.id === id)));
+  const sourced = new Set(
+    Object.keys(sources).filter((id) => sources[id] && content.collections.some((one) => one.id === id)),
+  );
   if (sourced.size === 0) return content;
   // Every address the site has without the sourced collections, which their items can't take.
   const kept = { ...content, collections: content.collections.filter((one) => !sourced.has(one.id)) };
   const taken = new Map(allPages(kept).map((page) => [page.path, page.file]));
+  // Every source is asked at once, so a page waits for the slowest rather than all of them in turn. Their items are
+  // then checked in the site's order of collections, which decides which of two takes an address both give.
+  const read = new Map(
+    await Promise.all([...sourced].map(async (id) => [id, await (sources[id] as CollectionSource).items()] as const)),
+  );
   const problems: ContentProblem[] = [];
   const collections: Collection[] = [];
   for (const collection of content.collections) {
-    const source = sources[collection.id];
-    if (!source || !sourced.has(collection.id)) {
+    const items = read.get(collection.id);
+    if (!items) {
       collections.push(collection);
       continue;
     }
-    const entries = await sourcedEntries(content, collection, source, taken, problems);
+    const entries = sourcedEntries(content, collection, items, taken, problems);
     collections.push({ ...collection, entries, sourced: true });
   }
   for (const problem of problems) onProblem(problem);
@@ -262,8 +307,8 @@ export async function withSourcedCollections(
 /**
  * What has changed in the site's sources since `since` (each source's `next`
  * from the time before, by collection id; missing means from the start): the
- * collections whose items changed, the pages of the items that still exist,
- * and what to pass next time. Sources without `changed()` are left out.
+ * collections whose items changed, the pages of their items, those removed
+ * too, and what to pass next time. Sources without `changed()` are left out.
  */
 export async function sourceChanges(
   content: SiteContent,
@@ -279,8 +324,23 @@ export async function sourceChanges(
     next[id] = changes.next;
     if (changes.slugs.length === 0) continue;
     collections.push(id);
-    const entries = content.collections.find((one) => one.id === id)?.entries ?? [];
-    for (const entry of entries) if (changes.slugs.includes(entry.slug) && entry.path) paths.add(entry.path);
+    const collection = content.collections.find((one) => one.id === id);
+    if (!collection) continue;
+    const changed = new Set(changes.slugs);
+    for (const entry of collection.entries) {
+      if (!changed.has(entry.slug)) continue;
+      changed.delete(entry.slug);
+      if (entry.path) paths.add(entry.path);
+    }
+    // Items the site no longer has, such as a filled job opening: their language isn't known any more, so their
+    // address in each of the site's languages, since a page kept once it rendered would otherwise stay.
+    for (const slug of changed) {
+      if (!isAddressSegment(slug)) continue;
+      for (const language of siteLanguages(content.settings)) {
+        const path = entryPathIn(content.settings, collection.settings, slug, language.code);
+        if (path) paths.add(path);
+      }
+    }
   }
   return { collections, paths: [...paths].sort(), next };
 }

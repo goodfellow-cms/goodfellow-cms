@@ -9,6 +9,7 @@ import {
   isSourcedItem,
   type SourcedItem,
   sourceChanges,
+  sourcedItemsFor,
   withSourcedCollections,
 } from "./collection-sources.js";
 import { ContentError, type ContentProblem } from "./errors.js";
@@ -164,6 +165,44 @@ describe("withSourcedCollections", () => {
     ]);
   });
 
+  it("shows an item whose name a refused item had before it", async () => {
+    const problems: ContentProblem[] = [];
+    const items = [{ slug: "welder", fields: { title: 42 } }, welder] as SourcedItem[];
+    const content = await withSourcedCollections(await site(), { jobs: jobsSource(items).source }, (problem) =>
+      problems.push(problem),
+    );
+    expect(content.collections.find((one) => one.id === "jobs")?.entries[0]?.content.fields).toEqual(welder.fields);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]?.message).not.toContain("twice");
+  });
+
+  it("keeps only the values of the collection's own fields, so a row's other columns never reach pages", async () => {
+    const row = { ...welder, fields: { ...welder.fields, applicant: "ann@example.org" } };
+    const content = await withSourcedCollections(await site(), { jobs: jobsSource([row]).source });
+    expect(content.collections.find((one) => one.id === "jobs")?.entries[0]?.content.fields).toEqual(welder.fields);
+  });
+
+  it("asks every source at once, checking their items in the collections' order", async () => {
+    let newsAsked: () => void = () => {};
+    const asked = new Promise<void>((resolve) => {
+      newsAsked = resolve;
+    });
+    // The jobs source answers only once the news source has been asked, which reading them in turn never would.
+    const jobs: CollectionSource = { items: () => asked.then(() => [welder]) };
+    const news: CollectionSource = {
+      items: async () => {
+        newsAsked();
+        return [{ slug: "hello", fields: { title: "Hello" } }];
+      },
+    };
+    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("read in turn")), 1000));
+    const content = await Promise.race([withSourcedCollections(await site(), { jobs, news }), timeout]);
+    expect(content.collections.map((one) => [one.id, one.entries.map((entry) => entry.slug)])).toEqual([
+      ["jobs", ["welder"]],
+      ["news", ["hello"]],
+    ]);
+  });
+
   it("reports problems as warnings by default, and leaves a site without the collection as it is", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -276,17 +315,42 @@ describe("sourceChanges", () => {
       paths: [],
       next: { jobs: "1" },
     });
-    jobs.set([welder, baker], ["welder", "gone"]);
+    jobs.set([welder, baker], ["welder", "gone", "Not A Name"]);
     const after = await withSourcedCollections(await site(), { jobs: jobs.source });
+    // A removed item's page too, which a site keeping pages once they've rendered would otherwise go on showing.
     expect(await sourceChanges(after, { jobs: jobs.source })).toEqual({
       collections: ["jobs"],
-      paths: ["/jobs/welder"],
+      paths: ["/jobs/gone", "/jobs/welder"],
       next: { jobs: "1" },
     });
+    // In each of the site's languages, since a removed item's language isn't known.
+    const spanish = await withSourcedCollections(await site({ languages: [{ code: "es", name: "Español" }] }), {
+      jobs: jobs.source,
+    });
+    expect((await sourceChanges(spanish, { jobs: jobs.source })).paths).toEqual([
+      "/es/jobs/gone",
+      "/jobs/gone",
+      "/jobs/welder",
+    ]);
     expect(await sourceChanges(after, { jobs: jobs.source }, { jobs: "1" })).toEqual({
       collections: [],
       paths: [],
       next: { jobs: "1" },
     });
+  });
+});
+
+describe("sourcedItemsFor", () => {
+  it("gives the items a file could hold, each name once, with only the collection's own fields", async () => {
+    const settings = (await site()).collections.find((one) => one.id === "jobs")?.settings;
+    if (!settings) throw new Error("no jobs");
+    const items = [
+      { slug: "welder", fields: { title: 42 } },
+      { ...welder, fields: { ...welder.fields, applicant: "ann@example.org" }, showFrom: "2026-11-01T09:00" },
+      { slug: "welder", fields: { title: "Twice" } },
+      { slug: "Not A Name", fields: { title: "Bad" } },
+      { slug: "big", fields: { title: "Big", posted: 1n } },
+    ] as unknown as SourcedItem[];
+    expect(sourcedItemsFor("jobs", settings, items)).toEqual([{ ...welder, showFrom: "2026-11-01T09:00" }]);
   });
 });

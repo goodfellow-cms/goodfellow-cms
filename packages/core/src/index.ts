@@ -379,6 +379,7 @@ export {
   type SourceOptions,
   sourceChanges,
   sourcedItemFile,
+  sourcedItemsFor,
   withSourcedCollections,
 } from "./content/collection-sources.js";
 export {
@@ -613,6 +614,7 @@ export {
   MEDIA_FILE,
   MEDIA_STORAGE_FILE,
   MENUS_FILE,
+  matchesAddressPattern,
   normalizePagePath,
   PAGES_DIR,
   PERMISSIONS_FILE,

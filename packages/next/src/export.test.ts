@@ -229,7 +229,7 @@ describe("collections' sources in an export", () => {
       );
       await file(
         "lib/jobs.ts",
-        'export default (options: { title: string }) => ({ items: async () => [{ slug: "welder", fields: { title: options.title, posted: "2026-11-01" } }, { slug: "later", fields: { title: "Later", posted: "2026-11-02" }, showFrom: "2031-03-04T05:06" }] });\n',
+        'const reads = globalThis as { jobsReads?: number };\nexport default (options: { title: string }) => ({ items: async () => { reads.jobsReads = (reads.jobsReads ?? 0) + 1; return [{ slug: "welder", fields: { title: options.title, posted: "2026-11-01" } }, { slug: "later", fields: { title: "Later", posted: "2026-11-02" }, showFrom: "2031-03-04T05:06" }]; } });\n',
       );
       expect(await writeFeedFiles(out, site)).toBe(2);
       expect(await readFile(join(out, "feeds/jobs.rss"), "utf8")).toContain("https://example.org/jobs/welder/");
@@ -246,6 +246,8 @@ describe("collections' sources in an export", () => {
       expect(JSON.parse(await readFile(join(out, "goodfellow-build.json"), "utf8")).currentUntil).toContain(
         "2031-03-04",
       );
+      // Every step showed the items of one read of the source, which may change while they're written.
+      expect((globalThis as { jobsReads?: number }).jobsReads).toBe(1);
     } finally {
       await rm(site, { recursive: true, force: true });
     }

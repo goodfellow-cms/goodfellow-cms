@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { APP_API_HEADER, type AppEditor, isSettingsPath } from "./app-api.js";
-import type { CollectionSource } from "./content/collection-sources.js";
+import type { CollectionSource, SourcedItem } from "./content/collection-sources.js";
 import type { OwnersOnlyFields } from "./content/owners-only.js";
 import { ConflictError, type FileChange } from "./content/store.js";
 import type { EarlyInstallCheck } from "./early-installs.js";
@@ -16,6 +16,8 @@ const FILES = {
   "content/pages/index.json": '{"version":1,"data":{"root":{"props":{}},"content":[]}}',
   "public/media/logo.png": new Uint8Array([1, 2, 3]),
   "package.json": '{"name":"secret"}',
+  "content/collections/jobs/_collection.json":
+    '{"version":1,"name":"Jobs","entryName":"Job","path":"/jobs/{slug}","fields":[{"name":"title","label":"Title","type":"text"}]}',
 };
 
 /** The repository as a server reaches it, over a fake one, recording who each commit names. */
@@ -212,13 +214,18 @@ describe("appApi", () => {
 
   it("gives the items of collections with a source to people signed in to edit, and nothing of the source's failures", async () => {
     const items = [{ slug: "welder", fields: { title: "Welder" } }];
+    // What the collection's fields don't name, and items a file couldn't hold, stay on the server.
+    const rows = [
+      { slug: "welder", fields: { title: "Welder", applicant: "ann@example.org" } },
+      { slug: "big", fields: { title: 1n } },
+    ] as unknown as SourcedItem[];
     let failing = false;
     const { call, signIn, errors } = setup(ALICE, {
       sources: {
         jobs: {
           items: async () => {
             if (failing) throw new Error("password authentication failed for user jobs");
-            return items;
+            return rows;
           },
         },
       },
@@ -236,8 +243,10 @@ describe("appApi", () => {
     expect(errors).toHaveLength(1);
     signIn(null);
     expect((await call("collections/jobs/items")).status).toBe(401);
-    // Without sources, there's nothing to give.
+    // Without sources, there's nothing to give, nor for a collection the site has no settings for.
     expect((await setup().call("collections/jobs/items")).status).toBe(404);
+    const unset = setup(ALICE, { sources: { events: { items: async () => items } } });
+    expect((await unset.call("collections/events/items")).status).toBe(404);
   });
 
   it("makes sources given as a function only when their items are asked for, failing only that", async () => {
