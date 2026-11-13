@@ -20,6 +20,12 @@ import { SignUpError, signUp, signUpFrom } from "./sign-up.ts";
 import { sitePath } from "./site-path.ts";
 import { giftFrom, giveSubscription, listSubscribers, removeSubscriber, takeAwaySubscription } from "./subscribers.ts";
 
+/**
+ * How long to wait for an email sign-up sends in the background, which makes
+ * the account and hashes its password first: seconds on a busy CI runner.
+ */
+const SENT = { timeout: 15_000 };
+
 const SITE = "http://localhost:4321";
 const SITE_ENV: SiteEnv = {
   BETTER_AUTH_SECRET: "a-secret-for-tests-only-at-least-32-chars",
@@ -151,7 +157,7 @@ describe("signing up", () => {
         SITE_ENV,
         signingUp({ name: "  Visit https://other.example now  ", email: " Rita@Example.org ", next: "/handbook/" }),
       );
-      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      await vi.waitFor(() => expect(sent).toHaveLength(1), SENT);
       const found = await context.internalAdapter.findUserByEmail("rita@example.org");
       expect(found?.user).toMatchObject({
         role: MEMBER_ROLE,
@@ -184,11 +190,11 @@ describe("signing up", () => {
     try {
       // A stranger signs up with Rita's address: they never learn a password that works.
       await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "rita@example.org" }));
-      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      await vi.waitFor(() => expect(sent).toHaveLength(1), SENT);
       expect((await signIn("rita@example.org", "anything the stranger might try")).response.ok).toBe(false);
       // Rita, whose first link ran out, signs up again herself, and gets a new one, which is the one that works.
       await signUp(auth, SITE_ENV, signingUp({ name: "Rita", email: "rita@example.org" }, "198.51.100.7"));
-      await vi.waitFor(() => expect(sent).toHaveLength(2));
+      await vi.waitFor(() => expect(sent).toHaveLength(2), SENT);
       const first = linkIn(sent[0]?.text).searchParams.get("token") ?? "";
       const second = linkIn(sent[1]?.text).searchParams.get("token") ?? "";
       await expect(choose(auth, first)).rejects.toThrow(EditorsError);
@@ -215,7 +221,7 @@ describe("signing up", () => {
           signUp(auth, SITE_ENV, signingUp({ name: "Eve", email }, `198.51.100.${email.length}`)),
         ).resolves.toBeUndefined();
       }
-      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      await vi.waitFor(() => expect(sent).toHaveLength(1), SENT);
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(sent.map((message) => message.to)).toEqual(["nina@example.org"]);
     } finally {
@@ -231,13 +237,13 @@ describe("signing up", () => {
       for (let index = 0; index < VERIFY_ACCOUNT_LIMIT.max + 2; index++) {
         await signUp(auth, SITE_ENV, signingUp({ name: "Rita", email: "rita@example.org" }, `198.51.100.${index}`));
         // One after another, as people asking at different times would.
-        await vi.waitFor(() => expect(sent).toHaveLength(Math.min(index + 1, VERIFY_ACCOUNT_LIMIT.max)));
+        await vi.waitFor(() => expect(sent).toHaveLength(Math.min(index + 1, VERIFY_ACCOUNT_LIMIT.max)), SENT);
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
       expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max);
       // A sign-up that made no link, as while another of the account's is being sent or used, uses none of its share.
       await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, "192.0.2.50"));
-      await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1));
+      await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1), SENT);
       const paul = (await context.internalAdapter.findUserByEmail("paul@example.org"))?.user.id ?? "";
       const holder = await lockLinks(context.adapter, paul);
       await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, "192.0.2.51"));
@@ -246,7 +252,7 @@ describe("signing up", () => {
       await unlockLinks(context.adapter, paul, holder ?? "");
       for (let index = 1; index < VERIFY_ACCOUNT_LIMIT.max; index++) {
         await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, `192.0.2.${60 + index}`));
-        await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1 + index));
+        await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1 + index), SENT);
       }
       // From one address, only so many sign-ups at all, whatever their addresses.
       for (let index = 0; index < SIGN_UP_LIMIT.max; index++) {
@@ -294,9 +300,9 @@ describe("signing up", () => {
     const { auth, context, olive, asking, close } = await site();
     try {
       await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "ivy@example.org" }));
-      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      await vi.waitFor(() => expect(sent).toHaveLength(1), SENT);
       await inviteEditor(auth, SITE_ENV, asking(olive), { email: "ivy@example.org", name: "Ivy", role: "editor" });
-      await vi.waitFor(() => expect(sent).toHaveLength(2));
+      await vi.waitFor(() => expect(sent).toHaveLength(2), SENT);
       expect((await context.internalAdapter.findUserByEmail("ivy@example.org"))?.user).toMatchObject({
         name: "Ivy",
         role: "editor",
