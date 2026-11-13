@@ -281,7 +281,7 @@ test("lets readers sign up, and admins give them a subscription by hand and take
   await page.goto(`${SITE}/handbook/`);
   await page.getByRole("link", { name: "Already subscribed? Sign in" }).click();
   await page.getByRole("link", { name: "Sign up" }).click();
-  await expect(page).toHaveURL(`${SITE}/sign-up/?next=%2Fhandbook%2F`);
+  await expect(page).toHaveURL(`${SITE}/sign-up/?next=%2Fhandbook`);
   await page.getByLabel("Your name").fill("Rita Reader");
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("New password").fill(password);
