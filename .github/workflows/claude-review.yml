@@ -184,7 +184,7 @@ jobs:
     # stays as it was, for another try.
     if: needs.choose.outputs.run == 'true' && needs.choose.outputs.comment != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     # Only what reading needs: Claude runs with this job's token, and the finish job posts what it found.
     permissions:
       contents: read
