@@ -108,29 +108,85 @@ interface PageData {
   zones?: Record<string, unknown[]>;
 }
 
+/** The block a drop zone's key (`<block id>:<zone>`) belongs to. */
+function zoneOwner(key: string): string {
+  return key.slice(0, Math.max(0, key.lastIndexOf(":")));
+}
+
+/**
+ * The drop zones of the blocks whose ids are in `ids`, and of the blocks in those zones, and so on: everything those
+ * blocks show. Adds the ids of the blocks in them to `ids`.
+ */
+function zonesOf(zones: Record<string, unknown[]>, ids: Set<string>): Set<string> {
+  const keys = new Set<string>();
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [key, blocks] of Object.entries(zones)) {
+      if (keys.has(key) || !ids.has(zoneOwner(key))) continue;
+      keys.add(key);
+      blockIds(blocks, ids);
+      grew = true;
+    }
+  }
+  return keys;
+}
+
+/** The first `paywall` block a page's top-level `block` shows: in its slots, or in its drop zones and theirs. */
+function paywallIn(
+  block: unknown,
+  zones: Record<string, unknown[]> | undefined,
+  paywall: string,
+): PlacedBlock | undefined {
+  const found = firstBlockOf(block, paywall);
+  if (found || !zones) return found;
+  for (const key of zonesOf(zones, blockIds(block))) {
+    const inZone = firstBlockOf(zones[key], paywall);
+    if (inZone) return inZone;
+  }
+  return undefined;
+}
+
+/** `value` with every list of blocks in it emptied, as the root's slots are in a teaser. */
+function withoutSlotBlocks<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return (value.some(isPlacedBlock) ? [] : value.map((item) => withoutSlotBlocks(item))) as T;
+  }
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withoutSlotBlocks(item)])) as T;
+}
+
 /**
  * What everyone but a members-only page's members sees of it: its blocks
  * before the first `paywall` block (by its name in the site's `blocks`), and
  * that block, which says what the rest is for and how to have it. A paywall
- * inside a block (in its slot, or a drop zone) ends the teaser before that
- * block, since what else it holds may be for members. A page with no paywall
- * block shows only one, with its own words, so nothing an editor didn't choose
- * is shown. Drop zones go with their blocks, and synced blocks should already
- * be in place (`expandSyncedBlocks()`), since a paywall can be in one.
+ * inside a block (in its slot, or a drop zone, however deep) ends the teaser
+ * before that block, since what else it holds may be for members. A page with
+ * no paywall block shows only one, with its own words, so nothing an editor
+ * didn't choose is shown. Drop zones go with the blocks shown, however deep,
+ * blocks in the root's slots are left out, and synced blocks should already be
+ * in place (`expandSyncedBlocks()`), since a paywall can be in one.
  */
 export function teaserData<T extends PageData>(data: T, paywall: string): T {
   const content = data.content ?? [];
-  const at = content.findIndex((block) => firstBlockOf(block, paywall) !== undefined);
-  const placed = at === -1 ? undefined : firstBlockOf(content[at], paywall);
+  let at = -1;
+  let placed: PlacedBlock | undefined;
+  for (const [index, block] of content.entries()) {
+    placed = paywallIn(block, data.zones, paywall);
+    if (placed) {
+      at = index;
+      break;
+    }
+  }
   const shown = at === -1 ? [] : content.slice(0, at);
   const block = placed ?? { type: paywall, props: { id: `${paywall}-teaser` } };
-  const kept = blockIds(shown);
-  const zones = data.zones
-    ? Object.fromEntries(
-        Object.entries(data.zones).filter(([key]) => kept.has(key.slice(0, Math.max(0, key.lastIndexOf(":"))))),
-      )
-    : undefined;
-  return { ...data, content: [...shown, block], ...(zones && { zones }) };
+  const kept = data.zones ? zonesOf(data.zones, blockIds(shown)) : undefined;
+  const zones = data.zones && Object.fromEntries(Object.entries(data.zones).filter(([key]) => kept?.has(key)));
+  return {
+    ...data,
+    ...("root" in data && { root: withoutSlotBlocks(data.root) }),
+    content: [...shown, block],
+    ...(zones && { zones }),
+  };
 }
 
 /** `value` without any block of `type`, in slots and drop zones too. */

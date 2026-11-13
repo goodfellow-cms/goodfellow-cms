@@ -118,6 +118,8 @@ test("shows everyone but subscribers a members-only page's teaser, and subscribe
   await teaser();
   const signedOut = await request.get(`${SITE}/handbook/`);
   expect(signedOut.headers()["x-vinext-cache"]).toBe("HIT");
+  // A subscriber gets another page at the same address, so no shared cache may give them this one.
+  expect(signedOut.headers().vary?.toLowerCase()).toContain("cookie");
   const html = await signedOut.text();
   expect(html).toContain(intro);
   expect(html).toContain(paywall);

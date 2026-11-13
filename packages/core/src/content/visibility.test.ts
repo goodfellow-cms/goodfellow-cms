@@ -227,6 +227,44 @@ describe("teaserData and withoutPaywall", () => {
     expect(JSON.stringify(teaserData(data, "Paywall"))).not.toContain("Members only");
   });
 
+  it("finds a paywall in a drop zone, however deep, and ends the teaser before the block whose zone it's in", () => {
+    const data = {
+      root: {},
+      content: [block("Heading", "title"), block("Columns", "cols"), block("Text", "after", { text: "Members only" })],
+      zones: {
+        "cols:left": [block("Columns", "inner")],
+        "inner:right": [
+          block("Text", "beside", { text: "Members only" }),
+          block("Paywall", "wall", { heading: "Join" }),
+        ],
+      },
+    };
+    const teaser = teaserData(data, "Paywall");
+    expect(teaser.content).toEqual([block("Heading", "title"), block("Paywall", "wall", { heading: "Join" })]);
+    expect(teaser.zones).toEqual({});
+    expect(JSON.stringify(teaser)).not.toContain("Members only");
+  });
+
+  it("keeps the drop zones of the blocks in the zones it shows, however deep", () => {
+    const data = {
+      root: {},
+      content: [block("Columns", "shown"), block("Paywall", "wall")],
+      zones: {
+        "shown:left": [block("Columns", "a")],
+        "a:inner": [block("Text", "b", { text: "Open" })],
+      },
+    };
+    expect(teaserData(data, "Paywall").zones).toEqual(data.zones);
+  });
+
+  it("leaves out the blocks in the root's slots, keeping its settings", () => {
+    const data = {
+      root: { props: { title: "Handbook", content: [block("Text", "secret", { text: "Members only" })] } },
+      content: [block("Paywall", "wall")],
+    };
+    expect(teaserData(data, "Paywall").root).toEqual({ props: { title: "Handbook", content: [] } });
+  });
+
   it("takes paywalls out of drop zones and the root too, for members", () => {
     const data = {
       root: { props: { content: [block("Paywall", "in-root")] } },

@@ -41,6 +41,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     reader === "members" ? NextResponse.rewrite(membersVersionUrl(request.nextUrl)) : NextResponse.next();
   // The members' version is only theirs: no cache between the site and the browser may keep it for anyone else.
   if (reader === "members") response.headers.set("cache-control", "private, no-store");
+  // Everyone's version is the same for everyone, but a subscriber's request for the same address gets the members'
+  // version, so a shared cache may keep it only for requests with the same cookies.
+  else response.headers.append("vary", "Cookie");
   for (const cookie of cookies) response.headers.append("set-cookie", cookie);
   return response;
 }

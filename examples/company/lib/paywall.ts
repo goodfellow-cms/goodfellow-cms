@@ -2,7 +2,7 @@
 // in full. Both are rendered ahead and cached, so the choice is all a request costs (proxy.ts). It's made from a
 // cookie this file signs, saying whether the person subscribes, so most requests read no database: only someone
 // signed in whose cookie is missing or has run out is looked up, and then not again for `PAYWALL_SECONDS`.
-import { getSessionCookie } from "better-auth/cookies";
+import { getSessionCookie, parseCookies } from "better-auth/cookies";
 import type { SiteAuth } from "./auth.ts";
 import { subscribedUntil } from "./entitlements.ts";
 
@@ -38,8 +38,13 @@ function base64url(bytes: ArrayBuffer): string {
 
 function fromBase64url(text: string): Uint8Array<ArrayBuffer> | undefined {
   if (!/^[A-Za-z0-9_-]*$/.test(text)) return undefined;
-  const binary = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  // A length base64 can't have, such as 4n + 1, makes atob throw: a damaged cookie is ignored, never an error.
+  try {
+    const binary = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  } catch {
+    return undefined;
+  }
 }
 
 function signingKey(secret: string): Promise<CryptoKey> {
@@ -84,13 +89,9 @@ export async function openReader(
   return who === "m" ? "members" : "everyone";
 }
 
-/** One cookie of the request's `cookie` header. */
+/** One cookie of the request's `cookie` header, read as Better Auth reads its own. */
 function requestCookie(request: Request, name: string): string | undefined {
-  for (const pair of (request.headers.get("cookie") ?? "").split(";")) {
-    const at = pair.indexOf("=");
-    if (at !== -1 && pair.slice(0, at).trim() === name) return pair.slice(at + 1).trim();
-  }
-  return undefined;
+  return parseCookies(request.headers.get("cookie") ?? "").get(name);
 }
 
 function cookieHeader(request: Request, value: string, seconds: number): string {
@@ -143,20 +144,43 @@ export async function readerFor(
 }
 
 /**
+ * The app's own routes, in app/, which have no members' version: a test keeps it the same as app/'s folders, so a
+ * route added there isn't sent to a members' version that doesn't exist.
+ */
+export const APP_ROUTES = [
+  "accept-invite",
+  "account",
+  "admin",
+  "api",
+  "reset-password",
+  "sign-in",
+  "sign-out",
+] as const;
+
+/** What isn't a page, by its first segment: the app's routes and the folders of built files and media. */
+const NOT_PAGES = new Set<string>([
+  ...APP_ROUTES,
+  "_next",
+  "members",
+  "media",
+  "media-sizes",
+  "fonts",
+  "pagefind",
+  "feeds",
+  "calendars",
+]);
+
+/**
  * Whether a request is for one of the site's pages, which have a members' version, rather than a file or a route,
  * by its `routedPath()`.
  */
 export function isPageRequest(method: string, path: string): boolean {
   if (method !== "GET" && method !== "HEAD") return false;
-  if (
-    /^\/(?:api|_next|admin|sign-in|sign-out|reset-password|members|media|media-sizes|fonts|pagefind|feeds|calendars)(?:\/|$)/.test(
-      path,
-    )
-  ) {
-    return false;
-  }
-  // Files, such as /robots.txt or /goodfellow-site.json, have a dot in their last segment; pages don't.
-  return !/\.[^/]*$/.test(path);
+  const first = path.split("/", 2)[1] ?? "";
+  if (NOT_PAGES.has(first)) return false;
+  // Files, such as /robots.txt or /goodfellow-site.json, have a dot in their last segment; pages don't. Read by
+  // position, not a pattern, which a long address of dots would make slow.
+  return !path.slice(path.lastIndexOf("/") + 1).includes(".");
 }
 
 /**

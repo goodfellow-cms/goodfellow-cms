@@ -7,6 +7,7 @@ import { authOptions } from "./auth.ts";
 import { can, grant, subscribedUntil } from "./entitlements.ts";
 import type { SiteEnv } from "./env.ts";
 import {
+  APP_ROUTES,
   isMembersVersion,
   isPageRequest,
   MEMBERS_VERSION_PATH,
@@ -208,6 +209,21 @@ describe("the cookie's value", () => {
     );
     expect(await openReader(SECRET, "m.1.2", "token-1", now)).toBeUndefined();
     expect(await openReader(SECRET, `${value}.more`, "token-1", now)).toBeUndefined();
+    // A signature of a length base64 can't have is ignored, never an error.
+    expect(await openReader(SECRET, [who, until, session, "A"].join("."), "token-1", now)).toBeUndefined();
+    expect(await openReader(SECRET, [who, until, session, `${mac}A`].join("."), "token-1", now)).toBeUndefined();
+  });
+
+  it("answers a request whose cookie is damaged as if it had none", async () => {
+    const request = new Request(`${SITE}/handbook/`, {
+      headers: { cookie: `better-auth.session_token=token-1; ${PAYWALL_COOKIE}=m.1.2.A` },
+    });
+    // The session isn't found, so the answer is for everyone; before, the damaged cookie threw first.
+    const getSession = vi.fn(async () => ({ headers: new Headers(), response: null }));
+    const settings = async () => ({ secret: SECRET, siteAuth: { api: { getSession } } as never });
+    const { reader } = await readerFor(request, settings);
+    expect(reader).toBe("everyone");
+    expect(getSession).toHaveBeenCalled();
   });
 });
 
@@ -254,6 +270,27 @@ describe("addresses", () => {
     ]) {
       expect(isPageRequest("GET", path), path).toBe(false);
     }
+  });
+
+  it("never sends a request for one of the app's own routes to a members' version", async () => {
+    const app = join(import.meta.dirname, "../app");
+    const routes = (await readdir(app, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory() && !/^[([]/.test(entry.name) && !entry.name.includes("."))
+      .map((entry) => entry.name)
+      .sort();
+    expect([...APP_ROUTES].sort()).toEqual(routes);
+    for (const route of routes) {
+      expect(isPageRequest("GET", `/${route}`), route).toBe(false);
+      expect(isPageRequest("GET", `/${route}/`), route).toBe(false);
+    }
+  });
+
+  it("reads a long address quickly", () => {
+    const path = `/${".".repeat(50_000)}/`;
+    const start = performance.now();
+    expect(isPageRequest("GET", path)).toBe(true);
+    expect(isPageRequest("GET", `${path}a.txt`)).toBe(false);
+    expect(performance.now() - start).toBeLessThan(200);
   });
 
   it("sends members to the members' version of the page they asked for, with its query", () => {

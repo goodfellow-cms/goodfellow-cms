@@ -584,11 +584,11 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
 
     /**
      * The page at the route's address in full, as the site's members see it,
-     * for the route a full-stack site's middleware sends them to, which builds
-     * every page with `generateStaticParams`, since middleware can't tell
-     * which pages are for members. Only the site's own code can say who's a
-     * member, so that route must answer only requests the middleware sent it
-     * and the build's own, never a visitor's for its own address.
+     * for the route a full-stack site's proxy rewrites their requests to. It
+     * builds no page ahead: each renders the first time it's asked for. Only
+     * the site's own code can say who's a member, so that route must answer
+     * "Page not found" to anything the proxy didn't send it, such as a
+     * visitor's request for its own address.
      */
     async MembersPage({ params }: PageProps) {
       return renderPage((await params).path, "members");
