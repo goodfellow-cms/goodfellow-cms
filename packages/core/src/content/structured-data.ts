@@ -12,6 +12,7 @@ import { dateField, entryDetails } from "./entry-details.js";
 import { contentForPage, isLanguageHome } from "./languages.js";
 import { findEntry, type Page, type SiteContent } from "./load.js";
 import { markdownText } from "./markdown.js";
+import { isMembersOnly } from "./visibility.js";
 
 /** One schema.org thing, such as an `Event`. */
 export type StructuredData = Record<string, unknown>;
@@ -127,11 +128,13 @@ function articleData(content: SiteContent, collection: Collection, entry: Entry,
  */
 /**
  * Whether search engines are told about a page: only with the Site address,
- * never for a page hidden from them, or one a block adds.
+ * never for a page hidden from them, one a block adds, or one for members
+ * only, whose item's summary everyone else would read in its teaser.
  */
 export function describesPage(content: SiteContent, page: Page): boolean {
   const { settings } = contentForPage(content, page);
   if (!settings.url || getPageHead(settings, page).noIndex) return false;
+  if (isMembersOnly(page, content.collections)) return false;
   return !(page.view && page.view.path !== page.path);
 }
 
