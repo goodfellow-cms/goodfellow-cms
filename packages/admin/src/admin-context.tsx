@@ -54,7 +54,7 @@ import type { MediaFieldKind } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ChecksDialog } from "./checks-dialog.js";
-import { browserDraftKeeper, rememberDraft, rememberedDraft } from "./drafts.js";
+import { browserDraftKeeper, draftAndLive, rememberDraft, rememberedDraft } from "./drafts.js";
 import { useEditorText } from "./editor-text.js";
 import {
   type FrameClient,
@@ -729,22 +729,15 @@ export function AdminProvider({
 
   const publishAll = useCallback(async (): Promise<PublishResult> => {
     if (!draft) return { ok: false, reason: "error", error: new Error("There's no draft open.") };
-    let changes: FileChange[];
-    let live: LoadState;
     // A sign-in that ran out, reading the draft or the live site with its sources, is for signing in again.
-    const signedOut = (error: unknown) => {
-      if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
-    };
-    try {
-      [changes, live] = await Promise.all([draft.changes(), load(store, sources, sourced)]);
-    } catch (error) {
-      signedOut(error);
-      return { ok: false, reason: "error", error };
-    }
-    if (live.status !== "ready") {
-      if (live.status === "error") signedOut(live.error);
-      return { ok: false, reason: "error", error: live.status === "error" && live.error };
-    }
+    const read = await draftAndLive(
+      () => draft.changes(),
+      () => load(store, sources, sourced),
+      onSignInError,
+    );
+    if ("error" in read) return { ok: false, reason: "error", error: read.error };
+    let changes = read.changes;
+    const live = read.live;
     const outside = outsideLimits(live.content, limitsFor(live.content.permissions, account?.user.login), changes);
     if (outside.length > 0) {
       const current = draft;
