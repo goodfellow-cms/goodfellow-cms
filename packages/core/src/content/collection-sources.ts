@@ -1,11 +1,11 @@
 // Collections whose items come from somewhere other than `content/collections/`, such as a database or another
-// system's API: the collection's settings, template and list pages stay in its `_collection.json`, designed in the
+// system's API: the collection's settings, template, and list pages stay in its `_collection.json`, designed in the
 // admin panel as for any collection, and its source gives the items. Loading the site reads them in as entries
-// (`withSourcedCollections()`), so pages, feeds, calendars and the content API see ordinary items.
+// (`withSourcedCollections()`), so pages, feeds, calendars, and the content API see ordinary items.
 import { type Collection, type Entry, sortCollectionEntries } from "./collections.js";
 import type { ContentProblem } from "./errors.js";
 import { entryLanguage, entryPathIn, isOtherLanguage, siteLanguages } from "./languages.js";
-import { allPages, parseEntryFile, type SiteContent } from "./load.js";
+import { allPages, type ContentSource, loadSiteContent, parseEntryFile, type SiteContent } from "./load.js";
 import { isAddressSegment, isReservedPagePath } from "./paths.js";
 import type { CollectionFile, EntryFile } from "./schemas.js";
 
@@ -21,7 +21,7 @@ export interface SourcedItem extends Omit<EntryFile, "version"> {
 
 /** What changed in a source since a moment it gave before (`CollectionSource.changed()`). */
 export interface SourceChanges {
-  /** The items added, changed or removed since then, by slug. */
+  /** The items added, changed, or removed since then, by slug. */
   slugs: string[];
   /** What to ask from next time, such as the time now or a change feed's cursor, which the source reads back itself. */
   next: string;
@@ -129,6 +129,52 @@ export function collectionSources(
   return sources;
 }
 
+const kept = new WeakMap<object, Map<string, CollectionSource>>();
+
+/**
+ * `collectionSources()` for development servers, which load the site again on
+ * every request: each source is made once for the same module and options, so
+ * a source that opens a database pool as it's made opens one, not one each
+ * request. A changed module (a new module object) or new options make it again.
+ */
+export function keptCollectionSources(
+  collections: Record<string, CollectionSourceConfig> | undefined,
+  modules: Record<string, SourceModuleImport>,
+): CollectionSources {
+  checkSourceModules(collections, modules);
+  const sources: CollectionSources = {};
+  for (const [id, config] of Object.entries(collections ?? {})) {
+    const module = modules[id] as SourceModuleImport;
+    const options = JSON.stringify(config.options ?? {});
+    let made = kept.get(module);
+    if (!made) {
+      made = new Map();
+      kept.set(module, made);
+    }
+    let source = made.get(options);
+    if (!source) {
+      source = (sourceMaker(module) as CollectionSourceModule)(config.options ?? {});
+      made.set(options, source);
+    }
+    sources[id] = source;
+  }
+  return sources;
+}
+
+/**
+ * The site as `files` hold it, with its collections' sources read in
+ * (`withSourcedCollections()`): those collections' item files are neither read
+ * nor checked, since their sources' items replace them. Builds and the
+ * development servers load the site this way, given the sources they made.
+ */
+export async function loadSourcedContent(
+  files: ContentSource,
+  sources: CollectionSources | Promise<CollectionSources>,
+): Promise<SiteContent> {
+  const resolved = await sources;
+  return withSourcedCollections(await loadSiteContent(files, { sourced: Object.keys(resolved) }), resolved);
+}
+
 /**
  * One collection's source, made from its module with the config's options, or
  * `undefined` for a collection the config names no source for. Throws a
@@ -184,7 +230,7 @@ function checkedItem(
   const { slug: _, ...rest } = item;
   let text: string;
   try {
-    text = JSON.stringify({ version: 1, ...rest });
+    text = JSON.stringify({ ...rest, version: 1 });
   } catch {
     // Such as a BigInt, or a value that holds itself, which a file couldn't either.
     return { ok: false, problem: { file, message: "has a value that can't be written as JSON." } };
@@ -318,9 +364,13 @@ export async function sourceChanges(
   const collections: string[] = [];
   const paths = new Set<string>();
   const next: Record<string, string> = { ...since };
-  for (const [id, source] of Object.entries(sources)) {
-    if (!source.changed) continue;
-    const changes = await source.changed(since[id] ?? "");
+  // Every source is asked at once, so a scheduled route waits for the slowest rather than all of them in turn.
+  const asked = await Promise.all(
+    Object.entries(sources).map(async ([id, source]) =>
+      source.changed ? ([id, await source.changed(since[id] ?? "")] as const) : undefined,
+    ),
+  );
+  for (const [id, changes] of asked.filter((one) => one !== undefined)) {
     next[id] = changes.next;
     if (changes.slugs.length === 0) continue;
     collections.push(id);

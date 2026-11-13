@@ -657,6 +657,11 @@ function addressClash(
   return undefined;
 }
 
+/** Whether new settings give the collection's items other addresses, in any language. */
+function movesPages(before: CollectionFile, after: CollectionFile): boolean {
+  return before.path !== after.path || JSON.stringify(before.languagePaths) !== JSON.stringify(after.languagePaths);
+}
+
 /** A collection's name, page addresses, order, and fields. */
 export function CollectionSettingsScreen({ collection }: { collection: Collection }) {
   const t = useStrings();
@@ -671,6 +676,8 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
   );
   // A source that couldn't be read leaves its items' addresses unknown, so a new pattern can't move their pages yet.
   const unread = Boolean(source) && state.status === "ready" && state.unreadSources === true;
+  // Without a server that reads the items, as on a static site, the admin panel never knows their pages.
+  const elsewhere = Boolean(source) && !account?.sourcedItems;
   const [draft, setDraft] = useState(() => toDraft(collection.settings));
   const [showErrors, setShowErrors] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -700,20 +707,23 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
     if (next.path !== undefined) {
       if (addressPatternProblem(next.path)) result.path = t("address.invalid");
       else {
+        // As visitors see the site, so other sourced collections' items keep their addresses too.
         const others = new Set(
-          allPages(content)
+          allPages(visible ?? content)
             .filter((page) => page.entry?.collection !== collection.id)
             .map((page) => page.path),
         );
         const clash = addressClash(content.settings, [...collection.entries, ...sourced], next, others);
         if (clash) result.path = t("collectionSettings.addressClash", { title: clash });
-        else if (unread && next.path !== collection.settings.path) {
-          result.path = t("collectionSettings.sourceUnread", { source: source ?? "" });
+        else if (movesPages(collection.settings, next)) {
+          // Moving pages it can't see would leave links to them pointing at the old addresses.
+          if (elsewhere) result.path = t("collectionSettings.sourceElsewhere", { source: source ?? "" });
+          else if (unread) result.path = t("collectionSettings.sourceUnread", { source: source ?? "" });
         }
       }
     }
     return result;
-  }, [next, content, collection, sourced, unread, source, t]);
+  }, [next, content, visible, collection, sourced, unread, elsewhere, source, t]);
 
   const valid = Object.keys(errors).length === 0;
   const dirty = serializeContent(next) !== serializeContent(collection.settings);

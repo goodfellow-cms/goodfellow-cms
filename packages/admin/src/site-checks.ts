@@ -44,8 +44,9 @@ export interface PublishChecks {
   unread?: string[];
   /**
    * Items a collection's source gives that the site shows now, which the
-   * publish would leave out, such as when a new address pattern gives one a
-   * page's address: their titles. This stops the publish too.
+   * publish would leave out, such as when a removed choice or field no longer
+   * fits them: their titles. The editor can publish anyway, since only the
+   * other system can change them, and they show again once they fit.
    */
   leftOut?: string[];
 }
@@ -121,16 +122,22 @@ function unreachablePage(content: SiteContent, unreachable: ReadonlySet<string>,
   );
 }
 
-/** The problems without links that might go to an unreachable collection's pages (`unreachablePage()`). */
+/**
+ * The problems without links that might go to an unreachable collection's
+ * items: to their pages (`unreachablePage()`), and from item fields that name
+ * one of them, since the admin panel doesn't know which items it has.
+ */
 function withoutUnreachable(
   problems: SiteProblem[],
   content: SiteContent,
   unreachable: ReadonlySet<string>,
 ): SiteProblem[] {
   if (unreachable.size === 0) return problems;
-  return problems.filter(
-    (problem) => problem.kind !== "missing-page" || !unreachablePage(content, unreachable, problem.target),
-  );
+  return problems.filter((problem) => {
+    if (problem.kind === "missing-page") return !unreachablePage(content, unreachable, problem.target);
+    if (problem.kind === "missing-item") return !unreachable.has(problem.collection);
+    return true;
+  });
 }
 
 /**
@@ -154,6 +161,7 @@ export async function checkPublish(
   const { blocks, code, sources } = site;
   const sourced = site.sourced ?? Object.keys(sources ?? {});
   const unreachable = new Set(sourced.filter((id) => !sources || !Object.hasOwn(sources, id)));
+  let leftOut: string[] | undefined;
   // As visitors see it, with sourced collections' items, so links to their pages aren't missing.
   const before = loaded.shown ?? loaded.content;
   let after: SiteContent;
@@ -177,8 +185,8 @@ export async function checkPublish(
         collection.sourced ? collection.entries.map((entry) => [entry.file, entryTitle(entry)] as const) : [],
       ),
     );
-    const leftOut = [...new Set(problems.flatMap((problem) => shownBefore.get(problem.file) ?? []))];
-    if (leftOut.length > 0) return { blocking: [], warnings: [], leftOut, content: after };
+    const out = [...new Set(problems.flatMap((problem) => shownBefore.get(problem.file) ?? []))];
+    if (out.length > 0) leftOut = out;
   }
   const media = new Set(loaded.media);
   for (const change of changes) {
@@ -212,7 +220,7 @@ export async function checkPublish(
     ...rendered,
   ];
   const found = publishProblems(problemsBefore, problems, changed);
-  return { ...found, content: after };
+  return { ...found, ...(leftOut && { leftOut }), content: after };
 }
 
 /** Where a problem is, as the admin panel names it, such as `The page "About us"`. */

@@ -4,6 +4,7 @@
  * `goodfellow-next finish` from the site's config, which Next.js alone
  * bundles otherwise. Node only.
  */
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
@@ -11,13 +12,12 @@ import { pathToFileURL } from "node:url";
 import {
   type CollectionSource,
   type CollectionSources,
-  type ContentSource,
-  collectionSources,
   EDITOR_PRELUDE,
   framedPlugins,
   type GoodfellowConfig,
   type GoodfellowPlugin,
   INSTALLED_PLUGINS_INDEX,
+  keptCollectionSources,
   loadSiteContent,
   PLUGINS_PATH,
   pluginFrameEntry,
@@ -25,7 +25,6 @@ import {
   pluginId,
   type SiteContent,
   type SourceModuleImport,
-  withSourcedCollections,
 } from "@goodfellow-cms/core";
 import { builtSiteSource, LICENSES_FILE, licensesPlugin, mediaStorageOrigins } from "@goodfellow-cms/core/node";
 
@@ -56,7 +55,22 @@ export async function configHasPlugins(root: string): Promise<boolean> {
  * packages it imports left for Node to load and stylesheets left out, then
  * imported.
  */
-export async function loadSiteModule(root: string, input: string): Promise<Record<string, unknown>> {
+const keptModules = new Map<string, Promise<Record<string, unknown>>>();
+
+/**
+ * `loadSiteModule()`, giving the same module again while its bundled code is
+ * the same, for collections' sources, which `next dev` reads on every request:
+ * so `keptCollectionSources()` makes each source once until its code changes.
+ */
+export async function loadKeptSiteModule(root: string, input: string): Promise<Record<string, unknown>> {
+  return loadSiteModule(root, input, { keep: true });
+}
+
+export async function loadSiteModule(
+  root: string,
+  input: string,
+  { keep = false }: { keep?: boolean } = {},
+): Promise<Record<string, unknown>> {
   const { build } = await import("rolldown");
   const outDir = join(root, "node_modules/.goodfellow");
   await mkdir(outDir, { recursive: true });
@@ -83,7 +97,17 @@ export async function loadSiteModule(root: string, input: string): Promise<Recor
     output: { file, format: "esm", codeSplitting: false },
   });
   try {
-    return (await import(pathToFileURL(file).href)) as Record<string, unknown>;
+    if (!keep) return (await import(pathToFileURL(file).href)) as Record<string, unknown>;
+    const code = createHash("sha256")
+      .update(await readFile(file))
+      .digest("hex");
+    let module = keptModules.get(code);
+    if (!module) {
+      module = import(pathToFileURL(file).href) as Promise<Record<string, unknown>>;
+      keptModules.set(code, module);
+      module.catch(() => keptModules.delete(code));
+    }
+    return await module;
   } finally {
     await rm(file, { force: true });
   }
@@ -110,9 +134,10 @@ export async function readCollectionSources(root: string): Promise<CollectionSou
   const { collections } = await loadSiteConfig(dir);
   const modules: Record<string, SourceModuleImport> = {};
   for (const [id, collection] of Object.entries(collections ?? {})) {
-    modules[id] = (await loadSiteModule(dir, adminModule(dir, collection.source))) as SourceModuleImport;
+    modules[id] = (await loadKeptSiteModule(dir, adminModule(dir, collection.source))) as SourceModuleImport;
   }
-  return collectionSources(collections, modules);
+  // Made once for the same modules, since `next dev` reads the sources again on every request.
+  return keptCollectionSources(collections, modules);
 }
 
 const sourcedIds = new Map<string, Promise<string[]>>();
@@ -146,7 +171,7 @@ const loadedSources = new Map<string, Promise<CollectionSources>>();
 /**
  * `readCollectionSources()`, once a process, for the steps of `goodfellow-next
  * finish`, which each read the site: each source's items are read once too,
- * so its feeds, calendars, content API, redirects and checks all show the same
+ * so its feeds, calendars, content API, redirects, and checks all show the same
  * items, however the source changes while they're written.
  */
 export function loadCollectionSources(root: string): Promise<CollectionSources> {
@@ -165,19 +190,6 @@ export function loadCollectionSources(root: string): Promise<CollectionSources> 
     loadedSources.set(dir, loaded);
   }
   return loaded;
-}
-
-/**
- * The site as `files` hold it, with its collections' sources read in where its
- * config names any (`withSourcedCollections()`): those collections' item files
- * are neither read nor checked, since their sources' items replace them.
- */
-export async function loadSourcedSite(
-  files: ContentSource,
-  sources: CollectionSources | Promise<CollectionSources>,
-): Promise<SiteContent> {
-  const resolved = await sources;
-  return withSourcedCollections(await loadSiteContent(files, { sourced: Object.keys(resolved) }), resolved);
 }
 
 /** A plugin's admin module as the bundler imports it: a package's export, or a path from the site's root. */

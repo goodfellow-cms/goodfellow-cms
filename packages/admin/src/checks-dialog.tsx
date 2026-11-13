@@ -37,18 +37,22 @@ export function ChecksDialog({
   const t = useStrings();
   const unread = checks.unread ?? [];
   const leftOut = checks.leftOut ?? [];
-  const blocked = checks.blocking.length > 0 || unread.length > 0 || leftOut.length > 0;
+  const blocked = checks.blocking.length > 0 || unread.length > 0;
+  const problems = blocked ? checks.blocking : checks.warnings;
   const names = unread.map((id) => content.collections.find((one) => one.id === id)?.settings.name ?? id);
   return (
     <Dialog title={t(blocked ? "checks.blocked.title" : "checks.warnings.title")} onClose={() => onDecide(false)}>
       {unread.length > 0 ? (
         <p>{t("checks.unreadSources", { collections: listOf(names) })}</p>
-      ) : leftOut.length > 0 ? (
-        <p>{t("checks.leftOutItems", { items: listOf(leftOut) })}</p>
       ) : (
         <>
-          <p>{t(blocked ? "checks.blocked.intro" : "checks.warnings.intro")}</p>
-          <ProblemList content={content} problems={blocked ? checks.blocking : checks.warnings} />
+          {leftOut.length > 0 && <p>{t("checks.leftOutItems", { items: listOf(leftOut) })}</p>}
+          {problems.length > 0 && (
+            <>
+              <p>{t(blocked ? "checks.blocked.intro" : "checks.warnings.intro")}</p>
+              <ProblemList content={content} problems={problems} />
+            </>
+          )}
         </>
       )}
       {checks.blocking.length > 0 && checks.warnings.length > 0 && (

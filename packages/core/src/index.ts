@@ -373,6 +373,8 @@ export {
   collectionSources,
   defineCollectionSource,
   isSourcedItem,
+  keptCollectionSources,
+  loadSourcedContent,
   type SourceChanges,
   type SourcedItem,
   type SourceModuleImport,

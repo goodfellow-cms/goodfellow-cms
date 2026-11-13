@@ -16,6 +16,7 @@ import {
   editorPolicy,
   FEEDS_DIR,
   loadSiteContent,
+  loadSourcedContent,
   normalizeBase,
   redirectFrom,
   redirectProblems,
@@ -238,8 +239,8 @@ function startDevApi(root: string): Promise<number> {
     };
     // Calendar files and feeds, with the collections' sources read in, from the config and modules as they are now.
     const load = async (files: ContentSource) => {
-      const { loadSourcedSite, readCollectionSources } = await import("./plugins.js");
-      return loadSourcedSite(files, readCollectionSources(root));
+      const { readCollectionSources } = await import("./plugins.js");
+      return loadSourcedContent(files, readCollectionSources(root));
     };
     // Asked once Next.js is answering, at the first request, which comes through it, and again after.
     const exposed = exposureCheck(Number(process.env.PORT) || 3000);

@@ -15,6 +15,7 @@ import {
   feedFiles,
   type GoodfellowConfig,
   hasLanguages,
+  loadSourcedContent,
   membersPages,
   type Page,
   type PluginTaskRequest,
@@ -67,7 +68,6 @@ import {
   loadSiteConfig,
   loadSiteFiles,
   loadSiteModule,
-  loadSourcedSite,
 } from "./plugins.js";
 
 export { EDITOR_FRAMES_PAGE, EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
@@ -80,7 +80,7 @@ export { NEXT_SITE_FILES, nextSiteFiles } from "./site-files.js";
  */
 async function exportedSite(root: string): Promise<SiteContent> {
   const dir = resolve(root);
-  return shownContent(await loadSourcedSite(builtSiteSource(dir), loadCollectionSources(dir)));
+  return shownContent(await loadSourcedContent(builtSiteSource(dir), loadCollectionSources(dir)));
 }
 
 /**
@@ -301,7 +301,7 @@ export async function writeFontFiles(outDir: string, root = process.cwd()): Prom
 export async function writeBuildRecordFile(outDir: string, root = process.cwd()): Promise<string | undefined> {
   const dir = resolve(root);
   // With sourced items' schedules, which say when the site next changes, as the export's own pages had them.
-  const content = await loadSourcedSite(builtSiteSource(dir), loadCollectionSources(dir));
+  const content = await loadSourcedContent(builtSiteSource(dir), loadCollectionSources(dir));
   const date = await reportedDate(join(await nextDistDir(dir), BUILD_DATES_DIR));
   const record = await writeBuildRecord(outDir, { root: dir, content, now: new Date(), ...(date && { date }) });
   return record.currentUntil;

@@ -49,6 +49,7 @@ import {
   loadServerEntry,
   loadSourcedSite,
   type StylesEntries,
+  sourcedIds,
   writeStylesEntries,
 } from "./site.js";
 
@@ -317,10 +318,7 @@ function devPlugin(
           res.setHeader("Content-Type", "text/html; charset=utf-8");
           if (url.pathname === "/admin" || url.pathname === "/admin/") {
             // Content with a problem still opens the admin panel, which explains it.
-            const sourced = await loadServerEntry(server).then(
-              ({ config }) => Object.keys(config.collections ?? {}),
-              (): string[] => [],
-            );
+            const sourced = await sourcedIds(server);
             const icon = await loadSiteContent(fileSystemSource(root), { sourced }).then(
               (content) => content.settings.favicon,
               () => undefined,
@@ -337,16 +335,17 @@ function devPlugin(
             return;
           }
           // Calendar files and feeds, as builds write them, from the content as it is now.
-          const sourced = async (files: ContentSource) =>
+          const sourcedSite = async (files: ContentSource) =>
             loadSourcedSite(server, root, (await loadServerEntry(server)).config, files);
-          if (await sendBuildFile(builtSiteSource(root), url.pathname, res, sourced).catch(() => false)) return;
+          if (await sendBuildFile(builtSiteSource(root), url.pathname, res, sourcedSite).catch(() => false)) return;
           if (/\.[a-z0-9]+$/i.test(url.pathname)) {
             // Old addresses such as /news.html send visitors on, as the built site's pages there do.
             // The files alone, without what sources give, which no redirect needs, or the item files they replace.
-            const { config } = await loadServerEntry(server);
-            const content = await loadSiteContent(builtSiteSource(root), {
-              sourced: Object.keys(config.collections ?? {}),
-            }).then(shownContent, () => undefined);
+            const sourced = await sourcedIds(server);
+            const content = await loadSiteContent(builtSiteSource(root), { sourced }).then(
+              shownContent,
+              () => undefined,
+            );
             const redirect = content && findRedirect(content, url.pathname);
             if (content && redirect) return void res.end(redirectPage(content, redirect.to));
             return next();

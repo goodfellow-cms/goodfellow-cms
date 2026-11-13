@@ -23,6 +23,7 @@ import {
   writeRedirectFiles,
 } from "./export.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
+import { readCollectionSources } from "./plugins.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -248,6 +249,15 @@ describe("collections' sources in an export", () => {
       );
       // Every step showed the items of one read of the source, which may change while they're written.
       expect((globalThis as { jobsReads?: number }).jobsReads).toBe(1);
+      // `next dev` reads the sources on every request, keeping each while its code is the same, so a source that opens
+      // a database pool as it's made opens one.
+      const first = await readCollectionSources(site);
+      expect((await readCollectionSources(site)).jobs).toBe(first.jobs);
+      await file(
+        "lib/jobs.ts",
+        'export default () => ({ items: async () => [{ slug: "welder", fields: { title: "Changed" } }] });\n',
+      );
+      expect((await readCollectionSources(site)).jobs).not.toBe(first.jobs);
     } finally {
       await rm(site, { recursive: true, force: true });
     }

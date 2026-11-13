@@ -7,6 +7,8 @@ import {
   collectionSources,
   defineCollectionSource,
   isSourcedItem,
+  keptCollectionSources,
+  loadSourcedContent,
   type SourcedItem,
   sourceChanges,
   sourcedItemsFor,
@@ -203,6 +205,13 @@ describe("withSourcedCollections", () => {
     ]);
   });
 
+  it("reads an item as a file of this version, whatever the source calls a version", async () => {
+    const content = await withSourcedCollections(await site(), {
+      jobs: jobsSource([{ ...welder, version: 2 } as SourcedItem]).source,
+    });
+    expect(content.collections.find((one) => one.id === "jobs")?.entries[0]?.content.version).toBe(1);
+  });
+
   it("reports problems as warnings by default, and leaves a site without the collection as it is", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -305,7 +314,57 @@ describe("collectionSources", () => {
   });
 });
 
+describe("loadSourcedContent", () => {
+  it("loads the files without the item files the sources replace, then reads the sources in", async () => {
+    const content = await loadSourcedContent(
+      siteFiles({}, "/jobs/{slug}", { "content/collections/jobs/bad.json": { version: 1, fields: { title: 42 } } }),
+      {
+        jobs: jobsSource([welder]).source,
+      },
+    );
+    expect(content.collections.find((one) => one.id === "jobs")?.entries.map((entry) => entry.slug)).toEqual([
+      "welder",
+    ]);
+  });
+});
+
+describe("keptCollectionSources", () => {
+  it("makes each source once for the same module and options, and again for a new module or new options", () => {
+    const make = vi.fn(() => jobsSource([welder]).source);
+    const module = { default: make };
+    const config = { jobs: { source: "./lib/jobs.ts", options: { table: "jobs" } } };
+    const first = keptCollectionSources(config, { jobs: module });
+    expect(keptCollectionSources(config, { jobs: module }).jobs).toBe(first.jobs);
+    expect(make).toHaveBeenCalledOnce();
+    keptCollectionSources({ jobs: { ...config.jobs, options: { table: "roles" } } }, { jobs: module });
+    keptCollectionSources(config, { jobs: { default: make } });
+    expect(make).toHaveBeenCalledTimes(3);
+    expect(() => keptCollectionSources(config, {})).toThrow(CollectionSourceError);
+  });
+});
+
 describe("sourceChanges", () => {
+  it("asks every source at once", async () => {
+    let newsAsked: () => void = () => {};
+    const asked = new Promise<void>((resolve) => {
+      newsAsked = resolve;
+    });
+    const jobs: CollectionSource = {
+      items: async () => [],
+      changed: () => asked.then(() => ({ slugs: [], next: "j" })),
+    };
+    const news: CollectionSource = {
+      items: async () => [],
+      changed: async () => {
+        newsAsked();
+        return { slugs: [], next: "n" };
+      },
+    };
+    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("asked in turn")), 1000));
+    const changes = await Promise.race([sourceChanges(await site(), { jobs, news }), timeout]);
+    expect(changes.next).toEqual({ jobs: "j", news: "n" });
+  });
+
   it("names the collections that changed and the pages of their items, and what to ask from next time", async () => {
     const jobs = jobsSource([welder, baker]);
     const plain: CollectionSource = { items: async () => [] };

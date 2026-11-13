@@ -205,7 +205,7 @@ export const defaultStrings = {
   "checks.warnings.intro": "A few things could be better. You can publish anyway, or go back and fix them first.",
   "checks.alsoWarnings": "These could be better too:",
   "checks.leftOutItems":
-    "Publishing this would take {items} off the site, since they would no longer fit the collection's settings or would have another page's address. Change the settings so they still fit.",
+    "Publishing this would take {items} off the site, since they would no longer fit the collection's settings, or a page would take one's address. They come from another system, which the admin panel can't change: go back and change what's in the way, or publish anyway, and they'll be left out until they fit.",
   "checks.unreadSources":
     "The items in {collections} come from another system, which can't be reached just now, so links to their pages can't be checked. Try publishing again in a few minutes.",
   "checks.publishAnyway": "Publish anyway",
@@ -553,6 +553,8 @@ export const defaultStrings = {
   "collectionSettings.addressClash": "With this address, {title} would have the same address as another page.",
   "collectionSettings.sourceUnread":
     "Its items can't be read from {source} just now, so their pages can't be moved to a new address yet. Try again in a few minutes.",
+  "collectionSettings.sourceElsewhere":
+    "Its items come from {source}, which only the site's build can read, so links to their pages can't be moved to a new address here. Ask a developer to change it.",
   "collectionSettings.delete": "Delete collection",
   "collectionSettings.deleteTitle": "Delete {name}?",
   "collectionSettings.deleteBody":

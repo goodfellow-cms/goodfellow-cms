@@ -120,7 +120,7 @@ export interface GoodfellowConfig {
    * Collections whose items come from somewhere other than their folder in
    * `content/collections/`, such as the site's database, by collection id:
    * `{ jobs: { source: "./lib/jobs.ts", options: { table: "jobs" } } }`. Each
-   * still has its `_collection.json`, with its fields, template and address,
+   * still has its `_collection.json`, with its fields, template, and address,
    * designed in the admin panel as for any collection; only its items come
    * from the source, read-only in the admin panel. Full-stack sites' servers
    * import each source's module and pass it to `goodfellowPages()` and

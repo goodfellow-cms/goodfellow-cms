@@ -6,14 +6,14 @@ import {
   type CollectionSources,
   type ContentSource,
   CUSTOM_CSS_FILE,
-  collectionSources,
   type GoodfellowConfig,
+  keptCollectionSources,
   loadSiteContent,
+  loadSourcedContent,
   type Page,
   type SiteContent,
   type SiteDescription,
   type SourceModuleImport,
-  withSourcedCollections,
 } from "@goodfellow-cms/core";
 import type { ContentApiFile } from "@goodfellow-cms/core/content-api";
 import type { PageRenderer } from "@goodfellow-cms/react/server";
@@ -80,6 +80,18 @@ export function loadServerEntry(server: ViteDevServer): Promise<ServerEntry> {
 }
 
 /**
+ * The collections the config names sources for, whose item files the site's
+ * files leave out, or none where the server entry can't load, such as while
+ * the config is being edited, so what reads only the files still answers.
+ */
+export function sourcedIds(server: ViteDevServer): Promise<string[]> {
+  return loadServerEntry(server).then(
+    ({ config }) => Object.keys(config.collections ?? {}),
+    (): string[] => [],
+  );
+}
+
+/**
  * The sources the config names for its collections, each module loaded
  * through Vite as the config is: a path from the site's root, or a package.
  */
@@ -93,7 +105,8 @@ export async function loadCollectionSources(
     const specifier = /^\.\.?\//.test(collection.source) ? resolve(root, collection.source) : collection.source;
     modules[id] = (await server.ssrLoadModule(specifier)) as SourceModuleImport;
   }
-  return collectionSources(config.collections, modules);
+  // Made once for the same modules, since `goodfellow dev` loads the site again on every request.
+  return keptCollectionSources(config.collections, modules);
 }
 
 /**
@@ -108,8 +121,7 @@ export async function loadSourcedSite(
   files: ContentSource,
 ): Promise<SiteContent> {
   if (!config.collections) return loadSiteContent(files);
-  const sources = await loadCollectionSources(server, root, config);
-  return withSourcedCollections(await loadSiteContent(files, { sourced: Object.keys(sources) }), sources);
+  return loadSourcedContent(files, loadCollectionSources(server, root, config));
 }
 
 /**

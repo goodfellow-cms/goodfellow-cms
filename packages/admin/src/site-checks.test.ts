@@ -146,6 +146,23 @@ describe("checkPublish", () => {
       { path: "content/pages/other.json", content: page("Other", [button("Button-2", "/es/jobs/soldador")]) },
       { path: "content/pages/more.json", content: page("More", [button("Button-3", "/jobs/welder/more")]) },
       { path: "content/pages/careers.json", content: page("Careers", [button("Button-4", "/careers/welder")]) },
+      // An item field naming one of its items, which the admin panel can't know it has.
+      {
+        path: "content/collections/news/_collection.json",
+        content: JSON.stringify({
+          version: 1,
+          name: "News",
+          entryName: "Story",
+          fields: [
+            { name: "title", label: "Title", type: "text" },
+            { name: "job", label: "Job", type: "item", collection: "jobs" },
+          ],
+        }),
+      },
+      {
+        path: "content/collections/news/hiring.json",
+        content: JSON.stringify({ version: 1, fields: { title: "Hiring", job: "welder" } }),
+      },
     ];
     const spanish: Record<string, string> = {
       ...files,
@@ -171,9 +188,29 @@ describe("checkPublish", () => {
       "/careers/welder",
       "/jobs/welder/more",
     ]);
+    // A new address pattern, which the settings screen refuses there, would leave links at the old one, which the
+    // checks then count as missing, since they no longer fit the collection's pattern.
+    const moved = [
+      ...linking,
+      {
+        path: "content/collections/jobs/_collection.json",
+        content: JSON.stringify({
+          ...JSON.parse(files["content/collections/jobs/_collection.json"] ?? "{}"),
+          path: "/careers/{slug}",
+        }),
+      },
+    ];
+    const onStaticMoved = await checkPublish(inSpanish, { content: loadedSpanish, media: [] }, moved, {
+      blocks: config.blocks,
+      code: localSiteCode(config),
+      sourced: ["jobs"],
+    });
+    expect(onStaticMoved.blocking.map((problem) => problem.kind === "missing-page" && problem.target)).toEqual([
+      "/jobs/welder",
+    ]);
   });
 
-  it("stops a publish that would take an item a source gives off the site, and never reads the files it replaces", async () => {
+  it("names the items a publish would take off the site, and never reads the files their source replaces", async () => {
     const jobs = {
       version: 1,
       name: "Jobs",
@@ -204,6 +241,13 @@ describe("checkPublish", () => {
     ];
     const checks = await checkPublish(withJobs, { content, ...(shown && { shown }), media: [] }, moved, site);
     expect(checks.leftOut).toEqual(["About the job"]);
+    // Which the editor can publish anyway, since only the other system can change the item, with the site's other
+    // checks made as for any publish.
+    expect(checks.blocking).toEqual([]);
+    const linking = [...moved, { path: "content/pages/new.json", content: page("New", [button("Button-1", "/gone")]) }];
+    const broken = await checkPublish(withJobs, { content, ...(shown && { shown }), media: [] }, linking, site);
+    expect(broken.leftOut).toEqual(["About the job"]);
+    expect(broken.blocking.map((problem) => problem.kind)).toEqual(["missing-page"]);
   });
 
   it("knows the files a publish adds, and doesn't ask again about problems it didn't bring", async () => {

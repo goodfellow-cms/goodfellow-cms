@@ -203,7 +203,7 @@ export const strings: Strings = {
     "Hay algunas cosas que podrían mejorar. Puedes publicar de todos modos, o volver y corregirlas primero.",
   "checks.alsoWarnings": "Esto también podría mejorar:",
   "checks.leftOutItems":
-    "Publicar esto quitaría {items} del sitio, porque ya no encajarían con los ajustes de la colección o tendrían la dirección de otra página. Cambia los ajustes para que sigan encajando.",
+    "Publicar esto quitaría {items} del sitio, porque ya no encajarían con los ajustes de la colección, o una página ocuparía la dirección de alguno. Vienen de otro sistema, que el panel de administración no puede cambiar: vuelve y cambia lo que lo impide, o publica de todos modos, y quedarán fuera hasta que encajen.",
   "checks.unreadSources":
     "Los elementos de {collections} vienen de otro sistema, al que no se puede llegar ahora mismo, así que no se pueden comprobar los enlaces a sus páginas. Vuelve a publicar dentro de unos minutos.",
   "checks.publishAnyway": "Publicar de todos modos",
@@ -543,6 +543,8 @@ export const strings: Strings = {
   "collectionSettings.addressClash": "Con esta dirección, {title} tendría la misma dirección que otra página.",
   "collectionSettings.sourceUnread":
     "Ahora mismo no se pueden leer sus elementos desde {source}, así que todavía no se pueden mover sus páginas a otra dirección. Vuelve a intentarlo dentro de unos minutos.",
+  "collectionSettings.sourceElsewhere":
+    "Sus elementos vienen de {source}, que solo puede leer la compilación del sitio, así que aquí no se pueden mover los enlaces a sus páginas a otra dirección. Pide a un desarrollador que la cambie.",
   "collectionSettings.delete": "Eliminar colección",
   "collectionSettings.deleteTitle": "¿Eliminar {name}?",
   "collectionSettings.deleteBody":
