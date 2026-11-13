@@ -217,10 +217,14 @@ jobs:
         run: |
           unneeded() { echo "::notice::$1"; echo "skipped=true" >> "$GITHUB_OUTPUT"; exit 0; }
           # A lookup that fails fails the step, which stops the review: it may have been labelled not to run.
-          labelled=$(gh pr view "$PR" --json labels --jq '[.labels[].name] | any(. == "claude-reviewed" or . == "no-claude-review")')
-          if [ "$labelled" = true ]; then
-            unneeded "Reviewed meanwhile, or no longer to be reviewed by itself."
-          fi
+          check_labels() {
+            local labelled
+            labelled=$(gh pr view "$PR" --json labels --jq '[.labels[].name] | any(. == "claude-reviewed" or . == "no-claude-review")')
+            if [ "$labelled" = true ]; then
+              unneeded "Reviewed meanwhile, or no longer to be reviewed by itself."
+            fi
+          }
+          check_labels
           if [[ "$OWN" =~ ^[0-9]+$ ]]; then
             # Only the last two hours': the status counts a review still "reviewing" after that as not finished.
             since=$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)
@@ -242,6 +246,8 @@ jobs:
                 sleep 15
               done
             done
+            # Labels added while it waited count too, such as no-claude-review, or claude-reviewed from a finish.
+            check_labels
           fi
 
       # A review that fails says so in its comment and the "Claude reviewed" status, never by failing CI.
