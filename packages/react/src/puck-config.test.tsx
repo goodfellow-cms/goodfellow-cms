@@ -46,6 +46,7 @@ describe("createPuckConfig", () => {
       "description",
       "image",
       "noIndex",
+      "visibility",
       "noSearch",
       "noFollow",
       "noSnippet",

@@ -188,8 +188,16 @@ export function buildNotes(result: {
   robotsElsewhere?: string;
   sitemap?: string;
   images?: { written: number; failed: string[] };
+  membersPages?: string[];
 }): string[] {
   const lines: string[] = [];
+  if (result.membersPages && result.membersPages.length > 0) {
+    const shown = result.membersPages.slice(0, 5).join(", ");
+    const more = result.membersPages.length > 5 ? `, and ${result.membersPages.length - 5} more` : "";
+    lines.push(
+      `${result.membersPages.length === 1 ? "A page is" : `${result.membersPages.length} pages are`} marked for signed-in members only (${shown}${more}), but this site has no server to keep ${result.membersPages.length === 1 ? "it" : "them"} to members, so everyone can read ${result.membersPages.length === 1 ? "it" : "them"}. Only a full-stack site can keep pages to members.`,
+    );
+  }
   if (result.images && result.images.written > 0) {
     lines.push(
       `Wrote ${result.images.written} smaller cop${result.images.written === 1 ? "y" : "ies"} of the media library's photos, which pages offer browsers in place of the whole photo`,

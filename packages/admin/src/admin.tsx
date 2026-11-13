@@ -783,6 +783,7 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
               },
             }),
             plugins: new URL(`${trimChars(server, "/", { start: false })}/plugins`, location.href).href,
+            members: true,
             ...(session.role === "owner" && { review: appServer(server).review }),
             ...(session.codeReview && { codeReview: true }),
             earlyInstalls: session.earlyInstalls === true,

@@ -8,6 +8,7 @@ import {
   formatDate,
   formatMonth,
   formatTime,
+  isMembersCollection,
   monthOf,
   settingsPrefix,
   todayIn,
@@ -287,7 +288,7 @@ export function Calendar(props: CalendarProps & { id?: string }) {
       ) : props.emptyText ? (
         <SiteText muted>{props.emptyText}</SiteText>
       ) : null}
-      {collection?.settings.calendar ? (
+      {collection?.settings.calendar && !isMembersCollection(collection) ? (
         <SubscribeLinks
           collection={collection.id}
           label={props.subscribeLabel}

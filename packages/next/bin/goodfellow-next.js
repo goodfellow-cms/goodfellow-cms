@@ -78,6 +78,7 @@ import {
   buildFileFolders,
   checkPages,
   EDITOR_FRAMES_PATH,
+  exportedMembersPages,
   exportedPages,
   exportTrailingSlash,
   fixSegmentFiles,
@@ -562,7 +563,13 @@ if (command === "finish") {
   // Cloudflare Pages' header rules, after the site's own public/_headers.
   await writeExportHeaders(dir);
   const images = await writeImageFiles(dir);
-  for (const line of buildNotes({ ...(await writeFontFiles(dir)), ...(images && { images }) })) console.log(line);
+  const notes = {
+    ...(await writeFontFiles(dir)),
+    ...(images && { images }),
+    // An export is static, so pages marked for members are published to everyone.
+    membersPages: await exportedMembersPages(),
+  };
+  for (const line of buildNotes(notes)) console.log(line);
   // Plugins' admin frames and build steps, once Goodfellow has written the rest, before the index and the guards.
   const plugins = await writePluginFiles(dir);
   if (plugins.frames.length > 0) console.log(`Wrote the admin frames of ${plugins.frames.join(", ")}`);

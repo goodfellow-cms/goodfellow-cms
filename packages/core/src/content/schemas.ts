@@ -692,6 +692,13 @@ export const collectionFileSchema = z
      * its events as calendar files visitors can subscribe to.
      */
     calendar: z.object({ when: fieldName, place: fieldName.optional(), summary: fieldName.optional() }).optional(),
+    /**
+     * Who the items' pages are for: `members` keeps every item for the site's
+     * members, which only a full-stack site's server can enforce, and leaves
+     * them out of the site's search, feeds, calendar files, and content API.
+     * Left out, they're for everyone.
+     */
+    visibility: z.enum(["everyone", "members"]).optional(),
     /** The Puck layout every entry's page uses. */
     template: puckDataSchema.default({ root: {}, content: [] }),
   })

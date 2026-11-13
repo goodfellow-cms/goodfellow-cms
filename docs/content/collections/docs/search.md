@@ -19,7 +19,7 @@ Builds index a site only if one of its pages has a Search block. The block marks
 
 On a site in [several languages](/docs/languages), each page says its language on its `<html>`, and Pagefind keeps each language's pages in an index of their own: the Search block on a Spanish page finds only Spanish pages.
 
-Pages mark their main content with Pagefind's `data-pagefind-body`, so the header and footer, which are on every page, aren't indexed, and neither is "Page not found". Neither are pages whose settings choose **Leave this page out of it** under **The site's search** (`noSearch`), such as a staff page you'd rather visitors found only from its link. A collection's template can choose it for every item's page. Search doesn't work in `goodfellow dev` or the editor's preview, since there's no index there; the box says so, in words the block's settings choose.
+Pages mark their main content with Pagefind's `data-pagefind-body`, so the header and footer, which are on every page, aren't indexed, and neither is "Page not found". Neither are pages whose settings choose **Leave this page out of it** under **The site's search** (`noSearch`), such as a staff page you'd rather visitors found only from its link. A collection's template can choose it for every item's page. Pages a [full-stack site](/docs/full-stack-nextjs#pages-for-members) keeps to its members are left out too. Search doesn't work in `goodfellow dev` or the editor's preview, since there's no index there; the box says so, in words the block's settings choose.
 
 ## Other search blocks
 

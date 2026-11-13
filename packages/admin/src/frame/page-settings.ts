@@ -1,5 +1,5 @@
-import { neverIndexed } from "@goodfellow-cms/core";
-import type { Data } from "@puckeditor/core";
+import { neverIndexed, VISIBILITY_PROP } from "@goodfellow-cms/core";
+import type { Config, Data } from "@puckeditor/core";
 
 /**
  * Page settings as the editor shows them where a page hasn't chosen: "Search
@@ -21,10 +21,28 @@ type Root = Data["root"] & { props?: Record<string, unknown>; readOnly?: Record<
 const SHOWN_DEFAULTS: Readonly<Record<string, unknown>> = {
   noIndex: false,
   noSearch: false,
+  visibility: "everyone",
   noFollow: false,
   noSnippet: false,
   card: "auto",
 };
+
+/**
+ * Puck's config without "Who can see this page" (`visibility`), for a site
+ * with no server to keep pages to its members. A page that already says
+ * keeps what it says, since Puck keeps settings it has no field for.
+ */
+export function withoutVisibility(config: Config): Config {
+  const fields = config.root?.fields;
+  if (!fields || !(VISIBILITY_PROP in fields)) return config;
+  const { [VISIBILITY_PROP]: _visibility, ...rest } = fields;
+  return { ...config, root: { ...config.root, fields: rest } };
+}
+
+/** Whether a page's or template's data says it's for members only, so its owner is shown the setting to undo it. */
+export function isMembersPageData(data: { root?: { props?: object } }): boolean {
+  return (data.root?.props as Record<string, unknown> | undefined)?.[VISIBILITY_PROP] === "members";
+}
 
 /** The settings "Page not found" has whatever its file says, which the editor shows with no choice. */
 const FIXED: Readonly<Record<string, unknown>> = { noIndex: true, noSearch: true };

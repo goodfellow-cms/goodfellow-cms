@@ -478,6 +478,64 @@ describe("appApi", () => {
     expect(bytes.status).toBe(403);
   });
 
+  it("lets only owners change who a page is for", async () => {
+    const { call, post, signIn } = setup();
+    const page = (visibility?: string, title = "About") =>
+      JSON.stringify({
+        version: 1,
+        data: { root: { props: { title, ...(visibility && { visibility }) } }, content: [] },
+      });
+    const write = async (content: string, path = "content/pages/about.json") => {
+      const { revision } = (await (await call("revision")).json()) as { revision: string };
+      return post("write", { changes: [{ path, content }], message: "Edit", expectedRevision: revision });
+    };
+
+    expect((await write(page())).status).toBe(200);
+    expect((await write(page("everyone", "About us"))).status).toBe(200);
+    const members = await write(page("members"));
+    expect(members.status).toBe(403);
+    expect(await members.json()).toEqual({ error: "owners-only", paths: ["content/pages/about.json"] });
+    expect((await write(page("members"), "content/pages/new.json")).status).toBe(403);
+
+    signIn(OWEN);
+    expect((await write(page("members"))).status).toBe(200);
+    signIn(ALICE);
+    expect((await write(page("members", "Members' about"))).status).toBe(200);
+    // Making it public again publishes it to everyone, however the page is sent.
+    expect((await write(page())).status).toBe(403);
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const bytes = await post("write", {
+      changes: [{ path: "content/pages/about.json", base64: encodeBase64Bytes(new TextEncoder().encode(page())) }],
+      message: "Edit",
+      expectedRevision: revision,
+    });
+    expect(bytes.status).toBe(403);
+    const review = await post("review", {
+      changes: [{ path: "content/pages/about.json", content: page() }],
+      title: "Public",
+      from: revision,
+    });
+    expect(review.status).toBe(403);
+    // Nor can it be taken away and published again for everyone: deleting a members' page is the owners' too.
+    const deleted = await post("write", {
+      changes: [{ path: "content/pages/about.json", delete: true }],
+      message: "Delete",
+      expectedRevision: revision,
+    });
+    expect(deleted.status).toBe(403);
+    expect(await deleted.json()).toEqual({ error: "owners-only", paths: ["content/pages/about.json"] });
+    signIn(OWEN);
+    expect(
+      (
+        await post("write", {
+          changes: [{ path: "content/pages/about.json", delete: true }],
+          message: "Delete",
+          expectedRevision: revision,
+        })
+      ).status,
+    ).toBe(200);
+  });
+
   it("refuses media the site can't use, and SVGs that skipped the admin panel's cleaning", async () => {
     const { call, post, repo } = setup(OWEN);
     const write = async (path: string, text: string) => {

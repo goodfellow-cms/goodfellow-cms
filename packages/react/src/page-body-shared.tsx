@@ -1,4 +1,4 @@
-import { isAddedPage, neverIndexed, type PageCredit } from "@goodfellow-cms/core";
+import { isAddedPage, isMembersCollection, neverIndexed, type PageCredit, VISIBILITY_PROP } from "@goodfellow-cms/core";
 import type { Config, Data, Metadata } from "@puckeditor/core";
 import type { ComponentType, ReactNode } from "react";
 import { ConsentNotice } from "./consent-shared.js";
@@ -135,9 +135,15 @@ export function createPageBody({ Render, SiteProvider }: Renderers) {
     const metadata = siteMetadata(site);
     const rootProps = page.root.props as Record<string, unknown> | undefined;
     const rootClassName = rootProps?.className;
-    // Left out of the site's search: "Page not found", pages blocks add, and pages whose settings say so (`noSearch`),
-    // which an item's page takes from its collection's template.
-    const searched = !neverIndexed(site.path ?? "") && !isAddedPage(site) && rootProps?.noSearch !== true;
+    // Left out of the site's search: "Page not found", pages blocks add, pages whose settings say so (`noSearch`),
+    // which an item's page takes from its collection's template, and members' pages, whose words anyone could
+    // otherwise read in the index.
+    const searched =
+      !neverIndexed(site.path ?? "") &&
+      !isAddedPage(site) &&
+      rootProps?.noSearch !== true &&
+      rootProps?.[VISIBILITY_PROP] !== "members" &&
+      !(site.collection && isMembersCollection(site.collection));
     return (
       <SiteProvider value={site}>
         {/* Search indexes only pages' own content, not their header and footer. */}
