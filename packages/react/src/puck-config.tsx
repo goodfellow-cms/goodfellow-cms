@@ -88,6 +88,24 @@ const pageRootFields: Fields = {
       { label: "Hide from search results", value: true },
     ],
   },
+  visibility: {
+    type: "radio",
+    label: "Who can see this page",
+    // Making a members' page public publishes it to everyone, so only owners choose, as with collections' settings.
+    metadata: { owners: true },
+    options: [
+      { label: "Everyone", value: "everyone" },
+      { label: "Only signed-in members", value: "members" },
+    ],
+  },
+  noSearch: {
+    type: "radio",
+    label: "The site's search",
+    options: [
+      { label: "Find this page in it", value: false },
+      { label: "Leave this page out of it", value: true },
+    ],
+  },
   noFollow: {
     type: "radio",
     label: "This page's links",

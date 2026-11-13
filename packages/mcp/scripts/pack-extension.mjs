@@ -51,9 +51,9 @@ const manifest = {
   display_name: "Goodfellow CMS",
   version,
   description,
-  author: { name: "Goodfellow", url: "https://goodfellow-cms.github.io/goodfellow-cms/" },
-  homepage: "https://goodfellow-cms.github.io/goodfellow-cms/",
-  documentation: "https://goodfellow-cms.github.io/goodfellow-cms/docs/claude",
+  author: { name: "Goodfellow", url: "https://goodfellowcms.com/" },
+  homepage: "https://goodfellowcms.com/",
+  documentation: "https://goodfellowcms.com/docs/claude",
   support: "https://github.com/goodfellow-cms/goodfellow-cms/issues",
   license: "MIT",
   server: {

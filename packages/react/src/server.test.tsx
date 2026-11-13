@@ -7,7 +7,7 @@ import {
   siteSettingsSchema,
 } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
-import { lazy, Suspense } from "react";
+import { lazy, type ReactNode, Suspense } from "react";
 import { describe, expect, it } from "vitest";
 import { ConsentFrame } from "./consent.js";
 import { createPageRenderer } from "./server.js";
@@ -33,6 +33,18 @@ const resolved: ComponentConfig<{ text: string }> = {
   render: ({ text }) => <p>{text}</p>,
 };
 
+const answers: ComponentConfig<{ items: { answer: ReactNode }[] }> = {
+  fields: { items: { type: "array", arrayFields: { answer: { type: "richtext" } } } },
+  render: ({ items }) => (
+    <div className="answers">
+      {items.map((item, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list in a test.
+        <div key={index}>{item.answer}</div>
+      ))}
+    </div>
+  ),
+};
+
 const config: GoodfellowConfig = {
   blocks: {
     Heading: {
@@ -43,6 +55,7 @@ const config: GoodfellowConfig = {
       fields: { body: { type: "richtext" } },
       render: ({ body }) => <div className="body">{body}</div>,
     },
+    Answers: answers,
     Where: { render: () => <CurrentPath /> },
     EntryDate: { render: () => <EntryDate /> },
     Resolved: resolved,
@@ -111,6 +124,50 @@ describe("renderPage", () => {
       '<main class="gf-main page-about" data-pagefind-body=""><div><h1>About us</h1></div></main>',
     );
     expect(html).not.toContain("<header");
+  });
+
+  it("leaves a page out of the site's search where its settings say so", async () => {
+    const heading = [{ type: "Heading", props: { id: "h", text: "Staff only" } }];
+    const left = await renderPage(makeContent(), makePage(heading, { title: "Staff", noSearch: true }));
+    expect(left).toContain('<main class="gf-main"><div><h1>Staff only</h1></div></main>');
+    const found = await renderPage(makeContent(), makePage(heading, { title: "Staff", noSearch: false }));
+    expect(found).toContain('<main class="gf-main" data-pagefind-body="">');
+    // Members' pages too, whose words anyone could read in the index.
+    const members = await renderPage(makeContent(), makePage(heading, { title: "Staff", visibility: "members" }));
+    expect(members).toContain('<main class="gf-main"><div><h1>Staff only</h1></div></main>');
+  });
+
+  it("leaves a collection's items out of the site's search where its template says so", async () => {
+    const template = { root: { props: { title: "{title}", noSearch: true } }, content: [] };
+    const minutes: Collection = {
+      id: "minutes",
+      file: "content/collections/minutes/_collection.json",
+      settings: collectionFileSchema.parse({
+        version: 1,
+        name: "Minutes",
+        entryName: "Minutes",
+        path: "/minutes/{slug}",
+        fields: [{ name: "title", label: "Title", type: "text" }],
+        template,
+      }),
+      entries: [
+        {
+          collection: "minutes",
+          slug: "march",
+          file: "content/collections/minutes/march.json",
+          path: "/minutes/march",
+          content: { version: 1, fields: { title: "March" } },
+        },
+      ],
+    };
+    const html = await renderPage(makeContent({ collections: [minutes] }), {
+      path: "/minutes/march",
+      file: "content/collections/minutes/march.json",
+      content: { version: 1, data: minutes.settings.template },
+      entry: { collection: "minutes", slug: "march" },
+    });
+    expect(html).toContain("<title>March | St. Joseph</title>");
+    expect(html).toContain('<main class="gf-main"><div></div></main>');
   });
 
   it("writes a long page whole, with what a block waited for in its place, never moved to the end", async () => {
@@ -351,6 +408,22 @@ describe("renderPage", () => {
     expect(html).toContain("<p>resolved text</p>");
   });
 
+  it("renders rich text itself, in one pass, with only the formatting Puck's editor makes", async () => {
+    const body = '<p style="text-align: center">Hi <img src="https://tracker.example/x.gif"></p>';
+    const html = await renderPage(makeContent(), makePage([{ type: "Body", props: { id: "b", body } }]));
+    expect(html).toContain('<div class="rich-text"><p style="text-align: center">Hi </p></div>');
+    // No Suspense boundary waiting for Puck's renderer, and none of its editor's classes.
+    expect(html).not.toMatch(/<!--\$-->|RichTextEditor|tracker/);
+  });
+
+  it("renders rich text in lists the same way", async () => {
+    const items = [{ answer: "<p>At <em>nine</em>.</p><script>steal()</script>" }, { answer: "Plain" }];
+    const html = await renderPage(makeContent(), makePage([{ type: "Answers", props: { id: "a", items } }]));
+    expect(html).toContain(
+      '<div class="answers"><div><div class="rich-text"><p>At <em>nine</em>.</p></div></div><div><div class="rich-text"><p>Plain</p></div></div></div>',
+    );
+  });
+
   it("renders rich text without scripts, event handlers, or javascript: links", async () => {
     const body =
       '<p onclick="steal()">Hello <strong>world</strong><script>alert(1)</script></p>' +
@@ -366,11 +439,12 @@ describe("renderPage", () => {
     const body = '<p><a href="https://github.com">GitHub</a> and <a href="/about">About</a></p>';
     const page = makePage([{ type: "Body", props: { id: "b", body } }]);
     const newTabs = await renderPage(makeContent({ settings: { ...settings, externalLinksInNewTab: true } }), page);
-    expect(newTabs).toContain('<a target="_blank" rel="noopener noreferrer" href="https://github.com">GitHub</a>');
-    expect(newTabs).toContain('<a target="_self" rel="" href="/about/">About</a>');
-    // Puck would open every link in a new tab, marked nofollow, without a target of its own.
+    expect(newTabs).toContain('<a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>');
+    expect(newTabs).toContain('<a href="/about/">About</a>');
+    // Puck's renderer opened every link in a new tab, marked nofollow, without a target of its own; Goodfellow's
+    // adds nothing.
     const sameTabs = await renderPage(makeContent(), page);
-    expect(sameTabs).toContain('<a target="_self" rel="" href="https://github.com">GitHub</a>');
+    expect(sameTabs).toContain('<a href="https://github.com">GitHub</a>');
     expect(sameTabs).not.toContain("nofollow");
   });
 

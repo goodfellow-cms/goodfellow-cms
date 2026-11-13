@@ -68,6 +68,18 @@ export const CONSENT_CHOICES_ATTRIBUTE = "data-gf-consent-choices";
 export const CONSENT_SAVE_ATTRIBUTE = "data-gf-consent-save";
 
 /**
+ * A value as a script's literal, with nothing a page could read as markup:
+ * `<` and `>` are escaped, as are the line separators JSON leaves in,
+ * so it can't end the script it's written into.
+ */
+function scriptValue(value: unknown): string {
+  return JSON.stringify(value).replace(
+    /[<>\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
+/**
  * The script a site that asks puts after its notice, at the end of the page.
  * It shows the notice until the visitor answers about every kind the site
  * asks about, keeps the answer in their browser (`ConsentAnswer`) for the
@@ -90,7 +102,7 @@ export const CONSENT_SAVE_ATTRIBUTE = "data-gf-consent-save";
  * keyboard's focus, on its first button, and its choices on their first.
  */
 export function consentScript(): string {
-  const q = JSON.stringify;
+  const q = scriptValue;
   return `(function(){var d=document,K=${q(CONSENT_STORAGE_KEY)},S=${q(CONSENT_SRC_ATTRIBUTE)},P=${q(CONSENT_PLACEHOLDER_ATTRIBUTE)},C=${q(CONSENT_CODE_ATTRIBUTE)},D=${q(CONSENT_DONE_ATTRIBUTE)},A=${q(CONSENT_ACCEPT_ATTRIBUTE)},N=${q(CONSENT_DECLINE_ATTRIBUTE)},L=${q(CONSENT_LINK)},O=${q(CONSENT_NOTICE_ATTRIBUTE)},T=${q(CONSENT_KIND_ATTRIBUTE)},G=${q(CONSENT_KINDS_ATTRIBUTE)},Y=${q(CONSENT_DAYS_ATTRIBUTE)},H=${q(CONSENT_CHOOSE_ATTRIBUTE)},X=${q(CONSENT_CHOICES_ATTRIBUTE)},V=${q(CONSENT_SAVE_ATTRIBUTE)},M=null;
 function box(){return d.querySelector("["+O+"]")}
 function kinds(){var n=box(),k=n&&n.getAttribute(G);return k?k.split(" "):["content"]}

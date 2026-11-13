@@ -75,7 +75,7 @@ describe("gitlabSetup", () => {
     expect(taken.warnings).toEqual(["domain-unavailable"]);
   });
 
-  it("connects a site's code and content projects: job token allowlists, pushes, and a nightly schedule", async () => {
+  it("connects a site's code and content projects: job token allowlists, the publishing key, and a nightly schedule", async () => {
     const fake = fakeGitLab({
       project: "someone/existing",
       groups: ["st-joseph"],
@@ -109,8 +109,14 @@ describe("gitlabSetup", () => {
     // Each pipeline clones the other project with its job token, even where the projects are public.
     expect(code.jobTokenAllowlist).toEqual([content.id]);
     expect(content.jobTokenAllowlist).toEqual([code.id]);
-    expect(code.jobTokenPush).toBe(true);
-    expect(content.jobTokenPush).toBe(false);
+    // The code project's publish job publishes updates with a deploy key of its own, never the job token.
+    expect(code.jobTokenPush).toBe(false);
+    expect(code.deployKeys).toEqual([expect.objectContaining({ title: "Goodfellow publishing", mayPush: true })]);
+    expect(code.deployKeys[0]?.key).toMatch(/^ssh-ed25519 /);
+    const variable = code.variables.get("GOODFELLOW_DEPLOY_KEY goodfellow-publish");
+    expect(variable).toMatchObject({ masked: true, protected: true });
+    expect(atob(variable?.value ?? "")).toContain("-----BEGIN OPENSSH PRIVATE KEY-----");
+    expect(content.deployKeys).toEqual([]);
     expect(code.schedules).toEqual([expect.objectContaining({ ref: "main", cron: "17 4 * * *", active: true })]);
     expect(content.schedules).toEqual([]);
   });
@@ -182,7 +188,7 @@ describe("gitlabSetup", () => {
     ]);
     // The rest is made all the same, and the site's files written.
     const code = fake.created.get("st-joseph/site");
-    expect(code?.jobTokenPush).toBe(true);
+    expect(code?.deployKeys).toHaveLength(1);
     expect(code?.schedules).toHaveLength(1);
     expect(fake.created.get("st-joseph/site-content")?.repo.files().size).toBeGreaterThan(0);
   });

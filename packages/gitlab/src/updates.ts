@@ -1,11 +1,19 @@
 import {
   type CodeRepository,
+  DEPLOY_KEY_TITLE,
+  DEPLOY_KEY_VARIABLE,
+  encodeBase64,
   findUpdateResult,
   GitApiError,
   type GitBackend,
   NIGHTLY_VARIABLE,
   type NightlyBuilds,
   type NightlyMode,
+  newDeployKey,
+  PREPARE_JOB,
+  PUBLISH_ENVIRONMENT,
+  PUBLISH_JOB,
+  PUBLISH_MARK,
   type SiteUpdates,
   type UpdateRun,
   UpdatesError,
@@ -33,6 +41,48 @@ interface Pipeline {
   web_url?: string;
 }
 
+interface ProjectDeployKey {
+  id: number;
+  title: string;
+  can_push?: boolean;
+}
+
+interface ProtectedBranch {
+  name?: string;
+  push_access_levels?: Array<{ id?: number; access_level: number | null; deploy_key_id?: number | null }>;
+}
+
+/**
+ * Whether a protection's name, which may hold `*` wildcards, covers the whole branch name. Matched without a
+ * regex, going back only to the last `*`, so the work grows with the two names' lengths whatever the name holds.
+ */
+export function protects(name: string | undefined, branch: string): boolean {
+  if (!name) return false;
+  let at = 0;
+  let from = 0;
+  let star = -1;
+  let resume = 0;
+  while (at < branch.length) {
+    if (from < name.length && name[from] !== "*" && name[from] === branch[at]) {
+      at++;
+      from++;
+    } else if (from < name.length && name[from] === "*") {
+      star = from++;
+      resume = at;
+    } else if (star >= 0) {
+      from = star + 1;
+      at = ++resume;
+    } else {
+      return false;
+    }
+  }
+  while (from < name.length && name[from] === "*") from++;
+  return from === name.length;
+}
+
+/** GitLab's Developer role, which a branch it protects for the key lets push, as an unprotected branch does. */
+const DEVELOPER = 30;
+
 function notAllowed(error: unknown): never {
   if (error instanceof GitApiError && (error.status === 401 || error.status === 403)) {
     throw new UpdatesError("not-allowed", "Setting up updates on GitLab needs the Maintainer role in the project.");
@@ -40,11 +90,89 @@ function notAllowed(error: unknown): never {
   throw error;
 }
 
+/** The variable holding the publishing key's private half, as only the publish job's environment gets it. */
+function variablePath(base: string) {
+  return `${base}/variables/${DEPLOY_KEY_VARIABLE}?${new URLSearchParams({ "filter[environment_scope]": PUBLISH_ENVIRONMENT })}`;
+}
+async function publishingKeys(api: ApiOptions, base: string): Promise<ProjectDeployKey[]> {
+  const keys = await gitlabJson<ProjectDeployKey[]>(api, `${base}/deploy_keys?per_page=100`);
+  return keys.filter((key) => key.title === DEPLOY_KEY_TITLE);
+}
+
 /**
- * The site's nightly update, which runs in its GitLab Pages job on scheduled
+ * Adds a new deploy key the publish job publishes with, lets it publish to
+ * the main branch, protecting the branch for Developers where it wasn't, as
+ * protected variables need, and gives its private half to the publish job's
+ * environment alone. Keys added before are removed once the new one works,
+ * since their private halves can't be read back, and job tokens can no
+ * longer push, as only the publish job publishes. The setup page makes it for
+ * a site it creates, and the Updates screen when updates are turned on.
+ */
+export async function addPublishingKey(api: ApiOptions, project: string, branch: string): Promise<void> {
+  const base = `/projects/${encodeURIComponent(project)}`;
+  const before = await publishingKeys(api, base).catch(notAllowed);
+  const made = await newDeployKey(DEPLOY_KEY_TITLE);
+  const added = await gitlabJson<ProjectDeployKey>(api, `${base}/deploy_keys`, {
+    method: "POST",
+    body: { title: DEPLOY_KEY_TITLE, key: made.publicKey, can_push: true },
+  }).catch(notAllowed);
+  try {
+    const protectedPath = `${base}/protected_branches/${encodeURIComponent(branch)}`;
+    const protection = await gitlabRequest(api, protectedPath, { allow: [404] }).catch(notAllowed);
+    if (!protection.ok) {
+      await gitlabRequest(api, `${base}/protected_branches`, {
+        method: "POST",
+        body: { name: branch, push_access_level: DEVELOPER, merge_access_level: DEVELOPER, allow_force_push: false },
+      }).catch(notAllowed);
+    }
+    const allowed = await gitlabRequest(api, protectedPath, {
+      method: "PATCH",
+      body: { allowed_to_push: [{ deploy_key_id: added.id }] },
+      allow: [400, 403, 404, 405, 422],
+    }).catch(notAllowed);
+    const after = allowed.ok ? ((await allowed.json()) as ProtectedBranch) : undefined;
+    if (!after?.push_access_levels?.some((level) => level.deploy_key_id === added.id)) {
+      throw new UpdatesError("publishing", "GitLab didn't let the publishing key push to the main branch.");
+    }
+    const variable = {
+      value: encodeBase64(made.privateKey),
+      masked: true,
+      protected: true,
+      raw: true,
+      environment_scope: PUBLISH_ENVIRONMENT,
+      description: "The private half of the deploy key Goodfellow's publish job publishes updates with.",
+    };
+    const updated = await gitlabRequest(api, variablePath(base), { method: "PUT", body: variable, allow: [404] }).catch(
+      notAllowed,
+    );
+    if (updated.status === 404) {
+      await gitlabRequest(api, `${base}/variables`, {
+        method: "POST",
+        body: { key: DEPLOY_KEY_VARIABLE, ...variable },
+      }).catch(notAllowed);
+    }
+  } catch (error) {
+    await gitlabRequest(api, `${base}/deploy_keys/${added.id}`, { method: "DELETE", allow: [404] }).catch(
+      () => undefined,
+    );
+    throw error;
+  }
+  for (const key of before) {
+    await gitlabRequest(api, `${base}/deploy_keys/${key.id}`, { method: "DELETE", allow: [404] }).catch(notAllowed);
+  }
+  await gitlabRequest(api, base, {
+    method: "PUT",
+    body: { ci_push_repository_for_job_token_allowed: false },
+  }).catch(notAllowed);
+}
+
+/**
+ * The site's nightly update, which runs in its prepare job on scheduled
  * pipelines, and on pipelines the Updates screen starts with `GOODFELLOW_UPDATE`.
- * It publishes with the job's own token, which GitLab only allows once the
- * project lets job tokens push.
+ * Its publish job publishes it with a deploy key of its own, which `enable()`
+ * adds (`gitlab-publish.ts` in core). Sites whose pipeline is from before then
+ * publish from the job that made the update, with the job's own token, which
+ * GitLab only allows once the project lets job tokens push.
  */
 export function gitlabUpdates(
   api: ApiOptions,
@@ -117,19 +245,43 @@ export function gitlabUpdates(
   return {
     async setup() {
       const ci = await readAt(CI_FILE);
-      if (!ci?.includes("update --publish")) return "missing";
+      const keyed = ci?.includes(PUBLISH_MARK) ?? false;
+      if (!keyed && !ci?.includes("update --publish")) return "missing";
       try {
-        const [settings, found] = await Promise.all([
-          gitlabJson<{ ci_push_repository_for_job_token_allowed?: boolean }>(api, base),
-          schedules(),
-        ]);
+        const found = await schedules();
         // The nightly schedule, even where it's been turned off, which the nightly build setting does.
         const scheduled = found.some(
           (schedule) =>
             (schedule.ref === branch || schedule.ref === `refs/heads/${branch}`) &&
             (schedule.active || !schedule.description?.startsWith(SCHEDULED_BUILD_DESCRIPTION)),
         );
-        return settings.ci_push_repository_for_job_token_allowed && scheduled ? "ready" : "needs-setup";
+        if (!scheduled) return "needs-setup";
+        if (keyed) {
+          const [keys, variable, protections] = await Promise.all([
+            publishingKeys(api, base),
+            gitlabRequest(api, variablePath(base), { allow: [404] }),
+            gitlabJson<ProtectedBranch[]>(api, `${base}/protected_branches?per_page=100`),
+          ]);
+          const pushing = keys.filter((key) => key.can_push);
+          // The key's variable is protected, so only a protected branch's pipelines get it, and a key may push to
+          // the branch only where a protection covering it (by name or wildcard) names it, which making the
+          // protection again (as letting editors publish does on older GitLab) can leave out.
+          const levels = protections
+            .filter((protection) => protects(protection.name, branch))
+            .flatMap((protection) => protection.push_access_levels ?? []);
+          const named = pushing.some((key) => levels.some((level) => level.deploy_key_id === key.id));
+          // Only the publish job's environment, on protected branches, and kept out of logs.
+          const settings = variable.ok
+            ? ((await variable.json()) as { protected?: boolean; masked?: boolean; environment_scope?: string })
+            : undefined;
+          const kept =
+            settings?.protected === true &&
+            settings.masked === true &&
+            settings.environment_scope === PUBLISH_ENVIRONMENT;
+          return pushing.length > 0 && named && kept ? "ready" : "needs-setup";
+        }
+        const settings = await gitlabJson<{ ci_push_repository_for_job_token_allowed?: boolean }>(api, base);
+        return settings.ci_push_repository_for_job_token_allowed ? "ready" : "needs-setup";
       } catch (error) {
         // Developers can't see a project's schedules; they can still see what the last run did.
         if (error instanceof GitApiError && error.status === 403) return "needs-setup";
@@ -138,10 +290,14 @@ export function gitlabUpdates(
     },
 
     async enable() {
-      await gitlabRequest(api, base, {
-        method: "PUT",
-        body: { ci_push_repository_for_job_token_allowed: true },
-      }).catch(notAllowed);
+      const keyed = (await readAt(CI_FILE))?.includes(PUBLISH_MARK) ?? false;
+      if (keyed) await addPublishingKey(api, project, branch);
+      else {
+        await gitlabRequest(api, base, {
+          method: "PUT",
+          body: { ci_push_repository_for_job_token_allowed: true },
+        }).catch(notAllowed);
+      }
       if (!(await nightlySchedule().catch(notAllowed))) {
         await gitlabRequest(api, `${base}/pipeline_schedules`, {
           method: "POST",
@@ -167,17 +323,23 @@ export function gitlabUpdates(
         if (["created", "pending", "running", "waiting_for_resource", "preparing"].includes(pipeline.status)) {
           return { state: "running", ...run };
         }
-        const jobs = await gitlabJson<Array<{ id: number; name: string }>>(
+        const jobs = await gitlabJson<Array<{ id: number; name: string; status?: string }>>(
           api,
           `${base}/pipelines/${pipeline.id}/jobs?per_page=100`,
         );
-        // Where Cloudflare Pages builds the site, the site's own pipeline updates in an `update` job.
-        const job = jobs.find((candidate) => candidate.name === jobName || candidate.name === "update");
+        // The prepare job, or, in pipelines from before it, the job named, or an `update` job where Cloudflare
+        // Pages builds the site.
+        const job =
+          jobs.find((candidate) => candidate.name === PREPARE_JOB) ??
+          jobs.find((candidate) => candidate.name === jobName || candidate.name === "update");
         if (!job) continue;
         const response = await gitlabRequest(api, `${base}/jobs/${job.id}/trace`, { allow: [403, 404] });
         const result = response.ok ? findUpdateResult(await response.text()) : undefined;
         // A pipeline started for something else, which didn't update.
         if (!result) continue;
+        // The prepare job only commits the update; the publish job after it publishes it, or doesn't.
+        const publish = jobs.find((candidate) => candidate.name === PUBLISH_JOB);
+        if (result.state === "updated" && publish && publish.status !== "success") return { state: "failed", ...run };
         return { state: result.state, result, ...run };
       }
       return undefined;

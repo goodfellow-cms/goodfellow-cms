@@ -63,7 +63,7 @@ import { useAdminClient, useFrameCode } from "./frame-site.js";
 import { withLabels } from "./labels.js";
 import { withOwnersOnlyLocked } from "./owners-only.js";
 import { PageFields } from "./page-fields.js";
-import { type ShownSettings, shownSettings } from "./page-settings.js";
+import { isMembersPageData, type ShownSettings, shownSettings, withoutVisibility } from "./page-settings.js";
 import type { EditorChange, EditorOpen, EditorOpened, EditorState } from "./protocol.js";
 import { SiteFrame } from "./site-frame.js";
 import { withStyleFields } from "./style-field.js";
@@ -396,6 +396,8 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
   const { puck: dictionary, labels } = useEditorText();
   // Synced blocks placed in what's edited, and in the header and footer around a page, are drawn in their place.
   const metadata = useMemo(() => siteMetadata(site), [site]);
+  // Whether what's opened is already for members, as it was opened, so the setting stays offered while it's changed.
+  const membersPage = isMembersPageData(data);
   const drawn = useCallback(
     (config: Config) =>
       withSyncedBlockDrawing(config, {
@@ -412,7 +414,7 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
       if (!collection || !entry) throw new Error("The item isn't in the site.");
       return withLabels(entryConfig(collection, entry.entry, content, { templateConfig, layoutConfig }), labels);
     }
-    const edited =
+    const chosen =
       kind === "page"
         ? pageConfig
         : kind === "template"
@@ -420,6 +422,9 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
           : kind === "synced"
             ? syncedConfig
             : layoutConfig;
+    // Only a site with a server of its own can keep a page to its members, so others aren't offered it, unless the
+    // page already says so, which its owner can then undo.
+    const edited = open.members || membersPage ? chosen : withoutVisibility(chosen);
     return withLabels(
       withTableFields(
         canvasConfig(
@@ -437,6 +442,8 @@ export function FrameEditor({ open, onOpened }: { open: EditorOpen; onOpened: (o
     kind,
     collection,
     entry,
+    open.members,
+    membersPage,
     pageConfig,
     templateConfig,
     syncedConfig,

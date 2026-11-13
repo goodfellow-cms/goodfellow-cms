@@ -50,7 +50,7 @@ export function appManifest(options: ManifestOptions) {
   const worker = options.worker.replace(/\/$/, "");
   return {
     name: options.name,
-    url: options.homepage ?? "https://goodfellow-cms.github.io/goodfellow-cms/",
+    url: options.homepage ?? "https://goodfellowcms.com/",
     description: DESCRIPTIONS[options.kind],
     // The worker needs no events, but GitHub wants an address for them.
     hook_attributes: { url: worker, active: false },
@@ -149,8 +149,10 @@ export function withVars(config: string, vars: Record<string, string>): string {
 }
 
 /**
- * The worker's address, from the lines Wrangler writes to `WRANGLER_OUTPUT_FILE_PATH`:
- * its `workers.dev` address if it has one, or else the first `https://` one.
+ * The worker's address, from the lines Wrangler writes to `WRANGLER_OUTPUT_FILE_PATH`: its custom domain, which
+ * the owner chose, then its `workers.dev` address, or else the first `https://` one. Wrangler gives a custom
+ * domain without `https://`, as `sign-in.example.org (custom domain)`, and a route as a pattern with a path, such as
+ * `example.org/sign-in/*`, which isn't an address.
  */
 export function deployedAddress(output: string): string | undefined {
   const targets: string[] = [];
@@ -165,8 +167,21 @@ export function deployedAddress(output: string): string | undefined {
       // Not one of Wrangler's lines.
     }
   }
-  const addresses = targets.map((target) => target.trim()).filter((target) => /^https:\/\/[^\s/]+$/.test(target));
-  return (addresses.find((address) => address.endsWith(".workers.dev")) ?? addresses[0])?.replace(/\/$/, "");
+  const domains = targets
+    .map((target) => /^(\S+) \(custom domain\)$/.exec(target.trim())?.[1]?.toLowerCase())
+    .filter((domain): domain is string => domain !== undefined && isHostname(domain))
+    .map((domain) => `https://${domain}`);
+  const addresses = targets
+    .map((target) => target.trim())
+    .filter((target) => /^https:\/\/[^\s/]+\/?$/.test(target))
+    .map((address) => address.replace(/\/$/, ""));
+  return domains[0] ?? addresses.find((address) => address.endsWith(".workers.dev")) ?? addresses[0];
+}
+
+/** Whether `name` is a host's name with a dot in it: labels of letters, digits, and inner hyphens. */
+function isHostname(name: string): boolean {
+  const labels = name.split(".");
+  return labels.length > 1 && labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
 }
 
 function escapeHtml(text: string): string {

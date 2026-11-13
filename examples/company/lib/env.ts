@@ -26,7 +26,35 @@ export interface SiteEnv {
   /** The token the server publishes to the content repository with. */
   GOODFELLOW_GIT_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
-  RESEND_API_KEY?: string;
+  /**
+   * The email service invitations and password resets go through (lib/email.ts): `resend`, `mailgun`, `sendgrid`,
+   * `ses`, or `plunk`. Owners change it, and the settings below, as the README's "Email" says.
+   */
+  EMAIL_PROVIDER?: string;
+  /** The service's key, a secret: one that can only send, from the site's domain (Amazon SES: the secret access key). */
+  EMAIL_API_KEY?: string;
+  /** Who those emails are from, such as `Example Co <hello@example.org>`, on a domain the service has verified. */
+  EMAIL_FROM?: string;
+  /** Mailgun: the domain it sends from, where it isn't `EMAIL_FROM`'s. */
+  EMAIL_DOMAIN?: string;
+  /** Mailgun: `eu` for its European region (`us` otherwise). Amazon SES: its region, such as `us-east-1`. */
+  EMAIL_REGION?: string;
+  /** Amazon SES: the access key's id, which goes with `EMAIL_API_KEY`. */
+  EMAIL_KEY_ID?: string;
+  /** The service's API, for tests to point elsewhere. */
+  EMAIL_API_URL?: string;
+}
+
+/** How a Worker keeps work going after it has answered; elsewhere, the process simply carries on. */
+let keepGoing: ((work: Promise<unknown>) => void) | undefined;
+
+/**
+ * Runs `work` after the answer has gone, such as sending an email, so how long it takes says nothing about the
+ * request: on Cloudflare through the Worker's `waitUntil()`, which `env()` finds.
+ */
+export function inBackground(work: Promise<unknown>): void {
+  if (keepGoing) keepGoing(work);
+  else void work;
 }
 
 /** Whether this is a Cloudflare Worker, which says so in its user agent. */
@@ -49,7 +77,9 @@ export function env(): Promise<SiteEnv> {
         /* webpackIgnore: true */ /* turbopackIgnore: true */ /* @vite-ignore */ "cloudflare:workers"
       )) as {
         env: SiteEnv;
+        waitUntil?: (work: Promise<unknown>) => void;
       };
+      keepGoing = workers.waitUntil;
       return { CLIENT_IP_HEADER: "cf-connecting-ip", ...workers.env };
     }
     // Left out of builds, where NODE_ENV is "production", so wrangler is never bundled.

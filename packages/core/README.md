@@ -2,11 +2,11 @@
 
 The content model: config, content files and their migrations, collections, themes, and the git backend interface. It runs in Node and the browser, with no React.
 
-The other packages build on it; `@goodfellow-cms/core/node` reads sites from disk, `@goodfellow-cms/core/wordpress` imports WordPress sites and writes WordPress export files, `@goodfellow-cms/core/shadcn` makes blocks of shadcn components, for `goodfellow blocks add`, and `@goodfellow-cms/core/content-api` writes the [content API](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-api), the site's content as JSON, and has its files' types.
+The other packages build on it; `@goodfellow-cms/core/node` reads sites from disk, `@goodfellow-cms/core/wordpress` imports WordPress sites and writes WordPress export files, `@goodfellow-cms/core/shadcn` makes blocks of shadcn components, for `goodfellow blocks add`, and `@goodfellow-cms/core/content-api` writes the [content API](https://goodfellowcms.com/docs/content-api), the site's content as JSON, and has its files' types.
 
-[Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab, or Bitbucket repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellow-cms.github.io/goodfellow-cms/) for everything else.
+[Goodfellow](https://github.com/goodfellow-cms/goodfellow-cms) is a website builder for people who aren't developers, with no server or database: pages are files in your own GitHub, GitLab, or Bitbucket repository, edited in a visual editor built on [Puck](https://puckeditor.com). To start a new site, run `npm create goodfellow@latest my-site`. See the [documentation](https://goodfellowcms.com/) for everything else.
 
-More in the docs: [Content files](https://goodfellow-cms.github.io/goodfellow-cms/docs/content-files).
+More in the docs: [Content files](https://goodfellowcms.com/docs/content-files).
 
 ## License
 

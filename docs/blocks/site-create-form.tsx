@@ -141,8 +141,10 @@ function fileChanges(files: SiteFiles, which: "code" | "content"): FileChange[] 
   });
 }
 
-function setupHost(git: GitHostName, gitlabClientId: string): SetupHost {
-  return git === "github" ? githubSetup() : gitlabSetup({ clientId: gitlabClientId || undefined });
+function setupHost(git: GitHostName, githubSignIn: string, gitlabClientId: string): SetupHost {
+  return git === "github"
+    ? githubSetup({ signIn: githubSignIn.trim() || undefined })
+    : gitlabSetup({ clientId: gitlabClientId || undefined });
 }
 
 function signInMessage(error: unknown): string {
@@ -171,6 +173,8 @@ function createMessage(error: unknown): string {
 }
 
 export interface SiteCreateFormProps {
+  /** The sign-in service's address, for "Sign in with GitHub", or "" to sign in with a token. */
+  githubSignIn: string;
   /** The Application ID of the GitLab OAuth application for this page, for "Sign in with GitLab". */
   gitlabClientId: string;
 }
@@ -183,7 +187,7 @@ const TOKEN_PROBLEMS = new Set(["unavailable", "wrong-address", "local-address"]
  * holds, then signing in to GitHub or GitLab, the account and name, and
  * creating the site in someone's own account, from their browser.
  */
-export function SiteCreateForm({ gitlabClientId }: SiteCreateFormProps) {
+export function SiteCreateForm({ githubSignIn, gitlabClientId }: SiteCreateFormProps) {
   // Read from the address once the page is in the browser: `null` when it has no usable choices.
   const [choices, setChoices] = useState<Choices | null>();
   const [restoring, setRestoring] = useState(false);
@@ -202,7 +206,7 @@ export function SiteCreateForm({ gitlabClientId }: SiteCreateFormProps) {
     setChoices(found);
     if (!saved || !found) return;
     setRestoring(true);
-    setupHost(found.git, gitlabClientId)
+    setupHost(found.git, githubSignIn, gitlabClientId)
       .restore()
       .then((account) => setRestored({ account: account ?? undefined }))
       .catch((error: unknown) => setRestored({ error }))
@@ -211,7 +215,7 @@ export function SiteCreateForm({ gitlabClientId }: SiteCreateFormProps) {
         window.history.replaceState(window.history.state, "", `${window.location.pathname}?${choicesQuery(found)}`);
         setRestoring(false);
       });
-  }, [gitlabClientId]);
+  }, [githubSignIn, gitlabClientId]);
 
   if (choices === undefined || restoring) return <p aria-live="polite">Loading…</p>;
   if (choices === null) {
@@ -228,6 +232,7 @@ export function SiteCreateForm({ gitlabClientId }: SiteCreateFormProps) {
   return (
     <CreateSite
       choices={choices}
+      githubSignIn={githubSignIn}
       gitlabClientId={gitlabClientId}
       restoredAccount={restored.account}
       restoreError={restored.error}
@@ -285,11 +290,13 @@ function Summary({ choices }: { choices: Choices }) {
 
 function CreateSite({
   choices,
+  githubSignIn,
   gitlabClientId,
   restoredAccount,
   restoreError,
 }: {
   choices: Choices;
+  githubSignIn: string;
   gitlabClientId: string;
   restoredAccount?: SetupAccount;
   restoreError?: unknown;
@@ -317,7 +324,10 @@ function CreateSite({
   /** The token broker's repository, made after the site's, or why it couldn't be. */
   const [broker, setBroker] = useState<{ created?: CreatedSiteRepository; error?: string }>();
 
-  const host = useMemo(() => setupHost(choices.git, gitlabClientId), [choices.git, gitlabClientId]);
+  const host = useMemo(
+    () => setupHost(choices.git, githubSignIn, gitlabClientId),
+    [choices.git, githubSignIn, gitlabClientId],
+  );
   // The token form is for when signing in by redirect isn't available, or didn't work for a reason a token gets around.
   const [showToken, setShowToken] = useState(
     !host.canRedirect || (restoreError instanceof SignInError && TOKEN_PROBLEMS.has(restoreError.problem)),
@@ -738,9 +748,9 @@ function Unconnected({ left, repos }: { left: UnmadeConnection[]; repos: Created
               </>
             ) : unmade.kind === "push" ? (
               <>
-                In {unmade.repo}'s{" "}
-                {at(unmade.repo, "/-/settings/ci_cd#js-token-access", "Settings → CI/CD → Job token permissions")}, turn
-                on Allow Git push requests to the repository, so it can install Goodfellow's fixes.
+                Turn on updates on the admin panel's Updates screen, which gives {unmade.repo}'s pipelines a key of
+                their own to install Goodfellow's fixes with. On GitLab before release 18.10, only paid plans let that
+                key publish to the protected main branch.
               </>
             ) : (
               <>

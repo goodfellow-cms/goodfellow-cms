@@ -1,13 +1,22 @@
 // Builds a copy of the company example into a Cloudflare Worker with vinext, as its deploy workflow does, gives it
 // a local D1 database with an admin and an editor, and serves the built Worker in workerd, as Cloudflare would,
-// with a fake GitHub as its content repository. POST /__reset to the fake GitHub starts it afresh.
+// with a fake GitHub as its content repository and a fake Resend for its email. POST /__reset to the fake GitHub
+// starts it afresh; GET /__sent from the fake Resend lists what it was sent.
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
-import { COMPANY, COMPANY_PASSWORD, COMPANY_PEOPLE, companyFiles, companySite, createCompanySite } from "./site.mjs";
+import {
+  COMPANY,
+  COMPANY_PASSWORD,
+  COMPANY_PEOPLE,
+  COMPANY_TOTP_SECRET,
+  companyFiles,
+  companySite,
+  createCompanySite,
+} from "./site.mjs";
 
 /** Serves a fake's `handle` over HTTP, as the real service would be. */
 function serve(port, handle) {
@@ -36,12 +45,31 @@ const newGitHub = () =>
     tokens: { [COMPANY.token]: { login: "company-bot", name: "Company bot" } },
   });
 let github = newGitHub();
+// How many requests the Worker has made to GitHub, so tests can tell a page it rendered from one Workers Cache kept.
+let requests = 0;
 serve(COMPANY.github, async (request) => {
-  if (new URL(request.url).pathname === "/__reset") {
+  const { pathname } = new URL(request.url);
+  if (pathname === "/__reset") {
     github = newGitHub();
+    requests = 0;
     return new Response(null, { status: 204 });
   }
+  if (pathname === "/__requests") return Response.json({ requests });
+  requests++;
   return github.handle(request);
+});
+
+// Resend's API, as the site sends email: it keeps each message, sent with the site's key, for the tests to read.
+const sent = [];
+serve(COMPANY.resend, async (request) => {
+  const { pathname } = new URL(request.url);
+  if (pathname === "/__sent") return Response.json(sent);
+  if (request.method !== "POST" || pathname !== "/emails") return new Response(null, { status: 404 });
+  if (request.headers.get("authorization") !== "Bearer re_company_test") return new Response(null, { status: 401 });
+  const message = await request.json();
+  // One recipient comes as a string, several as a list.
+  sent.push({ ...message, to: [message.to].flat() });
+  return Response.json({ id: String(sent.length) });
 });
 
 /** A package's command, run with this Node, from the copy's packages. */
@@ -79,23 +107,39 @@ run("vinext", ["build"]);
 // build put the Worker, so only the state goes.)
 rmSync(join(companySite, ".wrangler/state"), { recursive: true, force: true });
 run("wrangler", ["d1", "migrations", "apply", "goodfellow-company", "--local"]);
+// The password's hash, and the admin's authenticator secret and backup codes encrypted as Better Auth keeps them,
+// with the secret .dev.vars gives it.
+const secret = /^BETTER_AUTH_SECRET=(.*)$/m.exec(readFileSync(join(companySite, ".dev.vars"), "utf8"))?.[1];
 const hashed = spawnSync(
   process.execPath,
   [
     "--input-type=module",
     "-e",
-    'import { hashPassword } from "better-auth/crypto"; console.log(await hashPassword(process.argv[1]));',
+    `import { hashPassword, symmetricEncrypt } from "better-auth/crypto";
+const [password, key, totp] = process.argv.slice(1);
+console.log(JSON.stringify([
+  await hashPassword(password),
+  await symmetricEncrypt({ key, data: totp }),
+  await symmetricEncrypt({ key, data: JSON.stringify([]) }),
+]));`,
     COMPANY_PASSWORD,
+    secret,
+    COMPANY_TOTP_SECRET,
   ],
   { cwd: companySite, encoding: "utf8" },
 );
 if (hashed.status !== 0) throw new Error(hashed.stderr);
-const hash = hashed.stdout.trim();
+const [hash, totpSecret, backupCodes] = JSON.parse(hashed.stdout);
 const now = new Date().toISOString();
 const quote = (value) => `'${String(value).replaceAll("'", "''")}'`;
 const rows = Object.entries(COMPANY_PEOPLE).flatMap(([id, person]) => [
-  `insert into "user" (id, name, email, emailVerified, createdAt, updatedAt, role) values (${[id, person.name, person.email, 1, now, now, person.role].map(quote).join(", ")});`,
+  `insert into "user" (id, name, email, emailVerified, createdAt, updatedAt, role, twoFactorEnabled) values (${[id, person.name, person.email, 1, now, now, person.role, person.twoFactor ? 1 : 0].map(quote).join(", ")});`,
   `insert into account (id, accountId, providerId, userId, password, createdAt, updatedAt) values (${[`${id}-password`, id, "credential", id, hash, now, now].map(quote).join(", ")});`,
+  ...(person.twoFactor
+    ? [
+        `insert into twoFactor (id, secret, backupCodes, userId, verified, failedVerificationCount) values (${[`${id}-two-factor`, totpSecret, backupCodes, id, 1, 0].map(quote).join(", ")});`,
+      ]
+    : []),
 ]);
 run("wrangler", ["d1", "execute", "goodfellow-company", "--local", "--command", rows.join(" ")]);
 

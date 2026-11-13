@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/mcp",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Work on a Goodfellow CMS site from Claude: read and change its pages, entries, and settings, see them in screenshots, and publish them or submit them for review.",
   "keywords": [
     "goodfellow",
@@ -9,7 +9,7 @@
     "claude",
     "model-context-protocol"
   ],
-  "homepage": "https://goodfellow-cms.github.io/goodfellow-cms/docs/claude",
+  "homepage": "https://goodfellowcms.com/docs/claude",
   "bugs": "https://github.com/goodfellow-cms/goodfellow-cms/issues",
   "funding": {
     "type": "github",

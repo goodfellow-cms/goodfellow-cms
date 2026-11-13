@@ -3,6 +3,8 @@ import {
   absoluteUrl,
   adminSiteForCopy,
   BLOCK_SCRIPTS,
+  builtSource,
+  type ContentSource,
   colorSchemeMeta,
   colorSchemeScript,
   consentScript,
@@ -92,6 +94,17 @@ export interface GoodfellowPagesOptions {
    * `basePath` that `withGoodfellow()` gave Next.js.
    */
   basePath?: string;
+  /**
+   * Where pages' content comes from as they render, in place of `root`'s
+   * `content/` folder: a function giving a source of the site's files, such as
+   * `repositorySource()`'s from `@goodfellow-cms/core`, which reads the
+   * repository's newest revision. A full-stack site then shows a publish once
+   * the pages it changed render again (`revalidatePath()`, from
+   * `goodfellowApi({ onPublish })`), without a rebuild. Site settings are read
+   * as builds read them (`builtSource()`). Where it gives nothing, as a site's
+   * might in `next dev`, pages read `root`'s files. Static sites leave it out.
+   */
+  source?: () => ContentSource | undefined | Promise<ContentSource | undefined>;
 }
 
 // In `next build`, which renders pages in several processes, each writes the dates what its pages show by today's
@@ -164,6 +177,22 @@ export const loadSite = cache(
         builtSiteSource(root, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
       ),
     ),
+);
+
+/** The site as `source` gives it, read as builds read it, once a request, as visitors see it now. */
+const loadSourceSite = cache(
+  async (
+    source: () => ContentSource | undefined | Promise<ContentSource | undefined>,
+    root: string | undefined,
+  ): Promise<SiteContent> => {
+    const files = await source();
+    if (!files) return loadSite(root);
+    return shownContent(
+      await loadSiteContent(
+        builtSource(files, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+      ),
+    );
+  },
 );
 
 function pathOf(segments: string[] | undefined): string {
@@ -300,7 +329,8 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   const configs = createPuckConfigs(config);
   const root = options.root ?? process.cwd();
   // The same arguments as the layout's `loadSite()`, so a request reads the site once.
-  const site = () => loadSite(options.root);
+  const source = options.source;
+  const site = () => (source ? loadSourceSite(source, options.root) : loadSite(options.root));
   const basePath = () => options.basePath ?? configuredBasePath();
 
   // Stored media's sizes are by its public address, which the site shows it from.
@@ -349,6 +379,27 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   }
 
   return {
+    /**
+     * The site as these pages show it, for the root layout's `<html lang>`:
+     * `loadSite()`, or from `source` where the site gives one.
+     */
+    loadSite: site,
+
+    /**
+     * For the root layout's `<html lang>`: the site's main language. The root
+     * layout also wraps the admin panel and sign-in, which must open while
+     * `source` can't be read (to fix its token, say), so then it's the
+     * language of the files the site was built with; the pages themselves
+     * still fail, rather than show content the site would keep as current.
+     */
+    async language(): Promise<string> {
+      try {
+        return (await site()).settings.language;
+      } catch {
+        return (await loadSite(options.root)).settings.language;
+      }
+    },
+
     /** Every page's address, so Next.js builds them all. Any other address is "not found". */
     async generateStaticParams(): Promise<Array<{ path: string[] }>> {
       return exportedPages(await site(), config.blocks)

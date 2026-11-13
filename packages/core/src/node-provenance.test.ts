@@ -9,6 +9,7 @@ import {
   checkEarlyTheme,
   type EarlyInstall,
   EarlyInstallError,
+  npmCommand,
   signerIdentity,
   verifiedSource,
   writeEarlyLockfile,
@@ -247,5 +248,24 @@ describe("checkEarlyTheme", () => {
     git("rm", "--quiet", "-r", "--cached", ".");
     await commit(record("1.1.0", { early }));
     await expect(checkEarlyTheme(dir, options)).rejects.toThrow(/no release of it/);
+  });
+});
+
+describe("npmCommand", () => {
+  it("starts npm itself where it isn't a .cmd file", () => {
+    expect(npmCommand(["install", "a&b"], "linux")).toEqual({ file: "npm", args: ["install", "a&b"] });
+  });
+
+  it("runs npm's own script with Node on Windows, with no shell to read its arguments", () => {
+    expect(npmCommand(["install", "%PATH%"], "win32", "C:\\node\\node.exe", {})).toEqual({
+      file: "C:\\node\\node.exe",
+      args: ["C:\\node\\node_modules\\npm\\bin\\npm-cli.js", "install", "%PATH%"],
+    });
+    expect(
+      npmCommand(["ci"], "win32", "C:\\node\\node.exe", { npm_execpath: "D:\\npm\\bin\\npm-cli.js" }).args[0],
+    ).toBe("D:\\npm\\bin\\npm-cli.js");
+    expect(npmCommand(["ci"], "win32", "C:\\node\\node.exe", { npm_execpath: "C:\\pnpm\\pnpm.cjs" }).args[0]).toBe(
+      "C:\\node\\node_modules\\npm\\bin\\npm-cli.js",
+    );
   });
 });

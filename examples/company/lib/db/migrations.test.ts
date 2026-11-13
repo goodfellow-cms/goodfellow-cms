@@ -156,10 +156,14 @@ describe.each(DATABASES)("the migrated database, on %s", (_, open) => {
   it("lets editors sign in, and tells Goodfellow who they are", () =>
     withDatabase(open, async (database) => {
       const { auth, person, signedIn } = await site(database);
-      await person("olive@example.org", "admin");
+      const olive = await person("olive@example.org", "admin");
       await person("eddie@example.org", "editor");
       await person("vic@example.org", "visitor");
-      expect(await authorizeWith(auth, await signedIn("olive@example.org"))).toMatchObject({ role: "owner" });
+      const oliveSignedIn = await signedIn("olive@example.org");
+      // An admin with only a password edits pages, and is an owner once she turns on two-factor sign-in.
+      expect(await authorizeWith(auth, oliveSignedIn)).toMatchObject({ role: "editor" });
+      await (await auth.$context).internalAdapter.updateUser(olive, { twoFactorEnabled: true });
+      expect(await authorizeWith(auth, oliveSignedIn)).toMatchObject({ role: "owner" });
       expect(await authorizeWith(auth, await signedIn("eddie@example.org"))).toEqual({
         login: "eddie@example.org",
         name: "eddie",
@@ -219,6 +223,21 @@ describe.each(DATABASES)("the migrated database, on %s", (_, open) => {
       expect((await signedInWith(auth, new Request(`${SITE}/members/`))).signedIn).toBe(false);
     }));
 
+  it("keeps members' pages from a session that has ended or someone banned, even with its cookie's cached copy", () =>
+    withDatabase(open, async (database) => {
+      const { auth, person, signedIn } = await site(database);
+      const context = await auth.$context;
+      const eddie = await person("eddie@example.org", "editor");
+      // Sessions end everywhere as a used reset link ends them, while the browser keeps its cookies.
+      const before = await signedIn("eddie@example.org");
+      expect(before.headers.get("cookie")).toContain("session_data");
+      await context.internalAdapter.deleteUserSessions(eddie);
+      expect((await signedInWith(auth, before)).signedIn).toBe(false);
+      const banned = await signedIn("eddie@example.org");
+      await context.internalAdapter.updateUser(eddie, { banned: true });
+      expect((await signedInWith(auth, banned)).signedIn).toBe(false);
+    }));
+
   it("signs out only for the site's own pages", () =>
     withDatabase(open, async (database) => {
       const { auth, person, signedIn } = await site(database);
@@ -239,13 +258,13 @@ describe.each(DATABASES)("the migrated database, on %s", (_, open) => {
       expect(await session()).toBeNull();
     }));
 
-  it("makes an admin, who can then sign in as an owner", () =>
+  it("makes an admin, who can then sign in and turn on two-factor sign-in", () =>
     withDatabase(open, async (database) => {
       const { auth, signedIn } = await site(database);
       await addAdmin(database, { email: "Olive@example.org", name: " Olive Owner ", password: PASSWORD });
       expect(await authorizeWith(auth, await signedIn("olive@example.org"))).toMatchObject({
         name: "Olive Owner",
-        role: "owner",
+        role: "editor",
       });
       await expect(
         addAdmin(database, { email: "olive@example.org", name: "Again", password: PASSWORD }),
@@ -276,7 +295,7 @@ describe("the site's sign-in", () => {
     try {
       (database as DatabaseSync).exec(sql);
       const { auth, signedIn } = await site(database);
-      expect(await authorizeWith(auth, await signedIn("olive@example.org"))).toMatchObject({ role: "owner" });
+      expect(await authorizeWith(auth, await signedIn("olive@example.org"))).toMatchObject({ role: "editor" });
     } finally {
       await close();
     }

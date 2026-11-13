@@ -59,6 +59,12 @@ describe("signing in", () => {
     expect(new URL(classic).searchParams.get("scopes")).toBe("repo");
   });
 
+  it("asks owners' tokens for Variables by GitHub's name for it", () => {
+    const owner = Object.fromEntries(new URL(githubTokenLinks("parish/site").owner).searchParams);
+    expect(owner).toMatchObject({ administration: "write", pages: "write", actions_variables: "write" });
+    expect(owner).not.toHaveProperty("variables");
+  });
+
   it("signs in with a token and remembers it only when asked", async () => {
     const { host, local, session } = setup();
     const backend = await host.signInWithToken("  test-token  ", false);
@@ -425,7 +431,17 @@ describe("updates", () => {
 
   it("says whether the site's workflow updates Goodfellow", async () => {
     expect(await (await site()).updates.setup()).toBe("ready");
-    expect(await (await site("run: npx goodfellow update --commit")).updates.setup()).toBe("ready");
+    const committed = "jobs:\n    update:\n        steps:\n            - run: npx goodfellow update --commit\n";
+    const pushes = "    publish-update:\n        steps:\n            - run: git push origin HEAD:main\n";
+    expect(await (await site(`${committed}${pushes}`)).updates.setup()).toBe("ready");
+    // A commit nothing publishes is thrown away when the job ends: no job after it, one that doesn't push, or one
+    // whose push is commented out.
+    expect(await (await site(committed)).updates.setup()).toBe("missing");
+    expect(await (await site(`${committed}    publish-update:\n        steps: []\n`)).updates.setup()).toBe("missing");
+    expect(await (await site(`${committed}${pushes.replace("- run:", "# - run:")}`)).updates.setup()).toBe("missing");
+    const disabled = "    publish-update:\n        steps:\n            - run: echo disabled # git push\n";
+    expect(await (await site(`${committed}${disabled}`)).updates.setup()).toBe("missing");
+    expect(await (await site("# run: npx goodfellow update --publish")).updates.setup()).toBe("missing");
     expect(await (await site("run: npx goodfellow build")).updates.setup()).toBe("missing");
   });
 

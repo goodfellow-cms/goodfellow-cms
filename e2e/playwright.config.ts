@@ -88,14 +88,17 @@ const SERVERS: { server: Server; usedBy?: RegExp }[] = [
   { server: builtSite("broker"), usedBy: /BROKER_ADDRESSES|builtSites\.broker|4412/ },
 ];
 
-/** A file filter as Playwright reads it, a regular expression, or the text itself where it isn't one. */
-function fileFilter(text: string): RegExp {
-  try {
-    return new RegExp(text);
-  } catch {
-    return new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  }
+/**
+ * Whether a spec file is one a file filter names. Playwright reads filters as regular expressions, but
+ * choosing servers reads them as text, which is how they're written (`next islands`), so text from the
+ * command line is never made into a pattern.
+ */
+function namedBy(filter: string, file: string): boolean {
+  return file.includes(filter);
 }
+
+/** The spec files a run is for, by name and separated by commas, which `scripts/test-groups.mjs` sets. */
+export const SPECS_VARIABLE = "E2E_SPECS";
 
 /** Options that take a value, so a value such as `--project chromium`'s isn't taken for a file. */
 const VALUE_OPTIONS = new Set(["-c", "--config", "-g", "--grep", "--grep-invert", "--project", "--reporter", "-j"]);
@@ -108,17 +111,25 @@ const VALUE_OPTIONS = new Set(["-c", "--config", "-g", "--grep", "--grep-invert"
 function serversFor(args: string[]): Server[] {
   const all = SERVERS.map(({ server }) => server);
   if (process.env.E2E_ALL_SERVERS) return all;
-  const filters: RegExp[] = [];
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i] ?? "";
-    if (VALUE_OPTIONS.has(arg)) i++;
-    else if (arg !== "test" && !arg.startsWith("-")) filters.push(fileFilter(arg.replace(/(:\d+)+$/, "")));
+  const names = readdirSync(new URL("tests/", import.meta.url)).filter((name) => name.endsWith(".spec.ts"));
+  // `scripts/test-groups.mjs` names its group's specs exactly, since the filters it gives Playwright are patterns.
+  const listed = process.env[SPECS_VARIABLE]?.split(",").filter(Boolean);
+  let chosen: string[];
+  if (listed?.length) {
+    chosen = names.filter((name) => listed.includes(name));
+  } else {
+    const filters: string[] = [];
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i] ?? "";
+      if (VALUE_OPTIONS.has(arg)) i++;
+      else if (arg !== "test" && !arg.startsWith("-")) filters.push(arg.replace(/(:\d+)+$/, ""));
+    }
+    if (!filters.length) return all;
+    // A filter that names no spec may be a pattern Playwright matches some other way, so start everything rather than guess.
+    if (filters.some((filter) => !names.some((name) => namedBy(filter, `tests/${name}`)))) return all;
+    chosen = names.filter((name) => filters.some((filter) => namedBy(filter, `tests/${name}`)));
   }
-  if (!filters.length) return all;
-  const specs = readdirSync(new URL("tests/", import.meta.url))
-    .filter((name) => name.endsWith(".spec.ts") && filters.some((filter) => filter.test(`tests/${name}`)))
-    .map((name) => readFileSync(new URL(`tests/${name}`, import.meta.url), "utf8"));
-  // A filter no spec matches is something else, so start everything rather than guess.
+  const specs = chosen.map((name) => readFileSync(new URL(`tests/${name}`, import.meta.url), "utf8"));
   if (!specs.length) return all;
   return SERVERS.filter(({ usedBy }) => !usedBy || specs.some((text) => usedBy.test(text))).map(({ server }) => server);
 }

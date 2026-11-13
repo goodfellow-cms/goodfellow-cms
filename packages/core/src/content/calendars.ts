@@ -11,6 +11,7 @@ import { type Collection, entryTitle, richTextToPlainText } from "./collections.
 import { contentInLanguage, settingsPrefix, siteLanguages } from "./languages.js";
 import type { SiteContent } from "./load.js";
 import { markdownText } from "./markdown.js";
+import { isMembersCollection } from "./visibility.js";
 
 /** Where builds put calendar files: `/calendars/<collection>.ics`, and `/calendars/<collection>/<slug>.ics` for each event. */
 export const CALENDARS_DIR = "calendars";
@@ -51,7 +52,8 @@ export function calendarMonths(props: Record<string, unknown>): CalendarMonths {
 
 /** The collections that are calendars: ones whose settings name their event field. */
 export function calendarCollections(content: Pick<SiteContent, "collections">): Collection[] {
-  return content.collections.filter((collection) => collection.settings.calendar);
+  // Members' calendars are theirs: a calendar file anyone can subscribe to would publish their events.
+  return content.collections.filter((collection) => collection.settings.calendar && !isMembersCollection(collection));
 }
 
 /** A field's value as a calendar's plain text: summaries lose their formatting. */

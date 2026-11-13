@@ -38,7 +38,7 @@ async function setup(page: Page, options: { installed?: boolean } = {}) {
 
   // The built site, at its own address.
   await page.route(
-    (url) => url.href.startsWith(SITE),
+    (url) => url.origin === new URL(SITE).origin,
     async (route) => {
       const url = new URL(route.request().url());
       const response = await fetch(`${GITHUB_SITE}${url.pathname}${url.search}`, { redirect: "manual" });

@@ -1,4 +1,4 @@
-import { cx, type SiteContextValue, siteMetadata } from "@goodfellow-cms/react";
+import { cx, richTextTransforms, type SiteContextValue, siteMetadata } from "@goodfellow-cms/react";
 import { type Config, type Data, Render } from "@puckeditor/core";
 import type { ReactNode } from "react";
 
@@ -23,13 +23,13 @@ export function SiteFrame({
     <>
       {header.content.length > 0 && (
         <header className="gf-header" inert>
-          <Render config={layoutConfig} data={header} metadata={metadata} />
+          <Render config={layoutConfig} data={header} metadata={metadata} fieldTransforms={richTextTransforms} />
         </header>
       )}
       <main className={cx("gf-main", className)}>{children}</main>
       {footer.content.length > 0 && (
         <footer className="gf-footer" inert>
-          <Render config={layoutConfig} data={footer} metadata={metadata} />
+          <Render config={layoutConfig} data={footer} metadata={metadata} fieldTransforms={richTextTransforms} />
         </footer>
       )}
     </>

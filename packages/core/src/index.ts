@@ -500,6 +500,7 @@ export {
   type Page,
   parseContentFile,
   parseEntryFile,
+  prefetchedSource,
   readTextFiles,
   type SiteCode,
   type SiteContent,
@@ -651,7 +652,14 @@ export {
   storedRedirects,
 } from "./content/redirects.js";
 export { type RenderedPage, renderedProblems } from "./content/rendered-checks.js";
-export { escapeCellText, sanitizeHtml, TABLE_CELL_TAGS, tableCellHtml } from "./content/sanitize.js";
+export {
+  cleanRichText,
+  escapeCellText,
+  RICH_TEXT_TAGS,
+  sanitizeHtml,
+  TABLE_CELL_TAGS,
+  tableCellHtml,
+} from "./content/sanitize.js";
 export {
   dueChanges,
   type FileDetails,
@@ -810,6 +818,16 @@ export {
   withThemeCss,
 } from "./content/themes.js";
 export {
+  isMembersCollection,
+  isMembersOnly,
+  membersPages,
+  VISIBILITIES,
+  VISIBILITY_PROP,
+  type Visibility,
+  visibilityChanges,
+  withoutMembersContent,
+} from "./content/visibility.js";
+export {
   CONTENT_BUILDS,
   type ContentBuild,
   cloudflareContentBuild,
@@ -963,6 +981,29 @@ export {
   type TokenLink,
 } from "./git.js";
 export { UPDATE_CHECK, UPDATE_FILES, UPDATE_REGISTRY } from "./github-workflows.js";
+export {
+  BUILD_DECISION,
+  DEPLOY_KEY_TITLE,
+  DEPLOY_KEY_VARIABLE,
+  GITLAB_BRANCH_MOVED,
+  gitlabHookDecision,
+  gitlabHookUnpublished,
+  gitlabPagesDecision,
+  gitlabPagesJob,
+  gitlabPagesPipelineJobs,
+  gitlabPrepareJob,
+  gitlabPublishJob,
+  gitlabPublishRules,
+  type PagesJobOptions,
+  type PagesPipelineOptions,
+  PREPARE_JOB,
+  type PrepareJobOptions,
+  PUBLISH_ENVIRONMENT,
+  PUBLISH_JOB,
+  PUBLISH_MARK,
+  PUBLISH_PATCH,
+  type PublishJobOptions,
+} from "./gitlab-publish.js";
 export {
   AI_TRAINING_CRAWLERS,
   absoluteUrl,
@@ -1258,6 +1299,7 @@ export {
   type UpdateOptions,
   type UpdatePlan,
 } from "./registry.js";
+export { type RepositorySourceOptions, repositorySource } from "./repository-source.js";
 export {
   IMAGE_WIDTHS,
   imageSrcSet,
@@ -1299,6 +1341,7 @@ export {
 } from "./sign-in-config.js";
 export {
   adminSiteForCopy,
+  builtSource,
   describedForCopy,
   isSiteCopy,
   NO_INDEX_VARIABLE,
@@ -1371,6 +1414,7 @@ export {
   transferPaths,
   transferRoot,
 } from "./site-transfer.js";
+export { type DeployKey, newDeployKey } from "./ssh-keys.js";
 export {
   GOATCOUNTER_SCRIPT,
   type GoatCounterStats,
@@ -1473,6 +1517,8 @@ export {
   releaseVersions,
   SITE_OVERRIDES,
   type SiteUpdates,
+  setupLines,
+  setupSection,
   siteVersion,
   UPDATE_AGE_DAYS,
   UPDATE_RESULT_MARKER,

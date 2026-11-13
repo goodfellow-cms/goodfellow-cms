@@ -531,6 +531,8 @@ export const defaultStrings = {
   "collectionSettings.pathHint": "{slug} stands for each item's own address, as in /videos/{slug}.",
   "collectionSettings.pathWarning":
     "Changing this changes the address of every item's page, and links to them on this site change with it. Links to the old addresses on other websites will stop working.",
+  "collectionSettings.membersOnly":
+    "Only signed-in members can see these items and their pages. They're left out of the site's search, feeds, and calendars too.",
   "collectionSettings.sortField": "Order items by",
   "collectionSettings.sortOrder": "Direction",
   "collectionSettings.ascending": "A to Z, oldest or smallest first",
@@ -2192,6 +2194,8 @@ export const defaultStrings = {
   "updates.error.load": "The updates couldn't be checked. Check your connection and try again.",
   "updates.error.not-allowed": "Your account can't do that on {host}. Ask one of the site's owners.",
   "updates.error.missing": "This site's build setup doesn't install updates, so there's nothing to run.",
+  "updates.error.publishing":
+    "GitLab didn't let Goodfellow publish updates to this site. One of the site's owners can let “Goodfellow publishing” publish to the live site in the project's settings on GitLab, then turn updates on again.",
   "updates.error.save": "The change couldn't be saved. Try again in a moment.",
   "updates.error.other": "Something went wrong. Try again in a moment.",
   "editors.intro": "The people who can edit this site.",

@@ -34,7 +34,7 @@ To give an older site the newest setup, a developer copies the newer files over 
 
 1. Make a site with the same choices in another folder, with the release the site now has, so the files match its packages: `npm create goodfellow@<release> new-copy -- --template starter --github your-name/your-site --host github-pages --no-install --no-git`, with the site's own template (`next` for a Next.js site), host and where it's stored ([Create a site](/docs/create-a-site#with-create-goodfellow)). This writes the setup files for hosts that have their own, such as Cloudflare Pages and Bitbucket, with the options filled in, which the starter in the repository doesn't have.
 2. Compare its setup files with the site's: `.github/workflows/` (`deploy.yml`, `scheduled.yml`, and `plugin-task.yml`), `.gitlab-ci.yml`, `bitbucket-pipelines.yml`, `vercel.ts`, or a Next.js site's `vercel.json`, and `.npmrc`. Keep anything the site's developers added on purpose, such as a different branch or build command, and take the rest.
-3. Publish the change, which on GitHub needs a token or sign-in that can change workflows, and check the next build on the host.
+3. Publish the change, which on GitHub needs a token or sign-in that can change workflows, and check the next build on the host. On GitLab, a `.gitlab-ci.yml` with a `publish` job then needs an owner to turn updates on again on the Updates screen, which gives that job its key.
 
 A site whose [content is kept in a repository of its own](/docs/content-repository) has setup files in both repositories, which create-goodfellow's `--content` option writes the same way. A site made for one host and moved to another needs the new host's files instead ([Put it online](/docs/put-it-online#3-choose-a-host)).
 

@@ -26,12 +26,15 @@ const HEADING_WEIGHT = 700;
  */
 export function fontFilesFor(css: string, wanted: Array<{ family: string; weight: number }>): string[] {
   const files: string[] = [];
-  for (const [, subset, body] of css.matchAll(/\/\*\s*([\w-]+)\s*\*\/\s*@font-face\s*\{([^}]*)\}/g)) {
+  for (const [, subset, body] of css.matchAll(/\/\*\s*([\w-]+)\s*\*\/\s*@font-face\s*\{([^{}]*)\}/g)) {
     if (subset !== "latin" || !body) continue;
     const family = /font-family:\s*['"]([^'"]+)['"]/.exec(body)?.[1];
     const style = /font-style:\s*(\w+)/.exec(body)?.[1];
     const weights = /font-weight:\s*(\d+)(?:\s+(\d+))?/.exec(body);
-    const url = /url\((https:\/\/fonts\.gstatic\.com\/[^)\s]+\.woff2)\)/.exec(body)?.[1];
+    // A file's address holds no brackets, so each search stops at the next `url(`.
+    const url = [...body.matchAll(/url\((https:\/\/fonts\.gstatic\.com\/[^()\s]+)\)/g)]
+      .map((match) => match[1])
+      .find((address) => address?.endsWith(".woff2"));
     if (!family || style !== "normal" || !weights || !url?.startsWith(FONT_FILES)) continue;
     const low = Number(weights[1]);
     const high = Number(weights[2] ?? weights[1]);
@@ -185,8 +188,16 @@ export function buildNotes(result: {
   robotsElsewhere?: string;
   sitemap?: string;
   images?: { written: number; failed: string[] };
+  membersPages?: string[];
 }): string[] {
   const lines: string[] = [];
+  if (result.membersPages && result.membersPages.length > 0) {
+    const shown = result.membersPages.slice(0, 5).join(", ");
+    const more = result.membersPages.length > 5 ? `, and ${result.membersPages.length - 5} more` : "";
+    lines.push(
+      `${result.membersPages.length === 1 ? "A page is" : `${result.membersPages.length} pages are`} marked for signed-in members only (${shown}${more}), but this site has no server to keep ${result.membersPages.length === 1 ? "it" : "them"} to members, so everyone can read ${result.membersPages.length === 1 ? "it" : "them"}. Only a full-stack site can keep pages to members.`,
+    );
+  }
   if (result.images && result.images.written > 0) {
     lines.push(
       `Wrote ${result.images.written} smaller cop${result.images.written === 1 ? "y" : "ies"} of the media library's photos, which pages offer browsers in place of the whole photo`,

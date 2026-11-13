@@ -11,6 +11,7 @@ import {
   formatDate,
   formatMonth,
   formatTime,
+  isMembersCollection,
   monthOf,
   monthsAround,
   type RemoteFetch,
@@ -376,7 +377,7 @@ function CalendarView({ isEditing, ...props }: CalendarProps & { id?: string; is
       ) : (
         props.emptyText && <p className={part("gf-calendar-empty", "text-muted-foreground")}>{props.emptyText}</p>
       )}
-      {collection?.settings.calendar && (
+      {collection?.settings.calendar && !isMembersCollection(collection) && (
         <SubscribeLinks
           collection={collection.id}
           label={props.subscribeLabel}

@@ -520,6 +520,8 @@ export const strings: Strings = {
   "collectionSettings.pathHint": "{slug} representa la dirección propia de cada elemento, como en /videos/{slug}.",
   "collectionSettings.pathWarning":
     "Cambiar esto cambia la dirección de la página de cada elemento, y los enlaces a ellas en este sitio cambian también. Los enlaces a las direcciones antiguas desde otros sitios web dejarán de funcionar.",
+  "collectionSettings.membersOnly":
+    "Solo los miembros que han iniciado sesión pueden ver estos elementos y sus páginas. También se dejan fuera de la búsqueda del sitio, los canales y los calendarios.",
   "collectionSettings.sortField": "Ordenar los elementos por",
   "collectionSettings.sortOrder": "Sentido",
   "collectionSettings.ascending": "De la A a la Z, primero lo más antiguo o pequeño",
@@ -2098,6 +2100,8 @@ export const strings: Strings = {
   "updates.error.not-allowed": "Tu cuenta no puede hacer eso en {host}. Pídeselo a alguien propietario del sitio.",
   "updates.error.missing":
     "La configuración de generación de este sitio no instala actualizaciones, así que no hay nada que ejecutar.",
+  "updates.error.publishing":
+    "GitLab no dejó que Goodfellow publicara actualizaciones en este sitio. Alguien propietario del sitio puede dejar que “Goodfellow publishing” publique en el sitio publicado desde la configuración del proyecto en GitLab y volver a activar las actualizaciones.",
   "updates.error.save": "No se pudo guardar el cambio. Inténtalo de nuevo en un momento.",
   "updates.error.other": "Algo salió mal. Inténtalo de nuevo en un momento.",
   "editors.intro": "Las personas que pueden editar este sitio.",
