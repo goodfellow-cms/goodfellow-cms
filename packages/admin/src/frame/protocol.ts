@@ -76,6 +76,8 @@ export interface EditorOpen {
   readOnly?: boolean;
   /** Blocks' owners-only settings shown but not changeable, for an editor who isn't an owner. */
   ownersOnlyLocked?: boolean;
+  /** Whether the site can keep pages to its members, as only a full-stack site's server can: offers "Who can see this page". */
+  members?: boolean;
   /** Counts the times the same editor is opened again with other data, such as after someone else's change, so Puck starts afresh. */
   reopened?: number;
 }

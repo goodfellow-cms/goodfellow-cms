@@ -1,4 +1,4 @@
-import { isAddedPage, type PageCredit } from "@goodfellow-cms/core";
+import { isAddedPage, isMembersCollection, neverIndexed, type PageCredit, VISIBILITY_PROP } from "@goodfellow-cms/core";
 import type { Config, Data, Metadata } from "@puckeditor/core";
 import type { ComponentType, ReactNode } from "react";
 import { ConsentNotice } from "./consent-shared.js";
@@ -133,13 +133,23 @@ export function createPageBody({ Render, SiteProvider }: Renderers) {
   /** A page's own content, without the site's header and footer. */
   function PageContent({ site, pageConfig, page, structuredData }: PageContentProps) {
     const metadata = siteMetadata(site);
-    const rootClassName = (page.root.props as Record<string, unknown> | undefined)?.className;
+    const rootProps = page.root.props as Record<string, unknown> | undefined;
+    const rootClassName = rootProps?.className;
+    // Left out of the site's search: "Page not found", pages blocks add, pages whose settings say so (`noSearch`),
+    // which an item's page takes from its collection's template, and members' pages, whose words anyone could
+    // otherwise read in the index.
+    const searched =
+      !neverIndexed(site.path ?? "") &&
+      !isAddedPage(site) &&
+      rootProps?.noSearch !== true &&
+      rootProps?.[VISIBILITY_PROP] !== "members" &&
+      !(site.collection && isMembersCollection(site.collection));
     return (
       <SiteProvider value={site}>
-        {/* Search indexes only pages' own content, not their header and footer, "Page not found" or pages blocks add, such as a list's second page. */}
+        {/* Search indexes only pages' own content, not their header and footer. */}
         <main
           className={cx("gf-main", typeof rootClassName === "string" && rootClassName)}
-          data-pagefind-body={site.path === "/404" || isAddedPage(site) ? undefined : ""}
+          data-pagefind-body={searched ? "" : undefined}
         >
           <Render config={pageConfig} data={page} metadata={metadata} site={site} />
           {site.credits && site.credits.length > 0 && (

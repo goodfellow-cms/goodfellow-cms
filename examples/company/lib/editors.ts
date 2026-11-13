@@ -1,8 +1,9 @@
 // The site's editors, for its admins: who has an account, inviting someone, changing what they may do, and removing
 // them. Everything here goes through Better Auth's admin plugin, which checks the caller is an admin, and through
-// `authorizeWith()`, which also refuses banned admins and admins acting as someone else.
+// `editorAsking()`, `authorizeWith()`'s check, which also refuses banned admins, admins acting as someone else, and
+// admins without two-factor sign-in.
 import { generateRandomString } from "better-auth/crypto";
-import { authorizeWith, lockLinks, RESET_IDENTIFIER, retireResetLinks, type SiteAuth, unlockLinks } from "./auth.ts";
+import { editorAsking, lockLinks, RESET_IDENTIFIER, retireResetLinks, type SiteAuth, unlockLinks } from "./auth.ts";
 import { canSendEmail, type Email, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
@@ -18,6 +19,8 @@ export interface SiteEditor {
   role: EditorRole;
   /** Whether they've chosen a password from their invitation, or were made an admin with one. */
   joined: boolean;
+  /** Whether they've turned on two-factor sign-in, which admins need to act as admins. */
+  twoFactor: boolean;
 }
 
 /** How long an invitation's link works, in hours: long enough to see the email, short enough not to linger. */
@@ -45,10 +48,16 @@ export async function adminAsking(siteAuth: SiteAuth, request: Request): Promise
   if (request.method !== "GET" && !fromThisSite(request)) {
     throw new EditorsError(403, "Manage editors from the site's own pages.");
   }
-  const editor = await authorizeWith(siteAuth, request);
+  const { editor, admin } = await editorAsking(siteAuth, request);
   if (editor === null) throw new EditorsError(401, "Sign in first.");
-  if (editor === false || editor.role !== "owner") {
-    throw new EditorsError(403, "Only the site's admins can manage its editors.");
+  if (editor === false) throw new EditorsError(403, "Only the site's admins can manage its editors.");
+  if (editor.role !== "owner") {
+    throw new EditorsError(
+      403,
+      admin
+        ? "Turn on two-factor sign-in on your account page first: admins need it to manage editors."
+        : "Only the site's admins can manage its editors.",
+    );
   }
   return { email: editor.email ?? editor.login, name: editor.name ?? editor.login };
 }
@@ -58,13 +67,21 @@ function roleOf(value: unknown): EditorRole {
 }
 
 /** Choosing a password from the invitation's link shows the address is theirs, which marks it verified (lib/auth.ts). */
-function editorOf(user: { id: string; email: string; name: string; role?: string | null; emailVerified: boolean }) {
+function editorOf(user: {
+  id: string;
+  email: string;
+  name: string;
+  role?: string | null;
+  emailVerified: boolean;
+  twoFactorEnabled?: boolean | null;
+}) {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     role: roleOf(user.role),
     joined: user.emailVerified,
+    twoFactor: user.twoFactorEnabled === true,
   } satisfies SiteEditor;
 }
 
@@ -161,10 +178,10 @@ async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: stri
 export type Invited = { sent: true } | { sent: false; link: string };
 
 /** Sends the person their link, or hands it to the admin where the site can't send email. */
-async function deliver(siteEnv: SiteEnv, email: Email, link: string, fetcher?: typeof fetch): Promise<Invited> {
+async function deliver(siteEnv: SiteEnv, email: Email, link: string): Promise<Invited> {
   if (!canSendEmail(siteEnv)) return { sent: false, link };
   try {
-    await sendEmail(siteEnv, email, fetcher);
+    await sendEmail(siteEnv, email);
   } catch {
     throw new EditorsError(
       502,
@@ -183,7 +200,6 @@ export async function inviteEditor(
   siteEnv: SiteEnv,
   request: Request,
   invitation: Invitation,
-  fetcher?: typeof fetch,
 ): Promise<Invited> {
   const admin = await adminAsking(siteAuth, request);
   const context = await siteAuth.$context;
@@ -208,7 +224,7 @@ export async function inviteEditor(
     link,
     hours: INVITATION_HOURS,
   });
-  return deliver(siteEnv, email, link, fetcher);
+  return deliver(siteEnv, email, link);
 }
 
 /** Sends someone who hasn't joined yet a new link, for an invitation that ran out or went astray. */
@@ -217,7 +233,6 @@ export async function inviteAgain(
   siteEnv: SiteEnv,
   request: Request,
   userId: string,
-  fetcher?: typeof fetch,
 ): Promise<Invited> {
   const admin = await adminAsking(siteAuth, request);
   const editor = await editorById(siteAuth, userId);
@@ -231,7 +246,7 @@ export async function inviteAgain(
     link,
     hours: INVITATION_HOURS,
   });
-  return deliver(siteEnv, email, link, fetcher);
+  return deliver(siteEnv, email, link);
 }
 
 /** Refuses a change that would leave the asking admin, or the site, without an admin. */

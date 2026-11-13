@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdminSite } from "./admin-site.js";
-import { adminSiteForCopy, isSiteCopy, siteCopyFrom, withSiteCopy } from "./site-copy.js";
+import type { ContentSource } from "./content/load.js";
+import { adminSiteForCopy, builtSource, isSiteCopy, siteCopyFrom, withSiteCopy } from "./site-copy.js";
 
 describe("siteCopyFrom", () => {
   it("is nothing for the main site", () => {
@@ -64,5 +65,43 @@ describe("adminSiteForCopy", () => {
   it("changes nothing for the main site", () => {
     expect(adminSiteForCopy(site, {})).toBe(site);
     expect(adminSiteForCopy(site, { noIndex: true }).admin).toEqual(admin);
+  });
+});
+
+describe("builtSource", () => {
+  const SITE = "content/site.json";
+  const ENV = { GOODFELLOW_SITE_URL: "https://staging.example.org", GOODFELLOW_TRAILING_SLASH: "false" };
+
+  /** A source as a backend is one: a class, whose methods are on its prototype, keeping the map it answers with. */
+  class Backend implements ContentSource {
+    readonly kept = new Map([
+      [SITE, JSON.stringify({ version: 1, title: "Parish" })],
+      ["content/pages/index.json", "{}"],
+    ]);
+    async read(path: string) {
+      return this.kept.get(path);
+    }
+    async list(dir: string) {
+      return [...this.kept.keys()].filter((path) => path.startsWith(`${dir}/`));
+    }
+    async readFiles(_paths: string[]) {
+      return this.kept;
+    }
+    async fileSizes() {
+      return new Map([[SITE, 1]]);
+    }
+  }
+
+  it("reads Site settings as this copy of the site is built, through every method a backend has", async () => {
+    const backend = new Backend();
+    const built = builtSource(backend, ENV);
+    const settings = JSON.parse((await built.read(SITE)) ?? "{}");
+    expect(settings).toMatchObject({ title: "Parish", url: "https://staging.example.org", trailingSlash: false });
+    expect(await built.list("content")).toEqual([SITE, "content/pages/index.json"]);
+    expect(await built.fileSizes?.("content")).toEqual(new Map([[SITE, 1]]));
+    const batch = await built.readFiles?.([SITE]);
+    expect(JSON.parse(batch?.get(SITE) ?? "{}")).toMatchObject({ url: "https://staging.example.org" });
+    // The backend's own map stays as the repository has it, so it isn't rewritten again on the next read.
+    expect(JSON.parse(backend.kept.get(SITE) ?? "{}")).not.toHaveProperty("url");
   });
 });

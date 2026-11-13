@@ -1,10 +1,12 @@
 import {
   type GoodfellowConfig,
+  isMembersOnly,
   normalizeBase,
   type Page,
   pageHead,
   type SiteContent,
   siteLanguages,
+  withoutMembersContent,
 } from "@goodfellow-cms/core";
 import { type ContentApiFile, type ContentApiInput, contentApiFiles } from "@goodfellow-cms/core/content-api";
 import { createPuckConfigs, prepareLayout, preparePage } from "./prepare.js";
@@ -26,12 +28,15 @@ export async function prepareContentApi(
 ): Promise<ContentApiInput> {
   const configs = createPuckConfigs(config);
   const prepared: ContentApiInput["pages"] = [];
+  // Anyone can read the content API, so it never has members' pages or collections, nor lists of their items.
+  const published = withoutMembersContent(content);
   for (const page of pages) {
-    const { page: shown, data, site } = await preparePage(configs, content, page);
+    if (isMembersOnly(page, content.collections)) continue;
+    const { page: shown, data, site } = await preparePage(configs, published, page);
     prepared.push({
       page: shown,
       data,
-      head: pageHead(content, shown),
+      head: pageHead(published, shown),
       ...(site.credits && { credits: site.credits }),
       ...(site.languages && { languages: site.languages }),
       ...(site.headings && { headings: site.headings }),
@@ -39,11 +44,11 @@ export async function prepareContentApi(
   }
   const layouts: ContentApiInput["layouts"] = [];
   for (const { code } of siteLanguages(content.settings)) {
-    const { header, footer } = await prepareLayout(configs, content, {}, code);
+    const { header, footer } = await prepareLayout(configs, published, {}, code);
     layouts.push({ language: code, header, footer });
   }
   return {
-    content,
+    content: published,
     description: describeSite(config),
     pages: prepared,
     layouts,

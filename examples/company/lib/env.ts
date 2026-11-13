@@ -26,12 +26,23 @@ export interface SiteEnv {
   /** The token the server publishes to the content repository with. */
   GOODFELLOW_GIT_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
-  /** Sends invitations and password resets (lib/email.ts): a Resend key that can only send, from the site's domain. */
-  RESEND_API_KEY?: string;
-  /** Who those emails are from, such as `Example Co <hello@example.org>`, on a domain Resend has verified. */
+  /**
+   * The email service invitations and password resets go through (lib/email.ts): `resend`, `mailgun`, `sendgrid`,
+   * `ses`, or `plunk`. Owners change it, and the settings below, as the README's "Email" says.
+   */
+  EMAIL_PROVIDER?: string;
+  /** The service's key, a secret: one that can only send, from the site's domain (Amazon SES: the secret access key). */
+  EMAIL_API_KEY?: string;
+  /** Who those emails are from, such as `Example Co <hello@example.org>`, on a domain the service has verified. */
   EMAIL_FROM?: string;
-  /** Resend's API, for tests to point elsewhere. */
-  RESEND_API_URL?: string;
+  /** Mailgun: the domain it sends from, where it isn't `EMAIL_FROM`'s. */
+  EMAIL_DOMAIN?: string;
+  /** Mailgun: `eu` for its European region (`us` otherwise). Amazon SES: its region, such as `us-east-1`. */
+  EMAIL_REGION?: string;
+  /** Amazon SES: the access key's id, which goes with `EMAIL_API_KEY`. */
+  EMAIL_KEY_ID?: string;
+  /** The service's API, for tests to point elsewhere. */
+  EMAIL_API_URL?: string;
 }
 
 /** How a Worker keeps work going after it has answered; elsewhere, the process simply carries on. */

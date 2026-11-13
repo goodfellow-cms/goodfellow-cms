@@ -429,10 +429,12 @@ export const COMPANY = { port: 4416, github: 4417, resend: 4418, token: "company
 
 /** The accounts the company test site's database starts with, all with the same password. */
 export const COMPANY_PEOPLE = {
-  admin: { name: "Ada Admin", email: "ada@example.org", role: "admin" },
+  admin: { name: "Ada Admin", email: "ada@example.org", role: "admin", twoFactor: true },
   editor: { name: "Eli Editor", email: "eli@example.org", role: "editor" },
 };
 export const COMPANY_PASSWORD = "correct-horse-battery";
+/** The admin's authenticator app's secret: the admin has two-factor sign-in on, which admins need to act as owners. */
+export const COMPANY_TOTP_SECRET = "e2e-admin-authenticator-secret-1";
 
 /** The company example's content and media, as the contents of the fake content repository. */
 export function companyFiles() {
@@ -478,9 +480,10 @@ export function createCompanySite() {
       "BETTER_AUTH_SECRET=company-test-secret-at-least-32-characters",
       `GOODFELLOW_SITE_URL=http://localhost:${COMPANY.port}`,
       `GOODFELLOW_GIT_TOKEN=${COMPANY.token}`,
-      "RESEND_API_KEY=re_company_test",
+      "EMAIL_PROVIDER=resend",
+      "EMAIL_API_KEY=re_company_test",
       "EMAIL_FROM=Northwind <hello@example.org>",
-      `RESEND_API_URL=http://127.0.0.1:${COMPANY.resend}`,
+      `EMAIL_API_URL=http://127.0.0.1:${COMPANY.resend}`,
       "",
     ].join("\n"),
   );

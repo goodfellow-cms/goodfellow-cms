@@ -31,6 +31,7 @@ import {
   type ServerGit,
   SignInError,
   taskRequestProblem,
+  visibilityChanges,
 } from "./index.js";
 import { unsafeMediaChanges } from "./svg-check.js";
 
@@ -44,6 +45,16 @@ export type PluginServer = (
   request: Request,
   context: { path: string; editor: PluginServerEditor | null },
 ) => Response | Promise<Response>;
+
+/** What a publish through the admin panel's API changed, for `AppApiOptions.onPublish`. */
+export interface PublishedChanges {
+  /** The files the publish wrote or removed, such as `content/pages/about.json`. */
+  paths: string[];
+  /** Who published them. */
+  editor: AppEditor;
+  /** The revision they're in, on the site's main branch. */
+  revision: string;
+}
 
 export interface AppApiOptions {
   /** The site's repository, through a token of the site's own: `config.backend.server({ token })`. */
@@ -66,6 +77,14 @@ export interface AppApiOptions {
   };
   /** Told about failures the admin panel only hears about as "something went wrong". Defaults to `console.error`. */
   onError?: (error: unknown) => void;
+  /**
+   * Called after each publish through this API, before the admin panel hears
+   * it worked, with the files it changed, who published them, and the
+   * revision they're in: for instance to refresh the pages they're on, or to
+   * tell another system. The publish has happened by then, so a failure here
+   * goes to `onError`, never to the editor.
+   */
+  onPublish?: (published: PublishedChanges) => void | Promise<void>;
   /**
    * Plugins' server modules, by plugin name, such as
    * `{ "goodfellow-plugin-s3": s3Server }`, which answer requests to
@@ -170,6 +189,19 @@ async function outsideLimitsAt(backend: GitBackend, login: string, changes: File
   const limits = limitsFor(await readPermissions(backend), login);
   if (!limits) return [];
   return outsideLimits(await limitsContent(backend, changes), limits, changes).map((problem) => problem.path);
+}
+
+/**
+ * The files of `changes` only a site's owners may change this way: block settings marked for owners, and who a page
+ * is for (`visibilityChanges()`), each file once.
+ */
+async function ownersOnlyPaths(
+  changes: FileChange[],
+  fields: OwnersOnlyFields | undefined,
+  read: (path: string) => Promise<string | undefined>,
+): Promise<string[]> {
+  const blocks = fields ? await ownersOnlyChanges(changes, fields, read) : [];
+  return [...new Set([...blocks, ...(await visibilityChanges(changes, read))])];
 }
 
 /** A change as sent over JSON, where an upload's bytes are base64. */
@@ -361,15 +393,23 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       const backend = await options.git.at(expectedRevision, { name: editor.name, email: editor.email });
       const refused = await refusedChanges(changes, editor, (path) => backend.read(path), options.provenance);
       if (refused) return refused;
-      // Block settings only owners may change, such as Custom HTML used exactly as written.
-      if (editor.role !== "owner" && options.ownersOnly) {
-        const changed = await ownersOnlyChanges(changes, options.ownersOnly, (path) => backend.read(path));
+      // Block settings only owners may change, such as Custom HTML used exactly as written, and who a page is for.
+      if (editor.role !== "owner") {
+        const changed = await ownersOnlyPaths(changes, options.ownersOnly, (path) => backend.read(path));
         if (changed.length > 0) return json(403, { error: "owners-only", paths: changed });
       }
       // An owner's limits for this person, held here too, since the browser can't be trusted to keep to them.
       const outside = await outsideLimitsAt(backend, editor.login, changes);
       if (outside.length > 0) return json(403, { error: "outside-limits", paths: outside });
-      return json(200, await backend.write(changes, { message, expectedRevision }));
+      const written = await backend.write(changes, { message, expectedRevision });
+      if (options.onPublish) {
+        try {
+          await options.onPublish({ paths: changes.map((change) => change.path), editor, revision: written.revision });
+        } catch (error) {
+          onError(error);
+        }
+      }
+      return json(200, written);
     }
     if (post && endpoint === "review") {
       // A draft with the changes, submitted for review: installing, updating, or removing a plugin, or changing the
@@ -399,8 +439,8 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       if (code && editor.role !== "owner") return json(403, { error: "owners-only" });
       const refused = await refusedChanges(changes, editor, (path) => backend.read(path), options.provenance);
       if (refused) return refused;
-      if (editor.role !== "owner" && options.ownersOnly) {
-        const changed = await ownersOnlyChanges(changes, options.ownersOnly, (path) => backend.read(path));
+      if (editor.role !== "owner") {
+        const changed = await ownersOnlyPaths(changes, options.ownersOnly, (path) => backend.read(path));
         if (changed.length > 0) return json(403, { error: "owners-only", paths: changed });
       }
       const reviewers = plugins || code ? [] : reviewersFor(await readPermissions(backend), []);

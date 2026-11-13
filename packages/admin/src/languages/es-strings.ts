@@ -520,6 +520,8 @@ export const strings: Strings = {
   "collectionSettings.pathHint": "{slug} representa la dirección propia de cada elemento, como en /videos/{slug}.",
   "collectionSettings.pathWarning":
     "Cambiar esto cambia la dirección de la página de cada elemento, y los enlaces a ellas en este sitio cambian también. Los enlaces a las direcciones antiguas desde otros sitios web dejarán de funcionar.",
+  "collectionSettings.membersOnly":
+    "Solo los miembros que han iniciado sesión pueden ver estos elementos y sus páginas. También se dejan fuera de la búsqueda del sitio, los canales y los calendarios.",
   "collectionSettings.sortField": "Ordenar los elementos por",
   "collectionSettings.sortOrder": "Sentido",
   "collectionSettings.ascending": "De la A a la Z, primero lo más antiguo o pequeño",

@@ -157,7 +157,7 @@ On a site in [several languages](/docs/languages), the Language switch links to 
 
 ## Search
 
-The Search block searches the whole site in the visitor's browser, with [Pagefind](https://pagefind.app), so no search service is needed. When a site has a Search block, its build makes a search index of every page's main content; headers, footers, and "Page not found" are left out. Search only works on the built site, so in the editor the box says so. See [Search](/docs/search) for details.
+The Search block searches the whole site in the visitor's browser, with [Pagefind](https://pagefind.app), so no search service is needed. When a site has a Search block, its build makes a search index of every page's main content; headers, footers, "Page not found", and pages whose settings leave them out of the site's search are left out. Search only works on the built site, so in the editor the box says so. See [Search](/docs/search) for details.
 
 ## Newsletter signup
 

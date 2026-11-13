@@ -126,6 +126,50 @@ describe("renderPage", () => {
     expect(html).not.toContain("<header");
   });
 
+  it("leaves a page out of the site's search where its settings say so", async () => {
+    const heading = [{ type: "Heading", props: { id: "h", text: "Staff only" } }];
+    const left = await renderPage(makeContent(), makePage(heading, { title: "Staff", noSearch: true }));
+    expect(left).toContain('<main class="gf-main"><div><h1>Staff only</h1></div></main>');
+    const found = await renderPage(makeContent(), makePage(heading, { title: "Staff", noSearch: false }));
+    expect(found).toContain('<main class="gf-main" data-pagefind-body="">');
+    // Members' pages too, whose words anyone could read in the index.
+    const members = await renderPage(makeContent(), makePage(heading, { title: "Staff", visibility: "members" }));
+    expect(members).toContain('<main class="gf-main"><div><h1>Staff only</h1></div></main>');
+  });
+
+  it("leaves a collection's items out of the site's search where its template says so", async () => {
+    const template = { root: { props: { title: "{title}", noSearch: true } }, content: [] };
+    const minutes: Collection = {
+      id: "minutes",
+      file: "content/collections/minutes/_collection.json",
+      settings: collectionFileSchema.parse({
+        version: 1,
+        name: "Minutes",
+        entryName: "Minutes",
+        path: "/minutes/{slug}",
+        fields: [{ name: "title", label: "Title", type: "text" }],
+        template,
+      }),
+      entries: [
+        {
+          collection: "minutes",
+          slug: "march",
+          file: "content/collections/minutes/march.json",
+          path: "/minutes/march",
+          content: { version: 1, fields: { title: "March" } },
+        },
+      ],
+    };
+    const html = await renderPage(makeContent({ collections: [minutes] }), {
+      path: "/minutes/march",
+      file: "content/collections/minutes/march.json",
+      content: { version: 1, data: minutes.settings.template },
+      entry: { collection: "minutes", slug: "march" },
+    });
+    expect(html).toContain("<title>March | St. Joseph</title>");
+    expect(html).toContain('<main class="gf-main"><div></div></main>');
+  });
+
   it("writes a long page whole, with what a block waited for in its place, never moved to the end", async () => {
     // A component that loads a moment later, as Puck's rich text does.
     const Late = lazy(async () => {

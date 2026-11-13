@@ -7,7 +7,7 @@ import { type CommitAuthor, encodeBase64Bytes, GitApiError, type GitBackend, typ
 import { appApi as nodeAppApi } from "./node-app-api.js";
 import { nodeProvenance } from "./node-provenance.js";
 import { newTaskRequestId, PluginTaskError, type PluginTaskRequest, taskKeys } from "./plugin-tasks.js";
-import { appApi } from "./server-app-api.js";
+import { type AppApiOptions, appApi, type PublishedChanges } from "./server-app-api.js";
 import { FakeRepo, fakeFileBytes, fakePlugins, fakeVerifier } from "./testing.js";
 
 const FILES = {
@@ -136,11 +136,13 @@ function setup(
     codeChanges,
     ownersOnly,
     provenance,
+    onPublish,
   }: {
     contentOnly?: boolean;
     codeChanges?: "review" | "publish";
     ownersOnly?: OwnersOnlyFields;
     provenance?: EarlyInstallCheck;
+    onPublish?: AppApiOptions["onPublish"];
   } = {},
 ) {
   const repo = new FakeRepo(FILES);
@@ -156,6 +158,7 @@ function setup(
     ...(codeChanges && { codeChanges }),
     ...(ownersOnly && { ownersOnly }),
     ...(provenance && { provenance }),
+    ...(onPublish && { onPublish }),
   });
   const call = (endpoint: string, init: RequestInit & { query?: Record<string, string> } = {}) => {
     const url = new URL(`https://parish.example/api/goodfellow/${endpoint}`);
@@ -314,6 +317,59 @@ describe("appApi", () => {
     expect(late.status).toBe(409);
   });
 
+  it("tells the site what each publish changed, and who published it, once it's published", async () => {
+    const published: PublishedChanges[] = [];
+    const { call, post, repo } = setup(ALICE, {
+      onPublish: (changes) => {
+        // Called once the commit is on the branch, before the editor hears it worked.
+        expect(repo.head()).toBe(changes.revision);
+        published.push(changes);
+      },
+    });
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const saved = await post("write", {
+      changes: [
+        { path: "content/pages/about.json", content: "{}" },
+        { path: "content/pages/index.json", delete: true },
+      ],
+      message: "Add About",
+      expectedRevision: revision,
+    });
+    const { revision: next } = (await saved.json()) as { revision: string };
+    expect(published).toEqual([
+      { paths: ["content/pages/about.json", "content/pages/index.json"], editor: ALICE, revision: next },
+    ]);
+    // Nothing is published, so nothing is said, for a save that's refused.
+    await post("write", {
+      changes: [{ path: "content/site.json", content: "{}" }],
+      message: "No",
+      expectedRevision: next,
+    });
+    await post("write", {
+      changes: [{ path: "content/pages/a.json", content: "{}" }],
+      message: "Late",
+      expectedRevision: revision,
+    });
+    expect(published).toHaveLength(1);
+  });
+
+  it("still says a publish worked when the site's hook fails, and passes the failure on", async () => {
+    const failure = new Error("The cache couldn't be reached.");
+    const { call, post, errors } = setup(ALICE, {
+      onPublish: async () => {
+        throw failure;
+      },
+    });
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const saved = await post("write", {
+      changes: [{ path: "content/pages/about.json", content: "{}" }],
+      message: "Add About",
+      expectedRevision: revision,
+    });
+    expect(saved.status).toBe(200);
+    expect(errors).toEqual([failure]);
+  });
+
   it("publishes only on top of the live branch, whatever revision the browser names", async () => {
     // As GitHub does: a commit that follows on from the branch moves it, so a parent ahead of it, such as a commit
     // waiting for review, would be published with the save.
@@ -420,6 +476,64 @@ describe("appApi", () => {
       expectedRevision: revision,
     });
     expect(bytes.status).toBe(403);
+  });
+
+  it("lets only owners change who a page is for", async () => {
+    const { call, post, signIn } = setup();
+    const page = (visibility?: string, title = "About") =>
+      JSON.stringify({
+        version: 1,
+        data: { root: { props: { title, ...(visibility && { visibility }) } }, content: [] },
+      });
+    const write = async (content: string, path = "content/pages/about.json") => {
+      const { revision } = (await (await call("revision")).json()) as { revision: string };
+      return post("write", { changes: [{ path, content }], message: "Edit", expectedRevision: revision });
+    };
+
+    expect((await write(page())).status).toBe(200);
+    expect((await write(page("everyone", "About us"))).status).toBe(200);
+    const members = await write(page("members"));
+    expect(members.status).toBe(403);
+    expect(await members.json()).toEqual({ error: "owners-only", paths: ["content/pages/about.json"] });
+    expect((await write(page("members"), "content/pages/new.json")).status).toBe(403);
+
+    signIn(OWEN);
+    expect((await write(page("members"))).status).toBe(200);
+    signIn(ALICE);
+    expect((await write(page("members", "Members' about"))).status).toBe(200);
+    // Making it public again publishes it to everyone, however the page is sent.
+    expect((await write(page())).status).toBe(403);
+    const { revision } = (await (await call("revision")).json()) as { revision: string };
+    const bytes = await post("write", {
+      changes: [{ path: "content/pages/about.json", base64: encodeBase64Bytes(new TextEncoder().encode(page())) }],
+      message: "Edit",
+      expectedRevision: revision,
+    });
+    expect(bytes.status).toBe(403);
+    const review = await post("review", {
+      changes: [{ path: "content/pages/about.json", content: page() }],
+      title: "Public",
+      from: revision,
+    });
+    expect(review.status).toBe(403);
+    // Nor can it be taken away and published again for everyone: deleting a members' page is the owners' too.
+    const deleted = await post("write", {
+      changes: [{ path: "content/pages/about.json", delete: true }],
+      message: "Delete",
+      expectedRevision: revision,
+    });
+    expect(deleted.status).toBe(403);
+    expect(await deleted.json()).toEqual({ error: "owners-only", paths: ["content/pages/about.json"] });
+    signIn(OWEN);
+    expect(
+      (
+        await post("write", {
+          changes: [{ path: "content/pages/about.json", delete: true }],
+          message: "Delete",
+          expectedRevision: revision,
+        })
+      ).status,
+    ).toBe(200);
   });
 
   it("refuses media the site can't use, and SVGs that skipped the admin panel's cleaning", async () => {

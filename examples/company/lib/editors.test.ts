@@ -1,9 +1,21 @@
+import { createHmac } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { authOptions, authorizeWith, LINK_LOCK, lockLinks, RESET_ACCOUNT_LIMIT, unlockLinks } from "./auth.ts";
+import {
+  ADMIN_PATHS,
+  authOptions,
+  authorizeWith,
+  authRoute,
+  isAdminPluginPath,
+  LINK_LOCK,
+  lockLinks,
+  RESET_ACCOUNT_LIMIT,
+  TWO_FACTOR_LIMIT,
+  unlockLinks,
+} from "./auth.ts";
 import {
   acceptInvitation,
   EditorsError,
@@ -14,7 +26,7 @@ import {
   removeEditor,
   setRole,
 } from "./editors.ts";
-import { escapeHtml, invitationEmail, sendEmail } from "./email.ts";
+import { canSendEmail, EMAIL_PROVIDERS, EmailRefused, escapeHtml, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 
 const SITE = "http://localhost:4321";
@@ -25,9 +37,10 @@ const SITE_ENV: SiteEnv = {
 };
 const EMAIL_ENV: SiteEnv = {
   ...SITE_ENV,
-  RESEND_API_KEY: "re_test_only",
+  EMAIL_PROVIDER: "resend",
+  EMAIL_API_KEY: "re_test_only",
   EMAIL_FROM: "Example Co <hello@example.org>",
-  RESEND_API_URL: "https://resend.example",
+  EMAIL_API_URL: "https://email.example",
 };
 const PASSWORD = "correct horse battery staple";
 
@@ -38,18 +51,29 @@ interface Sent {
   body: { from: string; to: string[]; subject: string; text: string; html: string };
 }
 
-/** A stand-in for Resend's API, which keeps what it's sent and answers `status`. */
+/** A stand-in for Resend's API, which keeps what it's sent (with its recipients as a list) and answers `status`. */
 function fakeResend(status = 200) {
   const sent: Sent[] = [];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
     sent.push({
       url: String(input),
       authorization: new Headers(init?.headers).get("authorization"),
-      body: JSON.parse(String(init?.body)),
+      body: { ...body, to: [body.to].flat() },
     });
-    return new Response("{}", { status });
+    return Response.json(status === 200 ? { id: String(sent.length) } : { message: "no" }, { status });
   }) as typeof fetch;
   return { sent, fetcher };
+}
+
+/** A stand-in for any service's API, which keeps each request as it came and answers as `answer` makes it. */
+function fakeService(answer: () => Response = () => Response.json({ id: "1", message: "Queued.", success: true })) {
+  const requests: Request[] = [];
+  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requests.push(new Request(input, init));
+    return answer();
+  }) as typeof fetch;
+  return { requests, fetcher };
 }
 
 /** The link in a message's text. */
@@ -97,7 +121,9 @@ async function site(siteEnv: SiteEnv = SITE_ENV) {
     new Request(`${SITE}/api/editors/`, { method, headers: { ...(cookie && { cookie }), "sec-fetch-site": from } });
   const oliveId = await person("olive@example.org", "admin", "Olive Owner");
   const olive = await signIn("olive@example.org");
-  return { auth, context, person, signIn, asking, olive, oliveId, close: () => db.close() };
+  // As if she'd turned on two-factor sign-in after signing in, which admins need to manage editors.
+  await context.internalAdapter.updateUser(oliveId, { twoFactorEnabled: true });
+  return { auth, db, context, person, signIn, asking, olive, oliveId, close: () => db.close() };
 }
 
 /**
@@ -164,17 +190,123 @@ describe("emails", () => {
     expect(email.subject).toBe("You're invited to edit localhost:4321");
   });
 
-  it("go through Resend with the site's key, and say only its status when it refuses", async () => {
+  it("go through the service the settings name, with its key, and say only what kind of failure it was", async () => {
     const resend = fakeResend();
+    vi.stubGlobal("fetch", resend.fetcher);
     const email = { to: "eddie@example.org", subject: "Hello", text: "Hi", html: "<p>Hi</p>" };
-    await sendEmail(EMAIL_ENV, email, resend.fetcher);
+    await sendEmail(EMAIL_ENV, email);
     expect(resend.sent[0]).toMatchObject({
-      url: "https://resend.example/emails",
+      url: "https://email.example/emails",
       authorization: "Bearer re_test_only",
       body: { from: "Example Co <hello@example.org>", to: ["eddie@example.org"], subject: "Hello" },
     });
-    await expect(sendEmail(EMAIL_ENV, email, fakeResend(403).fetcher)).rejects.toThrow(/answered 403\.$/);
-    await expect(sendEmail(SITE_ENV, email, resend.fetcher)).rejects.toThrow(/RESEND_API_KEY and EMAIL_FROM/);
+    vi.stubGlobal("fetch", fakeResend(403).fetcher);
+    const refused = await sendEmail(EMAIL_ENV, email).then(
+      () => undefined,
+      (error: Error) => error.message,
+    );
+    expect(refused).toMatch(/^The email wasn't sent: the service answered with an error \([a-z-]+\)\.$/);
+    expect(refused).not.toContain("eddie");
+    // A 4xx every time it's tried means it surely wasn't sent; a 5xx on any try means it may have been.
+    await expect(sendEmail(EMAIL_ENV, email)).rejects.toBeInstanceOf(EmailRefused);
+    vi.stubGlobal("fetch", fakeResend(500).fetcher);
+    const failed = await sendEmail(EMAIL_ENV, email).catch((error: unknown) => error);
+    expect(failed).toBeInstanceOf(Error);
+    expect(failed).not.toBeInstanceOf(EmailRefused);
+    // Asked too often surely didn't send it, so it's tried once more where the service says to wait a moment, and
+    // what that try met decides; asked to wait longer, or not told how long, it isn't tried again.
+    const answers: [number, string?][] = [[429, "0"], [503]];
+    const busy = fakeService(() => {
+      const [status, retryAfter] = answers.shift() ?? [200];
+      return Response.json({ message: "no" }, { status, headers: retryAfter ? { "retry-after": retryAfter } : {} });
+    });
+    vi.stubGlobal("fetch", busy.fetcher);
+    const mixed = await sendEmail(EMAIL_ENV, email).catch((error: unknown) => error);
+    expect(busy.requests).toHaveLength(2);
+    expect(mixed).toBeInstanceOf(Error);
+    expect(mixed).not.toBeInstanceOf(EmailRefused);
+    answers.push([429, "1"], [200]);
+    await sendEmail(EMAIL_ENV, email);
+    expect(busy.requests).toHaveLength(4);
+    answers.push([429], [200]);
+    await expect(sendEmail(EMAIL_ENV, email)).rejects.toBeInstanceOf(EmailRefused);
+    expect(busy.requests).toHaveLength(5);
+    answers.length = 0;
+    answers.push([429, "60"], [200]);
+    await expect(sendEmail(EMAIL_ENV, email)).rejects.toBeInstanceOf(EmailRefused);
+    expect(busy.requests).toHaveLength(6);
+    // A message that can't be made goes to nobody, so it counts as refused.
+    answers.length = 0;
+    await expect(sendEmail(EMAIL_ENV, { ...email, to: "not an address" })).rejects.toBeInstanceOf(EmailRefused);
+    expect(busy.requests).toHaveLength(6);
+    // Nor can one go from an address that can't be read, which the settings check says.
+    const unreadableFrom = { ...EMAIL_ENV, EMAIL_FROM: "Example Co" };
+    expect(canSendEmail(unreadableFrom)).toBe(false);
+    await expect(sendEmail(unreadableFrom, email)).rejects.toThrow("Set EMAIL_FROM to send email.");
+    expect(busy.requests).toHaveLength(6);
+    await expect(sendEmail(SITE_ENV, email)).rejects.toThrow(
+      "Set EMAIL_PROVIDER, EMAIL_FROM, and EMAIL_API_KEY to send email.",
+    );
+    await expect(sendEmail({ ...EMAIL_ENV, EMAIL_PROVIDER: "carrier-pigeon" }, email)).rejects.toThrow(
+      "Set EMAIL_PROVIDER to send email.",
+    );
+    await expect(sendEmail({ ...EMAIL_ENV, EMAIL_PROVIDER: "ses" }, email)).rejects.toThrow(
+      "Set EMAIL_KEY_ID and EMAIL_REGION to send email.",
+    );
+  });
+
+  it("switch services with the settings alone, with no service's tracking in the links", async () => {
+    const email = { to: "eddie@example.org", subject: "Hello", text: "https://example.org/x", html: "<p>Hi</p>" };
+    const sendThrough = async (settings: Partial<SiteEnv>, answer?: () => Response) => {
+      const service = fakeService(answer);
+      vi.stubGlobal("fetch", service.fetcher);
+      const { EMAIL_API_URL: _url, ...withoutUrl } = EMAIL_ENV;
+      await sendEmail({ ...withoutUrl, ...settings }, email);
+      const [request] = service.requests;
+      if (!request) throw new Error("Nothing was sent.");
+      return { request, body: await request.text() };
+    };
+
+    const mailgun = await sendThrough({ EMAIL_PROVIDER: "mailgun", EMAIL_API_KEY: "mg-key", EMAIL_REGION: "eu" });
+    // Its domain is EMAIL_FROM's unless EMAIL_DOMAIN says otherwise.
+    expect(mailgun.request.url).toBe("https://api.eu.mailgun.net/v3/example.org/messages");
+    expect(mailgun.request.headers.get("authorization")).toBe(`Basic ${btoa("api:mg-key")}`);
+    for (const option of ["o:tracking", "o:tracking-clicks", "o:tracking-opens"]) {
+      expect(mailgun.body).toMatch(new RegExp(`name="${option}"\\s+(no|false)`));
+    }
+    const ownDomain = await sendThrough({ EMAIL_PROVIDER: "mailgun", EMAIL_DOMAIN: "mg.example.org" });
+    expect(ownDomain.request.url).toBe("https://api.mailgun.net/v3/mg.example.org/messages");
+    // An empty or blank EMAIL_DOMAIN, as Deploy sets where the variable is missing, falls back to EMAIL_FROM's.
+    for (const blank of ["", "  "]) {
+      const fallback = await sendThrough({ EMAIL_PROVIDER: "mailgun", EMAIL_DOMAIN: blank });
+      expect(fallback.request.url).toBe("https://api.mailgun.net/v3/example.org/messages");
+    }
+
+    // SendGrid answers a message it accepts with 202 and nothing else.
+    const sendgrid = await sendThrough(
+      { EMAIL_PROVIDER: "SendGrid", EMAIL_API_KEY: "SG.key" },
+      () => new Response(null, { status: 202 }),
+    );
+    expect(sendgrid.request.url).toBe("https://api.sendgrid.com/v3/mail/send");
+    expect(sendgrid.request.headers.get("authorization")).toBe("Bearer SG.key");
+    const tracking = JSON.parse(sendgrid.body).tracking_settings;
+    expect(tracking.click_tracking.enable).toBe(false);
+    expect(tracking.open_tracking.enable).toBe(false);
+
+    const plunk = await sendThrough({ EMAIL_PROVIDER: "plunk", EMAIL_API_KEY: "plunk-key" });
+    expect(plunk.request.url).toMatch(/^https:\/\/[^/]*useplunk\.com\//);
+    expect(plunk.request.headers.get("authorization")).toBe("Bearer plunk-key");
+
+    const ses = await sendThrough({
+      EMAIL_PROVIDER: "ses",
+      EMAIL_API_KEY: "ses-secret",
+      EMAIL_KEY_ID: "AKIDEXAMPLE",
+      EMAIL_REGION: "eu-west-1",
+    });
+    expect(ses.request.url).toMatch(/^https:\/\/email\.eu-west-1\.amazonaws\.com\//);
+    // Signed with the key pair, which never travels as it is.
+    expect(ses.request.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE\//);
+    expect(`${[...ses.request.headers.values()].join(" ")} ${ses.body}`).not.toContain("ses-secret");
   });
 });
 
@@ -183,8 +315,9 @@ describe("the editors API", () => {
     const { auth, asking, olive, signIn, close } = await site(EMAIL_ENV);
     try {
       const resend = fakeResend();
+      vi.stubGlobal("fetch", resend.fetcher);
       const invitation = { email: "eddie@example.org", name: "Eddie", role: "editor" as const };
-      expect(await inviteEditor(auth, EMAIL_ENV, asking(olive), invitation, resend.fetcher)).toEqual({ sent: true });
+      expect(await inviteEditor(auth, EMAIL_ENV, asking(olive), invitation)).toEqual({ sent: true });
       const [sent] = resend.sent;
       if (!sent) throw new Error("Nothing was sent.");
       expect(sent.body.to).toEqual(["eddie@example.org"]);
@@ -210,7 +343,7 @@ describe("the editors API", () => {
       });
       expect((await listEditors(auth, asking(olive, "GET")))[1]).toMatchObject({ joined: true });
       await expect(accept("another long password")).rejects.toThrow(/already been used or has run out/);
-      await expect(inviteEditor(auth, EMAIL_ENV, asking(olive), invitation, resend.fetcher)).rejects.toMatchObject({
+      await expect(inviteEditor(auth, EMAIL_ENV, asking(olive), invitation)).rejects.toMatchObject({
         status: 409,
       });
     } finally {
@@ -244,11 +377,12 @@ describe("the editors API", () => {
     }
   });
 
-  it("says why an invitation couldn't be sent, without Resend's answer", async () => {
+  it("says why an invitation couldn't be sent, without the service's answer", async () => {
     const { auth, asking, olive, close } = await site(EMAIL_ENV);
     try {
+      vi.stubGlobal("fetch", fakeResend(500).fetcher);
       const invitation = { email: "eddie@example.org", name: "Eddie", role: "editor" as const };
-      await expect(inviteEditor(auth, EMAIL_ENV, asking(olive), invitation, fakeResend(500).fetcher)).rejects.toThrow(
+      await expect(inviteEditor(auth, EMAIL_ENV, asking(olive), invitation)).rejects.toThrow(
         "The invitation couldn't be sent. Check the site's email settings, then send it again.",
       );
     } finally {
@@ -256,11 +390,15 @@ describe("the editors API", () => {
     }
   });
 
-  it("answers only admins, from the site's own pages", async () => {
+  it("answers only admins with two-factor sign-in, from the site's own pages", async () => {
     const { auth, asking, olive, person, signIn, close } = await site();
     try {
       await person("eddie@example.org", "editor");
       const eddie = await signIn("eddie@example.org");
+      await person("ann@example.org", "admin");
+      await expect(listEditors(auth, asking(await signIn("ann@example.org"), "GET"))).rejects.toThrow(
+        /Turn on two-factor sign-in/,
+      );
       const invitation = { email: "x@example.org", name: "X", role: "admin" as const };
       await expect(listEditors(auth, asking(undefined, "GET"))).rejects.toMatchObject({ status: 401 });
       await expect(listEditors(auth, asking(eddie, "GET"))).rejects.toMatchObject({ status: 403 });
@@ -598,14 +736,35 @@ describe("the editors API", () => {
     }
   });
 
+  it("closes, in the site's own router, every route the admin plugin lists, however it's spelled", () => {
+    expect(ADMIN_PATHS.length).toBeGreaterThan(5);
+    for (const path of ADMIN_PATHS) {
+      for (const spelled of [
+        `/api/auth${path}`,
+        `/api/auth${path}/`,
+        `/API/Auth/${path.toUpperCase()}`,
+        `/api/auth/${path}`,
+      ]) {
+        expect(isAdminPluginPath(spelled), spelled).toBe(true);
+      }
+    }
+    for (const path of ["/api/auth/get-session/", "/api/auth/two-factor/enable", "/api/auth/administrator"]) {
+      expect(isAdminPluginPath(path), path).toBe(false);
+    }
+  });
+
   it("changes and removes others, never the admin asking", async () => {
     const { auth, asking, olive, oliveId, person, signIn, close } = await site();
     try {
       const eddieId = await person("eddie@example.org", "editor");
       await setRole(auth, asking(olive, "PATCH"), eddieId, "admin");
-      expect(await authorizeWith(auth, asking(await signIn("eddie@example.org"), "GET"))).toMatchObject({
-        role: "owner",
-      });
+      // An admin now, who edits pages until he turns on two-factor sign-in.
+      const eddie = await signIn("eddie@example.org");
+      expect(await authorizeWith(auth, asking(eddie, "GET"))).toMatchObject({ role: "editor" });
+      const listed = await listEditors(auth, asking(olive, "GET"));
+      expect(listed.find((editor) => editor.id === eddieId)).toMatchObject({ role: "admin", twoFactor: false });
+      // And Olive, who has it on, as on, so the list doesn't say off for everyone.
+      expect(listed.find((editor) => editor.id === oliveId)).toMatchObject({ role: "admin", twoFactor: true });
       await expect(setRole(auth, asking(olive, "PATCH"), eddieId, "owner")).rejects.toMatchObject({ status: 400 });
       await expect(setRole(auth, asking(olive, "PATCH"), oliveId, "editor")).rejects.toMatchObject({ status: 409 });
       await expect(removeEditor(auth, asking(olive, "DELETE"), oliveId)).rejects.toMatchObject({ status: 409 });
@@ -826,13 +985,11 @@ describe("forgetting a password", () => {
     vi.stubGlobal("fetch", resend.fetcher);
     const { auth, asking, olive, close } = await site(EMAIL_ENV);
     try {
-      const invited = await inviteEditor(
-        auth,
-        EMAIL_ENV,
-        asking(olive),
-        { email: "eddie@example.org", name: "Eddie", role: "admin" },
-        resend.fetcher,
-      );
+      const invited = await inviteEditor(auth, EMAIL_ENV, asking(olive), {
+        email: "eddie@example.org",
+        name: "Eddie",
+        role: "admin",
+      });
       expect(invited).toEqual({ sent: true });
       const ask = (email: string) =>
         auth.handler(
@@ -983,6 +1140,226 @@ describe("forgetting a password", () => {
       expect(await ask("nobody@example.org")).toEqual(known);
     } finally {
       close();
+    }
+  });
+});
+
+/** The secret in an `otpauth://` address, from its base32 key. */
+function secretOf(uri: string): Buffer {
+  const key = new URL(uri).searchParams.get("secret") ?? "";
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const char of key.replace(/=+$/, "").toUpperCase()) bits += alphabet.indexOf(char).toString(2).padStart(5, "0");
+  return Buffer.from((bits.match(/.{8}/g) ?? []).map((byte) => Number.parseInt(byte, 2)));
+}
+
+/** The code an authenticator app shows now for an `otpauth://` address (RFC 6238: SHA-1, 6 digits, 30 seconds). */
+function totp(uri: string): string {
+  const secret = secretOf(uri);
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  const hash = createHmac("sha1", secret).update(counter).digest();
+  const offset = (hash.at(-1) ?? 0) & 0xf;
+  return String((hash.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+describe("two-factor sign-in", () => {
+  it("makes an admin an owner once it's on, and asks every sign-in after for a code", async () => {
+    const { auth, context, person, signIn, asking, close } = await site();
+    try {
+      const annId = await person("ann@example.org", "admin");
+      const ann = await signIn("ann@example.org");
+      // Signed in somewhere else with the password alone, perhaps by someone who learned it.
+      const elsewhere = await signIn("ann@example.org");
+      const headers = asking(ann, "GET").headers;
+      expect(await authorizeWith(auth, asking(ann, "GET"))).toMatchObject({ role: "editor" });
+      await expect(auth.api.enableTwoFactor({ headers, body: { password: "not her password" } })).rejects.toThrow();
+      const enabled = await auth.api.enableTwoFactor({ headers, body: { password: PASSWORD, method: "totp" } });
+      if (enabled.method !== "totp") throw new Error("It didn't set up an authenticator app.");
+      const { totpURI, backupCodes } = enabled;
+      // Her app names the account by the site's address.
+      expect(new URL(totpURI).searchParams.get("issuer")).toBe("localhost:4321");
+      // Not on until she shows her app has it.
+      expect(await authorizeWith(auth, asking(ann, "GET"))).toMatchObject({ role: "editor" });
+      const turnedOn = await auth.api.verifyTOTP({ headers, body: { code: totp(totpURI) }, asResponse: true });
+      // Turning it on starts a new session, and ends the one from before, and every other: a session that signed in
+      // with the password alone never becomes an owner's.
+      expect(await authorizeWith(auth, asking(ann, "GET"))).toBeNull();
+      expect(await authorizeWith(auth, asking(elsewhere, "GET"))).toBeNull();
+      expect(await authorizeWith(auth, asking(cookiesOf(turnedOn), "GET"))).toMatchObject({ role: "owner" });
+      // Nor can either set up an app again over the one that works (Better Auth refuses both): the ended session, or
+      // the new one, as from another tab that still shows it off, until she turns it off.
+      for (const cookie of [elsewhere, cookiesOf(turnedOn)]) {
+        await expect(
+          auth.api.enableTwoFactor({
+            headers: asking(cookie, "GET").headers,
+            body: { password: PASSWORD, method: "totp" },
+          }),
+        ).rejects.toThrow();
+      }
+      const stored = await context.adapter.findOne<{ secret: string; backupCodes: string }>({
+        model: "twoFactor",
+        where: [{ field: "userId", value: annId }],
+      });
+      // Kept encrypted, so a copy of the database doesn't give the codes away.
+      expect(secretOf(totpURI).toString()).toHaveLength(32);
+      expect(stored?.secret).not.toContain(secretOf(totpURI).toString());
+      for (const code of backupCodes) expect(stored?.backupCodes).not.toContain(code);
+
+      // A password alone no longer signs her in: it answers with the code step, and no session.
+      const step = await auth.api.signInEmail({
+        body: { email: "ann@example.org", password: PASSWORD },
+        asResponse: true,
+      });
+      expect(await step.clone().json()).toMatchObject({ twoFactorRedirect: true });
+      const pending = cookiesOf(step);
+      expect(await auth.api.getSession({ headers: new Headers({ cookie: pending }) })).toBeNull();
+      await expect(
+        auth.api.verifyTOTP({ headers: new Headers({ cookie: pending }), body: { code: "000000" } }),
+      ).rejects.toThrow();
+      const verified = await auth.api.verifyTOTP({
+        headers: new Headers({ cookie: pending }),
+        body: { code: totp(totpURI) },
+        asResponse: true,
+      });
+      const signedIn = new Request(SITE, { headers: { cookie: cookiesOf(verified) } });
+      expect(await authorizeWith(auth, signedIn)).toMatchObject({ role: "owner" });
+
+      // A backup code works once.
+      const again = cookiesOf(
+        await auth.api.signInEmail({ body: { email: "ann@example.org", password: PASSWORD }, asResponse: true }),
+      );
+      const backup = (cookie: string) =>
+        auth.api.verifyBackupCode({ headers: new Headers({ cookie }), body: { code: backupCodes[0] ?? "" } });
+      await backup(again);
+      const third = cookiesOf(
+        await auth.api.signInEmail({ body: { email: "ann@example.org", password: PASSWORD }, asResponse: true }),
+      );
+      await expect(backup(third)).rejects.toThrow();
+    } finally {
+      close();
+    }
+  });
+
+  it("comes back after BETTER_AUTH_SECRET changes with the README's statements, and each admin turning it on again", async () => {
+    const { auth, db, person, signIn, close } = await site();
+    try {
+      await person("ann@example.org", "admin");
+      const ann = new Headers({ cookie: (await signIn("ann@example.org")) ?? "" });
+      const enabled = await auth.api.enableTwoFactor({ headers: ann, body: { password: PASSWORD, method: "totp" } });
+      if (enabled.method !== "totp") throw new Error("It didn't set up an authenticator app.");
+      await auth.api.verifyTOTP({ headers: ann, body: { code: totp(enabled.totpURI) } });
+
+      const rotated = betterAuth(
+        authOptions(db, { ...SITE_ENV, BETTER_AUTH_SECRET: "another-secret-for-tests-at-least-32" }),
+      );
+      const signInEmail = () =>
+        rotated.api.signInEmail({ body: { email: "ann@example.org", password: PASSWORD }, asResponse: true });
+      // Her codes can't be read with the new secret, so she can't get past the code step.
+      const step = await signInEmail();
+      expect(await step.clone().json()).toMatchObject({ twoFactorRedirect: true });
+      await expect(
+        rotated.api.verifyTOTP({
+          headers: new Headers({ cookie: cookiesOf(step) }),
+          body: { code: totp(enabled.totpURI) },
+        }),
+      ).rejects.toThrow();
+
+      // The statements the README gives turn it off for every account, so her password signs her in, as an editor
+      // until she turns it on again.
+      const readme = await readFile(join(import.meta.dirname, "../README.md"), "utf8");
+      const command = readme.match(/wrangler d1 execute [^\n]*--command "([^"]+)"/)?.[1];
+      if (!command?.includes("twoFactor")) throw new Error("The README has no statements for this.");
+      db.exec(command);
+      const back = await signInEmail();
+      expect(await back.clone().json()).not.toMatchObject({ twoFactorRedirect: true });
+      const signedIn = new Request(SITE, { headers: { cookie: cookiesOf(back) } });
+      expect(await authorizeWith(rotated, signedIn)).toMatchObject({ role: "editor" });
+      const again = await rotated.api.enableTwoFactor({
+        headers: signedIn.headers,
+        body: { password: PASSWORD, method: "totp" },
+      });
+      expect(again.method).toBe("totp");
+    } finally {
+      close();
+    }
+  });
+
+  it("lets a person get a code wrong and try again, and limits how often one address can try", async () => {
+    const { auth, close } = await site();
+    try {
+      const attempt = async (address: string) =>
+        (
+          await auth.handler(
+            new Request(`${SITE}/api/auth/two-factor/verify-totp/`, {
+              method: "POST",
+              headers: { "content-type": "application/json", origin: SITE, "cf-connecting-ip": address },
+              body: JSON.stringify({ code: "000000" }),
+            }),
+          )
+        ).status;
+      // Without the cookie the password step sets, every try fails, but each still counts.
+      for (let tried = 0; tried < TWO_FACTOR_LIMIT.max; tried++) expect(await attempt("192.0.2.1")).toBe(401);
+      expect(await attempt("192.0.2.1")).toBe(429);
+      expect(await attempt("192.0.2.2")).toBe(401);
+    } finally {
+      close();
+    }
+  });
+
+  it("keeps the admin plugin's own routes from the browser, however they're spelled", async () => {
+    const { auth, olive, close } = await site();
+    try {
+      for (const path of [
+        "/api/auth/admin/list-users",
+        "/api/auth/admin/set-role/",
+        "/api/auth//admin/remove-user",
+        "/api/auth/%61dmin/create-user",
+        "/api/auth/Admin/impersonate-user",
+      ]) {
+        const answer = await authRoute(
+          auth,
+          new Request(`${SITE}${path}`, {
+            method: "POST",
+            headers: { cookie: olive ?? "", origin: SITE, "content-type": "application/json" },
+            body: "{}",
+          }),
+        );
+        expect(answer.status, path).toBe(404);
+      }
+      expect((await authRoute(auth, new Request(`${SITE}/api/auth/get-session/`))).status).toBe(200);
+    } finally {
+      close();
+    }
+  });
+});
+
+describe("link tracking", () => {
+  // Each link in an email lets someone into an account, so tracking, which sends links through the service first,
+  // stays off: in each message where the service allows it, and otherwise by the README's steps for that service.
+  const NAMES: Record<(typeof EMAIL_PROVIDERS)[number], string> = {
+    resend: "Resend",
+    mailgun: "Mailgun",
+    sendgrid: "SendGrid",
+    ses: "SES",
+    plunk: "Plunk",
+  };
+
+  it("is turned off in the code, or the README says where to turn it off, for every service", async () => {
+    const code = await readFile(join(import.meta.dirname, "email.ts"), "utf8");
+    const readme = await readFile(join(import.meta.dirname, "../README.md"), "utf8");
+    const guidance = readme.split("\n").find((line) => line.includes("Link tracking must stay off")) ?? "";
+    expect(guidance).not.toBe("");
+    for (const provider of EMAIL_PROVIDERS) {
+      const start = code.indexOf(`case "${provider}": {`);
+      expect(start, provider).toBeGreaterThan(-1);
+      const next = code.indexOf("case ", start + 1);
+      const block = code.slice(start, next === -1 ? undefined : next);
+      const inCode = /[cC]lickTracking: false/.test(block);
+      expect(
+        inCode || guidance.includes(`in ${NAMES[provider]},`),
+        `${provider}: tracking off in code or in the README`,
+      ).toBe(true);
     }
   });
 });

@@ -1,5 +1,6 @@
+import { createHmac } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { COMPANY, COMPANY_PASSWORD, COMPANY_PEOPLE } from "../scripts/site.mjs";
+import { COMPANY, COMPANY_PASSWORD, COMPANY_PEOPLE, COMPANY_TOTP_SECRET } from "../scripts/site.mjs";
 import { editor } from "./helpers.js";
 
 // The company example, built into a Cloudflare Worker with vinext and served in workerd with a local D1 database,
@@ -14,12 +15,33 @@ async function github<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** Signs in with the site's own form, which goes on to `next`. */
+/** The code an authenticator app shows now for `secret` (RFC 6238: SHA-1, 6 digits, 30 seconds). */
+function totp(secret: Buffer): string {
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  const hash = createHmac("sha1", secret).update(counter).digest();
+  const offset = (hash.at(-1) ?? 0) & 0xf;
+  return String((hash.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+/** The secret behind the base32 key an authenticator app is given. */
+function fromBase32(key: string): Buffer {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const char of key.replace(/=+$/, "").toUpperCase()) bits += alphabet.indexOf(char).toString(2).padStart(5, "0");
+  return Buffer.from((bits.match(/.{8}/g) ?? []).map((byte) => Number.parseInt(byte, 2)));
+}
+
+/** Signs in with the site's own form, with a code from the admin's authenticator app, and goes on to `next`. */
 async function signIn(page: Page, as: keyof typeof COMPANY_PEOPLE, next = "/admin/") {
   await page.goto(`${SITE}/sign-in/?next=${encodeURIComponent(next)}`);
   await page.getByLabel("Email address").fill(COMPANY_PEOPLE[as].email);
   await page.getByLabel("Password").fill(COMPANY_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
+  if ("twoFactor" in COMPANY_PEOPLE[as]) {
+    await page.getByLabel("Code from your authenticator app").fill(totp(Buffer.from(COMPANY_TOTP_SECRET)));
+    await page.getByRole("button", { name: "Continue" }).click();
+  }
   await expect(page).toHaveURL(`${SITE}${next}`);
 }
 
@@ -27,13 +49,17 @@ test.beforeEach(async () => {
   await fetch(`${GITHUB}/__reset`, { method: "POST" });
 });
 
-test("serves every page from what the build rendered, rendering none for a visit", async ({ request }) => {
+test("renders each page once from the content repository, then serves it without rendering", async ({ request }) => {
+  const asked = async () => ((await (await fetch(`${GITHUB}/__requests`)).json()) as { requests: number }).requests;
   for (const address of ["/", "/about/", "/news/", "/news/welcome/"]) {
-    // The first visit after the Worker starts may fill a cache; every one after is served as the build rendered it.
-    await request.get(`${SITE}${address}`);
+    // The first visit renders the page from the content repository; every one after is the kept copy, which asks
+    // GitHub nothing.
+    expect((await request.get(`${SITE}${address}`)).status(), address).toBe(200);
+    const before = await asked();
     const page = await request.get(`${SITE}${address}`);
     expect(page.status(), address).toBe(200);
     expect(page.headers()["x-vinext-cache"], address).toBe("HIT");
+    expect(await asked(), address).toBe(before);
   }
   expect((await request.get(`${SITE}/no-such-page/`)).status()).toBe(404);
 });
@@ -92,6 +118,8 @@ test("signs out only when the site's own pages ask", async ({ request }) => {
 });
 
 test("publishes to the content repository through the Worker, naming the editor as the author", async ({ page }) => {
+  // The page as visitors see it before, which Workers Cache keeps.
+  expect(await (await page.request.get(`${SITE}/about/`)).text()).not.toContain("About our company");
   await signIn(page, "editor");
   await expect(page.locator(".gfa-account")).toContainText(COMPANY_PEOPLE.editor.name);
   await page.getByRole("link", { name: "About us", exact: true }).click();
@@ -109,6 +137,8 @@ test("publishes to the content repository through the Worker, naming the editor 
   expect(Buffer.from(about.content, "base64").toString("utf8")).toContain("About our company");
   // The token the Worker publishes with never reaches the browser.
   expect(await page.content()).not.toContain(COMPANY.token);
+  // Visitors see it without the site being built again: the publish asked for its pages to render again.
+  expect(await (await page.request.get(`${SITE}/about/`)).text()).toContain("About our company");
 });
 
 test("leaves Site Settings to the site's admins, whatever an editor's browser sends", async ({ page }) => {
@@ -180,6 +210,7 @@ test("lets admins invite editors, who choose a password, and lets anyone choose 
   await expect(page.getByRole("cell", { name: COMPANY_PEOPLE.editor.email })).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill("Ivy Invited");
   await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("They can").selectOption("admin");
   await page.getByRole("button", { name: "Send the invitation" }).click();
   await expect(page.getByRole("status")).toHaveText(new RegExp(`We've emailed ${email}`));
   await expect(page.getByRole("cell", { name: "Ivy Invited (invited)" })).toBeVisible();
@@ -214,11 +245,48 @@ test("lets admins invite editors, who choose a password, and lets anyone choose 
   await page.getByRole("button", { name: "Change my password" }).click();
   await expect(page.getByText("Your password is changed")).toBeVisible();
 
+  await page.goto(`${SITE}/sign-in/?next=%2Fadmin%2Feditors%2F`);
+  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Password").fill("ivy's second password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  // An admin with only a password can't manage editors until she turns on two-factor sign-in.
+  await expect(page.getByRole("alert")).toHaveText(/Turn on two-factor sign-in on your account page first/);
+  await page.getByRole("link", { name: "Your account" }).click();
+  await page.getByLabel("Your password").fill("ivy's second password");
+  await page.getByRole("button", { name: "Turn on two-factor sign-in" }).click();
+  await expect(page.getByRole("img", { name: "The code for your authenticator app" })).toBeVisible();
+  const key = fromBase32((await page.locator("li code").first().textContent()) ?? "");
+  await page.getByLabel("The code your app shows now").fill("000000");
+  await page.getByRole("button", { name: "Turn it on" }).click();
+  await expect(page.getByRole("alert")).toContainText("That code didn't work");
+  await page.getByLabel("The code your app shows now").fill(totp(key));
+  await page.getByRole("button", { name: "Turn it on" }).click();
+  await expect(page.getByRole("status")).toHaveText(/Two-factor sign-in is on/);
+  await page.goto(`${SITE}/admin/editors/`);
+  await expect(page.getByRole("cell", { name: email })).toBeVisible();
+
+  // Signing in now asks for a code after the password.
+  await page.goto(`${SITE}/sign-out/`);
+  await page.getByRole("button", { name: "Sign out" }).click();
   await page.goto(`${SITE}/sign-in/?next=%2Fmembers%2F`);
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill("ivy's second password");
   await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("Code from your authenticator app").fill(totp(key));
+  await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Signed in as Ivy Invited.")).toBeVisible();
+});
+
+test("keeps Better Auth's admin routes from the browser", async ({ page }) => {
+  await signIn(page, "admin");
+  const statuses = await page.evaluate(async () =>
+    Promise.all(
+      ["/api/auth/admin/list-users", "/api/auth//admin/list-users"].map(
+        async (path) => (await fetch(path, { credentials: "include" })).status,
+      ),
+    ),
+  );
+  expect(statuses).toEqual([404, 404]);
 });
 
 test("keeps the editors page to the site's admins", async ({ page }) => {
