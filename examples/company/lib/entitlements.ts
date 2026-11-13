@@ -40,6 +40,9 @@ export function entitlements() {
           createdAt: { type: "date", required: true },
         },
       },
+      // The Stripe customer a person pays as (lib/stripe.ts), which the site writes from the first Checkout Session
+      // they pay, and nothing they send can set, so it lasts when what they bought ends, for Stripe's portal.
+      user: { fields: { stripeCustomerId: { type: "string", required: false, input: false } } },
     },
   } satisfies BetterAuthPlugin;
 }
@@ -179,12 +182,13 @@ export async function subscribedUntil(
 /** Records that someone is entitled to something, as a payment does. */
 export async function grant(
   adapter: EntitlementAdapter,
-  entitlement: Pick<Entitlement, "userId" | "kind" | "reference"> & { expiresAt?: Date | null },
+  entitlement: Pick<Entitlement, "userId" | "kind" | "reference"> & { expiresAt?: Date | null; id?: string },
 ): Promise<void> {
   await adapter.create({
     model: "entitlement",
     data: {
-      id: generateRandomString(32),
+      // An id of the caller's own names what gave it, such as one payment, so that alone can be taken back.
+      id: entitlement.id ?? generateRandomString(32),
       userId: entitlement.userId,
       kind: entitlement.kind,
       reference: entitlement.reference,

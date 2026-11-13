@@ -7,9 +7,11 @@ import {
   type ButtonPlace,
   billingAddress,
   checkoutAddress,
+  customerOf,
   placeFrom,
   returnFromCheckout,
   STRIPE_EVENT_IDENTIFIER,
+  STRIPE_EVENT_LEASE_SECONDS,
   stripeFor,
   webhookResponse,
 } from "./stripe.ts";
@@ -47,8 +49,9 @@ async function payments() {
       body: form,
     });
   };
+  const customer = (userId: string) => customerOf(site.context.adapter, userId);
   const checkout = (request: Request) =>
-    checkoutAddress(request, { siteAuth: site.auth, siteEnv: PAYMENTS_ENV, stripe: client, findButton });
+    checkoutAddress(request, { siteAuth: site.auth, siteEnv: PAYMENTS_ENV, stripe: client, findButton, customer });
   /** Sends the site one of Stripe's events, signed with `secret`. */
   const deliver = (event: object, secret = "whsec_test_only") => {
     const signed = signEvent(secret, event);
@@ -61,7 +64,14 @@ async function payments() {
       { siteEnv: PAYMENTS_ENV, stripe: client, adapter: site.context.adapter },
     );
   };
-  return { ...site, stripe, client, buttons, buying, checkout, deliver, readerId, reader };
+  /** Pays for what a Buy button sells, as the reader, delivering Stripe's events: gives the Checkout Session. */
+  const buy = async (block: string) => {
+    await checkout(buying(reader, { page: "/subscribe", block }));
+    const session = [...stripe.sessions.values()].at(-1);
+    for (const event of stripe.pay(session?.id ?? "")) await deliver(event);
+    return session;
+  };
+  return { ...site, stripe, client, buttons, buying, checkout, deliver, buy, customer, readerId, reader };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -153,6 +163,42 @@ describe("checkout", () => {
   });
 });
 
+describe("the Stripe customer", () => {
+  it("is the one someone first paid as, for everything they buy after", async () => {
+    const { stripe, buy, buying, checkout, customer, readerId, reader, close } = await payments();
+    try {
+      // A one-off payment makes a customer only where it's asked to.
+      const first = await buy("report");
+      expect(first).toMatchObject({ customer_creation: "always", customer_email: "rita@example.org" });
+      const paidAs = stripe.sessions.get(first?.id ?? "")?.customer;
+      expect(paidAs).toMatch(/^cus_/);
+      expect(await customer(readerId)).toBe(paidAs);
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const second = [...stripe.sessions.values()].at(-1);
+      expect(second).toMatchObject({ customer: paidAs, customer_email: null });
+    } finally {
+      close();
+    }
+  });
+
+  it("is kept as the first, whatever a later payment's customer is", async () => {
+    const { stripe, buy, customer, readerId, context, client, close } = await payments();
+    try {
+      const first = await buy("monthly");
+      const kept = await customer(readerId);
+      expect(kept).toBe(stripe.sessions.get(first?.id ?? "")?.customer);
+      // A Session paid as another customer, as one made before the site kept theirs would be.
+      const second = await buy("report");
+      const session = stripe.sessions.get(second?.id ?? "");
+      if (session) session.customer = "cus_other";
+      await applySession(context.adapter, client, second?.id ?? "");
+      expect(await customer(readerId)).toBe(kept);
+    } finally {
+      close();
+    }
+  });
+});
+
 describe("Stripe's events", () => {
   it("give a subscription once it's paid, until its period ends, and take it away once it's cancelled", async () => {
     const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
@@ -182,6 +228,32 @@ describe("Stripe's events", () => {
       expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
       expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
       await deliver(stripe.refund(session?.payment_intent ?? ""));
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+    } finally {
+      close();
+    }
+  });
+
+  it("take back only what the refunded payment bought, and never give it again", async () => {
+    const { stripe, buy, deliver, client, context, readerId, close } = await payments();
+    try {
+      const first = await buy("report");
+      const second = await buy("report");
+      // Refunding one of two payments for the same thing leaves what the other bought.
+      await deliver(stripe.refund(first?.payment_intent ?? "", 100));
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
+      // The refunded Session, paid as it still is, gives nothing back, coming back to the site or by a late event.
+      await applySession(context.adapter, client, first?.id ?? "");
+      await deliver(stripe.event("checkout.session.completed", { id: first?.id }));
+      const purchases = await context.adapter.findMany({
+        model: "entitlement",
+        where: [{ field: "userId", value: readerId }],
+      });
+      expect(purchases).toHaveLength(1);
+      // A dispute takes back the other.
+      await deliver(stripe.dispute(second?.payment_intent ?? ""));
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+      await applySession(context.adapter, client, second?.id ?? "");
       expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
     } finally {
       close();
@@ -254,6 +326,39 @@ describe("Stripe's events", () => {
       close();
     }
   });
+
+  it("are taken over once a request that stopped part way has run out of time, and wait while it hasn't", async () => {
+    const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const session = [...stripe.sessions.values()][0];
+      const [created] = stripe.pay(session?.id ?? "");
+      const id = `${STRIPE_EVENT_IDENTIFIER}${(created as { id: string }).id}`;
+      // Another request claimed it moments ago, and is still handling it: Stripe is asked to try again later.
+      const claimed = (expiresAt: Date) =>
+        context.adapter.create({
+          model: "verification",
+          data: { id, identifier: id, value: "handling", expiresAt, createdAt: new Date(), updatedAt: new Date() },
+          forceAllowId: true,
+        });
+      await claimed(new Date(Date.now() + STRIPE_EVENT_LEASE_SECONDS * 1000));
+      expect((await deliver(created ?? {})).status).toBe(409);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+      // That request stopped, as a Worker can, and its claim ran out: the retry does it.
+      await context.adapter.deleteMany({ model: "verification", where: [{ field: "id", value: id }] });
+      await claimed(new Date(Date.now() - 1000));
+      expect((await deliver(created ?? {})).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      const record = await context.adapter.findOne<{ value: string; expiresAt: Date }>({
+        model: "verification",
+        where: [{ field: "id", value: id }],
+      });
+      expect(record?.value).toBe("handled");
+      expect(new Date(record?.expiresAt ?? 0).getTime()).toBeGreaterThan(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    } finally {
+      close();
+    }
+  });
 });
 
 describe("coming back from Checkout", () => {
@@ -317,7 +422,7 @@ describe("managing a subscription", () => {
           siteAuth: auth,
           siteEnv: PAYMENTS_ENV,
           stripe: client,
-          subscriptions: (userId) => subscriptionsOf(context.adapter, userId),
+          customer: (userId) => customerOf(context.adapter, userId),
         });
       const customer = stripe.subscriptions.get(session?.subscription ?? "")?.customer;
       expect(await portal(reader)).toBe(`${STRIPE}/portal/${customer}`);
@@ -325,6 +430,9 @@ describe("managing a subscription", () => {
       await expect(portal(undefined)).rejects.toMatchObject({ status: 401 });
       await person("paul@example.org", MEMBER_ROLE);
       await expect(portal((await signIn("paul@example.org")).cookie)).rejects.toMatchObject({ status: 404 });
+      // Once the subscription stops giving anything, as when its payments fail, the portal still opens, to fix them.
+      await deliver(stripe.cancel(session?.subscription ?? ""));
+      expect(await portal(reader)).toBe(`${STRIPE}/portal/${customer}`);
     } finally {
       close();
     }

@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth";
-import { subscriptionsOf } from "@/lib/entitlements";
 import { env } from "@/lib/env";
-import { billingAddress, PaymentsError, stripeFor } from "@/lib/stripe";
+import { billingAddress, customerOf, PaymentsError, stripeFor } from "@/lib/stripe";
 
 // Where the account page's "Manage your subscription" goes: Stripe's customer portal (lib/stripe.ts).
 export async function POST(request: Request): Promise<Response> {
@@ -13,7 +12,7 @@ export async function POST(request: Request): Promise<Response> {
       siteAuth,
       siteEnv,
       stripe: stripeFor(siteEnv),
-      subscriptions: (userId) => subscriptionsOf(adapter, userId),
+      customer: (userId) => customerOf(adapter, userId),
     });
     return new Response(null, { status: 303, headers: { location: address, "cache-control": "no-store" } });
   } catch (error) {

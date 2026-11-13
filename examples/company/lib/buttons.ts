@@ -3,8 +3,10 @@ import {
   allPages,
   type ContentSource,
   expandSyncedBlocks,
+  layoutIn,
   loadSiteContent,
   normalizePagePath,
+  pathLanguage,
   type SiteContent,
   shownContent,
 } from "@goodfellow-cms/core";
@@ -32,8 +34,9 @@ function blockIn(value: unknown, type: string, id: string): Record<string, unkno
 
 /**
  * The Buy button at `place` in `content`, the site as visitors see it (`shownContent()`): the price its owners gave
- * it, or nothing for a page the site doesn't have, or a button that isn't on it or has no price. Synced blocks are put
- * in place first, as pages render them, so a button in one is found by the id it has on the page.
+ * it, or nothing for a page the site doesn't have, or a button that isn't on it or has no price. It's looked for on the
+ * page, then in the header and footer it's shown with, all in the page's language, with synced blocks put in place
+ * first, as pages render them, so a button in one is found by the id it has there.
  */
 export function buttonOn(content: SiteContent, place: ButtonPlace): Button | undefined {
   let path: string;
@@ -44,7 +47,15 @@ export function buttonOn(content: SiteContent, place: ButtonPlace): Button | und
   }
   const page = allPages(content).find((candidate) => candidate.path === path);
   if (!page) return undefined;
-  const props = blockIn(expandSyncedBlocks(page.content.data, content), BUY_BUTTON_BLOCK, place.block);
+  const language = pathLanguage(content.settings, page.path);
+  const shown = [
+    page.content.data,
+    layoutIn(content, "header", language).data,
+    layoutIn(content, "footer", language).data,
+  ];
+  const props = shown
+    .map((data) => blockIn(expandSyncedBlocks(data, content, language), BUY_BUTTON_BLOCK, place.block))
+    .find(Boolean);
   const price = typeof props?.price === "string" ? props.price : "";
   return PRICE_ID.test(price) ? { price } : undefined;
 }

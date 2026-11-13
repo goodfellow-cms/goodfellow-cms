@@ -1,5 +1,5 @@
 // A stand-in for the parts of Stripe's API the site uses (lib/stripe.ts), for tests: prices, Checkout Sessions and
-// their line items, subscriptions, and customer portal sessions, kept in memory, with a checkout page that pays and
+// their line items, payments and their charges, subscriptions, and customer portal sessions, kept in memory, with a checkout page that pays and
 // sends the site Stripe's events, signed as Stripe signs them. Never used by the site itself.
 import { createHmac } from "node:crypto";
 
@@ -19,6 +19,9 @@ interface FakeSession {
   mode: "payment" | "subscription";
   client_reference_id: string | null;
   customer_email: string | null;
+  /** The customer it was made for, or the one Stripe made when it was paid. */
+  customer: string | null;
+  customer_creation: string | null;
   metadata: Record<string, string>;
   payment_status: "paid" | "unpaid";
   status: "open" | "complete";
@@ -37,6 +40,15 @@ interface FakeSubscription {
   customer: string;
   metadata: Record<string, string>;
   items: { object: "list"; data: { id: string; current_period_end: number }[] };
+}
+
+interface FakeCharge {
+  id: string;
+  object: "charge";
+  amount: number;
+  amount_refunded: number;
+  refunded: boolean;
+  disputed: boolean;
 }
 
 /** Stripe's form encoding read back into nested objects: `metadata[userId]=…`, `line_items[0][price]=…`. */
@@ -77,6 +89,8 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
   const prices = new Map(options.prices.map((price) => [price.id, { active: true, ...price }]));
   const sessions = new Map<string, FakeSession>();
   const subscriptions = new Map<string, FakeSubscription>();
+  /** Each payment's charge, by the payment's id. */
+  const charges = new Map<string, FakeCharge>();
   let count = 0;
   const next = (prefix: string) => `${prefix}_test${++count}`;
   const json = (value: unknown, status = 200) => Response.json(value, { status });
@@ -130,6 +144,8 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
           mode: body.mode as FakeSession["mode"],
           client_reference_id: (body.client_reference_id as string) ?? null,
           customer_email: (body.customer_email as string) ?? null,
+          customer: (body.customer as string) ?? null,
+          customer_creation: (body.customer_creation as string) ?? null,
           metadata: (body.metadata as Record<string, string>) ?? {},
           payment_status: "unpaid",
           status: "open",
@@ -157,6 +173,10 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       }
       return json(shownSession(session));
     }
+    if (parts[1] === "payment_intents" && parts[2] && request.method === "GET") {
+      const charge = charges.get(parts[2]);
+      return charge ? json({ id: parts[2], object: "payment_intent", latest_charge: charge }) : missing();
+    }
     if (parts[1] === "subscriptions" && parts[2] && request.method === "GET") {
       const subscription = subscriptions.get(parts[2]);
       return subscription ? json(subscription) : missing();
@@ -177,6 +197,7 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     handle,
     sessions,
     subscriptions,
+    charges,
     prices,
     /**
      * Pays a Checkout Session, as the customer would: one-off payments get a payment, subscriptions a subscription
@@ -187,13 +208,17 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       if (!session) throw new Error(`No session ${sessionId}.`);
       session.payment_status = "paid";
       session.status = "complete";
+      // Subscriptions always have a customer, and payments one where the site asked for it.
+      if (!session.customer && (session.mode === "subscription" || session.customer_creation === "always")) {
+        session.customer = next("cus");
+      }
       const events = [];
       if (session.mode === "subscription") {
         const subscription: FakeSubscription = {
           id: next("sub"),
           object: "subscription",
           status: "active",
-          customer: next("cus"),
+          customer: session.customer ?? next("cus"),
           metadata: session.subscriptionMetadata,
           items: {
             object: "list",
@@ -205,6 +230,14 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
         events.push(event("customer.subscription.created", subscription));
       } else {
         session.payment_intent = next("pi");
+        charges.set(session.payment_intent, {
+          id: next("ch"),
+          object: "charge",
+          amount: 1000,
+          amount_refunded: 0,
+          refunded: false,
+          disputed: false,
+        });
       }
       events.push(event("checkout.session.completed", shownSession(session)));
       return events;
@@ -216,9 +249,20 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       subscription.status = "canceled";
       return event("customer.subscription.deleted", subscription);
     },
-    /** Refunds a payment. Gives the event Stripe sends. */
-    refund(paymentIntentId: string) {
-      return event("charge.refunded", { id: next("ch"), object: "charge", payment_intent: paymentIntentId });
+    /** Refunds a payment, all of it or `amount`. Gives the event Stripe sends. */
+    refund(paymentIntentId: string, amount?: number) {
+      const charge = charges.get(paymentIntentId);
+      if (!charge) throw new Error(`No payment ${paymentIntentId}.`);
+      charge.amount_refunded = amount ?? charge.amount;
+      charge.refunded = charge.amount_refunded >= charge.amount;
+      return event("charge.refunded", { ...charge, payment_intent: paymentIntentId });
+    },
+    /** Disputes a payment, as the customer's bank would. Gives the event Stripe sends. */
+    dispute(paymentIntentId: string) {
+      const charge = charges.get(paymentIntentId);
+      if (!charge) throw new Error(`No payment ${paymentIntentId}.`);
+      charge.disputed = true;
+      return event("charge.dispute.created", { id: next("dp"), object: "dispute", payment_intent: paymentIntentId });
     },
     /** Any event, for checking what the site does with ones it doesn't use, or with a made-up object. */
     event,

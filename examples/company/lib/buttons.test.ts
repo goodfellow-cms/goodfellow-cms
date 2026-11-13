@@ -74,4 +74,39 @@ describe("Buy buttons", () => {
     expect(placed).toEqual({ price: PRICE });
     expect(await buttonFrom(content, { page: "/subscribe", block: "BuyButton-synced" })).toBeUndefined();
   });
+
+  it("in the header or footer sell their price from any page they're shown on", async () => {
+    const button = { type: "BuyButton", props: { id: "BuyButton-header", label: "Join", price: PRICE, className: "" } };
+    const header = JSON.parse(await readFile("content/layout/header.json", "utf8"));
+    header.data.content.push(button);
+    const footer = JSON.parse(await readFile("content/layout/footer.json", "utf8"));
+    footer.data.content.push({ ...button, props: { ...button.props, id: "BuyButton-footer" } });
+    const content = await site({ "content/layout/header.json": header, "content/layout/footer.json": footer });
+    expect(await buttonFrom(content, { page: "/about", block: "BuyButton-header" })).toEqual({ price: PRICE });
+    expect(await buttonFrom(content, { page: "/", block: "BuyButton-footer" })).toEqual({ price: PRICE });
+  });
+
+  it("in a synced block sell the price of the page's language's version of it", async () => {
+    const offer = (price: string) => ({
+      version: 1,
+      title: "Subscribe",
+      data: {
+        content: [{ type: "BuyButton", props: { id: "BuyButton-synced", label: "Subscribe", price, className: "" } }],
+        root: { props: {} },
+      },
+    });
+    const page = await subscribePage({});
+    page.data.content.push({ type: "SyncedBlock", props: { id: "SyncedBlock-offer", block: "offer" } });
+    const settings = JSON.parse(await readFile("content/site.json", "utf8"));
+    const content = await site({
+      "content/site.json": { ...settings, languages: [{ code: "es", name: "Español" }] },
+      "content/synced-blocks/offer.json": offer(PRICE),
+      "content/synced-blocks/offer.es.json": offer("price_mensual"),
+      "content/pages/subscribe.json": page,
+      "content/pages/es/subscribe.json": { ...page, translationOf: "/subscribe" },
+    });
+    const block = "SyncedBlock-offer-BuyButton-synced";
+    expect(await buttonFrom(content, { page: "/subscribe", block })).toEqual({ price: PRICE });
+    expect(await buttonFrom(content, { page: "/es/subscribe", block })).toEqual({ price: "price_mensual" });
+  });
 });
