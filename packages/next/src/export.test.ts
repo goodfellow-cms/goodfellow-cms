@@ -15,6 +15,7 @@ import {
   renderedPages,
   writeEditorFrames,
   writeExportHeaders,
+  writeFeedFiles,
   writeImageFiles,
   writePluginFiles,
   writeRedirectFiles,
@@ -192,6 +193,50 @@ describe("guardExport", () => {
     await write("out/index.html", "<html><head></head></html>");
     expect(await guardExport(join(out, "out"), out)).toBeUndefined();
     expect(await readFile(join(out, "out/index.html"), "utf8")).toBe("<html><head></head></html>");
+  });
+});
+
+describe("collections' sources in an export", () => {
+  it("are read from the modules the config names, for the feeds and the checks' pages", async () => {
+    // Inside the package, so the site's imports find its packages.
+    const site = await mkdtemp(join(import.meta.dirname, "../.sources-site-"));
+    out = join(site, "out");
+    try {
+      const file = (path: string, value: unknown) =>
+        mkdir(join(site, path, ".."), { recursive: true }).then(() =>
+          writeFile(join(site, path), typeof value === "string" ? value : JSON.stringify(value)),
+        );
+      await file("package.json", '{ "name": "sources-site", "type": "module" }');
+      await file("content/site.json", { version: 1, url: "https://example.org" });
+      await file("content/collections/jobs/_collection.json", {
+        version: 1,
+        name: "Jobs",
+        entryName: "Job",
+        path: "/jobs/{slug}",
+        fields: [
+          { name: "title", label: "Title", type: "text" },
+          { name: "posted", label: "Posted", type: "date" },
+        ],
+      });
+      await file(
+        "goodfellow.config.tsx",
+        'import { defineConfig } from "@goodfellow-cms/core";\nexport default defineConfig({ blocks: {}, collections: { jobs: { source: "./lib/jobs.ts", options: { title: "Welder" } } } });\n',
+      );
+      await file(
+        "lib/jobs.ts",
+        'export default (options: { title: string }) => ({ items: async () => [{ slug: "welder", fields: { title: options.title, posted: "2026-11-01" } }] });\n',
+      );
+      expect(await writeFeedFiles(out, site)).toBe(2);
+      expect(await readFile(join(out, "feeds/jobs.rss"), "utf8")).toContain("https://example.org/jobs/welder/");
+      // The item's exported page is checked, as the source's.
+      const pages = [{ url: "/jobs/welder/", html: '<main class="gf-main"><img src="/media/x.jpg"></main>' }];
+      expect((await checkPages(pages, site)).map((problem) => [problem.kind, problem.file])).toContainEqual([
+        "no-alt",
+        "source:jobs/welder",
+      ]);
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
   });
 });
 

@@ -12,7 +12,7 @@ import {
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, type ReactNode, useState } from "react";
-import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
+import { useAdmin, useCanChangeSettings, useCollectionSource, useSiteContent } from "./admin-context.js";
 import {
   checkEntrySlug,
   collectionFileChange,
@@ -347,8 +347,72 @@ function DeleteEntryDialog({
 
 type DialogState = { type: "new" } | { type: "move"; entry: Entry } | { type: "delete"; entry: Entry } | null;
 
+/** A collection's items as the site shows them, read-only, where they come from another system. */
+function SourcedEntries({ collection, source }: { collection: Collection; source: string }) {
+  const t = useStrings();
+  const { siteUrl, account } = useAdmin();
+  const { settings } = collection;
+  return (
+    <CollectionLayout collection={collection} tab="entries">
+      <div className="gfa-screen">
+        <div className="gfa-screen-header">
+          <h1>{settings.name}</h1>
+        </div>
+        <p className="gfa-hint">
+          {t(account?.sourcedItems ? "entries.sourced" : "entries.sourcedElsewhere", { name: settings.name, source })}
+        </p>
+        {account?.sourcedItems &&
+          (collection.entries.length === 0 ? (
+            <p>{t("entries.empty", { name: settings.name })}</p>
+          ) : (
+            <table className="gfa-table">
+              <thead>
+                <tr>
+                  <th>{t("entries.column.title")}</th>
+                  {settings.path && <th>{t("entries.column.address")}</th>}
+                  <th>
+                    <span className="gfa-visually-hidden">{t("pages.view")}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {collection.entries.map((item) => (
+                  <tr key={item.slug}>
+                    <td>{entryTitle(item)}</td>
+                    {settings.path && (
+                      <td>
+                        <code>{item.path}</code>
+                      </td>
+                    )}
+                    <td className="gfa-row-actions">
+                      {item.path && !item.content.notPublished && (
+                        <a
+                          className="gfa-button gfa-button-ghost"
+                          href={`${siteUrl.replace(/\/$/, "")}${item.path}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {t("pages.view")}
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+      </div>
+    </CollectionLayout>
+  );
+}
+
 /** A collection's items, with buttons to add, edit, rename, and delete them. */
 export function EntriesScreen({ collection }: { collection: Collection }) {
+  const source = useCollectionSource(collection.id);
+  return source ? <SourcedEntries collection={collection} source={source} /> : <FileEntries collection={collection} />;
+}
+
+function FileEntries({ collection }: { collection: Collection }) {
   const { content } = useSiteContent();
   const t = useStrings();
   const { siteUrl } = useAdmin();

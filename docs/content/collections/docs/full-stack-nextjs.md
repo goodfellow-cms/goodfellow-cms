@@ -201,6 +201,24 @@ export const { GET, POST } = goodfellowApi({
 
 Mark the page route `export const dynamic = "force-static"`, so each page is kept once it has rendered, and give it, and the sitemap, a `revalidate` time, such as `export const revalidate = 3600`, since only a publish through the admin panel says pages changed: a page renders again once it's that old, so a scheduled time coming, what a page shows by today's date, and changes that reach the repository another way, such as from Claude or a merged review, show within about that long. It isn't exact: the first visit after that time still gets the old page while the new one renders, and if rendering fails, as when the host's API doesn't answer, the old page stays until a later visit renders it, so give a scheduled change some time before it has to be online. Where `source` gives nothing, as in `next dev` and while `next build` renders pages, pages read the files on your computer. Without the token it throws, so pages fail rather than show the files the site was built with, which the host would keep as though they were current while publishes never showed. Give the root layout's `<html lang>` `await site.language()` rather than the site's settings: it falls back to the language of the files the site was built with where `source` can't be read, such as without its token, so the admin panel and sign-in, which the root layout wraps, still open to fix it, while the pages themselves fail. A page's first visit after a publish renders it, which needs the host's API to answer then; the pages already kept don't. New photos and other files in `public/media/` are served from the files the site was built with, so build the site again after each publish, as the company example's content repository asks its code repository to, and until that build is online a page that shows a new photo shows it missing. `revalidatePath()` clears the pages kept where it runs, so a site on more than one server needs them kept in one place every server reads, such as Next.js's `cacheHandler` over a shared store, or every server but the one that took the publish shows the old pages until they're `revalidate` old. The company example does this on Cloudflare Workers, keeping pages in Workers KV, which every location reads, and where a publish can take up to a minute to reach every location.
 
+## Collections from a database
+
+A collection can show items from the site's own database, or another system's API, with its settings and design still in the admin panel (see [Items from another system](/docs/collections#items-from-another-system)). Next.js bundles only what's imported, so import each source the config names and pass it to both `goodfellowPages()` and `goodfellowApi()`; either throws on its first use where the config names a collection whose source it wasn't given:
+
+```ts
+// lib/site.ts
+import jobs from "@/lib/jobs";
+
+export const site = goodfellowPages(config, { source, sources: { jobs } });
+```
+
+```ts
+// app/api/goodfellow/[...path]/route.ts
+export const { GET, POST } = goodfellowApi({ config, authorize, signIn: "/sign-in", sources: { jobs } });
+```
+
+Pages read the items each time they render, which a page kept once it has rendered does only once it's `revalidate` old, or once `revalidatePath()` says it changed. A source can say what changed with `changed(since)`, which answers the items' names and what to pass next time; `sourceChanges()` from `@goodfellow-cms/core` turns that into the pages to render again, for a scheduled route, or a webhook from the other system, to pass to `revalidatePath()`. Pages that list the collection show its changes too, so `revalidatePath("/", "layout")` is the simplest. `goodfellowApi()` gives the items to anyone signed in to the admin panel, at `/api/goodfellow/collections/<id>/items`, so the admin panel can show them; errors from the source stay on the server, as the repository's do.
+
 ## Safety
 
 - The API answers people who aren't signed in only with where to sign in. Every request must come from the site's own pages: it carries a header that browsers don't send to another site without asking it first, and requests that say they come from another site are refused.

@@ -363,6 +363,23 @@ export {
   storedCode,
 } from "./content/code.js";
 export {
+  type CollectionSource,
+  type CollectionSourceConfig,
+  CollectionSourceError,
+  type CollectionSourceModule,
+  type CollectionSources,
+  collectionSources,
+  defineCollectionSource,
+  isSourcedItem,
+  type SourceChanges,
+  type SourcedItem,
+  type SourceModuleImport,
+  type SourceOptions,
+  sourceChanges,
+  sourcedItemFile,
+  withSourcedCollections,
+} from "./content/collection-sources.js";
+export {
   type Collection,
   choiceSlug,
   choicesOf,

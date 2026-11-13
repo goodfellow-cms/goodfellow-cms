@@ -377,6 +377,12 @@ export function describeSite(config: GoodfellowConfig): SiteDescription {
     ...(config.copies?.length && { copies: [...config.copies] }),
     ...(config.claude?.publish === false && { claude: { publish: false } }),
     ...(config.plugins?.length && { plugins: config.plugins.map(describePlugin) }),
+    ...(config.collections &&
+      Object.keys(config.collections).length > 0 && {
+        collections: Object.fromEntries(
+          Object.entries(config.collections).map(([id, collection]) => [id, { source: collection.source }]),
+        ),
+      }),
   };
 }
 

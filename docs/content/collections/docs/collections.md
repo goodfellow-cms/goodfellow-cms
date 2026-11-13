@@ -58,6 +58,38 @@ The collection's **Items** tab lists them. Adding one (**Add Event**, say) asks 
 
 To show items on other pages, add a **Collection list** block, which shows them as a list or cards, newest first or upcoming only, as many as you choose, and on pages of their own, or a **Collection loop** block, which shows blocks you design for each item. See [Showing collections](/docs/showing-collections).
 
+## Items from another system
+
+A collection's items can come from somewhere other than the admin panel, such as the site's own database, a spreadsheet, or a shop, so the site shows them without anyone copying them over. The collection is made and designed in the admin panel as any other, with its fields, its page design, and its address; only its items come from the other system, where they're edited, and the admin panel shows them read-only. A developer sets it up, with a **source**: a module whose default export reads the items, named in `goodfellow.config.tsx`:
+
+```ts
+// lib/jobs.ts
+import { defineCollectionSource } from "@goodfellow-cms/core";
+import { db } from "@/lib/db";
+
+export default defineCollectionSource<{ table: string }>((options) => ({
+  // Every item, as an item's file would hold it: its name in the collection, and its fields' values.
+  items: async () =>
+    (await db.selectFrom(options.table).selectAll().execute()).map((row) => ({
+      slug: row.slug,
+      fields: { title: row.title, posted: row.posted, about: row.description },
+    })),
+}));
+```
+
+```ts
+// goodfellow.config.tsx
+export default defineConfig({
+  blocks,
+  collections: { jobs: { source: "./lib/jobs.ts", options: { table: "jobs" } } },
+});
+```
+
+- **Items are checked as files are:** a value that doesn't fit its field, a name that can't be an address, a name given twice, or an address a page already has leaves that item out, with a warning in the build's or the server's log, so one bad row never stops the site. A source that can't be read at all, such as a database that doesn't answer, stops the build, or the page being rendered, rather than show the collection empty; a full-stack site keeps showing the page it rendered before. Items can have `inLanguage`, `translationOf`, `showFrom`, and `hideAfter`, as items' files do.
+- **Where it's read:** `goodfellow build` and `goodfellow dev` load the module through Vite, and `goodfellow-next finish` loads it in Node for feeds, calendars, the content API, and its checks. A Next.js site's pages are rendered by Next.js, which needs the module imported: pass it to `goodfellowPages()`, and to `goodfellowApi()` on a full-stack site, as `sources: { jobs: jobsSource }` (see [Collections from a database](/docs/full-stack-nextjs#collections-from-a-database)). The site's description names the module, but never its options.
+- **When changes show:** a static site shows the items it read when it was built, so build it again, such as each night, to show changes. A full-stack site shows them as its pages render again.
+- **Not in version history:** the items aren't in the site's repository, so Version history and Download a copy don't cover them. The collection's settings and design are, as any collection's.
+
 ## Storing items as Markdown
 
 A collection can store its items as Markdown files instead of JSON. Turn on **Store items as Markdown files** in its settings and choose which formatted-text field is the file's text; the other fields are saved at the top of the file. Changing the setting converts every item in the same publish.

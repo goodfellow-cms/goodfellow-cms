@@ -22,7 +22,7 @@ import {
   VISIBILITY_PROP,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAdmin, useSiteContent } from "./admin-context.js";
+import { useAdmin, useCollectionSource, useSiteContent } from "./admin-context.js";
 import { collectionSettingsChanges, deleteCollectionChanges, slugify, uniqueName } from "./changes.js";
 import { CollectionLayout } from "./collection-screen.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
@@ -661,6 +661,7 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
   const t = useStrings();
   const { blocks, publish, reload, account } = useAdmin();
   const { content } = useSiteContent();
+  const source = useCollectionSource(collection.id);
   const [draft, setDraft] = useState(() => toDraft(collection.settings));
   const [showErrors, setShowErrors] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -761,6 +762,9 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
             {status.type === "done" && <PublishedNotice onHide={hidePublished} />}
           </div>
         </div>
+        {source && (
+          <p className="gfa-hint">{t("collectionSettings.sourced", { name: collection.settings.name, source })}</p>
+        )}
         {status.type === "invalid" && !valid && <ErrorMessage message={t("publish.invalid")} />}
         {status.type === "failed" && (
           <ErrorMessage

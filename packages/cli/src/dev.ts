@@ -47,6 +47,7 @@ import {
   findConfigFile,
   loadServerEntry,
   type StylesEntries,
+  withSiteSources,
   writeStylesEntries,
 } from "./site.js";
 
@@ -342,8 +343,10 @@ function devPlugin(
 
           try {
             // As a build now would show the site: pages and items scheduled for later are left out.
-            const content = shownContent(await loadSiteContent(builtSiteSource(root)));
             const { config, renderPage } = await loadServerEntry(server);
+            const content = shownContent(
+              await withSiteSources(server, root, config, await loadSiteContent(builtSiteSource(root))),
+            );
             const match = findSitePage(content, todayIn(content.settings.timeZone), config.blocks, url.pathname);
             // Pages win over redirects, as in builds.
             const redirect = (!match || match.status === 404) && findRedirect(content, url.pathname);

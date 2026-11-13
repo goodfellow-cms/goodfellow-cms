@@ -437,6 +437,10 @@ export const defaultStrings = {
 
   "entries.add": "Add {entry}",
   "entries.empty": "There's nothing in {name} yet.",
+  "entries.sourced":
+    "The items in {name} come from another system ({source}), where they're added and changed. They're shown here as the site shows them.",
+  "entries.sourcedElsewhere":
+    "The items in {name} come from another system ({source}), where they're added and changed. Only the site's server can read them, so they aren't listed here.",
   "entries.column.title": "Title",
   "entries.column.address": "Address",
 
@@ -462,6 +466,9 @@ export const defaultStrings = {
   "editEntry.invalidSchedule":
     "Check when it's on the site: each time needs a date and a time, and it can only be hidden after it's shown.",
   "editEntry.notFound": "This item doesn't exist. It may have been renamed or deleted.",
+  "collectionSettings.sourced":
+    "The items in {name} come from another system ({source}). These fields say what the site shows of them: an item whose values don't fit them is left out.",
+  "editEntry.sourced": "The items in {name} are changed in the system they come from ({source}), not here.",
   "editEntry.back": "Back to {name}",
   "editEntry.items.search": "Search {name}",
   "editEntry.items.none": "Nothing in {name} matches.",

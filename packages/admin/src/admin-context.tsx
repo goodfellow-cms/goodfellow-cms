@@ -2,6 +2,7 @@ import {
   type AdminSite,
   type AppRole,
   adminOrigin,
+  type CollectionSources,
   ConflictError,
   type ContentStore,
   type DemoStore,
@@ -44,7 +45,9 @@ import {
   type SiteDrafts,
   type SiteEditors,
   type SiteUpdates,
+  type SourcedItem,
   upcomingChanges,
+  withSourcedCollections,
   writeChanges,
 } from "@goodfellow-cms/core";
 import type { MediaFieldKind } from "@goodfellow-cms/react";
@@ -92,7 +95,15 @@ export type LoadState =
   | { status: "error"; error: unknown }
   | {
       status: "ready";
+      /** The site's files, as loaded: what screens change and publish. */
       content: SiteContent;
+      /**
+       * The site as visitors see it, where it differs from `content`: with the
+       * items of collections whose items come from a source
+       * (`withSourcedCollections()`), which the items list shows and the publish
+       * checks use, but nothing publishes, since they aren't the site's files.
+       */
+      shown?: SiteContent;
       revision: string;
       media: string[];
       /**
@@ -174,6 +185,11 @@ export interface Account {
    * installed before they're old enough, so they may be offered early.
    */
   earlyInstalls?: boolean;
+  /**
+   * On a full-stack site, the items of a collection whose items come from a
+   * source (`GoodfellowConfig.collections`), from its server.
+   */
+  sourcedItems?(collection: string): Promise<SourcedItem[]>;
   /** On a full-stack site, for its owners: submits changes for a developer to review, as installing a plugin does. */
   review?(
     changes: FileChange[],
@@ -286,12 +302,14 @@ const CODE_TIMEOUT = 20_000;
 const DEPLOY_CHECK_INTERVAL = 5_000;
 const DEPLOY_CHECK_LIMIT = 20 * 60_000;
 
-async function load(store: ContentStore): Promise<LoadState> {
+async function load(store: ContentStore, sources?: CollectionSources): Promise<LoadState> {
   try {
     // Read the revision first: reads then see that revision, even if someone publishes while loading.
     const revision = await store.revision();
     const [content, media] = await Promise.all([loadSiteContent(store), store.list(MEDIA_DIR)]);
-    return { status: "ready", content, revision, media };
+    // Problems with a source's items are the server's to report: here they're left out, as on the site.
+    const shown = sources && (await withSourcedCollections(content, sources, () => {}));
+    return { status: "ready", content, ...(shown && shown !== content && { shown }), revision, media };
   } catch (error) {
     return { status: "error", error };
   }
@@ -458,6 +476,35 @@ export function AdminProvider({
     });
   }, [demo, mediaPreviews]);
 
+  // The items of collections whose items come from a source, from a full-stack site's server: none elsewhere, where
+  // the admin panel can't reach the source, so they're shown with no items, as nothing on the site comes from files.
+  // The account is made again each time its screen draws, so its latest is read when items are, and only whether
+  // there is one decides the sources, which loading the site again follows.
+  const sourcedItems = useRef(account?.sourcedItems);
+  sourcedItems.current = account?.sourcedItems;
+  const hasSourcedItems = Boolean(account?.sourcedItems);
+  const sources = useMemo((): CollectionSources | undefined => {
+    const ids = Object.keys(site.description.collections ?? {});
+    if (ids.length === 0) return undefined;
+    return Object.fromEntries(
+      ids.map((id) => [
+        id,
+        {
+          items: async () => {
+            const read = sourcedItems.current;
+            if (!read || !hasSourcedItems) return [];
+            try {
+              return await read(id);
+            } catch {
+              // The source can't be read just now: its items show once it can, when the site loads again.
+              return [];
+            }
+          },
+        },
+      ]),
+    );
+  }, [site.description.collections, hasSourcedItems]);
+
   // The store the shown site was last loaded from, so switching drafts loads it once, and a slower earlier load is ignored.
   const loadedFrom = useRef<ContentStore>(undefined);
   // Opening a draft or leaving one: screens start again once its content has loaded.
@@ -466,11 +513,11 @@ export function AdminProvider({
     async (from: ContentStore) => {
       loadedFrom.current = from;
       const view = views.current;
-      const next = await load(from);
+      const next = await load(from, sources);
       if (next.status === "error" && next.error instanceof SignInError) onSignInError?.(next.error);
       if (loadedFrom.current === from) setState(next.status === "ready" ? { ...next, view } : next);
     },
-    [onSignInError],
+    [onSignInError, sources],
   );
 
   const reload = useCallback(() => loadFrom(content), [loadFrom, content]);
@@ -587,7 +634,7 @@ export function AdminProvider({
         return { ok: false, reason: "checks", error: undefined };
       }
       const checks =
-        options?.checks === false ? undefined : await checkPublish(content, state, changes, { blocks, code });
+        options?.checks === false ? undefined : await checkPublish(content, state, changes, { blocks, code, sources });
       if (!(await confirmChecks(checks))) return { ok: false, reason: "checks", error: undefined };
       let target = draft;
       let started: Draft | undefined;
@@ -633,6 +680,7 @@ export function AdminProvider({
       askLimits,
       reviewers,
       t,
+      sources,
     ],
   );
 
@@ -660,7 +708,7 @@ export function AdminProvider({
     let changes: FileChange[];
     let live: LoadState;
     try {
-      [changes, live] = await Promise.all([draft.changes(), load(store)]);
+      [changes, live] = await Promise.all([draft.changes(), load(store, sources)]);
     } catch (error) {
       return { ok: false, reason: "error", error };
     }
@@ -689,7 +737,7 @@ export function AdminProvider({
       return { ok: false, reason: "error", error };
     }
     // Every file in the draft, against the live site as it is now.
-    if (!(await confirmChecks(await checkPublish(store, live, changes, { blocks, code })))) {
+    if (!(await confirmChecks(await checkPublish(store, live, changes, { blocks, code, sources })))) {
       return { ok: false, reason: "checks", error: undefined };
     }
     let revision: string;
@@ -719,6 +767,7 @@ export function AdminProvider({
     askLimits,
     reviewers,
     refreshDrafts,
+    sources,
   ]);
 
   const submitDraft = useCallback(async () => {
@@ -1124,8 +1173,19 @@ export function useAdmin(): AdminContextValue {
 }
 
 /** The loaded site. Only call from screens rendered once loading has finished. */
-export function useSiteContent(): { content: SiteContent; revision: string; media: string[] } {
+export function useSiteContent(): { content: SiteContent; shown?: SiteContent; revision: string; media: string[] } {
   const { state } = useAdmin();
   if (state.status !== "ready") throw new Error("The site isn't loaded yet.");
   return state;
+}
+
+/**
+ * The module the config names for a collection's items, where they come from
+ * a source rather than its files (`GoodfellowConfig.collections`): the admin
+ * panel shows them read-only, since they're edited where they're kept.
+ */
+export function useCollectionSource(collection: string): string | undefined {
+  const { site } = useAdmin();
+  const sources = site.description.collections ?? {};
+  return Object.hasOwn(sources, collection) ? sources[collection]?.source : undefined;
 }

@@ -210,3 +210,28 @@ test("loads its fonts from the site, on pages its build rendered and pages rende
   }
   expect(google).toEqual([]);
 });
+
+test("shows a collection's items from its source, on the site and read-only in the admin panel", async ({ page }) => {
+  // The item's page, rendered from what the source gave, with the config's options.
+  await page.goto(`${SITE}/jobs/welder/`);
+  await expect(page.getByRole("heading", { name: "Welder in the harbor" })).toBeVisible();
+
+  await signIn(page, "owen");
+  await page.goto(`${SITE}/admin/#/collections/jobs`);
+  await expect(page.getByText("The items in Jobs come from another system (./lib/jobs.ts)")).toBeVisible();
+  const row = page.getByRole("row", { name: /Welder/ });
+  await expect(row).toContainText("/jobs/welder");
+  // Nothing to add, change, rename, or delete: they're the source's.
+  await expect(page.getByRole("button", { name: "Add job" })).toHaveCount(0);
+  await expect(row.getByRole("button")).toHaveCount(0);
+  await expect(row.getByRole("link", { name: "Edit" })).toHaveCount(0);
+  await page.goto(`${SITE}/admin/#/collections/jobs/edit/welder`);
+  await expect(
+    page.getByText("The items in Jobs are changed in the system they come from (./lib/jobs.ts)"),
+  ).toBeVisible();
+  // The design is still the admin panel's, with its settings, which name the source.
+  await page.goto(`${SITE}/admin/#/collections/jobs/settings`);
+  await expect(
+    page.getByText("The items in Jobs come from another system (./lib/jobs.ts). These fields"),
+  ).toBeVisible();
+});

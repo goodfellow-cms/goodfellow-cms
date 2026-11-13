@@ -1,5 +1,6 @@
 import {
   allPages,
+  type CollectionSources,
   type ContentSource,
   checkSite,
   entryTitle,
@@ -16,6 +17,7 @@ import {
   type SiteProblem,
   siteLanguages,
   todayIn,
+  withSourcedCollections,
 } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
 import { pageTitle } from "./changes.js";
@@ -66,16 +68,19 @@ function contentWithChanges(source: ContentSource, changes: FileChange[]): Promi
  */
 export async function checkPublish(
   source: ContentSource,
-  loaded: { content: SiteContent; media: string[] },
+  loaded: { content: SiteContent; shown?: SiteContent; media: string[] },
   changes: FileChange[],
-  site: { blocks: Record<string, ComponentConfig>; code: SiteCodeService },
+  site: { blocks: Record<string, ComponentConfig>; code: SiteCodeService; sources?: CollectionSources },
 ): Promise<PublishChecks> {
-  const { blocks, code } = site;
+  const { blocks, code, sources } = site;
+  // As visitors see it, with sourced collections' items, so links to their pages aren't missing.
+  const before = loaded.shown ?? loaded.content;
   let after: SiteContent;
   try {
     after = await contentWithChanges(source, changes);
+    if (sources) after = await withSourcedCollections(after, sources, () => {});
   } catch {
-    return { blocking: [], warnings: [], content: loaded.content };
+    return { blocking: [], warnings: [], content: before };
   }
   const media = new Set(loaded.media);
   for (const change of changes) {
@@ -87,17 +92,17 @@ export async function checkPublish(
   // Without the site's code, such as when its frame doesn't start, links are checked against pages alone.
   // The same pages are rendered as they were too, so a warning they had before isn't asked about again.
   const [pagesBefore, pagesAfter, renderedBefore, rendered] = await Promise.all([
-    code.sitePages(loaded.content, today).catch(() => allPages(loaded.content)),
+    code.sitePages(before, today).catch(() => allPages(before)),
     code.sitePages(after, today).catch(() => allPages(after)),
-    code.renderedProblems(loaded.content, pagesToRender(loaded.content, changed), today).catch((): SiteProblem[] => []),
+    code.renderedProblems(before, pagesToRender(before, changed), today).catch((): SiteProblem[] => []),
     code.renderedProblems(after, pagesToRender(after, changed), today).catch((): SiteProblem[] => []),
   ]);
-  const before = [
-    ...checkSite(loaded.content, { media: mediaAddresses(loaded.media), blocks, pages: pagesBefore }),
+  const problemsBefore = [
+    ...checkSite(before, { media: mediaAddresses(loaded.media), blocks, pages: pagesBefore }),
     ...renderedBefore,
   ];
   const problems = [...checkSite(after, { media: mediaAddresses(media), blocks, pages: pagesAfter }), ...rendered];
-  const found = publishProblems(before, problems, changed);
+  const found = publishProblems(problemsBefore, problems, changed);
   return { ...found, content: after };
 }
 

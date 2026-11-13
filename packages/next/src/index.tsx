@@ -4,7 +4,9 @@ import {
   adminSiteForCopy,
   BLOCK_SCRIPTS,
   builtSource,
+  type CollectionSources,
   type ContentSource,
+  collectionSources,
   colorSchemeMeta,
   colorSchemeScript,
   consentScript,
@@ -33,6 +35,7 @@ import {
   pageHead,
   robotsRules,
   type SiteContent,
+  type SourceModuleImport,
   shownContent,
   siteCopyFrom,
   languageMap as siteLanguageMap,
@@ -48,6 +51,7 @@ import {
   withBase,
   withoutPaywall,
   withSelfHostedFonts,
+  withSourcedCollections,
 } from "@goodfellow-cms/core";
 import {
   BUILD_DATES_ENV,
@@ -119,6 +123,15 @@ export interface GoodfellowPagesOptions {
    * might in `next dev`, pages read `root`'s files. Static sites leave it out.
    */
   source?: () => ContentSource | undefined | Promise<ContentSource | undefined>;
+  /**
+   * The modules of the sources the config's `collections` name, by collection
+   * id, imported by the site's own code, since Next.js bundles only what's
+   * imported: `{ jobs: jobsSource }` with
+   * `import jobsSource from "@/lib/jobs"`. Pages, feeds and the content API then
+   * show the source's items as the collection's (`withSourcedCollections()`).
+   * Throws where the config names a collection whose module is missing.
+   */
+  sources?: Record<string, SourceModuleImport>;
 }
 
 // In `next build`, which renders pages in several processes, each writes the dates what its pages show by today's
@@ -184,11 +197,14 @@ export interface PageProps {
  * content edits show on reload in development.
  */
 export const loadSite = cache(
-  async (root: string = process.cwd()): Promise<SiteContent> =>
+  async (root: string = process.cwd(), sources: CollectionSources = {}): Promise<SiteContent> =>
     // How pages' full addresses end comes from `withGoodfellow()`, which Next.js passes in its `env`.
     shownContent(
-      await loadSiteContent(
-        builtSiteSource(root, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+      await withSourcedCollections(
+        await loadSiteContent(
+          builtSiteSource(root, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+        ),
+        sources,
       ),
     ),
 );
@@ -198,12 +214,16 @@ const loadSourceSite = cache(
   async (
     source: () => ContentSource | undefined | Promise<ContentSource | undefined>,
     root: string | undefined,
+    sources: CollectionSources,
   ): Promise<SiteContent> => {
     const files = await source();
-    if (!files) return loadSite(root);
+    if (!files) return loadSite(root, sources);
     return shownContent(
-      await loadSiteContent(
-        builtSource(files, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+      await withSourcedCollections(
+        await loadSiteContent(
+          builtSource(files, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+        ),
+        sources,
       ),
     );
   },
@@ -365,7 +385,8 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   const root = options.root ?? process.cwd();
   // The same arguments as the layout's `loadSite()`, so a request reads the site once.
   const source = options.source;
-  const site = () => (source ? loadSourceSite(source, options.root) : loadSite(options.root));
+  const sources = collectionSources(config.collections, options.sources ?? {});
+  const site = () => (source ? loadSourceSite(source, options.root, sources) : loadSite(options.root, sources));
   const basePath = () => options.basePath ?? configuredBasePath();
 
   // Stored media's sizes are by its public address, which the site shows it from.
@@ -464,6 +485,7 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       try {
         return (await site()).settings.language;
       } catch {
+        // Without the collections' sources, which the language doesn't need, and which may be what failed.
         return (await loadSite(options.root)).settings.language;
       }
     },

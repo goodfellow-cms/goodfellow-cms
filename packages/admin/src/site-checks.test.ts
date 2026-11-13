@@ -50,6 +50,38 @@ describe("checkPublish", () => {
     expect(checks.warnings).toEqual([]);
   });
 
+  it("knows the pages of items that come from a source, which aren't the site's files", async () => {
+    const files: Record<string, string> = {
+      ...FILES,
+      "content/collections/jobs/_collection.json": JSON.stringify({
+        version: 1,
+        name: "Jobs",
+        entryName: "Job",
+        path: "/jobs/{slug}",
+        fields: [{ name: "title", label: "Title", type: "text" }],
+      }),
+    };
+    const withJobs: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    const sources = { jobs: { items: async () => [{ slug: "welder", fields: { title: "Welder" } }] } };
+    const content = await loadSiteContent(withJobs);
+    const linking = [{ path: "content/pages/new.json", content: page("New", [button("Button-1", "/jobs/welder")]) }];
+    const checks = await checkPublish(withJobs, { content, media: [] }, linking, {
+      blocks: config.blocks,
+      code: localSiteCode(config),
+      sources,
+    });
+    expect(checks.blocking).toEqual([]);
+    // Without its source, the item has no page, so the link goes nowhere.
+    const without = await checkPublish(withJobs, { content, media: [] }, linking, {
+      blocks: config.blocks,
+      code: localSiteCode(config),
+    });
+    expect(without.blocking.map((problem) => problem.kind)).toEqual(["missing-page"]);
+  });
+
   it("knows the files a publish adds, and doesn't ask again about problems it didn't bring", async () => {
     const checks = await checkPublish(
       source,

@@ -137,7 +137,9 @@ function setup(
     ownersOnly,
     provenance,
     onPublish,
+    sources,
   }: {
+    sources?: AppApiOptions["sources"];
     contentOnly?: boolean;
     codeChanges?: "review" | "publish";
     ownersOnly?: OwnersOnlyFields;
@@ -159,6 +161,7 @@ function setup(
     ...(ownersOnly && { ownersOnly }),
     ...(provenance && { provenance }),
     ...(onPublish && { onPublish }),
+    ...(sources && { sources }),
   });
   const call = (endpoint: string, init: RequestInit & { query?: Record<string, string> } = {}) => {
     const url = new URL(`https://parish.example/api/goodfellow/${endpoint}`);
@@ -204,6 +207,36 @@ describe("appApi", () => {
     });
     signIn(false);
     expect(await (await call("session")).json()).toMatchObject({ signedIn: false, notAllowed: true });
+  });
+
+  it("gives the items of collections with a source to people signed in to edit, and nothing of the source's failures", async () => {
+    const items = [{ slug: "welder", fields: { title: "Welder" } }];
+    let failing = false;
+    const { call, signIn, errors } = setup(ALICE, {
+      sources: {
+        jobs: {
+          items: async () => {
+            if (failing) throw new Error("password authentication failed for user jobs");
+            return items;
+          },
+        },
+      },
+    });
+    const answer = await call("collections/jobs/items");
+    expect(answer.status).toBe(200);
+    expect(await answer.json()).toEqual({ items });
+    expect((await call("collections/news/items")).status).toBe(404);
+    expect((await call("collections/constructor/items")).status).toBe(404);
+    expect((await call("collections/jobs/items", { method: "POST" })).status).toBe(404);
+    failing = true;
+    const failed = await call("collections/jobs/items");
+    expect(failed.status).toBe(502);
+    expect(await failed.text()).not.toContain("password");
+    expect(errors).toHaveLength(1);
+    signIn(null);
+    expect((await call("collections/jobs/items")).status).toBe(401);
+    // Without sources, there's nothing to give.
+    expect((await setup().call("collections/jobs/items")).status).toBe(404);
   });
 
   it("never writes code to a repository that holds only the site's content", async () => {

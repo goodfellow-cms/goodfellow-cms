@@ -3,11 +3,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import {
   type AdminSite,
+  type CollectionSources,
   CUSTOM_CSS_FILE,
+  collectionSources,
   type GoodfellowConfig,
   type Page,
   type SiteContent,
   type SiteDescription,
+  type SourceModuleImport,
+  withSourcedCollections,
 } from "@goodfellow-cms/core";
 import type { ContentApiFile } from "@goodfellow-cms/core/content-api";
 import type { PageRenderer } from "@goodfellow-cms/react/server";
@@ -71,6 +75,34 @@ export interface ServerEntry {
 
 export function loadServerEntry(server: ViteDevServer): Promise<ServerEntry> {
   return server.ssrLoadModule(SERVER_ENTRY) as Promise<ServerEntry>;
+}
+
+/**
+ * The sources the config names for its collections, each module loaded
+ * through Vite as the config is: a path from the site's root, or a package.
+ */
+export async function loadCollectionSources(
+  server: ViteDevServer,
+  root: string,
+  config: GoodfellowConfig,
+): Promise<CollectionSources> {
+  const modules: Record<string, SourceModuleImport> = {};
+  for (const [id, collection] of Object.entries(config.collections ?? {})) {
+    const specifier = /^\.\.?\//.test(collection.source) ? resolve(root, collection.source) : collection.source;
+    modules[id] = (await server.ssrLoadModule(specifier)) as SourceModuleImport;
+  }
+  return collectionSources(config.collections, modules);
+}
+
+/** The site with its collections' sources read in, where its config names any (`withSourcedCollections()`). */
+export async function withSiteSources(
+  server: ViteDevServer,
+  root: string,
+  config: GoodfellowConfig,
+  content: SiteContent,
+): Promise<SiteContent> {
+  if (!config.collections) return content;
+  return withSourcedCollections(content, await loadCollectionSources(server, root, config));
 }
 
 /**

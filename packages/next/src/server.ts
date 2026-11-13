@@ -1,5 +1,10 @@
 import { aiServer, type ServerKeys } from "@goodfellow-cms/ai";
-import { type GoodfellowConfig, ownersOnlyFields } from "@goodfellow-cms/core";
+import {
+  collectionSources,
+  type GoodfellowConfig,
+  ownersOnlyFields,
+  type SourceModuleImport,
+} from "@goodfellow-cms/core";
 import { type AppApiOptions, appApi } from "@goodfellow-cms/core/server";
 
 /** The environment variable the server's token is read from, unless `goodfellowApi({ token })` gives one. */
@@ -62,6 +67,12 @@ export interface GoodfellowApiOptions {
    * them, and they wait until they're old enough.
    */
   provenance?: AppApiOptions["provenance"];
+  /**
+   * The modules of the sources the config's `collections` name, by collection
+   * id, as `goodfellowPages()` is given them, so the admin panel can show their
+   * items. Throws on the first request where the config names one that's missing.
+   */
+  sources?: Record<string, SourceModuleImport>;
 }
 
 /** The route parameters of a catch-all route named `[...path]`. */
@@ -110,6 +121,7 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
       ...(options.codeChanges && { codeChanges: options.codeChanges }),
       ...(options.provenance && { provenance: options.provenance }),
       ownersOnly: ownersOnlyFields(options.config.blocks ?? {}),
+      sources: collectionSources(options.config.collections, options.sources ?? {}),
     });
     return api;
   }

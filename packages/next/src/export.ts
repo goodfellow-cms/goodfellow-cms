@@ -27,6 +27,7 @@ import {
   rootRobotsUrl,
   type SelfHostedResult,
   SITE_DESCRIPTION_PATH,
+  type SiteContent,
   type SiteProblem,
   sealTaskAnswer,
   shownContent,
@@ -60,10 +61,20 @@ import {
 import type { PageRender } from "@goodfellow-cms/core/shadcn";
 import { bundleEditorFrames } from "./editor-frames.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK, SITE_SERVING, type SiteServing } from "./image-sizes-mark.js";
-import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule } from "./plugins.js";
+import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule, withSiteSources } from "./plugins.js";
 
 export { EDITOR_FRAMES_PAGE, EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
 export { NEXT_SITE_FILES, nextSiteFiles } from "./site-files.js";
+
+/**
+ * The site as an export shows it: from its files, with its collections'
+ * sources read in where its config names any (`loadCollectionSources()`), and
+ * without what its schedules hide.
+ */
+async function exportedSite(root: string): Promise<SiteContent> {
+  const dir = resolve(root);
+  return shownContent(await withSiteSources(dir, await loadSiteContent(builtSiteSource(dir))));
+}
 
 /**
  * Writes the calendar files of the site's collections of events into the
@@ -71,7 +82,7 @@ export { NEXT_SITE_FILES, nextSiteFiles } from "./site-files.js";
  * how many it wrote.
  */
 export async function writeCalendarFiles(outDir: string, root = process.cwd()): Promise<number> {
-  const files = calendarFiles(shownContent(await loadSiteContent(builtSiteSource(resolve(root)))));
+  const files = calendarFiles(await exportedSite(root));
   for (const file of files) {
     const target = join(outDir, file.path.slice(1));
     await mkdir(dirname(target), { recursive: true });
@@ -85,7 +96,7 @@ export async function writeCalendarFiles(outDir: string, root = process.cwd()): 
  * build` does. Returns how many it wrote: none without the site's address.
  */
 export async function writeFeedFiles(outDir: string, root = process.cwd()): Promise<number> {
-  const files = feedFiles(shownContent(await loadSiteContent(builtSiteSource(resolve(root)))));
+  const files = feedFiles(await exportedSite(root));
   for (const file of files) {
     const target = join(outDir, file.path.slice(1));
     await mkdir(dirname(target), { recursive: true });
@@ -99,7 +110,7 @@ export async function writeFeedFiles(outDir: string, root = process.cwd()): Prom
  * members only, which it has no server to keep to them, for `buildNotes()`.
  */
 export async function exportedMembersPages(root = process.cwd()): Promise<string[]> {
-  const content = shownContent(await loadSiteContent(builtSiteSource(resolve(root))));
+  const content = await exportedSite(root);
   return membersPages(content, allPages(content)).map((page) => page.path);
 }
 
@@ -115,7 +126,7 @@ export async function writeContentApi(outDir: string, root = process.cwd()): Pro
   const config = await loadSiteConfig(dir);
   if (config.api === false) return undefined;
   const { contentApi } = await import("@goodfellow-cms/react/server");
-  const content = shownContent(await loadSiteContent(builtSiteSource(dir)));
+  const content = await exportedSite(dir);
   const pages = sitePages(content, todayIn(content.settings.timeZone), config.blocks);
   const files = await contentApi(config, content, pages, {
     base: await exportBasePath(dir),
@@ -304,7 +315,7 @@ export interface RedirectsWritten {
  */
 export async function writeRedirectFiles(outDir: string, root = process.cwd()): Promise<RedirectsWritten> {
   const dir = resolve(root);
-  const content = shownContent(await loadSiteContent(builtSiteSource(dir)));
+  const content = await exportedSite(dir);
   const base = await exportBasePath(dir);
   const files = redirectFiles(content, { taken: allPages(content).map((page) => page.path), base });
   const written: Redirect[] = [];
@@ -544,7 +555,7 @@ export async function renderedPages(root = process.cwd()): Promise<BuiltPage[]> 
   const config = await loadSiteConfig(site);
   const { createPageRenderer } = await import("@goodfellow-cms/react/server");
   const render = createPageRenderer(config);
-  const content = shownContent(await loadSiteContent(builtSiteSource(site)));
+  const content = await exportedSite(site);
   const trailingSlash = await exportTrailingSlash(site);
   const pages: BuiltPage[] = [];
   // One at a time, so a large site's pages aren't all in memory while they render.
@@ -595,7 +606,7 @@ function contentFile(pages: readonly Page[], path: string): string | undefined {
  * Pages that aren't the site's, such as Next.js's own, are left out.
  */
 export async function checkPages(pages: readonly BuiltPage[], root = process.cwd()): Promise<SiteProblem[]> {
-  const known = allPages(shownContent(await loadSiteContent(builtSiteSource(resolve(root)))));
+  const known = allPages(await exportedSite(root));
   return checkBuiltPages(
     pages.flatMap((page) => {
       const path = page.url.replace(/(.)\/$/, "$1");

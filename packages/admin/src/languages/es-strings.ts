@@ -429,6 +429,10 @@ export const strings: Strings = {
   "collection.back": "Volver a las colecciones",
   "entries.add": "Añadir {entry}",
   "entries.empty": "Todavía no hay nada en {name}.",
+  "entries.sourced":
+    "Los elementos de {name} vienen de otro sistema ({source}), donde se añaden y se cambian. Aquí se muestran como los muestra el sitio.",
+  "entries.sourcedElsewhere":
+    "Los elementos de {name} vienen de otro sistema ({source}), donde se añaden y se cambian. Solo el servidor del sitio puede leerlos, así que no aparecen aquí.",
   "entries.column.title": "Título",
   "entries.column.address": "Dirección",
   "newEntry.title": "Añadir {entry}",
@@ -451,6 +455,9 @@ export const strings: Strings = {
   "editEntry.invalidSchedule":
     "Revisa cuándo está en el sitio: cada hora necesita una fecha y una hora, y solo puede ocultarse después de mostrarse.",
   "editEntry.notFound": "Este elemento no existe. Puede que se haya renombrado o eliminado.",
+  "collectionSettings.sourced":
+    "Los elementos de {name} vienen de otro sistema ({source}). Estos campos dicen qué muestra el sitio de ellos: un elemento cuyos valores no encajan se deja fuera.",
+  "editEntry.sourced": "Los elementos de {name} se cambian en el sistema del que vienen ({source}), no aquí.",
   "editEntry.back": "Volver a {name}",
   "editEntry.items.search": "Buscar en {name}",
   "editEntry.items.none": "Nada en {name} coincide.",

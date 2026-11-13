@@ -102,6 +102,19 @@ describe("block keywords", () => {
   });
 });
 
+describe("sourced collections", () => {
+  it("are named in the site's description by their module, never with their options", () => {
+    const description = describeSite({
+      blocks: { Plain: plain },
+      collections: { jobs: { source: "./lib/jobs.ts", options: { table: "openings" } } },
+    });
+    expect(description.collections).toEqual({ jobs: { source: "./lib/jobs.ts" } });
+    expect(JSON.stringify(description)).not.toContain("openings");
+    expect(describeSite({ blocks: { Plain: plain } }).collections).toBeUndefined();
+    expect(describeSite({ blocks: { Plain: plain }, collections: {} }).collections).toBeUndefined();
+  });
+});
+
 describe("block icons", () => {
   it("are kept on the block, cleaned, and carried in the site's description", () => {
     const Divider = withIcon({ ...plain }, [

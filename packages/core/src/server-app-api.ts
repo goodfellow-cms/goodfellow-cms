@@ -3,6 +3,7 @@ import {
   APP_API_HEADER,
   type AppEditor,
   type AppSession,
+  type CollectionSources,
   ConflictError,
   decodeBase64,
   encodeBase64Bytes,
@@ -113,6 +114,12 @@ export interface AppApiOptions {
    * offer them, so they wait until they're old enough.
    */
   provenance?: EarlyInstallCheck;
+  /**
+   * The sources the config's `collections` name, by collection id
+   * (`collectionSources()`), whose items `collections/<id>/items` gives anyone
+   * signed in to edit, so the admin panel can show them, read-only.
+   */
+  sources?: CollectionSources;
 }
 
 /** Room for a save with uploads, which are sent as base64 (a third larger than the files). */
@@ -339,6 +346,18 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       return options.ai.forward(request, service, rest.join("/"));
     }
     if (get && endpoint === "revision") return json(200, { revision: await options.git.revision() });
+    const sourced = get && /^collections\/([a-z0-9-]+)\/items$/.exec(endpoint);
+    if (sourced) {
+      const source = Object.hasOwn(options.sources ?? {}, sourced[1] ?? "") && options.sources?.[sourced[1] ?? ""];
+      if (!source) return json(404, { error: "not-found" });
+      try {
+        return json(200, { items: await source.items() });
+      } catch (error) {
+        // What the source's system answered stays on the server, as the repository's does.
+        onError(error);
+        return json(502, { error: "source" });
+      }
+    }
     if (get && endpoint === "file") {
       const backend = await reader(revisionParam(query("revision")));
       const path = editablePath(query("path"));

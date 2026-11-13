@@ -1,6 +1,7 @@
 import type { ComponentConfig, Config } from "@puckeditor/core";
 import type { AdminAddress } from "./admin-domain.js";
 import type { BrokerAddress } from "./broker.js";
+import type { CollectionSourceConfig } from "./content/collection-sources.js";
 import type { GitHost } from "./git.js";
 import { type GoodfellowPlugin, withPlugins } from "./plugins.js";
 
@@ -115,6 +116,17 @@ export interface GoodfellowConfig {
    * declares, where Goodfellow can enforce them.
    */
   plugins?: GoodfellowPlugin[];
+  /**
+   * Collections whose items come from somewhere other than their folder in
+   * `content/collections/`, such as the site's database, by collection id:
+   * `{ jobs: { source: "./lib/jobs.ts", options: { table: "jobs" } } }`. Each
+   * still has its `_collection.json`, with its fields, template and address,
+   * designed in the admin panel as for any collection; only its items come
+   * from the source, read-only in the admin panel. Full-stack sites' servers
+   * import each source's module and pass it to `goodfellowPages()` and
+   * `goodfellowApi()`, since the config loads in the browser too.
+   */
+  collections?: Record<string, CollectionSourceConfig>;
 }
 
 export interface ClaudeConfig {

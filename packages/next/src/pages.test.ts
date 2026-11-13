@@ -160,6 +160,47 @@ describe("goodfellowPages with a source", () => {
   });
 });
 
+describe("goodfellowPages with collections' sources", () => {
+  const welcome = { slug: "from-the-database", fields: { title: "From the database", date: "2026-11-01" } };
+  const config = { blocks: {}, collections: { news: { source: "./lib/news.ts", options: { table: "posts" } } } };
+
+  it("shows a source's items as the collection's, made with the config's options", async () => {
+    const tables: string[] = [];
+    const sourced = goodfellowPages(config, {
+      root,
+      sources: {
+        news: {
+          default: (options) => ({
+            items: async () => {
+              tables.push(String(options.table));
+              return [welcome];
+            },
+          }),
+        },
+      },
+    });
+    const params = await sourced.generateStaticParams();
+    expect(params).toContainEqual({ path: ["news", "from-the-database"] });
+    expect(params).not.toContainEqual({ path: ["news", "welcome"] });
+    const metadata = await sourced.generateMetadata({
+      params: Promise.resolve({ path: ["news", "from-the-database"] }),
+    });
+    expect(metadata.title).toEqual({ absolute: "From the database | My site" });
+    expect(tables[0]).toBe("posts");
+    // From the repository too, as a full-stack site's pages read it.
+    const live = goodfellowPages(config, {
+      root: "/nowhere",
+      source: () => fileSystemSource(root),
+      sources: { news: () => ({ items: async () => [welcome] }) },
+    });
+    expect(await live.generateStaticParams()).toContainEqual({ path: ["news", "from-the-database"] });
+  });
+
+  it("refuses a config naming a source the site's code didn't give", () => {
+    expect(() => goodfellowPages(config, { root })).toThrow(/lib\/news\.ts/);
+  });
+});
+
 describe("demoContent", () => {
   it("copies the site's content for a demo's admin panel", async () => {
     const response = await goodfellowPages({ blocks: {}, demo: true }, { root }).demoContent();

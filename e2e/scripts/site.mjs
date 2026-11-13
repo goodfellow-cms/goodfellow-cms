@@ -84,6 +84,7 @@ function testConfig({
   admin = "",
   broker = "",
   plugins = false,
+  collections = "",
 } = {}) {
   return [
     'import { blocks, categories } from "@goodfellow-cms/blocks";',
@@ -107,6 +108,7 @@ function testConfig({
     ...(backend ? [`  backend: ${backend},`] : []),
     ...(demo ? ["  demo: true,"] : []),
     ...(plugins ? ["  plugins: [greeter, keeper, outline],"] : []),
+    ...(collections ? [`  collections: ${collections},`] : []),
     "});",
     "",
   ].join("\n");
@@ -297,8 +299,41 @@ export const NEXT_SERVER_PEOPLE = {
   nora: false,
 };
 
+/**
+ * A collection whose items come from a source, as a database would give them, on the full-stack test site: its
+ * settings, in the repository, and the source's module, in the site's code, made with the config's options.
+ */
+export const JOBS_COLLECTION = {
+  version: 1,
+  name: "Jobs",
+  entryName: "Job",
+  path: "/jobs/{slug}",
+  fields: [
+    { name: "title", label: "Title", type: "text" },
+    { name: "place", label: "Where", type: "text" },
+  ],
+  template: {
+    root: { props: { title: "{title}" } },
+    content: [{ type: "Heading", props: { id: "Heading-job", text: "{title} in {place}", level: "h1" } }],
+  },
+};
+
 /** Files a full-stack Next.js site adds to the template: the admin panel's API, and a sign-in of its own. */
 const SERVER_FILES = {
+  "lib/jobs.ts": `import { defineCollectionSource } from "@goodfellow-cms/core";
+
+// Items as a database would give them, in a place the config's options name.
+export default defineCollectionSource<{ place: string }>((options) => ({
+  items: async () => [{ slug: "welder", fields: { title: "Welder", place: options.place } }],
+}));
+`,
+  "lib/site.ts": `import { goodfellowPages } from "@goodfellow-cms/next";
+import config from "@/goodfellow.config";
+import jobs from "@/lib/jobs";
+
+/** The site's pages, shared by the routes that show them, with the jobs collection's items from its source. */
+export const site = goodfellowPages(config, { sources: { jobs } });
+`,
   "next.config.ts": `import { withGoodfellow } from "@goodfellow-cms/next/config";
 
 export default withGoodfellow({ agentRules: false }, { server: true });
@@ -315,10 +350,12 @@ export function signedIn(request: Request): AppEditor | false | null {
 `,
   "app/api/goodfellow/[...path]/route.ts": `import { goodfellowApi } from "@goodfellow-cms/next/server";
 import config from "@/goodfellow.config";
+import jobs from "@/lib/jobs";
 import { signedIn } from "@/lib/session";
 
 export const { GET, POST } = goodfellowApi({
   config,
+  sources: { jobs },
   authorize: signedIn,
   signIn: "/sign-in/",
   signOut: "/sign-out/",
@@ -372,9 +409,13 @@ export function createNextServerSite() {
       importLine: 'import { github } from "@goodfellow-cms/github";',
       // The server's GitHub is a fake on this computer; the browser never calls it.
       backend: 'github({ repo: "parish/site", apiUrl: process.env.TEST_GITHUB_API })',
+      collections: '{ jobs: { source: "./lib/jobs.ts", options: { place: "the harbor" } } }',
     }),
   );
   cpSync(testBlocks, join(nextServerSite, "blocks"), { recursive: true });
+  const jobs = join(nextServerSite, "content/collections/jobs");
+  mkdirSync(jobs, { recursive: true });
+  writeFileSync(join(jobs, "_collection.json"), `${JSON.stringify(JOBS_COLLECTION, null, 2)}\n`);
   writeFileSync(join(nextServerSite, "content/pages/search.json"), `${JSON.stringify(searchPage, null, 2)}\n`);
   // A collection of events, so the build has calendar files to write.
   const events = join(nextServerSite, "content/collections/events");
