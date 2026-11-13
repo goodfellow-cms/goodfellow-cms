@@ -6,7 +6,14 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { withSourcedCollections } from "./content/collection-sources.js";
 import { loadSiteContent } from "./content/load.js";
-import { DEV_API_PREFIX, handleDevApi, isAllowedDevHost, isLocalOrigin, type SiteLoader } from "./node-dev-api.js";
+import {
+  DEV_API_PREFIX,
+  handleDevApi,
+  isAllowedDevHost,
+  isLocalOrigin,
+  type SiteLoader,
+  sendBuildFile,
+} from "./node-dev-api.js";
 import { localFileStore } from "./node-local-files.js";
 import { newTaskRequestId, openTaskAnswer, taskKeys } from "./plugin-tasks.js";
 import { definePlugin } from "./plugins.js";
@@ -77,6 +84,42 @@ describe("handleDevApi's feeds", { timeout: NODE_TIMEOUT }, () => {
       await new Promise((done) => server.close(done));
       await rm(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe("sendBuildFile", () => {
+  const failing: SiteLoader = async () => {
+    throw new Error("The database didn't answer.");
+  };
+  const answer = () => {
+    const res = {
+      statusCode: 200,
+      ended: false,
+      end() {
+        res.ended = true;
+      },
+    };
+    return res;
+  };
+  const files = { read: async () => undefined, list: async () => [] };
+
+  it("answers a file that can't be made with a failure, said only where it's asked to", async () => {
+    const res = answer();
+    const said: string[] = [];
+    const sent = await sendBuildFile(files, "/feeds/jobs.rss", res as never, failing, (message) => said.push(message));
+    expect(sent).toBe(true);
+    expect(res).toMatchObject({ statusCode: 500, ended: true });
+    expect(said).toEqual(["/feeds/jobs.rss couldn't be made: The database didn't answer."]);
+    // Without anywhere to say it, the failure is the caller's.
+    await expect(sendBuildFile(files, "/feeds/jobs.rss", answer() as never, failing)).rejects.toThrow("database");
+  });
+
+  it("leaves other addresses alone, without loading the site", async () => {
+    const load = vi.fn(failing);
+    const res = answer();
+    expect(await sendBuildFile(files, "/news.html", res as never, load, () => {})).toBe(false);
+    expect(load).not.toHaveBeenCalled();
+    expect(res).toMatchObject({ statusCode: 200, ended: false });
   });
 });
 

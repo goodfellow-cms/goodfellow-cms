@@ -224,17 +224,31 @@ export type SiteLoader = (source: ContentSource) => Promise<SiteContent>;
  * Answers a request for one of the files builds write besides pages, the
  * calendar files (`/calendars/…`) and feeds (`/feeds/…`), each also under the
  * site's other languages' codes, from the site's content as it is now. Says
- * whether the address was one.
+ * whether the address was one. With `onError`, a file that can't be made,
+ * such as when a collection's source can't be read, answers 500 and is said
+ * there, on the developer's computer, never in the answer; without it, the
+ * failure is thrown.
  */
 export async function sendBuildFile(
   source: ContentSource,
   pathname: string,
   res: ServerResponse,
   load: SiteLoader = (files) => loadSiteContent(files),
+  onError?: (message: string) => void,
 ): Promise<boolean> {
   const kind = buildFileKind(pathname);
   if (!kind) return false;
-  const file = kind.files(shownContent(await load(source))).find((candidate) => candidate.path === pathname);
+  let content: SiteContent;
+  try {
+    content = await load(source);
+  } catch (error) {
+    if (!onError) throw error;
+    onError(`${pathname} couldn't be made: ${(error as Error).message}`);
+    res.statusCode = 500;
+    res.end();
+    return true;
+  }
+  const file = kind.files(shownContent(content)).find((candidate) => candidate.path === pathname);
   if (!file) {
     res.statusCode = 404;
     res.end();
@@ -271,13 +285,9 @@ export async function handleDevApi(
   }
   // Calendar files and feeds are public, as they are on the built site: next dev rewrites /calendars/ and /feeds/ here.
   if (req.method === "GET" && buildFileKind(`/${endpoint}`)) {
-    try {
-      if (!(await sendBuildFile(store, `/${endpoint}`, res, options.load))) send(res, 404, { error: "not-found" });
-    } catch (error) {
-      // Such as a collection's source that can't be read: said here, on the developer's computer, and never in the answer.
-      console.error(`/${endpoint} couldn't be made: ${(error as Error).message}`);
-      send(res, 500, { error: "build-file" });
-    }
+    // A file that can't be made, such as when a collection's source can't be read, is said here, never in the answer.
+    const sent = await sendBuildFile(store, `/${endpoint}`, res, options.load, (message) => console.error(message));
+    if (!sent) send(res, 404, { error: "not-found" });
     return true;
   }
   if (!isTrusted(req, options.trustOrigin)) {
