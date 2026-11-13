@@ -1,6 +1,7 @@
-import { auth, confirmedPath } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { forgetReader } from "@/lib/paywall";
+import { sitePath } from "@/lib/site-path";
 import { returnFromCheckout, stripeFor } from "@/lib/stripe";
 
 // Where Stripe Checkout sends people back to once they've paid: what they bought is written straight away, and the
@@ -18,7 +19,7 @@ export async function GET(request: Request): Promise<Response> {
   } catch (error) {
     // The webhook writes it anyway: going back to the page is never held up by this.
     console.error(`Writing a payment on the way back failed: ${error instanceof Error ? error.name : "error"}.`);
-    next = confirmedPath(new URL(request.url).searchParams.get("next"));
+    next = sitePath(new URL(request.url).searchParams.get("next"));
   }
   const headers = new Headers({ location: next, "cache-control": "no-store" });
   headers.append("set-cookie", forgetReader(request));

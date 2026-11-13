@@ -1,6 +1,11 @@
 "use client";
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { PAYWALL_SECONDS } from "@/lib/paywall-time";
+import { MEMBER_ROLE } from "@/lib/roles";
+
+/** What the page says after a change that stops someone reading: members' pages show until their paywall cookie runs out. */
+const STILL_SHOWN = `Members' pages can show for up to ${PAYWALL_SECONDS / 60} more minutes.`;
 
 interface ShownSubscription {
   until: string | null;
@@ -108,7 +113,7 @@ export function SubscribersScreen() {
               <tr key={subscriber.id}>
                 <td>
                   {subscriber.name}
-                  {!subscriber.confirmed && " (hasn't confirmed their address)"}
+                  {!subscriber.confirmed && " (hasn't chosen a password yet)"}
                   {subscriber.role !== "member" && ` (${subscriber.role === "admin" ? "an admin" : "an editor"})`}
                 </td>
                 <td>{subscriber.email}</td>
@@ -127,14 +132,14 @@ export function SubscribersScreen() {
                           await call(`/api/subscribers/${encodeURIComponent(subscriber.id)}/subscription/`, {
                             method: "DELETE",
                           });
-                          return `The subscription you gave ${subscriber.name} has been taken away. Members' pages can show for up to 10 more minutes.`;
+                          return `The subscription you gave ${subscriber.name} has been taken away. ${STILL_SHOWN}`;
                         })
                       }
                     >
                       Take away the subscription you gave
                     </button>
                   )}
-                  {subscriber.role === "member" && (
+                  {subscriber.role === MEMBER_ROLE && (
                     <button
                       type="button"
                       disabled={busy}
@@ -144,7 +149,7 @@ export function SubscribersScreen() {
                         }
                         void act(async () => {
                           await call(`/api/subscribers/${encodeURIComponent(subscriber.id)}/`, { method: "DELETE" });
-                          return `${subscriber.name}'s account has been removed.`;
+                          return `${subscriber.name}'s account has been removed. ${STILL_SHOWN}`;
                         });
                       }}
                     >

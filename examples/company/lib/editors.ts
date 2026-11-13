@@ -3,10 +3,19 @@
 // `editorAsking()`, `authorizeWith()`'s check, which also refuses banned admins, admins acting as someone else, and
 // admins without two-factor sign-in.
 import { generateRandomString } from "better-auth/crypto";
-import { editorAsking, lockLinks, RESET_IDENTIFIER, retireResetLinks, type SiteAuth, unlockLinks } from "./auth.ts";
+import {
+  editorAsking,
+  isMemberRole,
+  lockLinks,
+  RESET_IDENTIFIER,
+  retireResetLinks,
+  type SiteAuth,
+  unlockLinks,
+} from "./auth.ts";
 import { canSendEmail, type Email, invitationEmail, sendEmail } from "./email.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
+import { sitePath } from "./site-path.ts";
 
 /** What someone may do: `admin`, the site's owners, or `editor`. */
 export type EditorRole = "admin" | "editor";
@@ -157,11 +166,17 @@ export function invitationFrom(body: unknown): Invitation {
 }
 
 /**
- * A new single-use link that lets the person choose a password, as Better Auth's password reset reads it, at the
- * site's own address, never the request's, which a visitor could choose. Their earlier links stop working, so one
- * that went astray can't be used later.
+ * A new single-use link that lets someone who hasn't joined choose a password, as Better Auth's password reset reads
+ * it, at the site's own address, never the request's, which a visitor could choose, lasting `hours`: an invitation's,
+ * or a reader's who signed up (lib/sign-up.ts), whose link says the page to go on to. Their earlier links stop
+ * working, so one that went astray can't be used later.
  */
-async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: string): Promise<string> {
+export async function passwordLink(
+  siteAuth: SiteAuth,
+  siteEnv: SiteEnv,
+  userId: string,
+  { hours = INVITATION_HOURS, next }: { hours?: number; next?: string } = {},
+): Promise<string> {
   if (!siteEnv.GOODFELLOW_SITE_URL) {
     throw new EditorsError(500, "Set GOODFELLOW_SITE_URL, the site's address, so invitations can link to it.");
   }
@@ -186,7 +201,7 @@ async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: stri
       data: {
         identifier: `${RESET_IDENTIFIER}${token}`,
         value: userId,
-        expiresAt: new Date(now.getTime() + INVITATION_HOURS * 60 * 60 * 1000),
+        expiresAt: new Date(now.getTime() + hours * 60 * 60 * 1000),
         createdAt: now,
         updatedAt: now,
       },
@@ -197,6 +212,7 @@ async function invitationLink(siteAuth: SiteAuth, siteEnv: SiteEnv, userId: stri
   }
   const link = new URL("/accept-invite/", siteEnv.GOODFELLOW_SITE_URL);
   link.searchParams.set("token", token);
+  if (next) link.searchParams.set("next", sitePath(next));
   return link.href;
 }
 
@@ -219,7 +235,9 @@ async function deliver(siteEnv: SiteEnv, email: Email, link: string): Promise<In
 
 /**
  * Makes an account for the person, with a random password nobody knows, and sends them a link to choose their own.
- * Someone who already has an account is refused, rather than given a new link.
+ * Someone who already has an account is refused, rather than given a new link, unless it's a reader's who never chose
+ * a password (lib/sign-up.ts), which anyone could have asked for with their address: that account becomes theirs, as
+ * invited, so a stranger's sign-up can't keep an admin from inviting someone.
  */
 export async function inviteEditor(
   siteAuth: SiteAuth,
@@ -229,19 +247,26 @@ export async function inviteEditor(
 ): Promise<Invited> {
   const admin = await adminAsking(siteAuth, request);
   const context = await siteAuth.$context;
-  if (await context.internalAdapter.findUserByEmail(invitation.email)) {
+  const existing = (await context.internalAdapter.findUserByEmail(invitation.email))?.user as
+    | { id: string; emailVerified: boolean; role?: string | null }
+    | undefined;
+  if (existing && (existing.emailVerified || !isMemberRole(existing.role))) {
     throw new EditorsError(409, `${invitation.email} already has an account.`);
   }
-  const { user } = await siteAuth.api.createUser({
-    headers: request.headers,
-    body: {
-      email: invitation.email,
-      name: invitation.name,
-      password: generateRandomString(48),
-      role: invitation.role,
-    },
-  });
-  const link = await invitationLink(siteAuth, siteEnv, user.id);
+  const user = existing
+    ? await context.internalAdapter.updateUser(existing.id, { name: invitation.name, role: invitation.role })
+    : (
+        await siteAuth.api.createUser({
+          headers: request.headers,
+          body: {
+            email: invitation.email,
+            name: invitation.name,
+            password: generateRandomString(48),
+            role: invitation.role,
+          },
+        })
+      ).user;
+  const link = await passwordLink(siteAuth, siteEnv, user.id);
   const email = invitationEmail({
     to: invitation.email,
     name: invitation.name,
@@ -263,7 +288,7 @@ export async function inviteAgain(
   const admin = await adminAsking(siteAuth, request);
   const editor = await editorById(siteAuth, userId);
   if (editor.joined) throw new EditorsError(409, `${editor.email} has already joined.`);
-  const link = await invitationLink(siteAuth, siteEnv, editor.id);
+  const link = await passwordLink(siteAuth, siteEnv, editor.id);
   const email = invitationEmail({
     to: editor.email,
     name: editor.name,
@@ -317,7 +342,7 @@ export async function acceptInvitation(siteAuth: SiteAuth, request: Request, bod
   const password = typeof given.password === "string" ? given.password : "";
   const expired = new EditorsError(
     400,
-    "This link has already been used or has run out. Ask an admin to send it again.",
+    "This link has already been used or has run out. Sign up again for a new one, or, if an admin invited you, ask them to send it again.",
   );
   if (!/^[A-Za-z0-9_-]{16,128}$/.test(token)) throw expired;
   const context = await siteAuth.$context;

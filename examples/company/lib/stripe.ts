@@ -4,10 +4,11 @@
 // is read from Stripe itself, never from what the browser or an event's order says, so a replayed, late, or forged
 // event can only make the site ask Stripe again.
 import Stripe from "stripe";
-import { claimRow, confirmedPath, type SiteAuth } from "./auth.ts";
+import { claimRow, type SiteAuth } from "./auth.ts";
 import { type Entitlement, type EntitlementAdapter, grant } from "./entitlements.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
+import { sitePath } from "./site-path.ts";
 
 /** Stripe's client for the site, with its secret key, through `fetch`, as Workers need. */
 export function stripeFor(siteEnv: SiteEnv, fetcher?: typeof fetch): Stripe {
@@ -296,7 +297,7 @@ export async function returnFromCheckout(
   options: { siteAuth: SiteAuth; stripe: Stripe; adapter: EntitlementAdapter },
 ): Promise<string> {
   const url = new URL(request.url);
-  const next = confirmedPath(url.searchParams.get("next"));
+  const next = sitePath(url.searchParams.get("next"));
   const sessionId = url.searchParams.get("session_id") ?? "";
   if (!/^cs_[A-Za-z0-9_]{1,250}$/.test(sessionId)) return next;
   const session = await options.siteAuth.api.getSession({
