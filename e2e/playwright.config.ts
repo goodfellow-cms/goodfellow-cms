@@ -100,8 +100,100 @@ function namedBy(filter: string, file: string): boolean {
 /** The spec files a run is for, by name and separated by commas, which `scripts/test-groups.mjs` sets. */
 export const SPECS_VARIABLE = "E2E_SPECS";
 
-/** Options that take a value, so a value such as `--project chromium`'s isn't taken for a file. */
-const VALUE_OPTIONS = new Set(["-c", "--config", "-g", "--grep", "--grep-invert", "--project", "--reporter", "-j"]);
+/**
+ * Every option `playwright test --help` lists, by how Playwright's command line (commander) gives it a value, so the
+ * server choice reads the arguments as Playwright does and never takes a value, such as `--trace off`'s, for a spec.
+ * `scripts/test-groups.mjs` checks these against Playwright's own help before every run, so an upgrade that adds an
+ * option fails loudly there; an option that isn't listed starts every server.
+ */
+export const TEST_OPTIONS = {
+  /** `<value>`: the next argument, whatever it is. */
+  value: [
+    "--add-reporter",
+    "--browser",
+    "-c",
+    "--config",
+    "-g",
+    "--grep",
+    "-G",
+    "--grep-invert",
+    "--global-timeout",
+    "-j",
+    "--workers",
+    "--last-failed-file",
+    "--max-failures",
+    "--output",
+    "--repeat-each",
+    "--reporter",
+    "--retries",
+    "--run-agents",
+    "--shard",
+    "--test-list",
+    "--test-list-invert",
+    "--timeout",
+    "--trace",
+    "--tsconfig",
+    "--ui-host",
+    "--ui-port",
+    "--update-source-method",
+  ],
+  /** `<value...>`: every argument up to the next one starting with `-`. */
+  values: ["--project"],
+  /** `[value]`: the next argument, unless it starts with `-`, whether or not it's a value the option accepts. */
+  optional: ["--debug", "--only-changed", "-u", "--update-snapshots"],
+  /** No value. */
+  flag: [
+    "--fail-on-flaky-tests",
+    "--forbid-only",
+    "--fully-parallel",
+    "--headed",
+    "--ignore-snapshots",
+    "--last-failed",
+    "--list",
+    "--no-deps",
+    "--pass-with-no-tests",
+    "--quiet",
+    "--ui",
+    "-x",
+    "-h",
+    "--help",
+  ],
+} as const;
+
+const OPTION_KINDS = new Map<string, keyof typeof TEST_OPTIONS>(
+  Object.entries(TEST_OPTIONS).flatMap(([kind, names]) =>
+    names.map((name) => [name, kind as keyof typeof TEST_OPTIONS] as const),
+  ),
+);
+
+/**
+ * The test filters in a run's arguments, read as Playwright reads them, or `undefined` where they can't be told
+ * apart from options' values, such as after an option this config doesn't know, so every server starts.
+ */
+export function testFilters(args: readonly string[]): string[] | undefined {
+  const filters: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] ?? "";
+    // What follows `--` isn't a filter: Playwright leaves it out of them.
+    if (arg === "--") break;
+    if (!arg.startsWith("-")) {
+      if (arg !== "test") filters.push(arg.replace(/(:\d+)+$/, ""));
+      continue;
+    }
+    // `--trace=off` carries its value.
+    const name = arg.startsWith("--") && arg.includes("=") ? arg.slice(0, arg.indexOf("=")) : arg;
+    const kind = OPTION_KINDS.get(name);
+    if (!kind) return undefined;
+    if (name !== arg || kind === "flag") continue;
+    if (kind === "value") i++;
+    else if (kind === "optional") {
+      if (i + 1 < args.length && !(args[i + 1] ?? "").startsWith("-")) i++;
+    } else {
+      while (i + 1 < args.length && !(args[i + 1] ?? "").startsWith("-")) i++;
+    }
+  }
+  return filters;
+}
 
 /**
  * The servers a run needs: every one when it names no spec files (the whole suite, or a `--grep` across it),
@@ -118,13 +210,8 @@ function serversFor(args: string[]): Server[] {
   if (listed?.length) {
     chosen = names.filter((name) => listed.includes(name));
   } else {
-    const filters: string[] = [];
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i] ?? "";
-      if (VALUE_OPTIONS.has(arg)) i++;
-      else if (arg !== "test" && !arg.startsWith("-")) filters.push(arg.replace(/(:\d+)+$/, ""));
-    }
-    if (!filters.length) return all;
+    const filters = testFilters(args);
+    if (!filters?.length) return all;
     // A filter that names no spec may be a pattern Playwright matches some other way, so start everything rather than guess.
     if (filters.some((filter) => !names.some((name) => namedBy(filter, `tests/${name}`)))) return all;
     chosen = names.filter((name) => filters.some((filter) => namedBy(filter, `tests/${name}`)));
