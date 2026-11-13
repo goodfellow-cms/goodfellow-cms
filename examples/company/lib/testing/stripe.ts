@@ -1,4 +1,4 @@
-// A stand-in for the parts of Stripe's API the site uses (lib/stripe.ts), for tests: prices, Checkout Sessions and
+// A stand-in for the parts of Stripe's API the site uses (lib/stripe.ts), for tests: prices, customers, Checkout Sessions and
 // their line items, payments and their charges, subscriptions, and customer portal sessions, kept in memory, with a checkout page that pays and
 // sends the site Stripe's events, signed as Stripe signs them. Never used by the site itself.
 import { createHmac } from "node:crypto";
@@ -91,6 +91,11 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
   const subscriptions = new Map<string, FakeSubscription>();
   /** Each payment's charge, by the payment's id. */
   const charges = new Map<string, FakeCharge>();
+  /** Customers, by id, and the ones made with each idempotency key. */
+  const customers = new Map<string, { id: string; object: "customer"; email: string | null; metadata: object }>();
+  const madeWithKey = new Map<string, string>();
+  /** Set to make each request a new one whatever its idempotency key, as once the key's 24 hours have passed. */
+  const settings = { idempotency: true };
   let count = 0;
   const next = (prefix: string) => `${prefix}_test${++count}`;
   const json = (value: unknown, status = 200) => Response.json(value, { status });
@@ -173,6 +178,20 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       }
       return json(shownSession(session));
     }
+    if (parts[1] === "customers" && !parts[2] && request.method === "POST") {
+      const key = request.headers.get("idempotency-key");
+      const earlier = key && settings.idempotency ? customers.get(madeWithKey.get(key) ?? "") : undefined;
+      if (earlier) return json(earlier);
+      const customer = {
+        id: next("cus"),
+        object: "customer" as const,
+        email: (body.email as string) ?? null,
+        metadata: (body.metadata as object) ?? {},
+      };
+      customers.set(customer.id, customer);
+      if (key) madeWithKey.set(key, customer.id);
+      return json(customer);
+    }
     if (parts[1] === "payment_intents" && parts[2] && request.method === "GET") {
       const charge = charges.get(parts[2]);
       return charge ? json({ id: parts[2], object: "payment_intent", latest_charge: charge }) : missing();
@@ -199,6 +218,8 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     subscriptions,
     charges,
     prices,
+    customers,
+    settings,
     /**
      * Pays a Checkout Session, as the customer would: one-off payments get a payment, subscriptions a subscription
      * paid until `days` from now. Gives the events Stripe sends, in an order of its own.

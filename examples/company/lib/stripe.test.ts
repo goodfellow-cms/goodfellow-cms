@@ -3,6 +3,7 @@ import { MEMBER_ROLE } from "./auth.ts";
 import { can, subscribedUntil, subscriptionsOf } from "./entitlements.ts";
 import type { SiteEnv } from "./env.ts";
 import {
+  accountCustomer,
   applySession,
   type ButtonPlace,
   billingAddress,
@@ -51,7 +52,13 @@ async function payments() {
   };
   const customer = (userId: string) => customerOf(site.context.adapter, userId);
   const checkout = (request: Request) =>
-    checkoutAddress(request, { siteAuth: site.auth, siteEnv: PAYMENTS_ENV, stripe: client, findButton, customer });
+    checkoutAddress(request, {
+      siteAuth: site.auth,
+      siteEnv: PAYMENTS_ENV,
+      stripe: client,
+      findButton,
+      customer: (user) => accountCustomer(site.context.adapter, client, user),
+    });
   /** Sends the site one of Stripe's events, signed with `secret`. */
   const deliver = (event: object, secret = "whsec_test_only") => {
     const signed = signEvent(secret, event);
@@ -78,7 +85,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("checkout", () => {
   it("sells the price the page's owners chose, to the person signed in, coming back to the site", async () => {
-    const { stripe, buying, checkout, readerId, reader, close } = await payments();
+    const { stripe, buying, checkout, customer, readerId, reader, close } = await payments();
     try {
       // The request names a cheaper price too: only the page's is read.
       const address = await checkout(buying(reader, { page: "/subscribe", block: "monthly", price: CHEAP.id }));
@@ -88,7 +95,7 @@ describe("checkout", () => {
         mode: "subscription",
         price: MONTHLY.id,
         client_reference_id: readerId,
-        customer_email: "rita@example.org",
+        customer: await customer(readerId),
         metadata: { userId: readerId },
         subscriptionMetadata: { userId: readerId },
         cancel_url: `${SITE}/subscribe`,
@@ -164,18 +171,55 @@ describe("checkout", () => {
 });
 
 describe("the Stripe customer", () => {
-  it("is the one someone first paid as, for everything they buy after", async () => {
+  it("is made with their address the first time they buy, and is the one for everything they buy after", async () => {
     const { stripe, buy, buying, checkout, customer, readerId, reader, close } = await payments();
     try {
-      // A one-off payment makes a customer only where it's asked to.
       const first = await buy("report");
-      expect(first).toMatchObject({ customer_creation: "always", customer_email: "rita@example.org" });
       const paidAs = stripe.sessions.get(first?.id ?? "")?.customer;
       expect(paidAs).toMatch(/^cus_/);
+      expect(stripe.customers.get(paidAs ?? "")).toMatchObject({
+        email: "rita@example.org",
+        metadata: { userId: readerId },
+      });
       expect(await customer(readerId)).toBe(paidAs);
       await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
-      const second = [...stripe.sessions.values()].at(-1);
-      expect(second).toMatchObject({ customer: paidAs, customer_email: null });
+      expect([...stripe.sessions.values()].at(-1)?.customer).toBe(paidAs);
+      expect(stripe.customers.size).toBe(1);
+    } finally {
+      close();
+    }
+  });
+
+  it("is the same one for Checkouts started at once", async () => {
+    const { stripe, buying, checkout, customer, readerId, reader, close } = await payments();
+    try {
+      const both = () =>
+        Promise.all([
+          checkout(buying(reader, { page: "/subscribe", block: "monthly" })),
+          checkout(buying(reader, { page: "/subscribe", block: "report" })),
+        ]);
+      // Stripe gives both the customer the first made, by its idempotency key.
+      await both();
+      expect(stripe.customers.size).toBe(1);
+      const kept = await customer(readerId);
+      expect(kept).toMatch(/^cus_/);
+      expect(new Set([...stripe.sessions.values()].map((session) => session.customer))).toEqual(new Set([kept]));
+    } finally {
+      close();
+    }
+  });
+
+  it("is the one kept when Stripe made two for Checkouts started at once", async () => {
+    const { stripe, buying, checkout, customer, readerId, reader, close } = await payments();
+    try {
+      stripe.settings.idempotency = false;
+      await Promise.all([
+        checkout(buying(reader, { page: "/subscribe", block: "monthly" })),
+        checkout(buying(reader, { page: "/subscribe", block: "report" })),
+      ]);
+      expect(stripe.customers.size).toBe(2);
+      const kept = await customer(readerId);
+      expect(new Set([...stripe.sessions.values()].map((session) => session.customer))).toEqual(new Set([kept]));
     } finally {
       close();
     }

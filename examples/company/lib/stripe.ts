@@ -71,8 +71,8 @@ export interface CheckoutOptions {
   siteEnv: SiteEnv;
   stripe: Stripe;
   findButton: FindButton;
-  /** The Stripe customer the person already pays as (`customerOf()`), if any. */
-  customer: (userId: string) => Promise<string | undefined>;
+  /** The Stripe customer the person pays as, made the first time (`accountCustomer()`). */
+  customer: (user: { id: string; email: string }) => Promise<string>;
 }
 
 /**
@@ -104,16 +104,13 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
   const back = new URL("/api/checkout/done/", siteUrl);
   back.searchParams.set("next", place.page);
   const done = `${back.href}&session_id={CHECKOUT_SESSION_ID}`;
-  // The customer they already pay as, so all they pay for is in one place in Stripe's portal; or, the first time, a
-  // new one Stripe makes from their address, which `applySession()` keeps.
-  const customer = await options.customer(userId);
+  // The one customer they pay as, so all they pay for is in one place in Stripe's portal.
+  const customer = await options.customer({ id: userId, email: session.user.email });
   const checkout = await stripe.checkout.sessions.create({
     mode: subscribing ? "subscription" : "payment",
     line_items: [{ price: price.id, quantity: 1 }],
     client_reference_id: userId,
-    ...(customer
-      ? { customer }
-      : { customer_email: session.user.email, ...(!subscribing && { customer_creation: "always" as const }) }),
+    customer,
     metadata: { userId },
     ...(subscribing && { subscription_data: { metadata: { userId } } }),
     success_url: done,
@@ -140,6 +137,29 @@ export async function customerOf(adapter: CustomerAdapter, userId: string): Prom
     where: [{ field: "id", value: userId }],
   });
   return user?.stripeCustomerId || undefined;
+}
+
+/**
+ * The Stripe customer a person pays as: the one the site keeps for them, or, the first time, a new one with their
+ * address. Checkouts started at once ask Stripe with the same idempotency key, so they get the same customer; where
+ * they still make two (the key's 24 hours passed, or the address changed), the first written is kept, and each reads
+ * back what was kept, so every Checkout Session is the one customer's, and the other has nothing.
+ */
+export async function accountCustomer(
+  adapter: CustomerAdapter,
+  stripe: Stripe,
+  user: { id: string; email: string },
+): Promise<string> {
+  const kept = await customerOf(adapter, user.id);
+  if (kept) return kept;
+  const address = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(user.email)));
+  const hash = Array.from(address.subarray(0, 12), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const made = await stripe.customers.create(
+    { email: user.email, metadata: { userId: user.id } },
+    { idempotencyKey: `customer:${user.id}:${hash}` },
+  );
+  await rememberCustomer(adapter, user.id, made.id);
+  return (await customerOf(adapter, user.id)) ?? made.id;
 }
 
 /** Keeps the Stripe customer a person paid as, where the site has none for them yet: the first stays. */

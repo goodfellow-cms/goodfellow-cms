@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { findButton } from "@/lib/site";
-import { checkoutAddress, customerOf, PaymentsError, stripeFor } from "@/lib/stripe";
+import { accountCustomer, checkoutAddress, PaymentsError, stripeFor } from "@/lib/stripe";
 
 // Where a Buy button's form goes (blocks/buy-button.tsx): on to Stripe Checkout, or to sign in first (lib/stripe.ts).
 export async function POST(request: Request): Promise<Response> {
@@ -9,12 +9,13 @@ export async function POST(request: Request): Promise<Response> {
     const siteEnv = await env();
     const siteAuth = await auth();
     const { adapter } = await siteAuth.$context;
+    const stripe = stripeFor(siteEnv);
     const address = await checkoutAddress(request, {
       siteAuth,
       siteEnv,
-      stripe: stripeFor(siteEnv),
+      stripe,
       findButton,
-      customer: (userId) => customerOf(adapter, userId),
+      customer: (user) => accountCustomer(adapter, stripe, user),
     });
     return new Response(null, { status: 303, headers: { location: address, "cache-control": "no-store" } });
   } catch (error) {
