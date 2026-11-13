@@ -10,7 +10,7 @@ import {
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, useState } from "react";
-import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
+import { shownPaths, useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
 import {
   type AddressProblem,
   checkPageAddress,
@@ -43,7 +43,7 @@ const addressErrors: Record<AddressProblem, StringKey> = {
 function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) {
   const t = useStrings();
   const { publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { content, shown } = useSiteContent();
   const fromTitle = from ? pageTitle(from) : "";
   // A copy goes beside its page; a copy of a language's home page stays in that language.
   const folder =
@@ -62,7 +62,7 @@ function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) 
   const [failure, setFailure] = useState<Failure>(null);
 
   // Entries' pages count too: a new page can't take an entry's address.
-  const check = checkPageAddress(address, allPages(content));
+  const check = checkPageAddress(address, allPages(shown ?? content));
   const titleError = submitted && !title.trim() ? t("field.required") : undefined;
   const addressError = submitted && !check.ok ? t(addressErrors[check.problem]) : undefined;
 
@@ -126,7 +126,7 @@ function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) 
 function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) {
   const t = useStrings();
   const { blocks, publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { content, shown } = useSiteContent();
   const owner = useCanChangeSettings();
   const [address, setAddress] = useState(page.path);
   // The home page has no old address to send visitors on from: another page takes it.
@@ -138,7 +138,8 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
   const [failure, setFailure] = useState<Failure>(null);
   const title = pageTitle(page);
 
-  const check = checkPageAddress(address, allPages(content), page.path);
+  // As visitors see the site, so a sourced item's address counts as taken.
+  const check = checkPageAddress(address, allPages(shown ?? content), page.path);
   const addressError = submitted && !check.ok ? t(addressErrors[check.problem]) : undefined;
 
   const onSubmit = async (event: FormEvent) => {
@@ -148,7 +149,7 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
     if (check.path === page.path) return onClose();
     setBusy(true);
     const result = await publish(
-      movePageChanges(content, page, check.path, { blocks, redirect }),
+      movePageChanges(content, page, check.path, { blocks, redirect, pages: shownPaths(shown) }),
       t("movePage.message", { title, from: page.path, to: check.path }),
     );
     setBusy(false);

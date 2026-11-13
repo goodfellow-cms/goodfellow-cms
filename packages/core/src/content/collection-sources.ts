@@ -2,7 +2,7 @@
 // system's API: the collection's settings, template, and list pages stay in its `_collection.json`, designed in the
 // admin panel as for any collection, and its source gives the items. Loading the site reads them in as entries
 // (`withSourcedCollections()`), so pages, feeds, calendars, and the content API see ordinary items.
-import { type Collection, type Entry, sortCollectionEntries } from "./collections.js";
+import { type Collection, cleanEntryValues, type Entry, sortCollectionEntries } from "./collections.js";
 import type { ContentProblem } from "./errors.js";
 import { entryLanguage, entryPathIn, isOtherLanguage, siteLanguages } from "./languages.js";
 import { allPages, type ContentSource, loadSiteContent, parseEntryFile, type SiteContent } from "./load.js";
@@ -238,8 +238,13 @@ function checkedItem(
   // Checked as an item's JSON file would be, so a Markdown collection's body is a field like any other here.
   const parsed = parseEntryFile({ ...settings, markdown: undefined }, file, text);
   if (!parsed.ok) return parsed;
+  // Only the collection's own fields, and in a group's rows only the group's, as a file is saved
+  // (`cleanEntryValues()`), so a row's other columns never reach pages or the admin panel.
   const names = new Set(settings.fields.map((field) => field.name));
-  const fields = Object.fromEntries(Object.entries(parsed.value.fields).filter(([name]) => names.has(name)));
+  const fields = cleanEntryValues(
+    settings.fields,
+    Object.fromEntries(Object.entries(parsed.value.fields).filter(([name]) => names.has(name))),
+  );
   return { ok: true, slug, file, value: { ...parsed.value, fields } };
 }
 
@@ -378,12 +383,11 @@ export async function sourceChanges(
     if (!collection) continue;
     const changed = new Set(changes.slugs);
     for (const entry of collection.entries) {
-      if (!changed.has(entry.slug)) continue;
-      changed.delete(entry.slug);
-      if (entry.path) paths.add(entry.path);
+      if (changed.has(entry.slug) && entry.path) paths.add(entry.path);
     }
-    // Items the site no longer has, such as a filled job opening: their language isn't known any more, so their
-    // address in each of the site's languages, since a page kept once it rendered would otherwise stay.
+    // What an item's address was isn't known, whether it's gone, such as a filled job opening, or moved to another
+    // language, so each changed name's address in each of the site's languages, since a page kept once it rendered
+    // would otherwise stay.
     for (const slug of changed) {
       if (!isAddressSegment(slug)) continue;
       for (const language of siteLanguages(content.settings)) {

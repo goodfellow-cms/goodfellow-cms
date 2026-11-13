@@ -3,6 +3,7 @@ import {
   APP_API_HEADER,
   type AppEditor,
   type AppSession,
+  type CollectionFile,
   type CollectionSource,
   type CollectionSources,
   ConflictError,
@@ -354,9 +355,18 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       return options.ai.forward(request, service, rest.join("/"));
     }
     if (get && endpoint === "revision") return json(200, { revision: await options.git.revision() });
-    const sourced = get && /^collections\/([a-z0-9-]+)\/items$/.exec(endpoint);
+    const sourced = (get || post) && /^collections\/([a-z0-9-]+)\/items$/.exec(endpoint);
     if (sourced) {
       const id = sourced[1] ?? "";
+      // Asked with settings a publish would give the collection, for its checks: only owners change those, and a
+      // new field's values are then what they'd publish anyway.
+      let proposed: CollectionFile | undefined;
+      if (post) {
+        if (editor.role !== "owner") return json(403, { error: "owners-only" });
+        const asked = collectionFileSchema.safeParse((await readBody(request)).settings);
+        if (!asked.success) throw new BadRequest("Send the collection's settings.");
+        proposed = asked.data;
+      }
       try {
         const sources = options.sources;
         const source =
@@ -367,9 +377,10 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
         // only its item.
         const path = collectionSettingsFile(id);
         const [text, items] = await Promise.all([
-          options.git.revision().then(async (revision) => (await reader(revision)).read(path)),
+          proposed ? undefined : options.git.revision().then(async (revision) => (await reader(revision)).read(path)),
           source.items(),
         ]);
+        if (proposed) return json(200, { items: sourcedItemsFor(id, proposed, items) });
         const settings =
           text === undefined ? undefined : parseContentFile("collection", collectionFileSchema, path, text);
         if (!settings?.ok) return json(404, { error: "not-found" });

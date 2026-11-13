@@ -13,7 +13,7 @@ import {
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, type ReactNode, useState } from "react";
-import { useAdmin, useCanChangeSettings, useCollectionSource, useSiteContent } from "./admin-context.js";
+import { shownPaths, useAdmin, useCanChangeSettings, useCollectionSource, useSiteContent } from "./admin-context.js";
 import {
   checkEntrySlug,
   collectionFileChange,
@@ -89,7 +89,7 @@ export function CollectionLayout({
 function NewEntryDialog({ collection, onClose }: { collection: Collection; onClose: () => void }) {
   const t = useStrings();
   const { publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { content, shown } = useSiteContent();
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
@@ -112,7 +112,7 @@ function NewEntryDialog({ collection, onClose }: { collection: Collection; onClo
   const check = checkEntrySlug(
     name,
     collection,
-    allPages(content).map((page) => page.path),
+    allPages(shown ?? content).map((page) => page.path),
     undefined,
     { settings: content.settings, code: language },
   );
@@ -215,7 +215,7 @@ function MoveEntryDialog({
 }) {
   const t = useStrings();
   const { blocks, publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { content, shown } = useSiteContent();
   const [slug, setSlug] = useState(entry.slug);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -228,7 +228,7 @@ function MoveEntryDialog({
   const check = checkEntrySlug(
     slug,
     collection,
-    allPages(content).map((page) => page.path),
+    allPages(shown ?? content).map((page) => page.path),
     entry,
     language,
   );
@@ -241,7 +241,7 @@ function MoveEntryDialog({
     if (check.slug === entry.slug) return onClose();
     setBusy(true);
     const result = await publish(
-      moveEntryChanges(content, collection, entry, check.slug, check.path, blocks),
+      moveEntryChanges(content, collection, entry, check.slug, check.path, blocks, shownPaths(shown)),
       t("moveEntry.message", {
         entry: inSentence(collection.settings.entryName),
         title,

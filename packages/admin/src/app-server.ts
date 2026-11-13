@@ -1,6 +1,7 @@
 import {
   APP_API_HEADER,
   type AppSession,
+  type CollectionFile,
   ConflictError,
   type DeployStatus,
   decodeBase64,
@@ -96,8 +97,10 @@ export function appServer(api: string) {
     },
 
     /** The items of a collection whose items come from a source, as the server's source gives them. */
-    async sourcedItems(collection: string): Promise<SourcedItem[]> {
-      const answer = (await (await request(`collections/${encodeURIComponent(collection)}/items`)).json()) as {
+    async sourcedItems(collection: string, settings?: CollectionFile): Promise<SourcedItem[]> {
+      // With settings a publish would give the collection, for its checks, which the server takes from owners only.
+      const endpoint = `collections/${encodeURIComponent(collection)}/items`;
+      const answer = (await (await request(endpoint, settings ? { body: { settings } } : {})).json()) as {
         items?: unknown;
       };
       return Array.isArray(answer.items) ? (answer.items as SourcedItem[]) : [];

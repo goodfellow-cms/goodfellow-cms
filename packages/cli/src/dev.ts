@@ -337,7 +337,18 @@ function devPlugin(
           // Calendar files and feeds, as builds write them, from the content as it is now.
           const sourcedSite = async (files: ContentSource) =>
             loadSourcedSite(server, root, (await loadServerEntry(server)).config, files);
-          if (await sendBuildFile(builtSiteSource(root), url.pathname, res, sourcedSite).catch(() => false)) return;
+          try {
+            if (await sendBuildFile(builtSiteSource(root), url.pathname, res, sourcedSite)) return;
+          } catch (error) {
+            // Such as a collection's source that can't be read: said here, and answered as a failure, never as a
+            // file that isn't there, as the development API does in next dev.
+            server.config.logger.error(`${url.pathname} couldn't be made: ${(error as Error).message}`, {
+              timestamp: true,
+            });
+            res.statusCode = 500;
+            res.end();
+            return;
+          }
           if (/\.[a-z0-9]+$/i.test(url.pathname)) {
             // Old addresses such as /news.html send visitors on, as the built site's pages there do.
             // The files alone, without what sources give, which no redirect needs, or the item files they replace.

@@ -198,6 +198,15 @@ describe("movePageChanges", () => {
     );
     expect(changes).toHaveLength(2);
   });
+
+  it("leaves links to pages under the old address that come from a collection's source", () => {
+    const jobs = page("/jobs");
+    const menus = { main: [{ label: "Welder", href: "/jobs/welder" }] };
+    const moving = site({ pages: [jobs], menus });
+    expect(movePageChanges(moving, jobs, "/careers", { pages: ["/jobs/welder"] })).toHaveLength(2);
+    // Without them, the link would move with the page.
+    expect(movePageChanges(moving, jobs, "/careers").map((change) => change.path)).toContain("content/menus.json");
+  });
 });
 
 describe("settings and CSS changes", () => {
@@ -483,6 +492,20 @@ describe("collections", () => {
       "content/menus.json",
     ]);
     expect(changes[2]).toMatchObject({ content: expect.stringContaining('"href": "/videos/easter-sunday"') });
+  });
+
+  it("leaves links to pages under an entry's old address that come from a collection's source", () => {
+    const easter = videos.entries[0] as Entry;
+    const menus = { main: [{ label: "Readings", href: "/videos/easter/readings" }] };
+    const args = [
+      site({ collections: [videos], menus }),
+      videos,
+      easter,
+      "easter-sunday",
+      "/videos/easter-sunday",
+    ] as const;
+    expect(moveEntryChanges(...args, undefined, ["/videos/easter/readings"])).toHaveLength(2);
+    expect(moveEntryChanges(...args).map((change) => change.path)).toContain("content/menus.json");
   });
 
   it("starts new collections with a title, some text, and a template showing them", () => {

@@ -1,8 +1,17 @@
-import { type ContentSource, type GoodfellowConfig, loadSiteContent, SignInError } from "@goodfellow-cms/core";
+import {
+  type CollectionFile,
+  type CollectionSources,
+  type ContentSource,
+  collectionFileSchema,
+  type GoodfellowConfig,
+  loadSiteContent,
+  SignInError,
+  sourcedItemsFor,
+} from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
 import { localSiteCode } from "./frame/local-code.js";
-import { checkPublish, describeProblem, readShown } from "./site-checks.js";
+import { checkPublish, describeProblem, readShown, withProposedSettings } from "./site-checks.js";
 import { defaultStrings, type StringKey } from "./strings.js";
 
 const page = (title: string, content: unknown[] = []) =>
@@ -248,6 +257,50 @@ describe("checkPublish", () => {
     const broken = await checkPublish(withJobs, { content, ...(shown && { shown }), media: [] }, linking, site);
     expect(broken.leftOut).toEqual(["About the job"]);
     expect(broken.blocking.map((problem) => problem.kind)).toEqual(["missing-page"]);
+  });
+
+  it("asks a source with the settings a publish gives its collection, so a new field's values are checked", async () => {
+    const jobs = {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    };
+    const files: Record<string, string> = {
+      ...FILES,
+      "content/collections/jobs/_collection.json": JSON.stringify(jobs),
+    };
+    const withJobs: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    // As the server answers: only the fields the settings it's given name.
+    const rows = [{ slug: "welder", fields: { title: "Welder", pay: "a lot" } }];
+    const read = async (_id: string, settings: CollectionFile) => sourcedItemsFor("jobs", settings, rows);
+    const published = collectionFileSchema.parse(jobs);
+    const sources = { jobs: { items: () => read("jobs", published) } };
+    const content = await loadSiteContent(withJobs, { sourced: ["jobs"] });
+    const { shown } = await readShown(content, sources);
+    const loadedJobs = { content, ...(shown && { shown }), media: [] };
+    // A number field the source's rows hold words for: the item wouldn't fit once it's published.
+    const withPay = [
+      {
+        path: "content/collections/jobs/_collection.json",
+        content: JSON.stringify({ ...jobs, fields: [...jobs.fields, { name: "pay", label: "Pay", type: "number" }] }),
+      },
+    ];
+    const checks = (asked: CollectionSources | undefined) =>
+      checkPublish(withJobs, loadedJobs, withPay, {
+        blocks: config.blocks,
+        code: localSiteCode(config),
+        sources: asked,
+      });
+    expect((await checks(withProposedSettings(sources, withPay, read))).leftOut).toEqual(["Welder"]);
+    // Asked with the settings as they're published, the field's values never came, so nothing seemed amiss.
+    expect((await checks(sources)).leftOut).toBeUndefined();
+    // Other changes leave the sources as they are.
+    expect(withProposedSettings(sources, [], read)?.jobs).toBe(sources.jobs);
   });
 
   it("knows the files a publish adds, and doesn't ask again about problems it didn't bring", async () => {

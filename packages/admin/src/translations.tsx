@@ -159,14 +159,14 @@ function AddPageTranslationDialog({
 }) {
   const t = useStrings();
   const { publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { content, shown } = useSiteContent();
   const [address, setAddress] = useState(() => translationAddress(page, language));
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
   const title = pageTitle(page);
 
-  const check = checkPageAddress(address, allPages(content));
+  const check = checkPageAddress(address, allPages(shown ?? content));
   const inLanguage = check.ok && (check.path === language.prefix || check.path.startsWith(`${language.prefix}/`));
   const addressError = !submitted
     ? undefined
@@ -329,7 +329,7 @@ function AddEntryTranslationDialog({
 }) {
   const t = useStrings();
   const { publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { content, shown } = useSiteContent();
   const [slug, setSlug] = useState(`${entry.slug}-${language.code.toLowerCase()}`);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -338,7 +338,7 @@ function AddEntryTranslationDialog({
   const check = checkEntrySlug(
     slug,
     collection,
-    allPages(content).map((page) => page.path),
+    allPages(shown ?? content).map((page) => page.path),
     undefined,
     { settings: content.settings, code: language.code },
   );

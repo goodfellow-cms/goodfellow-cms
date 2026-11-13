@@ -1,9 +1,11 @@
 import {
   allPages,
+  type CollectionFile,
   type CollectionSources,
-  type ContentProblem,
   type ContentSource,
   checkSite,
+  collectionFileSchema,
+  collectionSettingsFile,
   entryTitle,
   type FileChange,
   FOOTER_FILE,
@@ -19,6 +21,7 @@ import {
   SignInError,
   type SiteContent,
   type SiteProblem,
+  type SourcedItem,
   siteLanguages,
   todayIn,
   withSourcedCollections,
@@ -141,6 +144,36 @@ function withoutUnreachable(
 }
 
 /**
+ * The sources a publish's checks ask: a collection whose settings the changes write is asked with those, so its
+ * source's values for a field they add are checked as the site would check them once published. The rest are asked
+ * as they are.
+ */
+export function withProposedSettings(
+  sources: CollectionSources | undefined,
+  changes: readonly FileChange[],
+  read: (collection: string, settings: CollectionFile) => Promise<SourcedItem[]>,
+): CollectionSources | undefined {
+  if (!sources) return undefined;
+  return Object.fromEntries(
+    Object.entries(sources).map(([id, source]) => {
+      const change = changes.find((one) => one.path === collectionSettingsFile(id));
+      const settings = change && "content" in change ? proposedSettings(change.content) : undefined;
+      return [id, settings ? { ...source, items: () => read(id, settings) } : source];
+    }),
+  );
+}
+
+/** A collection's settings as a change writes them, or nothing where they can't be read, as loading would refuse. */
+function proposedSettings(text: string): CollectionFile | undefined {
+  try {
+    const parsed = collectionFileSchema.safeParse(JSON.parse(text));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * The site checks for a publish: the site as it's loaded, and as the changes
  * would leave it, with the pages they change rendered. A site the changes
  * would leave unreadable isn't checked; loading it again after publishing
@@ -172,21 +205,25 @@ export async function checkPublish(
   }
   if (sources) {
     // Asked each time, so publishing again retries a source that couldn't be read, here or as the site loaded.
-    const problems: ContentProblem[] = [];
     try {
-      after = await withSourcedCollections(after, sources, (problem) => problems.push(problem));
+      after = await withSourcedCollections(after, sources);
     } catch {
       const unread = after.collections.filter((one) => Object.hasOwn(sources, one.id)).map((one) => one.id);
       return { blocking: [], warnings: [], unread, content: after };
     }
-    // Items shown before that the changes would leave out: an item's problem is named by its `sourcedItemFile()`.
-    const shownBefore = new Map(
-      before.collections.flatMap((collection) =>
-        collection.sourced ? collection.entries.map((entry) => [entry.file, entryTitle(entry)] as const) : [],
+    // Items shown before that the changes would leave out, whether the site's checks refuse them here or the server
+    // already left them out, as it does an item that doesn't fit the settings it's asked with.
+    const shownAfter = new Set(
+      after.collections.flatMap((collection) =>
+        collection.sourced ? collection.entries.map((entry) => entry.file) : [],
       ),
     );
-    const out = [...new Set(problems.flatMap((problem) => shownBefore.get(problem.file) ?? []))];
-    if (out.length > 0) leftOut = out;
+    const out = before.collections.flatMap((collection) =>
+      collection.sourced
+        ? collection.entries.filter((entry) => !shownAfter.has(entry.file)).map((entry) => entryTitle(entry))
+        : [],
+    );
+    if (out.length > 0) leftOut = [...new Set(out)];
   }
   const media = new Set(loaded.media);
   for (const change of changes) {

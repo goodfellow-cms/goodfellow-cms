@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cloudflareSiteHeaders, editorPolicy, startsWithGuard } from "@goodfellow-cms/core";
@@ -203,6 +203,7 @@ describe("collections' sources in an export", () => {
   it("are read from the modules the config names, for the feeds and the checks' pages", async () => {
     // Inside the package, so the site's imports find its packages.
     const site = await mkdtemp(join(import.meta.dirname, "../.sources-site-"));
+    let other: string | undefined;
     out = join(site, "out");
     try {
       const file = (path: string, value: unknown) =>
@@ -257,9 +258,16 @@ describe("collections' sources in an export", () => {
         "lib/jobs.ts",
         'export default () => ({ items: async () => [{ slug: "welder", fields: { title: "Changed" } }] });\n',
       );
-      expect((await readCollectionSources(site)).jobs).not.toBe(first.jobs);
+      const changed = await readCollectionSources(site);
+      expect(changed.jobs).not.toBe(first.jobs);
+      // Another site with the same code has its own, since its packages are its own.
+      other = await mkdtemp(join(import.meta.dirname, "../.sources-site-"));
+      await cp(site, other, { recursive: true });
+      expect((await readCollectionSources(other)).jobs).not.toBe(changed.jobs);
+      expect((await readCollectionSources(site)).jobs).toBe(changed.jobs);
     } finally {
       await rm(site, { recursive: true, force: true });
+      if (other) await rm(other, { recursive: true, force: true });
     }
   });
 });

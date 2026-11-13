@@ -388,9 +388,17 @@ describe("sourceChanges", () => {
     });
     expect((await sourceChanges(spanish, { jobs: jobs.source })).paths).toEqual([
       "/es/jobs/gone",
+      "/es/jobs/welder",
       "/jobs/gone",
       "/jobs/welder",
     ]);
+    // An item moved to another language: its page there, and the one it had before.
+    const moved = jobsSource([{ ...welder, inLanguage: "es" }, baker]);
+    moved.set([{ ...welder, inLanguage: "es" }, baker], ["welder"]);
+    const movedSite = await withSourcedCollections(await site({ languages: [{ code: "es", name: "Español" }] }), {
+      jobs: moved.source,
+    });
+    expect((await sourceChanges(movedSite, { jobs: moved.source })).paths).toEqual(["/es/jobs/welder", "/jobs/welder"]);
     expect(await sourceChanges(after, { jobs: jobs.source }, { jobs: "1" })).toEqual({
       collections: [],
       paths: [],
@@ -411,5 +419,16 @@ describe("sourcedItemsFor", () => {
       { slug: "big", fields: { title: "Big", posted: 1n } },
     ] as unknown as SourcedItem[];
     expect(sourcedItemsFor("jobs", settings, items)).toEqual([{ ...welder, showFrom: "2026-11-01T09:00" }]);
+  });
+
+  it("keeps only a group's own fields in its rows", async () => {
+    const settings = (await site()).collections.find((one) => one.id === "jobs")?.settings;
+    if (!settings) throw new Error("no jobs");
+    const contacts = { name: "contacts", label: "Contacts", type: "group", fields: [field("name", "text")] };
+    const withGroup = { ...settings, fields: [...settings.fields, contacts] } as typeof settings;
+    const item = { ...welder, fields: { ...welder.fields, contacts: [{ name: "Ann", email: "ann@example.org" }] } };
+    expect(sourcedItemsFor("jobs", withGroup, [item])).toEqual([
+      { ...welder, fields: { ...welder.fields, contacts: [{ name: "Ann" }] } },
+    ]);
   });
 });

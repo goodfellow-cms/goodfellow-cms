@@ -98,14 +98,18 @@ export async function loadSiteModule(
   });
   try {
     if (!keep) return (await import(pathToFileURL(file).href)) as Record<string, unknown>;
-    const code = createHash("sha256")
-      .update(await readFile(file))
-      .digest("hex");
-    let module = keptModules.get(code);
+    // By the site too: the bundle's packages are found from its own folder, so two sites' same code isn't one module.
+    const key = JSON.stringify([
+      root,
+      createHash("sha256")
+        .update(await readFile(file))
+        .digest("hex"),
+    ]);
+    let module = keptModules.get(key);
     if (!module) {
       module = import(pathToFileURL(file).href) as Promise<Record<string, unknown>>;
-      keptModules.set(code, module);
-      module.catch(() => keptModules.delete(code));
+      keptModules.set(key, module);
+      module.catch(() => keptModules.delete(key));
     }
     return await module;
   } finally {

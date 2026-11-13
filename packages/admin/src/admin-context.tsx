@@ -2,6 +2,8 @@ import {
   type AdminSite,
   type AppRole,
   adminOrigin,
+  allPages,
+  type CollectionFile,
   type CollectionSources,
   ConflictError,
   type ContentStore,
@@ -72,7 +74,7 @@ import { pluginSecretsHelp } from "./plugin-secrets.js";
 import { REGISTRY_VERSION } from "./registry-version.js";
 import { navigate } from "./router.js";
 import { useScheduleInfoOf } from "./schedule.js";
-import { checkPublish, type PublishChecks, readShown } from "./site-checks.js";
+import { checkPublish, type PublishChecks, readShown, withProposedSettings } from "./site-checks.js";
 import type { SiteCodeService } from "./site-code.js";
 import { showSiteIcon } from "./site-icon.js";
 import { StringsProvider, useStrings, useStringTable } from "./strings.js";
@@ -194,7 +196,7 @@ export interface Account {
    * On a full-stack site, the items of a collection whose items come from a
    * source (`GoodfellowConfig.collections`), from its server.
    */
-  sourcedItems?(collection: string): Promise<SourcedItem[]>;
+  sourcedItems?(collection: string, settings?: CollectionFile): Promise<SourcedItem[]>;
   /** On a full-stack site, for its owners: submits changes for a developer to review, as installing a plugin does. */
   review?(
     changes: FileChange[],
@@ -508,6 +510,16 @@ export function AdminProvider({
       ]),
     );
   }, [sourced, hasSourcedItems]);
+  // For a publish's checks: a collection whose settings it changes is asked with them (`withProposedSettings()`).
+  const checkSources = useCallback(
+    (changes: FileChange[]) =>
+      withProposedSettings(sources, changes, (id, settings) => {
+        const read = sourcedItems.current;
+        if (!read) throw new Error("The site's server no longer reads its collections' items.");
+        return read(id, settings);
+      }),
+    [sources],
+  );
 
   // The store the shown site was last loaded from, so switching drafts loads it once, and a slower earlier load is ignored.
   const loadedFrom = useRef<ContentStore>(undefined);
@@ -648,7 +660,7 @@ export function AdminProvider({
       const checks =
         options?.checks === false
           ? undefined
-          : await checkPublish(content, state, changes, { blocks, code, sources, sourced });
+          : await checkPublish(content, state, changes, { blocks, code, sources: checkSources(changes), sourced });
       if (!(await confirmChecks(checks))) return { ok: false, reason: "checks", error: undefined };
       let target = draft;
       let started: Draft | undefined;
@@ -694,7 +706,7 @@ export function AdminProvider({
       askLimits,
       reviewers,
       t,
-      sources,
+      checkSources,
       sourced,
     ],
   );
@@ -752,7 +764,8 @@ export function AdminProvider({
       return { ok: false, reason: "error", error };
     }
     // Every file in the draft, against the live site as it is now.
-    if (!(await confirmChecks(await checkPublish(store, live, changes, { blocks, code, sources, sourced })))) {
+    const checks = await checkPublish(store, live, changes, { blocks, code, sources: checkSources(changes), sourced });
+    if (!(await confirmChecks(checks))) {
       return { ok: false, reason: "checks", error: undefined };
     }
     let revision: string;
@@ -783,6 +796,7 @@ export function AdminProvider({
     reviewers,
     refreshDrafts,
     sources,
+    checkSources,
     sourced,
   ]);
 
@@ -1193,6 +1207,15 @@ export function useSiteContent(): { content: SiteContent; shown?: SiteContent; r
   const { state } = useAdmin();
   if (state.status !== "ready") throw new Error("The site isn't loaded yet.");
   return state;
+}
+
+/**
+ * The addresses of every page visitors see (`useSiteContent().shown`), such as
+ * items a collection's source gives, which the site's files don't hold: moves
+ * leave links to them as they are (`movePageChanges()`'s `pages`).
+ */
+export function shownPaths(shown: SiteContent | undefined): string[] {
+  return shown ? allPages(shown).map((page) => page.path) : [];
 }
 
 /**

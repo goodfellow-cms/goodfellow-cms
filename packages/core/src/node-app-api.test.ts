@@ -235,7 +235,30 @@ describe("appApi", () => {
     expect(await answer.json()).toEqual({ items });
     expect((await call("collections/news/items")).status).toBe(404);
     expect((await call("collections/constructor/items")).status).toBe(404);
-    expect((await call("collections/jobs/items", { method: "POST" })).status).toBe(404);
+    // Asked with the settings a publish would give the collection, for its checks, which only owners change.
+    const proposed = {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [
+        { name: "title", label: "Title", type: "text" },
+        { name: "applicant", label: "Applicant", type: "text" },
+      ],
+    };
+    const asking = (body: unknown) =>
+      call("collections/jobs/items", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    expect((await asking({ settings: proposed })).status).toBe(403);
+    signIn(OWEN);
+    expect(await (await asking({ settings: proposed })).json()).toEqual({
+      items: [{ slug: "welder", fields: { title: "Welder", applicant: "ann@example.org" } }],
+    });
+    expect((await asking({ settings: { name: "Jobs" } })).status).toBe(400);
+    signIn(ALICE);
     failing = true;
     const failed = await call("collections/jobs/items");
     expect(failed.status).toBe(502);
