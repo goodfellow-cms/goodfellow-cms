@@ -43,7 +43,7 @@ export interface CollectionSource {
   changed?(since: string): Promise<SourceChanges>;
 }
 
-/** Plain JSON, as the config's options for a source are, since builds write them into the site's description. */
+/** Plain JSON, as the config's options for a source are. They're public, since the config loads in the browser too. */
 export type SourceOptions = Record<string, unknown>;
 
 /** A source's module's default export: makes the collection's source from the options its config gives. */
@@ -58,7 +58,7 @@ export type CollectionSourceModule = (options: SourceOptions) => CollectionSourc
 export interface CollectionSourceConfig {
   /** The module whose default export makes the source (`defineCollectionSource()`), such as `"./lib/jobs.ts"` or a plugin's `"goodfellow-plugin-airtable/source"`. */
   source: string;
-  /** What the module is given, such as which table to read. Plain JSON, which the site's description carries; never secrets. */
+  /** What the module is given, such as which table to read. Plain JSON, public since the config loads in the browser too; never secrets. */
   options?: SourceOptions;
 }
 
@@ -81,17 +81,16 @@ export class CollectionSourceError extends Error {
 }
 
 /**
- * The sources the config's `collections` name, made from the modules the
- * site's server imported (by collection id) with the config's options.
- * Throws a `CollectionSourceError` for a collection whose module is missing,
- * or for a module given for a collection the config doesn't name, which
- * would otherwise be read without anyone choosing it.
+ * Checks that the site's server was given a module for each collection the
+ * config's `collections` names, and none for a collection it doesn't, which
+ * would otherwise be read without anyone choosing it. Throws a
+ * `CollectionSourceError` saying which. Runs no source's code, so a server
+ * can check as it starts and make the sources only once it reads the site.
  */
-export function collectionSources(
+export function checkSourceModules(
   collections: Record<string, CollectionSourceConfig> | undefined,
   modules: Record<string, SourceModuleImport>,
-): CollectionSources {
-  const sources: CollectionSources = {};
+): void {
   for (const id of Object.keys(modules)) {
     if (!collections?.[id]) {
       throw new CollectionSourceError(
@@ -100,13 +99,31 @@ export function collectionSources(
     }
   }
   for (const [id, config] of Object.entries(collections ?? {})) {
-    const module = modules[id];
-    const make = typeof module === "function" ? module : module?.default;
-    if (typeof make !== "function") {
+    if (typeof sourceMaker(modules[id]) !== "function") {
       throw new CollectionSourceError(
         `The collection "${id}" reads its items from ${config.source}, which the site's server wasn't given. Import it and pass it as the "${id}" source.`,
       );
     }
+  }
+}
+
+function sourceMaker(module: SourceModuleImport | undefined): CollectionSourceModule | undefined {
+  return typeof module === "function" ? module : module?.default;
+}
+
+/**
+ * The sources the config's `collections` name, made from the modules the
+ * site's server imported (by collection id) with the config's options.
+ * Throws a `CollectionSourceError` where `checkSourceModules()` does.
+ */
+export function collectionSources(
+  collections: Record<string, CollectionSourceConfig> | undefined,
+  modules: Record<string, SourceModuleImport>,
+): CollectionSources {
+  checkSourceModules(collections, modules);
+  const sources: CollectionSources = {};
+  for (const [id, config] of Object.entries(collections ?? {})) {
+    const make = sourceMaker(modules[id]) as CollectionSourceModule;
     sources[id] = make(config.options ?? {});
   }
   return sources;
@@ -148,7 +165,15 @@ async function sourcedEntries(
     }
     slugs.add(slug);
     const { slug: _, ...rest } = item;
-    const parsed = parseEntryFile(settings, file, JSON.stringify({ version: 1, ...rest }));
+    let text: string;
+    try {
+      text = JSON.stringify({ version: 1, ...rest });
+    } catch {
+      // Such as a BigInt, or a value that holds itself, which a file couldn't either.
+      problems.push({ file, message: "has a value that can't be written as JSON." });
+      continue;
+    }
+    const parsed = parseEntryFile(settings, file, text);
     if (!parsed.ok) {
       problems.push(parsed.problem);
       continue;

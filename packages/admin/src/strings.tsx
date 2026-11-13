@@ -204,6 +204,8 @@ export const defaultStrings = {
   "checks.warnings.title": "Publish anyway?",
   "checks.warnings.intro": "A few things could be better. You can publish anyway, or go back and fix them first.",
   "checks.alsoWarnings": "These could be better too:",
+  "checks.unreadSources":
+    "The items in {collections} come from another system, which can't be reached just now, so links to their pages can't be checked. Try publishing again in a few minutes.",
   "checks.publishAnyway": "Publish anyway",
   "checks.goBack": "Go back",
   "limits.title": "Some of this is outside what you can change",
@@ -439,6 +441,7 @@ export const defaultStrings = {
   "entries.empty": "There's nothing in {name} yet.",
   "entries.sourced":
     "The items in {name} come from another system ({source}), where they're added and changed. They're shown here as the site shows them.",
+  "entries.sourceUnread": "The items in {name} can't be read from {source} just now. Try again in a few minutes.",
   "entries.sourcedElsewhere":
     "The items in {name} come from another system ({source}), where they're added and changed. Only the site's server can read them, so they aren't listed here.",
   "entries.column.title": "Title",

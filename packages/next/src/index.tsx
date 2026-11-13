@@ -6,6 +6,7 @@ import {
   builtSource,
   type CollectionSources,
   type ContentSource,
+  checkSourceModules,
   collectionSources,
   colorSchemeMeta,
   colorSchemeScript,
@@ -203,6 +204,7 @@ export const loadSite = cache(
       await withSourcedCollections(
         await loadSiteContent(
           builtSiteSource(root, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+          { sourced: Object.keys(sources) },
         ),
         sources,
       ),
@@ -222,6 +224,7 @@ const loadSourceSite = cache(
       await withSourcedCollections(
         await loadSiteContent(
           builtSource(files, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+          { sourced: Object.keys(sources) },
         ),
         sources,
       ),
@@ -385,8 +388,15 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   const root = options.root ?? process.cwd();
   // The same arguments as the layout's `loadSite()`, so a request reads the site once.
   const source = options.source;
-  const sources = collectionSources(config.collections, options.sources ?? {});
-  const site = () => (source ? loadSourceSite(source, options.root, sources) : loadSite(options.root, sources));
+  // Every collection's module must be there from the start, but the sources themselves are made only once the
+  // site is read, where a failure (such as a missing setting a source checks for) fails that read, and the root
+  // layout's `language()` can still open the admin panel.
+  checkSourceModules(config.collections, options.sources ?? {});
+  let made: CollectionSources | undefined;
+  const site = async () => {
+    made ??= collectionSources(config.collections, options.sources ?? {});
+    return source ? loadSourceSite(source, options.root, made) : loadSite(options.root, made);
+  };
   const basePath = () => options.basePath ?? configuredBasePath();
 
   // Stored media's sizes are by its public address, which the site shows it from.

@@ -16,6 +16,7 @@ import {
   loadSiteContent,
   type PluginTaskRequest,
   pluginId,
+  type SiteContent,
   sealTaskAnswer,
   shownContent,
   type TaskAnswer,
@@ -79,6 +80,12 @@ export interface DevApiOptions {
   allowedHosts?: readonly string[] | true;
   /** The built block registry to serve at `registry/<name>.json`, for the admin panel's Blocks screen. */
   registryDir?: string;
+  /**
+   * Loads the site for the calendar files and feeds it serves, as builds
+   * would: with its collections' sources read in, where its config names
+   * any. `loadSiteContent()` by default.
+   */
+  load?: SiteLoader;
   /**
    * Runs plugins' tasks (`task`) on this computer, as the site's CI would,
    * with the secrets in the site's `.env.local` and this server's
@@ -210,16 +217,24 @@ function buildFileKind(pathname: string) {
   );
 }
 
+/** Loads the site from its files, as a server shows it: `loadSiteContent()`, or with its collections' sources too. */
+export type SiteLoader = (source: ContentSource) => Promise<SiteContent>;
+
 /**
  * Answers a request for one of the files builds write besides pages, the
  * calendar files (`/calendars/…`) and feeds (`/feeds/…`), each also under the
  * site's other languages' codes, from the site's content as it is now. Says
  * whether the address was one.
  */
-export async function sendBuildFile(source: ContentSource, pathname: string, res: ServerResponse): Promise<boolean> {
+export async function sendBuildFile(
+  source: ContentSource,
+  pathname: string,
+  res: ServerResponse,
+  load: SiteLoader = (files) => loadSiteContent(files),
+): Promise<boolean> {
   const kind = buildFileKind(pathname);
   if (!kind) return false;
-  const file = kind.files(shownContent(await loadSiteContent(source))).find((candidate) => candidate.path === pathname);
+  const file = kind.files(shownContent(await load(source))).find((candidate) => candidate.path === pathname);
   if (!file) {
     res.statusCode = 404;
     res.end();
@@ -256,7 +271,7 @@ export async function handleDevApi(
   }
   // Calendar files and feeds are public, as they are on the built site: next dev rewrites /calendars/ and /feeds/ here.
   if (req.method === "GET" && buildFileKind(`/${endpoint}`)) {
-    if (!(await sendBuildFile(store, `/${endpoint}`, res))) send(res, 404, { error: "not-found" });
+    if (!(await sendBuildFile(store, `/${endpoint}`, res, options.load))) send(res, 404, { error: "not-found" });
     return true;
   }
   if (!isTrusted(req, options.trustOrigin)) {

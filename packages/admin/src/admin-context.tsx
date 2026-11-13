@@ -47,7 +47,6 @@ import {
   type SiteUpdates,
   type SourcedItem,
   upcomingChanges,
-  withSourcedCollections,
   writeChanges,
 } from "@goodfellow-cms/core";
 import type { MediaFieldKind } from "@goodfellow-cms/react";
@@ -73,7 +72,7 @@ import { pluginSecretsHelp } from "./plugin-secrets.js";
 import { REGISTRY_VERSION } from "./registry-version.js";
 import { navigate } from "./router.js";
 import { useScheduleInfoOf } from "./schedule.js";
-import { checkPublish, type PublishChecks } from "./site-checks.js";
+import { checkPublish, type PublishChecks, readShown } from "./site-checks.js";
 import type { SiteCodeService } from "./site-code.js";
 import { showSiteIcon } from "./site-icon.js";
 import { StringsProvider, useStrings, useStringTable } from "./strings.js";
@@ -104,6 +103,12 @@ export type LoadState =
        * checks use, but nothing publishes, since they aren't the site's files.
        */
       shown?: SiteContent;
+      /**
+       * Whether a source of a collection's items couldn't be read as the site
+       * loaded. Its collections show no items, with a way to try again, and the
+       * publish checks ask the source again.
+       */
+      unreadSources?: boolean;
       revision: string;
       media: string[];
       /**
@@ -307,9 +312,7 @@ async function load(store: ContentStore, sources?: CollectionSources): Promise<L
     // Read the revision first: reads then see that revision, even if someone publishes while loading.
     const revision = await store.revision();
     const [content, media] = await Promise.all([loadSiteContent(store), store.list(MEDIA_DIR)]);
-    // Problems with a source's items are the server's to report: here they're left out, as on the site.
-    const shown = sources && (await withSourcedCollections(content, sources, () => {}));
-    return { status: "ready", content, ...(shown && shown !== content && { shown }), revision, media };
+    return { status: "ready", content, ...(await readShown(content, sources)), revision, media };
   } catch (error) {
     return { status: "error", error };
   }
@@ -492,13 +495,9 @@ export function AdminProvider({
         {
           items: async () => {
             const read = sourcedItems.current;
+            // Without a server that reads them, the collection lists no items, and its screen says why.
             if (!read || !hasSourcedItems) return [];
-            try {
-              return await read(id);
-            } catch {
-              // The source can't be read just now: its items show once it can, when the site loads again.
-              return [];
-            }
+            return read(id);
           },
         },
       ]),
@@ -564,7 +563,9 @@ export function AdminProvider({
 
   /** Shows the site checks' dialog where they found anything, and says whether to go ahead. */
   const confirmChecks = useCallback(async (checks: PublishChecks | undefined) => {
-    if (!checks || (checks.blocking.length === 0 && checks.warnings.length === 0)) return true;
+    if (!checks || (checks.blocking.length === 0 && checks.warnings.length === 0 && !checks.unread?.length)) {
+      return true;
+    }
     const go = await new Promise<boolean>((decide) => setChecking({ checks, content: checks.content, decide }));
     setChecking(undefined);
     return go;

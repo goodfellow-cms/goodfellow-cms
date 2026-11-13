@@ -56,6 +56,34 @@ describe("goodfellowApi", () => {
     expect(fake.commitAuthors.get(next)).toMatchObject({ name: "Alice Editor", email: "alice@example.org" });
   });
 
+  it("makes collections' sources only when their items are asked for, so one that can't be made fails only that", async () => {
+    const fake = fakeGitHub({ repo: "parish/site", files: FILES });
+    const make = vi.fn(() => {
+      throw new Error("JOBS_DATABASE_URL isn't set");
+    });
+    const config = defineConfig({
+      blocks: {},
+      backend: github({ repo: "parish/site", fetch: fake.fetch }),
+      collections: { jobs: { source: "./lib/jobs.ts" } },
+    });
+    const call = caller(
+      goodfellowApi({
+        config,
+        token: "test-token",
+        authorize: () => ALICE,
+        signIn: "/sign-in",
+        sources: { jobs: make },
+      }),
+    );
+    expect((await call("revision/")).status).toBe(200);
+    expect(make).not.toHaveBeenCalled();
+    expect((await call("collections/jobs/items/")).status).toBe(502);
+    expect(make).toHaveBeenCalledOnce();
+    // A module the config names but the site's code didn't give is refused at the first request.
+    const missing = caller(goodfellowApi({ config, token: "test-token", authorize: () => ALICE, signIn: "/sign-in" }));
+    await expect(missing("revision/")).rejects.toThrow(/lib\/jobs\.ts/);
+  });
+
   it("tells the site's onPublish what each publish changed", async () => {
     const fake = fakeGitHub({ repo: "parish/site", files: FILES });
     const published: unknown[] = [];

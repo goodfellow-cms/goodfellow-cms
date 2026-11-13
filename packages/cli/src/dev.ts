@@ -6,6 +6,7 @@ import {
   adminSiteForCopy,
   CONTENT_DIR,
   ContentError,
+  type ContentSource,
   describedForCopy,
   findRedirect,
   findSitePage,
@@ -46,8 +47,8 @@ import {
   devUrl,
   findConfigFile,
   loadServerEntry,
+  loadSourcedSite,
   type StylesEntries,
-  withSiteSources,
   writeStylesEntries,
 } from "./site.js";
 
@@ -332,7 +333,9 @@ function devPlugin(
             return;
           }
           // Calendar files and feeds, as builds write them, from the content as it is now.
-          if (await sendBuildFile(builtSiteSource(root), url.pathname, res).catch(() => false)) return;
+          const sourced = async (files: ContentSource) =>
+            loadSourcedSite(server, root, (await loadServerEntry(server)).config, files);
+          if (await sendBuildFile(builtSiteSource(root), url.pathname, res, sourced).catch(() => false)) return;
           if (/\.[a-z0-9]+$/i.test(url.pathname)) {
             // Old addresses such as /news.html send visitors on, as the built site's pages there do.
             const content = await loadSiteContent(builtSiteSource(root)).then(shownContent, () => undefined);
@@ -344,9 +347,7 @@ function devPlugin(
           try {
             // As a build now would show the site: pages and items scheduled for later are left out.
             const { config, renderPage } = await loadServerEntry(server);
-            const content = shownContent(
-              await withSiteSources(server, root, config, await loadSiteContent(builtSiteSource(root))),
-            );
+            const content = shownContent(await loadSourcedSite(server, root, config, builtSiteSource(root)));
             const match = findSitePage(content, todayIn(content.settings.timeZone), config.blocks, url.pathname);
             // Pages win over redirects, as in builds.
             const redirect = (!match || match.status === 404) && findRedirect(content, url.pathname);

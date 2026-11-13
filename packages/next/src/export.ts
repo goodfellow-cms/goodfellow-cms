@@ -61,7 +61,14 @@ import {
 import type { PageRender } from "@goodfellow-cms/core/shadcn";
 import { bundleEditorFrames } from "./editor-frames.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK, SITE_SERVING, type SiteServing } from "./image-sizes-mark.js";
-import { buildPluginFrames, configHasPlugins, loadSiteConfig, loadSiteModule, withSiteSources } from "./plugins.js";
+import {
+  buildPluginFrames,
+  configHasPlugins,
+  loadCollectionSources,
+  loadSiteConfig,
+  loadSiteModule,
+  loadSourcedSite,
+} from "./plugins.js";
 
 export { EDITOR_FRAMES_PAGE, EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
 export { NEXT_SITE_FILES, nextSiteFiles } from "./site-files.js";
@@ -73,7 +80,7 @@ export { NEXT_SITE_FILES, nextSiteFiles } from "./site-files.js";
  */
 async function exportedSite(root: string): Promise<SiteContent> {
   const dir = resolve(root);
-  return shownContent(await withSiteSources(dir, await loadSiteContent(builtSiteSource(dir))));
+  return shownContent(await loadSourcedSite(builtSiteSource(dir), loadCollectionSources(dir)));
 }
 
 /**

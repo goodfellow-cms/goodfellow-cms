@@ -4,9 +4,11 @@ import { join, relative, resolve } from "node:path";
 import {
   type AdminSite,
   type CollectionSources,
+  type ContentSource,
   CUSTOM_CSS_FILE,
   collectionSources,
   type GoodfellowConfig,
+  loadSiteContent,
   type Page,
   type SiteContent,
   type SiteDescription,
@@ -94,15 +96,20 @@ export async function loadCollectionSources(
   return collectionSources(config.collections, modules);
 }
 
-/** The site with its collections' sources read in, where its config names any (`withSourcedCollections()`). */
-export async function withSiteSources(
+/**
+ * The site as `files` hold it, with its collections' sources read in where its
+ * config names any (`withSourcedCollections()`): those collections' item files
+ * are neither read nor checked, since their sources' items replace them.
+ */
+export async function loadSourcedSite(
   server: ViteDevServer,
   root: string,
   config: GoodfellowConfig,
-  content: SiteContent,
+  files: ContentSource,
 ): Promise<SiteContent> {
-  if (!config.collections) return content;
-  return withSourcedCollections(content, await loadCollectionSources(server, root, config));
+  if (!config.collections) return loadSiteContent(files);
+  const sources = await loadCollectionSources(server, root, config);
+  return withSourcedCollections(await loadSiteContent(files, { sourced: Object.keys(sources) }), sources);
 }
 
 /**

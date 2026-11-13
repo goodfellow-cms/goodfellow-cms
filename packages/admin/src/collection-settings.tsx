@@ -659,9 +659,13 @@ function addressClash(
 /** A collection's name, page addresses, order, and fields. */
 export function CollectionSettingsScreen({ collection }: { collection: Collection }) {
   const t = useStrings();
-  const { blocks, publish, reload, account } = useAdmin();
+  const { blocks, publish, reload, account, state } = useAdmin();
   const { content } = useSiteContent();
   const source = useCollectionSource(collection.id);
+  // A sourced collection's items as the site shows them, whose pages move when the address pattern changes.
+  const sourced = source
+    ? (state.status === "ready" ? state.shown : undefined)?.collections.find((one) => one.id === collection.id)?.entries
+    : undefined;
   const [draft, setDraft] = useState(() => toDraft(collection.settings));
   const [showErrors, setShowErrors] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -729,7 +733,7 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
     setStatus({ type: "publishing" });
     const settings = collectionFileSchema.parse(next);
     const result = await publish(
-      collectionSettingsChanges(collection, settings, { content, blocks }),
+      collectionSettingsChanges(collection, settings, { content, blocks, ...(sourced && { sourced }) }),
       t("collectionSettings.message", { name: next.name }),
     );
     if (result.ok) {

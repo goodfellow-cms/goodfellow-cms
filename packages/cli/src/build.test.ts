@@ -471,6 +471,11 @@ describe("a site whose collection has a source", () => {
       );
       expect(config).toContain("collections:");
       await writeFile(configFile, config);
+      // A file left in the folder that loading would refuse, which the source's items replace, so it can't stop the build.
+      await writeFile(
+        join(site, "content/collections/talks/broken.json"),
+        '{ "version": 1, "fields": { "title": 42 } }\n',
+      );
       const { pages } = await build({ root: site, outDir: out });
       expect(pages.map((page) => relative(out, resolve(site, page)).split("\\").join("/"))).toContain(
         "talks/from-the-source/index.html",

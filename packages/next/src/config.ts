@@ -10,6 +10,7 @@ import {
   brokerOrigin,
   buildNotes,
   CALENDARS_DIR,
+  type ContentSource,
   configAdmin,
   configBroker,
   editorPolicy,
@@ -235,6 +236,11 @@ function startDevApi(root: string): Promise<number> {
       plugins: async () => (await (await import("./plugins.js")).loadSiteConfig(root)).plugins ?? [],
       server: "next-dev" as const,
     };
+    // Calendar files and feeds, with the collections' sources read in, from the config and modules as they are now.
+    const load = async (files: ContentSource) => {
+      const { loadSourcedSite, readCollectionSources } = await import("./plugins.js");
+      return loadSourcedSite(files, readCollectionSources(root));
+    };
     // Asked once Next.js is answering, at the first request, which comes through it, and again after.
     const exposed = exposureCheck(Number(process.env.PORT) || 3000);
     let said = false;
@@ -255,7 +261,7 @@ function startDevApi(root: string): Promise<number> {
       }
       if (await (await editor).serve(req, res)) return;
       // Requests come through Next.js's development server, so they're from its address rather than this one's.
-      if (!(await handleDevApi(store, req, res, { trustOrigin: isLocalOrigin, registryDir, tasks }))) {
+      if (!(await handleDevApi(store, req, res, { trustOrigin: isLocalOrigin, registryDir, tasks, load }))) {
         res.writeHead(404).end();
       }
     });

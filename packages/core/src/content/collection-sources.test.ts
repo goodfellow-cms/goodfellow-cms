@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   type CollectionSource,
   CollectionSourceError,
+  checkSourceModules,
   collectionSources,
   defineCollectionSource,
   isSourcedItem,
@@ -9,7 +10,7 @@ import {
   sourceChanges,
   withSourcedCollections,
 } from "./collection-sources.js";
-import type { ContentProblem } from "./errors.js";
+import { ContentError, type ContentProblem } from "./errors.js";
 import { feedFiles } from "./feeds.js";
 import { allPages, type ContentSource, loadSiteContent } from "./load.js";
 import { shownContent } from "./schedule.js";
@@ -27,30 +28,33 @@ const page = (title: string) => ({ version: 1, data: { root: { props: { title } 
 
 /** A site with a jobs collection, whose own folder still has an item file, and a page at /jobs/apply. */
 function site(settings: Record<string, unknown> = {}, path = "/jobs/{slug}") {
-  return loadSiteContent(
-    memorySource({
-      "content/site.json": { version: 1, url: "https://example.org", ...settings },
-      "content/pages/index.json": page("Home"),
-      "content/pages/jobs/apply.json": page("How to apply"),
-      "content/collections/jobs/_collection.json": {
-        version: 1,
-        name: "Jobs",
-        entryName: "Job",
-        path,
-        sort: { field: "posted", order: "desc" },
-        fields: [field("title", "text"), field("posted", "date"), field("about", "richtext")],
-      },
-      "content/collections/jobs/old-file.json": { version: 1, fields: { title: "From a file", posted: "2026-01-01" } },
-      "content/collections/news/_collection.json": {
-        version: 1,
-        name: "News",
-        entryName: "Story",
-        path: "/news/{slug}",
-        fields: [field("title", "text")],
-      },
-      "content/collections/news/hello.json": { version: 1, fields: { title: "Hello" } },
-    }),
-  );
+  return loadSiteContent(siteFiles(settings, path));
+}
+
+function siteFiles(settings: Record<string, unknown> = {}, path = "/jobs/{slug}", more: Record<string, unknown> = {}) {
+  return memorySource({
+    "content/site.json": { version: 1, url: "https://example.org", ...settings },
+    "content/pages/index.json": page("Home"),
+    "content/pages/jobs/apply.json": page("How to apply"),
+    "content/collections/jobs/_collection.json": {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path,
+      sort: { field: "posted", order: "desc" },
+      fields: [field("title", "text"), field("posted", "date"), field("about", "richtext")],
+    },
+    "content/collections/jobs/old-file.json": { version: 1, fields: { title: "From a file", posted: "2026-01-01" } },
+    "content/collections/news/_collection.json": {
+      version: 1,
+      name: "News",
+      entryName: "Story",
+      path: "/news/{slug}",
+      fields: [field("title", "text")],
+    },
+    "content/collections/news/hello.json": { version: 1, fields: { title: "Hello" } },
+    ...more,
+  });
 }
 
 /** A source of the tests' own, as a site's database would be, which can be changed between reads. */
@@ -138,6 +142,27 @@ describe("withSourcedCollections", () => {
     expect(problems.map((problem) => problem.message)).toEqual([expect.stringContaining("reserved")]);
   });
 
+  it("leaves out an item whose values JSON can't hold, keeping the rest", async () => {
+    const problems: ContentProblem[] = [];
+    const circular: Record<string, unknown> = { title: "Loops" };
+    circular.self = circular;
+    const items = [
+      { slug: "big", fields: { title: "Big", posted: 1n } },
+      { slug: "loops", fields: circular },
+      welder,
+    ] as unknown as SourcedItem[];
+    const content = await withSourcedCollections(await site(), { jobs: jobsSource(items).source }, (problem) =>
+      problems.push(problem),
+    );
+    expect(content.collections.find((one) => one.id === "jobs")?.entries.map((entry) => entry.slug)).toEqual([
+      "welder",
+    ]);
+    expect(problems).toEqual([
+      { file: "source:jobs/big", message: expect.stringContaining("JSON") },
+      { file: "source:jobs/loops", message: expect.stringContaining("JSON") },
+    ]);
+  });
+
   it("reports problems as warnings by default, and leaves a site without the collection as it is", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -172,6 +197,25 @@ describe("withSourcedCollections", () => {
   });
 });
 
+describe("loadSiteContent with sourced collections", () => {
+  it("reads their settings but not their item files, which their sources' items replace", async () => {
+    // A file left in the folder that would take a page's address, and one that doesn't fit the fields.
+    const files = siteFiles({}, "/jobs/{slug}", {
+      "content/collections/jobs/apply.json": { version: 1, fields: { title: "Takes the page's address" } },
+      "content/collections/jobs/broken.json": { version: 1, fields: { title: 42 } },
+    });
+    await expect(loadSiteContent(files)).rejects.toThrow(ContentError);
+    const content = await loadSiteContent(files, { sourced: ["jobs"] });
+    const jobs = content.collections.find((one) => one.id === "jobs");
+    expect(jobs?.settings.name).toBe("Jobs");
+    expect(jobs?.entries).toEqual([]);
+    // Other collections' files are read as ever.
+    expect(content.collections.find((one) => one.id === "news")?.entries.map((entry) => entry.slug)).toEqual(["hello"]);
+    const sourced = await withSourcedCollections(content, { jobs: jobsSource([welder]).source });
+    expect(allPages(sourced).map((one) => one.path)).toContain("/jobs/welder");
+  });
+});
+
 describe("collectionSources", () => {
   const make = defineCollectionSource<{ table: string }>((options) => ({
     items: async () => [{ slug: options.table, fields: { title: options.table } }],
@@ -192,6 +236,15 @@ describe("collectionSources", () => {
     expect(() => collectionSources({ jobs: { source: "./lib/jobs.ts" } }, {})).toThrow(/lib\/jobs\.ts/);
     expect(() => collectionSources(undefined, { jobs: make })).toThrow(CollectionSourceError);
     expect(collectionSources(undefined, {})).toEqual({});
+  });
+
+  it("checks the modules without making any source", () => {
+    const make = vi.fn(() => ({ items: async () => [] }));
+    const config = { jobs: { source: "./lib/jobs.ts" } };
+    checkSourceModules(config, { jobs: make });
+    expect(make).not.toHaveBeenCalled();
+    expect(() => checkSourceModules(config, {})).toThrow(CollectionSourceError);
+    expect(() => checkSourceModules(undefined, { jobs: make })).toThrow(CollectionSourceError);
   });
 });
 

@@ -4,7 +4,9 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DEV_API_PREFIX, handleDevApi, isAllowedDevHost, isLocalOrigin } from "./node-dev-api.js";
+import { withSourcedCollections } from "./content/collection-sources.js";
+import { loadSiteContent } from "./content/load.js";
+import { DEV_API_PREFIX, handleDevApi, isAllowedDevHost, isLocalOrigin, type SiteLoader } from "./node-dev-api.js";
 import { localFileStore } from "./node-local-files.js";
 import { newTaskRequestId, openTaskAnswer, taskKeys } from "./plugin-tasks.js";
 import { definePlugin } from "./plugins.js";
@@ -14,6 +16,52 @@ import { definePlugin } from "./plugins.js";
  * to start on Windows while many tests run at once, so a test can take a minute.
  */
 const NODE_TIMEOUT = 180_000;
+
+describe("handleDevApi's feeds", { timeout: NODE_TIMEOUT }, () => {
+  it("are made from the site as its loader gives it, so a collection's source's items are in them", async () => {
+    const root = await mkdtemp(join(tmpdir(), "goodfellow-feeds-"));
+    const file = (path: string, value: unknown) =>
+      mkdir(join(root, path, ".."), { recursive: true }).then(() => writeFile(join(root, path), JSON.stringify(value)));
+    await file("content/site.json", { version: 1, title: "Works", url: "https://example.org" });
+    await file("content/collections/jobs/_collection.json", {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [
+        { name: "title", label: "Title", type: "text" },
+        { name: "posted", label: "Posted", type: "date" },
+      ],
+    });
+    await file("content/collections/jobs/old-file.json", {
+      version: 1,
+      fields: { title: "From a file", posted: "2026-01-01" },
+    });
+    const sources = {
+      jobs: { items: async () => [{ slug: "welder", fields: { title: "Welder", posted: "2026-11-02" } }] },
+    };
+    const load: SiteLoader = async (files) =>
+      withSourcedCollections(await loadSiteContent(files, { sourced: ["jobs"] }), sources);
+    const store = localFileStore(root);
+    const server = createServer(async (req, res) => {
+      const plain = req.url?.startsWith("/plain");
+      if (plain) req.url = req.url?.slice("/plain".length);
+      if (!(await handleDevApi(store, req, res, plain ? {} : { load }))) res.writeHead(418).end();
+    });
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      const rss = await (await fetch(`${origin}${DEV_API_PREFIX}/feeds/jobs.rss`)).text();
+      expect(rss).toContain("Welder");
+      expect(rss).not.toContain("From a file");
+      // Without a loader, the site's files.
+      expect(await (await fetch(`${origin}/plain${DEV_API_PREFIX}/feeds/jobs.rss`)).text()).toContain("From a file");
+    } finally {
+      await new Promise((done) => server.close(done));
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("handleDevApi", { timeout: NODE_TIMEOUT }, () => {
   let root: string;

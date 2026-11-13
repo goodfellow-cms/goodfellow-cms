@@ -10,6 +10,7 @@ import {
   type CollectionFile,
   cleanEntryValues,
   collectionFileChange,
+  type Entry,
   entryFileChange,
   entryLanguage,
   entryPathIn,
@@ -90,9 +91,14 @@ function keptValue(fields: Map<string, CollectionField>, name: string, value: un
 }
 
 /** Where each item's page goes when its collection's address patterns change, in each of the site's languages. */
-function movedEntryPages(site: SiteSettings, collection: Collection, settings: CollectionFile): AddressMove[] {
+function movedEntryPages(
+  site: SiteSettings,
+  collection: Collection,
+  settings: CollectionFile,
+  entries: readonly Entry[],
+): AddressMove[] {
   if (!collection.settings.path || !settings.path) return [];
-  return collection.entries.flatMap((entry) => {
+  return entries.flatMap((entry) => {
     const to = entryPathIn(site, settings, entry.slug, entryLanguage(site, entry));
     return entry.path && to && to !== entry.path ? [{ from: entry.path, to }] : [];
   });
@@ -103,12 +109,14 @@ function movedEntryPages(site: SiteSettings, collection: Collection, settings: C
  * choices that are no longer offered, are removed from every entry in the
  * same save, so a field added later with the same name starts empty. Given
  * the `site`, a new address pattern points every link to an item's page at
- * its new address, in the same save.
+ * its new address, in the same save: the pages of the items `sourced` gives
+ * too, for a collection whose items come from a source, which have no files
+ * to write (`LoadState.shown`).
  */
 export function collectionSettingsChanges(
   collection: Collection,
   settings: CollectionFile,
-  site?: { content: SiteContent; blocks?: Record<string, ComponentConfig> },
+  site?: { content: SiteContent; blocks?: Record<string, ComponentConfig>; sourced?: readonly Entry[] },
 ): FileChange[] {
   // Items are read with the fields they were saved with; the template is the new one.
   const relinked = site
@@ -121,7 +129,7 @@ export function collectionSettingsChanges(
               : candidate,
           ),
         },
-        movedEntryPages(site.content.settings, collection, settings),
+        movedEntryPages(site.content.settings, collection, settings, [...collection.entries, ...(site.sourced ?? [])]),
         site.blocks,
       )
     : undefined;

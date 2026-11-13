@@ -41,6 +41,7 @@ export {
   handleDevApi,
   isAllowedDevHost,
   isLocalOrigin,
+  type SiteLoader,
   sendBuildFile,
 } from "./node-dev-api.js";
 export { fontStandIns, hostFonts, readFontFile, readStylesheet, selfHostFonts } from "./node-fonts.js";

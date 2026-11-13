@@ -277,6 +277,25 @@ describe("collections", () => {
     expect(changes[1]).toMatchObject({ content: expect.stringContaining('"href": "/watch/easter"') });
   });
 
+  it("moves the pages of items that come from a source too, writing no file for them", () => {
+    const home = withBlocks("/", "Home", [
+      { type: "Button", props: { id: "Button-1", href: "/videos/sermon", label: "Sermon" } },
+    ]);
+    // The site's files hold the collection without its items, which the source gives as the site shows them.
+    const stored: Collection = { ...videos, entries: [] };
+    const sourced: Entry = { ...entry("sermon", { title: "Sermon" }), file: "source:videos/sermon" };
+    const changes = collectionSettingsChanges(
+      stored,
+      { ...settings, path: "/watch/{slug}" },
+      { content: site({ pages: [home], collections: [stored] }), blocks, sourced: [sourced] },
+    );
+    expect(changes.map((change) => change.path)).toEqual([
+      "content/collections/videos/_collection.json",
+      "content/pages/index.json",
+    ]);
+    expect(changes[1]).toMatchObject({ content: expect.stringContaining('"href": "/watch/sermon"') });
+  });
+
   it("removes deleted fields and choices from every entry in the same save", () => {
     const next = {
       ...settings,

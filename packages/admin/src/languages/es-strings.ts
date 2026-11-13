@@ -202,6 +202,8 @@ export const strings: Strings = {
   "checks.warnings.intro":
     "Hay algunas cosas que podrían mejorar. Puedes publicar de todos modos, o volver y corregirlas primero.",
   "checks.alsoWarnings": "Esto también podría mejorar:",
+  "checks.unreadSources":
+    "Los elementos de {collections} vienen de otro sistema, al que no se puede llegar ahora mismo, así que no se pueden comprobar los enlaces a sus páginas. Vuelve a publicar dentro de unos minutos.",
   "checks.publishAnyway": "Publicar de todos modos",
   "checks.goBack": "Volver",
   "limits.title": "Parte de esto queda fuera de lo que puedes cambiar",
@@ -431,6 +433,8 @@ export const strings: Strings = {
   "entries.empty": "Todavía no hay nada en {name}.",
   "entries.sourced":
     "Los elementos de {name} vienen de otro sistema ({source}), donde se añaden y se cambian. Aquí se muestran como los muestra el sitio.",
+  "entries.sourceUnread":
+    "Ahora mismo no se pueden leer los elementos de {name} desde {source}. Vuelve a intentarlo dentro de unos minutos.",
   "entries.sourcedElsewhere":
     "Los elementos de {name} vienen de otro sistema ({source}), donde se añaden y se cambian. Solo el servidor del sitio puede leerlos, así que no aparecen aquí.",
   "entries.column.title": "Título",

@@ -15,7 +15,6 @@ import {
   feedFiles,
   framedPlugins,
   IMAGE_WIDTHS,
-  loadSiteContent,
   MEDIA_DIR,
   membersPages,
   normalizeBase,
@@ -64,7 +63,7 @@ import { type ClientModules, ISLANDS_ENTRY, needReact } from "./islands.js";
 import { cssFiles, findEntry, type Manifest } from "./manifest.js";
 import { buildPluginFrame } from "./plugin-frames.js";
 import { preactAliases, preactIslands } from "./preact.js";
-import { baseViteConfig, findConfigFile, loadServerEntry, withSiteSources, writeStylesEntries } from "./site.js";
+import { baseViteConfig, findConfigFile, loadServerEntry, loadSourcedSite, writeStylesEntries } from "./site.js";
 
 export interface BuildOptions {
   /** The site's folder. Defaults to the current directory. */
@@ -224,13 +223,11 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const now = new Date();
     // Rendering pages reports when what they show by today's date changes, for the build record.
     resetDateChanges();
-    const loaded = await withSiteSources(
+    const loaded = await loadSourcedSite(
       server,
       root,
       config,
-      await loadSiteContent(
-        builtSiteSource(root, withConfiguredTrailingSlash(process.env, config.trailingSlash ?? true)),
-      ),
+      builtSiteSource(root, withConfiguredTrailingSlash(process.env, config.trailingSlash ?? true)),
     );
     const content = shownContent(loaded, now);
     const styles = await writeStylesEntries(root, config);

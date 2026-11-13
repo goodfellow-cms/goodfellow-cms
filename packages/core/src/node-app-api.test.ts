@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { APP_API_HEADER, type AppEditor, isSettingsPath } from "./app-api.js";
 import type { OwnersOnlyFields } from "./content/owners-only.js";
 import { ConflictError, type FileChange } from "./content/store.js";
@@ -237,6 +237,24 @@ describe("appApi", () => {
     expect((await call("collections/jobs/items")).status).toBe(401);
     // Without sources, there's nothing to give.
     expect((await setup().call("collections/jobs/items")).status).toBe(404);
+  });
+
+  it("makes sources given as a function only when their items are asked for, failing only that", async () => {
+    const make = vi.fn((): Record<string, never> => {
+      throw new Error("JOBS_DATABASE_URL isn't set");
+    });
+    const { call, errors } = setup(ALICE, { sources: make });
+    expect(await (await call("session")).json()).toMatchObject({ signedIn: true });
+    expect((await call("revision")).status).toBe(200);
+    expect(make).not.toHaveBeenCalled();
+    const failed = await call("collections/jobs/items");
+    expect(failed.status).toBe(502);
+    expect(await failed.text()).not.toContain("JOBS_DATABASE_URL");
+    expect(errors).toHaveLength(1);
+    const items = [{ slug: "welder", fields: { title: "Welder" } }];
+    const working = setup(ALICE, { sources: () => ({ jobs: { items: async () => items } }) });
+    expect(await (await working.call("collections/jobs/items")).json()).toEqual({ items });
+    expect((await working.call("collections/news/items")).status).toBe(404);
   });
 
   it("never writes code to a repository that holds only the site's content", async () => {

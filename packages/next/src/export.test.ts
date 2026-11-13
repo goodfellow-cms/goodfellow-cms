@@ -218,9 +218,12 @@ describe("collections' sources in an export", () => {
           { name: "posted", label: "Posted", type: "date" },
         ],
       });
+      // A file left in the folder that loading would refuse, which the source's items replace.
+      await file("content/collections/jobs/broken.json", { version: 1, fields: { title: 42 } });
+      // Named by shorthand, which no look at the config's text for "collections:" would find.
       await file(
         "goodfellow.config.tsx",
-        'import { defineConfig } from "@goodfellow-cms/core";\nexport default defineConfig({ blocks: {}, collections: { jobs: { source: "./lib/jobs.ts", options: { title: "Welder" } } } });\n',
+        'import { defineConfig } from "@goodfellow-cms/core";\nconst collections = { jobs: { source: "./lib/jobs.ts", options: { title: "Welder" } } };\nexport default defineConfig({ blocks: {}, collections });\n',
       );
       await file(
         "lib/jobs.ts",

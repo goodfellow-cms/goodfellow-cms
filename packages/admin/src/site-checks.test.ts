@@ -1,8 +1,8 @@
-import { type ContentSource, type GoodfellowConfig, loadSiteContent } from "@goodfellow-cms/core";
+import { type ContentSource, type GoodfellowConfig, loadSiteContent, SignInError } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
 import { localSiteCode } from "./frame/local-code.js";
-import { checkPublish, describeProblem } from "./site-checks.js";
+import { checkPublish, describeProblem, readShown } from "./site-checks.js";
 import { defaultStrings, type StringKey } from "./strings.js";
 
 const page = (title: string, content: unknown[] = []) =>
@@ -32,6 +32,46 @@ const t = (key: StringKey, values?: Record<string, string>) =>
 async function loaded() {
   return { content: await loadSiteContent(source), media: ["public/media/photo.jpg"] };
 }
+
+describe("readShown", () => {
+  it("gives the site with its sources' items, or says a source can't be read, leaving signing in to its handler", async () => {
+    const files: Record<string, string> = {
+      ...FILES,
+      "content/collections/jobs/_collection.json": JSON.stringify({
+        version: 1,
+        name: "Jobs",
+        entryName: "Job",
+        path: "/jobs/{slug}",
+        fields: [{ name: "title", label: "Title", type: "text" }],
+      }),
+    };
+    const content = await loadSiteContent({
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    });
+    const failing = (error: Error) => ({
+      jobs: {
+        items: async (): Promise<never> => {
+          throw error;
+        },
+      },
+    });
+    expect(await readShown(content, undefined)).toEqual({});
+    const read = await readShown(content, {
+      jobs: { items: async () => [{ slug: "welder", fields: { title: "W" } }] },
+    });
+    expect(read.shown?.collections.find((one) => one.id === "jobs")?.entries.map((entry) => entry.slug)).toEqual([
+      "welder",
+    ]);
+    expect(read.unreadSources).toBeUndefined();
+    expect(await readShown(content, failing(new Error("The database didn't answer.")))).toEqual({
+      unreadSources: true,
+    });
+    await expect(readShown(content, failing(new SignInError("invalid", "Sign in again.")))).rejects.toBeInstanceOf(
+      SignInError,
+    );
+  });
+});
 
 describe("checkPublish", () => {
   it("stops a publish that breaks links, naming where they are", async () => {
@@ -80,6 +120,25 @@ describe("checkPublish", () => {
       code: localSiteCode(config),
     });
     expect(without.blocking.map((problem) => problem.kind)).toEqual(["missing-page"]);
+    // A source that can't be read just now stops the publish, rather than pass it unchecked, naming the collection.
+    let answering = false;
+    const flaky = {
+      jobs: {
+        items: async () => {
+          if (!answering) throw new Error("The database didn't answer.");
+          return [{ slug: "welder", fields: { title: "Welder" } }];
+        },
+      },
+    };
+    const site = { blocks: config.blocks, code: localSiteCode(config), sources: flaky };
+    const unread = await checkPublish(withJobs, { content, media: [] }, linking, site);
+    expect(unread.unread).toEqual(["jobs"]);
+    expect(unread.blocking).toEqual([]);
+    // Publishing again asks the source again.
+    answering = true;
+    const read = await checkPublish(withJobs, { content, media: [] }, linking, site);
+    expect(read.unread).toBeUndefined();
+    expect(read.blocking).toEqual([]);
   });
 
   it("knows the files a publish adds, and doesn't ask again about problems it didn't bring", async () => {

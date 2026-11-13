@@ -350,8 +350,10 @@ type DialogState = { type: "new" } | { type: "move"; entry: Entry } | { type: "d
 /** A collection's items as the site shows them, read-only, where they come from another system. */
 function SourcedEntries({ collection, source }: { collection: Collection; source: string }) {
   const t = useStrings();
-  const { siteUrl, account } = useAdmin();
+  const { siteUrl, account, state, reload } = useAdmin();
   const { settings } = collection;
+  // The source couldn't be read as the site loaded: what's listed would be the folder's files, which the site doesn't show.
+  const unread = state.status === "ready" && state.unreadSources === true;
   return (
     <CollectionLayout collection={collection} tab="entries">
       <div className="gfa-screen">
@@ -361,7 +363,14 @@ function SourcedEntries({ collection, source }: { collection: Collection; source
         <p className="gfa-hint">
           {t(account?.sourcedItems ? "entries.sourced" : "entries.sourcedElsewhere", { name: settings.name, source })}
         </p>
+        {account?.sourcedItems && unread && (
+          <div className="gfa-notice gfa-notice-warning" role="alert">
+            <p>{t("entries.sourceUnread", { name: settings.name, source })}</p>
+            <Button onClick={() => void reload()}>{t("action.tryAgain")}</Button>
+          </div>
+        )}
         {account?.sourcedItems &&
+          !unread &&
           (collection.entries.length === 0 ? (
             <p>{t("entries.empty", { name: settings.name })}</p>
           ) : (

@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { allPages, loadSiteContent, parseDemoContent } from "@goodfellow-cms/core";
+import { allPages, type CollectionSource, loadSiteContent, parseDemoContent } from "@goodfellow-cms/core";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { goodfellowPages, pageMetadata, shownPage } from "./index.js";
 
 const root = resolve(import.meta.dirname, "../../../templates/starter");
@@ -188,9 +188,15 @@ describe("goodfellowPages with collections' sources", () => {
     expect(metadata.title).toEqual({ absolute: "From the database | My site" });
     expect(tables[0]).toBe("posts");
     // From the repository too, as a full-stack site's pages read it.
+    // With a file left in the collection's folder that loading would refuse, which the source's items replace.
+    const files = fileSystemSource(root);
+    const broken = "content/collections/news/broken.json";
     const live = goodfellowPages(config, {
       root: "/nowhere",
-      source: () => fileSystemSource(root),
+      source: () => ({
+        read: async (path) => (path === broken ? '{ "version": 1, "fields": { "title": 42 } }' : files.read(path)),
+        list: async (dir) => [...(await files.list(dir)), ...(broken.startsWith(`${dir}/`) ? [broken] : [])],
+      }),
       sources: { news: () => ({ items: async () => [welcome] }) },
     });
     expect(await live.generateStaticParams()).toContainEqual({ path: ["news", "from-the-database"] });
@@ -198,6 +204,17 @@ describe("goodfellowPages with collections' sources", () => {
 
   it("refuses a config naming a source the site's code didn't give", () => {
     expect(() => goodfellowPages(config, { root })).toThrow(/lib\/news\.ts/);
+  });
+
+  it("makes the sources only once the site is read, so one that can't be made fails the pages, not the layout", async () => {
+    const make = vi.fn((): CollectionSource => {
+      throw new Error("NEWS_DATABASE_URL isn't set");
+    });
+    const failing = goodfellowPages(config, { root, sources: { news: make } });
+    expect(make).not.toHaveBeenCalled();
+    await expect(failing.generateStaticParams()).rejects.toThrow("NEWS_DATABASE_URL");
+    // The root layout still has the site's language, for the admin panel and sign-in.
+    expect(await failing.language()).toBe("en");
   });
 });
 

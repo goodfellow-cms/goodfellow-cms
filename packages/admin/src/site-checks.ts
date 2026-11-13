@@ -13,6 +13,7 @@ import {
   publishProblems,
   REDIRECTS_FILE,
   SITE_FILE,
+  SignInError,
   type SiteContent,
   type SiteProblem,
   siteLanguages,
@@ -32,6 +33,12 @@ export interface PublishChecks {
   warnings: SiteProblem[];
   /** The site as the publish would leave it, which names where each problem is. */
   content: SiteContent;
+  /**
+   * Collections whose items come from a source that couldn't be read just now
+   * (by id), so links to their pages couldn't be checked. This stops the
+   * publish too, until publishing again finds the source answering.
+   */
+  unread?: string[];
 }
 
 /** The media library's files as the addresses content uses, such as `/media/photo.jpg`. */
@@ -61,6 +68,28 @@ function contentWithChanges(source: ContentSource, changes: FileChange[]): Promi
 }
 
 /**
+ * The site as visitors see it, with its sourced collections' items
+ * (`LoadState.shown`, left out where nothing is sourced), or, where a source
+ * can't be read just now, `unreadSources`, so the rest of the site can still
+ * be edited. A `SignInError` is thrown, since signing in again is for
+ * everything. Problems with a source's items are the server's to report: here
+ * they're left out, as on the site.
+ */
+export async function readShown(
+  content: SiteContent,
+  sources: CollectionSources | undefined,
+): Promise<{ shown?: SiteContent; unreadSources?: true }> {
+  if (!sources) return {};
+  try {
+    const shown = await withSourcedCollections(content, sources, () => {});
+    return shown === content ? {} : { shown };
+  } catch (error) {
+    if (error instanceof SignInError) throw error;
+    return { unreadSources: true };
+  }
+}
+
+/**
  * The site checks for a publish: the site as it's loaded, and as the changes
  * would leave it, with the pages they change rendered. A site the changes
  * would leave unreadable isn't checked; loading it again after publishing
@@ -78,9 +107,17 @@ export async function checkPublish(
   let after: SiteContent;
   try {
     after = await contentWithChanges(source, changes);
-    if (sources) after = await withSourcedCollections(after, sources, () => {});
   } catch {
     return { blocking: [], warnings: [], content: before };
+  }
+  if (sources) {
+    // Asked each time, so publishing again retries a source that couldn't be read, here or as the site loaded.
+    try {
+      after = await withSourcedCollections(after, sources, () => {});
+    } catch {
+      const unread = after.collections.filter((one) => Object.hasOwn(sources, one.id)).map((one) => one.id);
+      return { blocking: [], warnings: [], unread, content: after };
+    }
   }
   const media = new Set(loaded.media);
   for (const change of changes) {

@@ -117,9 +117,11 @@ export interface AppApiOptions {
   /**
    * The sources the config's `collections` name, by collection id
    * (`collectionSources()`), whose items `collections/<id>/items` gives anyone
-   * signed in to edit, so the admin panel can show them, read-only.
+   * signed in to edit, so the admin panel can show them, read-only. Or a
+   * function giving them, called only when that route is asked, so a source
+   * that can't be made fails only its items, never signing in or publishing.
    */
-  sources?: CollectionSources;
+  sources?: CollectionSources | (() => CollectionSources);
 }
 
 /** Room for a save with uploads, which are sent as base64 (a third larger than the files). */
@@ -348,9 +350,11 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
     if (get && endpoint === "revision") return json(200, { revision: await options.git.revision() });
     const sourced = get && /^collections\/([a-z0-9-]+)\/items$/.exec(endpoint);
     if (sourced) {
-      const source = Object.hasOwn(options.sources ?? {}, sourced[1] ?? "") && options.sources?.[sourced[1] ?? ""];
-      if (!source) return json(404, { error: "not-found" });
+      const id = sourced[1] ?? "";
       try {
+        const sources = typeof options.sources === "function" ? options.sources() : (options.sources ?? {});
+        const source = Object.hasOwn(sources, id) && sources[id];
+        if (!source) return json(404, { error: "not-found" });
         return json(200, { items: await source.items() });
       } catch (error) {
         // What the source's system answered stays on the server, as the repository's does.

@@ -14,6 +14,12 @@ function ProblemList({ content, problems }: { content: SiteContent; problems: Si
   );
 }
 
+/** Names as a list in the admin panel's language, which it sets on the page: "Jobs, Events, and News". */
+function listOf(names: string[]): string {
+  const language = typeof document === "undefined" ? "en" : document.documentElement.lang || "en";
+  return new Intl.ListFormat(language, { type: "conjunction" }).format(names);
+}
+
 /**
  * What the site checks found in a publish: errors it would bring stop it,
  * and the rest, which the editor can publish anyway, are listed to fix first.
@@ -29,12 +35,20 @@ export function ChecksDialog({
   onDecide: (publish: boolean) => void;
 }) {
   const t = useStrings();
-  const blocked = checks.blocking.length > 0;
+  const unread = checks.unread ?? [];
+  const blocked = checks.blocking.length > 0 || unread.length > 0;
+  const names = unread.map((id) => content.collections.find((one) => one.id === id)?.settings.name ?? id);
   return (
     <Dialog title={t(blocked ? "checks.blocked.title" : "checks.warnings.title")} onClose={() => onDecide(false)}>
-      <p>{t(blocked ? "checks.blocked.intro" : "checks.warnings.intro")}</p>
-      <ProblemList content={content} problems={blocked ? checks.blocking : checks.warnings} />
-      {blocked && checks.warnings.length > 0 && (
+      {unread.length > 0 ? (
+        <p>{t("checks.unreadSources", { collections: listOf(names) })}</p>
+      ) : (
+        <>
+          <p>{t(blocked ? "checks.blocked.intro" : "checks.warnings.intro")}</p>
+          <ProblemList content={content} problems={blocked ? checks.blocking : checks.warnings} />
+        </>
+      )}
+      {checks.blocking.length > 0 && checks.warnings.length > 0 && (
         <>
           <p>{t("checks.alsoWarnings")}</p>
           <ProblemList content={content} problems={checks.warnings} />

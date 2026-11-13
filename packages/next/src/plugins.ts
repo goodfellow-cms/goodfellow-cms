@@ -10,12 +10,14 @@ import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   type CollectionSources,
+  type ContentSource,
   collectionSources,
   EDITOR_PRELUDE,
   framedPlugins,
   type GoodfellowConfig,
   type GoodfellowPlugin,
   INSTALLED_PLUGINS_INDEX,
+  loadSiteContent,
   PLUGINS_PATH,
   pluginFrameEntry,
   pluginFramePage,
@@ -94,42 +96,48 @@ export async function loadSiteConfig(root: string): Promise<GoodfellowConfig> {
 }
 
 /**
- * Whether the site's config names collections' sources, read from its text,
- * so builds of sites without any never load the config outside Next.js.
+ * The sources the site's config names for its collections, each module loaded
+ * in Node with `loadSiteModule()`: a path from the site's root, or a package's
+ * export. None where the site has no config, or its config names none. It
+ * reads the config whatever its text says, since a config can name its
+ * collections in any way JavaScript allows; `goodfellow-next finish` loads it
+ * for the content API anyway.
  */
-export async function configHasCollections(root: string): Promise<boolean> {
-  const file = findConfigFile(root);
-  return Boolean(file && /\bcollections\s*:/.test(await readFile(file, "utf8")));
+export async function readCollectionSources(root: string): Promise<CollectionSources> {
+  const dir = resolve(root);
+  if (!findConfigFile(dir)) return {};
+  const { collections } = await loadSiteConfig(dir);
+  const modules: Record<string, SourceModuleImport> = {};
+  for (const [id, collection] of Object.entries(collections ?? {})) {
+    modules[id] = (await loadSiteModule(dir, adminModule(dir, collection.source))) as SourceModuleImport;
+  }
+  return collectionSources(collections, modules);
 }
 
 const loadedSources = new Map<string, Promise<CollectionSources>>();
 
-/**
- * The sources the site's config names for its collections, each module loaded
- * in Node with `loadSiteModule()`, once a process: a path from the site's root,
- * or a package's export. None where the config names none.
- */
+/** `readCollectionSources()`, once a process, for the steps of `goodfellow-next finish`, which each read the site. */
 export function loadCollectionSources(root: string): Promise<CollectionSources> {
   const dir = resolve(root);
   let loaded = loadedSources.get(dir);
   if (!loaded) {
-    loaded = (async () => {
-      if (!(await configHasCollections(dir))) return {};
-      const { collections } = await loadSiteConfig(dir);
-      const modules: Record<string, SourceModuleImport> = {};
-      for (const [id, collection] of Object.entries(collections ?? {})) {
-        modules[id] = (await loadSiteModule(dir, adminModule(dir, collection.source))) as SourceModuleImport;
-      }
-      return collectionSources(collections, modules);
-    })();
+    loaded = readCollectionSources(dir);
     loadedSources.set(dir, loaded);
   }
   return loaded;
 }
 
-/** The site with its collections' sources read in, where its config names any (`withSourcedCollections()`). */
-export async function withSiteSources(root: string, content: SiteContent): Promise<SiteContent> {
-  return withSourcedCollections(content, await loadCollectionSources(root));
+/**
+ * The site as `files` hold it, with its collections' sources read in where its
+ * config names any (`withSourcedCollections()`): those collections' item files
+ * are neither read nor checked, since their sources' items replace them.
+ */
+export async function loadSourcedSite(
+  files: ContentSource,
+  sources: CollectionSources | Promise<CollectionSources>,
+): Promise<SiteContent> {
+  const resolved = await sources;
+  return withSourcedCollections(await loadSiteContent(files, { sourced: Object.keys(resolved) }), resolved);
 }
 
 /** A plugin's admin module as the bundler imports it: a package's export, or a path from the site's root. */
