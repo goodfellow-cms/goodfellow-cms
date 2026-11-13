@@ -500,6 +500,7 @@ export {
   type Page,
   parseContentFile,
   parseEntryFile,
+  prefetchedSource,
   readTextFiles,
   type SiteCode,
   type SiteContent,
@@ -816,6 +817,16 @@ export {
   themeValues,
   withThemeCss,
 } from "./content/themes.js";
+export {
+  isMembersCollection,
+  isMembersOnly,
+  membersPages,
+  VISIBILITIES,
+  VISIBILITY_PROP,
+  type Visibility,
+  visibilityChanges,
+  withoutMembersContent,
+} from "./content/visibility.js";
 export {
   CONTENT_BUILDS,
   type ContentBuild,
@@ -1288,6 +1299,7 @@ export {
   type UpdateOptions,
   type UpdatePlan,
 } from "./registry.js";
+export { type RepositorySourceOptions, repositorySource } from "./repository-source.js";
 export {
   IMAGE_WIDTHS,
   imageSrcSet,
@@ -1329,6 +1341,7 @@ export {
 } from "./sign-in-config.js";
 export {
   adminSiteForCopy,
+  builtSource,
   describedForCopy,
   isSiteCopy,
   NO_INDEX_VARIABLE,

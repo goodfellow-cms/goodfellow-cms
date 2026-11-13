@@ -1,8 +1,9 @@
 /**
- * Block settings only owners may change (`metadata: { owners: true }`, such as
- * Custom HTML used exactly as written), shown to editors on full-stack sites
- * as they are, without a way to change them. Their server refuses such a
- * change anyway (`ownersOnlyChanges()`); this only says so up front.
+ * Settings only owners may change (`metadata: { owners: true }`, such as
+ * Custom HTML used exactly as written, and who a page is for), shown to
+ * editors on full-stack sites as they are, without a way to change them.
+ * Their server refuses such a change anyway (`ownersOnlyChanges()`,
+ * `visibilityChanges()`); this only says so up front.
  */
 import { isOwnersOnlyField } from "@goodfellow-cms/core";
 import type { Config, CustomField, Field, Fields } from "@puckeditor/core";
@@ -50,5 +51,10 @@ export function withOwnersOnlyLocked(config: Config): Config {
       return [name, { ...component, fields: locked(fields) }];
     }),
   );
-  return { ...config, components } as Config;
+  const rootFields = config.root?.fields;
+  const root =
+    rootFields && Object.values(rootFields).some(isOwnersOnlyField)
+      ? { ...config.root, fields: locked(rootFields as Fields) }
+      : config.root;
+  return { ...config, components, ...(root && { root }) } as Config;
 }

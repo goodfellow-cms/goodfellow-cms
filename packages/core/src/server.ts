@@ -10,5 +10,11 @@ export {
   type FoundEarlyInstall,
   type ProvenanceProblem,
 } from "./early-installs.js";
-export { type AppApiOptions, appApi, isPluginInstallPath, type PluginServer } from "./server-app-api.js";
+export {
+  type AppApiOptions,
+  appApi,
+  isPluginInstallPath,
+  type PluginServer,
+  type PublishedChanges,
+} from "./server-app-api.js";
 export { isCleanSvg, unsafeMediaChanges } from "./svg-check.js";

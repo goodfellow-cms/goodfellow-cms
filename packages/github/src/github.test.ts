@@ -59,6 +59,12 @@ describe("signing in", () => {
     expect(new URL(classic).searchParams.get("scopes")).toBe("repo");
   });
 
+  it("asks owners' tokens for Variables by GitHub's name for it", () => {
+    const owner = Object.fromEntries(new URL(githubTokenLinks("parish/site").owner).searchParams);
+    expect(owner).toMatchObject({ administration: "write", pages: "write", actions_variables: "write" });
+    expect(owner).not.toHaveProperty("variables");
+  });
+
   it("signs in with a token and remembers it only when asked", async () => {
     const { host, local, session } = setup();
     const backend = await host.signInWithToken("  test-token  ", false);

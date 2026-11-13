@@ -16,6 +16,7 @@ import {
   type GoodfellowConfig,
   hasLanguages,
   loadSiteContent,
+  membersPages,
   type Page,
   type PluginTaskRequest,
   parseSiteDescription,
@@ -91,6 +92,15 @@ export async function writeFeedFiles(outDir: string, root = process.cwd()): Prom
     await writeFile(target, file.content);
   }
   return files.length;
+}
+
+/**
+ * The addresses of the pages a static export publishes that are marked for
+ * members only, which it has no server to keep to them, for `buildNotes()`.
+ */
+export async function exportedMembersPages(root = process.cwd()): Promise<string[]> {
+  const content = shownContent(await loadSiteContent(builtSiteSource(resolve(root))));
+  return membersPages(content, allPages(content)).map((page) => page.path);
 }
 
 /**

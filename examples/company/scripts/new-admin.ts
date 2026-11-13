@@ -84,4 +84,6 @@ if (where) {
     await db.destroy();
   }
 }
-console.log(`${person.email} is an admin. They sign in at /sign-in/.`);
+console.log(
+  `${person.email} is an admin. They sign in at /sign-in/, then turn on two-factor sign-in at /account/ to act as one.`,
+);

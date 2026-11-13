@@ -15,6 +15,14 @@ overrides:
   "node-forge@<1.4.3": "^1.4.3"
   # Express, which the MCP SDK uses, asks for qs 6.16.0; 6.16.1 fixes GHSA-6pq8-jhm2-2vcw.
   "express>qs": "^6.16.1"
+  # The MCP SDK asks for @hono/node-server 2.1.5; 2.1.6 fixes GHSA-qv5m-9pm6-hqp3 and GHSA-jpvv-r467-5p4w. Only the
+  # SDK's Node HTTP transport (server/streamableHttp.js) loads it, which neither the connector
+  # (webStandardStreamableHttp.js) nor goodfellow-mcp and the Claude Desktop extension (stdio.js) import, so it's
+  # installed but never run; this keeps the audit clean, and npm installs of @goodfellow-cms/mcp don't get it.
+  "@hono/node-server@<2.1.6": "^2.1.6"
+  # Hono, which @hono/node-server brings in, asks for 4.13.13; 4.13.16 fixes GHSA-4m76-xfj5-7975,
+  # GHSA-h7mg-cq63-vhpq and GHSA-3gg2-335m-rxc6, and is never run here for the same reason.
+  "hono@<4.13.16": "^4.13.16"
   # Sigstore's packages (cacache and @tufjs/models) and Expo's tools ask for glob 13
   # and minimatch 10; glob 14.0.2 fixes GHSA-3g3m-2fjr-6pw4 and minimatch 11.0.1
   # fixes GHSA-g3hv-75wg-m249, and both keep the functions they call.
@@ -23,13 +31,16 @@ overrides:
   # satori, which vinext's Open Graph images use in the company example, asks for fflate 0.7.3; 0.7.5 fixes
   # GHSA-px8p-9vwx-vf98.
   "fflate@<0.7.5": "^0.7.5"
+  # Expo's command line asks for Zod 3, which has no fix for GHSA-mrhx-c7xc-m3w5; Zod 4.6.6 has it. Expo uses
+  # Zod only in two files, for its dev tools plugins' schemas (objects, strings, enums, arrays, unions, `.url()`,
+  # `.strict()`), and reads only `safeParse`'s `success`, `data`, `error.message` and `error.issues`, which Zod 4
+  # keeps: @expo/cli 58.1.15's schemas gave the same results under both for valid and invalid settings, and its
+  # command line starts. Apps are installed with npm, which ignores this; the docs' Apps page gives them the same
+  # override.
+  "@expo/cli>zod": "^4.6.6"
 
 auditConfig:
   ignoreGhsas:
-    # Zod 3, which Expo's command line uses to read its own settings, has no
-    # fixed release (only Zod 4.6.6 has the fix), and it never reads visitors'
-    # or editors' input.
-    - GHSA-mrhx-c7xc-m3w5
     # deepmerge has no fixed release; Expo's config tools merge only the
     # app's own settings with it.
     - GHSA-gcqx-w48m-w2h4
