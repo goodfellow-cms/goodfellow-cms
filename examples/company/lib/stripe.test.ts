@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MEMBER_ROLE } from "./auth.ts";
-import { can, subscribedUntil, subscriptionsOf } from "./entitlements.ts";
+import { can, subscribedUntil } from "./entitlements.ts";
 import type { SiteEnv } from "./env.ts";
 import {
   accountCustomer,
   applySession,
   type ButtonPlace,
   billingAddress,
+  CHECKOUT_LOCK_SECONDS,
   checkoutAddress,
   customerOf,
   PaymentsError,
@@ -15,6 +16,7 @@ import {
   returnFromCheckout,
   STRIPE_EVENT_IDENTIFIER,
   STRIPE_EVENT_LEASE_SECONDS,
+  STRIPE_LOCK_IDENTIFIER,
   STRIPE_LOCK_SECONDS,
   stripeFor,
   webhookResponse,
@@ -32,13 +34,20 @@ const PAYMENTS_ENV: SiteEnv = {
 const MONTHLY = { id: "price_monthly", product: "prod_members", type: "recurring" as const };
 const REPORT = { id: "price_report", product: "prod_report", type: "one_time" as const };
 const CHEAP = { id: "price_cheap", product: "prod_cheap", type: "recurring" as const };
+/** Another price of the monthly subscription's product. */
+const YEARLY = { id: "price_yearly", product: "prod_members", type: "recurring" as const };
 
 /** The site with Stripe, and a page with a monthly subscription's button and a report's. */
 async function payments() {
   const site = await testSite(PAYMENTS_ENV);
-  const stripe = fakeStripe({ key: "rk_test_only", base: STRIPE, prices: [MONTHLY, REPORT, CHEAP] });
+  const stripe = fakeStripe({ key: "rk_test_only", base: STRIPE, prices: [MONTHLY, REPORT, CHEAP, YEARLY] });
   const client = stripeFor(PAYMENTS_ENV, stripe.fetch);
-  const buttons: Record<string, string> = { monthly: MONTHLY.id, report: REPORT.id, gone: "price_gone" };
+  const buttons: Record<string, string> = {
+    monthly: MONTHLY.id,
+    yearly: YEARLY.id,
+    report: REPORT.id,
+    gone: "price_gone",
+  };
   const findButton = async (place: ButtonPlace) =>
     place.page === "/subscribe" && buttons[place.block] ? { price: buttons[place.block] ?? "" } : undefined;
   const readerId = await site.person("rita@example.org", MEMBER_ROLE);
@@ -62,6 +71,7 @@ async function payments() {
       stripe: through,
       findButton,
       customer: (user, stale) => accountCustomer(site.context.adapter, through, user, stale),
+      adapter: site.context.adapter,
     });
   /** Sends the site one of Stripe's events, signed with `secret`. */
   const deliver = (event: object, secret = "whsec_test_only") => {
@@ -288,7 +298,14 @@ describe("Stripe's events", () => {
       for (const event of [completed, created]) expect((await deliver(event ?? {})).status).toBe(200);
       const until = await subscribedUntil(context.adapter, readerId);
       expect(until?.getTime()).toBeGreaterThan(Date.now() + 29 * 24 * 60 * 60 * 1000);
-      expect(await subscriptionsOf(context.adapter, readerId)).toHaveLength(1);
+      const rows = await context.adapter.findMany({
+        model: "entitlement",
+        where: [
+          { field: "userId", value: readerId },
+          { field: "kind", value: "subscription" },
+        ],
+      });
+      expect(rows).toHaveLength(1);
       const ended = stripe.cancel(session?.subscription ?? "");
       expect((await deliver(ended)).status).toBe(200);
       expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
@@ -308,6 +325,24 @@ describe("Stripe's events", () => {
       expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
       await deliver(stripe.refund(session?.payment_intent ?? ""));
       expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+    } finally {
+      close();
+    }
+  });
+
+  it("give a purchase back once its refund fails, whichever of the refund's events arrives last", async () => {
+    const { stripe, buy, deliver, context, readerId, close } = await payments();
+    try {
+      const bought = await buy("report");
+      const refunded = stripe.refund(bought?.payment_intent ?? "");
+      await deliver(refunded);
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+      // The bank refuses the refund, so the money is the site's again.
+      await deliver(stripe.failRefund(bought?.payment_intent ?? ""));
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
+      // The refund's own event, arriving late, reads the payment as it is now, and takes nothing back.
+      await deliver({ ...refunded, id: `${refunded.id}-again` });
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
     } finally {
       close();
     }
@@ -478,6 +513,55 @@ describe("Stripe's events", () => {
       expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
     } finally {
       vi.useRealTimers();
+      close();
+    }
+  });
+
+  it("never take back the row another request wrote, once it took the lock over", async () => {
+    const { stripe, client, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const session = [...stripe.sessions.values()].at(-1);
+      const events = stripe.pay(session?.id ?? "");
+      const created = events.find((event) => event.type === "customer.subscription.created");
+      // Coming back stalls in the middle of writing the subscription, past its lock's time...
+      const slow = pausingWrites(context.adapter);
+      const coming = applySession(slow.adapter, client, session?.id ?? "");
+      await slow.paused;
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + (STRIPE_LOCK_SECONDS + 1) * 1000);
+      // ...while the subscription's event takes the lock over and writes it as it is.
+      expect((await deliver(created ?? {})).status).toBe(200);
+      slow.release();
+      // The stalled write finds the lock taken, and takes back only a row of its own: there's none, so the
+      // subscription the event wrote stays.
+      await expect(coming).rejects.toMatchObject({ name: "StripeBusy" });
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+      close();
+    }
+  });
+
+  it("clear no expired lock where nobody holds one, so a lock costs one write", async () => {
+    const { stripe, client, buy, context, close } = await payments();
+    try {
+      const bought = await buy("report");
+      const cleared: unknown[] = [];
+      const counting = new Proxy(context.adapter, {
+        get(target, name, receiver) {
+          const value = Reflect.get(target, name, receiver);
+          if (name !== "deleteMany" || typeof value !== "function") return value;
+          return (data: { model: string; where: { operator?: string }[] }) => {
+            if (data.model === "verification" && data.where.some((one) => one.operator === "lt")) cleared.push(data);
+            return value.call(target, data);
+          };
+        },
+      });
+      await applySession(counting, client, bought?.id ?? "");
+      expect(cleared).toEqual([]);
+      expect(stripe.sessions.size).toBe(1);
+    } finally {
       close();
     }
   });
@@ -674,6 +758,38 @@ describe("coming back from Checkout", () => {
     }
   });
 
+  it("goes on to the page where another request is writing the purchase, which writes it as Stripe has it", async () => {
+    const { auth, stripe, client, buying, checkout, context, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const session = [...stripe.sessions.values()][0];
+      stripe.pay(session?.id ?? "");
+      // Stripe's event holds the Checkout Session's lock.
+      const now = new Date();
+      const id = `${STRIPE_LOCK_IDENTIFIER}session:${session?.id}`;
+      await context.adapter.create({
+        model: "verification",
+        data: {
+          id,
+          identifier: id,
+          value: "the event",
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: now,
+          updatedAt: now,
+        },
+        forceAllowId: true,
+      });
+      const back = new Request(`${SITE}/api/checkout/done/?next=%2Fsubscribe&session_id=${session?.id}`, {
+        headers: { cookie: reader ?? "" },
+      });
+      expect(await returnFromCheckout(back, { siteAuth: auth, stripe: client, adapter: context.adapter })).toBe(
+        "/subscribe",
+      );
+    } finally {
+      close();
+    }
+  });
+
   it("writes nothing that isn't paid yet", async () => {
     const { stripe, client, buying, checkout, context, readerId, reader, close } = await payments();
     try {
@@ -699,6 +815,101 @@ describe("what Stripe and the site's accounts can come to", () => {
       await checkout(buying(reader, { page: "/subscribe", block: "report" }));
       expect(stripe.sessions.size).toBe(sessions + 1);
     } finally {
+      close();
+    }
+  });
+
+  it("sends someone to the portal while their subscription's first payment is on its way, or it's paused", async () => {
+    const { stripe, buy, buying, checkout, customer, readerId, reader, close } = await payments();
+    try {
+      const bought = await buy("monthly");
+      const subscription = stripe.subscriptions.get(bought?.subscription ?? "");
+      if (!subscription) throw new Error("No subscription.");
+      const sessions = stripe.sessions.size;
+      for (const status of ["incomplete", "paused", "unpaid"] as const) {
+        subscription.status = status;
+        expect(await checkout(buying(reader, { page: "/subscribe", block: "monthly" }))).toBe(
+          `${STRIPE}/portal/${await customer(readerId)}`,
+        );
+      }
+      expect(stripe.sessions.size).toBe(sessions);
+      // One whose first payment never came can be paid for again.
+      subscription.status = "incomplete_expired";
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      expect(stripe.sessions.size).toBe(sessions + 1);
+    } finally {
+      close();
+    }
+  });
+
+  it("sells no second subscription to the same product at another of its prices", async () => {
+    const { stripe, buy, buying, checkout, customer, readerId, reader, close } = await payments();
+    try {
+      await buy("monthly");
+      const sessions = stripe.sessions.size;
+      expect(await checkout(buying(reader, { page: "/subscribe", block: "yearly" }))).toBe(
+        `${STRIPE}/portal/${await customer(readerId)}`,
+      );
+      expect(stripe.sessions.size).toBe(sessions);
+    } finally {
+      close();
+    }
+  });
+
+  it("finds a Checkout someone has open for a product by its product, without asking for its items", async () => {
+    const { stripe, buying, checkout, reader, close } = await payments();
+    try {
+      const first = await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const asked: string[] = [];
+      const counting = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        asked.push(String(input instanceof Request ? input.url : input));
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      // Another price of the same product goes back to the same Checkout.
+      expect(await checkout(buying(reader, { page: "/subscribe", block: "yearly" }), counting)).toBe(first);
+      expect(stripe.sessions.size).toBe(1);
+      expect(asked.filter((url) => url.includes("/line_items"))).toEqual([]);
+    } finally {
+      close();
+    }
+  });
+
+  it("keeps the Checkout a press started once its lock ran out, which writes nothing here", async () => {
+    const { stripe, buying, checkout, reader, close } = await payments();
+    try {
+      let creating = () => {};
+      const created = new Promise<void>((resolve) => {
+        creating = resolve;
+      });
+      let release = () => {};
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const slow = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (init?.method === "POST" && url.endsWith("/v1/checkout/sessions")) {
+          creating();
+          await released;
+        }
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      // A press stalls while Stripe makes its Checkout...
+      const pressed = checkout(buying(reader, { page: "/subscribe", block: "monthly" }), slow);
+      await created;
+      vi.useFakeTimers({ toFake: ["Date"] });
+      // ...through a minute, which the lock outlasts, so another press waits...
+      vi.setSystemTime(Date.now() + (STRIPE_LOCK_SECONDS + 1) * 1000);
+      await expect(checkout(buying(reader, { page: "/subscribe", block: "monthly" }))).rejects.toMatchObject({
+        status: 409,
+      });
+      // ...until its time runs out, when another press takes it over.
+      vi.setSystemTime(Date.now() + (CHECKOUT_LOCK_SECONDS - STRIPE_LOCK_SECONDS) * 1000);
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      release();
+      // The stalled press still sends its buyer to the Checkout Stripe made for them.
+      expect(await pressed).toMatch(new RegExp(`^${STRIPE}/checkout/cs_`));
+    } finally {
+      vi.useRealTimers();
       close();
     }
   });
@@ -729,6 +940,10 @@ describe("what Stripe and the site's accounts can come to", () => {
       const pressed = checkout(buying(reader, { page: "/subscribe", block: "monthly" }), slow);
       await decided;
       await expect(checkout(buying(reader, { page: "/subscribe", block: "monthly" }))).rejects.toMatchObject({
+        status: 409,
+      });
+      // So is a press on another price of the same product, which would otherwise start a second subscription to it.
+      await expect(checkout(buying(reader, { page: "/subscribe", block: "yearly" }))).rejects.toMatchObject({
         status: 409,
       });
       release();

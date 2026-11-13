@@ -16,6 +16,7 @@ export async function POST(request: Request): Promise<Response> {
       stripe,
       findButton,
       customer: (user, stale) => accountCustomer(adapter, stripe, user, stale),
+      adapter,
     });
     return new Response(null, { status: 303, headers: { location: address, "cache-control": "no-store" } });
   } catch (error) {

@@ -108,17 +108,6 @@ export async function currentSubscriptions(adapter: EntitlementAdapter, now = ne
   return [...endless, ...ending].filter((entitlement) => holds(entitlement, now));
 }
 
-/** Someone's subscriptions that hold at `now`. */
-export async function subscriptionsOf(
-  adapter: EntitlementAdapter,
-  userId: string,
-  now = new Date(),
-): Promise<Entitlement[]> {
-  return (await entitlementsOf(adapter, userId)).filter(
-    (entitlement) => entitlement.kind === "subscription" && holds(entitlement, now),
-  );
-}
-
 /** Takes away the subscription an owner gave someone by hand, if they have one, leaving any they paid for. */
 export async function takeAwayByHand(adapter: EntitlementAdapter, userId: string): Promise<void> {
   await adapter.deleteMany({
@@ -182,7 +171,12 @@ export async function subscribedUntil(
 /** Records that someone is entitled to something, as a payment does. */
 export async function grant(
   adapter: EntitlementAdapter,
-  entitlement: Pick<Entitlement, "userId" | "kind" | "reference"> & { expiresAt?: Date | null; id?: string },
+  entitlement: Pick<Entitlement, "userId" | "kind" | "reference"> & {
+    expiresAt?: Date | null;
+    id?: string;
+    /** When it's written, where the caller marks its own row by it (now, otherwise). */
+    createdAt?: Date;
+  },
 ): Promise<void> {
   await adapter.create({
     model: "entitlement",
@@ -193,7 +187,7 @@ export async function grant(
       kind: entitlement.kind,
       reference: entitlement.reference,
       expiresAt: entitlement.expiresAt ?? null,
-      createdAt: new Date(),
+      createdAt: entitlement.createdAt ?? new Date(),
     },
     forceAllowId: true,
   });

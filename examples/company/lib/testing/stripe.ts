@@ -39,7 +39,7 @@ interface FakeSubscription {
   status: string;
   customer: string;
   metadata: Record<string, string>;
-  items: { object: "list"; data: { id: string; current_period_end: number; price: { id: string } }[] };
+  items: { object: "list"; data: { id: string; current_period_end: number; price: { id: string; product: string } }[] };
 }
 
 interface FakeCharge {
@@ -287,7 +287,7 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
               {
                 id: next("si"),
                 current_period_end: Math.floor(Date.now() / 1000) + days * 24 * 60 * 60,
-                price: { id: session.price },
+                price: { id: session.price, product: prices.get(session.price)?.product ?? "" },
               },
             ],
           },
@@ -323,6 +323,19 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       charge.amount_refunded = amount ?? charge.amount;
       charge.refunded = charge.amount_refunded >= charge.amount;
       return event("charge.refunded", { ...charge, payment_intent: paymentIntentId });
+    },
+    /** A payment's refund failing, as a bank can refuse one: the money is the site's again. Gives the event Stripe sends. */
+    failRefund(paymentIntentId: string) {
+      const charge = charges.get(paymentIntentId);
+      if (!charge) throw new Error(`No payment ${paymentIntentId}.`);
+      charge.amount_refunded = 0;
+      charge.refunded = false;
+      return event("charge.refund.updated", {
+        id: next("re"),
+        object: "refund",
+        payment_intent: paymentIntentId,
+        status: "failed",
+      });
     },
     /** Disputes a payment, as the customer's bank would. Gives the event Stripe sends. */
     dispute(paymentIntentId: string) {
