@@ -158,20 +158,34 @@ function withPlacementIds(value: unknown, prefix: string): unknown {
 export function expandSyncedBlocks<T>(data: T, content: Pick<SiteContent, "syncedBlocks">, language?: string): T {
   if (!content.syncedBlocks?.length) return data;
   // Inside a synced block's own blocks, SyncedBlock blocks leave nothing, so nothing loops.
+  // What holds no synced block comes back as it was, so expanding a page twice copies it once.
   const expand = (value: unknown, inside: boolean): unknown => {
     if (Array.isArray(value)) {
-      return value.flatMap((item) => {
+      let changed = false;
+      const items = value.flatMap((item) => {
         const name = placedSyncedBlock(item);
-        if (name === undefined) return [expand(item, inside)];
+        if (name === undefined) {
+          const expanded = expand(item, inside);
+          if (expanded !== item) changed = true;
+          return [expanded];
+        }
+        changed = true;
         const block = name && !inside ? findSyncedBlock(content, name) : undefined;
         if (!block) return [];
         const placement = String((item as Component).props.id ?? name);
         const placed = syncedBlockIn(block, language).data.content as unknown[];
         return expand(withPlacementIds(placed, placement), true) as unknown[];
       });
+      return changed ? items : value;
     }
     if (!value || typeof value !== "object") return value;
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, expand(item, inside)]));
+    let changed = false;
+    const entries = Object.entries(value).map(([key, item]) => {
+      const expanded = expand(item, inside);
+      if (expanded !== item) changed = true;
+      return [key, expanded];
+    });
+    return changed ? Object.fromEntries(entries) : value;
   };
   return expand(data, false) as T;
 }

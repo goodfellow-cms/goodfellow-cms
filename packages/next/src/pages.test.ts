@@ -1,8 +1,10 @@
-import { resolve } from "node:path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { allPages, loadSiteContent, parseDemoContent } from "@goodfellow-cms/core";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
-import { describe, expect, it } from "vitest";
-import { goodfellowPages, pageMetadata } from "./index.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { goodfellowPages, pageMetadata, shownPage } from "./index.js";
 
 const root = resolve(import.meta.dirname, "../../../templates/starter");
 const site = goodfellowPages({ blocks: {} }, { root });
@@ -27,6 +29,90 @@ describe("goodfellowPages", () => {
   it("only writes a sitemap once the site's address is known", async () => {
     expect(await site.sitemap()).toEqual([]);
     expect(await site.robots()).toEqual({ rules: [{ userAgent: "*", allow: "/" }] });
+  });
+});
+
+describe("members-only pages", () => {
+  const block = (type: string, id: string, props: Record<string, unknown> = {}) => ({ type, props: { id, ...props } });
+  const handbook = [
+    block("Heading", "intro", { text: "Our handbook" }),
+    block("Paywall", "wall"),
+    block("Text", "secret", { text: "Members only" }),
+  ];
+  let dir: string;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "goodfellow-members-"));
+    const files: Record<string, unknown> = {
+      "content/site.json": { version: 1, title: "Northwind", timeZone: "UTC" },
+      "content/pages/index.json": { version: 1, data: { root: { props: { title: "Home" } }, content: [] } },
+      "content/pages/about.json": {
+        version: 1,
+        data: { root: { props: { title: "About" } }, content: [block("Paywall", "stray"), block("Text", "open")] },
+      },
+      "content/pages/handbook.json": {
+        version: 1,
+        data: { root: { props: { title: "Handbook", visibility: "members" } }, content: handbook },
+      },
+      "content/collections/memos/_collection.json": {
+        version: 1,
+        name: "Memos",
+        entryName: "Memo",
+        path: "/memos/{slug}",
+        visibility: "members",
+        fields: [{ name: "title", label: "Title", type: "text" }],
+        template: { root: {}, content: [block("Text", "body", { text: "{title}" })] },
+      },
+      "content/collections/memos/plans.json": { version: 1, fields: { title: "Plans" } },
+    };
+    for (const [path, value] of Object.entries(files)) {
+      await mkdir(dirname(join(dir, path)), { recursive: true });
+      await writeFile(join(dir, path), JSON.stringify(value));
+    }
+  });
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  const load = async () => {
+    const content = await loadSiteContent(fileSystemSource(dir));
+    const page = (path: string) => {
+      const found = allPages(content).find((candidate) => candidate.path === path);
+      if (!found) throw new Error(`No page at ${path}.`);
+      return found;
+    };
+    return { content, page };
+  };
+
+  it("shows everyone else a members-only page's teaser, and its members all of it, without the paywall", async () => {
+    const { content, page } = await load();
+    expect(shownPage(content, page("/handbook"), "everyone", "Paywall").content.data.content).toEqual(
+      handbook.slice(0, 2),
+    );
+    expect(shownPage(content, page("/handbook"), "members", "Paywall").content.data.content).toEqual([
+      handbook[0],
+      handbook[2],
+    ]);
+  });
+
+  it("shows a members' collection's items only as a paywall, which their template doesn't place", async () => {
+    const { content, page } = await load();
+    expect(shownPage(content, page("/memos/plans"), "everyone", "Paywall").content.data.content).toEqual([
+      { type: "Paywall", props: { id: "Paywall-teaser" } },
+    ]);
+    expect(shownPage(content, page("/memos/plans"), "members", "Paywall").content.data.content).toEqual([
+      block("Text", "body", { text: "{title}" }),
+    ]);
+  });
+
+  it("shows pages for everyone in full, without a stray paywall", async () => {
+    const { content, page } = await load();
+    expect(shownPage(content, page("/about"), "everyone", "Paywall").content.data.content).toEqual([
+      block("Text", "open"),
+    ]);
+  });
+
+  it("shows every page as it is on a site with no paywall, as a static export does", async () => {
+    const { content, page } = await load();
+    expect(shownPage(content, page("/handbook"), "everyone")).toBe(page("/handbook"));
   });
 });
 

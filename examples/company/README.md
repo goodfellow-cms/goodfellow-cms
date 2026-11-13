@@ -114,11 +114,20 @@ Running Deploy is safe at any time: it builds the site from the code repository 
 
 To use a service Upyo supports that isn't in the table, add it to `transportFor()` in `lib/email.ts`, with its package. In `npm run dev`, put the same settings in `.dev.vars`.
 
+## Subscribers
+
+A page whose settings say **Only signed-in members**, such as `/handbook` here, is for subscribers. Everyone else sees its teaser: the blocks above its **Paywall** block, which editors put where the teaser should end, and the Paywall, which links to sign in and, once there's a **Where people subscribe** address, to subscribe. Subscribers see the whole page, without the Paywall. A page for members with no Paywall shows everyone else only the Paywall, so nothing an editor didn't choose to show is published. It's left out of the site's search, feeds, and content API either way.
+
+Who subscribes is in the database's `entitlement` table (`lib/entitlements.ts`, the only file that reads it): a `subscription`, which runs until its `expiresAt`, or never where that's empty, or a `purchase`, kept for good. Payments will write it, through Stripe, in a change still to come.
+
+Every page has a version for everyone and one for subscribers, and each is kept once it has rendered, as every page is (see [Rendering](#rendering)), so a request reads no database to choose between them. Every page has a subscribers' version, not only those for members, since `proxy.ts` can't tell which those are; for pages for everyone it's the same page. `proxy.ts` sends a subscriber's request for a page to its members' version, in `app/(site)/members/pages/`, by a cookie `lib/paywall.ts` signs with `BETTER_AUTH_SECRET`, which says whether the person subscribes. It belongs to the session it was made for, so it stops counting once they sign out, and it lasts 10 minutes (`PAYWALL_SECONDS`), or until the subscription ends if that's sooner: someone whose subscription is cancelled can still read members' pages for up to 10 minutes, and someone who has just subscribed waits as long on a page they'd already opened. Only then is the database asked again. A request for an address under `/members/pages/` itself is "Page not found", however it's spelled, so the cookie is the only way in, and members' versions are sent with `Cache-Control: private`, so no cache between the site and the browser keeps one for anyone else.
+
 ## Rendering
 
 Every page is rendered once for each publish and served as it was, so a request costs the server almost nothing:
 
 - **Pages that look the same to everyone**, which is every page here, render from the content repository as it is now (`repositorySource()` in `lib/site.ts`, with `GOODFELLOW_GIT_TOKEN`) the first time they're visited, and the `VINEXT_KV_CACHE` namespace keeps them (vinext's `kvDataAdapter()` in `vite.config.ts`; Workers Cache would need no namespace, but nothing emulates it outside Cloudflare, so the tests couldn't check it). Each publish asks for every page to render again (`revalidatePath()` in `app/api/goodfellow/[...path]/route.ts`), since a change to the header, menus, or a collection can reach any page. A page also renders again once it's an hour old (`revalidate`), so a scheduled time coming, what a page shows by today's date, and changes that reach the content repository another way, such as from Claude or a merged review, show within the hour. In `npm run dev`, pages read the files on this computer.
+- **Members-only pages render twice**, the same way: for everyone, where they're teasers, and for subscribers, which `proxy.ts` chooses between by a signed cookie (see [Subscribers](#subscribers)).
 - **What shows who's signed in** is filled in by the browser (`app/(site)/members/signed-in-as.tsx`), so the page around it stays static.
 - **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session in the database on every request, so a used reset link, a ban, or a removal takes effect at once, and sends everyone else to sign in before the page is served.
 
@@ -134,10 +143,12 @@ Every page is rendered once for each publish and served as it was, so a request 
 | `lib/db/dialect.ts` | The one place that knows the database: Cloudflare D1 where it's bound as `DB`, or Postgres at `DATABASE_URL`, through [node-postgres](https://node-postgres.com) |
 | `lib/db/migrations/` | The database's tables, a migration a file, each written once with Kysely's schema builder; `npm run migrations` writes each database's SQL into `migrations/` |
 | `lib/auth.ts` | Sign-in with [Better Auth](https://www.better-auth.com): email addresses and passwords, no sign-up, a limit on tries, and two roles, `admin` (the site's owners) and `editor` |
+| `lib/entitlements.ts` | What each person is entitled to, such as a subscription: the one file that reads the `entitlement` table |
+| `lib/paywall.ts`, `blocks/paywall.tsx` | Which version of a page each request gets, by a signed cookie, and the Paywall block, where a page for members stops for everyone else |
 | `lib/db/new-admin.ts`, `scripts/new-admin.ts` | `npm run new-admin`, which makes an admin with Better Auth itself |
 | `app/api/auth/[...all]/route.ts` | Better Auth's routes |
 | `app/api/goodfellow/[...path]/route.ts` | The admin panel's API, which publishes to the content repository with `GOODFELLOW_GIT_TOKEN` |
 | `app/sign-in/`, `app/sign-out/`, `lib/sign-out.ts` | Signing in and out |
-| `app/(site)/members/` and `proxy.ts` | A page of the site's own, for people who are signed in |
+| `app/(site)/members/` and `proxy.ts` | A page of the site's own, for people who are signed in, and the members' versions of pages (`members/pages/`), which only `proxy.ts` sends requests to |
 | `app/(site)/[[...path]]/page.tsx` | Every page in `content/` |
 | `app/admin/page.tsx` | The admin panel, which signs in with the site's own accounts |

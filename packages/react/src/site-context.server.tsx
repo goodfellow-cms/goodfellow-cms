@@ -1,4 +1,5 @@
 import { cache, type ReactNode } from "react";
+import { browserSite } from "./browser-site.js";
 // A Client Component module ("use client"): Next.js passes the site to the browser for client components in blocks.
 import { SiteProvider as ClientSiteProvider } from "./site-context.js";
 import type { SiteContextValue } from "./site-types.js";
@@ -13,11 +14,13 @@ const current = cache((): { value: SiteContextValue | null } => ({ value: null }
 
 /**
  * Makes the site available to blocks rendered as Server Components, and to
- * the Client Components inside them, which get it through React context.
+ * the Client Components inside them, which get it through React context,
+ * without what's for members only (`browserSite()`), since Next.js sends it
+ * to the browser.
  */
 export function SiteProvider({ value, children }: { value: SiteContextValue; children: ReactNode }) {
   current().value = value;
-  return <ClientSiteProvider value={value}>{children}</ClientSiteProvider>;
+  return <ClientSiteProvider value={browserSite(value)}>{children}</ClientSiteProvider>;
 }
 
 /**
