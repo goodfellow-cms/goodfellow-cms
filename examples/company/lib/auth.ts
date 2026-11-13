@@ -1,4 +1,5 @@
-// The site's own sign-in: Better Auth, with email addresses and passwords, and two roles. Better Auth is given the
+// The site's own sign-in: Better Auth, with email addresses and passwords, and three roles: the site's admins and
+// editors, whom an admin invites, and its readers, who sign up themselves to subscribe (lib/sign-up.ts). Better Auth is given the
 // database's dialect (lib/db/dialect.ts), never a driver, so this file is the same on every host.
 import type { AppEditor } from "@goodfellow-cms/core";
 import { type BetterAuthOptions, type BetterAuthPlugin, betterAuth, type Where } from "better-auth";
@@ -12,6 +13,7 @@ import { dialectFor } from "./db/dialect.ts";
 import { canSendEmail, EmailNotSetUp, EmailRefused, passwordResetEmail, sendEmail } from "./email.ts";
 import { entitlements } from "./entitlements.ts";
 import { env, inBackground, type SiteEnv } from "./env.ts";
+import { MEMBER_ROLE } from "./roles.ts";
 
 /**
  * How long the browser's own copy of a session (the "signed in as" line on members' pages) is read from its signed
@@ -42,6 +44,29 @@ export const RESET_LIMIT = { window: 60 * 60, max: 5 };
  * address's limit can't stop people at several addresses filling someone's inbox.
  */
 export const RESET_ACCOUNT_LIMIT = { window: 60 * 60, max: 3 };
+
+/** How many times one network address may sign up, and in how many seconds (lib/sign-up.ts). */
+export const SIGN_UP_LIMIT = { window: 60 * 60, max: 5 };
+
+/**
+ * How many emails one reader's account may be sent to choose its password, and in how many seconds, however many
+ * times anyone signs up with its address: as with resets, the network address's limit can't stop people at several
+ * addresses filling someone's inbox.
+ */
+export const VERIFY_ACCOUNT_LIMIT = RESET_ACCOUNT_LIMIT;
+
+/** How long the link a reader who signed up chooses their password with works, in hours. */
+export const VERIFY_HOURS = 24;
+
+export { MEMBER_ROLE } from "./roles.ts";
+
+/**
+ * Whether an account's role is a reader's: `MEMBER_ROLE`, or none, which is how every page that tells readers from
+ * editors reads an account made without one, so no account is something neither page can manage.
+ */
+export function isMemberRole(role: string | null | undefined): boolean {
+  return !role || role === MEMBER_ROLE;
+}
 
 /** How long a password reset's link works, in minutes. */
 export const RESET_MINUTES = 30;
@@ -99,10 +124,16 @@ export function canSendResets(siteEnv: SiteEnv): boolean {
 export const RESET_IDENTIFIER = "reset-password:";
 
 /**
- * The start of the identifier, and id, of a slot an account's reset email took (`takeResetSlot()`), kept for
+ * The start of the identifier, and id, of a slot an account's reset email took (`takeEmailSlot()`), kept for
  * `RESET_ACCOUNT_LIMIT`'s window apart from the links themselves, so retiring links doesn't free it.
  */
 export const RESET_SENT_IDENTIFIER = "reset-sent:";
+
+/** The same for the emails a reader who signed up chooses their password from (`VERIFY_ACCOUNT_LIMIT`). */
+export const VERIFY_SENT_IDENTIFIER = "verify-sent:";
+
+/** Where the slots of sign-ups from one network address are kept (`SIGN_UP_LIMIT`, lib/sign-up.ts). */
+export const SIGN_UP_FROM_IDENTIFIER = "sign-up-from:";
 
 /**
  * Makes every link that would let someone choose a password for this account stop working, but `keep`, the id of
@@ -207,33 +238,46 @@ export async function claimRow(
   }
 }
 
-/** A slot an account's reset email took (`takeResetSlot()`): its row's id, and what only its taker knows. */
-interface ResetSlot {
+/** A slot an account's email took (`takeEmailSlot()`): its row's id, and what only its taker knows. */
+export interface EmailSlot {
   id: string;
   holder: string;
 }
 
 /**
- * Takes one of the account's `RESET_ACCOUNT_LIMIT.max` slots for a reset email, each a row whose id says which slot
- * it is, kept for the limit's window, or `null` where none was free. Two requests can't take the same slot, so of
- * requests at the same moment exactly as many go ahead as there were free slots.
+ * Takes one of the account's `limit.max` slots for an email of the kind `prefix` names (`RESET_SENT_IDENTIFIER`, or
+ * `VERIFY_SENT_IDENTIFIER`), each a row whose id says which slot it is, kept for the limit's window, or `null` where
+ * none was free. Two requests can't take the same slot, so of requests at the same moment exactly as many go ahead as
+ * there were free slots. Slots past their window go first, so they can be taken again.
  */
-async function takeResetSlot(adapter: RowAdapter, userId: string): Promise<ResetSlot | null> {
-  const expiresAt = new Date(Date.now() + RESET_ACCOUNT_LIMIT.window * 1000);
-  for (let slot = 1; slot <= RESET_ACCOUNT_LIMIT.max; slot++) {
-    const id = `${RESET_SENT_IDENTIFIER}${slot}:${userId}`;
+export async function takeEmailSlot(
+  adapter: RowAdapter & Pick<AuthContext["adapter"], "deleteMany">,
+  prefix: string,
+  userId: string,
+  limit: { window: number; max: number },
+): Promise<EmailSlot | null> {
+  await adapter.deleteMany({
+    model: "verification",
+    where: [
+      { field: "identifier", operator: "starts_with", value: prefix },
+      { field: "expiresAt", operator: "lt", value: new Date() },
+    ],
+  });
+  const expiresAt = new Date(Date.now() + limit.window * 1000);
+  for (let slot = 1; slot <= limit.max; slot++) {
+    const id = `${prefix}${slot}:${userId}`;
     const holder = generateRandomString(32);
-    const row = { id, identifier: `${RESET_SENT_IDENTIFIER}${userId}`, value: holder, expiresAt };
+    const row = { id, identifier: `${prefix}${userId}`, value: holder, expiresAt };
     if (await claimRow(adapter, row)) return { id, holder };
   }
   return null;
 }
 
 /**
- * Gives back the slot an email took (`takeResetSlot()`), for an email that wasn't sent: that slot only, and only while
+ * Gives back the slot an email took (`takeEmailSlot()`), for an email that wasn't sent: that slot only, and only while
  * it's still that email's, never one taken again since it ran out.
  */
-async function releaseResetSlot(adapter: Pick<AuthContext["adapter"], "deleteMany">, slot: ResetSlot) {
+export async function releaseEmailSlot(adapter: Pick<AuthContext["adapter"], "deleteMany">, slot: EmailSlot) {
   await adapter.deleteMany({
     model: "verification",
     where: [
@@ -256,7 +300,7 @@ function resetLinks(siteEnv: SiteEnv) {
   // Auth makes for each request and gives its before and after hooks alike, so no other request's can be let go.
   const holding = new WeakMap<object, { userId: string; holder: string }>();
   // The slot each request for a reset email took, by the request, which Better Auth hands its hooks and `sendReset`.
-  const reserved = new WeakMap<Request, ResetSlot>();
+  const reserved = new WeakMap<Request, EmailSlot>();
   type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
   const tokenOf = (ctx: HookContext) => {
     const token = ctx.body?.token || ctx.query?.token;
@@ -313,21 +357,14 @@ function resetLinks(siteEnv: SiteEnv) {
                 });
               }
               const { adapter, internalAdapter } = ctx.context;
-              const now = Date.now();
-              // Slots past their hour go, so they can be taken again.
-              await adapter.deleteMany({
-                model: "verification",
-                where: [
-                  { field: "identifier", operator: "starts_with", value: RESET_SENT_IDENTIFIER },
-                  { field: "expiresAt", operator: "lt", value: new Date(now) },
-                ],
-              });
               const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
               const user = email ? await internalAdapter.findUserByEmail(email) : null;
               // Someone who hasn't joined chooses a password with their invitation, never a reset email, so an
-              // account never has both kinds of link at once. The rest take a slot (`takeResetSlot()`). The answer
+              // account never has both kinds of link at once. The rest take a slot (`takeEmailSlot()`). The answer
               // is the same either way; how long it takes differs by a query or two, as Better Auth's own does.
-              const slot = user?.user.emailVerified ? await takeResetSlot(adapter, user.user.id) : null;
+              const slot = user?.user.emailVerified
+                ? await takeEmailSlot(adapter, RESET_SENT_IDENTIFIER, user.user.id, RESET_ACCOUNT_LIMIT)
+                : null;
               if (!slot) {
                 // Better Auth's own answer, so a visitor can't tell the account was limited, or exists.
                 return ctx.json({
@@ -358,7 +395,7 @@ function resetLinks(siteEnv: SiteEnv) {
       const slot = request && reserved.get(request);
       if (!context || !slot) return;
       reserved.delete(request);
-      await releaseResetSlot(context.adapter, slot);
+      await releaseEmailSlot(context.adapter, slot);
     },
     // A password chosen from a link: the account's other links go, and its address is shown to be its person's, since
     // the link reached it, which is what joining is (lib/editors.ts). Both while the lock is held.
@@ -369,6 +406,9 @@ function resetLinks(siteEnv: SiteEnv) {
     },
   };
 }
+
+/** The longest name an account may have, as invitations take (lib/editors.ts). */
+export const MAX_NAME_LENGTH = 100;
 
 /**
  * The paths of Better Auth's admin plugin, which only the server uses (lib/editors.ts, through `api`), never a
@@ -391,9 +431,9 @@ export function sessionSecret(siteEnv: SiteEnv): string {
 }
 
 /**
- * The site's sign-in settings, with its database: no sign-up, since an
- * admin invites people, and sessions cached in a signed cookie, which the
- * middleware reads without the database, so most requests read none.
+ * The site's sign-in settings, with its database: readers' accounts, which can't edit anything, and editors', whom an
+ * admin invites, each choosing a password from a link sent to their address; and sessions cached in a signed cookie,
+ * which the middleware reads without the database, so most requests read none.
  */
 export function authOptions(database: BetterAuthOptions["database"], siteEnv: SiteEnv) {
   const resets = resetLinks(siteEnv);
@@ -426,7 +466,12 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
     }),
     emailAndPassword: {
       enabled: true,
+      // Readers sign up through lib/sign-up.ts, which makes their accounts as invitations do, with a password nobody
+      // knows and a link to choose their own, so Better Auth's own sign-up, which takes a password before the address
+      // is confirmed, is off: whoever typed someone else's address could otherwise sign in once they'd confirmed it.
       disableSignUp: true,
+      // An account signs in only once a link has reached its address, which choosing a password from one shows.
+      requireEmailVerification: true,
       minPasswordLength: MIN_PASSWORD_LENGTH,
       // Invitations use the same links (lib/editors.ts), with a longer life of their own.
       sendResetPassword: sendReset(siteEnv, resets.releaseSlot),
@@ -434,8 +479,9 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       revokeSessionsOnPasswordReset: true,
       onPasswordReset: resets.onPasswordReset,
     },
-    // The server calls these through `api`, which `disabledPaths` doesn't hold; browsers get "Not Found".
-    disabledPaths: ADMIN_PATHS,
+    // The server calls these through `api`, which `disabledPaths` doesn't hold; browsers get "Not Found". Addresses
+    // are confirmed only by choosing a password from a link, never by Better Auth's own confirmation emails.
+    disabledPaths: [...ADMIN_PATHS, "/send-verification-email", "/verify-email"],
     // Always on: Better Auth turns it on by itself only where NODE_ENV is "production", which Workers don't set. Kept
     // in the database, so every copy of the Worker counts the same attempts.
     rateLimit: {
@@ -453,10 +499,15 @@ export function authOptions(database: BetterAuthOptions["database"], siteEnv: Si
       ...(siteEnv.CLIENT_IP_HEADER && { ipAddress: { ipAddressHeaders: [siteEnv.CLIENT_IP_HEADER] } }),
     },
     session: { cookieCache: { enabled: true, maxAge: SESSION_CACHE_SECONDS } },
-    // The site's two roles, so the admin plugin refuses any other: `admin`, the site's owners, and `editor`, which
-    // everyone else an admin invites is.
+    // The site's three roles, so the admin plugin refuses any other: `admin`, the site's owners; `editor`, which
+    // everyone else an admin invites is; and `member`, every account someone made themselves (`MEMBER_ROLE`), which
+    // is the default so that signing up never makes an editor. Invitations always name their role (lib/editors.ts).
     plugins: [
-      admin({ defaultRole: "editor", adminRoles: ["admin"], roles: { admin: adminAc, editor: userAc } }),
+      admin({
+        defaultRole: MEMBER_ROLE,
+        adminRoles: ["admin"],
+        roles: { admin: adminAc, editor: userAc, [MEMBER_ROLE]: userAc },
+      }),
       // A code from an authenticator app, or a backup code, after the password, for people who turn it on at
       // /account/, which admins must before they can act as owners (`authorizeWith()`). Better Auth limits tries
       // (`TWO_FACTOR_LIMIT`, and the account's codes are locked for a while after ten wrong ones) and keeps

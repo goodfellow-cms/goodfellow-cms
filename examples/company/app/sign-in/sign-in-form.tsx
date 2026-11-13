@@ -1,38 +1,26 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { authClient, TOO_MANY } from "@/lib/auth-client";
-
-/**
- * Where to go after signing in: `next` from the address, if it's on this site, or the home page. It's read as the
- * browser would read it, so spellings such as `/\other.example` that leave the site are refused.
- */
-function nextPath(): string {
-  const next = new URLSearchParams(location.search).get("next") ?? "/";
-  try {
-    const target = new URL(next, location.origin);
-    return target.origin === location.origin ? `${target.pathname}${target.search}${target.hash}` : "/";
-  } catch {
-    return "/";
-  }
-}
+import { nextPath } from "./next-path";
 
 export function SignInForm() {
   const [problem, setProblem] = useState<string>();
   const [busy, setBusy] = useState(false);
   // After the password, for someone who has turned on two-factor sign-in.
   const [code, setCode] = useState<"app" | "backup">();
+  // Signing up keeps where to go next, which only the browser knows, since the page is the same for everyone.
+  const [signUp, setSignUp] = useState("/sign-up/");
+  useEffect(() => setSignUp(`/sign-up/${location.search}`), []);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const email = String(form.get("email"));
     setBusy(true);
     setProblem(undefined);
     try {
-      const { data, error } = await authClient.signIn.email({
-        email: String(form.get("email")),
-        password: String(form.get("password")),
-      });
+      const { data, error } = await authClient.signIn.email({ email, password: String(form.get("password")) });
       if (error?.status === 429) return setProblem(TOO_MANY);
       if (error) return setProblem("That email address and password don't match an account here.");
       if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) return setCode("app");
@@ -122,6 +110,9 @@ export function SignInForm() {
       </button>
       <p>
         <a href="/reset-password/">Forgot your password?</a>
+      </p>
+      <p>
+        No account? <a href={signUp}>Sign up</a>
       </p>
     </form>
   );

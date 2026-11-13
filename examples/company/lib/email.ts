@@ -1,7 +1,7 @@
-// The one place the site sends email: invitations and password resets, through Upyo, which speaks to each email
-// service's HTTP API, since Workers can't open SMTP connections. Which service is a setting (`EMAIL_PROVIDER`), so the
-// site's owners can change it without its developers (README.md). Messages carry links that let someone into an
-// account, so nothing here logs a message or puts one in an error.
+// The one place the site sends email: invitations, password resets, and confirming new accounts' addresses, through
+// Upyo, which speaks to each email service's HTTP API, since Workers can't open SMTP connections. Which service is a
+// setting (`EMAIL_PROVIDER`), so the site's owners can change it without its developers (README.md). Messages carry
+// links that let someone into an account, so nothing here logs a message or puts one in an error.
 import { createMessage, parseAddress, type Receipt, type Transport } from "@upyo/core";
 import type { SiteEnv } from "./env.ts";
 
@@ -275,5 +275,22 @@ export function passwordResetEmail(options: {
     "Choose a new password",
     options.link,
     `The link works once, for ${options.minutes} minutes. If it wasn't you, ignore this message: your password stays as it is.`,
+  );
+}
+
+/**
+ * The message that lets someone who signed up choose their password, which confirms the address is theirs. Anyone
+ * can sign up with any address, so it says nothing they typed, not even their name: a stranger can't use it to send
+ * someone words of their own.
+ */
+export function signUpEmail(options: { to: string; siteUrl: string; link: string; hours: number }): Email {
+  const site = siteName(options.siteUrl);
+  return linkEmail(
+    options.to,
+    `Choose your password for ${site}`,
+    ["Hello,", `Choose a password for the account you asked for at ${site}, which confirms this address is yours:`],
+    "Choose my password",
+    options.link,
+    `The link works for ${options.hours} hours. If you didn't sign up, ignore this message: nobody can sign in with this address until a password is chosen from it.`,
   );
 }

@@ -268,6 +268,90 @@ async function emailedLink(to: string, path: string): Promise<string> {
   return found ?? "";
 }
 
+test("lets readers sign up, and admins give them a subscription by hand and take it away", async ({ page }) => {
+  // The database lasts the whole run, so each run signs someone new up.
+  const email = `rita-${Date.now()}@example.org`;
+  const password = "rita's long password";
+  const membersOnly = "Replace this with what only subscribers read.";
+  const paywall = "The rest is for subscribers";
+  signIns += 1;
+  await page.setExtraHTTPHeaders({ "cf-connecting-ip": `198.51.100.${signIns % 250}` });
+
+  // From the paywall, to signing up, keeping the page to come back to.
+  await page.goto(`${SITE}/handbook/`);
+  await page.getByRole("link", { name: "Already subscribed? Sign in" }).click();
+  await page.getByRole("link", { name: "Sign up" }).click();
+  await expect(page).toHaveURL(`${SITE}/sign-up/?next=%2Fhandbook`);
+  await page.getByLabel("Your name").fill("Rita Reader");
+  await page.getByLabel("Email address").fill(email);
+  await page.getByRole("button", { name: "Sign up" }).click();
+  await expect(page.getByRole("status")).toContainText(`We've sent a link to ${email}`);
+
+  const readerSignIn = async () => {
+    await page.goto(`${SITE}/sign-in/?next=${encodeURIComponent("/handbook/")}`);
+    await page.getByLabel("Email address").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+  };
+  // Nobody can sign in with the address until a password is chosen from the link sent to it.
+  await readerSignIn();
+  await expect(page.getByRole("alert")).toContainText("don't match an account here");
+
+  // The link chooses the password, then signing in goes back to the page, which is still the teaser.
+  const choosing = await emailedLink(email, "/accept-invite/");
+  expect(new URL(choosing).origin).toBe(SITE);
+  await page.goto(choosing);
+  await expect(page.getByRole("heading", { name: "Choose your password" })).toBeVisible();
+  await page.getByLabel("New password").fill(password);
+  await page.getByLabel("The same password again").fill(password);
+  await page.getByRole("button", { name: "Set my password" }).click();
+  await expect(page.getByText("Your password is set.")).toBeVisible();
+  await page.getByRole("link", { name: "Sign in" }).click();
+  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(`${SITE}/handbook/`);
+  await expect(page.getByRole("heading", { name: paywall })).toBeVisible();
+  await expect(page.getByText(membersOnly)).toHaveCount(0);
+  // A reader can't edit, or see who can.
+  expect((await page.request.get(`${SITE}/api/editors/`)).status()).toBe(403);
+  await page.goto(`${SITE}/sign-out/`);
+  await page.getByRole("button", { name: "Sign out" }).click();
+
+  // An admin gives them a subscription; the editors page never lists them.
+  await signIn(page, "admin", "/admin/editors/");
+  await expect(page.getByRole("cell", { name: COMPANY_PEOPLE.editor.email })).toBeVisible();
+  await expect(page.getByRole("cell", { name: email })).toHaveCount(0);
+  await page.goto(`${SITE}/admin/subscribers/`);
+  await expect(page.getByRole("row", { name: new RegExp(email) })).toContainText("None");
+  await page.getByLabel("Their account's email address").fill(email);
+  await page.getByRole("button", { name: "Give the subscription" }).click();
+  await expect(page.getByRole("status")).toHaveText(`${email} subscribes now.`);
+  await expect(page.getByRole("row", { name: new RegExp(email) })).toContainText("Given, with no end");
+  await page.goto(`${SITE}/sign-out/`);
+  await page.getByRole("button", { name: "Sign out" }).click();
+
+  // Now the whole page.
+  await readerSignIn();
+  await expect(page).toHaveURL(`${SITE}/handbook/`);
+  await expect(page.getByText(membersOnly)).toBeVisible();
+  await page.goto(`${SITE}/sign-out/`);
+  await page.getByRole("button", { name: "Sign out" }).click();
+
+  // Taken away, it's the teaser again, from their next sign-in.
+  await signIn(page, "admin", "/admin/subscribers/");
+  await page
+    .getByRole("row", { name: new RegExp(email) })
+    .getByRole("button", { name: "Take away the subscription you gave" })
+    .click();
+  await expect(page.getByRole("status")).toContainText("has been taken away");
+  await page.goto(`${SITE}/sign-out/`);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await readerSignIn();
+  await expect(page).toHaveURL(`${SITE}/handbook/`);
+  await expect(page.getByRole("heading", { name: paywall })).toBeVisible();
+});
+
 test("lets admins invite editors, who choose a password, and lets anyone choose a new one", async ({ page }) => {
   // The database lasts the whole run, so each run invites someone new.
   const email = `ivy-${Date.now()}@example.org`;
@@ -354,7 +438,7 @@ test("keeps Better Auth's admin routes from the browser", async ({ page }) => {
   expect(statuses).toEqual([404, 404]);
 });
 
-test("keeps the editors page to the site's admins", async ({ page }) => {
+test("keeps the editors and subscribers pages to the site's admins", async ({ page }) => {
   await signIn(page, "editor");
   const answers = await page.evaluate(async () => {
     const list = await fetch("/api/editors/");
@@ -363,7 +447,13 @@ test("keeps the editors page to the site's admins", async ({ page }) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: "mallory@example.org", name: "Mallory", role: "admin" }),
     });
-    return [list.status, invite.status];
+    const readers = await fetch("/api/subscribers/");
+    const give = await fetch("/api/subscribers/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "mallory@example.org" }),
+    });
+    return [list.status, invite.status, readers.status, give.status];
   });
-  expect(answers).toEqual([403, 403]);
+  expect(answers).toEqual([403, 403, 403, 403]);
 });
