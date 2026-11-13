@@ -16,7 +16,7 @@ export const PAYWALL_DEFAULTS: PaywallProps = {
   text: "Subscribe to read the whole page.",
   subscribeLabel: "Subscribe",
   subscribeHref: "",
-  signInLabel: "Already subscribe? Sign in",
+  signInLabel: "Already subscribed? Sign in",
   className: "",
 };
 
