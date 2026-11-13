@@ -86,7 +86,8 @@ const stripe = fakeStripe({
 async function sendEvents(events) {
   for (const event of events) {
     const { body, signature } = signEvent("whsec_company_test", event);
-    const answer = await fetch(`http://localhost:${COMPANY.port}/api/stripe/webhook/`, {
+    // The address the site listens on (below), whichever of IPv4 and IPv6 `localhost` names here.
+    const answer = await fetch(`http://127.0.0.1:${COMPANY.port}/api/stripe/webhook/`, {
       method: "POST",
       headers: { "content-type": "application/json", "stripe-signature": signature },
       body,
@@ -105,7 +106,13 @@ serve(COMPANY.stripe, async (request) => {
     if (!action)
       return page("Stripe Checkout", `<form method="post" action="/checkout/${id}/pay"><button>Pay</button></form>`);
     if (action !== "pay" || request.method !== "POST") return new Response(null, { status: 404 });
-    await sendEvents(stripe.pay(id));
+    try {
+      await sendEvents(stripe.pay(id));
+    } catch (error) {
+      // Said here, as Stripe would show it on its dashboard, rather than ending the fakes the other tests use.
+      console.error(`Stripe's events didn't reach the site: ${error}`);
+      return new Response("The site didn't answer.", { status: 502 });
+    }
     return new Response(null, {
       status: 303,
       headers: { location: session.success_url.replace("{CHECKOUT_SESSION_ID}", id) },
@@ -114,7 +121,12 @@ serve(COMPANY.stripe, async (request) => {
   if (place === "portal") return page("Stripe customer portal", "<h1>Your subscription</h1>");
   if (place === "__subscriptions") return Response.json([...stripe.subscriptions.values()]);
   if (place === "__cancel" && request.method === "POST") {
-    await sendEvents([stripe.cancel(url.searchParams.get("subscription") ?? "")]);
+    try {
+      await sendEvents([stripe.cancel(url.searchParams.get("subscription") ?? "")]);
+    } catch (error) {
+      console.error(`Stripe's events didn't reach the site: ${error}`);
+      return new Response("The site didn't answer.", { status: 502 });
+    }
     return new Response(null, { status: 204 });
   }
   return stripe.handle(request);
@@ -195,10 +207,11 @@ rows.push(
 );
 run("wrangler", ["d1", "execute", "goodfellow-company", "--local", "--command", rows.join(" ")]);
 
-// The built Worker in workerd, with the local database and what .dev.vars says.
+// The built Worker in workerd, with the local database and what .dev.vars says, on 127.0.0.1, where the fake
+// Stripe sends its events: left to `localhost`, it listens on whichever of IPv4 and IPv6 the computer names first.
 const server = spawn(
   process.execPath,
-  [bin("vite"), "preview", "--port", String(process.argv[2] ?? COMPANY.port), "--strictPort"],
+  [bin("vite"), "preview", "--host", "127.0.0.1", "--port", String(process.argv[2] ?? COMPANY.port), "--strictPort"],
   { cwd: companySite, stdio: "inherit" },
 );
 server.on("exit", (code) => process.exit(code ?? 0));
