@@ -16,6 +16,7 @@ import {
   type PackageFetch,
   type PluginPackage,
   planBroker,
+  planServerSite,
   planSite,
   pluginReleases,
   RELEASE_AGE_DAYS,
@@ -230,6 +231,54 @@ export async function scaffold({
   }
   // So `npm run dev` reads and saves the content repository's own files.
   if (content) await setUpContentRepository(target);
+}
+
+export interface ServerScaffoldOptions {
+  /** The company example: create-goodfellow's bundled `templates/company/`. */
+  template: string;
+  /** The new site's folder. It must be empty or not exist yet. */
+  target: string;
+  /** Versions of Goodfellow's packages, by name, to replace the template's workspace links. */
+  versions: Record<string, string>;
+  /** The code's GitHub repository, such as `your-name/your-site`. */
+  code?: string;
+  /** The content's GitHub repository, such as `your-name/your-site-content`. */
+  content?: string;
+  /** The site's address, such as `https://www.example.org`. */
+  siteUrl?: string;
+}
+
+/**
+ * Creates a full-stack site in `target` from the company example (`planServerSite()`): a Cloudflare Worker with a
+ * D1 database, whose content is in `content-repository/`, a repository of its own that `content/` and
+ * `public/media/` link to.
+ */
+export async function scaffoldServer({
+  template,
+  target,
+  versions,
+  code,
+  content,
+  siteUrl,
+}: ServerScaffoldOptions): Promise<void> {
+  if (!(await isEmptyFolder(target))) {
+    throw new ScaffoldError(`The folder ${target} already has files in it. Choose a new folder for the site.`);
+  }
+  const files = planServerSite({
+    template: await readTemplate(template),
+    name: packageName(target),
+    versions,
+    ...(code && { code }),
+    ...(content && { content }),
+    ...(siteUrl && { siteUrl }),
+  });
+  await mkdir(target, { recursive: true });
+  for (const [path, file] of files) {
+    await mkdir(dirname(join(target, path)), { recursive: true });
+    await writeFile(join(target, path), file);
+  }
+  // So `npm run dev` reads and saves the content repository's own files.
+  await setUpContentRepository(target);
 }
 
 export interface BrokerScaffoldOptions {

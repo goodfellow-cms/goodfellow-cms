@@ -19,6 +19,8 @@ export {
   type ScaffoldOptions,
   scaffold,
   scaffoldBroker,
+  scaffoldServer,
+  type ServerScaffoldOptions,
   sitePackageJson,
   TEMPLATES,
   type TemplateName,

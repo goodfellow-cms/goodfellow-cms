@@ -891,6 +891,9 @@ importers:
       '@goodfellow-cms/broker':
         specifier: workspace:*
         version: link:../broker
+      '@goodfellow-cms/example-company':
+        specifier: workspace:*
+        version: link:../../examples/company
       '@goodfellow-cms/example-parish':
         specifier: workspace:*
         version: link:../../examples/parish

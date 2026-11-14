@@ -19,6 +19,7 @@ import {
   ScaffoldError,
   scaffold,
   scaffoldBroker,
+  scaffoldServer,
   sitePackageJson,
 } from "./scaffold.js";
 
@@ -26,6 +27,7 @@ const repo = resolve(import.meta.dirname, "../../..");
 const starter = join(repo, "templates/starter");
 const parish = join(repo, "examples/parish");
 const next = join(repo, "templates/next");
+const company = join(repo, "examples/company");
 
 const versions = {
   "@goodfellow-cms/admin": "1.2.3",
@@ -34,6 +36,7 @@ const versions = {
   "@goodfellow-cms/core": "1.2.3",
   "@goodfellow-cms/github": "1.2.3",
   "@goodfellow-cms/gitlab": "1.2.3",
+  "@goodfellow-cms/next": "1.2.3",
   "@goodfellow-cms/react": "1.2.3",
   goodfellow: "1.2.3",
 };
@@ -435,5 +438,22 @@ describe("helpers", () => {
     expect(sitePackageJson(source, "site", { goodfellow: "2.0.0" })).toBe(
       '{\n  "name": "site",\n  "private": true,\n  "dependencies": {\n    "goodfellow": "^2.0.0"\n  },\n  "overrides": {\n    "@puckeditor/core": {\n      "happy-dom": "^21.0.4"\n    },\n    "cacache": {\n      "glob": "^14.0.2"\n    },\n    "@tufjs/models": {\n      "minimatch": "^11.0.1"\n    }\n  }\n}\n',
     );
+  });
+});
+
+describe("scaffoldServer", { timeout: GIT_TIMEOUT }, () => {
+  it("makes a full-stack site from the company example, with its content in a repository of its own", async () => {
+    const target = join(dir, "Acme Works");
+    await scaffoldServer({ template: company, target, versions, code: "acme/site", content: "acme/site-content" });
+    const read = (path: string) => readFile(join(target, path), "utf8");
+    expect(JSON.parse(await read("package.json")).name).toBe("acme-works");
+    expect(await read("wrangler.jsonc")).toContain('"name": "acme-works"');
+    expect(await read("goodfellow.config.tsx")).toContain('repo: "acme/site-content"');
+    // content/ and public/media/ are the content repository's, linked, so the dev server reads and saves them there.
+    expect((await lstat(join(target, "content"))).isSymbolicLink()).toBe(true);
+    expect(existsSync(join(target, "content-repository/content/pages/index.json"))).toBe(true);
+    expect(existsSync(join(target, "content/pages/index.json"))).toBe(true);
+    expect(await read("content-repository/.github/workflows/deploy-site.yml")).toContain("--repo acme/site");
+    await expect(scaffoldServer({ template: company, target, versions })).rejects.toThrow(ScaffoldError);
   });
 });

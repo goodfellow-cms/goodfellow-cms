@@ -1,6 +1,8 @@
-// Copies the starter and the examples into templates/, with the version of every
+// Copies the starter and the examples into templates/ (the company example for full-stack sites), with the version of every
 // Goodfellow package, so the published create-goodfellow has everything it copies.
-import { cpSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { copyTemplate } from "../dist/index.js";
@@ -14,6 +16,23 @@ const sources = { starter: "templates/starter", parish: "examples/parish", next:
 rmSync(out, { recursive: true, force: true });
 for (const [name, source] of Object.entries(sources)) {
   await copyTemplate(join(repo, source), join(out, name), { bundling: true });
+}
+
+// The company example, for full-stack sites (--server cloudflare): only the files git keeps, since its build writes
+// files into its folder that .gitignore leaves out, and a developer's copy holds secrets (.dev.vars, .env.local).
+const tracked = mkdtempSync(join(tmpdir(), "goodfellow-company-"));
+try {
+  const paths = execFileSync("git", ["ls-files", "-z", "--", "examples/company"], { cwd: repo, encoding: "utf8" })
+    .split("\0")
+    .filter(Boolean);
+  for (const path of paths) {
+    const to = join(tracked, path.slice("examples/company/".length));
+    mkdirSync(dirname(to), { recursive: true });
+    cpSync(join(repo, path), to);
+  }
+  await copyTemplate(tracked, join(out, "company"), { bundling: true });
+} finally {
+  rmSync(tracked, { recursive: true, force: true });
 }
 
 // The block registry, so new sites can start with the recommended blocks without downloading them.
