@@ -513,6 +513,40 @@ describe("keptCollectionSources", () => {
   });
 });
 
+describe("sources made before one that can't be", () => {
+  it("are closed, as nothing gets them, leaving the ones in use before as they were", async () => {
+    const closed: string[] = [];
+    const made = (name: string) => ({
+      default: (): CollectionSource => ({
+        items: async () => [],
+        close: () => {
+          closed.push(name);
+        },
+      }),
+    });
+    const failing = {
+      default: (): CollectionSource => {
+        throw new Error("NEWS_DATABASE_URL isn't set");
+      },
+    };
+    const config = { jobs: { source: "./lib/jobs.ts" }, news: { source: "./lib/news.ts" } };
+    expect(() => collectionSources(config, { jobs: made("once"), news: failing })).toThrow("NEWS_DATABASE_URL");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(closed).toEqual(["once"]);
+    // Kept: the source in use stays open and is given again; the one made for new options is closed.
+    const jobs = made("kept");
+    const site = "/sites/failing";
+    const first = keptCollectionSources({ jobs: config.jobs }, { jobs }, site).jobs;
+    const changed = { jobs: { ...config.jobs, options: { table: "roles" } }, news: config.news };
+    expect(() => keptCollectionSources(changed, { jobs, news: failing }, site)).toThrow("NEWS_DATABASE_URL");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(closed).toEqual(["once", "kept"]);
+    expect(keptCollectionSources({ jobs: config.jobs }, { jobs }, site).jobs).toBe(first);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(closed).toEqual(["once", "kept"]);
+  });
+});
+
 describe("closeSources", () => {
   it("closes every source, warning about one that fails, and never gives out one it closed", async () => {
     const closed: string[] = [];

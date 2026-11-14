@@ -6,7 +6,7 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -226,12 +226,30 @@ export async function loadSourceModule(
   // A file in the site's own packages' folder, so Node finds the package from the site, named by the package's name.
   const dir = join(root, "node_modules/.goodfellow");
   const file = join(dir, `source-${createHash("sha256").update(path).digest("hex").slice(0, 16)}.mjs`);
-  if (!existsSync(file)) {
-    await mkdir(dir, { recursive: true });
-    await writeFile(file, `export * as module from ${JSON.stringify(path)};\n`);
+  // Shared while it's written and imported, so collections naming the same package write it once; written to a file
+  // of its own first and moved into place, so another process importing it never reads it half written.
+  let wrapper = wrappers.get(file);
+  if (!wrapper) {
+    wrapper = (async () => {
+      if (!existsSync(file)) {
+        await mkdir(dir, { recursive: true });
+        const written = `${file}.${process.pid}-${randomUUID()}.tmp`;
+        await writeFile(written, `export * as module from ${JSON.stringify(path)};\n`);
+        await rename(written, file);
+      }
+      return ((await import(pathToFileURL(file).href)) as { module: Record<string, unknown> }).module;
+    })();
+    wrappers.set(file, wrapper);
+    // One that fails is tried again next time.
+    wrapper.catch(() => {
+      if (wrappers.get(file) === wrapper) wrappers.delete(file);
+    });
   }
-  return ((await import(pathToFileURL(file).href)) as { module: Record<string, unknown> }).module;
+  return wrapper;
 }
+
+/** `loadSourceModule()`'s package imports, by the file that names each. */
+const wrappers = new Map<string, Promise<Record<string, unknown>>>();
 
 const sourcedIds = new Map<string, Promise<string[]>>();
 

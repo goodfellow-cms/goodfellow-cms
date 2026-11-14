@@ -152,7 +152,13 @@ export function collectionSources(
 ): CollectionSources {
   checkSourceModules(collections, modules);
   const sources: CollectionSources = {};
-  for (const [id, config] of Object.entries(collections ?? {})) sources[id] = madeSource(id, config, modules);
+  try {
+    for (const [id, config] of Object.entries(collections ?? {})) sources[id] = madeSource(id, config, modules);
+  } catch (error) {
+    // Nothing gets the ones made before it, so they're closed here, or a pool among them would keep a command running.
+    for (const [id, source] of Object.entries(sources)) closeReplaced(id, source);
+    throw error;
+  }
   return sources;
 }
 
@@ -214,26 +220,47 @@ export function keptCollectionSources(
 ): CollectionSources {
   checkSourceModules(collections, modules);
   const sources: CollectionSources = {};
-  for (const [id, config] of Object.entries(collections ?? {})) {
-    // Checked above: the module given for the collection, its own property.
-    const module = modules[id] as SourceModuleImport;
-    const options = JSON.stringify(config.options ?? {});
-    let made = kept.get(module);
-    if (!made) {
-      made = new Map();
-      kept.set(module, made);
+  // Each collection's source, made where it must be; the ones made before stay in use until every one is made.
+  const chosen: { id: string; key: string; source: CollectionSource }[] = [];
+  type Made = { options: string; source: CollectionSource };
+  const fresh: { id: string; key: string; made: Map<string, Made>; before: Made | undefined }[] = [];
+  try {
+    for (const [id, config] of Object.entries(collections ?? {})) {
+      // Checked above: the module given for the collection, its own property.
+      const module = modules[id] as SourceModuleImport;
+      const options = JSON.stringify(config.options ?? {});
+      let made = kept.get(module);
+      if (!made) {
+        made = new Map();
+        kept.set(module, made);
+      }
+      const key = `${site}\0${id}`;
+      let latest = made.get(key);
+      // Made again for new options, and where the one kept was closed, as when the module changed and changed back.
+      if (latest?.options !== options || closed.has(latest.source)) {
+        const before = latest;
+        latest = { options, source: madeSource(id, config, modules) };
+        made.set(key, latest);
+        fresh.push({ id, key, made, before });
+      }
+      chosen.push({ id, key, source: latest.source });
     }
-    const key = `${site}\0${id}`;
-    let latest = made.get(key);
-    // Made again for new options, and where the one kept was closed, as when the module changed and changed back.
-    if (latest?.options !== options || closed.has(latest.source)) {
-      latest = { options, source: madeSource(id, config, modules) };
-      made.set(key, latest);
+  } catch (error) {
+    // Nothing gets the ones this call made, so they're closed and forgotten, or a pool among them would keep a command
+    // running; the ones in use before stay as they were.
+    for (const { id, key, made, before } of fresh) {
+      const entry = made.get(key);
+      if (entry) closeReplaced(id, entry.source);
+      if (before) made.set(key, before);
+      else made.delete(key);
     }
+    throw error;
+  }
+  for (const { id, key, source } of chosen) {
     const before = current.get(key);
-    if (before && before !== latest.source) closeReplaced(id, before);
-    current.set(key, latest.source);
-    sources[id] = latest.source;
+    if (before && before !== source) closeReplaced(id, before);
+    current.set(key, source);
+    sources[id] = source;
   }
   return sources;
 }

@@ -285,7 +285,15 @@ describe("collections' sources in an export", () => {
         "node_modules/goodfellow-plugin-talks/source.js",
         'export default () => ({ items: async () => [{ slug: "keynote", fields: { title: "Keynote" } }] });\n',
       );
-      const talks = await loadSourceModule(site, "goodfellow-plugin-talks/source");
+      // Two collections naming the same package at once share one write and one import.
+      const [talks, again] = await Promise.all([
+        loadSourceModule(site, "goodfellow-plugin-talks/source"),
+        loadSourceModule(site, "goodfellow-plugin-talks/source"),
+      ]);
+      expect(again).toBe(talks);
+      expect((await readdir(join(site, "node_modules/.goodfellow"))).filter((name) => name.endsWith(".tmp"))).toEqual(
+        [],
+      );
       expect(await (talks.default as () => { items: () => Promise<unknown[]> })().items()).toEqual([
         { slug: "keynote", fields: { title: "Keynote" } },
       ]);

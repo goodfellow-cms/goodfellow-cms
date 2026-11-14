@@ -356,7 +356,7 @@ describe("changing a site", () => {
       description: { ...describeSite({ blocks }), collections: { news: { source: "./lib/news.ts" } } },
     });
     expect((await call("get_site")).json().collections).toEqual([
-      { id: "news", entries: 0 },
+      { id: "news", itemsFrom: expect.stringContaining("./lib/news.ts") },
       { id: "staff", entries: 1 },
     ]);
     const collection = (await call("get_collection", { collection: "news" })).json();

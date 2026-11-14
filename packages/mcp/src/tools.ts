@@ -380,6 +380,11 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
    * Refuses an address one of a sourced collection's items could have, for a new or moved page or item: the tools
    * don't know which items there are, and the site would show only one of the two.
    */
+  /** Where a sourced collection's items come from, for `get_site` and `get_collection` to say. */
+  function itemsFrom(site: OpenedSite, id: string): string {
+    return `Another system, through ${site.description.collections?.[id]?.source} in the site's code: its items aren't listed or changed here.`;
+  }
+
   async function refuseSourcedAddress(site: OpenedSite, source: ContentSource, path: string) {
     const ids = sourcedOf(site);
     if (ids.length === 0) return;
@@ -578,7 +583,12 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         // Screenshots can show it both ways.
         ...(site.settings.theme.darkMode && { darkMode: true }),
         pages: pages.map((page) => page.address),
-        collections: collections.map((collection) => ({ id: collection.id, entries: collection.entries.length })),
+        // A sourced collection's items aren't the site's files, so it says where they come from, not a count of none.
+        collections: collections.map((collection) =>
+          Object.hasOwn(site.description.collections ?? {}, collection.id)
+            ? { id: collection.id, itemsFrom: itemsFrom(site, collection.id) }
+            : { id: collection.id, entries: collection.entries.length },
+        ),
         menus: Object.keys(menus.menus),
         ...(hasLanguages(site.settings) && {
           languages: siteLanguages(site.settings).map((language) => ({
@@ -914,7 +924,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         ...(settings.path !== undefined && { address: settings.path }),
         ...(settings.markdown && { markdownField: settings.markdown.body }),
         ...(Object.hasOwn(site.description.collections ?? {}, id) && {
-          itemsFrom: `Another system, through ${site.description.collections?.[id]?.source} in the site's code: its items aren't listed or changed here.`,
+          itemsFrom: itemsFrom(site, id),
         }),
         fields: settings.fields,
         items: collection.entries.map((entry) => ({
