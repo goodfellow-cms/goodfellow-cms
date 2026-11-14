@@ -59,7 +59,7 @@ export async function checkPrices(stripe: Stripe, prices: Iterable<string>): Pro
   for (let start = 0; start < ids.length; start += PRICE_CHECKS_AT_ONCE) {
     const batch = ids.slice(start, start + PRICE_CHECKS_AT_ONCE);
     const checked = await Promise.all(batch.map((id) => checkPrice(stripe, id)));
-    batch.forEach((id, index) => checks.set(id, checked[index] as PriceCheck));
+    for (const [index, id] of batch.entries()) checks.set(id, checked[index] as PriceCheck);
   }
   return checks;
 }

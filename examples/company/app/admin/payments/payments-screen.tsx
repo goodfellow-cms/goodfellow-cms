@@ -26,6 +26,20 @@ const SETTINGS: { key: keyof PaymentsOverview["setUp"]; name: string; where: str
   },
 ];
 
+/**
+ * Each button with a key of its own: where it is, numbered where that's the same as another's, since a synced block
+ * placed twice gives two buttons one id on one page.
+ */
+function rowKeys(buttons: ListedButton[]): [ListedButton, string][] {
+  const seen = new Map<string, number>();
+  return buttons.map((button) => {
+    const place = `${button.part}:${button.page}:${button.block}`;
+    const count = (seen.get(place) ?? 0) + 1;
+    seen.set(place, count);
+    return [button, count === 1 ? place : `${place}#${count}`];
+  });
+}
+
 /** Where a button is, in words. */
 function placeWords(button: ListedButton): string {
   if (button.part === "page") return button.page;
@@ -90,11 +104,10 @@ export function PaymentsScreen() {
               </tr>
             </thead>
             <tbody>
-              {overview.buttons.map((button, index) => {
+              {rowKeys(overview.buttons).map(([button, key]) => {
                 const { words, problem: wrong } = checkWords(button.check);
                 return (
-                  // With its place in the list too, since a synced block placed twice gives two buttons one id.
-                  <tr key={`${index}:${button.part}:${button.page}:${button.block}`}>
+                  <tr key={key}>
                     <td>{placeWords(button)}</td>
                     <td>{button.label || "Subscribe"}</td>
                     <td>
