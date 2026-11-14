@@ -75,6 +75,27 @@ describe("planServerSite", () => {
     if (media) expect(files.get(media)).toBeInstanceOf(Uint8Array);
   });
 
+  it("gives the files npm leaves out of packages their own names back, keeping what they say", () => {
+    const template = companyFiles();
+    // As create-goodfellow's bundled copy has them.
+    for (const [own, bundled] of [
+      [".gitignore", "_gitignore"],
+      [".npmrc", "_npmrc"],
+    ]) {
+      template.set(bundled as string, template.get(own as string) as Uint8Array);
+      template.delete(own as string);
+    }
+    const files = planServerSite({ template, name: "acme", versions });
+    expect(files.has("_gitignore")).toBe(false);
+    expect(files.has("_npmrc")).toBe(false);
+    const gitignore = siteFileText(files.get(".gitignore") ?? "");
+    // The secrets a developer's copy holds stay out of its repository, and the content's folder too.
+    expect(gitignore).toContain(".dev.vars*");
+    expect(gitignore).toContain("node_modules/");
+    expect(gitignore).toContain("/content-repository/");
+    expect(siteFileText(files.get(".npmrc") ?? "")).toContain("ignore-scripts=true");
+  });
+
   it("gives names Cloudflare takes", () => {
     expect(workerName("My Site")).toBe("my-site");
     expect(workerName("site.example_org")).toBe("site-example-org");

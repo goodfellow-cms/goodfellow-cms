@@ -14,6 +14,8 @@ Goodfellow sites are static files by default, and nothing on this page is needed
 
 The site is still rebuilt when something is published, as hosts that run Next.js do on every change to the repository. `next dev` still saves to the files on disk.
 
+To start such a site on Cloudflare with one command, with sign-in, a database, and invitations already built, see [Full-stack sites on Cloudflare](/docs/full-stack-cloudflare). This page describes what it's built on, for a Next.js app of your own.
+
 ## Keep the content in a repository of its own
 
 We strongly recommend keeping a full-stack site's content in a [repository of its own](/docs/content-repository#full-stack-nextjs-sites), and giving the server a token for that repository only.

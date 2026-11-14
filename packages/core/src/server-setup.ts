@@ -6,6 +6,7 @@ import { CONTENT_REPOSITORY_DIR } from "./content/paths.js";
 import { CONTENT_FOLDERS } from "./content/store.js";
 import { CODE_GITIGNORE } from "./content-repository-setup.js";
 import {
+  BUNDLED_NAMES,
   type SiteFile,
   type SiteFiles,
   siteFileText,
@@ -129,7 +130,12 @@ export function planServerSite({ template, name, versions, code, content, siteUr
   const codeRepo = code ?? TEMPLATE_CODE_REPO;
   const contentRepo = content ?? TEMPLATE_CONTENT_REPO;
   const files: SiteFiles = new Map();
-  for (const [path, file] of template) {
+  for (const [bundled, file] of template) {
+    // Files npm leaves out of packages are bundled under other names (`_gitignore`), which they're given back here.
+    const parts = bundled.split("/");
+    const own = BUNDLED_NAMES[parts.at(-1) ?? ""];
+    if (own) parts[parts.length - 1] = own;
+    const path = parts.join("/");
     const text = textOf(file);
     if (text === undefined || CONTENT_FOLDERS.some((folder) => path.startsWith(`${folder}/`))) {
       files.set(path, file);
