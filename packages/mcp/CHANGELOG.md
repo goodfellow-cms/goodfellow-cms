@@ -1,5 +1,28 @@
 # @goodfellow-cms/mcp
 
+## 0.12.0
+
+### Minor Changes
+
+- 0306a3f: A collection's items can come from another system, such as the site's database, while its fields, page design, and address stay in the admin panel. The config's new `collections` names each collection's source, a module whose default export reads its items (`defineCollectionSource()` in `@goodfellow-cms/core`), with options it's given: `collections: { jobs: { source: "./lib/jobs.ts", options: { table: "jobs" } } }`. Items are checked as items' files are, with only the values of the collection's own fields, and one that doesn't fit is left out with a warning, so a bad row never stops the site; item files left in a sourced collection's folder aren't read (`loadSiteContent(files, { sourced })`). `goodfellow build`, `goodfellow dev`, and `goodfellow-next finish` load the modules themselves; Next.js sites pass them to `goodfellowPages()` and `goodfellowApi()` as `sources`, since Next.js bundles only what's imported. Pages, feeds, calendars, the content API, and the site checks show the source's items as the collection's (`withSourcedCollections()`), and `sourceChanges()` says which pages to render again when a source's `changed()` reports changes, for a site's own route to pass to `revalidatePath()`. Each source is read on its own: one that can't be read just now shows the items it gave last in the same process, with a warning, and one never read stops the build or the page, rather than show the collection empty. `loadSourceModules()` in `@goodfellow-cms/core/node` loads the config's sources' modules for tools that load them themselves. The admin panel shows them read-only, from a full-stack site's server (`/api/goodfellow/collections/<id>/items`), counts their pages in its publish checks, moves their pages with a new address pattern, and names the source in the collection's settings; where a source can't be read just now, the collection says so with **Try again**, and a change to its settings waits until it can be, while anything else is published without checking links that could go to its items' pages. Claude's tools list no items for a sourced collection, say where they come from, and won't change them. Next.js sites make their sources only once the site or its items are read, so a source that can't be made fails only those. The site's description names each source's module, never its options.
+
+### Patch Changes
+
+- 67863e4: Full-stack sites can render pages from their repository as it is now, so a publish shows once its pages render again, without a rebuild: `goodfellowPages(config, { source })` reads pages' content from the source given, such as `repositorySource(git)` from `@goodfellow-cms/core`, which reads every content file once per revision of the live branch, in as few requests as the host allows. Its `language()` gives the root layout's `<html lang>`, falling back to the built files' where the source can't be read, so the admin panel and sign-in still open. `builtSource()` reads Site settings from any source as a build of this copy of the site does, and `prefetchedSource()` reads a folder up front, which the Claude connector now uses to read the whole site.
+- Updated dependencies [0306a3f]
+- Updated dependencies [e21c530]
+- Updated dependencies [2c1b773]
+- Updated dependencies [4a2cffd]
+- Updated dependencies [3e63b37]
+- Updated dependencies [67863e4]
+- Updated dependencies [d1d54cc]
+- Updated dependencies [64be137]
+  - @goodfellow-cms/core@0.12.0
+  - @goodfellow-cms/github@0.12.0
+  - @goodfellow-cms/ai@0.12.0
+  - @goodfellow-cms/bitbucket@0.12.0
+  - @goodfellow-cms/gitlab@0.12.0
+
 ## 0.11.0
 
 ### Minor Changes
