@@ -6,6 +6,7 @@ import {
   type CollectionFile,
   collectionFileSchema,
   collectionsLinkingTo,
+  type Entry,
   entryLanguage,
   entryPathIn,
   entryTitle,
@@ -22,7 +23,7 @@ import {
   VISIBILITY_PROP,
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAdmin, useSiteContent } from "./admin-context.js";
+import { useAdmin, useCollectionSource, useSiteContent } from "./admin-context.js";
 import { collectionSettingsChanges, deleteCollectionChanges, slugify, uniqueName } from "./changes.js";
 import { CollectionLayout } from "./collection-screen.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
@@ -642,12 +643,12 @@ function DeleteCollectionDialog({ collection, onClose }: { collection: Collectio
 /** Finds an entry whose page would take an address something else already has, with a new address pattern. */
 function addressClash(
   site: SiteSettings,
-  collection: Collection,
+  entries: readonly Entry[],
   settings: CollectionFile,
   addresses: Set<string>,
 ): string | undefined {
   const used = new Set(addresses);
-  for (const entry of collection.entries) {
+  for (const entry of entries) {
     const address = entryPathIn(site, settings, entry.slug, entryLanguage(site, entry));
     if (address === undefined) continue;
     if (used.has(address) || isReservedPagePath(address)) return entryTitle(entry);
@@ -656,11 +657,27 @@ function addressClash(
   return undefined;
 }
 
+/** Whether new settings give the collection's items other addresses, in any language. */
+function movesPages(before: CollectionFile, after: CollectionFile): boolean {
+  return before.path !== after.path || JSON.stringify(before.languagePaths) !== JSON.stringify(after.languagePaths);
+}
+
 /** A collection's name, page addresses, order, and fields. */
 export function CollectionSettingsScreen({ collection }: { collection: Collection }) {
   const t = useStrings();
-  const { blocks, publish, reload, account } = useAdmin();
+  const { blocks, publish, reload, account, state } = useAdmin();
   const { content } = useSiteContent();
+  const source = useCollectionSource(collection.id);
+  // The site as visitors see it, with a sourced collection's items, whose pages move when the address pattern changes.
+  const visible = state.status === "ready" ? state.shown : undefined;
+  const sourced = useMemo(
+    () => (source ? (visible?.collections.find((one) => one.id === collection.id)?.entries ?? []) : []),
+    [source, visible, collection.id],
+  );
+  // A source that couldn't be read leaves its items' addresses unknown, so a new pattern can't move their pages yet.
+  const unread = Boolean(source) && state.status === "ready" && (state.unreadSources ?? []).includes(collection.id);
+  // Without a server that reads the items, as on a static site, the admin panel never knows their pages.
+  const elsewhere = Boolean(source) && !account?.sourcedItems;
   const [draft, setDraft] = useState(() => toDraft(collection.settings));
   const [showErrors, setShowErrors] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -690,17 +707,23 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
     if (next.path !== undefined) {
       if (addressPatternProblem(next.path)) result.path = t("address.invalid");
       else {
+        // As visitors see the site, so other sourced collections' items keep their addresses too.
         const others = new Set(
-          allPages(content)
+          allPages(visible ?? content)
             .filter((page) => page.entry?.collection !== collection.id)
             .map((page) => page.path),
         );
-        const clash = addressClash(content.settings, collection, next, others);
+        const clash = addressClash(content.settings, [...collection.entries, ...sourced], next, others);
         if (clash) result.path = t("collectionSettings.addressClash", { title: clash });
+        else if (movesPages(collection.settings, next)) {
+          // Moving pages it can't see would leave links to them pointing at the old addresses.
+          if (elsewhere) result.path = t("collectionSettings.sourceElsewhere", { source: source ?? "" });
+          else if (unread) result.path = t("collectionSettings.sourceUnread", { source: source ?? "" });
+        }
       }
     }
     return result;
-  }, [next, content, collection, t]);
+  }, [next, content, visible, collection, sourced, unread, elsewhere, source, t]);
 
   const valid = Object.keys(errors).length === 0;
   const dirty = serializeContent(next) !== serializeContent(collection.settings);
@@ -728,7 +751,7 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
     setStatus({ type: "publishing" });
     const settings = collectionFileSchema.parse(next);
     const result = await publish(
-      collectionSettingsChanges(collection, settings, { content, blocks }),
+      collectionSettingsChanges(collection, settings, { content, blocks, ...(visible && { shown: visible }) }),
       t("collectionSettings.message", { name: next.name }),
     );
     if (result.ok) {
@@ -761,6 +784,9 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
             {status.type === "done" && <PublishedNotice onHide={hidePublished} />}
           </div>
         </div>
+        {source && (
+          <p className="gfa-hint">{t("collectionSettings.sourced", { name: collection.settings.name, source })}</p>
+        )}
         {status.type === "invalid" && !valid && <ErrorMessage message={t("publish.invalid")} />}
         {status.type === "failed" && (
           <ErrorMessage

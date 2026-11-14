@@ -216,8 +216,19 @@ function checkContentFile<S extends z.ZodType>(
   return { ok: true, value: result.data };
 }
 
+/** How `loadSiteContent()` reads the site. */
+export interface LoadOptions {
+  /**
+   * Collections whose items come from a source (the config's `collections`),
+   * whose item files are neither read nor checked, since the source's items
+   * replace them (`withSourcedCollections()`). Their `_collection.json` is
+   * read as any collection's.
+   */
+  sourced?: Iterable<string>;
+}
+
 /** Loads and validates everything under `content/`. Throws a `ContentError` listing every problem found. */
-export async function loadSiteContent(source: ContentSource): Promise<SiteContent> {
+export async function loadSiteContent(source: ContentSource, options: LoadOptions = {}): Promise<SiteContent> {
   const problems: ContentProblem[] = [];
 
   async function loadOptional<S extends z.ZodType>(
@@ -324,7 +335,7 @@ export async function loadSiteContent(source: ContentSource): Promise<SiteConten
       ),
   );
 
-  const collections = await loadCollections(source, collectionFiles, problems, settings);
+  const collections = await loadCollections(source, collectionFiles, problems, settings, new Set(options.sourced));
 
   // Entries' pages share addresses with ordinary pages, so they can't clash with them.
   for (const collection of collections) {
@@ -505,6 +516,7 @@ async function loadCollections(
   files: string[],
   problems: ContentProblem[],
   site: SiteSettings,
+  sourced: ReadonlySet<string>,
 ): Promise<Collection[]> {
   const folders = new Map<string, { settings?: string; entries: string[] }>();
   for (const file of files) {
@@ -528,7 +540,7 @@ async function loadCollections(
     const folder = folders.get(id) ?? { entries: [] };
     folders.set(id, folder);
     if (name === COLLECTION_SETTINGS_FILE) folder.settings = file;
-    else folder.entries.push(file);
+    else if (!sourced.has(id)) folder.entries.push(file);
   }
 
   const collections = await Promise.all(

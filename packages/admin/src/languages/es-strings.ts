@@ -202,6 +202,10 @@ export const strings: Strings = {
   "checks.warnings.intro":
     "Hay algunas cosas que podrían mejorar. Puedes publicar de todos modos, o volver y corregirlas primero.",
   "checks.alsoWarnings": "Esto también podría mejorar:",
+  "checks.leftOutItems":
+    "Publicar esto quitaría {items} del sitio, porque ya no encajarían con los ajustes de la colección, o una página ocuparía la dirección de alguno. Vienen de otro sistema, que el panel de administración no puede cambiar: vuelve y cambia lo que lo impide, o publica de todos modos, y quedarán fuera hasta que encajen.",
+  "checks.unreadSources":
+    "Los elementos de {collections} vienen de otro sistema, al que no se puede llegar ahora mismo, así que no se pueden comprobar los enlaces a sus páginas. Vuelve a publicar dentro de unos minutos.",
   "checks.publishAnyway": "Publicar de todos modos",
   "checks.goBack": "Volver",
   "limits.title": "Parte de esto queda fuera de lo que puedes cambiar",
@@ -355,6 +359,8 @@ export const strings: Strings = {
   "address.reserved":
     "Esta dirección no se puede usar: la usa el panel de administración, o termina en /index, que es la página de arriba. Elige otra.",
   "address.taken": "Otra página ya usa esta dirección.",
+  "address.mayBeItem":
+    "Uno de los elementos de {collection} podría tener esta dirección, y el panel de administración no puede leerlos para saberlo, porque vienen de otro sistema. Elige otra dirección.",
   "field.required": "Esto no puede quedar vacío.",
   "editPage.message": "Actualizar la página «{title}»",
   "editPage.notFound": "Esta página no existe. Puede que se haya movido o eliminado.",
@@ -429,6 +435,12 @@ export const strings: Strings = {
   "collection.back": "Volver a las colecciones",
   "entries.add": "Añadir {entry}",
   "entries.empty": "Todavía no hay nada en {name}.",
+  "entries.sourced":
+    "Los elementos de {name} vienen de otro sistema ({source}), donde se añaden y se cambian. Aquí se muestran como los muestra el sitio.",
+  "entries.sourceUnread":
+    "Ahora mismo no se pueden leer los elementos de {name} desde {source}. Vuelve a intentarlo dentro de unos minutos.",
+  "entries.sourcedElsewhere":
+    "Los elementos de {name} vienen de otro sistema ({source}), donde se añaden y se cambian. Solo el servidor del sitio puede leerlos, así que no aparecen aquí.",
   "entries.column.title": "Título",
   "entries.column.address": "Dirección",
   "newEntry.title": "Añadir {entry}",
@@ -451,6 +463,9 @@ export const strings: Strings = {
   "editEntry.invalidSchedule":
     "Revisa cuándo está en el sitio: cada hora necesita una fecha y una hora, y solo puede ocultarse después de mostrarse.",
   "editEntry.notFound": "Este elemento no existe. Puede que se haya renombrado o eliminado.",
+  "collectionSettings.sourced":
+    "Los elementos de {name} vienen de otro sistema ({source}). Estos campos dicen qué muestra el sitio de ellos: un elemento cuyos valores no encajan se deja fuera.",
+  "editEntry.sourced": "Los elementos de {name} se cambian en el sistema del que vienen ({source}), no aquí.",
   "editEntry.back": "Volver a {name}",
   "editEntry.items.search": "Buscar en {name}",
   "editEntry.items.none": "Nada en {name} coincide.",
@@ -528,6 +543,10 @@ export const strings: Strings = {
   "collectionSettings.descending": "De la Z a la A, primero lo más reciente o grande",
   "collectionSettings.message": "Actualizar los ajustes de {name}",
   "collectionSettings.addressClash": "Con esta dirección, {title} tendría la misma dirección que otra página.",
+  "collectionSettings.sourceUnread":
+    "Ahora mismo no se pueden leer sus elementos desde {source}, así que todavía no se pueden mover sus páginas a otra dirección. Vuelve a intentarlo dentro de unos minutos.",
+  "collectionSettings.sourceElsewhere":
+    "Sus elementos vienen de {source}, que solo puede leer la compilación del sitio, así que aquí no se pueden mover los enlaces a sus páginas a otra dirección. Pide a un desarrollador que la cambie.",
   "collectionSettings.delete": "Eliminar colección",
   "collectionSettings.deleteTitle": "¿Eliminar {name}?",
   "collectionSettings.deleteBody":

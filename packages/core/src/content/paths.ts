@@ -181,6 +181,20 @@ export function addressPatternProblem(pattern: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Whether an address is one an item of a collection with this address pattern
+ * could have: `("/videos/{slug}", "/videos/easter-vigil")` is, and
+ * `"/videos/easter-vigil/more"` isn't.
+ */
+export function matchesAddressPattern(pattern: string, path: string): boolean {
+  const parts = pattern.split("/").filter((part) => part !== "");
+  const given = path.split("/").filter((part) => part !== "");
+  if (parts.length !== given.length) return false;
+  return parts.every((part, index) =>
+    part === SLUG_PLACEHOLDER ? isAddressSegment(given[index] ?? "") : part === given[index],
+  );
+}
+
 /** An entry's address: `("/videos/{slug}", "easter-vigil")` → `/videos/easter-vigil`. */
 export function entryAddress(pattern: string, slug: string): string {
   return normalizePagePath(pattern.replace(SLUG_PLACEHOLDER, slug));

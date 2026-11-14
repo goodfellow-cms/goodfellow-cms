@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   InvalidPathError,
   isReservedPagePath,
+  matchesAddressPattern,
   normalizePagePath,
   pageFileToPath,
   pageOutputFile,
@@ -67,5 +68,18 @@ describe("page paths", () => {
     ["/news/404", "news/404/index.html"],
   ])("builds %s to %s", (path, output) => {
     expect(pageOutputFile(path)).toBe(output);
+  });
+});
+
+describe("matchesAddressPattern", () => {
+  it("says whether an address is one an item of a collection with the pattern could have", () => {
+    expect(matchesAddressPattern("/videos/{slug}", "/videos/easter-vigil")).toBe(true);
+    expect(matchesAddressPattern("/events/{slug}/details", "/events/fair/details")).toBe(true);
+    expect(matchesAddressPattern("/{slug}", "/fair")).toBe(true);
+    expect(matchesAddressPattern("/videos/{slug}", "/videos/easter-vigil/more")).toBe(false);
+    expect(matchesAddressPattern("/videos/{slug}", "/videos")).toBe(false);
+    expect(matchesAddressPattern("/videos/{slug}", "/films/easter-vigil")).toBe(false);
+    expect(matchesAddressPattern("/videos/{slug}", "/videos/Not A Name")).toBe(false);
+    expect(matchesAddressPattern("/events/{slug}/details", "/events/fair/more")).toBe(false);
   });
 });

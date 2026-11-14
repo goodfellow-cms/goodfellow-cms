@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fakeAi } from "@goodfellow-cms/ai/testing";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
-import { createNextServerSite, NEXT_SERVER, nextServerSite, starterFiles } from "./site.mjs";
+import { createNextServerSite, JOBS_COLLECTION, NEXT_SERVER, nextServerSite, starterFiles } from "./site.mjs";
 
 /** Serves a fake's `handle` over HTTP, as the real service would be. */
 function serve(port, handle) {
@@ -31,7 +31,7 @@ function serve(port, handle) {
 const newGitHub = () =>
   fakeGitHub({
     repo: "parish/site",
-    files: starterFiles(),
+    files: { ...starterFiles(), "content/collections/jobs/_collection.json": JSON.stringify(JOBS_COLLECTION) },
     tokens: { [NEXT_SERVER.token]: { login: "parish-bot", name: "Parish bot" } },
   });
 let github = newGitHub();

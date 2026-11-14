@@ -59,13 +59,23 @@ function syncedContent(subject: Extract<VersionSubject, { kind: "synced" }>) {
 /**
  * The site as it would be with one file put back as it was in an earlier
  * version. It's loaded like the site itself, so a version that no longer fits,
- * such as an item with a field that's since been removed, throws `ContentError`.
+ * such as an item with a field that's since been removed, throws `ContentError`;
+ * as the site is, without the item files left in `sourced` collections'
+ * folders, which their sources' items replace and nobody edits.
  */
-export function contentWithVersion(source: ContentSource, file: string, text: string): Promise<SiteContent> {
-  return loadSiteContent({
-    read: (path) => (path === file ? Promise.resolve(text) : source.read(path)),
-    list: (dir) => source.list(dir),
-  });
+export function contentWithVersion(
+  source: ContentSource,
+  file: string,
+  text: string,
+  sourced: readonly string[] = [],
+): Promise<SiteContent> {
+  return loadSiteContent(
+    {
+      read: (path) => (path === file ? Promise.resolve(text) : source.read(path)),
+      list: (dir) => source.list(dir),
+    },
+    { sourced },
+  );
 }
 
 /** The change that publishes the subject as it is in `content`, in canonical form. */

@@ -47,7 +47,7 @@ function viteRender(root: string): PageRender {
         default: GoodfellowConfig["blocks"][string];
       };
       const render = createPageRenderer({ ...config, blocks: { ...config.blocks, [block.name]: entry } });
-      const content = await loadSiteContent(builtSiteSource(root));
+      const content = await loadSiteContent(builtSiteSource(root), { sourced: Object.keys(config.collections ?? {}) });
       return await render(content, { path: "/", file: "content/pages/index.json", content: page });
     } finally {
       await server.close();

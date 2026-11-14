@@ -3,13 +3,18 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import {
   type AdminSite,
+  type CollectionSources,
+  type ContentSource,
   CUSTOM_CSS_FILE,
   type GoodfellowConfig,
+  loadSiteContent,
+  loadSourcedContent,
   type Page,
   type SiteContent,
   type SiteDescription,
 } from "@goodfellow-cms/core";
 import type { ContentApiFile } from "@goodfellow-cms/core/content-api";
+import { loadSourceModules } from "@goodfellow-cms/core/node";
 import type { PageRenderer } from "@goodfellow-cms/react/server";
 import tailwindcss from "@tailwindcss/vite";
 import type { InlineConfig, Plugin, ViteDevServer } from "vite";
@@ -71,6 +76,45 @@ export interface ServerEntry {
 
 export function loadServerEntry(server: ViteDevServer): Promise<ServerEntry> {
   return server.ssrLoadModule(SERVER_ENTRY) as Promise<ServerEntry>;
+}
+
+/**
+ * The collections the config names sources for, whose item files the site's
+ * files leave out, or none where the server entry can't load, such as while
+ * the config is being edited, so what reads only the files still answers.
+ */
+export function sourcedIds(server: ViteDevServer): Promise<string[]> {
+  return loadServerEntry(server).then(
+    ({ config }) => Object.keys(config.collections ?? {}),
+    (): string[] => [],
+  );
+}
+
+/**
+ * The sources the config names for its collections, each module loaded
+ * through Vite as the config is: a path from the site's root, or a package.
+ */
+export function loadCollectionSources(
+  server: ViteDevServer,
+  root: string,
+  config: GoodfellowConfig,
+): Promise<CollectionSources> {
+  return loadSourceModules(root, config.collections, (path) => server.ssrLoadModule(path));
+}
+
+/**
+ * The site as `files` hold it, with its collections' sources read in where its
+ * config names any (`withSourcedCollections()`): those collections' item files
+ * are neither read nor checked, since their sources' items replace them.
+ */
+export async function loadSourcedSite(
+  server: ViteDevServer,
+  root: string,
+  config: GoodfellowConfig,
+  files: ContentSource,
+): Promise<SiteContent> {
+  if (!config.collections) return loadSiteContent(files);
+  return loadSourcedContent(files, loadCollectionSources(server, root, config));
 }
 
 /**

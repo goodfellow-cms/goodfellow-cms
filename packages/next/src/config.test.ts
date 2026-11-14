@@ -172,6 +172,96 @@ describe("withGoodfellow", () => {
     }
   });
 
+  it("reads redirects and fonts without a sourced collection's item files, leaving its items' addresses alone", async () => {
+    const site = await mkdtemp(join(tmpdir(), "goodfellow-next-sourced-"));
+    const write = async (path: string, text: string) => {
+      await mkdir(join(site, path, ".."), { recursive: true });
+      await writeFile(join(site, path), text);
+    };
+    try {
+      await write("content/site.json", '{"version":1,"theme":{"fonts":{"body":"Lora"}}}\n');
+      await write("goodfellow.config.tsx", 'export default { collections: { jobs: { source: "./lib/jobs.ts" } } };\n');
+      await write(
+        "content/collections/jobs/_collection.json",
+        JSON.stringify({
+          version: 1,
+          name: "Jobs",
+          entryName: "Job",
+          path: "/jobs/{slug}",
+          fields: [{ name: "title", label: "Title", type: "text" }],
+        }),
+      );
+      // A file left in the folder, which loading would refuse, and which the site never reads.
+      await write("content/collections/jobs/old.json", '{"fields":{"title":"Old"}}\n');
+      await write(
+        "content/redirects.json",
+        JSON.stringify({
+          version: 1,
+          redirects: [
+            { from: "/who-we-are", to: "/" },
+            // Perhaps a live item's address, which isn't known here: its page wins where it has one.
+            { from: "/jobs/engineer", to: "/" },
+          ],
+        }),
+      );
+      const config = await withGoodfellow({}, { root: site })("phase-production-build");
+      expect(await config.redirects?.()).toEqual([{ source: "/who-we-are", destination: "/", permanent: true }]);
+      expect(JSON.parse(config.env?.GOODFELLOW_FONT_STAND_INS ?? "{}")).toMatchObject({ body: "Lora" });
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+
+  it("loads the config only where there are redirects, finding its collections however it names them", async () => {
+    const site = await mkdtemp(join(tmpdir(), "goodfellow-next-plain-"));
+    const write = async (path: string, text: string) => {
+      await mkdir(join(site, path, ".."), { recursive: true });
+      await writeFile(join(site, path), text);
+    };
+    const seen = globalThis as { plainConfigLoaded?: boolean };
+    const collection = (name: string, path: string) =>
+      JSON.stringify({
+        version: 1,
+        name,
+        entryName: name,
+        path,
+        fields: [{ name: "title", label: "Title", type: "text" }],
+      });
+    try {
+      await write("content/site.json", '{"version":1}\n');
+      // The collections from a module of the site's own, so the config's text never says the word.
+      await write(
+        "goodfellow.config.tsx",
+        'import { shared } from "./lib/shared";\n(globalThis as { plainConfigLoaded?: boolean }).plainConfigLoaded = true;\nexport default { blocks: {}, ...shared };\n',
+      );
+      await write(
+        "lib/shared.ts",
+        'export const shared = { collections: { jobs: { source: "./lib/jobs.ts" }, people: { source: "./lib/people.ts" } } };\n',
+      );
+      await write("content/collections/jobs/_collection.json", collection("Jobs", "/jobs/{slug}"));
+      // Only its item's name, which takes no redirect: a redirect wins over a page there.
+      await write("content/collections/people/_collection.json", collection("People", "/{slug}"));
+      const config = await withGoodfellow({}, { root: site })("phase-production-build");
+      expect(await config.redirects?.()).toEqual([]);
+      expect(seen.plainConfigLoaded).toBeUndefined();
+      await write(
+        "content/redirects.json",
+        JSON.stringify({
+          version: 1,
+          redirects: [
+            { from: "/old", to: "/" },
+            { from: "/jobs/engineer", to: "/" },
+          ],
+        }),
+      );
+      expect(await config.redirects?.()).toEqual([{ source: "/old", destination: "/", permanent: true }]);
+      expect(seen.plainConfigLoaded).toBe(true);
+    } finally {
+      delete seen.plainConfigLoaded;
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+
   it("writes redirects' targets so Next.js never reads them as patterns", () => {
     expect(redirectDestination(" https://example.org:8443/a/:b(c)*?q=:d#e:f ")).toBe(
       "https://example.org:8443/a/%3Ab%28c%29%2A?q=:d#e%3Af",

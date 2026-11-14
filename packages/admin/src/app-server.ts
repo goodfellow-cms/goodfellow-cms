@@ -1,6 +1,7 @@
 import {
   APP_API_HEADER,
   type AppSession,
+  type CollectionFile,
   ConflictError,
   type DeployStatus,
   decodeBase64,
@@ -11,6 +12,7 @@ import {
   PluginTaskError,
   type RevisionFiles,
   SignInError,
+  type SourcedItem,
   type TaskSecretsPlace,
   trimChars,
 } from "@goodfellow-cms/core";
@@ -92,6 +94,17 @@ export function appServer(api: string) {
         ...details,
       };
       return (await (await request("review", { body })).json()) as { url: string };
+    },
+
+    /** The items of a collection whose items come from a source, as the server's source gives them. */
+    async sourcedItems(collection: string, settings?: CollectionFile): Promise<SourcedItem[]> {
+      // With the settings the admin panel has for the collection, a draft's or a publish's, which the server takes
+      // from owners only (`askedWithSettings()`).
+      const endpoint = `collections/${encodeURIComponent(collection)}/items`;
+      const answer = (await (await request(endpoint, settings ? { body: { settings } } : {})).json()) as {
+        items?: unknown;
+      };
+      return Array.isArray(answer.items) ? (answer.items as SourcedItem[]) : [];
     },
 
     /** Who's signed in, and what they may do, or where to sign in. */

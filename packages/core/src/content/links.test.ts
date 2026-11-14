@@ -25,6 +25,31 @@ const blocks = {
 } as unknown as Record<string, ComponentConfig>;
 
 describe("relinkSite", () => {
+  it("leaves links to pages it's told stay, which the content doesn't hold, under a moved address", async () => {
+    const content = await loadSiteContent(
+      memorySource({
+        "content/site.json": { version: 1, title: "Parish" },
+        "content/pages/index.json": page("Home", [
+          { type: "Button", props: { id: "Button-1", href: "/videos/sermon" } },
+          { type: "Button", props: { id: "Button-2", href: "/videos/sermon/details" } },
+          { type: "Button", props: { id: "Button-3", href: "/videos/sermon/notes" } },
+        ]),
+      }),
+    );
+    const moves = [{ from: "/videos/sermon", to: "/watch/sermon" }];
+    // Another collection's source gives /videos/sermon/details, which stays where it is.
+    const relinked = relinkSite(content, moves, blocks, ["/videos/sermon/details"]);
+    expect(relinked.content.pages[0]?.content.data.content.map((block) => block.props.href)).toEqual([
+      "/watch/sermon",
+      "/videos/sermon/details",
+      "/watch/sermon/notes",
+    ]);
+    // Without being told, it moves with the address above it.
+    expect(relinkSite(content, moves, blocks).content.pages[0]?.content.data.content[1]?.props.href).toBe(
+      "/watch/sermon/details",
+    );
+  });
+
   it("points links everywhere at moved addresses, keeping the rest of each link", async () => {
     const content = await loadSiteContent(
       memorySource({

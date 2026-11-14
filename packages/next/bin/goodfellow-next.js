@@ -77,6 +77,7 @@ import {
   blockPageRender,
   buildFileFolders,
   checkPages,
+  dueSite,
   EDITOR_FRAMES_PATH,
   exportedMembersPages,
   exportedPages,
@@ -226,7 +227,7 @@ if (command === "due") {
     args: process.argv.slice(3),
     options: { since: { type: "string" }, output: { type: "string" } },
   });
-  const result = await scheduleDue({ since: values.since });
+  const result = await scheduleDue({ since: values.since, load: (files) => dueSite(files) });
   for (const line of await reportDue(result, process.env, values.output ?? process.env.GITHUB_OUTPUT))
     console.log(line);
   process.exit(0);

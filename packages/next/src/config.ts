@@ -10,14 +10,18 @@ import {
   brokerOrigin,
   buildNotes,
   CALENDARS_DIR,
+  type ContentSource,
   configAdmin,
   configBroker,
   editorPolicy,
   FEEDS_DIR,
   loadSiteContent,
+  loadSourcedContent,
+  mayBeUnreadPage,
   normalizeBase,
   redirectFrom,
   redirectProblems,
+  SITE_FILE,
   shownContent,
   TRAILING_SLASH_VARIABLE,
   vercelAdminRedirects,
@@ -100,12 +104,27 @@ function editorFramesHeaders(): Headers {
 }
 
 /**
+ * The site's settings as builds read them (a copy's address included), from
+ * `content/site.json` alone, so a problem in any other file, such as an item
+ * file left in a sourced collection's folder, never stops what needs only the
+ * settings: the build reports it where it reads the rest.
+ */
+async function builtSettings(root: string) {
+  const files = builtSiteSource(root);
+  const settingsOnly: ContentSource = {
+    read: (path) => (path === SITE_FILE ? files.read(path) : Promise.resolve(undefined)),
+    list: async () => [],
+  };
+  return (await loadSiteContent(settingsOnly)).settings;
+}
+
+/**
  * A full-stack site's Google Fonts, copied into its `public/` folder
  * (`hostFonts()`), or `undefined` where it has none or Google can't be
  * reached, which the build says, as `goodfellow build` does.
  */
 async function hostSiteFonts(root: string) {
-  const { settings } = await loadSiteContent(builtSiteSource(root));
+  const settings = await builtSettings(root);
   const fonts = await hostFonts(join(root, "public"), settings.theme);
   if (!fonts) return undefined;
   if ("unavailable" in fonts) {
@@ -119,7 +138,7 @@ async function hostSiteFonts(root: string) {
  * Node, for the pages' renderer, which reads them from the env.
  */
 async function builtFontStandIns(root: string): Promise<BuiltFontStandIns> {
-  const { theme } = (await loadSiteContent(builtSiteSource(root))).settings;
+  const { theme } = await builtSettings(root);
   const { heading, body } = theme.fonts;
   return { ...(heading && { heading }), ...(body && { body }), standIns: await fontStandIns(theme, { root }) };
 }
@@ -235,6 +254,11 @@ function startDevApi(root: string): Promise<number> {
       plugins: async () => (await (await import("./plugins.js")).loadSiteConfig(root)).plugins ?? [],
       server: "next-dev" as const,
     };
+    // Calendar files and feeds, with the collections' sources read in, from the config and modules as they are now.
+    const load = async (files: ContentSource) => {
+      const { readCollectionSources } = await import("./plugins.js");
+      return loadSourcedContent(files, readCollectionSources(root));
+    };
     // Asked once Next.js is answering, at the first request, which comes through it, and again after.
     const exposed = exposureCheck(Number(process.env.PORT) || 3000);
     let said = false;
@@ -255,7 +279,7 @@ function startDevApi(root: string): Promise<number> {
       }
       if (await (await editor).serve(req, res)) return;
       // Requests come through Next.js's development server, so they're from its address rather than this one's.
-      if (!(await handleDevApi(store, req, res, { trustOrigin: isLocalOrigin, registryDir, tasks }))) {
+      if (!(await handleDevApi(store, req, res, { trustOrigin: isLocalOrigin, registryDir, tasks, load }))) {
         res.writeHead(404).end();
       }
     });
@@ -320,16 +344,30 @@ export function redirectDestination(to: string): string {
  * themselves, such as Vercel, which reads them from the build. Redirects from
  * an address a page or a collection's item has are left out, since pages win,
  * as they do over the pages `goodfellow-next finish` writes at old addresses.
- * Content with a problem gives none, and the build reports the problem.
+ * So are redirects from an address a sourced collection's item could have,
+ * since the items aren't known here: `finish`'s redirect pages still serve
+ * those that no item has. Item files left in a sourced collection's folder
+ * aren't read (`sourcedCollectionIds()`). Content with a problem gives none,
+ * and the build reports the problem.
  */
 async function siteRedirects(root: string): Promise<Redirects> {
-  const content = await loadSiteContent(builtSiteSource(root)).then(shownContent, () => undefined);
+  const { sourcedCollectionIds } = await import("./plugins.js");
+  // The config is bundled to find its sources only where there are redirects to check against them.
+  // Item files a source replaces may not load; then the config is read to leave them out, as below.
+  const files = await loadSiteContent(builtSiteSource(root)).catch(() => undefined);
+  if (files && !files.redirects?.length) return [];
+  // A config that can't be loaded here is the build's to report; its redirects are read without it.
+  const sourced = await sourcedCollectionIds(root).catch((): string[] => []);
+  const content = await loadSiteContent(builtSiteSource(root), { sourced }).then(shownContent, () => undefined);
   if (!content?.redirects) return [];
   const taken = new Set(allPages(content).map((page) => page.path));
+  const unread = new Set(sourced);
   const problems = redirectProblems(content.redirects);
   return content.redirects.flatMap((redirect, index) => {
     const from = redirectFrom(redirect.from);
-    if (problems[index] || !from.ok || taken.has(from.path)) return [];
+    // A collection whose pattern is only its item's name doesn't take every redirect of one part: the redirect wins.
+    const item = from.ok && mayBeUnreadPage(content, unread, from.path, { anyAddress: false });
+    if (problems[index] || !from.ok || taken.has(from.path) || item) return [];
     return [{ source: redirectSource(from.path), destination: redirectDestination(redirect.to), permanent: true }];
   });
 }

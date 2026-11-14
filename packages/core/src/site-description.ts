@@ -65,6 +65,12 @@ export interface SiteDescription {
   claude?: { publish?: boolean };
   /** The config's plugins, without their code (`describePlugin()`). */
   plugins?: PluginDescription[];
+  /**
+   * The collections whose items come from a source (`GoodfellowConfig.collections`),
+   * by id, naming its module, never its options: the admin panel shows their
+   * items read-only, from the site's server.
+   */
+  collections?: Record<string, { source: string }>;
 }
 
 /**
@@ -147,6 +153,7 @@ const descriptionSchema = z.object({
       }),
     )
     .optional(),
+  collections: z.record(z.string(), z.object({ source: z.string() })).optional(),
 });
 
 /** Reads a description, or says why it isn't one. */

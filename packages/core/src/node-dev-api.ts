@@ -6,6 +6,7 @@ import { parseEnv } from "node:util";
 import {
   CALENDARS_DIR,
   ConflictError,
+  ContentError,
   type ContentSource,
   type ContentStore,
   calendarFiles,
@@ -16,6 +17,7 @@ import {
   loadSiteContent,
   type PluginTaskRequest,
   pluginId,
+  type SiteContent,
   sealTaskAnswer,
   shownContent,
   type TaskAnswer,
@@ -79,6 +81,12 @@ export interface DevApiOptions {
   allowedHosts?: readonly string[] | true;
   /** The built block registry to serve at `registry/<name>.json`, for the admin panel's Blocks screen. */
   registryDir?: string;
+  /**
+   * Loads the site for the calendar files and feeds it serves, as builds
+   * would: with its collections' sources read in, where its config names
+   * any. `loadSiteContent()` by default.
+   */
+  load?: SiteLoader;
   /**
    * Runs plugins' tasks (`task`) on this computer, as the site's CI would,
    * with the secrets in the site's `.env.local` and this server's
@@ -210,16 +218,45 @@ function buildFileKind(pathname: string) {
   );
 }
 
+/** Loads the site from its files, as a server shows it: `loadSiteContent()`, or with its collections' sources too. */
+export type SiteLoader = (source: ContentSource) => Promise<SiteContent>;
+
 /**
  * Answers a request for one of the files builds write besides pages, the
  * calendar files (`/calendars/…`) and feeds (`/feeds/…`), each also under the
  * site's other languages' codes, from the site's content as it is now. Says
- * whether the address was one.
+ * whether the address was one. With `onError`, a file that can't be made,
+ * such as when a collection's source can't be read, answers 500 and is said
+ * there, on the developer's computer, never in the answer; without it, the
+ * failure is thrown.
  */
-export async function sendBuildFile(source: ContentSource, pathname: string, res: ServerResponse): Promise<boolean> {
+export async function sendBuildFile(
+  source: ContentSource,
+  pathname: string,
+  res: ServerResponse,
+  load: SiteLoader = (files) => loadSiteContent(files),
+  onError?: (message: string) => void,
+): Promise<boolean> {
   const kind = buildFileKind(pathname);
   if (!kind) return false;
-  const file = kind.files(shownContent(await loadSiteContent(source))).find((candidate) => candidate.path === pathname);
+  let file: { path: string; content: string } | undefined;
+  try {
+    // Loading the site, with what its sources give, and making its files, either of which can fail.
+    const content = await load(source);
+    file = kind.files(shownContent(content)).find((candidate) => candidate.path === pathname);
+  } catch (error) {
+    if (!onError) throw error;
+    // A source can reject with anything, null included.
+    onError(`${pathname} couldn't be made: ${error instanceof Error ? error.message : String(error)}`);
+    res.statusCode = 500;
+    // A content file's problem is the developer's own content, said in the answer too, as pages say theirs; what a
+    // source or anything else says, which can name a database's address, stays on the computer.
+    if (error instanceof ContentError) {
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end(`${pathname} couldn't be made from the site's content: ${error.message}`);
+    } else res.end();
+    return true;
+  }
   if (!file) {
     res.statusCode = 404;
     res.end();
@@ -256,7 +293,9 @@ export async function handleDevApi(
   }
   // Calendar files and feeds are public, as they are on the built site: next dev rewrites /calendars/ and /feeds/ here.
   if (req.method === "GET" && buildFileKind(`/${endpoint}`)) {
-    if (!(await sendBuildFile(store, `/${endpoint}`, res))) send(res, 404, { error: "not-found" });
+    // A file that can't be made, such as when a collection's source can't be read, is said here, never in the answer.
+    const sent = await sendBuildFile(store, `/${endpoint}`, res, options.load, (message) => console.error(message));
+    if (!sent) send(res, 404, { error: "not-found" });
     return true;
   }
   if (!isTrusted(req, options.trustOrigin)) {

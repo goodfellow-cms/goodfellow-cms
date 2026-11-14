@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import {
   cloudflareSiteHeaders,
   startsWithGuard,
@@ -441,6 +441,57 @@ describe("a site with an admin address", () => {
       expect(JSON.parse(await readFile(join(out, "goodfellow-site.json"), "utf8")).admin).toEqual({
         url: "https://admin.example.org",
       });
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a site whose collection has a source", () => {
+  it("gives the source's items pages in place of the collection's files, with the config's options", async () => {
+    const site = await mkdtemp(join(import.meta.dirname, "../test/.sources-"));
+    const out = join(site, "dist");
+    try {
+      await cp(fixture, site, { recursive: true, filter: (path) => !path.includes("node_modules") });
+      await mkdir(join(site, "lib"), { recursive: true });
+      await writeFile(
+        join(site, "lib/talks.ts"),
+        [
+          'import { defineCollectionSource } from "@goodfellow-cms/core";',
+          "export default defineCollectionSource<{ speaker: string }>((options) => ({",
+          '  items: async () => [{ slug: "from-the-source", fields: { title: "From the source", speaker: options.speaker, given: "2026-11-01" } }],',
+          // A source holding a pool, which would keep the build running.
+          "  close: async () => { (globalThis as { talksClosed?: number }).talksClosed = 1; },",
+          "}));",
+          "",
+        ].join("\n"),
+      );
+      const configFile = join(site, "goodfellow.config.tsx");
+      const config = (await readFile(configFile, "utf8")).replace(
+        '  base: "/from-config/",',
+        '  base: "/from-config/",\n  collections: { talks: { source: "./lib/talks.ts", options: { speaker: "Sourced Speaker" } } },',
+      );
+      expect(config).toContain("collections:");
+      await writeFile(configFile, config);
+      // A file left in the folder that loading would refuse, which the source's items replace, so it can't stop the build.
+      await writeFile(
+        join(site, "content/collections/talks/broken.json"),
+        '{ "version": 1, "fields": { "title": 42 } }\n',
+      );
+      const { pages } = await build({ root: site, outDir: out });
+      expect(pages.map((page) => relative(out, resolve(site, page)).split("\\").join("/"))).toContain(
+        "talks/from-the-source/index.html",
+      );
+      expect(existsSync(join(out, "talks/hope/index.html"))).toBe(false);
+      const html = await readFile(join(out, "talks/from-the-source/index.html"), "utf8");
+      expect(html).toContain('<p class="greeting text-teal-600">Hello, <!-- -->Sourced Speaker<!-- -->!</p>');
+      expect(html).toContain('"headline":"From the source"');
+      // The site's description names the source's module, never its options.
+      const description = await readFile(join(out, "goodfellow-site.json"), "utf8");
+      expect(JSON.parse(description).collections).toEqual({ talks: { source: "./lib/talks.ts" } });
+      expect(description).not.toContain("Sourced Speaker");
+      // Closed once the build is done.
+      expect((globalThis as { talksClosed?: number }).talksClosed).toBe(1);
     } finally {
       await rm(site, { recursive: true, force: true });
     }

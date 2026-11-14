@@ -4,7 +4,11 @@ import {
   adminSiteForCopy,
   BLOCK_SCRIPTS,
   builtSource,
+  type CollectionSources,
   type ContentSource,
+  sourceChanges as changesInSources,
+  checkSourceModules,
+  collectionSources,
   colorSchemeMeta,
   colorSchemeScript,
   consentScript,
@@ -33,6 +37,7 @@ import {
   pageHead,
   robotsRules,
   type SiteContent,
+  type SourceModuleImport,
   shownContent,
   siteCopyFrom,
   languageMap as siteLanguageMap,
@@ -48,6 +53,7 @@ import {
   withBase,
   withoutPaywall,
   withSelfHostedFonts,
+  withSourcedCollections,
 } from "@goodfellow-cms/core";
 import {
   BUILD_DATES_ENV,
@@ -119,6 +125,15 @@ export interface GoodfellowPagesOptions {
    * might in `next dev`, pages read `root`'s files. Static sites leave it out.
    */
   source?: () => ContentSource | undefined | Promise<ContentSource | undefined>;
+  /**
+   * The modules of the sources the config's `collections` name, by collection
+   * id, imported by the site's own code, since Next.js bundles only what's
+   * imported: `{ jobs: jobsSource }` with
+   * `import jobsSource from "@/lib/jobs"`. Pages, feeds and the content API then
+   * show the source's items as the collection's (`withSourcedCollections()`).
+   * Throws where the config names a collection whose module is missing.
+   */
+  sources?: Record<string, SourceModuleImport>;
 }
 
 // In `next build`, which renders pages in several processes, each writes the dates what its pages show by today's
@@ -184,26 +199,43 @@ export interface PageProps {
  * content edits show on reload in development.
  */
 export const loadSite = cache(
-  async (root: string = process.cwd()): Promise<SiteContent> =>
+  async (
+    root: string = process.cwd(),
+    sources: CollectionSources = {},
+    // Collections whose item files aren't read, since their sources' items replace them: the sources' by default.
+    sourced: readonly string[] = Object.keys(sources),
+  ): Promise<SiteContent> =>
     // How pages' full addresses end comes from `withGoodfellow()`, which Next.js passes in its `env`.
     shownContent(
-      await loadSiteContent(
-        builtSiteSource(root, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+      await withSourcedCollections(
+        await loadSiteContent(
+          builtSiteSource(root, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+          { sourced },
+        ),
+        sources,
       ),
     ),
 );
+
+/** No collection sources: the same object each time, so `loadSite()`'s cache knows it. */
+const NO_SOURCES: CollectionSources = {};
 
 /** The site as `source` gives it, read as builds read it, once a request, as visitors see it now. */
 const loadSourceSite = cache(
   async (
     source: () => ContentSource | undefined | Promise<ContentSource | undefined>,
     root: string | undefined,
+    sources: CollectionSources,
   ): Promise<SiteContent> => {
     const files = await source();
-    if (!files) return loadSite(root);
+    if (!files) return loadSite(root, sources);
     return shownContent(
-      await loadSiteContent(
-        builtSource(files, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+      await withSourcedCollections(
+        await loadSiteContent(
+          builtSource(files, { ...process.env, [TRAILING_SLASH_VARIABLE]: process.env.GOODFELLOW_TRAILING_SLASH }),
+          { sourced: Object.keys(sources) },
+        ),
+        sources,
       ),
     );
   },
@@ -363,9 +395,25 @@ export function pageMetadata(
 export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPagesOptions = {}) {
   const configs = createPuckConfigs(config);
   const root = options.root ?? process.cwd();
-  // The same arguments as the layout's `loadSite()`, so a request reads the site once.
   const source = options.source;
-  const site = () => (source ? loadSourceSite(source, options.root) : loadSite(options.root));
+  // Every collection's module must be there from the start, but the sources themselves are made only once the
+  // site is read, where a failure (such as a missing setting a source checks for) fails that read, and the root
+  // layout's `language()` can still open the admin panel.
+  checkSourceModules(config.collections, options.sources ?? {});
+  const sourcedIds = Object.keys(config.collections ?? {});
+  let made: CollectionSources | undefined;
+  const sources = () => {
+    made ??= collectionSources(config.collections, options.sources ?? {});
+    return made;
+  };
+  const site = async () => {
+    sources();
+    if (source) return loadSourceSite(source, options.root, sources());
+    // Without sources, the same arguments as the starter's root layout's `loadSite()`, so React's cache reads the site
+    // once a request; with them, a root layout gives `<html lang>` from `language()`, which reads it as pages do.
+    if (sourcedIds.length === 0) return options.root === undefined ? loadSite() : loadSite(options.root);
+    return loadSite(options.root, sources());
+  };
   const basePath = () => options.basePath ?? configuredBasePath();
 
   // Stored media's sizes are by its public address, which the site shows it from.
@@ -464,8 +512,26 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
       try {
         return (await site()).settings.language;
       } catch {
-        return (await loadSite(options.root)).settings.language;
+        // Without the collections' sources, which the language doesn't need, and which may be what failed, or the item
+        // files their items replace.
+        return (await loadSite(options.root, NO_SOURCES, sourcedIds)).settings.language;
       }
+    },
+
+    /**
+     * What has changed in the collections' sources since `since` (each
+     * source's `next` from last time, by collection id), from the sources
+     * these pages read, so a route that renders pages again for it
+     * (`revalidatePath()`) makes no second set of them, such as a second
+     * database pool (`sourceChanges()` in `@goodfellow-cms/core`).
+     */
+    async sourceChanges(since: Record<string, string> = {}): Promise<{
+      collections: string[];
+      paths: string[];
+      next: Record<string, string>;
+      failed: string[];
+    }> {
+      return changesInSources(await site(), sources(), since);
     },
 
     /** Every page's address, so Next.js builds them all. Any other address is "not found". */

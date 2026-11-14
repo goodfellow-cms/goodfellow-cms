@@ -331,7 +331,9 @@ async function main(): Promise<void> {
       return;
     }
     case "due": {
-      const result = await scheduleDue({ root: values.root, since: values.since });
+      const { dueSite } = await import("./due.js");
+      const root = resolve(values.root ?? ".");
+      const result = await scheduleDue({ root, since: values.since, load: (files) => dueSite(root, files) });
       for (const line of await reportDue(result, process.env, values.output ?? process.env.GITHUB_OUTPUT)) {
         console.log(line);
       }

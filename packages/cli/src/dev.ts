@@ -6,6 +6,7 @@ import {
   adminSiteForCopy,
   CONTENT_DIR,
   ContentError,
+  type ContentSource,
   describedForCopy,
   findRedirect,
   findSitePage,
@@ -46,7 +47,9 @@ import {
   devUrl,
   findConfigFile,
   loadServerEntry,
+  loadSourcedSite,
   type StylesEntries,
+  sourcedIds,
   writeStylesEntries,
 } from "./site.js";
 
@@ -308,14 +311,19 @@ function devPlugin(
             plugins: async () => (await loadServerEntry(server)).config.plugins ?? [],
             server: "goodfellow-dev" as const,
           };
-          if (await handleDevApi(store, req, res, { registryDir, tasks, allowedHosts })) return;
+          // Calendar files and feeds, as builds write them, from the content as it is now, with what sources give,
+          // here and at the development API's own addresses alike.
+          const sourcedSite = async (files: ContentSource) =>
+            loadSourcedSite(server, root, (await loadServerEntry(server)).config, files);
+          if (await handleDevApi(store, req, res, { registryDir, tasks, allowedHosts, load: sourcedSite })) return;
           if (req.method !== "GET" && req.method !== "HEAD") return next();
           const url = new URL(req.url ?? "/", "http://localhost");
 
           res.setHeader("Content-Type", "text/html; charset=utf-8");
           if (url.pathname === "/admin" || url.pathname === "/admin/") {
             // Content with a problem still opens the admin panel, which explains it.
-            const icon = await loadSiteContent(fileSystemSource(root)).then(
+            const sourced = await sourcedIds(server);
+            const icon = await loadSiteContent(fileSystemSource(root), { sourced }).then(
               (content) => content.settings.favicon,
               () => undefined,
             );
@@ -330,11 +338,18 @@ function devPlugin(
             res.end(JSON.stringify(describedForCopy(describe(), siteCopyFrom(process.env)), null, 2));
             return;
           }
-          // Calendar files and feeds, as builds write them, from the content as it is now.
-          if (await sendBuildFile(builtSiteSource(root), url.pathname, res).catch(() => false)) return;
+          // One that can't be made, such as when a collection's source can't be read, answers as a failure, said here,
+          // never as a file that isn't there, as the development API does in next dev.
+          const logError = (message: string) => server.config.logger.error(message, { timestamp: true });
+          if (await sendBuildFile(builtSiteSource(root), url.pathname, res, sourcedSite, logError)) return;
           if (/\.[a-z0-9]+$/i.test(url.pathname)) {
             // Old addresses such as /news.html send visitors on, as the built site's pages there do.
-            const content = await loadSiteContent(builtSiteSource(root)).then(shownContent, () => undefined);
+            // The files alone, without what sources give, which no redirect needs, or the item files they replace.
+            const sourced = await sourcedIds(server);
+            const content = await loadSiteContent(builtSiteSource(root), { sourced }).then(
+              shownContent,
+              () => undefined,
+            );
             const redirect = content && findRedirect(content, url.pathname);
             if (content && redirect) return void res.end(redirectPage(content, redirect.to));
             return next();
@@ -342,8 +357,8 @@ function devPlugin(
 
           try {
             // As a build now would show the site: pages and items scheduled for later are left out.
-            const content = shownContent(await loadSiteContent(builtSiteSource(root)));
             const { config, renderPage } = await loadServerEntry(server);
+            const content = shownContent(await loadSourcedSite(server, root, config, builtSiteSource(root)));
             const match = findSitePage(content, todayIn(content.settings.timeZone), config.blocks, url.pathname);
             // Pages win over redirects, as in builds.
             const redirect = (!match || match.status === 404) && findRedirect(content, url.pathname);

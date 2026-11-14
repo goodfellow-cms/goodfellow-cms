@@ -3,7 +3,12 @@ import {
   APP_API_HEADER,
   type AppEditor,
   type AppSession,
+  type CollectionFile,
+  type CollectionSource,
+  type CollectionSources,
   ConflictError,
+  collectionFileSchema,
+  collectionSettingsFile,
   decodeBase64,
   encodeBase64Bytes,
   type FileChange,
@@ -25,11 +30,13 @@ import {
   type PluginServerEditor,
   PluginTaskError,
   type PluginTaskRequest,
+  parseContentFile,
   pluginId,
   readPermissions,
   reviewersFor,
   type ServerGit,
   SignInError,
+  sourcedItemsFor,
   taskRequestProblem,
   visibilityChanges,
 } from "./index.js";
@@ -113,6 +120,15 @@ export interface AppApiOptions {
    * offer them, so they wait until they're old enough.
    */
   provenance?: EarlyInstallCheck;
+  /**
+   * The sources the config's `collections` name, by collection id
+   * (`collectionSources()`), whose items `collections/<id>/items` gives anyone
+   * signed in to edit, so the admin panel can show them, read-only. Or a
+   * function giving one collection's source (`undefined` for none), called
+   * only when that collection's items are asked for, so a source that can't
+   * be made fails only its own items, never another's, signing in or publishing.
+   */
+  sources?: CollectionSources | ((collection: string) => CollectionSource | undefined);
 }
 
 /** Room for a save with uploads, which are sent as base64 (a third larger than the files). */
@@ -339,6 +355,52 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
       return options.ai.forward(request, service, rest.join("/"));
     }
     if (get && endpoint === "revision") return json(200, { revision: await options.git.revision() });
+    const sourced = (get || post) && /^collections\/([a-z0-9-]+)\/items$/.exec(endpoint);
+    if (sourced) {
+      const id = sourced[1] ?? "";
+      // Asked with the settings an owner's admin panel has for the collection, a draft's or a publish's, which may
+      // not be published yet: only owners change those, and a new field's values are then what they'd publish anyway.
+      let proposed: CollectionFile | undefined;
+      if (post) {
+        if (editor.role !== "owner") return json(403, { error: "owners-only" });
+        const asked = collectionFileSchema.safeParse((await readBody(request)).settings);
+        if (!asked.success) throw new BadRequest("Send the collection's settings.");
+        proposed = asked.data;
+      }
+      // What the source's system answered stays on the server, as the repository's does.
+      const failed = (error: unknown) => {
+        onError(error);
+        return json(502, { error: "source" });
+      };
+      let source: CollectionSource | undefined;
+      try {
+        const sources = options.sources;
+        source =
+          typeof sources === "function" ? sources(id) : sources && Object.hasOwn(sources, id) ? sources[id] : undefined;
+      } catch (error) {
+        return failed(error);
+      }
+      if (!source) return json(404, { error: "not-found" });
+      // The settings first, so a collection that isn't published asks its system nothing, and says so. Read outside
+      // the source's `try`, so the repository's failures are told apart as everywhere else (`git`, `git-sign-in`).
+      let settings = proposed;
+      if (!settings) {
+        const path = collectionSettingsFile(id);
+        const text = await (await reader(await options.git.revision())).read(path);
+        const parsed =
+          text === undefined ? undefined : parseContentFile("collection", collectionFileSchema, path, text);
+        if (!parsed?.ok) return json(404, { error: "not-found" });
+        settings = parsed.value;
+      }
+      try {
+        // Only what the collection's fields name, from its settings as they're published now, so a row's other
+        // columns never reach editors, and only items a file could hold, so one value JSON can't hold leaves out
+        // only its item.
+        return json(200, { items: sourcedItemsFor(id, settings, await source.items()) });
+      } catch (error) {
+        return failed(error);
+      }
+    }
     if (get && endpoint === "file") {
       const backend = await reader(revisionParam(query("revision")));
       const path = editablePath(query("path"));

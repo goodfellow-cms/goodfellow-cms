@@ -2,6 +2,8 @@ import {
   type AdminSite,
   type AppRole,
   adminOrigin,
+  allPages,
+  type CollectionFile,
   ConflictError,
   type ContentStore,
   type DemoStore,
@@ -23,6 +25,7 @@ import {
   loadSiteContent,
   MEDIA_DIR,
   type MediaStorage,
+  mayBeUnreadPage,
   newDraftName,
   type OwnerAccess,
   outsideLimits,
@@ -44,6 +47,7 @@ import {
   type SiteDrafts,
   type SiteEditors,
   type SiteUpdates,
+  type SourcedItem,
   upcomingChanges,
   writeChanges,
 } from "@goodfellow-cms/core";
@@ -51,7 +55,7 @@ import type { MediaFieldKind } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ChecksDialog } from "./checks-dialog.js";
-import { browserDraftKeeper, rememberDraft, rememberedDraft } from "./drafts.js";
+import { browserDraftKeeper, draftAndLive, rememberDraft, rememberedDraft } from "./drafts.js";
 import { useEditorText } from "./editor-text.js";
 import {
   type FrameClient,
@@ -70,7 +74,7 @@ import { pluginSecretsHelp } from "./plugin-secrets.js";
 import { REGISTRY_VERSION } from "./registry-version.js";
 import { navigate } from "./router.js";
 import { useScheduleInfoOf } from "./schedule.js";
-import { checkPublish, type PublishChecks } from "./site-checks.js";
+import { askedWithSettings, checkPublish, type PublishChecks, readShown, type SourcesFor } from "./site-checks.js";
 import type { SiteCodeService } from "./site-code.js";
 import { showSiteIcon } from "./site-icon.js";
 import { StringsProvider, useStrings, useStringTable } from "./strings.js";
@@ -92,7 +96,21 @@ export type LoadState =
   | { status: "error"; error: unknown }
   | {
       status: "ready";
+      /** The site's files, as loaded: what screens change and publish. */
       content: SiteContent;
+      /**
+       * The site as visitors see it, where it differs from `content`: with the
+       * items of collections whose items come from a source
+       * (`withSourcedCollections()`), which the items list shows and the publish
+       * checks use, but nothing publishes, since they aren't the site's files.
+       */
+      shown?: SiteContent;
+      /**
+       * The collections whose sources couldn't be read as the site loaded, by
+       * id. They show no items, with a way to try again, and the publish checks
+       * ask their sources again; the other sourced collections show theirs.
+       */
+      unreadSources?: string[];
       revision: string;
       media: string[];
       /**
@@ -174,6 +192,11 @@ export interface Account {
    * installed before they're old enough, so they may be offered early.
    */
   earlyInstalls?: boolean;
+  /**
+   * On a full-stack site, the items of a collection whose items come from a
+   * source (`GoodfellowConfig.collections`), from its server.
+   */
+  sourcedItems?(collection: string, settings?: CollectionFile): Promise<SourcedItem[]>;
   /** On a full-stack site, for its owners: submits changes for a developer to review, as installing a plugin does. */
   review?(
     changes: FileChange[],
@@ -236,6 +259,13 @@ export interface AdminContextValue {
    */
   outOfReach: boolean;
   /**
+   * The sourced collections whose items the admin panel doesn't know: every
+   * one, where it can't read their sources (a site without a server), or
+   * those whose sources couldn't be read as the site loaded. Addresses their
+   * items could have are taken as theirs (`mayBeUnreadPage()`).
+   */
+  unreadCollections: ReadonlySet<string>;
+  /**
    * How plugins are installed here: published, where the admin panel runs at
    * the site's checked admin address or with a token broker, or submitted for
    * review, on a full-stack site. None elsewhere, where plugins are a
@@ -286,12 +316,17 @@ const CODE_TIMEOUT = 20_000;
 const DEPLOY_CHECK_INTERVAL = 5_000;
 const DEPLOY_CHECK_LIMIT = 20 * 60_000;
 
-async function load(store: ContentStore): Promise<LoadState> {
+async function load(
+  store: ContentStore,
+  sources: SourcesFor | undefined,
+  sourced: readonly string[],
+): Promise<LoadState> {
   try {
     // Read the revision first: reads then see that revision, even if someone publishes while loading.
     const revision = await store.revision();
-    const [content, media] = await Promise.all([loadSiteContent(store), store.list(MEDIA_DIR)]);
-    return { status: "ready", content, revision, media };
+    // Sourced collections' item files aren't read: their sources' items replace them, and nothing edits them.
+    const [content, media] = await Promise.all([loadSiteContent(store, { sourced }), store.list(MEDIA_DIR)]);
+    return { status: "ready", content, ...(await readShown(content, sources)), revision, media };
   } catch (error) {
     return { status: "error", error };
   }
@@ -458,6 +493,32 @@ export function AdminProvider({
     });
   }, [demo, mediaPreviews]);
 
+  // The collections whose items come from a source, whose item files the site never reads.
+  const sourced = useMemo(() => Object.keys(site.description.collections ?? {}), [site.description.collections]);
+  // Their items, from a full-stack site's server. Elsewhere the admin panel can't reach the sources, so there are
+  // none: their collections show no items, and their screens say why, and the publish checks leave links to their
+  // pages alone (`checkPublish()`'s `sourced`). The account is made again each time its screen draws, so its latest
+  // is read when items are, and only whether there is one decides the sources, which loading the site again follows.
+  const sourcedItems = useRef(account?.sourcedItems);
+  sourcedItems.current = account?.sourcedItems;
+  const role = useRef(account?.role);
+  role.current = account?.role;
+  const hasSourcedItems = Boolean(account?.sourcedItems);
+  // An owner asks with the collection's settings as the site being loaded or checked has them, so a draft's new
+  // collection and a publish's new field are read as they'd be published (`askedWithSettings()`).
+  const sources = useMemo((): SourcesFor | undefined => {
+    if (sourced.length === 0 || !hasSourcedItems) return undefined;
+    return askedWithSettings(
+      sourced,
+      (id, settings) => {
+        const read = sourcedItems.current;
+        if (!read) throw new Error("The site's server no longer reads its collections' items.");
+        return read(id, settings);
+      },
+      () => role.current === "owner",
+    );
+  }, [sourced, hasSourcedItems]);
+
   // The store the shown site was last loaded from, so switching drafts loads it once, and a slower earlier load is ignored.
   const loadedFrom = useRef<ContentStore>(undefined);
   // Opening a draft or leaving one: screens start again once its content has loaded.
@@ -466,11 +527,11 @@ export function AdminProvider({
     async (from: ContentStore) => {
       loadedFrom.current = from;
       const view = views.current;
-      const next = await load(from);
+      const next = await load(from, sources, sourced);
       if (next.status === "error" && next.error instanceof SignInError) onSignInError?.(next.error);
       if (loadedFrom.current === from) setState(next.status === "ready" ? { ...next, view } : next);
     },
-    [onSignInError],
+    [onSignInError, sources, sourced],
   );
 
   const reload = useCallback(() => loadFrom(content), [loadFrom, content]);
@@ -517,7 +578,15 @@ export function AdminProvider({
 
   /** Shows the site checks' dialog where they found anything, and says whether to go ahead. */
   const confirmChecks = useCallback(async (checks: PublishChecks | undefined) => {
-    if (!checks || (checks.blocking.length === 0 && checks.warnings.length === 0)) return true;
+    if (
+      !checks ||
+      (checks.blocking.length === 0 &&
+        checks.warnings.length === 0 &&
+        !checks.unread?.length &&
+        !checks.leftOut?.length)
+    ) {
+      return true;
+    }
     const go = await new Promise<boolean>((decide) => setChecking({ checks, content: checks.content, decide }));
     setChecking(undefined);
     return go;
@@ -586,8 +655,17 @@ export function AdminProvider({
         await askLimits(outside, state.content, submit);
         return { ok: false, reason: "checks", error: undefined };
       }
-      const checks =
-        options?.checks === false ? undefined : await checkPublish(content, state, changes, { blocks, code });
+      let checks: PublishChecks | undefined;
+      try {
+        checks =
+          options?.checks === false
+            ? undefined
+            : await checkPublish(content, state, changes, { blocks, code, sources, sourced });
+      } catch (error) {
+        // A sign-in that ran out while checking: signing in again, as a write that finds it does.
+        if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
+        return { ok: false, reason: "error", error };
+      }
       if (!(await confirmChecks(checks))) return { ok: false, reason: "checks", error: undefined };
       let target = draft;
       let started: Draft | undefined;
@@ -633,6 +711,8 @@ export function AdminProvider({
       askLimits,
       reviewers,
       t,
+      sources,
+      sourced,
     ],
   );
 
@@ -657,14 +737,15 @@ export function AdminProvider({
 
   const publishAll = useCallback(async (): Promise<PublishResult> => {
     if (!draft) return { ok: false, reason: "error", error: new Error("There's no draft open.") };
-    let changes: FileChange[];
-    let live: LoadState;
-    try {
-      [changes, live] = await Promise.all([draft.changes(), load(store)]);
-    } catch (error) {
-      return { ok: false, reason: "error", error };
-    }
-    if (live.status !== "ready") return { ok: false, reason: "error", error: live.status === "error" && live.error };
+    // A sign-in that ran out, reading the draft or the live site with its sources, is for signing in again.
+    const read = await draftAndLive(
+      () => draft.changes(),
+      () => load(store, sources, sourced),
+      onSignInError,
+    );
+    if ("error" in read) return { ok: false, reason: "error", error: read.error };
+    let changes = read.changes;
+    const live = read.live;
     const outside = outsideLimits(live.content, limitsFor(live.content.permissions, account?.user.login), changes);
     if (outside.length > 0) {
       const current = draft;
@@ -689,7 +770,14 @@ export function AdminProvider({
       return { ok: false, reason: "error", error };
     }
     // Every file in the draft, against the live site as it is now.
-    if (!(await confirmChecks(await checkPublish(store, live, changes, { blocks, code })))) {
+    let checks: PublishChecks;
+    try {
+      checks = await checkPublish(store, live, changes, { blocks, code, sources, sourced });
+    } catch (error) {
+      if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
+      return { ok: false, reason: "error", error };
+    }
+    if (!(await confirmChecks(checks))) {
       return { ok: false, reason: "checks", error: undefined };
     }
     let revision: string;
@@ -719,6 +807,8 @@ export function AdminProvider({
     askLimits,
     reviewers,
     refreshDrafts,
+    sources,
+    sourced,
   ]);
 
   const submitDraft = useCallback(async () => {
@@ -831,6 +921,11 @@ export function AdminProvider({
           ? ("publish" as const)
           : undefined;
 
+  const unreadSources = state.status === "ready" ? state.unreadSources : undefined;
+  const unreadCollections = useMemo(
+    (): ReadonlySet<string> => new Set(sources ? (unreadSources ?? []) : sourced),
+    [sources, sourced, unreadSources],
+  );
   const value = useMemo(
     () => ({
       site,
@@ -851,6 +946,7 @@ export function AdminProvider({
       readBytes,
       registries,
       outOfReach,
+      unreadCollections,
       pluginInstalls,
       demo,
       pages,
@@ -886,6 +982,7 @@ export function AdminProvider({
       readBytes,
       registries,
       outOfReach,
+      unreadCollections,
       pluginInstalls,
       demo,
       pages,
@@ -1124,8 +1221,67 @@ export function useAdmin(): AdminContextValue {
 }
 
 /** The loaded site. Only call from screens rendered once loading has finished. */
-export function useSiteContent(): { content: SiteContent; revision: string; media: string[] } {
+export function useSiteContent(): { content: SiteContent; shown?: SiteContent; revision: string; media: string[] } {
   const { state } = useAdmin();
   if (state.status !== "ready") throw new Error("The site isn't loaded yet.");
   return state;
+}
+
+/**
+ * The addresses of every page visitors see (`useSiteContent().shown`), such as
+ * items a collection's source gives, which the site's files don't hold: moves
+ * leave links to them as they are (`movePageChanges()`'s `pages`).
+ */
+export function shownPaths(shown: SiteContent | undefined): string[] {
+  return shown ? allPages(shown).map((page) => page.path) : [];
+}
+
+/**
+ * The name of a collection whose items the admin panel can't read
+ * (`unreadCollections`) that could have a page at `path`, if any: a new or
+ * moved page or item there is refused, since the site would show only one of
+ * them, and nobody could tell which until it's built. A collection whose
+ * pattern is only its item's name refuses nothing (`takesAnyAddress()`).
+ */
+export function useMayBeItem(): (path: string | undefined) => string | undefined {
+  const { state, unreadCollections } = useAdmin();
+  const content = state.status === "ready" ? state.content : undefined;
+  return useCallback(
+    (path) => {
+      if (!content || !path || unreadCollections.size === 0) return undefined;
+      const collection = content.collections.find(
+        (one) =>
+          unreadCollections.has(one.id) && mayBeUnreadPage(content, new Set([one.id]), path, { anyAddress: false }),
+      );
+      return collection?.settings.name;
+    },
+    [content, unreadCollections],
+  );
+}
+
+/**
+ * The addresses whose links stay as they are when an address above them moves
+ * (`movePageChanges()`'s `pages`): every page visitors see that the site's
+ * files don't hold (`shownPaths()`), and any address the items of a collection
+ * the admin panel can't read could have (`mayBeUnreadPage()`), since a move
+ * can't follow links to pages it doesn't know.
+ */
+export function stayingPaths(
+  content: SiteContent,
+  shown: SiteContent | undefined,
+  unread: ReadonlySet<string>,
+): (path: string) => boolean {
+  const known = new Set(shownPaths(shown));
+  return (path) => known.has(path) || mayBeUnreadPage(content, unread, path);
+}
+
+/**
+ * The module the config names for a collection's items, where they come from
+ * a source rather than its files (`GoodfellowConfig.collections`): the admin
+ * panel shows them read-only, since they're edited where they're kept.
+ */
+export function useCollectionSource(collection: string): string | undefined {
+  const { site } = useAdmin();
+  const sources = site.description.collections ?? {};
+  return Object.hasOwn(sources, collection) ? sources[collection]?.source : undefined;
 }

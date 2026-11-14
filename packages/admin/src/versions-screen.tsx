@@ -217,7 +217,12 @@ function VersionDetail({
       if (text === undefined) return { status: "failed", message: "versions.readError" };
       let content: SiteContent;
       try {
-        content = await contentWithVersion({ read: readFile, list: listFiles }, subject.file, text);
+        content = await contentWithVersion(
+          { read: readFile, list: listFiles },
+          subject.file,
+          text,
+          Object.keys(site.description.collections ?? {}),
+        );
       } catch (error) {
         if (!(error instanceof ContentError)) throw error;
         const details = new Error(error.problems.map((problem) => `${problem.file}: ${problem.message}`).join("\n"));
@@ -237,7 +242,7 @@ function VersionDetail({
     return () => {
       cancelled = true;
     };
-  }, [versions, subject.file, version.revision, readFile, listFiles, configs]);
+  }, [versions, subject.file, version.revision, readFile, listFiles, configs, site.description.collections]);
 
   const restore = useCallback(async () => {
     if (loaded.status !== "ready") return;

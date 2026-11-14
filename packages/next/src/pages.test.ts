@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { allPages, loadSiteContent, parseDemoContent } from "@goodfellow-cms/core";
+import { allPages, type CollectionSource, loadSiteContent, parseDemoContent } from "@goodfellow-cms/core";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { goodfellowPages, pageMetadata, shownPage } from "./index.js";
 
 const root = resolve(import.meta.dirname, "../../../templates/starter");
@@ -157,6 +157,109 @@ describe("goodfellowPages with a source", () => {
   it("reads the site's own files where the source gives nothing, as in next dev", async () => {
     const local = goodfellowPages({ blocks: {} }, { root, source: () => undefined });
     expect((await local.loadSite()).settings.title).toBe("My site");
+  });
+});
+
+describe("goodfellowPages with collections' sources", () => {
+  const welcome = { slug: "from-the-database", fields: { title: "From the database", date: "2026-11-01" } };
+  const config = { blocks: {}, collections: { news: { source: "./lib/news.ts", options: { table: "posts" } } } };
+
+  it("shows a source's items as the collection's, made with the config's options", async () => {
+    const tables: string[] = [];
+    const sourced = goodfellowPages(config, {
+      root,
+      sources: {
+        news: {
+          default: (options) => ({
+            items: async () => {
+              tables.push(String(options.table));
+              return [welcome];
+            },
+          }),
+        },
+      },
+    });
+    const params = await sourced.generateStaticParams();
+    expect(params).toContainEqual({ path: ["news", "from-the-database"] });
+    expect(params).not.toContainEqual({ path: ["news", "welcome"] });
+    const metadata = await sourced.generateMetadata({
+      params: Promise.resolve({ path: ["news", "from-the-database"] }),
+    });
+    expect(metadata.title).toEqual({ absolute: "From the database | My site" });
+    expect(tables[0]).toBe("posts");
+    // From the repository too, as a full-stack site's pages read it.
+    // With a file left in the collection's folder that loading would refuse, which the source's items replace.
+    const files = fileSystemSource(root);
+    const broken = "content/collections/news/broken.json";
+    const live = goodfellowPages(config, {
+      root: "/nowhere",
+      source: () => ({
+        read: async (path) => (path === broken ? '{ "version": 1, "fields": { "title": 42 } }' : files.read(path)),
+        list: async (dir) => [...(await files.list(dir)), ...(broken.startsWith(`${dir}/`) ? [broken] : [])],
+      }),
+      sources: { news: () => ({ items: async () => [welcome] }) },
+    });
+    expect(await live.generateStaticParams()).toContainEqual({ path: ["news", "from-the-database"] });
+  });
+
+  it("says what changed in the sources its pages read, making no second set of them", async () => {
+    const asked: string[] = [];
+    const make = vi.fn(
+      (): CollectionSource => ({
+        items: async () => [welcome],
+        changed: async (since) => {
+          asked.push(since);
+          return { slugs: ["from-the-database"], next: "after" };
+        },
+      }),
+    );
+    const sourced = goodfellowPages(config, { root, sources: { news: make } });
+    await sourced.generateStaticParams();
+    const first = await sourced.sourceChanges();
+    expect(first.collections).toEqual(["news"]);
+    expect(first.paths).toContain("/news/from-the-database");
+    expect(first.next).toEqual({ news: "after" });
+    expect((await sourced.sourceChanges(first.next)).failed).toEqual([]);
+    expect(asked).toEqual(["", "after"]);
+    // One source, which the pages and the changes share.
+    expect(make).toHaveBeenCalledOnce();
+  });
+
+  it("refuses a config naming a source the site's code didn't give", () => {
+    expect(() => goodfellowPages(config, { root })).toThrow(/lib\/news\.ts/);
+  });
+
+  it("makes the sources only once the site is read, so one that can't be made fails the pages, not the layout", async () => {
+    const make = vi.fn((): CollectionSource => {
+      throw new Error("NEWS_DATABASE_URL isn't set");
+    });
+    const failing = goodfellowPages(config, { root, sources: { news: make } });
+    expect(make).not.toHaveBeenCalled();
+    await expect(failing.generateStaticParams()).rejects.toThrow("NEWS_DATABASE_URL");
+    // The root layout still has the site's language, for the admin panel and sign-in.
+    expect(await failing.language()).toBe("en");
+  });
+
+  it("gives the root layout the site's language from files whose sourced collections hold a file loading refuses", async () => {
+    const copy = await mkdtemp(join(tmpdir(), "goodfellow-sourced-"));
+    try {
+      await cp(join(root, "content"), join(copy, "content"), { recursive: true });
+      await writeFile(
+        join(copy, "content/collections/news/broken.json"),
+        '{ "version": 1, "fields": { "title": 42 } }\n',
+      );
+      const failing = goodfellowPages(config, {
+        root: copy,
+        sources: {
+          news: (): CollectionSource => {
+            throw new Error("NEWS_DATABASE_URL isn't set");
+          },
+        },
+      });
+      expect(await failing.language()).toBe("en");
+    } finally {
+      await rm(copy, { recursive: true, force: true });
+    }
   });
 });
 

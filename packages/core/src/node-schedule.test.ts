@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { serializeBuildRecord, serializeContent } from "./index.js";
+import { loadSourcedContent, serializeBuildRecord, serializeContent } from "./index.js";
 import { reportDue, scheduleDue } from "./node-schedule.js";
 
 let root: string | undefined;
@@ -47,6 +47,33 @@ describe("the hourly check", () => {
       "No scheduled change came due since 2026-11-01T11:00:00.000Z, so the site isn't built again.",
       'Next scheduled change: show "Advent" (/advent) at 2026-11-29T09:00 (Europe/London)',
     ]);
+  });
+
+  it("loads the site as it's given, so a source's items' schedules come due and the files they replace don't", async () => {
+    const dir = await site();
+    await mkdir(join(dir, "content/collections/talks"), { recursive: true });
+    await writeFile(
+      join(dir, "content/collections/talks/_collection.json"),
+      serializeContent({
+        version: 1,
+        name: "Talks",
+        entryName: "Talk",
+        path: "/talks/{slug}",
+        fields: [{ name: "title", label: "Title", type: "text" }],
+      }),
+    );
+    // Left in the folder from before the collection had a source.
+    await writeFile(
+      join(dir, "content/collections/talks/old.json"),
+      serializeContent({ version: 1, showFrom: "2026-11-29T08:30", fields: { title: "Old talk" } }),
+    );
+    const window = { root: dir, since: "2026-11-29T08:17:00Z", now: new Date("2026-11-29T09:17:00Z") };
+    const titles = (result: Awaited<ReturnType<typeof scheduleDue>>) => result.due.map((change) => change.title);
+    expect(titles(await scheduleDue(window))).toContain("Old talk");
+    const talks = { items: async () => [{ slug: "new", showFrom: "2026-11-29T08:45", fields: { title: "New talk" } }] };
+    const sourced = await scheduleDue({ ...window, load: (files) => loadSourcedContent(files, { talks }) });
+    expect(titles(sourced)).toContain("New talk");
+    expect(titles(sourced)).not.toContain("Old talk");
   });
 
   it("says a build is due the first check after the live site's build record says it stops being current", async () => {

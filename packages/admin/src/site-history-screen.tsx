@@ -266,7 +266,8 @@ function PublishDetail({ version, onRestored }: { version: FileVersion; onRestor
       const then = versions.filesAt(version.revision);
       let content: SiteContent;
       try {
-        content = await loadSiteContent(then);
+        // As the site is loaded, without the item files left in sourced collections' folders.
+        content = await loadSiteContent(then, { sourced: Object.keys(site.description.collections ?? {}) });
       } catch (error) {
         if (!(error instanceof ContentError)) return { status: "failed", message: "siteHistory.readError", error };
         const details = new Error(error.problems.map((problem) => `${problem.file}: ${problem.message}`).join("\n"));
@@ -289,7 +290,17 @@ function PublishDetail({ version, onRestored }: { version: FileVersion; onRestor
     return () => {
       cancelled = true;
     };
-  }, [versions, version.revision, revision, changedPaths, readFile, listFiles, now, configs]);
+  }, [
+    versions,
+    version.revision,
+    revision,
+    changedPaths,
+    readFile,
+    listFiles,
+    now,
+    configs,
+    site.description.collections,
+  ]);
 
   const pages = useMemo(() => (loaded.status === "ready" ? allPages(loaded.content) : []), [loaded]);
   const page: Page | undefined = pages.find((candidate) => candidate.path === shown) ?? pages[0];
