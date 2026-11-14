@@ -18,6 +18,7 @@ import {
   STRIPE_EVENT_LEASE_SECONDS,
   STRIPE_LOCK_IDENTIFIER,
   STRIPE_LOCK_SECONDS,
+  StripeBusy,
   stripeFor,
   webhookResponse,
 } from "./stripe.ts";
@@ -289,6 +290,59 @@ function pausingWrites<T extends object>(adapter: T, method: "create" | "deleteM
 }
 
 describe("Stripe's events", () => {
+  it("give a subscription nothing while a renewal's payment is retried or left unpaid, and again once it's paid", async () => {
+    const { stripe, buy, deliver, context, readerId, close } = await payments();
+    try {
+      const bought = await buy("monthly");
+      const subscription = stripe.subscriptions.get(bought?.subscription ?? "");
+      if (!subscription) throw new Error("No subscription.");
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      // Stripe moves the period on to the one not paid for yet, then retries the payment.
+      for (const status of ["past_due", "unpaid"]) {
+        subscription.status = status;
+        const item = subscription.items.data[0];
+        if (item) item.current_period_end += 30 * 24 * 60 * 60;
+        expect((await deliver(stripe.event("customer.subscription.updated", subscription))).status).toBe(200);
+        expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+      }
+      subscription.status = "active";
+      await deliver(stripe.event("customer.subscription.updated", subscription));
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+    } finally {
+      close();
+    }
+  });
+
+  it("take away a subscription, a purchase, and nothing else, where Stripe no longer has what an event names", async () => {
+    const { stripe, buy, deliver, context, readerId, close } = await payments();
+    try {
+      const subscribedTo = await buy("monthly");
+      const purchase = await buy("report");
+      // A deleted customer's test data, say: Stripe answers that it has no such object, which retrying never changes.
+      const subscription = stripe.subscriptions.get(subscribedTo?.subscription ?? "");
+      if (!subscription) throw new Error("No subscription.");
+      stripe.subscriptions.delete(subscription.id);
+      expect((await deliver(stripe.event("customer.subscription.deleted", subscription))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(true);
+      // A payment it no longer has paid for nothing; a Session it no longer has is left alone.
+      const paymentIntent = purchase?.payment_intent ?? "";
+      stripe.charges.delete(paymentIntent);
+      expect(
+        (
+          await deliver(
+            stripe.event("refund.updated", { id: "re_gone", object: "refund", payment_intent: paymentIntent }),
+          )
+        ).status,
+      ).toBe(200);
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+      stripe.sessions.delete(purchase?.id ?? "");
+      expect((await deliver(stripe.event("checkout.session.completed", { id: purchase?.id }))).status).toBe(200);
+    } finally {
+      close();
+    }
+  });
+
   it("give a subscription once it's paid, until its period ends, and take it away once it's cancelled", async () => {
     const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
     try {
@@ -664,6 +718,108 @@ describe("Stripe's events", () => {
     }
   });
 
+  it("write nothing of a Checkout Session, its customer included, once its lock is taken over before writing", async () => {
+    const { stripe, buying, checkout, context, readerId, reader, customer, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "report" }));
+      const session = [...stripe.sessions.values()][0];
+      stripe.pay(session?.id ?? "");
+      await context.adapter.updateMany({
+        model: "user",
+        where: [{ field: "id", value: readerId }],
+        update: { stripeCustomerId: null },
+      });
+      let reading = () => {};
+      const read = new Promise<void>((resolve) => {
+        reading = resolve;
+      });
+      let release = () => {};
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const slow = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (new URL(url).pathname === `/v1/checkout/sessions/${session?.id}`) {
+          reading();
+          await released;
+        }
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      const writing = applySession(context.adapter, slow, session?.id ?? "");
+      await read;
+      // Another request takes the lock over while this one reads.
+      await context.adapter.updateMany({
+        model: "verification",
+        where: [{ field: "id", value: `${STRIPE_LOCK_IDENTIFIER}session:${session?.id}` }],
+        update: { value: "another request" },
+      });
+      release();
+      await expect(writing).rejects.toBeInstanceOf(StripeBusy);
+      expect(await customer(readerId)).toBeUndefined();
+      expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+    } finally {
+      close();
+    }
+  });
+
+  it("let go of only their own claim, never one that took theirs over once it ran out", async () => {
+    const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const session = [...stripe.sessions.values()][0];
+      const [created] = stripe.pay(session?.id ?? "");
+      const id = `${STRIPE_EVENT_IDENTIFIER}${(created as { id: string }).id}`;
+      let reading = () => {};
+      const read = new Promise<void>((resolve) => {
+        reading = resolve;
+      });
+      let release = () => {};
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      // A request stalls reading the subscription from Stripe, then fails.
+      const failing = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (new URL(url).pathname.startsWith("/v1/subscriptions/")) {
+          reading();
+          await released;
+          return Response.json({ error: { type: "invalid_request_error", message: "No." } }, { status: 400 });
+        }
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      const signed = signEvent("whsec_test_only", created ?? {});
+      const stalled = webhookResponse(
+        new Request(`${SITE}/api/stripe/webhook/`, {
+          method: "POST",
+          headers: { "stripe-signature": signed.signature },
+          body: signed.body,
+        }),
+        { siteEnv: PAYMENTS_ENV, stripe: failing, adapter: context.adapter },
+      );
+      await read;
+      // Its claim and its subscription's lock run out, and Stripe's retry takes them over and handles the event.
+      for (const held of [id, `${STRIPE_LOCK_IDENTIFIER}subscription:${session?.subscription}`]) {
+        await context.adapter.updateMany({
+          model: "verification",
+          where: [{ field: "id", value: held }],
+          update: { expiresAt: new Date(Date.now() - 1000) },
+        });
+      }
+      expect((await deliver(created ?? {})).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      release();
+      await expect(stalled).rejects.toThrow();
+      // The stalled one's failure leaves the event handled.
+      const record = await context.adapter.findOne<{ value: string }>({
+        model: "verification",
+        where: [{ field: "id", value: id }],
+      });
+      expect(record?.value).toBe("handled");
+    } finally {
+      close();
+    }
+  });
+
   it("are taken over once a request that stopped part way has run out of time, and wait while it hasn't", async () => {
     const { stripe, buying, checkout, deliver, context, readerId, reader, close } = await payments();
     try {
@@ -862,7 +1018,7 @@ describe("what Stripe and the site's accounts can come to", () => {
     }
   });
 
-  it("finds a Checkout someone has open for a product by its product, without asking for its items", async () => {
+  it("finds a Checkout someone has open for a price by its metadata, without asking for its items", async () => {
     const { stripe, buying, checkout, reader, close } = await payments();
     try {
       const first = await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
@@ -871,10 +1027,54 @@ describe("what Stripe and the site's accounts can come to", () => {
         asked.push(String(input instanceof Request ? input.url : input));
         return stripe.fetch(input, init);
       }) as typeof fetch);
-      // Another price of the same product goes back to the same Checkout.
-      expect(await checkout(buying(reader, { page: "/subscribe", block: "yearly" }), counting)).toBe(first);
+      expect(await checkout(buying(reader, { page: "/subscribe", block: "monthly" }), counting)).toBe(first);
       expect(stripe.sessions.size).toBe(1);
       expect(asked.filter((url) => url.includes("/line_items"))).toEqual([]);
+    } finally {
+      close();
+    }
+  });
+
+  it("starts a Checkout for the price chosen now, expiring one open for another of the product's prices", async () => {
+    const { stripe, buttons, buying, checkout, reader, close } = await payments();
+    try {
+      const monthly = await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const [first] = [...stripe.sessions.values()];
+      // The yearly button, pressed with the monthly Checkout still open, sells the yearly price, and only that.
+      const yearly = await checkout(buying(reader, { page: "/subscribe", block: "yearly" }));
+      expect(yearly).not.toBe(monthly);
+      const second = [...stripe.sessions.values()].at(-1);
+      expect(second?.price).toBe(YEARLY.id);
+      expect(first?.status).toBe("expired");
+      expect(await checkout(buying(reader, { page: "/subscribe", block: "yearly" }))).toBe(yearly);
+      // Owners giving the button another price since does the same.
+      buttons.yearly = MONTHLY.id;
+      const changed = await checkout(buying(reader, { page: "/subscribe", block: "yearly" }));
+      expect(changed).not.toBe(yearly);
+      expect(second?.status).toBe("expired");
+      expect([...stripe.sessions.values()].filter((one) => one.status === "open").map((one) => one.price)).toEqual([
+        MONTHLY.id,
+      ]);
+    } finally {
+      close();
+    }
+  });
+
+  it("asks to try again where the other price's Checkout can't be expired, as once it's paid meanwhile", async () => {
+    const { stripe, buying, checkout, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const refusing = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (url.endsWith("/expire")) {
+          return Response.json({ error: { type: "invalid_request_error", message: "Not open." } }, { status: 400 });
+        }
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      await expect(checkout(buying(reader, { page: "/subscribe", block: "yearly" }), refusing)).rejects.toMatchObject({
+        status: 409,
+      });
+      expect(stripe.sessions.size).toBe(1);
     } finally {
       close();
     }
@@ -916,6 +1116,60 @@ describe("what Stripe and the site's accounts can come to", () => {
       expect(await pressed).toMatch(new RegExp(`^${STRIPE}/checkout/cs_`));
     } finally {
       vi.useRealTimers();
+      close();
+    }
+  });
+
+  it("starts no Checkout from a press that took longer than its lock to look, once another has started one", async () => {
+    const { stripe, buying, checkout, reader, close } = await payments();
+    try {
+      let looking = () => {};
+      const looked = new Promise<void>((resolve) => {
+        looking = resolve;
+      });
+      let release = () => {};
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const slow = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        // Stripe's answer, that nothing is open, is read before the other press, and arrives after it.
+        const answer = await stripe.fetch(input, init);
+        if (url.includes("/v1/checkout/sessions?")) {
+          looking();
+          await released;
+        }
+        return answer;
+      }) as typeof fetch);
+      // A press stalls while it looks for an open Checkout, past the lock's time, and another takes the lock over...
+      const pressed = checkout(buying(reader, { page: "/subscribe", block: "monthly" }), slow);
+      await looked;
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + (CHECKOUT_LOCK_SECONDS + 1) * 1000);
+      const other = await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      release();
+      // ...so the stalled one stops before starting a second Checkout.
+      await expect(pressed).rejects.toMatchObject({ status: 409 });
+      expect([...stripe.sessions.values()].map((one) => one.url)).toEqual([other]);
+    } finally {
+      vi.useRealTimers();
+      close();
+    }
+  });
+
+  it("asks Stripe for a customer's subscriptions without the cancelled ones, which a long-time customer has many of", async () => {
+    const { stripe, buying, checkout, reader, close } = await payments();
+    try {
+      const asked: string[] = [];
+      const counting = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        asked.push(String(input instanceof Request ? input.url : input));
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }), counting);
+      const listed = asked.filter((url) => new URL(url).pathname === "/v1/subscriptions");
+      expect(listed).toHaveLength(1);
+      expect(new URL(listed[0] ?? "").searchParams.get("status")).toBeNull();
+    } finally {
       close();
     }
   });

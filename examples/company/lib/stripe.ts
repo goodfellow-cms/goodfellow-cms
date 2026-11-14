@@ -147,8 +147,8 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
       line_items: [{ price: price.id, quantity: 1 }],
       client_reference_id: userId,
       customer,
-      // The product too, which a second press finds an open Checkout by (`openCheckout()`).
-      metadata: { userId, product },
+      // The product and price too, which a second press finds an open Checkout by (`openCheckout()`).
+      metadata: { userId, product, price: price.id },
       ...(subscribing && { subscription_data: { metadata: { userId } } }),
       success_url: done,
       cancel_url: page,
@@ -170,22 +170,32 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
   // A subscription, one request at a time for each person and product, so a second press, a second tab, or another of
   // its prices (yearly beside monthly) can't start a second subscription to the same thing before the first is paid
   // for: someone who already has it manages it, and one who has started paying for it goes back to that Checkout.
+  // The Checkout this press started, if any, which is theirs to pay even where its lock ran out while it started.
+  let started: string | undefined;
   try {
     const lock = `checkout:${userId}:${product}`;
     return await withStripeLock(
       options.adapter,
       lock,
-      async () => {
+      async (fence) => {
         if (await subscribed(stripe, customer, product)) {
           return (await stripe.billingPortal.sessions.create({ customer, return_url: page })).url;
         }
-        return (await openCheckout(stripe, customer, product)) ?? (await start());
+        const open = await openCheckout(stripe, customer, product, price.id);
+        if (open) return open;
+        // Renewed just before starting one: a press that took longer than the lock to look, so another may have
+        // started one meanwhile, stops here rather than start a second.
+        await fence();
+        started = await start();
+        return started;
       },
       CHECKOUT_LOCK_SECONDS,
     );
   } catch (error) {
-    if (error instanceof StripeBusy)
+    if (error instanceof StripeBusy) {
+      if (error.takenOver && started) return started;
       throw new PaymentsError(409, "Your payment is already starting. Try again in a moment.");
+    }
     throw error;
   }
 }
@@ -202,7 +212,8 @@ const ENDED = new Set(["canceled", "incomplete_expired"]);
  */
 async function subscribed(stripe: Stripe, customer: string, product: string): Promise<boolean> {
   try {
-    for await (const subscription of stripe.subscriptions.list({ customer, status: "all", limit: 100 })) {
+    // Stripe's list leaves out cancelled subscriptions unless asked for them, so a long-time customer's are few.
+    for await (const subscription of stripe.subscriptions.list({ customer, limit: 100 })) {
       if (ENDED.has(subscription.status)) continue;
       if (subscription.items.data.some((item) => idOf(item.price.product as string | { id: string }) === product)) {
         return true;
@@ -217,19 +228,36 @@ async function subscribed(stripe: Stripe, customer: string, product: string): Pr
 }
 
 /**
- * The address of a subscription's Checkout Session `customer` has open for `product`, if any, to go back to rather
- * than start another: by the product the site named in its metadata, so it's one list of Sessions, not a request for
- * each one's items.
+ * The address of a subscription's Checkout Session `customer` has open for `price`, if any, to go back to rather than
+ * start another: by the product and price the site named in its metadata, so it's one list of Sessions, not a request
+ * for each one's items. One open for another of the product's prices, as when they pressed the monthly button and now
+ * the yearly, or owners have changed the button's price since, is expired, so they pay only the price they chose now,
+ * and never both.
  */
-async function openCheckout(stripe: Stripe, customer: string, product: string): Promise<string | undefined> {
+async function openCheckout(
+  stripe: Stripe,
+  customer: string,
+  product: string,
+  price: string,
+): Promise<string | undefined> {
+  let found: string | undefined;
+  const others: string[] = [];
   try {
     for await (const session of stripe.checkout.sessions.list({ customer, status: "open", limit: 100 })) {
-      if (session.mode === "subscription" && session.url && session.metadata?.product === product) return session.url;
+      if (session.mode !== "subscription" || session.metadata?.product !== product) continue;
+      if (session.metadata?.price === price && session.url && !found) found = session.url;
+      else others.push(session.id);
     }
   } catch (error) {
     if (!isMissing(error, "customer")) throw error;
   }
-  return undefined;
+  for (const id of others) {
+    // One paid for or expired meanwhile can't be expired: the next press finds the subscription it made, if any.
+    await stripe.checkout.sessions.expire(id).catch(() => {
+      throw new PaymentsError(409, "Your payment is already starting. Try again in a moment.");
+    });
+  }
+  return found;
 }
 
 /** Stripe's id of whatever's in `value`: the id itself, or an object Stripe expanded. */
@@ -242,7 +270,10 @@ export type CustomerAdapter = Pick<EntitlementAdapter, "updateMany"> & {
   findOne<T>(data: { model: string; where: { field: string; value: string }[] }): Promise<T | null>;
 };
 
-/** The Stripe customer a person pays as, which the site wrote from a Checkout Session they paid, if any. */
+/**
+ * The Stripe customer a person pays as, if any: made the first time they went to Checkout, whether or not they paid
+ * (`accountCustomer()`), or written from a Checkout Session they paid.
+ */
 export async function customerOf(adapter: CustomerAdapter, userId: string): Promise<string | undefined> {
   const user = await adapter.findOne<{ stripeCustomerId?: string | null }>({
     model: "user",
@@ -305,8 +336,12 @@ export function subscriptionReference(subscriptionId: string): string {
   return `stripe:${subscriptionId}`;
 }
 
-/** The statuses in which a Stripe subscription still gives access, until its period ends. */
-const SUBSCRIBED = new Set(["active", "trialing", "past_due"]);
+/**
+ * The statuses in which a Stripe subscription still gives access, until its period ends. Not while a renewal's payment
+ * is being retried (`past_due`), or once Stripe leaves it `unpaid`, since Stripe has already moved its period on to the
+ * one not paid for: it gives access again once the payment goes through and it's `active`.
+ */
+const SUBSCRIBED = new Set(["active", "trialing"]);
 
 /** What writing what Stripe says needs of Better Auth's adapter: entitlements, and the rows that hold its locks. */
 export type PaymentsAdapter = EntitlementAdapter & Parameters<typeof claimRow>[0];
@@ -421,12 +456,23 @@ type Fence = (undo?: () => Promise<void>) => Promise<void>;
 
 /**
  * Writes a Stripe subscription's state, as Stripe has it now, into the person's entitlements: until its current
- * period ends while it's active (or trialing, or retrying a payment), and none at all otherwise. The person is the one
+ * period ends while it's active (or trialing), and none at all otherwise, nor where Stripe no longer has it. The person is the one
  * the site named when it made the Checkout Session, in the subscription's metadata, never anything the event says.
  */
 export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subscriptionId: string): Promise<void> {
   return withStripeLock(adapter, `subscription:${subscriptionId}`, async (fence) => {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId).catch((error: unknown) => {
+      if (isMissing(error)) return undefined;
+      throw error;
+    });
+    // One Stripe no longer has, as once an owner deletes its customer or test data, gives nothing, whoever it was for.
+    if (!subscription) {
+      await adapter.deleteMany({
+        model: "entitlement",
+        where: [{ field: "reference", value: subscriptionReference(subscriptionId) }],
+      });
+      return;
+    }
     const userId = subscription.metadata?.userId;
     // An account deleted since took its entitlements with it, and writing one for it would fail on every retry.
     if (!userId || !(await stillHere(adapter, userId))) return;
@@ -486,7 +532,14 @@ const KEPT_DISPUTE = new Set(["won", "warning_closed"]);
  * fails (`refund.failed`, `refund.updated`, or `charge.refund.updated`), which Stripe takes off `amount_refunded`.
  */
 async function takenBack(stripe: Stripe, paymentIntentId: string): Promise<boolean> {
-  const payment = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ["latest_charge"] });
+  const payment = await stripe.paymentIntents
+    .retrieve(paymentIntentId, { expand: ["latest_charge"] })
+    .catch((error: unknown) => {
+      if (isMissing(error)) return undefined;
+      throw error;
+    });
+  // A payment Stripe no longer has paid for nothing.
+  if (!payment) return true;
   const charge = payment.latest_charge;
   if (typeof charge === "string") throw new Error("Stripe didn't give the payment's charge.");
   if (!charge) return false;
@@ -516,11 +569,18 @@ export function applySession(adapter: PaymentsAdapter, stripe: Stripe, sessionId
 
 /** `applySession()`, with the Checkout Session's lock held. */
 async function writeSession(adapter: PaymentsAdapter, stripe: Stripe, sessionId: string, fence: Fence): Promise<void> {
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const session = await stripe.checkout.sessions.retrieve(sessionId).catch((error: unknown) => {
+    if (isMissing(error)) return undefined;
+    throw error;
+  });
+  // One Stripe no longer has bought nothing it can say; its payment's events, if any, take back what it did.
+  if (!session) return;
   const userId = session.client_reference_id;
   if (!userId || session.metadata?.userId !== userId) return;
   if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") return;
   if (!(await stillHere(adapter, userId))) return;
+  // Every write after the fence, the customer too, so a request whose lock was taken over writes nothing.
+  await fence();
   await rememberCustomer(adapter, userId, idOf(session.customer as string | { id: string } | null));
   const subscription = idOf(session.subscription);
   if (session.mode === "subscription" && subscription) return applySubscription(adapter, stripe, subscription);
@@ -531,28 +591,16 @@ async function writeSession(adapter: PaymentsAdapter, stripe: Stripe, sessionId:
   // Nothing to take back if the lock is lost while writing: a refund or dispute is looked for again below, and the
   // event sent again writes the rest, so a purchase isn't lost where a dispute was won meanwhile.
   await fence();
-  for (const product of products) {
-    const id = purchaseId(session.id, product);
+  const ids = products.map((product) => purchaseId(session.id, product));
+  for (const [index, product] of products.entries()) {
+    const id = ids[index] as string;
     await adapter.deleteMany({ model: "entitlement", where: [{ field: "id", value: id }] });
     if (!taken) await grant(adapter, { id, userId, kind: "purchase", reference: product, expiresAt: null });
   }
   // A refund the webhook handled while this read the products found nothing to take back yet, so it's looked for
   // again now that the purchases are written; one after this is handled after them, and takes them back itself.
-  if (payment && !taken && (await takenBack(stripe, payment))) await revokeSession(adapter, stripe, session);
-}
-
-/** Takes back what one Checkout Session's payment bought. */
-async function revokeSession(adapter: EntitlementAdapter, stripe: Stripe, session: Stripe.Checkout.Session) {
-  const userId = session.client_reference_id;
-  if (!userId || session.metadata?.userId !== userId || session.mode !== "payment") return;
-  for (const product of await productsOf(stripe, session.id)) {
-    await adapter.deleteMany({
-      model: "entitlement",
-      where: [
-        { field: "id", value: purchaseId(session.id, product) },
-        { field: "userId", value: userId },
-      ],
-    });
+  if (payment && !taken && (await takenBack(stripe, payment))) {
+    for (const id of ids) await adapter.deleteMany({ model: "entitlement", where: [{ field: "id", value: id }] });
   }
 }
 
@@ -568,7 +616,10 @@ export const STRIPE_EVENT_SECONDS = 4 * 24 * 60 * 60;
  */
 export const STRIPE_EVENT_LEASE_SECONDS = 5 * 60;
 
-/** What an event's row says: being handled, until `STRIPE_EVENT_LEASE_SECONDS` have passed, or handled. */
+/**
+ * What an event's row says: being handled, until `STRIPE_EVENT_LEASE_SECONDS` have passed (`handling:` and the
+ * request's own id), or handled.
+ */
 const HANDLING = "handling";
 const HANDLED = "handled";
 
@@ -605,11 +656,18 @@ export async function webhookResponse(
     return new Response("That isn't Stripe's.", { status: 400 });
   }
   const id = `${STRIPE_EVENT_IDENTIFIER}${event.id}`;
+  // This request's own claim, so one that fails lets go only of the claim it holds, never of one that took its over
+  // once its lease ran out, or of the event that one marked handled.
+  const mine = `${HANDLING}:${crypto.randomUUID()}`;
+  const held = [
+    { field: "id", value: id },
+    { field: "value", value: mine },
+  ];
   const claim = () =>
     claimRow(adapter, {
       id,
       identifier: id,
-      value: HANDLING,
+      value: mine,
       expiresAt: new Date(Date.now() + STRIPE_EVENT_LEASE_SECONDS * 1000),
     });
   if (!(await claim())) {
@@ -624,7 +682,7 @@ export async function webhookResponse(
       model: "verification",
       where: [
         { field: "id", value: id },
-        { field: "value", value: HANDLING },
+        { field: "value", operator: "ne", value: HANDLED },
         { field: "expiresAt", operator: "lte", value: new Date() },
       ],
     });
@@ -633,11 +691,12 @@ export async function webhookResponse(
   try {
     await handle(adapter, stripe, event);
   } catch (error) {
-    await adapter.deleteMany({ model: "verification", where: [{ field: "id", value: id }] });
+    await adapter.deleteMany({ model: "verification", where: held });
     // Another request is writing the same subscription or payment: Stripe tries again once it's done.
     if (error instanceof StripeBusy) return new Response("Being written.", { status: 409 });
     throw error;
   }
+  // Done, whichever request holds the claim now: one that took it over finds the event handled when it lets go.
   await adapter.updateMany({
     model: "verification",
     where: [{ field: "id", value: id }],
@@ -718,7 +777,9 @@ export async function returnFromCheckout(
 /**
  * Where someone who pays manages what they pay for, or stops: Stripe's own customer portal, for the Stripe customer
  * the site keeps for them (`customerOf()`), coming back to their account page, whether or not what they bought still
- * gives them anything, so they can fix a payment that failed. Only for the person signed in, from the site's own pages.
+ * gives them anything, so they can fix a payment that failed. Someone who has been to Checkout without paying has a
+ * customer too, whose portal has nothing in it yet; only someone who has never been there is told they pay for
+ * nothing here. Only for the person signed in, from the site's own pages.
  */
 export async function billingAddress(
   request: Request,

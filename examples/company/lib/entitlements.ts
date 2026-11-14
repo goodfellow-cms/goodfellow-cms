@@ -40,8 +40,8 @@ export function entitlements() {
           createdAt: { type: "date", required: true },
         },
       },
-      // The Stripe customer a person pays as (lib/stripe.ts), which the site writes from the first Checkout Session
-      // they pay, and nothing they send can set, so it lasts when what they bought ends, for Stripe's portal.
+      // The Stripe customer a person pays as (lib/stripe.ts), which the site makes the first time they go to Checkout,
+      // and nothing they send can set, so it lasts when what they bought ends, for Stripe's portal.
       user: { fields: { stripeCustomerId: { type: "string", required: false, input: false } } },
     },
   } satisfies BetterAuthPlugin;

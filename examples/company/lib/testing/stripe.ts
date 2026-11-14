@@ -24,7 +24,7 @@ interface FakeSession {
   customer_creation: string | null;
   metadata: Record<string, string>;
   payment_status: "paid" | "unpaid";
-  status: "open" | "complete";
+  status: "open" | "complete" | "expired";
   subscription: string | null;
   payment_intent: string | null;
   success_url: string;
@@ -196,6 +196,13 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       }
       const session = sessions.get(parts[3] ?? "");
       if (!session) return missing();
+      if (parts[4] === "expire" && request.method === "POST") {
+        if (session.status !== "open") {
+          return json({ error: { type: "invalid_request_error", message: "Only open sessions can be expired." } }, 400);
+        }
+        session.status = "expired";
+        return json(shownSession(session));
+      }
       if (parts[4] === "line_items") {
         const price = prices.get(session.price);
         return json(list(price ? [{ id: `li_${session.id}`, object: "item", price: priceObject(price) }] : []));
