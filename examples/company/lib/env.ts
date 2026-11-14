@@ -45,7 +45,7 @@ export interface SiteEnv {
   EMAIL_API_URL?: string;
   /**
    * Stripe's restricted key, a secret, which takes payments (lib/stripe.ts): one that can write Checkout Sessions,
-   * customers, and customer portal sessions, and read prices, subscriptions, invoices, payment intents, charges, and
+   * customers, and customer portal sessions, and read prices, subscriptions, payment intents, charges, and
    * disputes, and nothing else (README.md's "Payments" lists them as Stripe names them).
    */
   STRIPE_SECRET_KEY?: string;

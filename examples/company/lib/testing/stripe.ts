@@ -480,21 +480,6 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       ).id;
       return event("customer.subscription.updated", subscription);
     },
-    /**
-     * Charges for a change part way through a subscription's period, as a price change does, on an invoice of its own
-     * for the rest of the period, which is then its latest invoice: the period is still the one its first paid for.
-     * Made `at` the period's start where it says so, as a change made just as the period started is. Gives the event
-     * Stripe sends.
-     */
-    prorate(subscriptionId: string, at?: "start") {
-      const subscription = subscriptions.get(subscriptionId);
-      const [item] = subscription?.items.data ?? [];
-      if (!subscription || !item) throw new Error(`No subscription ${subscriptionId}.`);
-      const now = Math.floor(Date.now() / 1000);
-      const changed = at === "start" ? item.current_period_start : Math.max(now, item.current_period_start + 1);
-      subscription.latest_invoice = invoiceFor(subscription.id, changed, item.current_period_end, true, changed).id;
-      return event("customer.subscription.updated", subscription);
-    },
     /** The payment of a subscription's invoice for the period it's in. */
     paymentOf(subscriptionId: string) {
       const invoice = invoices.get(subscriptions.get(subscriptionId)?.latest_invoice ?? "");

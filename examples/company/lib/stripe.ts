@@ -575,8 +575,9 @@ type Fence = (undo?: () => Promise<void>) => Promise<void>;
 
 /**
  * Writes a Stripe subscription's state, as Stripe has it now, into the person's entitlements: until its current
- * period ends while it's active (or trialing) and that period's payment hasn't been taken back (`periodTakenBack()`),
- * and none at all otherwise, nor where Stripe no longer has it. The person is the one the site named when it made the
+ * period ends while it's active (or trialing), and none at all otherwise, nor where Stripe no longer has it. Only its
+ * status counts, never what was paid for it: a refund or dispute of its payments leaves an active subscription as it
+ * is, and a subscription cancelled at once ends here too, refunded or not. The person is the one the site named when it made the
  * Checkout Session, in the subscription's metadata, never anything the event says.
  */
 export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subscriptionId: string): Promise<void> {
@@ -599,7 +600,7 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
       await adapter.deleteMany({ model: "entitlement", where: [{ field: "reference", value: reference }] });
       return;
     }
-    const gives = SUBSCRIBED.has(subscription.status) && !(await periodTakenBack(stripe, subscription));
+    const gives = SUBSCRIBED.has(subscription.status);
     // By the subscription alone, whoever it was for, so one whose metadata names someone else now moves to them.
     const remove = (only: { field: string; value: Date }[] = []) =>
       adapter.deleteMany({ model: "entitlement", where: [{ field: "reference", value: reference }, ...only] });
@@ -625,66 +626,6 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
     const expiresAt = new Date(ends * 1000);
     await grant(adapter, { id: reference, userId, kind: "subscription", reference, expiresAt, createdAt: written });
   });
-}
-
-/** How long before a period starts the invoice that pays for it can be made, as a renewal's is just before. */
-const INVOICE_SLACK_SECONDS = 24 * 60 * 60;
-
-/**
- * Whether a subscription's period is paid for by `invoice`: one of its lines is for the period from its start, and
- * isn't a proration. A change part way through the period, such as to another price, is charged on an invoice of its
- * own, whose lines start when the change was made, so the period's own invoice is still the one that paid for it,
- * however many came after (`latest_invoice` is only the newest).
- */
-function paysForPeriod(invoice: Stripe.Invoice, starts: Set<number>): boolean {
-  return invoice.lines.data.some((line) => {
-    const proration =
-      line.parent?.subscription_item_details?.proration === true || line.parent?.invoice_item_details?.proration;
-    return !proration && starts.has(line.period.start);
-  });
-}
-
-/**
- * Whether the payment for the period a subscription is in has been taken back (`takenBack()`): refunded, or disputed
- * and not won. Its first payment, or a renewal's: the period it paid for gives nothing, and the next one paid for
- * gives it again. A refund of an earlier period, or of a charge for a change part way through this one, leaves this
- * one as it is. Its invoices are newest first, so they're read only as far back as the period's start.
- */
-async function periodTakenBack(stripe: Stripe, subscription: Stripe.Subscription): Promise<boolean> {
-  const starts = new Set(subscription.items.data.map((item) => item.current_period_start));
-  if (starts.size === 0) return false;
-  const earliest = Math.min(...starts);
-  for await (const invoice of stripe.invoices.list({ subscription: subscription.id, limit: 100 })) {
-    if (paysForPeriod(invoice, starts) && (await invoiceTakenBack(stripe, invoice.id))) return true;
-    if (invoice.created < earliest - INVOICE_SLACK_SECONDS) break;
-  }
-  return false;
-}
-
-/** Whether any payment that paid `invoice` has been taken back (`takenBack()`). */
-async function invoiceTakenBack(stripe: Stripe, invoice: string): Promise<boolean> {
-  for await (const paid of stripe.invoicePayments.list({ invoice, status: "paid", limit: 100 })) {
-    const payment = paid.payment.type === "payment_intent" ? idOf(paid.payment.payment_intent) : undefined;
-    if (payment && (await takenBack(stripe, payment))) return true;
-  }
-  return false;
-}
-
-/** The subscriptions a payment paid an invoice of, by their ids: none for a one-off payment's. */
-async function subscriptionsPaidBy(stripe: Stripe, paymentIntent: string): Promise<string[]> {
-  const found = new Set<string>();
-  const payments = stripe.invoicePayments.list({
-    payment: { type: "payment_intent", payment_intent: paymentIntent },
-    limit: 10,
-  });
-  for await (const paid of payments) {
-    const invoiceId = idOf(paid.invoice);
-    if (!invoiceId) continue;
-    const invoice = await orMissing(stripe.invoices.retrieve(invoiceId));
-    const subscription = idOf(invoice?.parent?.subscription_details?.subscription);
-    if (subscription) found.add(subscription);
-  }
-  return [...found];
 }
 
 /** The products a one-off payment's Checkout Session sold, by their Stripe product ids. */
@@ -902,16 +843,13 @@ async function handle(adapter: PaymentsAdapter, stripe: Stripe, event: Stripe.Ev
     case "refund.failed":
     case "charge.dispute.created":
     case "charge.dispute.closed": {
-      // Refunded or disputed, open or lost, what the payment bought is taken back; a refund that failed, or a dispute
-      // won, gives it back: `applySession()` and `applySubscription()` read which from Stripe as it is now, so events
-      // in any order agree. A one-off payment is its Checkout Session's; a subscription's are its invoices'.
+      // Refunded or disputed, open or lost, what a one-off payment bought is taken back; a refund that failed, or a
+      // dispute won, gives it back: `applySession()` reads which from Stripe as it is now, so events in any order agree.
+      // A one-off payment is its Checkout Session's. A subscription's payments change nothing: only its status does.
       const paymentIntent = idOf(event.data.object.payment_intent);
       if (!paymentIntent) return;
       for await (const session of stripe.checkout.sessions.list({ payment_intent: paymentIntent, limit: 10 })) {
         await applySession(adapter, stripe, session.id);
-      }
-      for (const subscription of await subscriptionsPaidBy(stripe, paymentIntent)) {
-        await applySubscription(adapter, stripe, subscription);
       }
       return;
     }

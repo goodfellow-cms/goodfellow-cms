@@ -1493,56 +1493,24 @@ describe("what Stripe and the site's accounts can come to", () => {
 });
 
 describe("a subscription's payments", () => {
-  it("take the subscription away while the period's payment is refunded or disputed, and give it back once it isn't", async () => {
+  it("leave an active subscription as it is, however its payments are refunded or disputed", async () => {
     const { stripe, buy, deliver, context, readerId, close } = await payments();
     try {
       const bought = await buy("monthly");
       const subscription = bought?.subscription ?? "";
-      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
-      // Its first payment refunded, by either of the events Stripe sends, takes it away...
+      const until = await subscribedUntil(context.adapter, readerId);
+      expect(until).toBeDefined();
+      // Access follows the subscription's status, not what was paid for it: refunded in full, by either of the events
+      // Stripe sends, or disputed and lost, it stays while Stripe has the subscription active.
       for (const type of ["charge.refunded", "refund.created"] as const) {
         expect((await deliver(stripe.refund(stripe.paymentOf(subscription), undefined, type))).status).toBe(200);
-        expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
-        // ...until the refund fails, which gives it back.
-        expect((await deliver(stripe.failRefund(stripe.paymentOf(subscription)))).status).toBe(200);
-        expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+        expect(await subscribedUntil(context.adapter, readerId)).toEqual(until);
       }
-      // A dispute takes it away while it's open or lost, and a renewal paid for gives it again.
       expect((await deliver(stripe.dispute(stripe.paymentOf(subscription)))).status).toBe(200);
-      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
-      const disputed = stripe.paymentOf(subscription);
-      expect((await deliver(stripe.closeDispute(disputed, "lost"))).status).toBe(200);
-      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
-      expect((await deliver(stripe.renew(subscription))).status).toBe(200);
-      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
-      // An earlier period's payment refunded now leaves the period paid for as it is.
-      expect((await deliver(stripe.refund(disputed))).status).toBe(200);
-      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
-    } finally {
-      close();
-    }
-  });
-
-  it("take the subscription away where the period's own payment is refunded, after a change charged part way through", async () => {
-    const { stripe, buy, deliver, context, readerId, close } = await payments();
-    try {
-      const bought = await buy("monthly");
-      const subscription = bought?.subscription ?? "";
-      const paid = stripe.paymentOf(subscription);
-      // A change part way through, charged on an invoice of its own, which is then its latest.
-      expect((await deliver(stripe.prorate(subscription))).status).toBe(200);
-      const prorated = stripe.paymentOf(subscription);
-      expect(prorated).not.toBe(paid);
-      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
-      // The change's charge refunded leaves the period, which the first payment paid for, as it is...
-      expect((await deliver(stripe.refund(prorated))).status).toBe(200);
-      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
-      // So does one made just as the period started, whose lines start with it, but as a proration.
-      expect((await deliver(stripe.prorate(subscription, "start"))).status).toBe(200);
-      expect((await deliver(stripe.refund(stripe.paymentOf(subscription)))).status).toBe(200);
-      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
-      // ...and the period's own payment refunded takes it away.
-      expect((await deliver(stripe.refund(paid))).status).toBe(200);
+      expect((await deliver(stripe.closeDispute(stripe.paymentOf(subscription), "lost"))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toEqual(until);
+      // Cancelled at once in Stripe, with nothing refunded, it ends.
+      expect((await deliver(stripe.cancel(subscription))).status).toBe(200);
       expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
     } finally {
       close();
