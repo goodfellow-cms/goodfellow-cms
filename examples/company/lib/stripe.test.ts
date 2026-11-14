@@ -36,18 +36,21 @@ const PAYMENTS_ENV: SiteEnv = {
 const MONTHLY = { id: "price_monthly", product: "prod_members", type: "recurring" as const };
 const REPORT = { id: "price_report", product: "prod_report", type: "one_time" as const };
 const CHEAP = { id: "price_cheap", product: "prod_cheap", type: "recurring" as const };
+/** A price charged by use, which a Buy button can't sell. */
+const METERED = { id: "price_metered", product: "prod_api", type: "recurring" as const, usage: "metered" as const };
 /** Another price of the monthly subscription's product. */
 const YEARLY = { id: "price_yearly", product: "prod_members", type: "recurring" as const };
 
 /** The site with Stripe, and a page with a monthly subscription's button and a report's. */
 async function payments() {
   const site = await testSite(PAYMENTS_ENV);
-  const stripe = fakeStripe({ key: "rk_test_only", base: STRIPE, prices: [MONTHLY, REPORT, CHEAP, YEARLY] });
+  const stripe = fakeStripe({ key: "rk_test_only", base: STRIPE, prices: [MONTHLY, REPORT, CHEAP, YEARLY, METERED] });
   const client = stripeFor(PAYMENTS_ENV, stripe.fetch);
   const buttons: Record<string, string> = {
     monthly: MONTHLY.id,
     yearly: YEARLY.id,
     report: REPORT.id,
+    metered: METERED.id,
     gone: "price_gone",
   };
   const findButton = async (place: ButtonPlace) =>
@@ -159,6 +162,25 @@ describe("checkout", () => {
       await expect(checkout(buying(reader, { page: "/subscribe", block: "monthly" }))).rejects.toMatchObject({
         status: 409,
       });
+      expect(stripe.sessions.size).toBe(0);
+    } finally {
+      close();
+    }
+  });
+
+  it("refuses a price charged by use, and anything but a form, before asking Stripe for a Checkout", async () => {
+    const { buying, checkout, stripe, reader, close } = await payments();
+    try {
+      await expect(checkout(buying(reader, { page: "/subscribe", block: "metered" }))).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringMatching(/charged by use/),
+      });
+      const notAForm = new Request(`${SITE}/api/checkout/`, {
+        method: "POST",
+        headers: { cookie: reader ?? "", "sec-fetch-site": "same-origin", "content-type": "application/json" },
+        body: JSON.stringify({ page: "/subscribe", block: "monthly" }),
+      });
+      await expect(checkout(notAForm)).rejects.toMatchObject({ status: 400 });
       expect(stripe.sessions.size).toBe(0);
     } finally {
       close();
@@ -1363,6 +1385,29 @@ describe("a subscription's payments", () => {
       expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
     } finally {
       vi.useRealTimers();
+      close();
+    }
+  });
+
+  it("take a subscription away from whoever it named, once it names nobody or an account deleted since", async () => {
+    const { stripe, buy, deliver, context, person, readerId, close } = await payments();
+    try {
+      const bought = await buy("monthly");
+      const subscription = stripe.subscriptions.get(bought?.subscription ?? "");
+      if (!subscription) throw new Error("No subscription.");
+      subscription.metadata = {};
+      expect((await deliver(stripe.event("customer.subscription.updated", subscription))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+      // Given back to the reader, then moved to an account that's gone.
+      subscription.metadata = { userId: readerId };
+      await deliver(stripe.event("customer.subscription.updated", subscription));
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      const goneId = await person("gone@example.org", MEMBER_ROLE);
+      await context.adapter.delete({ model: "user", where: [{ field: "id", value: goneId }] });
+      subscription.metadata = { userId: goneId };
+      expect((await deliver(stripe.event("customer.subscription.updated", subscription))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+    } finally {
       close();
     }
   });

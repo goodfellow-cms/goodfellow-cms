@@ -9,7 +9,7 @@ import type { SiteAuth } from "./auth.ts";
 import { buttonsOn, type ListedButton } from "./buttons.ts";
 import { adminAsking } from "./editors.ts";
 import type { SiteEnv } from "./env.ts";
-import { stripeFor } from "./stripe.ts";
+import { isMetered, isMissing, stripeFor } from "./stripe.ts";
 
 /** What Stripe says of a Buy button's price. */
 export type PriceCheck =
@@ -31,6 +31,8 @@ export type PriceCheck =
   | { state: "missing" }
   /** A price Stripe has, archived: the button says it isn't on sale. */
   | { state: "not-on-sale" }
+  /** A price charged by use, which a Buy button can't sell (`isMetered()`). */
+  | { state: "metered" }
   /** Stripe couldn't be asked: `key` where the key was refused, or lacks the permission; `stripe` for anything else. */
   | { state: "unchecked"; reason: "key" | "stripe" };
 
@@ -45,56 +47,52 @@ export interface PaymentsOverview {
 
 /** What Stripe says of each of `prices`, asked once each. */
 export async function checkPrices(stripe: Stripe, prices: Iterable<string>): Promise<Map<string, PriceCheck>> {
-  const checks = new Map<string, PriceCheck>();
-  for (const id of new Set(prices)) {
-    if (!PRICE_ID.test(id)) {
-      checks.set(id, { state: "not-a-price" });
-      continue;
-    }
-    try {
-      const price = await stripe.prices.retrieve(id);
-      if (!price.active) {
-        checks.set(id, { state: "not-on-sale" });
-        continue;
-      }
-      checks.set(id, {
-        state: "on-sale",
-        subscription: price.type === "recurring",
-        amount: price.unit_amount,
-        currency: price.currency,
-        ...(price.recurring && {
-          interval: { every: price.recurring.interval_count, unit: price.recurring.interval },
-        }),
-        ...(price.nickname && { name: price.nickname }),
-      });
-    } catch (error) {
-      if (error instanceof Stripe.errors.StripeInvalidRequestError && error.code === "resource_missing") {
-        checks.set(id, { state: "missing" });
-      } else {
-        const key =
-          error instanceof Stripe.errors.StripeAuthenticationError ||
-          error instanceof Stripe.errors.StripePermissionError;
-        // Logged by its name only, as payments' routes are, so it can be found.
-        console.error(`Checking a price failed: ${error instanceof Error ? error.name : "error"}.`);
-        checks.set(id, { state: "unchecked", reason: key ? "key" : "stripe" });
-      }
-    }
+  const ids = [...new Set(prices)];
+  // Every price at once, so the page waits for the slowest rather than all of them in turn.
+  const checked = await Promise.all(ids.map((id) => checkPrice(stripe, id)));
+  return new Map(ids.map((id, index) => [id, checked[index] as PriceCheck]));
+}
+
+/** What Stripe says of one price. */
+async function checkPrice(stripe: Stripe, id: string): Promise<PriceCheck> {
+  if (!PRICE_ID.test(id)) return { state: "not-a-price" };
+  try {
+    const price = await stripe.prices.retrieve(id);
+    if (!price.active) return { state: "not-on-sale" };
+    if (isMetered(price)) return { state: "metered" };
+    return {
+      state: "on-sale",
+      subscription: price.type === "recurring",
+      amount: price.unit_amount,
+      currency: price.currency,
+      ...(price.recurring && { interval: { every: price.recurring.interval_count, unit: price.recurring.interval } }),
+      ...(price.nickname && { name: price.nickname }),
+    };
+  } catch (error) {
+    // Missing as checkout finds it missing (`isMissing()`), so the page says what a press would.
+    if (isMissing(error)) return { state: "missing" };
+    const key =
+      error instanceof Stripe.errors.StripeAuthenticationError || error instanceof Stripe.errors.StripePermissionError;
+    // Logged by its name only, as payments' routes are, so it can be found.
+    console.error(`Checking a price failed: ${error instanceof Error ? error.name : "error"}.`);
+    return { state: "unchecked", reason: key ? "key" : "stripe" };
   }
-  return checks;
 }
 
 /**
- * The Payments page's overview, for an owner: the site's settings for payments, and every Buy button on `content`, the
- * site as visitors see it, each with what Stripe says of its price where the site has Stripe's key. Stripe's client is
+ * The Payments page's overview, for an owner: the site's settings for payments, and every Buy button on the site as
+ * visitors see it (`content`, read only once the person is known to be an owner), each with what Stripe says of its price where the site has Stripe's key. Stripe's client is
  * the site's own (`stripeFor()`) unless `stripe` is given.
  */
 export async function paymentsOverview(
   siteAuth: SiteAuth,
   request: Request,
-  options: { siteEnv: SiteEnv; content: SiteContent; stripe?: Stripe },
+  options: { siteEnv: SiteEnv; content: () => Promise<SiteContent>; stripe?: Stripe },
 ): Promise<PaymentsOverview> {
+  // Before the site is read, so someone who isn't an owner costs a read of their session and nothing more.
   await adminAsking(siteAuth, request);
-  const { siteEnv, content } = options;
+  const { siteEnv } = options;
+  const content = await options.content();
   const key = siteEnv.STRIPE_SECRET_KEY ?? "";
   const setUp = {
     address: Boolean(siteEnv.GOODFELLOW_SITE_URL),

@@ -79,6 +79,7 @@ describe("the Payments page", () => {
         { id: "price_quarterly", product: "prod_members", type: "recurring", interval: { unit: "month", count: 3 } },
         { id: "price_report", product: "prod_report", type: "one_time", amount: 2500 },
         { id: "price_old", product: "prod_report", type: "one_time", active: false },
+        { id: "price_used", product: "prod_api", type: "recurring", usage: "metered" },
       ],
     });
     const client = stripeFor(PAYMENTS_ENV, stripe.fetch);
@@ -87,6 +88,7 @@ describe("the Payments page", () => {
       "price_quarterly",
       "price_report",
       "price_old",
+      "price_used",
       "price_typo",
       "prod_members",
       "",
@@ -110,6 +112,7 @@ describe("the Payments page", () => {
       },
       price_report: { state: "on-sale", subscription: false, amount: 2500, currency: "usd" },
       price_old: { state: "not-on-sale" },
+      price_used: { state: "metered" },
       price_typo: { state: "missing" },
       prod_members: { state: "not-a-price" },
       "": { state: "not-a-price" },
@@ -121,6 +124,31 @@ describe("the Payments page", () => {
     });
   });
 
+  it("asks Stripe about every price at once, so the page waits for the slowest", async () => {
+    const stripe = fakeStripe({
+      key: "rk_test_only",
+      base: STRIPE,
+      prices: [
+        { id: "price_monthly", product: "prod_members", type: "recurring" },
+        { id: "price_report", product: "prod_report", type: "one_time" },
+      ],
+    });
+    // Each answer waits until both prices have been asked about, which asking in turn never would.
+    let asked = 0;
+    let bothAsked: () => void = () => {};
+    const both = new Promise<void>((resolve) => {
+      bothAsked = resolve;
+    });
+    const client = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (++asked === 2) bothAsked();
+      await both;
+      return stripe.fetch(input, init);
+    }) as typeof fetch);
+    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("asked in turn")), 2000));
+    const checks = await Promise.race([checkPrices(client, ["price_monthly", "price_report"]), timeout]);
+    expect([...checks.values()].map((check) => check.state)).toEqual(["on-sale", "on-sale"]);
+  });
+
   it("is for the site's owners only, and checks prices only where the site has Stripe's key", async () => {
     const { auth, asking, olive, person, signIn, close } = await testSite(PAYMENTS_ENV);
     try {
@@ -129,7 +157,13 @@ describe("the Payments page", () => {
         base: STRIPE,
         prices: [{ id: "price_monthly", product: "prod_members", type: "recurring" }],
       });
-      const site = await priced("price_monthly");
+      const priced_ = await priced("price_monthly");
+      // Read only for an owner, counted.
+      let reads = 0;
+      const site = async () => {
+        reads++;
+        return priced_;
+      };
       const get = (cookie: string | undefined) => asking(cookie, "GET", "same-origin", "/api/payments/");
       const overview = await paymentsOverview(auth, get(olive), {
         siteEnv: PAYMENTS_ENV,
@@ -147,11 +181,14 @@ describe("the Payments page", () => {
       // A reader, or someone not signed in, sees nothing.
       await person("rita@example.org", MEMBER_ROLE);
       const reader = (await signIn("rita@example.org")).cookie;
+      reads = 0;
       for (const cookie of [reader, undefined]) {
         await expect(
           paymentsOverview(auth, get(cookie), { siteEnv: PAYMENTS_ENV, content: site }),
         ).rejects.toMatchObject({ name: "EditorsError" });
       }
+      // ...and costs no read of the site.
+      expect(reads).toBe(0);
     } finally {
       close();
     }

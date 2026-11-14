@@ -17,6 +17,8 @@ export interface FakePrice {
   nickname?: string;
   /** How often a recurring price repeats: `month` unless a test says otherwise, every `count` of them. */
   interval?: { unit: string; count: number };
+  /** `metered` for a recurring price charged by use, which Stripe sells with no quantity. */
+  usage?: "licensed" | "metered";
 }
 
 interface FakeSession {
@@ -145,7 +147,11 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     nickname: price.nickname ?? null,
     recurring:
       price.type === "recurring"
-        ? { interval: price.interval?.unit ?? "month", interval_count: price.interval?.count ?? 1 }
+        ? {
+            interval: price.interval?.unit ?? "month",
+            interval_count: price.interval?.count ?? 1,
+            usage_type: price.usage ?? "licensed",
+          }
         : null,
   });
   const shownSession = (session: FakeSession) => {
@@ -209,6 +215,12 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
         const items = body.line_items as Record<string, { price: string }>;
         const price = prices.get(items?.["0"]?.price ?? "");
         if (!price?.active) return missing();
+        if (price.usage === "metered" && items?.["0"] && "quantity" in items["0"]) {
+          return json(
+            { error: { type: "invalid_request_error", message: "Quantity can't be set for a metered price." } },
+            400,
+          );
+        }
         const id = next("cs");
         const session: FakeSession = {
           id,

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { PaymentsOverview, PriceCheck } from "@/lib/payments";
+import { stripeMoney } from "@/lib/stripe-amounts";
 
 type ListedButton = PaymentsOverview["buttons"][number];
 
@@ -25,24 +26,12 @@ const SETTINGS: { key: keyof PaymentsOverview["setUp"]; name: string; where: str
   },
 ];
 
-/** An amount in a currency, as the person's browser writes it. */
-function money(amount: number, currency: string): string {
-  try {
-    // Stripe gives amounts in the currency's smallest unit, which Intl knows the size of.
-    const digits = new Intl.NumberFormat(undefined, { style: "currency", currency }).resolvedOptions()
-      .maximumFractionDigits;
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount / 10 ** (digits ?? 2));
-  } catch {
-    return `${amount} ${currency.toUpperCase()}`;
-  }
-}
-
 /** What Stripe says of a button's price, in words, and whether it's a problem to fix. */
 export function checkWords(check: PriceCheck | undefined): { words: string; problem: boolean } {
   if (!check) return { words: "Not checked: set Stripe's key first.", problem: true };
   switch (check.state) {
     case "on-sale": {
-      const amount = check.amount === null ? "an amount the buyer chooses" : money(check.amount, check.currency);
+      const amount = check.amount === null ? "an amount the buyer chooses" : stripeMoney(check.amount, check.currency);
       const every = check.interval
         ? check.interval.every === 1
           ? ` a ${check.interval.unit}`
@@ -61,6 +50,12 @@ export function checkWords(check: PriceCheck | undefined): { words: string; prob
       return {
         words:
           "Stripe has no price with this id. Check it's copied whole, and that it's from the same mode, test or live, as the site's key.",
+        problem: true,
+      };
+    case "metered":
+      return {
+        words:
+          "This price is charged by use, which a Buy button can't sell. Choose a price charged each period, or once.",
         problem: true,
       };
     case "not-on-sale":

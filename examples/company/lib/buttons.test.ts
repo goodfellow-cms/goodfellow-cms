@@ -1,8 +1,14 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type ContentSource, serializeContent } from "@goodfellow-cms/core";
+import { type ContentSource, loadSiteContent, serializeContent, shownContent } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
-import { buttonFrom } from "./buttons.ts";
+import { buttonOn } from "./buttons.ts";
+import type { ButtonPlace } from "./stripe.ts";
+
+/** The Buy button at `place`, as `findButton()` finds it: on the site as visitors see it, as its pages render it. */
+async function buttonFrom(source: ContentSource, place: ButtonPlace) {
+  return buttonOn(shownContent(await loadSiteContent(source)), place);
+}
 
 const PRICE = "price_monthly";
 

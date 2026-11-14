@@ -83,11 +83,13 @@ const stripe = fakeStripe({
   base: `http://127.0.0.1:${COMPANY.stripe}`,
   prices: [{ id: COMPANY.price, product: "prod_members", type: "recurring" }],
 });
+/** The port the site listens on: the one the tests name, unless the script is started with another. */
+const sitePort = String(process.argv[2] ?? COMPANY.port);
 async function sendEvents(events) {
   for (const event of events) {
     const { body, signature } = signEvent("whsec_company_test", event);
     // The address the site listens on (below), whichever of IPv4 and IPv6 `localhost` names here.
-    const answer = await fetch(`http://127.0.0.1:${COMPANY.port}/api/stripe/webhook/`, {
+    const answer = await fetch(`http://127.0.0.1:${sitePort}/api/stripe/webhook/`, {
       method: "POST",
       headers: { "content-type": "application/json", "stripe-signature": signature },
       body,
@@ -211,7 +213,7 @@ run("wrangler", ["d1", "execute", "goodfellow-company", "--local", "--command", 
 // Stripe sends its events: left to `localhost`, it listens on whichever of IPv4 and IPv6 the computer names first.
 const server = spawn(
   process.execPath,
-  [bin("vite"), "preview", "--host", "127.0.0.1", "--port", String(process.argv[2] ?? COMPANY.port), "--strictPort"],
+  [bin("vite"), "preview", "--host", "127.0.0.1", "--port", sitePort, "--strictPort"],
   { cwd: companySite, stdio: "inherit" },
 );
 server.on("exit", (code) => process.exit(code ?? 0));

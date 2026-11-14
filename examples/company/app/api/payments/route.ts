@@ -10,7 +10,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const overview = await paymentsOverview(await auth(), request, {
       siteEnv: await env(),
-      content: await site.loadSite(),
+      content: () => site.loadSite(),
     });
     return Response.json(overview, { headers: { "cache-control": "no-store" } });
   } catch (error) {

@@ -52,12 +52,20 @@ export function paymentsProblem(error: unknown, doing: string): Response {
 }
 
 /** Whether Stripe refused a request because it has no such object, or none named as `param` where one is given. */
-function isMissing(error: unknown, param?: string): boolean {
+export function isMissing(error: unknown, param?: string): boolean {
   return (
     error instanceof Stripe.errors.StripeInvalidRequestError &&
     error.code === "resource_missing" &&
     (param === undefined || error.param === param)
   );
+}
+
+/**
+ * Whether a price is charged by use (`metered`), which a Checkout of one of it can't sell, since Stripe refuses a
+ * quantity for it: a Buy button sells only prices charged per period or once.
+ */
+export function isMetered(price: Pick<Stripe.Price, "recurring">): boolean {
+  return price.recurring?.usage_type === "metered";
 }
 
 /** A Buy button, as its page has it: which page, and the button's own id on it. */
@@ -115,7 +123,11 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
   }
   const siteUrl = siteEnv.GOODFELLOW_SITE_URL;
   if (!siteUrl) throw new PaymentsError(503, "This site doesn't take payments yet.");
-  const place = placeFrom(await request.formData());
+  // Anything but a form, as a Buy button posts, is the sender's mistake, not the site's.
+  const form = await request.formData().catch(() => {
+    throw new PaymentsError(400, "That button isn't on any of this site's pages.");
+  });
+  const place = placeFrom(form);
   const session = await siteAuth.api.getSession({ headers: request.headers, query: { disableCookieCache: true } });
   if (!session || session.user.banned) {
     const signIn = new URL("/sign-in/", siteUrl);
@@ -130,6 +142,7 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
     throw error;
   });
   if (!price?.active) throw new PaymentsError(409, "This isn't on sale at the moment.");
+  if (isMetered(price)) throw new PaymentsError(409, "This can't be bought here: its price is charged by use.");
   const subscribing = price.type === "recurring";
   const product = idOf(price.product as string | { id: string }) ?? price.id;
   const userId = session.user.id;
@@ -496,10 +509,15 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
       });
       return;
     }
-    const userId = subscription.metadata?.userId;
-    // An account deleted since took its entitlements with it, and writing one for it would fail on every retry.
-    if (!userId || !(await stillHere(adapter, userId))) return;
     const reference = subscriptionReference(subscription.id);
+    const userId = subscription.metadata?.userId;
+    // One for nobody, or for an account deleted since (whose entitlements went with it, and writing one for it would
+    // fail on every retry), gives nothing, so a row written for whoever it named before goes.
+    if (!userId || !(await stillHere(adapter, userId))) {
+      await fence();
+      await adapter.deleteMany({ model: "entitlement", where: [{ field: "reference", value: reference }] });
+      return;
+    }
     const gives = SUBSCRIBED.has(subscription.status) && !(await periodTakenBack(stripe, subscription));
     // By the subscription alone, whoever it was for, so one whose metadata names someone else now moves to them.
     const remove = (only: { field: string; operator?: "lte"; value: Date }) =>
