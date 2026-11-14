@@ -37,6 +37,16 @@
                       "menuButton": "md",
                       "orientation": "horizontal"
                     }
+                  },
+                  {
+                    "type": "AccountLinks",
+                    "props": {
+                      "id": "AccountLinks-header",
+                      "accountLabel": "Your account",
+                      "className": "",
+                      "signInLabel": "Sign in",
+                      "signOutLabel": "Sign out"
+                    }
                   }
                 ],
                 "justify": "between",

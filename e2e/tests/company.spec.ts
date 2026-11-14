@@ -83,6 +83,12 @@ test("keeps the members' page to people who are signed in", async ({ page, reque
   });
   expect(madeUp.status()).toBe(307);
 
+  // The header's Sign in comes back to the page it was pressed on.
+  await page.goto(`${SITE}/about/`);
+  const header = page.getByRole("banner");
+  await expect(header.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in/?next=%2Fabout%2F");
+  await expect(header.getByRole("link", { name: "Your account" })).toHaveCount(0);
+
   await page.goto(`${SITE}/members/`);
   await expect(page).toHaveURL(`${SITE}/sign-in/?next=%2Fmembers%2F`);
   await page.getByLabel("Email address").fill(COMPANY_PEOPLE.editor.email);
@@ -95,9 +101,13 @@ test("keeps the members' page to people who are signed in", async ({ page, reque
   await expect(page).toHaveURL(`${SITE}/members/`);
   // The page is the same for everyone; the browser fills in who's here.
   await expect(page.getByText(`Signed in as ${COMPANY_PEOPLE.editor.name}.`)).toBeVisible();
+  // Once signed in, the header has their account and Sign out instead.
+  await expect(header.getByRole("link", { name: "Your account" })).toHaveAttribute("href", "/account/");
+  await expect(header.getByRole("link", { name: "Sign in" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("main").getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(`${SITE}/`);
+  await expect(header.getByRole("link", { name: "Sign in" })).toBeVisible();
   await page.goto(`${SITE}/members/`);
   await expect(page).toHaveURL(`${SITE}/sign-in/?next=%2Fmembers%2F`);
 });
@@ -363,7 +373,7 @@ test("sells subscriptions through Stripe Checkout, and ends them when Stripe say
 
   // Someone not signed in is asked to first, and comes back to the Subscribe page.
   await page.goto(`${SITE}/handbook/`);
-  await page.getByRole("link", { name: "Subscribe", exact: true }).click();
+  await page.getByRole("main").getByRole("link", { name: "Subscribe", exact: true }).click();
   await expect(page).toHaveURL(`${SITE}/subscribe/`);
   await page.getByRole("button", { name: "Subscribe for a month at a time" }).click();
   await expect(page).toHaveURL(new RegExp(`^${SITE}/sign-in/\\?next=`));
